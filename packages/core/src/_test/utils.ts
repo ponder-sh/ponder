@@ -1,4 +1,4 @@
-import type { Address, Chain } from "viem";
+import type { Address, Chain, PublicClient } from "viem";
 import {
   createPublicClient,
   createTestClient,
@@ -53,7 +53,7 @@ export const walletClient = createWalletClient({
   account: ALICE,
 });
 
-export const config = (erc20Address: Address): Config =>
+export const getConfig = (erc20Address: Address): Config =>
   createConfig({
     networks: {
       mainnet: {
@@ -70,13 +70,22 @@ export const config = (erc20Address: Address): Config =>
     },
   });
 
-export const networks = [
-  buildNetwork({
+export const getNetworks = async () => [
+  await buildNetwork({
     networkName: "mainnet",
     network: { chainId: 1, transport: http(`http://127.0.0.1:8545/${poolId}`) },
     common: { logger: { warn: () => {} } } as unknown as Common,
   }),
 ];
 
-export const sources = (erc20Address: Address): Source[] =>
-  buildSources({ config: config(erc20Address) });
+export const getSources = (erc20Address: Address): Source[] =>
+  buildSources({ config: getConfig(erc20Address) });
+
+export const getChainData = async (sources: Source[]) => {
+  const clientPerChain: Record<Source["chainId"], PublicClient> = {};
+
+  for (const source of sources) {
+    if (!clientPerChain[source.chainId])
+      clientPerChain[source.chainId] = createPublicClient({});
+  }
+};

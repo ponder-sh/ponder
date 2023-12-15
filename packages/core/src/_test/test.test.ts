@@ -1,9 +1,9 @@
 import { beforeEach, test } from "vitest";
 
-import { setupEthClient } from "./setup.js";
+import { setupEthClientErc20 } from "./setup.js";
 import { publicClient } from "./utils.js";
 
-beforeEach((context) => setupEthClient(context));
+beforeEach((context) => setupEthClientErc20(context));
 
 test("test", async () => {
   const block = await publicClient.getBlock();

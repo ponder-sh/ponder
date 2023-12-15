@@ -1,9 +1,14 @@
-import { checksumAddress, getEventSelector, zeroAddress } from "viem";
+import {
+  checksumAddress,
+  getAbiItem,
+  getEventSelector,
+  zeroAddress,
+} from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { erc20ABI } from "@/_test/generated.js";
 import {
-  setupEthClient,
+  setupEthClientErc20,
   setupIndexingStore,
   setupSyncStore,
 } from "@/_test/setup.js";
@@ -14,7 +19,7 @@ import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 import { IndexingService } from "./service.js";
 
-beforeEach((context) => setupEthClient(context));
+beforeEach((context) => setupEthClientErc20(context));
 beforeEach((context) => setupIndexingStore(context));
 beforeEach((context) => setupSyncStore(context));
 
@@ -56,36 +61,28 @@ const readContractTransferIndexingFunction = vi.fn(
   },
 );
 
-const transferSelector = getEventSelector(usdcContractConfig.abi[1]);
+const transferSelector = getEventSelector(
+  getAbiItem({
+    abi: erc20ABI,
+    name: "Transfer",
+  }),
+);
 
 const indexingFunctions: IndexingFunctions = {
   _meta_: {},
-  USDC: { Transfer: transferIndexingFunction },
+  Erc20: { Transfer: transferIndexingFunction },
 };
 
 const readContractIndexingFunctions: IndexingFunctions = {
   _meta_: {},
-  USDC: { Transfer: readContractTransferIndexingFunction },
+  Erc20: { Transfer: readContractTransferIndexingFunction },
 };
 
-const transferLog = {
-  topics: [
-    transferSelector,
-    "0x00000000000000000000000021b5f64fa05c64f84302e8a73198b643774e8e49",
-    "0x000000000000000000000000c908b3848960114091a1bcf9d649e27b25385642",
-  ],
-  data: "0x0000000000000000000000000000000000000000000000000007e9657c20364d",
-  address: zeroAddress,
-};
-
-const getEvents = vi.fn(async function* getEvents({
-  // fromCheckpoint,
-  toCheckpoint,
-}) {
+const getEvents = vi.fn(async function* getEvents({ toCheckpoint }) {
   yield {
     events: [
       {
-        sourceId: "USDC_mainnet",
+        sourceId: "Erc20_mainnet",
         chainId: 1,
         log: { id: String(toCheckpoint.blockTimestamp), ...transferLog },
         block: {
@@ -103,7 +100,7 @@ const getEvents = vi.fn(async function* getEvents({
       pageEndCheckpoint: toCheckpoint,
       counts: [
         {
-          sourceId: "USDC_mainnet",
+          sourceId: "Erc20_mainnet",
           selector: transferSelector,
           count: 5,
         },
@@ -291,16 +288,20 @@ test("processEvents() updates event count metrics", async (context) => {
   await service.kill();
 });
 
-test("processEvents() client.readContract", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+test.only("processEvents() client.readContract", async (context) => {
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  // get logs, blocks, and txs in the proper format
+
+  // spoof the sync gateway
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   await service.reset({

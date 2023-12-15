@@ -2,7 +2,10 @@ import { randomBytes } from "crypto";
 import type { Address, Hex } from "viem";
 import { beforeEach, type TestContext } from "vitest";
 
+import type { Config } from "@/config/config.js";
+import type { Network } from "@/config/networks.js";
 import { buildOptions } from "@/config/options.js";
+import type { Source } from "@/config/sources.js";
 import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
@@ -16,9 +19,8 @@ import type { SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import pg from "@/utils/pg.js";
 
-import { FORK_BLOCK_NUMBER, vitalik } from "./constants.js";
 import { deployErc20, simulateErc20 } from "./simulateErc20.js";
-import { testClient } from "./utils.js";
+import { getConfig, getNetworks, getSources, testClient } from "./utils.js";
 
 /**
  * Inject an isolated sync store into the test context.
@@ -33,7 +35,13 @@ declare module "vitest" {
     common: Common;
     syncStore: SyncStore;
     indexingStore: IndexingStore;
-    ethClient: { id: Hex; erc20Address: Address } | undefined;
+    ethClient: { id: Hex };
+    erc20: {
+      address: Address;
+      networks: Network[];
+      sources: Source[];
+      config: Config;
+    };
   }
 }
 
@@ -167,44 +175,31 @@ export async function setupIndexingStore(context: TestContext) {
 }
 
 /**
- * Sets up an isolated Ethereum client on the test context.
+ * Sets up an isolated Ethereum client on the test context, with the appropriate erc20 state.
  *
  * ```ts
  * // Add this to any test suite that uses the Ethereum client.
  * beforeEach((context) => setupEthClient(context))
  * ```
  */
-export async function setupEthClient(context: TestContext) {
+export async function setupEthClientErc20(context: TestContext) {
   if (context.ethClient === undefined) {
-    const erc20Address = await deployErc20();
-    await simulateErc20(erc20Address);
+    const address = await deployErc20();
+    await simulateErc20(address);
     const id = await testClient.snapshot();
 
     context.ethClient = {
-      erc20Address,
       id,
+    };
+    context.erc20 = {
+      address,
+      networks: await getNetworks(),
+      sources: getSources(address),
+      config: getConfig(address),
     };
   } else {
     await testClient.revert({ id: context.ethClient.id });
     const id = await testClient.snapshot();
     context.ethClient.id = id;
   }
-}
-
-// TODO:KYLE Get rid of this
-/**
- * Resets the Anvil instance to the defaults.
- *
- * ```ts
- * // Add this to any test suite that uses the test client.
- * beforeEach(resetTestClient)
- * ```
- */
-export async function resetTestClient() {
-  await testClient.impersonateAccount({ address: vitalik.address });
-  await testClient.setAutomine(false);
-
-  return async () => {
-    await testClient.reset({ blockNumber: FORK_BLOCK_NUMBER });
-  };
 }

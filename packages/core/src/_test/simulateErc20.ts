@@ -22,7 +22,7 @@ export const deployErc20 = async () => {
 };
 
 export const simulateErc20 = async (erc20Address: Address): Promise<void> => {
-  // Mint 2 tokens to ALICE
+  // Mint 1 token to ALICE
   const mintHashALICE = await walletClient.writeContract({
     abi: erc20ABI,
     functionName: "mint",
