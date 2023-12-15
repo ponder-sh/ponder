@@ -48,8 +48,12 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
             // Column must resolve the foreign key of the referenced column
             // Note: this relies on the fact that reference columns can't be lists
 
+            const referenceColumn = table[
+              column.referenceColumn
+            ] as ReferenceColumn;
+
             const referencedTable = referencedTableName(
-              (table[column.referenceColumn] as ReferenceColumn).references,
+              referenceColumn.references,
             );
 
             const resolver: GraphQLFieldResolver<Source, Context> = async (
@@ -70,7 +74,9 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
             };
 
             fieldConfigMap[columnName] = {
-              type: new GraphQLNonNull(entityGqlTypes[referencedTable]),
+              type: referenceColumn.optional
+                ? entityGqlTypes[referencedTable]
+                : new GraphQLNonNull(entityGqlTypes[referencedTable]),
               resolve: resolver,
             };
           } else if (isManyColumn(column)) {
