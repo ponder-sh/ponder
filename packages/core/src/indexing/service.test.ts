@@ -1,9 +1,4 @@
-import {
-  checksumAddress,
-  getAbiItem,
-  getEventSelector,
-  zeroAddress,
-} from "viem";
+import { decodeEventLog } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { erc20ABI } from "@/_test/generated.js";
@@ -12,6 +7,7 @@ import {
   setupIndexingStore,
   setupSyncStore,
 } from "@/_test/setup.js";
+import { getEventsHelper } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
@@ -22,6 +18,10 @@ import { IndexingService } from "./service.js";
 beforeEach((context) => setupEthClientErc20(context));
 beforeEach((context) => setupIndexingStore(context));
 beforeEach((context) => setupSyncStore(context));
+beforeEach(() => {
+  // Restore getEvents to the initial implementation.
+  vi.restoreAllMocks();
+});
 
 const schema = createSchema((p) => ({
   TransferEvent: p.createTable({
@@ -45,7 +45,6 @@ const transferIndexingFunction = vi.fn(async ({ event, context }) => {
 
 const readContractTransferIndexingFunction = vi.fn(
   async ({ event, context }) => {
-    console.log(event);
     const totalSupply = await context.client.readContract({
       abi: erc20ABI,
       functionName: "totalSupply",
@@ -61,13 +60,6 @@ const readContractTransferIndexingFunction = vi.fn(
   },
 );
 
-const transferSelector = getEventSelector(
-  getAbiItem({
-    abi: erc20ABI,
-    name: "Transfer",
-  }),
-);
-
 const indexingFunctions: IndexingFunctions = {
   _meta_: {},
   Erc20: { Transfer: transferIndexingFunction },
@@ -78,64 +70,28 @@ const readContractIndexingFunctions: IndexingFunctions = {
   Erc20: { Transfer: readContractTransferIndexingFunction },
 };
 
-const getEvents = vi.fn(async function* getEvents({ toCheckpoint }) {
-  yield {
-    events: [
-      {
-        sourceId: "Erc20_mainnet",
-        chainId: 1,
-        log: { id: String(toCheckpoint.blockTimestamp), ...transferLog },
-        block: {
-          timestamp: BigInt(toCheckpoint.blockTimestamp),
-          number: 16375000n,
-          miner: zeroAddress,
-        },
-        transaction: {
-          from: zeroAddress,
-          to: zeroAddress,
-        },
-      },
-    ],
-    metadata: {
-      pageEndCheckpoint: toCheckpoint,
-      counts: [
-        {
-          sourceId: "Erc20_mainnet",
-          selector: transferSelector,
-          count: 5,
-        },
-      ],
-    },
-  };
-});
-
-const syncGatewayService = {
-  getEvents,
-  checkpoint: zeroCheckpoint,
-} as unknown as SyncGateway;
-
 function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index, blockNumber: index };
 }
 
-beforeEach(() => {
-  // Restore getEvents to the initial implementation.
-  vi.restoreAllMocks();
-  syncGatewayService.checkpoint = zeroCheckpoint;
-});
-
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
-
   await service.reset({ schema, indexingFunctions });
 
   expect(getEvents).not.toHaveBeenCalled();
@@ -166,44 +122,51 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 });
 
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
-  try {
-    await service.reset({ schema, indexingFunctions });
+  await service.reset({ schema, indexingFunctions });
 
-    const checkpoint10 = createCheckpoint(10);
-    syncGatewayService.checkpoint = checkpoint10;
-    await service.processEvents();
-  } catch (error) {
-    console.log(error);
-  }
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+  await service.processEvents();
+
+  const events = (await getEvents({ toCheckpoint: checkpoint10 }).next()).value!
+    .events;
+
   expect(transferIndexingFunction).toHaveBeenCalledWith(
     expect.objectContaining({
       event: {
         name: "Transfer",
-        args: {
-          from: checksumAddress("0x21b5f64fa05c64f84302e8a73198b643774e8e49"),
-          to: checksumAddress("0xc908b3848960114091a1bcf9d649e27b25385642"),
-          value: 2226946920429133n,
-        },
-        log: { id: "10", ...transferLog, address: zeroAddress },
-        block: { timestamp: 10n, number: 16375000n, miner: zeroAddress },
-        transaction: { from: zeroAddress, to: zeroAddress },
+        args: decodeEventLog({
+          abi: erc20ABI,
+          data: events[2]!.log.data,
+          topics: events[2]!.log.topics,
+        }).args,
+        log: events[2].log,
+        block: events[2].block,
+        transaction: events[2].transaction,
       },
       context: expect.objectContaining({
         db: { TransferEvent: expect.anything(), Supply: expect.anything() },
         network: { name: "mainnet", chainId: 1 },
         client: expect.anything(),
-        contracts: { USDC: expect.anything() },
+        contracts: { Erc20: expect.anything() },
       }),
     }),
   );
@@ -212,15 +175,22 @@ test("processEvents() calls indexing functions with correct arguments", async (c
 });
 
 test("processEvents() model methods insert data into the indexing store", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -232,21 +202,28 @@ test("processEvents() model methods insert data into the indexing store", async 
   const transferEvents = await indexingStore.findMany({
     tableName: "TransferEvent",
   });
-  expect(transferEvents.length).toBe(1);
+  expect(transferEvents.length).toBe(3);
 
   await service.kill();
 });
 
 test("processEvents() updates event count metrics", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -260,7 +237,7 @@ test("processEvents() updates event count metrics", async (context) => {
   ).values;
   expect(matchedEventsMetric).toMatchObject([
     {
-      labels: { network: "mainnet", contract: "USDC", event: "Transfer" },
+      labels: { network: "mainnet", contract: "Erc20", event: "Transfer" },
       value: 5,
     },
   ]);
@@ -270,7 +247,7 @@ test("processEvents() updates event count metrics", async (context) => {
   ).values;
   expect(handledEventsMetric).toMatchObject([
     {
-      labels: { network: "mainnet", contract: "USDC", event: "Transfer" },
+      labels: { network: "mainnet", contract: "Erc20", event: "Transfer" },
       value: 5,
     },
   ]);
@@ -280,20 +257,23 @@ test("processEvents() updates event count metrics", async (context) => {
   ).values;
   expect(processedEventsMetric).toMatchObject([
     {
-      labels: { network: "mainnet", contract: "USDC", event: "Transfer" },
-      value: 1,
+      labels: { network: "mainnet", contract: "Erc20", event: "Transfer" },
+      value: 3,
     },
   ]);
 
   await service.kill();
 });
 
-test.only("processEvents() client.readContract", async (context) => {
+test("processEvents() client.readContract", async (context) => {
   const { common, syncStore, indexingStore, erc20 } = context;
 
-  // get logs, blocks, and txs in the proper format
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
 
-  // spoof the sync gateway
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
@@ -316,21 +296,28 @@ test.only("processEvents() client.readContract", async (context) => {
   const supplyEvents = await indexingStore.findMany({
     tableName: "Supply",
   });
-  expect(supplyEvents.length).toBe(1);
+  expect(supplyEvents.length).toBe(3);
 
   await service.kill();
 });
 
 test("processEvents() retries indexing functions", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -345,22 +332,29 @@ test("processEvents() retries indexing functions", async (context) => {
   syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  expect(transferIndexingFunction).toHaveBeenCalledTimes(2);
+  expect(transferIndexingFunction).toHaveBeenCalledTimes(4);
   expect(indexingStoreRevertSpy).toHaveBeenCalledOnce();
 
   await service.kill();
 });
 
 test("processEvents() handles errors", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -384,15 +378,22 @@ test("processEvents() handles errors", async (context) => {
 });
 
 test("reset() reloads the indexing store", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -404,7 +405,7 @@ test("reset() reloads the indexing store", async (context) => {
   const transferEvents = await indexingStore.findMany({
     tableName: "TransferEvent",
   });
-  expect(transferEvents.length).toBe(1);
+  expect(transferEvents.length).toBe(3);
 
   await service.reset({ schema, indexingFunctions });
 
@@ -417,15 +418,22 @@ test("reset() reloads the indexing store", async (context) => {
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -450,15 +458,22 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 });
 
 test("handleReorg() reverts the indexing store", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -480,15 +495,22 @@ test("handleReorg() reverts the indexing store", async (context) => {
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -514,15 +536,22 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -558,15 +587,22 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, erc20 } = context;
+
+  const getEvents = vi.fn(await getEventsHelper(erc20.sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
     syncStore,
     indexingStore,
     syncGatewayService,
-    sources,
-    networks,
+    sources: erc20.sources,
+    networks: erc20.networks,
   });
 
   await service.reset({ schema, indexingFunctions });

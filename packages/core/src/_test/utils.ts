@@ -1,8 +1,10 @@
-import type { Address, Chain, PublicClient } from "viem";
+import type { Address, Chain, Hash } from "viem";
 import {
   createPublicClient,
   createTestClient,
   createWalletClient,
+  getAbiItem,
+  getEventSelector,
   http,
 } from "viem";
 import { mainnet } from "viem/chains";
@@ -11,6 +13,7 @@ import { type Config, createConfig } from "@/config/config.js";
 import { buildNetwork } from "@/config/networks.js";
 import { buildSources, type Source } from "@/config/sources.js";
 import type { Common } from "@/Ponder.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
 
 import { ALICE } from "./constants.js";
 import { erc20ABI } from "./generated.js";
@@ -81,11 +84,79 @@ export const getNetworks = async () => [
 export const getSources = (erc20Address: Address): Source[] =>
   buildSources({ config: getConfig(erc20Address) });
 
-export const getChainData = async (sources: Source[]) => {
-  const clientPerChain: Record<Source["chainId"], PublicClient> = {};
+export const getEventsHelper = async (sources: Source[]) => {
+  const logs = (
+    await Promise.all(
+      sources.map((source) =>
+        publicClient
+          .getLogs({
+            address: source.criteria.address,
+            fromBlock: "earliest",
+            toBlock: "latest",
+          })
+          .then((logs) => logs.map((log) => ({ sourceId: source.id, log }))),
+      ),
+    )
+  ).flat();
 
-  for (const source of sources) {
-    if (!clientPerChain[source.chainId])
-      clientPerChain[source.chainId] = createPublicClient({});
+  // Dedupe any repeated blocks and txs
+  const blockNumbers: Set<bigint> = new Set();
+  const txHashes: Set<Hash> = new Set();
+  for (const { log } of logs) {
+    if (log.blockNumber) blockNumbers.add(log.blockNumber);
+    txHashes.add(log.transactionHash);
   }
+  const blocks = await Promise.all(
+    [...blockNumbers].map((bn) =>
+      publicClient.getBlock({
+        blockNumber: bn,
+      }),
+    ),
+  );
+  const transactions = await Promise.all(
+    [...txHashes].map((txHash) =>
+      publicClient.getTransaction({
+        hash: txHash,
+      }),
+    ),
+  );
+
+  const events = sources
+    .map((source) =>
+      logs
+        .filter((l) => l.sourceId === source.id)
+        .map(({ log }) => ({
+          sourceId: source.id,
+          chainId: source.chainId,
+          log: { ...log, id: `${log.blockHash}-${log.logIndex}` },
+          block: blocks.find((b) => b.number === log.blockNumber)!,
+          transaction: transactions.find(
+            (tx) => tx.hash === log.transactionHash,
+          )!,
+        })),
+    )
+    .flat();
+
+  async function* getEvents({ toCheckpoint }: { toCheckpoint: Checkpoint }) {
+    yield {
+      events,
+      metadata: {
+        pageEndCheckpoint: toCheckpoint,
+        counts: [
+          {
+            sourceId: "Erc20_mainnet",
+            selector: getEventSelector(
+              getAbiItem({
+                abi: erc20ABI,
+                name: "Transfer",
+              }),
+            ),
+            count: 5,
+          },
+        ],
+      },
+    };
+  }
+
+  return getEvents;
 };
