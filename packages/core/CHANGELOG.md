@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.1.1
+
+### Patch Changes
+
+- [#527](https://github.com/ponder-sh/ponder/pull/527) [`6f245642e9cffdc35e0b24021749d1a85ef4f4c0`](https://github.com/ponder-sh/ponder/commit/6f245642e9cffdc35e0b24021749d1a85ef4f4c0) Thanks [@kyscott18](https://github.com/kyscott18)! - Fix bug in GraphQL server when resolving optional references
+
 ## 0.1.0
 
 ### Minor Changes
