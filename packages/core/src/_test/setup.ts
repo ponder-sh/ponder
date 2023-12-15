@@ -163,6 +163,7 @@ export async function setupIndexingStore(context: TestContext) {
   }
 }
 
+// TODO:KYLE Get rid of this
 /**
  * Resets the Anvil instance to the defaults.
  *

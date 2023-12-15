@@ -9,7 +9,7 @@ import { rpc } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import {
-  accounts,
+  ACCOUNTS,
   uniswapV3PoolFactoryConfig,
   usdcContractConfig,
   vitalik,
@@ -61,7 +61,7 @@ const sendUsdcTransferTransaction = async () => {
     address: usdcContractConfig.address,
     abi: usdcContractConfig.abi,
     functionName: "transfer",
-    args: [accounts[0].address, 1n],
+    args: [ACCOUNTS[0], 1n],
   });
 };
 
