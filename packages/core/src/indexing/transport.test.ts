@@ -3,19 +3,19 @@ import { getFunctionSelector, toHex } from "viem";
 import { rpc } from "viem/utils";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 
-import { usdcContractConfig } from "@/_test/constants.js";
-import { setupSyncStore } from "@/_test/setup.js";
-import { anvil } from "@/_test/utils.js";
+import { setupEthClientErc20, setupSyncStore } from "@/_test/setup.js";
+import { anvil, publicClient } from "@/_test/utils.js";
 
 import { ponderTransport } from "./transport.js";
 
+beforeEach((context) => setupEthClientErc20(context));
 beforeEach((context) => setupSyncStore(context));
 
 test("default", ({ syncStore }) => {
   const transport = ponderTransport({
     network: {
-      request: (options) => rpc.http("https://mockapi.com/rpc", options),
-      url: "https://mockapi.com/rpc",
+      request: (options) => rpc.http("https://ponder.sh/rpc", options),
+      url: "https://ponder.sh/rpc",
     },
     syncStore,
   });
@@ -39,7 +39,9 @@ test("default", ({ syncStore }) => {
   `);
 });
 
-test("eth_call", async ({ syncStore }) => {
+test("eth_call", async ({ syncStore, erc20 }) => {
+  const blockNumber = await publicClient.getBlockNumber();
+
   const transport = ponderTransport({
     network: {
       request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
@@ -55,9 +57,9 @@ test("eth_call", async ({ syncStore }) => {
     params: [
       {
         data: getFunctionSelector("totalSupply()"),
-        to: usdcContractConfig.address,
+        to: erc20.address,
       },
-      toHex(16375000n),
+      toHex(blockNumber),
     ],
   });
 
@@ -70,9 +72,9 @@ test("eth_call", async ({ syncStore }) => {
     params: [
       {
         data: getFunctionSelector("totalSupply()"),
-        to: usdcContractConfig.address,
+        to: erc20.address,
       },
-      toHex(16375000n),
+      toHex(blockNumber),
     ],
   });
 
@@ -87,7 +89,7 @@ test("eth_call", async ({ syncStore }) => {
     params: [
       {
         data: getFunctionSelector("totalSupply()"),
-        to: usdcContractConfig.address,
+        to: erc20.address,
       },
       "latest",
     ],
@@ -98,7 +100,9 @@ test("eth_call", async ({ syncStore }) => {
   expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
-test("eth_getBalance", async ({ syncStore }) => {
+test("eth_getBalance", async ({ syncStore, erc20 }) => {
+  const blockNumber = await publicClient.getBlockNumber();
+
   const transport = ponderTransport({
     network: {
       request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
@@ -111,7 +115,7 @@ test("eth_getBalance", async ({ syncStore }) => {
 
   const response1 = await transport.request({
     method: "eth_getBalance",
-    params: [usdcContractConfig.address, toHex(16375000n)],
+    params: [erc20.address, toHex(blockNumber)],
   });
 
   expect(response1).toBeDefined();
@@ -120,7 +124,7 @@ test("eth_getBalance", async ({ syncStore }) => {
 
   const response2 = await transport.request({
     method: "eth_getBalance",
-    params: [usdcContractConfig.address, toHex(16375000n)],
+    params: [erc20.address, toHex(blockNumber)],
   });
 
   expect(response1).toBe(response2);
@@ -131,7 +135,7 @@ test("eth_getBalance", async ({ syncStore }) => {
 
   const response3 = await transport.request({
     method: "eth_getBalance",
-    params: [usdcContractConfig.address, "latest"],
+    params: [erc20.address, "latest"],
   });
 
   expect(response3).toBeDefined();
@@ -139,7 +143,9 @@ test("eth_getBalance", async ({ syncStore }) => {
   expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
-test("eth_getStorageAt", async ({ syncStore }) => {
+test("eth_getStorageAt", async ({ syncStore, erc20 }) => {
+  const blockNumber = await publicClient.getBlockNumber();
+
   const transport = ponderTransport({
     network: {
       request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
@@ -152,7 +158,7 @@ test("eth_getStorageAt", async ({ syncStore }) => {
 
   const response1 = await transport.request({
     method: "eth_getStorageAt",
-    params: [usdcContractConfig.address, toHex(3), toHex(16375000n)],
+    params: [erc20.address, toHex(3), toHex(blockNumber)],
   });
 
   expect(response1).toBeDefined();
@@ -161,7 +167,7 @@ test("eth_getStorageAt", async ({ syncStore }) => {
 
   const response2 = await transport.request({
     method: "eth_getStorageAt",
-    params: [usdcContractConfig.address, toHex(3), toHex(16375000n)],
+    params: [erc20.address, toHex(3), toHex(blockNumber)],
   });
 
   expect(response1).toBe(response2);
@@ -172,7 +178,7 @@ test("eth_getStorageAt", async ({ syncStore }) => {
 
   const response3 = await transport.request({
     method: "eth_getStorageAt",
-    params: [usdcContractConfig.address, toHex(3), "latest"],
+    params: [erc20.address, toHex(3), "latest"],
   });
 
   expect(response3).toBeDefined();
@@ -180,7 +186,9 @@ test("eth_getStorageAt", async ({ syncStore }) => {
   expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
-test("eth_getCode", async ({ syncStore }) => {
+test("eth_getCode", async ({ syncStore, erc20 }) => {
+  const blockNumber = await publicClient.getBlockNumber();
+
   const transport = ponderTransport({
     network: {
       request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
@@ -193,7 +201,7 @@ test("eth_getCode", async ({ syncStore }) => {
 
   const response1 = await transport.request({
     method: "eth_getCode",
-    params: [usdcContractConfig.address, toHex(16375000n)],
+    params: [erc20.address, toHex(blockNumber)],
   });
 
   expect(response1).toBeDefined();
@@ -202,7 +210,7 @@ test("eth_getCode", async ({ syncStore }) => {
 
   const response2 = await transport.request({
     method: "eth_getCode",
-    params: [usdcContractConfig.address, toHex(16375000n)],
+    params: [erc20.address, toHex(blockNumber)],
   });
 
   expect(response1).toBe(response2);
@@ -213,7 +221,7 @@ test("eth_getCode", async ({ syncStore }) => {
 
   const response3 = await transport.request({
     method: "eth_getCode",
-    params: [usdcContractConfig.address, "latest"],
+    params: [erc20.address, "latest"],
   });
 
   expect(response3).toBeDefined();
