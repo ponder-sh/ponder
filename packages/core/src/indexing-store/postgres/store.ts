@@ -36,6 +36,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
   db: Kysely<any>;
   schema?: Schema;
+  publicSchema?: Schema;
 
   private databaseSchemaName: string;
 
@@ -84,6 +85,27 @@ export class PostgresIndexingStore implements IndexingStore {
         await tx.schema
           .createSchema(this.databaseSchemaName)
           .ifNotExists()
+          .execute();
+
+        // Add the ponder_metadata table if it doesn't exist.
+        await tx.schema
+          .withSchema("public")
+          .createTable("ponder_metadata")
+          .ifNotExists()
+          .addColumn("namespace_version", "text", (col) => col.primaryKey())
+          .addColumn("schema", "jsonb")
+          .addColumn("is_published", "boolean", (col) => col.defaultTo(false))
+          .execute();
+
+        await tx
+          .withSchema("public")
+          .insertInto("ponder_metadata")
+          .values({
+            namespace_version: this.databaseSchemaName,
+            schema: JSON.stringify(this.schema),
+          })
+          // If the ponder metadata table already has a row for this namespace, we ignore the error.
+          .onConflict((oc) => oc.column("namespace_version").doNothing())
           .execute();
 
         // Create tables for new schema.
@@ -166,6 +188,15 @@ export class PostgresIndexingStore implements IndexingStore {
     return this.wrap({ method: "publish" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         // Create views in the public schema pointing at tables in the private schema.
+        await tx
+          .withSchema("public")
+          .updateTable("ponder_metadata")
+          .set({
+            is_published: true,
+          })
+          .where("namespace_version", "=", this.databaseSchemaName)
+          .execute();
+
         await Promise.all(
           Object.entries(this.schema!.tables).map(
             async ([tableName, columns]) => {
@@ -251,6 +282,16 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
+      const schemaRow = (await this.db
+        .withSchema("public")
+        .selectFrom("ponder_metadata")
+        .select("schema")
+        .where("namespace_version", "=", this.databaseSchemaName)
+        .executeTakeFirst()) as { schema: Schema };
+
+      // XXX: To remove. This is just to test if schema loading works.
+      this.schema = schemaRow.schema;
+
       const table = `${tableName}_versioned`;
       const formattedId = formatColumnValue({
         value: id,
