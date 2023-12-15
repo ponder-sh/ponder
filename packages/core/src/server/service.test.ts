@@ -28,6 +28,8 @@ const s = createSchema((p) => ({
     floatList: p.float().list(),
     booleanList: p.boolean().list(),
     bytesList: p.bytes().list(),
+    optional: p.string().optional(),
+    optionalList: p.string().list().optional(),
     enum: p.enum("TestEnum"),
     derived: p.many("EntityWithBigIntId.testEntityId"),
   }),
@@ -256,6 +258,35 @@ test("serves all scalar list types correctly", async (context) => {
     floatList: [0.2],
     booleanList: [true],
     bytesList: ["2"],
+  });
+
+  await service.kill();
+});
+
+test("serves all optional types correctly", async (context) => {
+  const { common, indexingStore } = context;
+  const { service, gql, createTestEntity } = await setup({
+    common,
+    indexingStore,
+  });
+
+  await createTestEntity({ id: 0 });
+
+  const response = await gql(`
+    testEntitys {
+      optional
+      optionalList
+    }
+  `);
+
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { testEntitys } = response.body.data;
+
+  expect(testEntitys).toHaveLength(1);
+  expect(testEntitys[0]).toMatchObject({
+    optional: null,
+    optionalList: null,
   });
 
   await service.kill();
