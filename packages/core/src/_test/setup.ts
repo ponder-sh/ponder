@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import type { Address, Hex } from "viem";
 import { beforeEach, type TestContext } from "vitest";
 
 import { buildOptions } from "@/config/options.js";
@@ -16,6 +17,7 @@ import { TelemetryService } from "@/telemetry/service.js";
 import pg from "@/utils/pg.js";
 
 import { FORK_BLOCK_NUMBER, vitalik } from "./constants.js";
+import { deployErc20, simulateErc20 } from "./simulateErc20.js";
 import { testClient } from "./utils.js";
 
 /**
@@ -31,6 +33,7 @@ declare module "vitest" {
     common: Common;
     syncStore: SyncStore;
     indexingStore: IndexingStore;
+    ethClient: { id: Hex; erc20Address: Address } | undefined;
   }
 }
 
@@ -54,7 +57,7 @@ beforeEach((context) => {
  * Sets up an isolated SyncStore on the test context.
  *
  * ```ts
- * // Add this to any test suite that uses the test client.
+ * // Add this to any test suite that uses the SyncStore client.
  * beforeEach((context) => setupSyncStore(context))
  * ```
  */
@@ -110,7 +113,7 @@ export async function setupSyncStore(
  * Sets up an isolated IndexingStore on the test context.
  *
  * ```ts
- * // Add this to any test suite that uses the test client.
+ * // Add this to any test suite that uses the IndexingStore client.
  * beforeEach((context) => setupIndexingStore(context))
  * ```
  */
@@ -160,6 +163,31 @@ export async function setupIndexingStore(context: TestContext) {
         // It's fine to ignore the error.
       }
     };
+  }
+}
+
+/**
+ * Sets up an isolated Ethereum client on the test context.
+ *
+ * ```ts
+ * // Add this to any test suite that uses the Ethereum client.
+ * beforeEach((context) => setupEthClient(context))
+ * ```
+ */
+export async function setupEthClient(context: TestContext) {
+  if (context.ethClient === undefined) {
+    const erc20Address = await deployErc20();
+    await simulateErc20(erc20Address);
+    const id = await testClient.snapshot();
+
+    context.ethClient = {
+      erc20Address,
+      id,
+    };
+  } else {
+    await testClient.revert({ id: context.ethClient.id });
+    const id = await testClient.snapshot();
+    context.ethClient.id = id;
   }
 }
 

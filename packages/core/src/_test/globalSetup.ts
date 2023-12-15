@@ -5,6 +5,7 @@ export default async function () {
   const shutdownProxy = await startProxy({
     options: {
       chainId: 1,
+      noMining: true,
     },
   });
 

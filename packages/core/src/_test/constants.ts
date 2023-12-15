@@ -6,6 +6,7 @@ import {
 } from "viem";
 
 import { getEvents } from "@/config/abi.js";
+import type { Config } from "@/config/config.js";
 import { buildFactoryCriteria } from "@/config/factories.js";
 
 export const FORK_BLOCK_NUMBER = 16380000n;

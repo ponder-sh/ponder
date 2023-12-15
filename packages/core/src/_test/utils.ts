@@ -1,4 +1,4 @@
-import type { Chain } from "viem";
+import type { Address, Chain } from "viem";
 import {
   createPublicClient,
   createTestClient,
@@ -7,7 +7,13 @@ import {
 } from "viem";
 import { mainnet } from "viem/chains";
 
+import { type Config, createConfig } from "@/config/config.js";
+import { buildNetwork } from "@/config/networks.js";
+import { buildSources, type Source } from "@/config/sources.js";
+import type { Common } from "@/Ponder.js";
+
 import { ALICE } from "./constants.js";
+import { erc20ABI } from "./generated.js";
 
 // Anvil test setup adapted from @viem/anvil `example-vitest` repository.
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
@@ -46,3 +52,31 @@ export const walletClient = createWalletClient({
   transport: http(),
   account: ALICE,
 });
+
+export const config = (erc20Address: Address): Config =>
+  createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(`http://127.0.0.1:8545/${poolId}`),
+      },
+    },
+    contracts: {
+      Erc20: {
+        abi: erc20ABI,
+        network: "mainnet",
+        address: erc20Address,
+      },
+    },
+  });
+
+export const networks = [
+  buildNetwork({
+    networkName: "mainnet",
+    network: { chainId: 1, transport: http(`http://127.0.0.1:8545/${poolId}`) },
+    common: { logger: { warn: () => {} } } as unknown as Common,
+  }),
+];
+
+export const sources = (erc20Address: Address): Source[] =>
+  buildSources({ config: config(erc20Address) });
