@@ -38,6 +38,12 @@ const s = createSchema((p) => ({
     testEntityId: p.string().references("TestEntity.id"),
     testEntity: p.one("testEntityId"),
   }),
+
+  EntityWithNullRef: p.createTable({
+    id: p.string(),
+    testEntityId: p.string().references("TestEntity.id").optional(),
+    testEntity: p.one("testEntityId"),
+  }),
 }));
 
 const graphqlSchema = buildGqlSchema(s);
@@ -118,12 +124,21 @@ const setup = async ({
     });
   };
 
+  const createEntityWithNullRef = async ({ id }: { id: string }) => {
+    await indexingStore.create({
+      tableName: "EntityWithNullRef",
+      checkpoint: zeroCheckpoint,
+      id,
+    });
+  };
+
   return {
     service,
     gql,
     createTestEntity,
     createEntityWithBigIntId,
     createEntityWithIntId,
+    createEntityWithNullRef,
   };
 };
 
@@ -285,7 +300,7 @@ test("serves enum types correctly", async (context) => {
   await service.kill();
 });
 
-test("serves derived types correctly", async (context) => {
+test("serves many column types correctly", async (context) => {
   const { common, indexingStore } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ common, indexingStore });
@@ -316,13 +331,19 @@ test("serves derived types correctly", async (context) => {
   await service.kill();
 });
 
-test("serves relationship types correctly", async (context) => {
+test("serves one column types correctly", async (context) => {
   const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ common, indexingStore });
+  const {
+    service,
+    gql,
+    createTestEntity,
+    createEntityWithBigIntId,
+    createEntityWithNullRef,
+  } = await setup({ common, indexingStore });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
+  await createEntityWithNullRef({ id: "0" });
 
   const response = await gql(`
     entityWithBigIntIds {
@@ -337,11 +358,18 @@ test("serves relationship types correctly", async (context) => {
         bigInt
       }
     }
+    entityWithNullRefs {
+      id
+      testEntityId
+      testEntity {
+        id
+      }
+    }
   `);
 
   expect(response.body.errors).toBe(undefined);
   expect(response.statusCode).toBe(200);
-  const { entityWithBigIntIds } = response.body.data;
+  const { entityWithBigIntIds, entityWithNullRefs } = response.body.data;
 
   expect(entityWithBigIntIds).toHaveLength(1);
   expect(entityWithBigIntIds[0]).toMatchObject({
@@ -355,6 +383,13 @@ test("serves relationship types correctly", async (context) => {
       bytes: "0",
       bigInt: "0",
     },
+  });
+
+  expect(entityWithNullRefs).toHaveLength(1);
+  expect(entityWithNullRefs[0]).toMatchObject({
+    id: "0",
+    testEntityId: null,
+    testEntity: null,
   });
 
   await service.kill();
