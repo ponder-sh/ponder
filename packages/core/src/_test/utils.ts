@@ -1,11 +1,13 @@
 import type { Chain, Hash } from "viem";
 import {
+  checksumAddress,
   createPublicClient,
   createTestClient,
   createWalletClient,
   getAbiItem,
   getEventSelector,
   http,
+  toHex,
 } from "viem";
 import { mainnet } from "viem/chains";
 
@@ -138,25 +140,65 @@ export const getEvents = async (sources: Source[]) => {
     .map((source) =>
       logs
         .filter((l) => l.sourceId === source.id)
-        .map(({ log }) => ({
-          sourceId: source.id,
-          chainId: source.chainId,
-          log: { ...log, id: `${log.blockHash}-${log.logIndex}` },
-          block: blocks.find((b) => b.number === log.blockNumber)!,
-          transaction: transactions.find(
+        .map(({ log }) => {
+          const block = blocks.find((b) => b.number === log.blockNumber)!;
+          const transaction = transactions.find(
             (tx) => tx.hash === log.transactionHash,
-          )!,
-        })),
+          )!;
+          return {
+            sourceId: source.id,
+            chainId: source.chainId,
+            log: {
+              ...log,
+              id: `${log.blockHash}-${toHex(log.logIndex)}`,
+              address: checksumAddress(log.address),
+            },
+            block: { ...block, miner: checksumAddress(block.miner) },
+            transaction: {
+              ...transaction,
+              to: transaction.to ? checksumAddress(transaction.to) : null,
+              from: transaction.from ? checksumAddress(transaction.from) : null,
+            },
+          };
+        }),
     )
     .flat();
 };
 
-export const getEventsHelper = async (sources: Source[]) => {
+export const getEventsErc20 = async (sources: Source[]) => {
   const events = await getEvents(sources);
 
   async function* _getEvents({ toCheckpoint }: { toCheckpoint: Checkpoint }) {
     yield {
       events: [events[0], events[1]],
+      metadata: {
+        pageEndCheckpoint: toCheckpoint,
+        // TODO:Kyle make this programmatic
+        counts: [
+          {
+            sourceId: "Erc20_mainnet",
+            selector: getEventSelector(
+              getAbiItem({
+                abi: erc20ABI,
+                name: "Transfer",
+              }),
+            ),
+            count: 5,
+          },
+        ],
+      },
+    };
+  }
+
+  return _getEvents;
+};
+
+export const getEventsFactory = async (sources: Source[]) => {
+  const events = await getEvents(sources);
+
+  async function* _getEvents({ toCheckpoint }: { toCheckpoint: Checkpoint }) {
+    yield {
+      events: [events[2], events[3]],
       metadata: {
         pageEndCheckpoint: toCheckpoint,
         // TODO:Kyle make this programmatic

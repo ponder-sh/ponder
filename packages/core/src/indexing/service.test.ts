@@ -3,11 +3,11 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 import { erc20ABI } from "@/_test/generated.js";
 import {
-  setupEthClientErc20,
+  setupEthClient,
   setupIndexingStore,
   setupSyncStore,
 } from "@/_test/setup.js";
-import { getEventsHelper } from "@/_test/utils.js";
+import { getEventsErc20 } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
@@ -15,7 +15,7 @@ import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 import { IndexingService } from "./service.js";
 
-beforeEach((context) => setupEthClientErc20(context));
+beforeEach((context) => setupEthClient(context));
 beforeEach((context) => setupIndexingStore(context));
 beforeEach((context) => setupSyncStore(context));
 beforeEach(() => {
@@ -77,7 +77,7 @@ function createCheckpoint(index: number): Checkpoint {
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -124,7 +124,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -176,7 +176,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
 test("processEvents() model methods insert data into the indexing store", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -209,7 +209,7 @@ test("processEvents() model methods insert data into the indexing store", async 
 test("processEvents() updates event count metrics", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -267,7 +267,7 @@ test("processEvents() updates event count metrics", async (context) => {
 test("processEvents() client.readContract", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -303,7 +303,7 @@ test("processEvents() client.readContract", async (context) => {
 test("processEvents() retries indexing functions", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -340,7 +340,7 @@ test("processEvents() retries indexing functions", async (context) => {
 test("processEvents() handles errors", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -379,7 +379,7 @@ test("processEvents() handles errors", async (context) => {
 test("reset() reloads the indexing store", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -418,7 +418,7 @@ test("reset() reloads the indexing store", async (context) => {
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -457,7 +457,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 test("handleReorg() reverts the indexing store", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -494,7 +494,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
 test("handleReorg() does nothing if there is a user error", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -535,7 +535,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,
@@ -585,7 +585,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
-  const getEvents = vi.fn(await getEventsHelper(sources));
+  const getEvents = vi.fn(await getEventsErc20(sources));
 
   const syncGatewayService = {
     getEvents,

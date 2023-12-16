@@ -181,7 +181,7 @@ export async function setupIndexingStore(context: TestContext) {
  * beforeEach((context) => setupEthClient(context))
  * ```
  */
-export async function setupEthClientErc20(context: TestContext) {
+export async function setupEthClient(context: TestContext) {
   if (context.ethClient === undefined) {
     const addresses = await deploy();
     await simulate(addresses);

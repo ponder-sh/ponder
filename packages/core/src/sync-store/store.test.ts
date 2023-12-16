@@ -1,12 +1,12 @@
 import { checksumAddress, hexToBigInt, hexToNumber, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
-import { setupEthClientErc20, setupSyncStore } from "@/_test/setup.js";
+import { setupEthClient, setupSyncStore } from "@/_test/setup.js";
 import { getEvents } from "@/_test/utils.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
-beforeEach((context) => setupEthClientErc20(context));
+beforeEach((context) => setupEthClient(context));
 beforeEach((context) => setupSyncStore(context));
 
 test("setup creates tables", async ({ syncStore }) => {
