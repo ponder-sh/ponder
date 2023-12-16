@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 
 import { filterLogs } from "./filter.js";
 
+// TODO:KYLE fix this to be programmatic
 export const logs: RpcLog[] = [
   {
     address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",

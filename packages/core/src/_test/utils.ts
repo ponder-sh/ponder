@@ -192,31 +192,3 @@ export const getEventsErc20 = async (sources: Source[]) => {
 
   return _getEvents;
 };
-
-export const getEventsFactory = async (sources: Source[]) => {
-  const events = await getEvents(sources);
-
-  async function* _getEvents({ toCheckpoint }: { toCheckpoint: Checkpoint }) {
-    yield {
-      events: [events[2], events[3]],
-      metadata: {
-        pageEndCheckpoint: toCheckpoint,
-        // TODO:Kyle make this programmatic
-        counts: [
-          {
-            sourceId: "Erc20_mainnet",
-            selector: getEventSelector(
-              getAbiItem({
-                abi: erc20ABI,
-                name: "Transfer",
-              }),
-            ),
-            count: 5,
-          },
-        ],
-      },
-    };
-  }
-
-  return _getEvents;
-};
