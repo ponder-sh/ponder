@@ -481,9 +481,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
   };
 
-  onIdle = async () => {
-    await this.queue.onIdle();
-  };
+  onIdle = () =>
+    new Promise((resolve) =>
+      setImmediate(() => this.queue.onIdle().then(resolve)),
+    );
 
   private buildQueue = () => {
     const worker: Worker<HistoricalSyncTask> = async ({
