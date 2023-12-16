@@ -297,7 +297,7 @@ import { ponder } from "@/generated";
 
 ponder.on("ZorbNft:Transfer", async ({ event, context }) => {
   // If this is a mint, read gradient metadata from the contract.
-  if (event.from.to === ZERO_ADDRESS) {
+  if (event.args.from === ZERO_ADDRESS) {
     const gradientData = await context.client.readContract({
       abi: context.contracts.ZorbNft.abi,
       address: context.contracts.ZorbNft.address,
