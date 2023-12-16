@@ -87,13 +87,15 @@ export const getConfig = (
     },
   });
 
-export const getNetworks = async () => [
-  await buildNetwork({
+export const getNetworks = async () => {
+  const network = await buildNetwork({
     networkName: "mainnet",
     network: { chainId: 1, transport: http(`http://127.0.0.1:8545/${poolId}`) },
     common: { logger: { warn: () => {} } } as unknown as Common,
-  }),
-];
+  });
+
+  return [{ ...network, finalityBlockCount: 4 }];
+};
 
 export const getSources = (
   addresses: Awaited<ReturnType<typeof deploy>>,

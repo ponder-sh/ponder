@@ -1,10 +1,13 @@
-import { checksumAddress, HttpRequestError } from "viem";
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { HttpRequestError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { setupEthClient, setupSyncStore } from "@/_test/setup.js";
-import { testClient } from "@/_test/utils.js";
+import { simulate } from "@/_test/simulate.js";
+import { publicClient, testClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import { range } from "@/utils/range.js";
 
 import { RealtimeSyncService } from "./service.js";
@@ -12,8 +15,17 @@ import { RealtimeSyncService } from "./service.js";
 beforeEach((context) => setupEthClient(context));
 beforeEach((context) => setupSyncStore(context));
 
+const getBlockNumbers = () =>
+  publicClient.getBlockNumber().then((b) => ({
+    latestBlockNumber: Number(b),
+    // deploy() + simulate() takes 4 blocks
+    finalizedBlockNumber: Number(b) - 4,
+  }));
+
 test("setup() returns block numbers", async (context) => {
   const { common, syncStore, sources, networks } = context;
+
+  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
@@ -24,14 +36,16 @@ test("setup() returns block numbers", async (context) => {
 
   const { latestBlockNumber, finalizedBlockNumber } = await service.setup();
 
-  expect(latestBlockNumber).toBeDefined();
-  expect(finalizedBlockNumber).toBeDefined();
+  expect(latestBlockNumber).toBe(blockNumbers.latestBlockNumber);
+  expect(finalizedBlockNumber).toBe(blockNumbers.finalizedBlockNumber);
 
   await service.kill();
 });
 
-test.only("start() adds blocks to the store from finalized to latest", async (context) => {
+test("start() adds blocks to the store from finalized to latest", async (context) => {
   const { common, syncStore, networks, sources } = context;
+
+  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
@@ -45,27 +59,23 @@ test.only("start() adds blocks to the store from finalized to latest", async (co
   await service.onIdle();
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
-  console.log({ blocks });
-  expect(blocks).toHaveLength(5);
+
+  expect(blocks).toHaveLength(1);
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
-    16379996n,
-    16379997n,
-    16379998n,
-    16379999n,
-    16380000n,
+    BigInt(blockNumbers.latestBlockNumber - 2),
   ]);
 
   await service.kill();
 });
 
 test("start() adds all required transactions to the store", async (context) => {
-  const { common, syncStore } = context;
+  const { common, syncStore, networks, sources } = context;
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network,
-    sources: [usdcLogFilter],
+    network: networks[0],
+    sources: [sources[0]],
   });
 
   await service.setup();
@@ -89,13 +99,13 @@ test("start() adds all required transactions to the store", async (context) => {
 });
 
 test("start() adds all matched logs to the store", async (context) => {
-  const { common, syncStore } = context;
+  const { common, syncStore, networks, sources, erc20 } = context;
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network,
-    sources: [usdcLogFilter],
+    network: networks[0],
+    sources: [sources[0]],
   });
 
   await service.setup();
@@ -103,80 +113,75 @@ test("start() adds all matched logs to the store", async (context) => {
   await service.onIdle();
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
-  expect(logs).toHaveLength(79);
+  expect(logs).toHaveLength(2);
   logs.forEach((log) => {
-    expect(log.address).toEqual(usdcContractConfig.address);
+    expect(log.address).toEqual(erc20.address);
   });
 
   await service.kill();
 });
 
 test("start() handles new blocks", async (context) => {
-  const { common, syncStore } = context;
+  const { common, syncStore, sources, networks, erc20, factory } = context;
+
+  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network,
-    sources: [usdcLogFilter],
+    network: networks[0],
+    sources: [sources[0]],
   });
 
   await service.setup();
   await service.start();
 
-  // Block 16380001 has 1 matched logs
-  await sendUsdcTransferTransaction();
-  await testClient.mine({ blocks: 1 });
-  await service.addNewLatestBlock();
+  await simulate({
+    erc20Address: erc20.address,
+    factoryAddress: factory.address,
+  });
 
-  // Block 16380002 has 0 matched logs
-  await testClient.mine({ blocks: 1 });
-  await service.addNewLatestBlock();
-
-  // Block 16380003 has 3 matched logs
-  await sendUsdcTransferTransaction();
-  await sendUsdcTransferTransaction();
-  await testClient.mine({ blocks: 1 });
   await service.addNewLatestBlock();
 
   await service.onIdle();
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
-  expect(blocks).toHaveLength(7);
+
+  expect(blocks).toHaveLength(2);
 
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
-    16379996n,
-    16379997n,
-    16379998n,
-    16379999n,
-    16380000n,
-    16380001n,
-    // 16380002n <- Not added to the store, because it has no matched logs.
-    16380003n,
+    BigInt(blockNumbers.latestBlockNumber - 2),
+    BigInt(blockNumbers.latestBlockNumber + 1),
   ]);
 
   await service.kill();
 });
 
 test("start() handles error while fetching new latest block gracefully", async (context) => {
-  const { common, syncStore } = context;
+  const { common, syncStore, sources, networks, erc20, factory } = context;
+
+  const blockNumbers = await getBlockNumbers();
+
+  const rpcRequestSpy = vi.spyOn(networks[0], "request");
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network,
-    sources: [usdcLogFilter],
+    network: networks[0],
+    sources: [sources[0]],
   });
 
   await service.setup();
   await service.start();
 
-  await sendUsdcTransferTransaction();
-  await testClient.mine({ blocks: 1 });
+  await simulate({
+    erc20Address: erc20.address,
+    factoryAddress: factory.address,
+  });
 
   // Mock a failed new block request.
   rpcRequestSpy.mockRejectedValueOnce(
-    new HttpRequestError({ url: "http://test.com" }),
+    new HttpRequestError({ url: "http://ponder.sh/rpc" }),
   );
   await service.addNewLatestBlock();
 
@@ -186,55 +191,55 @@ test("start() handles error while fetching new latest block gracefully", async (
   await service.onIdle();
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
-  expect(blocks).toHaveLength(6);
+  expect(blocks).toHaveLength(2);
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
-    16379996n,
-    16379997n,
-    16379998n,
-    16379999n,
-    16380000n,
-    16380001n,
+    BigInt(blockNumbers.latestBlockNumber - 2),
+    BigInt(blockNumbers.latestBlockNumber + 1),
   ]);
 
   await service.kill();
 });
 
 test("start() emits realtimeCheckpoint events", async (context) => {
-  const { common, syncStore } = context;
+  const { common, syncStore, sources, networks } = context;
+
+  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network,
-    sources: [usdcLogFilter],
+    network: networks[0],
+    sources: [sources[0]],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup();
   await service.start();
-
-  // Mine 8 blocks, which should trigger the finality checkpoint (after 5).
-  for (const _ in range(0, 8)) {
-    await sendUsdcTransferTransaction();
-    await testClient.mine({ blocks: 1 });
-  }
-
-  await service.addNewLatestBlock();
   await service.onIdle();
 
+  expect(emitSpy).toHaveBeenCalledTimes(4);
+
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    blockNumber: 16379996,
-    blockTimestamp: 1673397023,
+    blockNumber: blockNumbers.latestBlockNumber - 3,
+    // Anvil messes with the block number for blocks mined locally.
+    blockTimestamp: expect.any(Number),
     chainId: 1,
   });
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    blockNumber: 16380000,
-    blockTimestamp: 1673397071,
+    blockNumber: blockNumbers.latestBlockNumber - 2,
+    // Anvil messes with the block number for blocks mined locally.
+    blockTimestamp: expect.any(Number),
     chainId: 1,
   });
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    blockNumber: 16380008,
+    blockNumber: blockNumbers.latestBlockNumber - 1,
+    // Anvil messes with the block number for blocks mined locally.
+    blockTimestamp: expect.any(Number),
+    chainId: 1,
+  });
+  expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    blockNumber: blockNumbers.latestBlockNumber,
     // Anvil messes with the block number for blocks mined locally.
     blockTimestamp: expect.any(Number),
     chainId: 1,
@@ -244,13 +249,15 @@ test("start() emits realtimeCheckpoint events", async (context) => {
 });
 
 test("start() inserts log filter interval records for finalized blocks", async (context) => {
-  const { common, syncStore } = context;
+  const { common, syncStore, sources, networks, erc20, factory } = context;
+
+  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network,
-    sources: [usdcLogFilter],
+    network: networks[0],
+    sources: [sources[0]],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -258,23 +265,26 @@ test("start() inserts log filter interval records for finalized blocks", async (
   await service.setup();
   await service.start();
 
-  // Mine 8 blocks, which should trigger the finality checkpoint (after 5).
-  for (const _ in range(0, 8)) {
-    await sendUsdcTransferTransaction();
-    await testClient.mine({ blocks: 1 });
+  for (const _ in range(0, 2)) {
+    await simulate({
+      erc20Address: erc20.address,
+      factoryAddress: factory.address,
+    });
   }
 
   await service.addNewLatestBlock();
   await service.onIdle();
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
-    chainId: network.chainId,
-    logFilter: usdcLogFilter.criteria,
+    chainId: sources[0].chainId,
+    logFilter: sources[0].criteria,
   });
-  expect(logFilterIntervals).toMatchObject([[16379996, 16380000]]);
+  expect(logFilterIntervals).toMatchObject([
+    [blockNumbers.finalizedBlockNumber + 1, blockNumbers.latestBlockNumber],
+  ]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    blockNumber: 16380000,
+    blockNumber: blockNumbers.latestBlockNumber,
     blockTimestamp: expect.any(Number),
     chainId: 1,
   });
@@ -283,13 +293,15 @@ test("start() inserts log filter interval records for finalized blocks", async (
 });
 
 test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
-  const { common, syncStore } = context;
+  const { common, syncStore, sources, networks, erc20, factory } = context;
+
+  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network,
-    sources: [usdcLogFilter],
+    network: networks[0],
+    sources: [sources[0]],
   });
 
   await service.setup();
@@ -298,36 +310,31 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   // Take a snapshot of the chain at the original block height.
   const originalSnapshotId = await testClient.snapshot();
 
-  // Mine 3 blocks, each containing a transaction.
-  for (const _ in range(0, 3)) {
-    await sendUsdcTransferTransaction();
-    await testClient.mine({ blocks: 1 });
+  for (const _ in range(0, 2)) {
+    await simulate({
+      erc20Address: erc20.address,
+      factoryAddress: factory.address,
+    });
   }
+
   // Allow the service to process the new blocks.
   await service.addNewLatestBlock();
   await service.onIdle();
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
-    16379996n,
-    16379997n,
-    16379998n,
-    16379999n,
-    16380000n,
-    16380001n,
-    16380002n,
-    16380003n,
+    BigInt(blockNumbers.latestBlockNumber - 2),
+    BigInt(blockNumbers.latestBlockNumber + 1),
+    BigInt(blockNumbers.latestBlockNumber + 4),
   ]);
 
   // Now, revert to the original snapshot.
   await testClient.revert({ id: originalSnapshotId });
 
-  // Add one empty block (16380001).
-  await testClient.mine({ blocks: 1 });
-
-  // Add one block with one transaction (16380002).
-  await sendUsdcTransferTransaction();
-  await testClient.mine({ blocks: 1 });
+  await simulate({
+    erc20Address: erc20.address,
+    factoryAddress: factory.address,
+  });
 
   // Allow the service to process the new blocks.
   await service.addNewLatestBlock();
@@ -340,26 +347,23 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   expect(
     blocksAfterReorg.map((block) => decodeToBigInt(block.number)),
   ).toMatchObject([
-    16379996n,
-    16379997n,
-    16379998n,
-    16379999n,
-    16380000n,
-    // 16380001n <- Not added to the store, because it has no matched logs.
-    16380002n,
+    BigInt(blockNumbers.latestBlockNumber - 2),
+    BigInt(blockNumbers.latestBlockNumber + 1),
   ]);
 
   await service.kill();
 });
 
 test("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
-  const { common, syncStore } = context;
+  const { common, syncStore, sources, networks, erc20, factory } = context;
+
+  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network,
-    sources: [usdcLogFilter],
+    network: networks[0],
+    sources: [sources[0]],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -370,11 +374,11 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
   // Take a snapshot of the chain at the original block height.
   const originalSnapshotId = await testClient.snapshot();
 
-  // Mine 3 blocks, each containing a transaction.
-  for (const _ in range(0, 3)) {
-    await sendUsdcTransferTransaction();
-    await testClient.mine({ blocks: 1 });
-  }
+  await simulate({
+    erc20Address: erc20.address,
+    factoryAddress: factory.address,
+  });
+
   // Allow the service to process the new blocks.
   await service.addNewLatestBlock();
   await service.onIdle();
@@ -388,8 +392,8 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
-    blockTimestamp: 1673397071, // Timestamp of 16380000
-    blockNumber: 16380000,
+    blockTimestamp: expect.any(Number),
+    blockNumber: blockNumbers.latestBlockNumber,
     chainId: 1,
   });
 
@@ -397,13 +401,15 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
 });
 
 test("emits deepReorg event after deep reorg", async (context) => {
-  const { common, syncStore } = context;
+  const { common, syncStore, sources, networks, erc20, factory } = context;
+
+  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network,
-    sources: [usdcLogFilter],
+    network: networks[0],
+    sources: [sources[0]],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -414,94 +420,99 @@ test("emits deepReorg event after deep reorg", async (context) => {
   // Take a snapshot of the chain at the original block height.
   const originalSnapshotId = await testClient.snapshot();
 
-  // Mine 13 blocks, each containing a transaction.
-  for (const _ in range(0, 13)) {
-    await sendUsdcTransferTransaction();
-    await testClient.mine({ blocks: 1 });
+  for (const _ in range(0, 3)) {
+    await simulate({
+      erc20Address: erc20.address,
+      factoryAddress: factory.address,
+    });
   }
   // Allow the service to process the new blocks.
   await service.addNewLatestBlock();
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    blockNumber: 16380000,
+    blockNumber: blockNumbers.latestBlockNumber,
     blockTimestamp: expect.any(Number),
     chainId: 1,
   });
 
-  // Now, revert to the original snapshot and mine 13 blocks, each containing 2 transactions.
+  // Now, revert to the original snapshot and mine 8 blocks, with a different chain history than before.
   await testClient.revert({ id: originalSnapshotId });
-  for (const _ in range(0, 13)) {
-    await sendUsdcTransferTransaction();
-    await sendUsdcTransferTransaction();
-    await testClient.mine({ blocks: 1 });
+  for (const _ in range(0, 3)) {
+    await simulate({
+      erc20Address: erc20.address,
+      factoryAddress: factory.address,
+    });
   }
 
   // Allow the service to process the new block, detecting a reorg.
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  // The current finalized block number is 16380005, so the reorg is at least 8 blocks deep.
+  console.log(await publicClient.getBlockNumber());
+
   expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
-    detectedAtBlockNumber: 16380013,
-    minimumDepth: 8,
+    detectedAtBlockNumber: blockNumbers.latestBlockNumber + 9,
+    minimumDepth: 5,
   });
 
   await service.kill();
 });
 
 test("start() with factory contract inserts new child contracts records and child contract events", async (context) => {
-  const { common, syncStore } = context;
+  const { common, syncStore, sources, networks, erc20, factory } = context;
+
+  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network,
-    sources: [uniswapV3Factory],
+    network: networks[0],
+    sources: [sources[1]],
   });
 
   await service.setup();
   await service.start();
 
-  await createAndInitializeUniswapV3Pool();
-  await testClient.mine({ blocks: 1 });
+  await simulate({
+    erc20Address: erc20.address,
+    factoryAddress: factory.address,
+  });
 
   await service.addNewLatestBlock();
   await service.onIdle();
 
   const iterator = syncStore.getFactoryChildAddresses({
-    chainId: uniswapV3Factory.chainId,
-    factory: uniswapV3Factory.criteria,
-    upToBlockNumber: 16380010n,
+    chainId: sources[1].chainId,
+    factory: sources[1].criteria,
+    upToBlockNumber: BigInt(blockNumbers.latestBlockNumber),
   });
 
   const childContractAddresses = [];
   for await (const page of iterator) childContractAddresses.push(...page);
 
-  expect(childContractAddresses).toMatchObject([
-    "0x25e0870d42b6cef90b6dc8216588fad55d5f55c4",
-  ]);
+  expect(childContractAddresses).toMatchObject([toLowerCase(factory.pair)]);
 
   const eventIterator = syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     factories: [
       {
-        id: "UniswapV3Pool",
-        chainId: network.chainId,
-        criteria: uniswapV3Factory.criteria,
+        id: "Pair",
+        chainId: sources[1].chainId,
+        criteria: sources[1].criteria,
       },
     ],
   });
   const events = [];
   for await (const page of eventIterator) events.push(...page.events);
 
-  expect(events).toHaveLength(1);
+  expect(events).toHaveLength(2);
   expect(events[0]).toMatchObject(
     expect.objectContaining({
-      sourceId: "UniswapV3Pool",
+      sourceId: "Pair",
       log: expect.objectContaining({
-        address: checksumAddress("0x25e0870d42b6cef90b6dc8216588fad55d5f55c4"),
+        address: factory.pair,
       }),
     }),
   );
