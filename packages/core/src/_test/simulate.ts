@@ -1,4 +1,4 @@
-import { type Hex, parseEther } from "viem";
+import { type Address, type Hex, parseEther } from "viem";
 
 import { ALICE, BOB } from "./constants.js";
 import Erc20Bytecode from "./contracts/out/ERC20.sol/ERC20.json";
@@ -46,10 +46,12 @@ export const deploy = async () => {
  * 4) Swap on created pair
  *
  * Blocks are created after 2, 3, and 4.
+ *
+ * @returns The pair address
  */
 export const simulate = async (
   addresses: Awaited<ReturnType<typeof deploy>>,
-): Promise<void> => {
+): Promise<Address> => {
   // Mint 1 token to ALICE
   const mintHash = await walletClient.writeContract({
     abi: erc20ABI,
@@ -94,4 +96,6 @@ export const simulate = async (
   await testClient.mine({ blocks: 1 });
 
   await publicClient.waitForTransactionReceipt({ hash: swapHash });
+
+  return result;
 };

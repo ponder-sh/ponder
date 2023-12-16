@@ -5,7 +5,7 @@ import { beforeEach, type TestContext } from "vitest";
 import type { Config } from "@/config/config.js";
 import type { Network } from "@/config/networks.js";
 import { buildOptions } from "@/config/options.js";
-import type { Source } from "@/config/sources.js";
+import type { Factory, LogFilter } from "@/config/sources.js";
 import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
@@ -36,11 +36,11 @@ declare module "vitest" {
     syncStore: SyncStore;
     indexingStore: IndexingStore;
     ethClient: { id: Hex };
-    sources: Source[];
+    sources: [LogFilter, Factory];
     networks: Network[];
     config: Config;
     erc20: { address: Address };
-    factory: { address: Address };
+    factory: { address: Address; pair: Address };
   }
 }
 
@@ -184,20 +184,21 @@ export async function setupIndexingStore(context: TestContext) {
 export async function setupEthClient(context: TestContext) {
   if (context.ethClient === undefined) {
     const addresses = await deploy();
-    await simulate(addresses);
+    const pair = await simulate(addresses);
     const id = await testClient.snapshot();
 
     context.ethClient = {
       id,
     };
     context.networks = await getNetworks();
-    context.sources = getSources(addresses);
+    context.sources = getSources(addresses) as [LogFilter, Factory];
     context.config = getConfig(addresses);
     context.erc20 = {
       address: addresses.erc20Address,
     };
     context.factory = {
       address: addresses.factoryAddress,
+      pair,
     };
   } else {
     await testClient.revert({ id: context.ethClient.id });

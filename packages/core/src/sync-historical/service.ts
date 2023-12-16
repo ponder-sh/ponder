@@ -969,6 +969,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         fetchOptions: { signal },
       });
     } catch (err) {
+      console.log("HIHIHI");
       error = err as Partial<RpcError> & { name: string };
     } finally {
       this.common.metrics.ponder_historical_rpc_request_duration.observe(
@@ -1042,6 +1043,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       retryRanges.push([toHex(options.fromBlock), toHex(midpoint)]);
       retryRanges.push([toHex(midpoint + 1), options.toBlock]);
     } else {
+      console.log("throwing");
       // Throw any unrecognized errors.
       throw error;
     }
