@@ -352,7 +352,7 @@ test("start() retries unexpected error in log filter task", async (context) => {
   expect(logFilterIntervals).toMatchObject([
     [0, blockNumbers.finalizedBlockNumber],
   ]);
-  expect(rpcRequestSpy).toHaveBeenCalledTimes(2);
+  expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
   await service.kill();
 });
