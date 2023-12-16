@@ -1,4 +1,4 @@
-import type { Address, Chain, Hash } from "viem";
+import type { Chain, Hash } from "viem";
 import {
   createPublicClient,
   createTestClient,
@@ -16,7 +16,8 @@ import type { Common } from "@/Ponder.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 
 import { ALICE } from "./constants.js";
-import { erc20ABI } from "./generated.js";
+import { erc20ABI, factoryABI, pairABI } from "./generated.js";
+import type { deploy } from "./simulate.js";
 
 // Anvil test setup adapted from @viem/anvil `example-vitest` repository.
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
@@ -56,7 +57,9 @@ export const walletClient = createWalletClient({
   account: ALICE,
 });
 
-export const getConfig = (erc20Address: Address): Config =>
+export const getConfig = (
+  addresses: Awaited<ReturnType<typeof deploy>>,
+): Config =>
   createConfig({
     networks: {
       mainnet: {
@@ -68,7 +71,16 @@ export const getConfig = (erc20Address: Address): Config =>
       Erc20: {
         abi: erc20ABI,
         network: "mainnet",
-        address: erc20Address,
+        address: addresses.erc20Address,
+      },
+      Pair: {
+        abi: pairABI,
+        network: "mainnet",
+        factory: {
+          address: addresses.factoryAddress,
+          event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
+          parameter: "pair",
+        },
       },
     },
   });
@@ -81,10 +93,11 @@ export const getNetworks = async () => [
   }),
 ];
 
-export const getSources = (erc20Address: Address): Source[] =>
-  buildSources({ config: getConfig(erc20Address) });
+export const getSources = (
+  addresses: Awaited<ReturnType<typeof deploy>>,
+): Source[] => buildSources({ config: getConfig(addresses) });
 
-export const getEventsHelper = async (sources: Source[]) => {
+export const getEvents = async (sources: Source[]) => {
   const logs = (
     await Promise.all(
       sources.map((source) =>
@@ -121,7 +134,7 @@ export const getEventsHelper = async (sources: Source[]) => {
     ),
   );
 
-  const events = sources
+  return sources
     .map((source) =>
       logs
         .filter((l) => l.sourceId === source.id)
@@ -136,12 +149,17 @@ export const getEventsHelper = async (sources: Source[]) => {
         })),
     )
     .flat();
+};
 
-  async function* getEvents({ toCheckpoint }: { toCheckpoint: Checkpoint }) {
+export const getEventsHelper = async (sources: Source[]) => {
+  const events = await getEvents(sources);
+
+  async function* _getEvents({ toCheckpoint }: { toCheckpoint: Checkpoint }) {
     yield {
-      events,
+      events: [events[0], events[1]],
       metadata: {
         pageEndCheckpoint: toCheckpoint,
+        // TODO:Kyle make this programmatic
         counts: [
           {
             sourceId: "Erc20_mainnet",
@@ -158,5 +176,5 @@ export const getEventsHelper = async (sources: Source[]) => {
     };
   }
 
-  return getEvents;
+  return _getEvents;
 };

@@ -20,7 +20,10 @@ const optimism = {
 
 const networks = [mainnet, optimism] as const satisfies Network[];
 
-const _sources = getSources(zeroAddress);
+const _sources = getSources({
+  erc20Address: zeroAddress,
+  factoryAddress: zeroAddress,
+});
 const sources = [
   _sources[0],
   {

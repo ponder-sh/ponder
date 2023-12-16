@@ -7,11 +7,7 @@ import {
 import { rpc } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import {
-  uniswapV3PoolFactoryConfig,
-  usdcContractConfig,
-} from "@/_test/constants.js";
-import { setupSyncStore } from "@/_test/setup.js";
+import { setupEthClientErc20, setupSyncStore } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
@@ -19,6 +15,7 @@ import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 import { HistoricalSyncService } from "./service.js";
 
+beforeEach((context) => setupEthClientErc20(context));
 beforeEach((context) => setupSyncStore(context));
 
 const network: Network = {
@@ -52,15 +49,6 @@ const usdcLogFilter = {
   startBlock: 16369995, // 5 blocks
   maxBlockRange: 3,
   type: "logFilter",
-} satisfies Source;
-
-const uniswapV3Factory = {
-  ...uniswapV3PoolFactoryConfig,
-  id: `UniswapV3Pool_${network.name}`,
-  contractName: "UniswapV3Pool",
-  networkName: network.name,
-  startBlock: 16369500, // 500 blocks
-  type: "factory",
 } satisfies Source;
 
 test("start() with log filter inserts log filter interval records", async (context) => {

@@ -1,25 +1,15 @@
 import { checksumAddress, hexToBigInt, hexToNumber, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
-import {
-  blockOne,
-  blockOneLogs,
-  blockOneTransactions,
-  blockThree,
-  blockTwo,
-  blockTwoLogs,
-  blockTwoTransactions,
-  usdcContractConfig,
-} from "@/_test/constants.js";
-import { setupSyncStore } from "@/_test/setup.js";
+import { setupEthClientErc20, setupSyncStore } from "@/_test/setup.js";
+import { getEvents } from "@/_test/utils.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
+beforeEach((context) => setupEthClientErc20(context));
 beforeEach((context) => setupSyncStore(context));
 
-test("setup creates tables", async (context) => {
-  const { syncStore } = context;
-
+test("setup creates tables", async ({ syncStore }) => {
   const tables = await syncStore.db.introspection.getTables();
   const tableNames = tables.map((t) => t.name);
   expect(tableNames).toContain("blocks");
@@ -34,13 +24,18 @@ test("setup creates tables", async (context) => {
   expect(tableNames).toContain("rpcRequestResults");
 });
 
-test("insertLogFilterInterval inserts block, transactions, and logs", async (context) => {
-  const { syncStore } = context;
+test.only("insertLogFilterInterval inserts block, transactions, and logs", async ({
+  syncStore,
+  erc20,
+}) => {
+  const events = await getEvents(erc20.sources);
+
+  console.log(events[0].block);
 
   await syncStore.insertLogFilterInterval({
-    chainId: usdcContractConfig.chainId,
-    logFilter: { address: usdcContractConfig.address },
-    block: blockOne,
+    chainId: 1,
+    logFilter: { address: erc20.address },
+    block: events[0].block,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
     interval: {
@@ -62,12 +57,14 @@ test("insertLogFilterInterval inserts block, transactions, and logs", async (con
   expect(logs).toHaveLength(2);
 });
 
-test("insertLogFilterInterval updates sync db metrics", async (context) => {
-  const { syncStore, common } = context;
-
+test("insertLogFilterInterval updates sync db metrics", async ({
+  syncStore,
+  common,
+  erc20,
+}) => {
   await syncStore.insertLogFilterInterval({
-    chainId: usdcContractConfig.chainId,
-    logFilter: { address: usdcContractConfig.address },
+    chainId: 1,
+    logFilter: { address: erc20.address },
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
@@ -87,9 +84,10 @@ test("insertLogFilterInterval updates sync db metrics", async (context) => {
   expect(countMetric?.value).toBe(1);
 });
 
-test("insertLogFilterInterval inserts log filter intervals", async (context) => {
-  const { syncStore } = context;
-
+test("insertLogFilterInterval inserts log filter intervals", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {
@@ -113,12 +111,13 @@ test("insertLogFilterInterval inserts log filter intervals", async (context) => 
   expect(logFilterRanges).toMatchObject([[0, 100]]);
 });
 
-test("insertLogFilterInterval merges ranges on insertion", async (context) => {
-  const { syncStore } = context;
-
+test("insertLogFilterInterval merges ranges on insertion", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertLogFilterInterval({
-    chainId: usdcContractConfig.chainId,
-    logFilter: { address: usdcContractConfig.address },
+    chainId: 1,
+    logFilter: { address: erc20.address },
     block: blockOne,
     transactions: [],
     logs: [],
@@ -129,8 +128,8 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
   });
 
   await syncStore.insertLogFilterInterval({
-    chainId: usdcContractConfig.chainId,
-    logFilter: { address: usdcContractConfig.address },
+    chainId: 1,
+    logFilter: { address: erc20.address },
     block: blockThree,
     transactions: [],
     logs: [],
@@ -142,7 +141,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
 
   let logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { address: usdcContractConfig.address },
+    logFilter: { address: erc20.address },
   });
 
   expect(logFilterRanges).toMatchObject([
@@ -151,8 +150,8 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
   ]);
 
   await syncStore.insertLogFilterInterval({
-    chainId: usdcContractConfig.chainId,
-    logFilter: { address: usdcContractConfig.address },
+    chainId: 1,
+    logFilter: { address: erc20.address },
     block: blockTwo,
     transactions: [],
     logs: [],
@@ -164,19 +163,20 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
 
   logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { address: usdcContractConfig.address },
+    logFilter: { address: erc20.address },
   });
 
   expect(logFilterRanges).toMatchObject([[15495110, 15495112]]);
 });
 
-test("insertLogFilterInterval merges log intervals inserted concurrently", async (context) => {
-  const { syncStore } = context;
-
+test("insertLogFilterInterval merges log intervals inserted concurrently", async ({
+  syncStore,
+  erc20,
+}) => {
   await Promise.all([
     syncStore.insertLogFilterInterval({
-      chainId: usdcContractConfig.chainId,
-      logFilter: { address: usdcContractConfig.address },
+      chainId: 1,
+      logFilter: { address: erc20.address },
       block: blockOne,
       transactions: [],
       logs: [],
@@ -186,8 +186,8 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
       },
     }),
     syncStore.insertLogFilterInterval({
-      chainId: usdcContractConfig.chainId,
-      logFilter: { address: usdcContractConfig.address },
+      chainId: 1,
+      logFilter: { address: erc20.address },
       block: blockTwo,
       transactions: [],
       logs: [],
@@ -197,8 +197,8 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
       },
     }),
     syncStore.insertLogFilterInterval({
-      chainId: usdcContractConfig.chainId,
-      logFilter: { address: usdcContractConfig.address },
+      chainId: 1,
+      logFilter: { address: erc20.address },
       block: blockThree,
       transactions: [],
       logs: [],
@@ -211,15 +211,16 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
 
   const logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { address: usdcContractConfig.address },
+    logFilter: { address: erc20.address },
   });
 
   expect(logFilterRanges).toMatchObject([[15495110, 15495112]]);
 });
 
-test("getLogFilterIntervals respects log filter inclusivity rules", async (context) => {
-  const { syncStore } = context;
-
+test("getLogFilterIntervals respects log filter inclusivity rules", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {
@@ -257,9 +258,10 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
   expect(logFilterRanges).toMatchObject([[0, 100]]);
 });
 
-test("getLogFilterRanges handles complex log filter inclusivity rules", async (context) => {
-  const { syncStore } = context;
-
+test("getLogFilterRanges handles complex log filter inclusivity rules", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {},
@@ -296,9 +298,10 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
   ]);
 });
 
-test("insertFactoryChildAddressLogs inserts logs", async (context) => {
-  const { syncStore } = context;
-
+test("insertFactoryChildAddressLogs inserts logs", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
     logs: blockOneLogs,
@@ -308,9 +311,10 @@ test("insertFactoryChildAddressLogs inserts logs", async (context) => {
   expect(logs).toHaveLength(2);
 });
 
-test("getFactoryChildAddresses gets child addresses for topic location", async (context) => {
-  const { syncStore } = context;
-
+test("getFactoryChildAddresses gets child addresses for topic location", async ({
+  syncStore,
+  erc20,
+}) => {
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -373,9 +377,10 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
   ]);
 });
 
-test("getFactoryChildAddresses gets child addresses for offset location", async (context) => {
-  const { syncStore } = context;
-
+test("getFactoryChildAddresses gets child addresses for offset location", async ({
+  syncStore,
+  erc20,
+}) => {
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -422,9 +427,10 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
   ]);
 });
 
-test("getFactoryChildAddresses respects upToBlockNumber argument", async (context) => {
-  const { syncStore } = context;
-
+test("getFactoryChildAddresses respects upToBlockNumber argument", async ({
+  syncStore,
+  erc20,
+}) => {
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -482,9 +488,10 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
   ]);
 });
 
-test("getFactoryChildAddresses paginates correctly", async (context) => {
-  const { syncStore } = context;
-
+test("getFactoryChildAddresses paginates correctly", async ({
+  syncStore,
+  erc20,
+}) => {
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -552,9 +559,10 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
   }
 });
 
-test("getFactoryChildAddresses does not yield empty list", async (context) => {
-  const { syncStore } = context;
-
+test("getFactoryChildAddresses does not yield empty list", async ({
+  syncStore,
+  erc20,
+}) => {
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -577,9 +585,10 @@ test("getFactoryChildAddresses does not yield empty list", async (context) => {
   expect(didYield).toBe(false);
 });
 
-test("insertFactoryLogFilterInterval inserts block, transactions, and logs", async (context) => {
-  const { syncStore } = context;
-
+test("insertFactoryLogFilterInterval inserts block, transactions, and logs", async ({
+  syncStore,
+  erc20,
+}) => {
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -609,9 +618,10 @@ test("insertFactoryLogFilterInterval inserts block, transactions, and logs", asy
   expect(logs).toHaveLength(2);
 });
 
-test("insertFactoryLogFilterInterval inserts and merges child contract intervals", async (context) => {
-  const { syncStore } = context;
-
+test("insertFactoryLogFilterInterval inserts and merges child contract intervals", async ({
+  syncStore,
+  erc20,
+}) => {
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -664,9 +674,10 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
   expect(intervals).toMatchObject([[0, 1000]]);
 });
 
-test("getFactoryLogFilterIntervals handles topic filtering rules", async (context) => {
-  const { syncStore } = context;
-
+test("getFactoryLogFilterIntervals handles topic filtering rules", async ({
+  syncStore,
+  erc20,
+}) => {
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -706,9 +717,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
   expect(intervals).toMatchObject([[0, 500]]);
 });
 
-test("insertRealtimeBlock inserts data", async (context) => {
-  const { syncStore } = context;
-
+test("insertRealtimeBlock inserts data", async ({ syncStore, erc20 }) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
@@ -729,11 +738,12 @@ test("insertRealtimeBlock inserts data", async (context) => {
   expect(logs).toHaveLength(2);
 });
 
-test("insertRealtimeInterval inserts log filter intervals", async (context) => {
-  const { syncStore } = context;
-
+test("insertRealtimeInterval inserts log filter intervals", async ({
+  syncStore,
+  erc20,
+}) => {
   const logFilterCriteria = {
-    address: usdcContractConfig.address,
+    address: erc20.address,
   } satisfies LogFilterCriteria;
 
   const factoryCriteriaOne = {
@@ -797,12 +807,13 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
   ).toMatchObject([[500, 550]]);
 });
 
-test("deleteRealtimeData deletes blocks, transactions and logs", async (context) => {
-  const { syncStore } = context;
-
+test("deleteRealtimeData deletes blocks, transactions and logs", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertLogFilterInterval({
-    chainId: usdcContractConfig.chainId,
-    logFilter: { address: usdcContractConfig.address },
+    chainId: 1,
+    logFilter: { address: erc20.address },
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
@@ -813,8 +824,8 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async (context)
   });
 
   await syncStore.insertLogFilterInterval({
-    chainId: usdcContractConfig.chainId,
-    logFilter: { address: usdcContractConfig.address },
+    chainId: 1,
+    logFilter: { address: erc20.address },
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
@@ -837,7 +848,7 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async (context)
   expect(logs).toHaveLength(3);
 
   await syncStore.deleteRealtimeData({
-    chainId: usdcContractConfig.chainId,
+    chainId: 1,
     fromBlock: hexToBigInt(blockOne.number!),
   });
 
@@ -854,11 +865,12 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async (context)
   expect(logs).toHaveLength(2);
 });
 
-test("deleteRealtimeData updates interval data", async (context) => {
-  const { syncStore } = context;
-
+test("deleteRealtimeData updates interval data", async ({
+  syncStore,
+  erc20,
+}) => {
   const logFilterCriteria = {
-    address: usdcContractConfig.address,
+    address: erc20.address,
   } satisfies LogFilterCriteria;
 
   const factoryCriteria = {
@@ -868,7 +880,7 @@ test("deleteRealtimeData updates interval data", async (context) => {
   } satisfies FactoryCriteria;
 
   await syncStore.insertLogFilterInterval({
-    chainId: usdcContractConfig.chainId,
+    chainId: 1,
     logFilter: logFilterCriteria,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -906,7 +918,7 @@ test("deleteRealtimeData updates interval data", async (context) => {
   ).toMatchObject([[15495110, 15495111]]);
 
   await syncStore.deleteRealtimeData({
-    chainId: usdcContractConfig.chainId,
+    chainId: 1,
     fromBlock: hexToBigInt(blockOne.number!),
   });
 
@@ -925,9 +937,10 @@ test("deleteRealtimeData updates interval data", async (context) => {
   ).toMatchObject([[15495110, 15495110]]);
 });
 
-test("insertRpcRequestResult inserts a request result", async (context) => {
-  const { syncStore } = context;
-
+test("insertRpcRequestResult inserts a request result", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -948,9 +961,10 @@ test("insertRpcRequestResult inserts a request result", async (context) => {
   });
 });
 
-test("insertRpcRequestResult upserts on conflict", async (context) => {
-  const { syncStore } = context;
-
+test("insertRpcRequestResult upserts on conflict", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -988,9 +1002,7 @@ test("insertRpcRequestResult upserts on conflict", async (context) => {
   });
 });
 
-test("getRpcRequestResult returns data", async (context) => {
-  const { syncStore } = context;
-
+test("getRpcRequestResult returns data", async ({ syncStore, erc20 }) => {
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -1012,9 +1024,10 @@ test("getRpcRequestResult returns data", async (context) => {
   });
 });
 
-test("getRpcRequestResult returns null if not found", async (context) => {
-  const { syncStore } = context;
-
+test("getRpcRequestResult returns null if not found", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -1031,9 +1044,7 @@ test("getRpcRequestResult returns null if not found", async (context) => {
   expect(rpcRequestResult).toBe(null);
 });
 
-test("getLogEvents returns log events", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents returns log events", async ({ syncStore, erc20 }) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
@@ -1186,9 +1197,10 @@ test("getLogEvents returns log events", async (context) => {
   `);
 });
 
-test("getLogEvents filters on log filter with one address", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents filters on log filter with one address", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
@@ -1214,9 +1226,10 @@ test("getLogEvents filters on log filter with one address", async (context) => {
   expect(events).toHaveLength(1);
 });
 
-test("getLogEvents filters on log filter with multiple addresses", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents filters on log filter with multiple addresses", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
@@ -1262,9 +1275,10 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
   expect(events).toHaveLength(2);
 });
 
-test("getLogEvents filters on log filter with single topic", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents filters on log filter with single topic", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
@@ -1310,9 +1324,10 @@ test("getLogEvents filters on log filter with single topic", async (context) => 
   expect(events).toHaveLength(2);
 });
 
-test("getLogEvents filters on log filter with multiple topics", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents filters on log filter with multiple topics", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
@@ -1357,9 +1372,7 @@ test("getLogEvents filters on log filter with multiple topics", async (context) 
   expect(events).toHaveLength(1);
 });
 
-test("getLogEvents filters on simple factory", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents filters on simple factory", async ({ syncStore, erc20 }) => {
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
     logs: [
@@ -1411,9 +1424,7 @@ test("getLogEvents filters on simple factory", async (context) => {
   expect(events).toHaveLength(1);
 });
 
-test("getLogEvents filters on fromBlock", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents filters on fromBlock", async ({ syncStore, erc20 }) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
@@ -1452,9 +1463,10 @@ test("getLogEvents filters on fromBlock", async (context) => {
   expect(events).toHaveLength(1);
 });
 
-test("getLogEvents filters on multiple filters", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents filters on multiple filters", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
@@ -1510,9 +1522,10 @@ test("getLogEvents filters on multiple filters", async (context) => {
   });
 });
 
-test("getLogEvents filters on fromCheckpoint (inclusive)", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents filters on fromCheckpoint (inclusive)", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
@@ -1542,9 +1555,10 @@ test("getLogEvents filters on fromCheckpoint (inclusive)", async (context) => {
   expect(events).toHaveLength(1);
 });
 
-test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents filters on toCheckpoint (inclusive)", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
@@ -1577,9 +1591,10 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
   expect(events).toHaveLength(2);
 });
 
-test("getLogEvents returns no events if includeEventSelectors is an empty array", async (context) => {
-  const { syncStore } = context;
-
+test("getLogEvents returns no events if includeEventSelectors is an empty array", async ({
+  syncStore,
+  erc20,
+}) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,

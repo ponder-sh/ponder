@@ -19,7 +19,7 @@ import type { SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import pg from "@/utils/pg.js";
 
-import { deployErc20, simulateErc20 } from "./simulateErc20.js";
+import { deploy, simulate } from "./simulate.js";
 import { getConfig, getNetworks, getSources, testClient } from "./utils.js";
 
 /**
@@ -36,12 +36,11 @@ declare module "vitest" {
     syncStore: SyncStore;
     indexingStore: IndexingStore;
     ethClient: { id: Hex };
-    erc20: {
-      address: Address;
-      networks: Network[];
-      sources: Source[];
-      config: Config;
-    };
+    sources: Source[];
+    networks: Network[];
+    config: Config;
+    erc20: { address: Address };
+    factory: { address: Address };
   }
 }
 
@@ -175,7 +174,7 @@ export async function setupIndexingStore(context: TestContext) {
 }
 
 /**
- * Sets up an isolated Ethereum client on the test context, with the appropriate erc20 state.
+ * Sets up an isolated Ethereum client on the test context, with the appropriate Erc20 + Factory state.
  *
  * ```ts
  * // Add this to any test suite that uses the Ethereum client.
@@ -184,18 +183,21 @@ export async function setupIndexingStore(context: TestContext) {
  */
 export async function setupEthClientErc20(context: TestContext) {
   if (context.ethClient === undefined) {
-    const address = await deployErc20();
-    await simulateErc20(address);
+    const addresses = await deploy();
+    await simulate(addresses);
     const id = await testClient.snapshot();
 
     context.ethClient = {
       id,
     };
+    context.networks = await getNetworks();
+    context.sources = getSources(addresses);
+    context.config = getConfig(addresses);
     context.erc20 = {
-      address,
-      networks: await getNetworks(),
-      sources: getSources(address),
-      config: getConfig(address),
+      address: addresses.erc20Address,
+    };
+    context.factory = {
+      address: addresses.factoryAddress,
     };
   } else {
     await testClient.revert({ id: context.ethClient.id });

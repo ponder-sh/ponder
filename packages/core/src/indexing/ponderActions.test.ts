@@ -46,7 +46,7 @@ test("getStorageAt()", async (context) => {
     }),
   );
 
-  expect(BigInt(storage!)).toBe(parseEther("2"));
+  expect(BigInt(storage!)).toBe(parseEther("1"));
 });
 
 // Note:Kyle the local chain doesn't have a deployed instance of "multicall3"
@@ -64,7 +64,7 @@ test.todo("multicall()", async (context) => {
     }),
   );
 
-  expect(totalSupply).toMatchObject([parseEther("2")]);
+  expect(totalSupply).toMatchObject([parseEther("1")]);
 });
 
 test("readContract()", async (context) => {
@@ -76,5 +76,5 @@ test("readContract()", async (context) => {
     }),
   );
 
-  expect(totalSupply).toBe(parseEther("2"));
+  expect(totalSupply).toBe(parseEther("1"));
 });
