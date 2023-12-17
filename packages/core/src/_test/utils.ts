@@ -11,6 +11,9 @@ import {
   createPublicClient,
   createTestClient,
   createWalletClient,
+  formatBlock,
+  formatLog,
+  formatTransaction,
   getAbiItem,
   getEventSelector,
   http,
@@ -109,100 +112,6 @@ export const getSources = (
   addresses: Awaited<ReturnType<typeof deploy>>,
 ): Source[] => buildSources({ config: getConfig(addresses) });
 
-export const getEvents = async (sources: Source[]) => {
-  const logs = (
-    await Promise.all(
-      sources.map((source) =>
-        publicClient
-          .getLogs({
-            address: source.criteria.address,
-            fromBlock: "earliest",
-            toBlock: "latest",
-          })
-          .then((logs) => logs.map((log) => ({ sourceId: source.id, log }))),
-      ),
-    )
-  ).flat();
-
-  // Dedupe any repeated blocks and txs
-  const blockNumbers: Set<bigint> = new Set();
-  const txHashes: Set<Hash> = new Set();
-  for (const { log } of logs) {
-    if (log.blockNumber) blockNumbers.add(log.blockNumber);
-    txHashes.add(log.transactionHash);
-  }
-  const blocks = await Promise.all(
-    [...blockNumbers].map((bn) =>
-      publicClient.getBlock({
-        blockNumber: bn,
-      }),
-    ),
-  );
-  const transactions = await Promise.all(
-    [...txHashes].map((txHash) =>
-      publicClient.getTransaction({
-        hash: txHash,
-      }),
-    ),
-  );
-
-  return sources
-    .map((source) =>
-      logs
-        .filter((l) => l.sourceId === source.id)
-        .map(({ log }) => {
-          const block = blocks.find((b) => b.number === log.blockNumber)!;
-          const transaction = transactions.find(
-            (tx) => tx.hash === log.transactionHash,
-          )!;
-          return {
-            sourceId: source.id,
-            chainId: source.chainId,
-            log: {
-              ...log,
-              id: `${log.blockHash}-${toHex(log.logIndex)}`,
-              address: checksumAddress(log.address),
-            },
-            block: { ...block, miner: checksumAddress(block.miner) },
-            transaction: {
-              ...transaction,
-              to: transaction.to ? checksumAddress(transaction.to) : null,
-              from: transaction.from ? checksumAddress(transaction.from) : null,
-            },
-          };
-        }),
-    )
-    .flat();
-};
-
-export const getEventsErc20 = async (sources: Source[]) => {
-  const events = await getEvents(sources);
-
-  async function* _getEvents({ toCheckpoint }: { toCheckpoint: Checkpoint }) {
-    yield {
-      events: [events[0], events[1]],
-      metadata: {
-        pageEndCheckpoint: toCheckpoint,
-        // TODO:Kyle make this programmatic
-        counts: [
-          {
-            sourceId: "Erc20_mainnet",
-            selector: getEventSelector(
-              getAbiItem({
-                abi: erc20ABI,
-                name: "Transfer",
-              }),
-            ),
-            count: 5,
-          },
-        ],
-      },
-    };
-  }
-
-  return _getEvents;
-};
-
 export const getRawEvents = async (sources: Source[]) => {
   const latestBlock = await publicClient.getBlockNumber();
   const logs = (
@@ -263,4 +172,51 @@ export const getRawEvents = async (sources: Source[]) => {
   });
 };
 
-// getEvents spoof
+export const getEventsErc20 = async (sources: Source[]) => {
+  const events = await getRawEvents(sources);
+
+  async function* _getEvents({ toCheckpoint }: { toCheckpoint: Checkpoint }) {
+    yield {
+      events: [events[0], events[1]]
+        .map((e) => ({
+          log: formatLog(e.log),
+          block: formatBlock(e.block),
+          transaction: formatTransaction(e.transaction),
+        }))
+        .map(({ log, block, transaction }) => ({
+          sourceId: sources[0].id,
+          chainId: sources[0].chainId,
+          log: {
+            ...log,
+            id: `${log.blockHash}-${toHex(log.logIndex!)}`,
+            address: checksumAddress(log.address),
+          },
+          block: { ...block, miner: checksumAddress(block.miner) },
+          transaction: {
+            ...transaction,
+            from: checksumAddress(transaction.from),
+            to: transaction.to
+              ? checksumAddress(transaction.to)
+              : transaction.to,
+          },
+        })),
+      metadata: {
+        pageEndCheckpoint: toCheckpoint,
+        counts: [
+          {
+            sourceId: "Erc20_mainnet",
+            selector: getEventSelector(
+              getAbiItem({
+                abi: erc20ABI,
+                name: "Transfer",
+              }),
+            ),
+            count: 2,
+          },
+        ],
+      },
+    };
+  }
+
+  return _getEvents;
+};

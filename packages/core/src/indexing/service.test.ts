@@ -237,7 +237,7 @@ test("processEvents() updates event count metrics", async (context) => {
   expect(matchedEventsMetric).toMatchObject([
     {
       labels: { network: "mainnet", contract: "Erc20", event: "Transfer" },
-      value: 5,
+      value: 2,
     },
   ]);
 
@@ -247,7 +247,7 @@ test("processEvents() updates event count metrics", async (context) => {
   expect(handledEventsMetric).toMatchObject([
     {
       labels: { network: "mainnet", contract: "Erc20", event: "Transfer" },
-      value: 5,
+      value: 2,
     },
   ]);
 

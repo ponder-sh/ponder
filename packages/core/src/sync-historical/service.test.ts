@@ -2,7 +2,7 @@ import { HttpRequestError, InvalidParamsRpcError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { setupEthClient, setupSyncStore } from "@/_test/setup.js";
-import { getEvents, publicClient } from "@/_test/utils.js";
+import { getEventsErc20, publicClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
@@ -273,9 +273,12 @@ test("start() adds log filter events to sync store", async (context) => {
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
-  expect(await getEvents(sources).then((e) => [e[0], e[1]])).toMatchObject(
-    events,
-  );
+  const getEvents = await getEventsErc20(sources);
+  const erc20Events = [];
+  for await (const page of getEvents({ toCheckpoint: maxCheckpoint }))
+    erc20Events.push(...page.events);
+
+  expect(erc20Events).toMatchObject(events);
 
   await service.kill();
 });
