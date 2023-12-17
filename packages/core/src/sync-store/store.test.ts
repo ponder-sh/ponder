@@ -1,8 +1,8 @@
-import { checksumAddress, hexToBigInt, hexToNumber, toHex } from "viem";
+import { checksumAddress, hexToBigInt, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
 import { setupEthClient, setupSyncStore } from "@/_test/setup.js";
-import { getEvents } from "@/_test/utils.js";
+import { getRawEvents, publicClient } from "@/_test/utils.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
@@ -24,23 +24,23 @@ test("setup creates tables", async ({ syncStore }) => {
   expect(tableNames).toContain("rpcRequestResults");
 });
 
-test.only("insertLogFilterInterval inserts block, transactions, and logs", async ({
+test("insertLogFilterInterval inserts block, transactions, and logs", async ({
   syncStore,
   erc20,
+  sources,
 }) => {
-  const events = await getEvents(erc20.sources);
-
-  console.log(events[0].block);
+  const events = await getRawEvents(sources);
+  const blockNumber = await publicClient.getBlockNumber();
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { address: erc20.address },
     block: events[0].block,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    transactions: events[0].block.transactions,
+    logs: [events[0].log, events[1].log],
     interval: {
-      startBlock: hexToBigInt(blockOne.number!) - 100n,
-      endBlock: hexToBigInt(blockOne.number!),
+      startBlock: blockNumber - 3n,
+      endBlock: blockNumber,
     },
   });
 
@@ -61,16 +61,20 @@ test("insertLogFilterInterval updates sync db metrics", async ({
   syncStore,
   common,
   erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+  const blockNumber = await publicClient.getBlockNumber();
+
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { address: erc20.address },
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: events[0].block,
+    transactions: events[0].block.transactions,
+    logs: [events[0].log, events[1].log],
     interval: {
-      startBlock: hexToBigInt(blockOne.number!) - 100n,
-      endBlock: hexToBigInt(blockOne.number!),
+      startBlock: blockNumber - 3n,
+      endBlock: blockNumber,
     },
   });
 
@@ -86,15 +90,17 @@ test("insertLogFilterInterval updates sync db metrics", async ({
 
 test("insertLogFilterInterval inserts log filter intervals", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {
       address: ["0xa", "0xb"],
       topics: [["0xc", "0xd"], null, "0xe", null],
     },
-    block: blockOne,
+    block: events[0].block,
     transactions: [],
     logs: [],
     interval: { startBlock: 0n, endBlock: 100n },
@@ -114,28 +120,31 @@ test("insertLogFilterInterval inserts log filter intervals", async ({
 test("insertLogFilterInterval merges ranges on insertion", async ({
   syncStore,
   erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { address: erc20.address },
-    block: blockOne,
+    block: events[0].block,
     transactions: [],
     logs: [],
     interval: {
-      startBlock: hexToBigInt(blockOne.number!),
-      endBlock: hexToBigInt(blockOne.number!),
+      startBlock: hexToBigInt(events[0].block.number!),
+      endBlock: hexToBigInt(events[0].block.number!),
     },
   });
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { address: erc20.address },
-    block: blockThree,
+    block: events[3].block,
     transactions: [],
     logs: [],
     interval: {
-      startBlock: hexToBigInt(blockThree.number!),
-      endBlock: hexToBigInt(blockThree.number!),
+      startBlock: hexToBigInt(events[3].block.number!),
+      endBlock: hexToBigInt(events[3].block.number!),
     },
   });
 
@@ -145,19 +154,19 @@ test("insertLogFilterInterval merges ranges on insertion", async ({
   });
 
   expect(logFilterRanges).toMatchObject([
-    [15495110, 15495110],
-    [15495112, 15495112],
+    [Number(events[0].block.number!), Number(events[0].block.number!)],
+    [Number(events[3].block.number!), Number(events[3].block.number!)],
   ]);
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { address: erc20.address },
-    block: blockTwo,
+    block: events[2].block,
     transactions: [],
     logs: [],
     interval: {
-      startBlock: hexToBigInt(blockTwo.number!),
-      endBlock: hexToBigInt(blockTwo.number!),
+      startBlock: hexToBigInt(events[2].block.number!),
+      endBlock: hexToBigInt(events[2].block.number!),
     },
   });
 
@@ -166,45 +175,50 @@ test("insertLogFilterInterval merges ranges on insertion", async ({
     logFilter: { address: erc20.address },
   });
 
-  expect(logFilterRanges).toMatchObject([[15495110, 15495112]]);
+  expect(logFilterRanges).toMatchObject([
+    [Number(events[0].block.number!), Number(events[3].block.number!)],
+  ]);
 });
 
 test("insertLogFilterInterval merges log intervals inserted concurrently", async ({
   syncStore,
   erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   await Promise.all([
     syncStore.insertLogFilterInterval({
       chainId: 1,
       logFilter: { address: erc20.address },
-      block: blockOne,
+      block: events[0].block,
       transactions: [],
       logs: [],
       interval: {
-        startBlock: hexToBigInt(blockOne.number!),
-        endBlock: hexToBigInt(blockOne.number!),
+        startBlock: hexToBigInt(events[0].block.number!),
+        endBlock: hexToBigInt(events[0].block.number!),
       },
     }),
     syncStore.insertLogFilterInterval({
       chainId: 1,
       logFilter: { address: erc20.address },
-      block: blockTwo,
+      block: events[2].block,
       transactions: [],
       logs: [],
       interval: {
-        startBlock: hexToBigInt(blockTwo.number!),
-        endBlock: hexToBigInt(blockTwo.number!),
+        startBlock: hexToBigInt(events[2].block.number!),
+        endBlock: hexToBigInt(events[2].block.number!),
       },
     }),
     syncStore.insertLogFilterInterval({
       chainId: 1,
       logFilter: { address: erc20.address },
-      block: blockThree,
+      block: events[3].block,
       transactions: [],
       logs: [],
       interval: {
-        startBlock: hexToBigInt(blockThree.number!),
-        endBlock: hexToBigInt(blockThree.number!),
+        startBlock: hexToBigInt(events[3].block.number!),
+        endBlock: hexToBigInt(events[3].block.number!),
       },
     }),
   ]);
@@ -214,20 +228,24 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
     logFilter: { address: erc20.address },
   });
 
-  expect(logFilterRanges).toMatchObject([[15495110, 15495112]]);
+  expect(logFilterRanges).toMatchObject([
+    [Number(events[0].block.number!), Number(events[3].block.number!)],
+  ]);
 });
 
 test("getLogFilterIntervals respects log filter inclusivity rules", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {
       address: ["0xa", "0xb"],
       topics: [["0xc", "0xd"], null, "0xe", null],
     },
-    block: blockOne,
+    block: events[0].block,
     transactions: [],
     logs: [],
     interval: { startBlock: 0n, endBlock: 100n },
@@ -260,12 +278,15 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async ({
 
 test("getLogFilterRanges handles complex log filter inclusivity rules", async ({
   syncStore,
-  erc20,
+
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {},
-    block: blockOne,
+    block: events[0].block,
     transactions: [],
     logs: [],
     interval: { startBlock: 0n, endBlock: 100n },
@@ -274,7 +295,7 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async ({
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { topics: [null, ["0xc", "0xd"], null, null] },
-    block: blockOne,
+    block: events[0].block,
     transactions: [],
     logs: [],
     interval: { startBlock: 150n, endBlock: 250n },
@@ -300,21 +321,25 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async ({
 
 test("insertFactoryChildAddressLogs inserts logs", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
-    logs: blockOneLogs,
+    logs: [events[2].log],
   });
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
-  expect(logs).toHaveLength(2);
+  expect(logs).toHaveLength(1);
 });
 
 test("getFactoryChildAddresses gets child addresses for topic location", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -326,7 +351,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
     chainId: 1,
     logs: [
       {
-        ...blockOneLogs[0],
+        ...events[0].log,
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -336,7 +361,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
         blockNumber: toHex(100),
       },
       {
-        ...blockOneLogs[1],
+        ...events[1].log,
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -379,8 +404,10 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
 
 test("getFactoryChildAddresses gets child addresses for offset location", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -392,7 +419,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
     chainId: 1,
     logs: [
       {
-        ...blockOneLogs[0],
+        ...events[0].log,
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -401,7 +428,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
         blockNumber: toHex(100),
       },
       {
-        ...blockOneLogs[1],
+        ...events[1].log,
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -429,8 +456,10 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
 
 test("getFactoryChildAddresses respects upToBlockNumber argument", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -442,7 +471,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async ({
     chainId: 1,
     logs: [
       {
-        ...blockOneLogs[0],
+        ...events[0].log,
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -451,7 +480,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async ({
         blockNumber: toHex(100),
       },
       {
-        ...blockOneLogs[1],
+        ...events[1].log,
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -490,8 +519,10 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async ({
 
 test("getFactoryChildAddresses paginates correctly", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -503,7 +534,7 @@ test("getFactoryChildAddresses paginates correctly", async ({
     chainId: 1,
     logs: [
       {
-        ...blockOneLogs[0],
+        ...events[0].log,
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -512,7 +543,7 @@ test("getFactoryChildAddresses paginates correctly", async ({
         blockNumber: toHex(100),
       },
       {
-        ...blockOneLogs[1],
+        ...events[1].log,
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -521,7 +552,7 @@ test("getFactoryChildAddresses paginates correctly", async ({
         blockNumber: toHex(200),
       },
       {
-        ...blockOneLogs[1],
+        ...events[1].log,
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -561,7 +592,6 @@ test("getFactoryChildAddresses paginates correctly", async ({
 
 test("getFactoryChildAddresses does not yield empty list", async ({
   syncStore,
-  erc20,
 }) => {
   const factoryCriteria = {
     address: "0xfactory",
@@ -587,8 +617,10 @@ test("getFactoryChildAddresses does not yield empty list", async ({
 
 test("insertFactoryLogFilterInterval inserts block, transactions, and logs", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -599,9 +631,9 @@ test("insertFactoryLogFilterInterval inserts block, transactions, and logs", asy
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: events[0].block,
+    transactions: events[0].block.transactions,
+    logs: [events[0].log, events[1].log],
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
@@ -620,8 +652,10 @@ test("insertFactoryLogFilterInterval inserts block, transactions, and logs", asy
 
 test("insertFactoryLogFilterInterval inserts and merges child contract intervals", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -632,16 +666,16 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: events[0].block,
+    transactions: events[0].block.transactions,
+    logs: [events[0].log, events[1].log],
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    block: blockThree,
+    block: events[3].block,
     transactions: [],
     logs: [],
     interval: { startBlock: 750n, endBlock: 1000n },
@@ -660,9 +694,9 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: events[2].block,
+    transactions: events[2].block.transactions,
+    logs: [events[2].log],
     interval: { startBlock: 501n, endBlock: 800n },
   });
 
@@ -676,8 +710,10 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
 
 test("getFactoryLogFilterIntervals handles topic filtering rules", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const events = await getRawEvents(sources);
+
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -688,9 +724,9 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async ({
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: events[0].block,
+    transactions: events[0].block.transactions,
+    logs: [events[0].log, events[1].log],
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
@@ -717,12 +753,14 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async ({
   expect(intervals).toMatchObject([[0, 500]]);
 });
 
-test("insertRealtimeBlock inserts data", async ({ syncStore, erc20 }) => {
+test("insertRealtimeBlock inserts data", async ({ syncStore, sources }) => {
+  const events = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: events[0].block,
+    transactions: events[0].block.transactions,
+    logs: [events[0].log, events[1].log],
   });
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
@@ -809,29 +847,32 @@ test("insertRealtimeInterval inserts log filter intervals", async ({
 
 test("deleteRealtimeData deletes blocks, transactions and logs", async ({
   syncStore,
+  sources,
   erc20,
 }) => {
+  const events = await getRawEvents(sources);
+
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { address: erc20.address },
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: events[0].block,
+    transactions: events[0].block.transactions,
+    logs: [events[0].log, events[1].log],
     interval: {
-      startBlock: hexToBigInt(blockOne.number!),
-      endBlock: hexToBigInt(blockOne.number!),
+      startBlock: hexToBigInt(events[0].block.number!),
+      endBlock: hexToBigInt(events[0].block.number!),
     },
   });
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { address: erc20.address },
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: events[2].block,
+    transactions: events[2].block.transactions,
+    logs: [events[2].log],
     interval: {
-      startBlock: hexToBigInt(blockTwo.number!),
-      endBlock: hexToBigInt(blockTwo.number!),
+      startBlock: hexToBigInt(events[2].block.number!),
+      endBlock: hexToBigInt(events[2].block.number!),
     },
   });
 
@@ -849,7 +890,7 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async ({
 
   await syncStore.deleteRealtimeData({
     chainId: 1,
-    fromBlock: hexToBigInt(blockOne.number!),
+    fromBlock: hexToBigInt(events[0].block.number!),
   });
 
   blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
@@ -867,8 +908,11 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async ({
 
 test("deleteRealtimeData updates interval data", async ({
   syncStore,
+  sources,
   erc20,
 }) => {
+  const events = await getRawEvents(sources);
+
   const logFilterCriteria = {
     address: erc20.address,
   } satisfies LogFilterCriteria;
@@ -882,24 +926,24 @@ test("deleteRealtimeData updates interval data", async ({
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: logFilterCriteria,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: events[2].block,
+    transactions: events[2].block.transactions,
+    logs: [events[2].log],
     interval: {
-      startBlock: hexToBigInt(blockOne.number!),
-      endBlock: hexToBigInt(blockTwo.number!),
+      startBlock: hexToBigInt(events[0].block.number!),
+      endBlock: hexToBigInt(events[2].block.number!),
     },
   });
 
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: events[2].block,
+    transactions: events[2].block.transactions,
+    logs: [events[2].log],
     interval: {
-      startBlock: hexToBigInt(blockOne.number!),
-      endBlock: hexToBigInt(blockTwo.number!),
+      startBlock: hexToBigInt(events[0].block.number!),
+      endBlock: hexToBigInt(events[2].block.number!),
     },
   });
 
@@ -908,18 +952,22 @@ test("deleteRealtimeData updates interval data", async ({
       chainId: 1,
       logFilter: logFilterCriteria,
     }),
-  ).toMatchObject([[15495110, 15495111]]);
+  ).toMatchObject([
+    [Number(events[0].block.number!), Number(events[2].block.number!)],
+  ]);
 
   expect(
     await syncStore.getFactoryLogFilterIntervals({
       chainId: 1,
       factory: factoryCriteria,
     }),
-  ).toMatchObject([[15495110, 15495111]]);
+  ).toMatchObject([
+    [Number(events[0].block.number!), Number(events[2].block.number!)],
+  ]);
 
   await syncStore.deleteRealtimeData({
     chainId: 1,
-    fromBlock: hexToBigInt(blockOne.number!),
+    fromBlock: hexToBigInt(events[0].block.number!),
   });
 
   expect(
@@ -927,19 +975,22 @@ test("deleteRealtimeData updates interval data", async ({
       chainId: 1,
       logFilter: logFilterCriteria,
     }),
-  ).toMatchObject([[15495110, 15495110]]);
+  ).toMatchObject([
+    [Number(events[0].block.number!), Number(events[0].block.number!)],
+  ]);
 
   expect(
     await syncStore.getFactoryLogFilterIntervals({
       chainId: 1,
       factory: factoryCriteria,
     }),
-  ).toMatchObject([[15495110, 15495110]]);
+  ).toMatchObject([
+    [Number(events[0].block.number!), Number(events[0].block.number!)],
+  ]);
 });
 
 test("insertRpcRequestResult inserts a request result", async ({
   syncStore,
-  erc20,
 }) => {
   await syncStore.insertRpcRequestResult({
     chainId: 1,
@@ -961,10 +1012,7 @@ test("insertRpcRequestResult inserts a request result", async ({
   });
 });
 
-test("insertRpcRequestResult upserts on conflict", async ({
-  syncStore,
-  erc20,
-}) => {
+test("insertRpcRequestResult upserts on conflict", async ({ syncStore }) => {
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -1002,7 +1050,7 @@ test("insertRpcRequestResult upserts on conflict", async ({
   });
 });
 
-test("getRpcRequestResult returns data", async ({ syncStore, erc20 }) => {
+test("getRpcRequestResult returns data", async ({ syncStore }) => {
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -1024,10 +1072,7 @@ test("getRpcRequestResult returns data", async ({ syncStore, erc20 }) => {
   });
 });
 
-test("getRpcRequestResult returns null if not found", async ({
-  syncStore,
-  erc20,
-}) => {
+test("getRpcRequestResult returns null if not found", async ({ syncStore }) => {
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -1044,12 +1089,14 @@ test("getRpcRequestResult returns null if not found", async ({
   expect(rpcRequestResult).toBe(null);
 });
 
-test("getLogEvents returns log events", async ({ syncStore, erc20 }) => {
+test("getLogEvents returns log events", async ({ syncStore, sources }) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: rawEvents[0].block,
+    transactions: rawEvents[0].block.transactions,
+    logs: [rawEvents[0].log, rawEvents[1].log],
   });
 
   const iterator = syncStore.getLogEvents({
@@ -1060,152 +1107,30 @@ test("getLogEvents returns log events", async ({ syncStore, erc20 }) => {
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
+  expect(events).toHaveLength(2);
+
   expect(events[0].sourceId).toEqual("noFilter");
+  expect(events[0].log.address).toBe(checksumAddress(rawEvents[0].log.address));
+  expect(events[0].block.hash).toBe(rawEvents[0].block.hash);
+  expect(events[0].transaction.hash).toBe(rawEvents[0].transaction.hash);
 
-  expect(events[0].log).toMatchInlineSnapshot(`
-    {
-      "address": "${checksumAddress(
-        "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
-      )}",
-      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 15495110n,
-      "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
-      "id": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd-0x6c",
-      "logIndex": 108,
-      "removed": false,
-      "topics": [
-        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-        "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
-        "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
-      ],
-      "transactionHash": "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-      "transactionIndex": 69,
-    }
-  `);
-
-  expect(events[0].block).toMatchInlineSnapshot(`
-    {
-      "baseFeePerGas": 0n,
-      "difficulty": 12730590371363483n,
-      "extraData": "0x",
-      "gasLimit": 29999943n,
-      "gasUsed": 0n,
-      "hash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-      "miner": "0x0000000000000000000000000000000000000000",
-      "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "nonce": "0x0000000000000000",
-      "number": 15495110n,
-      "parentHash": "0xe55516ad8029e53cd32087f14653d851401b05245abb1b2d6ed4ddcc597ac5a6",
-      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-      "size": 520n,
-      "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "timestamp": 1662619503n,
-      "totalDifficulty": 58750003716598352816469n,
-      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-    }
-  `);
-
-  expect(events[0].transaction).toMatchInlineSnapshot(`
-    {
-      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 15495110n,
-      "from": "0x1",
-      "gas": 69420420n,
-      "gasPrice": 69n,
-      "hash": "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-      "input": "0x1",
-      "nonce": 1,
-      "r": "0x1",
-      "s": "0x1",
-      "to": "0x1",
-      "transactionIndex": 1,
-      "type": "legacy",
-      "v": 1n,
-      "value": 1n,
-    }
-  `);
-
-  expect(events[1].log).toMatchInlineSnapshot(`
-    {
-      "address": "${checksumAddress(
-        "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
-      )}",
-      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 15495110n,
-      "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
-      "id": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd-0x6d",
-      "logIndex": 109,
-      "removed": false,
-      "topics": [],
-      "transactionHash": "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-      "transactionIndex": 70,
-    }
-  `);
-
-  expect(events[1].block).toMatchInlineSnapshot(`
-    {
-      "baseFeePerGas": 0n,
-      "difficulty": 12730590371363483n,
-      "extraData": "0x",
-      "gasLimit": 29999943n,
-      "gasUsed": 0n,
-      "hash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-      "miner": "0x0000000000000000000000000000000000000000",
-      "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "nonce": "0x0000000000000000",
-      "number": 15495110n,
-      "parentHash": "0xe55516ad8029e53cd32087f14653d851401b05245abb1b2d6ed4ddcc597ac5a6",
-      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-      "size": 520n,
-      "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "timestamp": 1662619503n,
-      "totalDifficulty": 58750003716598352816469n,
-      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-    }
-  `);
-
-  expect(events[1].transaction).toMatchInlineSnapshot(`
-    {
-      "accessList": [
-        {
-          "address": "0x1",
-          "storageKeys": [
-            "0x1",
-          ],
-        },
-      ],
-      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 15495110n,
-      "from": "0x1",
-      "gas": 69420420n,
-      "gasPrice": 69n,
-      "hash": "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-      "input": "0x1",
-      "nonce": 1,
-      "r": "0x1",
-      "s": "0x1",
-      "to": "0x1",
-      "transactionIndex": 1,
-      "type": "eip2930",
-      "v": 1n,
-      "value": 1n,
-    }
-  `);
+  expect(events[1].sourceId).toEqual("noFilter");
+  expect(events[1].log.address).toBe(checksumAddress(rawEvents[1].log.address));
+  expect(events[1].block.hash).toBe(rawEvents[1].block.hash);
+  expect(events[1].transaction.hash).toBe(rawEvents[1].transaction.hash);
 });
 
 test("getLogEvents filters on log filter with one address", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: rawEvents[0].block,
+    transactions: rawEvents[0].block.transactions,
+    logs: [rawEvents[0].log, rawEvents[1].log],
   });
 
   const iterator = syncStore.getLogEvents({
@@ -1215,33 +1140,36 @@ test("getLogEvents filters on log filter with one address", async ({
       {
         id: "singleAddress",
         chainId: 1,
-        criteria: { address: blockOneLogs[0].address },
+        criteria: { address: rawEvents[0].log.address },
       },
     ],
   });
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
-  expect(events[0].log.address).toBe(checksumAddress(blockOneLogs[0].address));
-  expect(events).toHaveLength(1);
+  expect(events).toHaveLength(2);
+  expect(events[0].log.address).toBe(checksumAddress(rawEvents[0].log.address));
+  expect(events[1].log.address).toBe(checksumAddress(rawEvents[1].log.address));
 });
 
 test("getLogEvents filters on log filter with multiple addresses", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: rawEvents[0].block,
+    transactions: rawEvents[0].block.transactions,
+    logs: [rawEvents[0].log, rawEvents[1].log],
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: rawEvents[2].block,
+    transactions: rawEvents[2].block.transactions,
+    logs: [rawEvents[2].log],
   });
 
   const iterator = syncStore.getLogEvents({
@@ -1252,7 +1180,7 @@ test("getLogEvents filters on log filter with multiple addresses", async ({
         id: "multipleAddress",
         chainId: 1,
         criteria: {
-          address: [blockOneLogs[0].address, blockOneLogs[1].address],
+          address: [rawEvents[0].log.address, rawEvents[2].log.address],
         },
       },
     ],
@@ -1260,37 +1188,45 @@ test("getLogEvents filters on log filter with multiple addresses", async ({
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
+  expect(events).toHaveLength(3);
   expect(events[0]).toMatchObject({
     sourceId: "multipleAddress",
     log: {
-      address: checksumAddress(blockOneLogs[0].address),
+      address: checksumAddress(rawEvents[0].log.address),
     },
   });
   expect(events[1]).toMatchObject({
     sourceId: "multipleAddress",
     log: {
-      address: checksumAddress(blockOneLogs[1].address),
+      address: checksumAddress(rawEvents[1].log.address),
     },
   });
-  expect(events).toHaveLength(2);
+  expect(events[2]).toMatchObject({
+    sourceId: "multipleAddress",
+    log: {
+      address: checksumAddress(rawEvents[2].log.address),
+    },
+  });
 });
 
 test("getLogEvents filters on log filter with single topic", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: rawEvents[0].block,
+    transactions: rawEvents[0].block.transactions,
+    logs: [rawEvents[0].log, rawEvents[1].log],
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: rawEvents[2].block,
+    transactions: rawEvents[2].block.transactions,
+    logs: [rawEvents[2].log],
   });
 
   const iterator = syncStore.getLogEvents({
@@ -1301,7 +1237,7 @@ test("getLogEvents filters on log filter with single topic", async ({
         id: "singleTopic",
         chainId: 1,
         criteria: {
-          topics: [blockOneLogs[0].topics[0]!, null, null, null],
+          topics: [rawEvents[0].log.topics[0]!, null, null, null],
         },
       },
     ],
@@ -1309,37 +1245,39 @@ test("getLogEvents filters on log filter with single topic", async ({
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
+  expect(events).toHaveLength(2);
   expect(events[0]).toMatchObject({
     sourceId: "singleTopic",
     log: {
-      topics: blockOneLogs[0].topics,
+      topics: rawEvents[0].log.topics,
     },
   });
   expect(events[1]).toMatchObject({
     sourceId: "singleTopic",
     log: {
-      topics: blockTwoLogs[0].topics,
+      topics: rawEvents[1].log.topics,
     },
   });
-  expect(events).toHaveLength(2);
 });
 
 test("getLogEvents filters on log filter with multiple topics", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: rawEvents[0].block,
+    transactions: rawEvents[0].block.transactions,
+    logs: [rawEvents[0].log, rawEvents[1].log],
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: rawEvents[2].block,
+    transactions: rawEvents[2].block.transactions,
+    logs: [rawEvents[2].log],
   });
 
   const iterator = syncStore.getLogEvents({
@@ -1351,8 +1289,8 @@ test("getLogEvents filters on log filter with multiple topics", async ({
         chainId: 1,
         criteria: {
           topics: [
-            blockOneLogs[0].topics[0]!,
-            blockOneLogs[0].topics[1]!,
+            rawEvents[0].log.topics[0]!,
+            rawEvents[0].log.topics[1]!,
             null,
             null,
           ],
@@ -1366,18 +1304,23 @@ test("getLogEvents filters on log filter with multiple topics", async ({
   expect(events[0]).toMatchObject({
     sourceId: "multipleTopics",
     log: {
-      topics: blockOneLogs[0].topics,
+      topics: rawEvents[0].log.topics,
     },
   });
   expect(events).toHaveLength(1);
 });
 
-test("getLogEvents filters on simple factory", async ({ syncStore, erc20 }) => {
+test("getLogEvents filters on simple factory", async ({
+  syncStore,
+  sources,
+}) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
     logs: [
       {
-        ...blockOneLogs[0],
+        ...rawEvents[0].log,
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -1390,12 +1333,14 @@ test("getLogEvents filters on simple factory", async ({ syncStore, erc20 }) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs.map((l) => ({
-      ...l,
-      address: "0xchild10000000000000000000000000000000000",
-    })),
+    block: rawEvents[2].block,
+    transactions: rawEvents[2].block.transactions,
+    logs: [
+      {
+        ...rawEvents[2].log,
+        address: "0xchild10000000000000000000000000000000000",
+      },
+    ],
   });
 
   const iterator = syncStore.getLogEvents({
@@ -1417,26 +1362,28 @@ test("getLogEvents filters on simple factory", async ({ syncStore, erc20 }) => {
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
+  expect(events).toHaveLength(1);
   expect(events[0]).toMatchObject({
     sourceId: "simple",
-    log: { topics: blockTwoLogs[0].topics },
+    log: { topics: rawEvents[2].log.topics },
   });
-  expect(events).toHaveLength(1);
 });
 
-test("getLogEvents filters on fromBlock", async ({ syncStore, erc20 }) => {
+test("getLogEvents filters on fromBlock", async ({ syncStore, sources }) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: rawEvents[0].block,
+    transactions: rawEvents[0].block.transactions,
+    logs: [rawEvents[0].log, rawEvents[1].log],
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: rawEvents[2].block,
+    transactions: rawEvents[2].block.transactions,
+    logs: [rawEvents[2].log],
   });
 
   const iterator = syncStore.getLogEvents({
@@ -1446,7 +1393,7 @@ test("getLogEvents filters on fromBlock", async ({ syncStore, erc20 }) => {
       {
         id: "fromBlock",
         chainId: 1,
-        fromBlock: 15495111,
+        fromBlock: Number(rawEvents[2].block.number!),
         criteria: {},
       },
     ],
@@ -1457,7 +1404,7 @@ test("getLogEvents filters on fromBlock", async ({ syncStore, erc20 }) => {
   expect(events[0]).toMatchObject({
     sourceId: "fromBlock",
     block: {
-      number: 15495111n,
+      number: BigInt(rawEvents[2].block.number!),
     },
   });
   expect(events).toHaveLength(1);
@@ -1465,20 +1412,22 @@ test("getLogEvents filters on fromBlock", async ({ syncStore, erc20 }) => {
 
 test("getLogEvents filters on multiple filters", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: rawEvents[0].block,
+    transactions: rawEvents[0].block.transactions,
+    logs: [rawEvents[0].log, rawEvents[1].log],
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: rawEvents[2].block,
+    transactions: rawEvents[2].block.transactions,
+    logs: [rawEvents[2].log],
   });
 
   const iterator = syncStore.getLogEvents({
@@ -1486,15 +1435,15 @@ test("getLogEvents filters on multiple filters", async ({
     toCheckpoint: maxCheckpoint,
     logFilters: [
       {
-        id: "singleAddress", // This should match blockOneLogs[0]
+        id: "singleAddress",
         chainId: 1,
-        criteria: { address: blockOneLogs[0].address },
+        criteria: { address: rawEvents[0].log.address },
       },
       {
-        id: "singleTopic", // This should match blockOneLogs[0] AND blockTwoLogs[0]
+        id: "singleTopic",
         chainId: 1,
         criteria: {
-          topics: [blockOneLogs[0].topics[0]!, null, null, null],
+          topics: [rawEvents[0].log.topics[0]!, null, null, null],
         },
       },
     ],
@@ -1502,48 +1451,58 @@ test("getLogEvents filters on multiple filters", async ({
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
+  expect(events).toHaveLength(4);
   expect(events[0]).toMatchObject({
     sourceId: "singleAddress",
     log: {
-      address: checksumAddress(blockOneLogs[0].address),
+      address: checksumAddress(rawEvents[0].log.address),
+    },
+  });
+  expect(events[2]).toMatchObject({
+    sourceId: "singleAddress",
+    log: {
+      address: checksumAddress(rawEvents[1].log.address),
     },
   });
   expect(events[1]).toMatchObject({
     sourceId: "singleTopic",
     log: {
-      address: checksumAddress(blockOneLogs[0].address),
+      topics: rawEvents[0].log.topics,
     },
   });
-  expect(events[2]).toMatchObject({
+  expect(events[3]).toMatchObject({
     sourceId: "singleTopic",
     log: {
-      topics: blockTwoLogs[0].topics,
+      topics: rawEvents[1].log.topics,
     },
   });
 });
 
 test("getLogEvents filters on fromCheckpoint (inclusive)", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: rawEvents[0].block,
+    transactions: rawEvents[0].block.transactions,
+    logs: [rawEvents[0].log, rawEvents[1].log],
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: rawEvents[2].block,
+    transactions: rawEvents[2].block.transactions,
+    logs: [rawEvents[2].log],
   });
 
   const iterator = syncStore.getLogEvents({
     fromCheckpoint: {
       ...zeroCheckpoint,
-      blockTimestamp: hexToNumber(blockTwo.timestamp!),
+      blockTimestamp: Number(rawEvents[2].block.timestamp),
+      blockNumber: Number(rawEvents[2].block.number),
     },
     toCheckpoint: maxCheckpoint,
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
@@ -1551,62 +1510,67 @@ test("getLogEvents filters on fromCheckpoint (inclusive)", async ({
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
-  expect(events[0].block.hash).toBe(blockTwo.hash);
   expect(events).toHaveLength(1);
+  expect(events[0].block.hash).toBe(rawEvents[2].block.hash);
 });
 
 test("getLogEvents filters on toCheckpoint (inclusive)", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: rawEvents[0].block,
+    transactions: rawEvents[0].block.transactions,
+    logs: [rawEvents[0].log, rawEvents[1].log],
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: rawEvents[2].block,
+    transactions: rawEvents[2].block.transactions,
+    logs: [rawEvents[2].log],
   });
 
   const iterator = syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: {
       ...maxCheckpoint,
-      blockTimestamp: hexToNumber(blockOne.timestamp!),
+      blockTimestamp: Number(rawEvents[0].block.timestamp),
+      blockNumber: Number(rawEvents[0].block.number),
     },
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
   });
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
-  expect(events.map((e) => e.block.hash)).toMatchObject([
-    blockOne.hash,
-    blockOne.hash,
-  ]);
   expect(events).toHaveLength(2);
+  expect(events.map((e) => e.block.hash)).toMatchObject([
+    rawEvents[0].block.hash,
+    rawEvents[1].block.hash,
+  ]);
 });
 
 test("getLogEvents returns no events if includeEventSelectors is an empty array", async ({
   syncStore,
-  erc20,
+  sources,
 }) => {
+  const rawEvents = await getRawEvents(sources);
+
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
+    block: rawEvents[0].block,
+    transactions: rawEvents[0].block.transactions,
+    logs: [rawEvents[0].log, rawEvents[1].log],
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
+    block: rawEvents[2].block,
+    transactions: rawEvents[2].block.transactions,
+    logs: [rawEvents[2].log],
   });
 
   const iterator = syncStore.getLogEvents({

@@ -1,4 +1,11 @@
-import type { Chain, Hash } from "viem";
+import type {
+  BlockTag,
+  Chain,
+  Hash,
+  Hex,
+  RpcBlock,
+  RpcTransaction,
+} from "viem";
 import {
   checksumAddress,
   createPublicClient,
@@ -7,6 +14,7 @@ import {
   getAbiItem,
   getEventSelector,
   http,
+  slice,
   toHex,
 } from "viem";
 import { mainnet } from "viem/chains";
@@ -194,3 +202,65 @@ export const getEventsErc20 = async (sources: Source[]) => {
 
   return _getEvents;
 };
+
+export const getRawEvents = async (sources: Source[]) => {
+  const latestBlock = await publicClient.getBlockNumber();
+  const logs = (
+    await Promise.all(
+      sources.map((source) =>
+        publicClient.request({
+          method: "eth_getLogs",
+          params: [
+            {
+              address: source.criteria.address,
+              fromBlock: toHex(latestBlock - 3n),
+            },
+          ],
+        }),
+      ),
+    )
+  ).flat();
+
+  // Manually add the child address log
+  logs.push(
+    ...(await publicClient.request({
+      method: "eth_getLogs",
+      params: [
+        {
+          address: slice(logs[2].topics[1]!, 12),
+          fromBlock: toHex(latestBlock - 3n),
+        },
+      ],
+    })),
+  );
+
+  // Dedupe any repeated blocks and txs
+  const blockNumbers: Set<Hex> = new Set();
+  const txHashes: Set<Hash> = new Set();
+  for (const log of logs) {
+    if (log.blockNumber) blockNumbers.add(log.blockNumber);
+    if (log.transactionHash) txHashes.add(log.transactionHash);
+  }
+  const blocks = await Promise.all(
+    [...blockNumbers].map((bn) =>
+      publicClient.request({
+        method: "eth_getBlockByNumber",
+        params: [bn, true],
+      }),
+    ),
+  );
+
+  return logs.map((log) => {
+    const block = blocks.find((b) => b!.number === log.blockNumber)!;
+
+    return {
+      log,
+      block: block as RpcBlock<BlockTag, true>,
+      transaction: block.transactions[
+        Number(log.transactionIndex!)
+      ] as RpcTransaction,
+    };
+  });
+};
+
+// getEvents spoof

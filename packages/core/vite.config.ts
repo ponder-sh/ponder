@@ -12,10 +12,6 @@ export default defineConfig({
     globalSetup: ["src/_test/globalSetup.ts"],
     setupFiles: ["src/_test/setup.ts"],
     include: ["src/**/*.test.ts"],
-    exclude: [
-      "src/_test/art-gobblers/**",
-      "src/_test/ens/*",
-      "src/sync-store/*",
-    ],
+    exclude: ["src/_test/art-gobblers/**", "src/_test/ens/*"],
   },
 });

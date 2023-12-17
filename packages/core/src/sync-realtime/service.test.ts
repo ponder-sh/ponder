@@ -449,8 +449,6 @@ test("emits deepReorg event after deep reorg", async (context) => {
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  console.log(await publicClient.getBlockNumber());
-
   expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
     detectedAtBlockNumber: blockNumbers.latestBlockNumber + 9,
     minimumDepth: 5,
