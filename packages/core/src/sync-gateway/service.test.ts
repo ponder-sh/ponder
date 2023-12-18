@@ -6,7 +6,11 @@ import { setupSyncStore } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
-import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 
 import { SyncGateway } from "./service.js";
 
@@ -80,6 +84,7 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
   service.handleNewHistoricalCheckpoint(optimism12);
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet10);
+  expect(emitSpy).toHaveBeenCalledTimes(1);
 });
 
 test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", async (context) => {
@@ -145,6 +150,40 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
   expect(service.historicalSyncCompletedAt).toBe(10);
 });
 
+test.only("handleNewHistoricalCheckpoint emits new checkpoint when other chain is completed", async (context) => {
+  const { common, syncStore } = context;
+
+  const service = new SyncGateway({
+    common,
+    syncStore,
+    networks,
+    sources,
+  });
+  const emitSpy = vi.spyOn(service, "emit");
+
+  const mainnet10 = createCheckpoint({
+    chainId: mainnet.chainId,
+    blockTimestamp: 10,
+  });
+  const optimism12 = createCheckpoint({
+    chainId: optimism.chainId,
+    blockTimestamp: 12,
+  });
+
+  service.handleNewHistoricalCheckpoint(mainnet10);
+  service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
+  service.handleNewRealtimeCheckpoint({
+    ...maxCheckpoint,
+    chainId: mainnet.chainId,
+  });
+
+  // Because the mainnet sync is finished, this should advance the checkpoint freely.
+  service.handleNewHistoricalCheckpoint(optimism12);
+
+  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", optimism12);
+  expect(emitSpy).toHaveBeenCalledTimes(1);
+});
+
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
   const { common, syncStore } = context;
 
@@ -166,7 +205,7 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
   });
   const mainnet25 = createCheckpoint({
     chainId: mainnet.chainId,
-    blockTimestamp: 10,
+    blockTimestamp: 25,
   });
 
   service.handleNewHistoricalCheckpoint(optimism12);
