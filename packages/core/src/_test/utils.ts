@@ -25,7 +25,7 @@ import { mainnet } from "viem/chains";
 import { type Config, createConfig } from "@/config/config.js";
 import { buildNetwork } from "@/config/networks.js";
 import { buildSources, type Source } from "@/config/sources.js";
-import type { Common } from "@/Ponder.js";
+import type { Common, Ponder } from "@/Ponder.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 
 import { ALICE } from "./constants.js";
@@ -219,4 +219,16 @@ export const getEventsErc20 = async (sources: Source[]) => {
   }
 
   return _getEvents;
+};
+
+export const onAllEventsIndexed = (ponder: Ponder) => {
+  return new Promise<void>((resolve) => {
+    ponder.indexingService.on("eventsProcessed", async ({ toCheckpoint }) => {
+      if (
+        toCheckpoint.blockNumber === Number(await publicClient.getBlockNumber())
+      ) {
+        resolve();
+      }
+    });
+  });
 };

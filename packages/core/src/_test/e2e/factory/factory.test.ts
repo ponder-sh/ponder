@@ -9,7 +9,7 @@ import {
   setupSyncStore,
 } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
-import { publicClient } from "@/_test/utils.js";
+import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
 import { Ponder } from "@/Ponder.js";
 import { range } from "@/utils/range.js";
@@ -68,29 +68,42 @@ test("factory", async (context) => {
 
   await ponder.start();
 
-  // Wait for all events to be indexed
-  await new Promise<void>((resolve) => {
-    ponder.indexingService.on("eventsProcessed", async ({ toCheckpoint }) => {
-      if (
-        toCheckpoint.blockNumber === Number(await publicClient.getBlockNumber())
-      ) {
-        resolve();
-      }
-    });
-  });
+  await onAllEventsIndexed(ponder);
 
-  const { swapEvents } = await gql(
+  let swapEvents = await gql(
     ponder,
     `
     swapEvents {
       id
+      pair
       from
       to
     }
     `,
-  );
+  ).then((g) => g.swapEvents);
 
-  expect(swapEvents).toHaveLength(0);
+  expect(swapEvents).toHaveLength(4);
+
+  await simulate({
+    erc20Address: context.erc20.address,
+    factoryAddress: context.factory.address,
+  });
+
+  await onAllEventsIndexed(ponder);
+
+  swapEvents = await gql(
+    ponder,
+    `
+    swapEvents {
+      id
+      pair
+      from
+      to
+    }
+    `,
+  ).then((g) => g.swapEvents);
+
+  expect(swapEvents).toHaveLength(5);
 
   await ponder.kill();
 });

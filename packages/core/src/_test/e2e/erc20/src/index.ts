@@ -11,7 +11,7 @@ ponder.on("Erc20:Transfer", async ({ event, context }) => {
   await context.db.Account.upsert({
     id: event.args.from,
     create: {
-      balance: event.args.amount,
+      balance: -event.args.amount,
     },
     update: ({ current }) => ({
       balance: current.balance - event.args.amount,

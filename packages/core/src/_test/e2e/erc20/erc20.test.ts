@@ -1,15 +1,17 @@
 import { rmSync } from "node:fs";
 
 import request from "supertest";
+import { zeroAddress } from "viem";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
+import { ALICE, BOB } from "@/_test/constants.js";
 import {
   setupAnvil,
   setupIndexingStore,
   setupSyncStore,
 } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
-import { publicClient } from "@/_test/utils.js";
+import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
 import { Ponder } from "@/Ponder.js";
 import { range } from "@/utils/range.js";
@@ -68,18 +70,9 @@ test("erc20", async (context) => {
 
   await ponder.start();
 
-  // Wait for all events to be indexed
-  await new Promise<void>((resolve) => {
-    ponder.indexingService.on("eventsProcessed", async ({ toCheckpoint }) => {
-      if (
-        toCheckpoint.blockNumber === Number(await publicClient.getBlockNumber())
-      ) {
-        resolve();
-      }
-    });
-  });
+  await onAllEventsIndexed(ponder);
 
-  const { accounts } = await gql(
+  let accounts = await gql(
     ponder,
     `
     accounts {
@@ -87,9 +80,51 @@ test("erc20", async (context) => {
       balance
     }
     `,
-  );
+  ).then((g) => g.accounts);
 
   expect(accounts).toHaveLength(3);
+  expect(accounts[0]).toMatchObject({
+    id: zeroAddress,
+    balance: (-4 * 10 ** 18).toString(),
+  });
+  expect(accounts[1]).toMatchObject({
+    id: BOB,
+    balance: (4 * 10 ** 18).toString(),
+  });
+  expect(accounts[2]).toMatchObject({
+    id: ALICE,
+    balance: "0",
+  });
+
+  await simulate({
+    erc20Address: context.erc20.address,
+    factoryAddress: context.factory.address,
+  });
+
+  await onAllEventsIndexed(ponder);
+
+  accounts = await gql(
+    ponder,
+    `
+    accounts {
+      id
+      balance
+    }
+    `,
+  ).then((g) => g.accounts);
+
+  expect(accounts[0]).toMatchObject({
+    id: zeroAddress,
+    balance: (-5 * 10 ** 18).toString(),
+  });
+  expect(accounts[1]).toMatchObject({
+    id: BOB,
+    balance: (5 * 10 ** 18).toString(),
+  });
+  expect(accounts[2]).toMatchObject({
+    id: ALICE,
+    balance: "0",
+  });
 
   await ponder.kill();
 });
