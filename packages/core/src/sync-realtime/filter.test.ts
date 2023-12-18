@@ -2,13 +2,13 @@ import { getAbiItem, getEventSelector, toHex, zeroHash } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
 import { erc20ABI, pairABI } from "@/_test/generated.js";
-import { setupEthClient } from "@/_test/setup.js";
+import { setupAnvil } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
 import { filterLogs } from "./filter.js";
 
-beforeEach((context) => setupEthClient(context));
+beforeEach((context) => setupAnvil(context));
 
 const AliceHex = toLowerCase(
   "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266",

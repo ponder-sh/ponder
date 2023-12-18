@@ -1,14 +1,14 @@
 import { HttpRequestError, InvalidParamsRpcError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { setupEthClient, setupSyncStore } from "@/_test/setup.js";
+import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
 import { getEventsErc20, publicClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
 import { HistoricalSyncService } from "./service.js";
 
-beforeEach((context) => setupEthClient(context));
+beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupSyncStore(context));
 
 const getBlockNumbers = () =>
@@ -464,7 +464,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   expect(logFilterIntervals).toMatchObject([
     [0, blockNumbers.finalizedBlockNumber],
   ]);
-  expect(rpcRequestSpy).toHaveBeenCalledTimes(5);
+  expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
   await service.kill();
 });

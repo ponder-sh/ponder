@@ -3,12 +3,12 @@ import { beforeEach, expect, test } from "vitest";
 
 import { BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
-import { setupEthClient } from "@/_test/setup.js";
+import { setupAnvil } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
 
 import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
 
-beforeEach((context) => setupEthClient(context));
+beforeEach((context) => setupAnvil(context));
 
 const getClient = async () => {
   const blockNumber = await publicClient.getBlockNumber();

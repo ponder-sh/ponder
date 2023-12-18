@@ -3,12 +3,12 @@ import { getFunctionSelector, toHex } from "viem";
 import { rpc } from "viem/utils";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 
-import { setupEthClient, setupSyncStore } from "@/_test/setup.js";
+import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
 import { anvil, publicClient } from "@/_test/utils.js";
 
 import { ponderTransport } from "./transport.js";
 
-beforeEach((context) => setupEthClient(context));
+beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupSyncStore(context));
 
 test("default", ({ syncStore }) => {

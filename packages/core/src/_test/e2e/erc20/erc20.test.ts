@@ -4,7 +4,7 @@ import request from "supertest";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import {
-  setupEthClient,
+  setupAnvil,
   setupIndexingStore,
   setupSyncStore,
 } from "@/_test/setup.js";
@@ -14,7 +14,7 @@ import { buildOptions } from "@/config/options.js";
 import { Ponder } from "@/Ponder.js";
 import { range } from "@/utils/range.js";
 
-beforeEach((context) => setupEthClient(context));
+beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupSyncStore(context));
 beforeEach((context) => setupIndexingStore(context));
 

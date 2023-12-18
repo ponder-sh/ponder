@@ -2,7 +2,7 @@
 import { HttpRequestError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { setupEthClient, setupSyncStore } from "@/_test/setup.js";
+import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { publicClient, testClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -12,7 +12,7 @@ import { range } from "@/utils/range.js";
 
 import { RealtimeSyncService } from "./service.js";
 
-beforeEach((context) => setupEthClient(context));
+beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupSyncStore(context));
 
 const getBlockNumbers = () =>

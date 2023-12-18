@@ -3,7 +3,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 import { erc20ABI } from "@/_test/generated.js";
 import {
-  setupEthClient,
+  setupAnvil,
   setupIndexingStore,
   setupSyncStore,
 } from "@/_test/setup.js";
@@ -15,7 +15,7 @@ import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 import { IndexingService } from "./service.js";
 
-beforeEach((context) => setupEthClient(context));
+beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupIndexingStore(context));
 beforeEach((context) => setupSyncStore(context));
 beforeEach(() => {

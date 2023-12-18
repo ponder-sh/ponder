@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import type { Address, Hex } from "viem";
+import type { Address } from "viem";
 import { beforeEach, type TestContext } from "vitest";
 
 import type { Config } from "@/config/config.js";
@@ -35,7 +35,6 @@ declare module "vitest" {
     common: Common;
     syncStore: SyncStore;
     indexingStore: IndexingStore;
-    ethClient: { id: Hex };
     sources: [LogFilter, Factory];
     networks: Network[];
     config: Config;
@@ -178,31 +177,23 @@ export async function setupIndexingStore(context: TestContext) {
  *
  * ```ts
  * // Add this to any test suite that uses the Ethereum client.
- * beforeEach((context) => setupEthClient(context))
+ * beforeEach((context) => setupAnvil(context))
  * ```
  */
-export async function setupEthClient(context: TestContext) {
-  if (context.ethClient === undefined) {
-    const addresses = await deploy();
-    const pair = await simulate(addresses);
-    const id = await testClient.snapshot();
+export async function setupAnvil(context: TestContext) {
+  const emptySnapshotId = await testClient.snapshot();
 
-    context.ethClient = {
-      id,
-    };
-    context.networks = await getNetworks();
-    context.sources = getSources(addresses) as [LogFilter, Factory];
-    context.config = getConfig(addresses);
-    context.erc20 = {
-      address: addresses.erc20Address,
-    };
-    context.factory = {
-      address: addresses.factoryAddress,
-      pair,
-    };
-  } else {
-    await testClient.revert({ id: context.ethClient.id });
-    const id = await testClient.snapshot();
-    context.ethClient.id = id;
-  }
+  // Chain state setup shared across all tests.
+  const addresses = await deploy();
+  const pair = await simulate(addresses);
+
+  context.networks = await getNetworks();
+  context.sources = getSources(addresses) as [LogFilter, Factory];
+  context.config = getConfig(addresses);
+  context.erc20 = { address: addresses.erc20Address };
+  context.factory = { address: addresses.factoryAddress, pair };
+
+  return async () => {
+    await testClient.revert({ id: emptySnapshotId });
+  };
 }
