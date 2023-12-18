@@ -20,35 +20,46 @@ type DatabaseConfig = {
 };
 
 export const buildDatabase = ({
-  // TODO: Ue the database config passed by the user.
-  common, // config,
+  common,
+  config,
 }: {
   common: Common;
   config: Config;
 }): DatabaseConfig => {
+  const ponderDir = common.options.ponderDir;
+  const defaultSyncFilePath = path.join(ponderDir, "store", "sync.db");
+  const defaultIndexingFilePath = path.join(ponderDir, "store", "indexing.db");
+
+  // If the user manually specified a database, use it.
+  if (config.database?.kind) {
+    if (config.database.kind === "sqlite") {
+      return {
+        sync: { kind: "sqlite", file: defaultSyncFilePath },
+        indexing: { kind: "sqlite", file: defaultIndexingFilePath },
+      } satisfies DatabaseConfig;
+    } else {
+      const connectionString =
+        config.database.connectionString ?? process.env.DATABASE_URL;
+
+      const pool = new pg.Pool({ connectionString });
+      return {
+        sync: { kind: "postgres", pool },
+        indexing: { kind: "postgres", pool },
+      } satisfies DatabaseConfig;
+    }
+  }
+
+  // Otherwise, check if the DATABASE_URL env var is set. If it is, use it, otherwise use SQLite.
   if (process.env.DATABASE_URL) {
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-
     return {
       sync: { kind: "postgres", pool },
       indexing: { kind: "postgres", pool },
     } satisfies DatabaseConfig;
   } else {
-    const syncFilePath = path.join(
-      common.options.ponderDir,
-      "store",
-      "sync.db",
-    );
-
-    const indexingFilePath = path.join(
-      common.options.ponderDir,
-      "store",
-      "indexing.db",
-    );
-
     return {
-      sync: { kind: "sqlite", file: syncFilePath },
-      indexing: { kind: "sqlite", file: indexingFilePath },
+      sync: { kind: "sqlite", file: defaultSyncFilePath },
+      indexing: { kind: "sqlite", file: defaultIndexingFilePath },
     } satisfies DatabaseConfig;
   }
 };
