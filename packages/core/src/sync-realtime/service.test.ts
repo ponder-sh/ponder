@@ -339,6 +339,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   // Allow the service to process the new blocks.
   await service.addNewLatestBlock();
   await service.onIdle();
+  await service.onIdle();
 
   const blocksAfterReorg = await syncStore.db
     .selectFrom("blocks")
