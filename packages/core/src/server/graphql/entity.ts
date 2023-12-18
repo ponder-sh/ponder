@@ -67,7 +67,7 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
               // @ts-ignore
               const relatedRecordId = parent[column.referenceColumn];
 
-              return await store.findUnique({
+              return await store.findUniquePublic({
                 tableName: referencedTable,
                 id: relatedRecordId,
               });

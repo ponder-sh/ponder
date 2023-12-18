@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import pgListen from "pg-listen";
 import { beforeEach, type TestContext } from "vitest";
 
 import { buildOptions } from "@/config/options.js";
@@ -128,11 +129,13 @@ export async function setupIndexingStore(context: TestContext) {
     const connectionString = databaseUrl.toString();
 
     const pool = new pg.Pool({ connectionString });
+    const subscriber = pgListen.default({ connectionString });
     await testClient.query(`CREATE DATABASE "${databaseName}"`);
 
     context.indexingStore = new PostgresIndexingStore({
       common: context.common,
       pool,
+      subscriber,
     });
 
     return async () => {

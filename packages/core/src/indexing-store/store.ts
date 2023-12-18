@@ -105,6 +105,21 @@ export interface IndexingStore {
     orderBy?: OrderByInput<any>;
   }): Promise<Row[]>;
 
+  findUniquePublic(options: {
+    tableName: string;
+    checkpoint?: Checkpoint;
+    id: string | number | bigint;
+  }): Promise<Row | null>;
+
+  findManyPublic(options: {
+    tableName: string;
+    checkpoint?: Checkpoint;
+    where?: WhereInput<any>;
+    skip?: number;
+    take?: number;
+    orderBy?: OrderByInput<any>;
+  }): Promise<Row[]>;
+
   create(options: {
     tableName: string;
     checkpoint: Checkpoint;

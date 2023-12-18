@@ -37,7 +37,7 @@ const buildSingularField = ({
       ? { ...maxCheckpoint, blockTimestamp: timestamp }
       : undefined; // Latest.
 
-    const entityInstance = await store.findUnique({
+    const entityInstance = await store.findUniquePublic({
       tableName: tableName,
       id,
       checkpoint,

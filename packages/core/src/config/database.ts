@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import pgListen from "pg-listen";
+
 import type { Config } from "@/config/config.js";
 import type { Common } from "@/Ponder.js";
 import pg from "@/utils/pg.js";
@@ -12,6 +14,7 @@ type StoreConfig =
   | {
       kind: "postgres";
       pool: pg.Pool;
+      subscriber?: pgListen.Subscriber;
     };
 
 type DatabaseConfig = {
@@ -52,9 +55,13 @@ export const buildDatabase = ({
   // Otherwise, check if the DATABASE_URL env var is set. If it is, use it, otherwise use SQLite.
   if (process.env.DATABASE_URL) {
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const subscriber = pgListen.default({
+      connectionString: process.env.DATABASE_URL,
+    });
+
     return {
       sync: { kind: "postgres", pool },
-      indexing: { kind: "postgres", pool },
+      indexing: { kind: "postgres", pool, subscriber },
     } satisfies DatabaseConfig;
   } else {
     return {

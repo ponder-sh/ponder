@@ -1,4 +1,11 @@
-import { Kysely, PostgresDialect, sql, WithSchemaPlugin } from "kysely";
+import {
+  CompiledQuery,
+  Kysely,
+  PostgresDialect,
+  sql,
+  WithSchemaPlugin,
+} from "kysely";
+import type { Subscriber } from "pg-listen";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -35,19 +42,39 @@ export class PostgresIndexingStore implements IndexingStore {
   private common: Common;
 
   db: Kysely<any>;
-  schema?: Schema;
-  publicSchema?: Schema;
+  subscriber: Subscriber;
 
+  schema?: Schema;
   private databaseSchemaName: string;
 
-  constructor({ common, pool }: { common: Common; pool: Pool }) {
+  private publicSchema?: Schema;
+  private publicNamespace?: string;
+
+  constructor({
+    common,
+    pool,
+    subscriber,
+  }: {
+    common: Common;
+    pool: Pool;
+    subscriber: Subscriber;
+  }) {
     this.databaseSchemaName = `ponder_${new Date().getTime()}`;
     this.common = common;
-
     this.common.logger.debug({
       msg: `Using schema '${this.databaseSchemaName}'`,
       service: "indexing",
     });
+    this.subscriber = subscriber;
+
+    subscriber.connect();
+    subscriber.listenTo("namespace_published");
+    this.subscriber.notifications.on(
+      "namespace_published",
+      ({ schema }: { schema: Schema }) => {
+        this.handlePublishedSchema(schema);
+      },
+    );
 
     this.db = new Kysely({ dialect: new PostgresDialect({ pool }) }).withPlugin(
       new WithSchemaPlugin(this.databaseSchemaName),
@@ -57,6 +84,7 @@ export class PostgresIndexingStore implements IndexingStore {
   kill = async () => {
     return this.wrap({ method: "kill" }, async () => {
       try {
+        await this.subscriber.close();
         await this.db.destroy();
       } catch (e) {
         const error = e as Error;
@@ -107,6 +135,30 @@ export class PostgresIndexingStore implements IndexingStore {
           // If the ponder metadata table already has a row for this namespace, we ignore the error.
           .onConflict((oc) => oc.column("namespace_version").doNothing())
           .execute();
+
+        await tx.withSchema("public").executeQuery(
+          CompiledQuery.raw(`
+              CREATE OR REPLACE FUNCTION notify_ponder_after_namespace_publish()
+              RETURNS TRIGGER AS
+              $BODY$
+                  BEGIN
+                      PERFORM pg_notify('namespace_published', row_to_json(NEW)::text);
+                      RETURN new;
+                  END;
+              $BODY$
+              LANGUAGE plpgsql
+        `),
+        );
+
+        await tx.withSchema("public").executeQuery(
+          CompiledQuery.raw(`
+          CREATE OR REPLACE TRIGGER trigger_notify_ponder_after_namespace_publish
+          AFTER UPDATE OF is_published
+          ON "public"."ponder_metadata"
+          FOR EACH ROW
+          EXECUTE PROCEDURE notify_ponder_after_namespace_publish();
+         `),
+        );
 
         // Create tables for new schema.
         await Promise.all(
@@ -197,14 +249,38 @@ export class PostgresIndexingStore implements IndexingStore {
           .where("namespace_version", "=", this.databaseSchemaName)
           .execute();
 
+        // Delete all earlier versions of the ponder_metadata table.
+        await tx
+          .withSchema("public")
+          .deleteFrom("ponder_metadata")
+          .where("namespace_version", "<", this.databaseSchemaName)
+          .execute();
+
+        // Drop all other schemas. This will delete all previous views that are in the `public` schema.
+        // NOTE: We don't want to rely on namespaces from the ponder_metadata table because it's possible that
+        // there were namespaces that were created but never published. Furthermore, there might have been other schemas
+        // created in earlier versions of ponder.
+        const result = await tx.executeQuery(
+          CompiledQuery.raw(
+            `SELECT nspname FROM pg_namespace WHERE nspname LIKE 'ponder_%'`,
+          ),
+        );
+        await Promise.all(
+          (result.rows as { nspname: string }[]).filter(async (r) => {
+            // Don't drop the current schema.
+            if (r.nspname === this.databaseSchemaName) return;
+            await tx.schema
+              .dropSchema(r.nspname)
+              .cascade()
+              .ifExists()
+              .execute();
+          }),
+        );
+
+        // We don't need to drop views here as they are implicitly dropped when the schema is dropped.
         await Promise.all(
           Object.entries(this.schema!.tables).map(
             async ([tableName, columns]) => {
-              await tx.schema
-                .withSchema("public")
-                .dropView(`${tableName}_versioned`)
-                .ifExists()
-                .execute();
               await tx.schema
                 .withSchema("public")
                 .createView(`${tableName}_versioned`)
@@ -221,11 +297,6 @@ export class PostgresIndexingStore implements IndexingStore {
                 .map(([name]) => name);
               await tx.schema
                 .withSchema("public")
-                .dropView(tableName)
-                .ifExists()
-                .execute();
-              await tx.schema
-                .withSchema("public")
                 .createView(tableName)
                 .as(
                   tx
@@ -238,6 +309,11 @@ export class PostgresIndexingStore implements IndexingStore {
             },
           ),
         );
+      });
+
+      this.common.logger.debug({
+        msg: `Pubished new namespace`,
+        service: "indexing",
       });
     });
   };
@@ -272,70 +348,69 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   };
 
-  findUnique = async ({
-    tableName,
-    checkpoint = "latest",
-    id,
-  }: {
+  private initialLoadPublicSchema = async () => {
+    if (this.publicSchema && this.publicNamespace) return;
+    // Take the latest entry in the ponder_metadata table and use the schema.
+    const schemaRow = (await this.db
+      .withSchema("public")
+      .selectFrom("ponder_metadata")
+      .select(["schema", "is_published"])
+      .orderBy("namespace_version", "desc")
+      .execute()) as { schema: Schema; is_published: boolean }[];
+
+    if (schemaRow.length === 0) {
+      throw Error("No tables have been created");
+    }
+
+    const { schema, is_published } = schemaRow[0];
+    if (is_published) {
+      this.publicSchema = schema;
+      this.publicNamespace = "public";
+      return;
+    }
+
+    const { schema: publishedSchema, namespace_version } = (await this.db
+      .withSchema("public")
+      .selectFrom("ponder_metadata")
+      .select(["schema", "namespace_version"])
+      .where("is_published", "=", true)
+      .orderBy("namespace_version", "desc")
+      .executeTakeFirst()) as { schema: Schema; namespace_version: string };
+
+    // If there is a published schema, it is the latest so we want it to be the public schema.
+    if (publishedSchema) {
+      this.publicSchema = publishedSchema;
+      this.publicNamespace = "public";
+      return;
+    }
+
+    // If there is no published schema, then this is the initial index load and we want to use the schema that was passed into the reload.
+    this.publicSchema = this.schema;
+    this.publicNamespace = namespace_version;
+  };
+
+  findUniquePublic = async (params: {
     tableName: string;
     checkpoint?: Checkpoint | "latest";
     id: string | number | bigint;
   }) => {
-    return this.wrap({ method: "findUnique", tableName }, async () => {
-      const schemaRow = (await this.db
-        .withSchema("public")
-        .selectFrom("ponder_metadata")
-        .select("schema")
-        .where("namespace_version", "=", this.databaseSchemaName)
-        .executeTakeFirst()) as { schema: Schema };
+    return this.wrap(
+      { method: "findUniquePublic", tableName: params.tableName },
+      async () => {
+        if (!this.publicSchema) {
+          await this.initialLoadPublicSchema();
+        }
 
-      // XXX: To remove. This is just to test if schema loading works.
-      this.schema = schemaRow.schema;
-
-      const table = `${tableName}_versioned`;
-      const formattedId = formatColumnValue({
-        value: id,
-        encodeBigInts: false,
-      });
-
-      let query = this.db
-        .selectFrom(table)
-        .selectAll()
-        .where(
-          "id",
-          this.idColumnComparator({ tableName, schema: this.schema }),
-          formattedId,
-        );
-
-      if (checkpoint === "latest") {
-        query = query.where("effectiveToCheckpoint", "=", "latest");
-      } else {
-        const encodedCheckpoint = encodeCheckpoint(checkpoint);
-        query = query
-          .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
-          .where(({ eb, or }) =>
-            or([
-              eb("effectiveToCheckpoint", ">", encodedCheckpoint),
-              eb("effectiveToCheckpoint", "=", "latest"),
-            ]),
-          );
-      }
-
-      const row = await query.executeTakeFirst();
-      if (row === undefined) return null;
-
-      return this.deserializeRow({ tableName, row });
-    });
+        return this.internalFindUnique({
+          shouldUsePublicSchema: true,
+          shouldUsePublicNamespace: true,
+          ...params,
+        });
+      },
+    );
   };
 
-  findMany = async ({
-    tableName,
-    checkpoint = "latest",
-    where,
-    skip,
-    take,
-    orderBy,
-  }: {
+  findManyPublic = async (params: {
     tableName: string;
     checkpoint?: Checkpoint | "latest";
     where?: WhereInput<any>;
@@ -343,59 +418,188 @@ export class PostgresIndexingStore implements IndexingStore {
     take?: number;
     orderBy?: OrderByInput<any>;
   }) => {
-    return this.wrap({ method: "findMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
-      let query = this.db.selectFrom(table).selectAll();
-
-      if (checkpoint === "latest") {
-        query = query.where("effectiveToCheckpoint", "=", "latest");
-      } else {
-        const encodedCheckpoint = encodeCheckpoint(checkpoint);
-        query = query
-          .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
-          .where(({ eb, or }) =>
-            or([
-              eb("effectiveToCheckpoint", ">", encodedCheckpoint),
-              eb("effectiveToCheckpoint", "=", "latest"),
-            ]),
-          );
-      }
-
-      if (where) {
-        const whereConditions = buildSqlWhereConditions({
-          where,
-          encodeBigInts: false,
+    return this.wrap(
+      { method: "findManyPublic", tableName: params.tableName },
+      async () => {
+        if (!this.publicSchema) {
+          await this.initialLoadPublicSchema();
+        }
+        return this.internalFindMany({
+          shouldUsePublicSchema: true,
+          shouldUsePublicNamespace: true,
+          ...params,
         });
-        for (const whereCondition of whereConditions) {
-          query = query.where(...whereCondition);
-        }
-      }
+      },
+    );
+  };
 
-      if (skip) {
-        const offset = validateSkip(skip);
-        query = query.offset(offset);
-      }
+  findUnique = async (params: {
+    tableName: string;
+    checkpoint?: Checkpoint | "latest";
+    id: string | number | bigint;
+  }) => {
+    return this.wrap(
+      { method: "findUnique", tableName: params.tableName },
+      async () => {
+        return this.internalFindUnique({
+          shouldUsePublicSchema: false,
+          shouldUsePublicNamespace: false,
+          ...params,
+        });
+      },
+    );
+  };
 
-      if (take) {
-        const limit = validateTake(take);
-        query = query.limit(limit);
-      }
+  findMany = async (params: {
+    tableName: string;
+    checkpoint?: Checkpoint | "latest";
+    where?: WhereInput<any>;
+    skip?: number;
+    take?: number;
+    orderBy?: OrderByInput<any>;
+  }) => {
+    return this.wrap(
+      { method: "findMany", tableName: params.tableName },
+      async () => {
+        return this.internalFindMany({
+          shouldUsePublicSchema: false,
+          shouldUsePublicNamespace: false,
+          ...params,
+        });
+      },
+    );
+  };
 
-      if (orderBy) {
-        const orderByConditions = buildSqlOrderByConditions({ orderBy });
-        for (const [fieldName, direction] of orderByConditions) {
-          query = query.orderBy(
-            fieldName,
-            direction === "asc" || direction === undefined
-              ? sql`asc nulls first`
-              : sql`desc nulls last`,
-          );
-        }
-      }
+  internalFindUnique = async ({
+    tableName,
+    shouldUsePublicNamespace,
+    shouldUsePublicSchema,
+    checkpoint = "latest",
+    id,
+  }: {
+    shouldUsePublicNamespace: boolean;
+    shouldUsePublicSchema: boolean;
+    tableName: string;
+    checkpoint?: Checkpoint | "latest";
+    id: string | number | bigint;
+  }) => {
+    let schema = this.schema;
+    if (shouldUsePublicSchema) {
+      schema = this.publicSchema;
+    }
+    let db = this.db;
+    if (shouldUsePublicNamespace) {
+      db = db.withSchema(this.publicNamespace || "public");
+    }
 
-      const rows = await query.execute();
-      return rows.map((row) => this.deserializeRow({ tableName, row }));
+    const table = `${tableName}_versioned`;
+    const formattedId = formatColumnValue({
+      value: id,
+      encodeBigInts: false,
     });
+
+    let query = db
+      .selectFrom(table)
+      .selectAll()
+      .where("id", this.idColumnComparator({ tableName, schema }), formattedId);
+
+    if (checkpoint === "latest") {
+      query = query.where("effectiveToCheckpoint", "=", "latest");
+    } else {
+      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      query = query
+        .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
+        .where(({ eb, or }) =>
+          or([
+            eb("effectiveToCheckpoint", ">", encodedCheckpoint),
+            eb("effectiveToCheckpoint", "=", "latest"),
+          ]),
+        );
+    }
+
+    const row = await query.executeTakeFirst();
+    if (row === undefined) return null;
+
+    return this.deserializeRow({ shouldUsePublicSchema, tableName, row });
+  };
+
+  private internalFindMany = async ({
+    tableName,
+    shouldUsePublicNamespace,
+    shouldUsePublicSchema,
+    checkpoint = "latest",
+    where,
+    skip,
+    take,
+    orderBy,
+  }: {
+    tableName: string;
+    shouldUsePublicNamespace: boolean;
+    shouldUsePublicSchema: boolean;
+    checkpoint?: Checkpoint | "latest";
+    where?: WhereInput<any>;
+    skip?: number;
+    take?: number;
+    orderBy?: OrderByInput<any>;
+  }) => {
+    const table = `${tableName}_versioned`;
+    let db = this.db;
+    if (shouldUsePublicNamespace) {
+      db = db.withSchema(this.publicNamespace || "public");
+    }
+
+    let query = db.selectFrom(table).selectAll();
+
+    if (checkpoint === "latest") {
+      query = query.where("effectiveToCheckpoint", "=", "latest");
+    } else {
+      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      query = query
+        .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
+        .where(({ eb, or }) =>
+          or([
+            eb("effectiveToCheckpoint", ">", encodedCheckpoint),
+            eb("effectiveToCheckpoint", "=", "latest"),
+          ]),
+        );
+    }
+
+    if (where) {
+      const whereConditions = buildSqlWhereConditions({
+        where,
+        encodeBigInts: false,
+      });
+      for (const whereCondition of whereConditions) {
+        query = query.where(...whereCondition);
+      }
+    }
+
+    if (skip) {
+      const offset = validateSkip(skip);
+      query = query.offset(offset);
+    }
+
+    if (take) {
+      const limit = validateTake(take);
+      query = query.limit(limit);
+    }
+
+    if (orderBy) {
+      const orderByConditions = buildSqlOrderByConditions({ orderBy });
+      for (const [fieldName, direction] of orderByConditions) {
+        query = query.orderBy(
+          fieldName,
+          direction === "asc" || direction === undefined
+            ? sql`asc nulls first`
+            : sql`desc nulls last`,
+        );
+      }
+    }
+
+    const rows = await query.execute();
+    return rows.map((row) =>
+      this.deserializeRow({ shouldUsePublicSchema, tableName, row }),
+    );
   };
 
   create = async ({
@@ -848,14 +1052,30 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   };
 
+  private handlePublishedSchema = async (schema: Schema) => {
+    this.common.logger.debug({
+      msg: `Received notification that namespace has been published`,
+      service: "indexing",
+    });
+    this.publicSchema = schema;
+    this.publicNamespace = "public";
+    console.log(schema);
+  };
+
   private deserializeRow = ({
     tableName,
     row,
+    shouldUsePublicSchema = false,
   }: {
     tableName: string;
     row: Record<string, unknown>;
+    shouldUsePublicSchema?: boolean;
   }) => {
-    const columns = Object.entries(this.schema!.tables).find(
+    let schema = this.schema;
+    if (shouldUsePublicSchema) {
+      schema = this.publicSchema;
+    }
+    const columns = Object.entries(schema!.tables).find(
       ([name]) => name === tableName,
     )![1];
     const deserializedRow = {} as Row;

@@ -58,6 +58,7 @@
     "p-limit": "^5.0.0",
     "p-queue": "^7.4.1",
     "pg": "^8.11.3",
+    "pg-listen": "^1.7.0",
     "picocolors": "^1.0.0",
     "pino": "^8.16.2",
     "prom-client": "^15.0.0",

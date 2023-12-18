@@ -168,6 +168,7 @@ export class Ponder {
         : new PostgresIndexingStore({
             common: this.common,
             pool: database.indexing.pool,
+            subscriber: database.indexing.subscriber!,
           }));
 
     const networksToSync = this.networks.filter((network) => {
@@ -373,6 +374,7 @@ export class Ponder {
         : new PostgresIndexingStore({
             common: this.common,
             pool: database.indexing.pool,
+            subscriber: database.indexing.subscriber!,
           });
 
     this.serverService = new ServerService({

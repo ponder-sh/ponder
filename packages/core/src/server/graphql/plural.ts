@@ -127,7 +127,7 @@ export const buildPluralField = ({
       ? { ...maxCheckpoint, blockTimestamp: timestamp }
       : undefined; // Latest.
 
-    return await store.findMany({
+    return await store.findManyPublic({
       tableName: tableName,
       checkpoint,
       where: where ? buildWhereObject({ where }) : undefined,

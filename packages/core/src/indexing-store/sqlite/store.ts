@@ -224,7 +224,65 @@ export class SqliteIndexingStore implements IndexingStore {
     });
   };
 
-  findUnique = async ({
+  findUnique = async (params: {
+    tableName: string;
+    checkpoint?: Checkpoint | "latest";
+    id: string | number | bigint;
+  }) => {
+    return this.wrap(
+      { method: "findUnique", tableName: params.tableName },
+      async () => {
+        return this.internalFindUnique(params);
+      },
+    );
+  };
+
+  findMany = async (params: {
+    tableName: string;
+    checkpoint?: Checkpoint | "latest";
+    where?: WhereInput<any>;
+    skip?: number;
+    take?: number;
+    orderBy?: OrderByInput<any>;
+  }) => {
+    return this.wrap(
+      { method: "findMany", tableName: params.tableName },
+      async () => {
+        return this.internalfindMany(params);
+      },
+    );
+  };
+
+  findUniquePublic = async (params: {
+    tableName: string;
+    checkpoint?: Checkpoint | "latest";
+    id: string | number | bigint;
+  }) => {
+    return this.wrap(
+      { method: "findUniquePublic", tableName: params.tableName },
+      async () => {
+        return this.internalFindUnique(params);
+      },
+    );
+  };
+
+  findManyPublic = async (params: {
+    tableName: string;
+    checkpoint?: Checkpoint | "latest";
+    where?: WhereInput<any>;
+    skip?: number;
+    take?: number;
+    orderBy?: OrderByInput<any>;
+  }) => {
+    return this.wrap(
+      { method: "findManyPublic", tableName: params.tableName },
+      async () => {
+        return this.internalfindMany(params);
+      },
+    );
+  };
+
+  private internalFindUnique = async ({
     tableName,
     checkpoint = "latest",
     id,
@@ -233,44 +291,42 @@ export class SqliteIndexingStore implements IndexingStore {
     checkpoint?: Checkpoint | "latest";
     id: string | number | bigint;
   }) => {
-    return this.wrap({ method: "findUnique", tableName }, async () => {
-      const table = `${tableName}_versioned`;
-      const formattedId = formatColumnValue({
-        value: id,
-        encodeBigInts: true,
-      });
-
-      let query = this.db
-        .selectFrom(table)
-        .selectAll()
-        .where(
-          "id",
-          this.idColumnComparator({ tableName, schema: this.schema }),
-          formattedId,
-        );
-
-      if (checkpoint === "latest") {
-        query = query.where("effectiveToCheckpoint", "=", "latest");
-      } else {
-        const encodedCheckpoint = encodeCheckpoint(checkpoint);
-        query = query
-          .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
-          .where(({ eb, or }) =>
-            or([
-              eb("effectiveToCheckpoint", ">", encodedCheckpoint),
-              eb("effectiveToCheckpoint", "=", "latest"),
-            ]),
-          );
-      }
-
-      const row = await query.executeTakeFirst();
-      if (row === undefined) return null;
-
-      return this.deserializeRow({ tableName, row });
+    const table = `${tableName}_versioned`;
+    const formattedId = formatColumnValue({
+      value: id,
+      encodeBigInts: true,
     });
+
+    let query = this.db
+      .selectFrom(table)
+      .selectAll()
+      .where(
+        "id",
+        this.idColumnComparator({ tableName, schema: this.schema }),
+        formattedId,
+      );
+
+    if (checkpoint === "latest") {
+      query = query.where("effectiveToCheckpoint", "=", "latest");
+    } else {
+      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      query = query
+        .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
+        .where(({ eb, or }) =>
+          or([
+            eb("effectiveToCheckpoint", ">", encodedCheckpoint),
+            eb("effectiveToCheckpoint", "=", "latest"),
+          ]),
+        );
+    }
+
+    const row = await query.executeTakeFirst();
+    if (row === undefined) return null;
+
+    return this.deserializeRow({ tableName, row });
   };
 
-  findMany = async ({
+  private internalfindMany = async ({
     tableName,
     checkpoint = "latest",
     where,
@@ -285,55 +341,53 @@ export class SqliteIndexingStore implements IndexingStore {
     take?: number;
     orderBy?: OrderByInput<any>;
   }) => {
-    return this.wrap({ method: "findMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
+    const table = `${tableName}_versioned`;
 
-      let query = this.db.selectFrom(table).selectAll();
+    let query = this.db.selectFrom(table).selectAll();
 
-      if (checkpoint === "latest") {
-        query = query.where("effectiveToCheckpoint", "=", "latest");
-      } else {
-        const encodedCheckpoint = encodeCheckpoint(checkpoint);
-        query = query
-          .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
-          .where(({ eb, or }) =>
-            or([
-              eb("effectiveToCheckpoint", ">", encodedCheckpoint),
-              eb("effectiveToCheckpoint", "=", "latest"),
-            ]),
-          );
+    if (checkpoint === "latest") {
+      query = query.where("effectiveToCheckpoint", "=", "latest");
+    } else {
+      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      query = query
+        .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
+        .where(({ eb, or }) =>
+          or([
+            eb("effectiveToCheckpoint", ">", encodedCheckpoint),
+            eb("effectiveToCheckpoint", "=", "latest"),
+          ]),
+        );
+    }
+
+    if (where) {
+      const whereConditions = buildSqlWhereConditions({
+        where,
+        encodeBigInts: true,
+      });
+      for (const whereCondition of whereConditions) {
+        query = query.where(...whereCondition);
       }
+    }
 
-      if (where) {
-        const whereConditions = buildSqlWhereConditions({
-          where,
-          encodeBigInts: true,
-        });
-        for (const whereCondition of whereConditions) {
-          query = query.where(...whereCondition);
-        }
+    if (skip) {
+      const offset = validateSkip(skip);
+      query = query.offset(offset);
+    }
+
+    if (take) {
+      const limit = validateTake(take);
+      query = query.limit(limit);
+    }
+
+    if (orderBy) {
+      const orderByConditions = buildSqlOrderByConditions({ orderBy });
+      for (const orderByCondition of orderByConditions) {
+        query = query.orderBy(...orderByCondition);
       }
+    }
 
-      if (skip) {
-        const offset = validateSkip(skip);
-        query = query.offset(offset);
-      }
-
-      if (take) {
-        const limit = validateTake(take);
-        query = query.limit(limit);
-      }
-
-      if (orderBy) {
-        const orderByConditions = buildSqlOrderByConditions({ orderBy });
-        for (const orderByCondition of orderByConditions) {
-          query = query.orderBy(...orderByCondition);
-        }
-      }
-
-      const rows = await query.execute();
-      return rows.map((row) => this.deserializeRow({ tableName, row }));
-    });
+    const rows = await query.execute();
+    return rows.map((row) => this.deserializeRow({ tableName, row }));
   };
 
   create = async ({
