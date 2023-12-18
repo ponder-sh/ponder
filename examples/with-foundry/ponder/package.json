@@ -1,7 +1,7 @@
 {
-  "name": "with-foundry-ponder",
   "private": true,
   "type": "module",
+  "name": "ponder-examples-with-foundry-ponder",
   "scripts": {
     "codegen": "ponder codegen",
     "dev": "ponder dev",
@@ -24,6 +24,5 @@
   ],
   "engines": {
     "node": ">=18"
-  },
-  "version": null
+  }
 }
