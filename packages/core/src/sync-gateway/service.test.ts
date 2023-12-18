@@ -150,7 +150,7 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
   expect(service.historicalSyncCompletedAt).toBe(10);
 });
 
-test.only("handleNewHistoricalCheckpoint emits new checkpoint when other chain is completed", async (context) => {
+test("handleNewHistoricalCheckpoint emits new checkpoint when other chain is completed", async (context) => {
   const { common, syncStore } = context;
 
   const service = new SyncGateway({
