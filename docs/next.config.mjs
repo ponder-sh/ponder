@@ -1,14 +1,16 @@
-const withNextra = require("nextra")({
+import nextra from "nextra";
+
+const withNextra = nextra({
   theme: "nextra-theme-docs",
   themeConfig: "./theme.config.tsx",
-  defaultShowCopyCode: true,
-  flexsearch: {
-    codeblocks: true,
+  latex: true,
+  search: {
+    codeblocks: false,
   },
-  staticImage: true,
+  defaultShowCopyCode: true,
 });
 
-module.exports = withNextra({
+export default withNextra({
   redirects() {
     return [
       // Temp redirect before we build a `blog/` TOC page.

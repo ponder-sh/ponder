@@ -135,6 +135,8 @@ export function Home() {
 
         <Benchmarks />
       </div>
+
+      <div className="h-48" />
     </main>
   );
 }

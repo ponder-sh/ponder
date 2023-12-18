@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* CODE COLUMNS STYLES */
+/* CODE COLUMNS */
 .code-columns {
   display: flex;
   flex-direction: row;
@@ -44,11 +44,6 @@
   fill: #fffbf5;
 }
 
-/* TELEGRAM LOGO */
-.dark .telegram path:first-of-type {
-  fill: #fffbf5;
-}
-
 /* CAPTION */
 .caption {
   color: #6b7280;
@@ -61,37 +56,28 @@
   line-height: 1.5rem;
 }
 
-/* SEARCHBAR SPACING OVERRIDES */
-.nextra-search {
-  margin-right: 8px;
-}
-@media (max-width: 768px) {
-  .nextra-search {
-    margin-right: 0px;
+/* NAV SPACING OVERRIDES */
+@media (min-width: 768px) {
+  .nextra-nav-container > nav {
+    gap: 22px;
   }
 }
 
-/* MAIN CONTENT OVERRIDES */
-/* .nextra-content {
-  justify-content: start;
-} */
-.nextra-content > main {
-  /* max-width: 80ch; */
-  font-size: 18px;
-}
-
 /* LINK OVERRIDES */
-a {
+/* a {
   font-weight: 500;
-}
-.nx-underline {
+} */
+._underline {
   text-decoration-line: none;
+  transition-property: color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }
-.nx-underline:hover {
-  text-decoration-line: underline;
-  text-decoration-thickness: auto;
+._underline:hover {
+  color: #39dff2;
 }
 
+/* HERO TEXTURE */
 .hero-texture {
   background:
     radial-gradient(
@@ -101,7 +87,6 @@ a {
     ),
     url("/hero-texture.png") lightgray 50% / cover no-repeat;
 }
-
 .dark .hero-texture {
   background:
     radial-gradient(

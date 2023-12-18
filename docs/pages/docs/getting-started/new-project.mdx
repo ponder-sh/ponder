@@ -2,8 +2,7 @@
 description: "A guide for creating a new Ponder project"
 ---
 
-import { Steps, Tabs, Tab } from "nextra/components";
-import { Callout } from "nextra-theme-docs";
+import { Steps, Tabs, Callout } from "nextra/components";
 
 # Quickstart
 
@@ -18,21 +17,21 @@ import { Callout } from "nextra-theme-docs";
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tab>
+  <Tabs.Tab>
 ```
 pnpm create ponder
 ```
-</Tab>
-  <Tab>
+</Tabs.Tab>
+  <Tabs.Tab>
 ```
 yarn create ponder
 ```
-</Tab>
-  <Tab>
+</Tabs.Tab>
+  <Tabs.Tab>
 ```
 npm create ponder@latest
 ```
-</Tab>
+</Tabs.Tab>
 </Tabs>
 
 You will be asked for a project name, and if you are using a [template](/api-reference/create-ponder#templates) (recommended). Then, it will create a project directory, install dependencies, and initialize a git repository.
@@ -45,21 +44,21 @@ First, `cd` into your project directory, then start the server.
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tab>
+  <Tabs.Tab>
 ```
 pnpm dev
 ```
-</Tab>
-  <Tab>
+</Tabs.Tab>
+  <Tabs.Tab>
 ```
 yarn dev
 ```
-</Tab>
-  <Tab>
+</Tabs.Tab>
+  <Tabs.Tab>
 ```
 npm run dev
 ```
-</Tab>
+</Tabs.Tab>
 </Tabs>
 
 ### Add an RPC URL

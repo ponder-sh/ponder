@@ -4,5 +4,8 @@
     "next": {
       "rootDir": "docs/"
     }
+  },
+  "rules": {
+    "import/no-anonymous-default-export": "off"
   }
 }
