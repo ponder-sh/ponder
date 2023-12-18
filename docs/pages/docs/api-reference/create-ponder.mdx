@@ -2,7 +2,7 @@
 description: "API reference for create-ponder CLI tool"
 ---
 
-import { Tabs, Tab } from "nextra/components";
+import { Tabs } from "nextra/components";
 
 # Create Ponder API
 
@@ -10,21 +10,21 @@ This command line tool creates a new project directory with `package.json`, `pon
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tab>
+  <Tabs.Tab>
 ```
 pnpm create ponder {...options}
 ```
-</Tab>
-  <Tab>
+</Tabs.Tab>
+  <Tabs.Tab>
 ```
 yarn create ponder {...options}
 ```
-</Tab>
-  <Tab>
+</Tabs.Tab>
+  <Tabs.Tab>
 ```
 npm create ponder@latest {...options}
 ```
-</Tab>
+</Tabs.Tab>
 </Tabs>
 
 ## Options

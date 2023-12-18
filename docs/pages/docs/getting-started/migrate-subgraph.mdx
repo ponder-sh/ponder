@@ -2,8 +2,7 @@
 description: "A guide for migrating a Graph Protocol subgraph to Ponder"
 ---
 
-import { Steps, Tabs, Tab } from "nextra/components";
-import { Callout } from "nextra/components";
+import { Callout, Steps, Tabs } from "nextra/components";
 
 # Migrate a Graph Protocol subgraph
 
@@ -13,21 +12,21 @@ import { Callout } from "nextra/components";
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tab>
+  <Tabs.Tab>
 ```
 pnpm create ponder
 ```
-</Tab>
-  <Tab>
+</Tabs.Tab>
+  <Tabs.Tab>
 ```
 yarn create ponder
 ```
-</Tab>
-  <Tab>
+</Tabs.Tab>
+  <Tabs.Tab>
 ```
 npm create ponder@latest
 ```
-</Tab>
+</Tabs.Tab>
 </Tabs>
 
 First, enter a project name. Then select the **Subgraph ID** template option and paste in your subgraph's deployment ID:
@@ -50,21 +49,21 @@ First, `cd` into your project directory, then start the server.
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tab>
+  <Tabs.Tab>
 ```
 pnpm dev
 ```
-</Tab>
-  <Tab>
+</Tabs.Tab>
+  <Tabs.Tab>
 ```
 yarn dev
 ```
-</Tab>
-  <Tab>
+</Tabs.Tab>
+  <Tabs.Tab>
 ```
 npm run dev
 ```
-</Tab>
+</Tabs.Tab>
 </Tabs>
 
 ### Add an RPC URL
