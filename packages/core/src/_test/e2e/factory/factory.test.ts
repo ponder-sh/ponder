@@ -28,20 +28,20 @@ const gql = async (ponder: Ponder, query: string) => {
 };
 
 afterEach(() => {
-  rmSync("./src/_test/e2e/erc20/.ponder", {
+  rmSync("./src/_test/e2e/factory/.ponder", {
     recursive: true,
     force: true,
   });
-  rmSync("./src/_test/e2e/erc20/generated", {
+  rmSync("./src/_test/e2e/factory/generated", {
     recursive: true,
     force: true,
   });
 });
 
-test("erc20", async (context) => {
+test("factory", async (context) => {
   const options = buildOptions({
     cliOptions: {
-      rootDir: "./src/_test/e2e/erc20",
+      rootDir: "./src/_test/e2e/factory",
       configFile: "ponder.config.ts",
     },
   });
@@ -79,17 +79,18 @@ test("erc20", async (context) => {
     });
   });
 
-  const { accounts } = await gql(
+  const { swapEvents } = await gql(
     ponder,
     `
-    accounts {
+    swapEvents {
       id
-      balance
+      from
+      to
     }
     `,
   );
 
-  expect(accounts).toHaveLength(3);
+  expect(swapEvents).toHaveLength(0);
 
   await ponder.kill();
 });

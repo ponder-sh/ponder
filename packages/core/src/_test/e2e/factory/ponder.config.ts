@@ -1,7 +1,7 @@
 import { http } from "viem";
 
 import { createConfig } from "../../../config/config.js";
-import { erc20ABI } from "../../generated.js";
+import { pairABI } from "../../generated.js";
 
 const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
 
@@ -13,12 +13,9 @@ export default createConfig({
     },
   },
   contracts: {
-    Erc20: {
+    Pair: {
       network: "mainnet",
-      abi: erc20ABI,
-      filter: {
-        event: "Transfer",
-      },
+      abi: pairABI,
     },
   },
 });
