@@ -136,13 +136,14 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
           throwOnTimeout: true,
         },
       );
+      taskControllers.delete(taskController);
     } catch (error_) {
+      taskControllers.delete(taskController);
       taskController.abort();
       if (!(error_ instanceof AbortError) && !queueSignal.aborted) {
         await onError?.({ error: error_ as Error, task, context, queue });
       }
     }
-    taskControllers.delete(taskController);
   };
 
   return queue;

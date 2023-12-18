@@ -82,14 +82,23 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.blocks = [];
 
     // Fetch the latest block, and remote chain Id for the network.
-    const [latestBlock, rpcChainId_] = await Promise.all([
-      requestWithRetry(() => this.getLatestBlock(undefined)),
-      requestWithRetry(() =>
-        request(this.network, { body: { method: "eth_chainId" } }),
-      ),
-    ]);
+    let latestBlock: BlockWithTransactions;
+    let rpcChainId: number;
+    try {
+      [latestBlock, rpcChainId] = await Promise.all([
+        requestWithRetry(() => this.getLatestBlock(undefined)),
+        requestWithRetry(() =>
+          request(this.network, { body: { method: "eth_chainId" } }).then((c) =>
+            hexToNumber(c),
+          ),
+        ),
+      ]);
+    } catch (error_) {
+      throw Error(
+        "Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)",
+      );
+    }
     const latestBlockNumber = hexToNumber(latestBlock.number);
-    const rpcChainId = hexToNumber(rpcChainId_);
 
     if (rpcChainId !== this.network.chainId)
       this.common.logger.warn({

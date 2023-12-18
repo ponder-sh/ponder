@@ -322,7 +322,6 @@ export class Ponder {
       error.stack = undefined;
       this.common.logger.fatal({
         service: "app",
-        msg: `Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)`,
         error,
       });
       this.kill();
