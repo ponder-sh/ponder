@@ -1,6 +1,6 @@
 {
-  "name": "ponder-examples-with-nextjs",
   "private": true,
+  "name": "ponder-examples-with-nextjs-ponder",
   "type": "module",
   "scripts": {
     "dev": "ponder dev",

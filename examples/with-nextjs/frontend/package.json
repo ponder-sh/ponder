@@ -1,7 +1,6 @@
 {
-  "name": "next-interface",
-  "version": "0.1.0",
   "private": true,
+  "name": "ponder-examples-with-nextjs-frontend",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
