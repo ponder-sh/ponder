@@ -14,7 +14,9 @@
     "ponder-examples-reference-erc20",
     "ponder-examples-reference-erc721",
     "ponder-examples-with-foundry",
-    "ponder-examples-with-nextjs"
+    "ponder-examples-with-foundry-ponder",
+    "ponder-examples-with-nextjs",
+    "ponder-examples-with-nextjs-ponder"
   ],
   "linked": [],
   "access": "public",
