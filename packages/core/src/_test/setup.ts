@@ -137,6 +137,7 @@ export async function setupIndexingStore(context: TestContext) {
       pool,
       subscriber,
     });
+    await context.indexingStore.setup();
 
     return async () => {
       try {

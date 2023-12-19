@@ -86,6 +86,8 @@ export interface IndexingStore {
 
   kill(): Promise<void>;
 
+  setup(): Promise<void>;
+
   publish(): Promise<void>;
 
   revert(options: { checkpoint: Checkpoint }): Promise<void>;

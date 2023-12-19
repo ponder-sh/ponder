@@ -235,6 +235,7 @@ export class Ponder {
 
     // One-time setup for some services.
     await this.syncStore.migrateUp();
+    await this.indexingStore.setup();
     this.serverService.setup();
 
     this.codegenService.generateGraphqlSchemaFile({

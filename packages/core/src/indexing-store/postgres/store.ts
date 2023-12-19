@@ -1,6 +1,7 @@
 import {
   CompiledQuery,
   Kysely,
+  Migrator,
   PostgresDialect,
   sql,
   WithSchemaPlugin,
@@ -25,6 +26,7 @@ import {
   buildSqlOrderByConditions,
   buildSqlWhereConditions,
 } from "../utils/where.js";
+import { migrationProvider } from "./migrations.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
@@ -45,6 +47,7 @@ export class PostgresIndexingStore implements IndexingStore {
   subscriber: Subscriber;
 
   schema?: Schema;
+  private migrator: Migrator;
   private databaseSchemaName: string;
 
   private publicSchema?: Schema;
@@ -65,10 +68,10 @@ export class PostgresIndexingStore implements IndexingStore {
       msg: `Using schema '${this.databaseSchemaName}'`,
       service: "indexing",
     });
-    this.subscriber = subscriber;
 
-    subscriber.connect();
-    subscriber.listenTo("namespace_published");
+    this.subscriber = subscriber;
+    this.subscriber.connect();
+    this.subscriber.listenTo("namespace_published");
     this.subscriber.notifications.on(
       "namespace_published",
       ({ schema }: { schema: Schema }) => {
@@ -76,10 +79,21 @@ export class PostgresIndexingStore implements IndexingStore {
       },
     );
 
-    this.db = new Kysely({ dialect: new PostgresDialect({ pool }) }).withPlugin(
-      new WithSchemaPlugin(this.databaseSchemaName),
-    );
+    const db = new Kysely({ dialect: new PostgresDialect({ pool }) });
+    this.migrator = new Migrator({
+      db,
+      provider: migrationProvider,
+      migrationTableSchema: "ponder_index",
+    });
+    this.db = db.withPlugin(new WithSchemaPlugin(this.databaseSchemaName));
   }
+
+  setup = async () => {
+    const { error } = await this.migrator.migrateToLatest();
+    if (error) {
+      throw error;
+    }
+  };
 
   kill = async () => {
     return this.wrap({ method: "kill" }, async () => {
@@ -116,14 +130,6 @@ export class PostgresIndexingStore implements IndexingStore {
           .execute();
 
         // Add the ponder_metadata table if it doesn't exist.
-        await tx.schema
-          .withSchema("public")
-          .createTable("ponder_metadata")
-          .ifNotExists()
-          .addColumn("namespace_version", "text", (col) => col.primaryKey())
-          .addColumn("schema", "jsonb")
-          .addColumn("is_published", "boolean", (col) => col.defaultTo(false))
-          .execute();
 
         await tx
           .withSchema("public")
@@ -135,31 +141,6 @@ export class PostgresIndexingStore implements IndexingStore {
           // If the ponder metadata table already has a row for this namespace, we ignore the error.
           .onConflict((oc) => oc.column("namespace_version").doNothing())
           .execute();
-
-        await tx.withSchema("public").executeQuery(
-          CompiledQuery.raw(`
-              CREATE OR REPLACE FUNCTION notify_ponder_after_namespace_publish()
-              RETURNS TRIGGER AS
-              $BODY$
-                  BEGIN
-                      PERFORM pg_notify('namespace_published', row_to_json(NEW)::text);
-                      RETURN new;
-                  END;
-              $BODY$
-              LANGUAGE plpgsql
-        `),
-        );
-
-        await tx.withSchema("public").executeQuery(
-          CompiledQuery.raw(`
-          CREATE OR REPLACE TRIGGER trigger_notify_ponder_after_namespace_publish
-          AFTER UPDATE OF is_published
-          ON "public"."ponder_metadata"
-          FOR EACH ROW
-          EXECUTE PROCEDURE notify_ponder_after_namespace_publish();
-         `),
-        );
-
         // Create tables for new schema.
         await Promise.all(
           Object.entries(this.schema!.tables).map(

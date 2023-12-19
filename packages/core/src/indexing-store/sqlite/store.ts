@@ -51,6 +51,10 @@ export class SqliteIndexingStore implements IndexingStore {
     });
   }
 
+  // TODO: Some type of setup here.
+  // Fulfills the IndexingStore interface.
+  setup = async () => {};
+
   async kill() {
     return this.wrap({ method: "kill" }, async () => {
       const tableNames = Object.keys(this.schema?.tables ?? {});
