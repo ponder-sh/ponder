@@ -464,8 +464,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   expect(logFilterIntervals).toMatchObject([
     [0, blockNumbers.finalizedBlockNumber],
   ]);
-  // Note: this should probably be 4
-  expect(rpcRequestSpy).toHaveBeenCalledTimes(5);
+  expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
   await service.kill();
 });

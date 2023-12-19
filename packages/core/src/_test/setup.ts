@@ -172,8 +172,6 @@ export async function setupIndexingStore(context: TestContext) {
   }
 }
 
-const emptySnapshotId = await testClient.snapshot();
-
 /**
  * Sets up an isolated Ethereum client on the test context, with the appropriate Erc20 + Factory state.
  *
@@ -183,6 +181,8 @@ const emptySnapshotId = await testClient.snapshot();
  * ```
  */
 export async function setupAnvil(context: TestContext) {
+  const emptySnapshotId = await testClient.snapshot();
+
   // Chain state setup shared across all tests.
   const addresses = await deploy();
   const pair = await simulate(addresses);
