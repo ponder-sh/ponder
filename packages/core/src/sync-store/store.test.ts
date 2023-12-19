@@ -1478,7 +1478,7 @@ test("getLogEvents filters on multiple filters", async ({
   });
 });
 
-test("getLogEvents filters on fromCheckpoint (inclusive)", async ({
+test("getLogEvents filters on fromCheckpoint (exclusive)", async ({
   syncStore,
   sources,
 }) => {
@@ -1500,9 +1500,11 @@ test("getLogEvents filters on fromCheckpoint (inclusive)", async ({
 
   const iterator = syncStore.getLogEvents({
     fromCheckpoint: {
-      ...zeroCheckpoint,
-      blockTimestamp: Number(rawEvents[2].block.timestamp),
-      blockNumber: Number(rawEvents[2].block.number),
+      chainId: 1,
+      blockTimestamp: Number(rawEvents[0].block.timestamp),
+      blockNumber: Number(rawEvents[0].block.number),
+      // Should exclude the 2nd log in the first block.
+      logIndex: Number(rawEvents[1].log.logIndex),
     },
     toCheckpoint: maxCheckpoint,
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
