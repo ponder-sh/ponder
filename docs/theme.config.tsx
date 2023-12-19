@@ -64,15 +64,25 @@ const config: DocsThemeConfig = {
   head: function useHead() {
     const config = useConfig();
     const { route } = useRouter();
-    const isDefault = route === "/" || !config.title;
-    const image =
-      "https://ponder.sh/" +
-      (isDefault ? "og.png" : `api/og?title=${config.title}`);
 
+    const isDefault = route === "/" || !config.title;
+
+    // Building Your Application: Caching | Next.js
+    const title = isDefault
+      ? "Ponder – A backend framework for crypto apps"
+      : (config.frontMatter.title ?? "Documentation") + " – Ponder";
+
+    // An overview of caching mechanisms in Next.js.
     const description =
-      config.frontMatter.description ||
-      "Ponder – A backend framework for crypto apps";
-    const title = config.title + (route === "/" ? "" : " – Ponder");
+      config.frontMatter.description ??
+      "Ponder is an open-source framework for crypto apps focused on developer experience and performance.";
+
+    const image =
+      config.frontMatter.image ??
+      "https://ponder.sh/" +
+        (isDefault
+          ? "og.png"
+          : `api/og?title=${config.frontMatter.title}&description=${description}`);
 
     return (
       <>
@@ -122,45 +132,6 @@ const config: DocsThemeConfig = {
       </>
     );
   },
-
-  // useNextSeoProps() {
-  //   const { route } = useRouter();
-  //   const { frontMatter } = useConfig();
-
-  //   const defaultSeoProps = {
-  //     description: "Ponder is a backend framework for crypto apps.",
-  //     openGraph: {
-  //       description: "Ponder is a backend framework for crypto apps.",
-  //       title: "Ponder – A backend framework for crypto apps",
-  //       images: [{ url: "https://ponder.sh/og.png" }],
-  //     },
-  //     themeColor: "#FFFBF5",
-  //     twitter: {
-  //       cardType: "summary_large_image",
-  //       handle: "@ponder_sh",
-  //       site: "https://ponder.sh",
-  //     },
-  //   };
-
-  //   if (!/^\/index/.test(route))
-  //     return {
-  //       ...defaultSeoProps,
-  //       description: frontMatter.description,
-  //       openGraph: {
-  //         ...defaultSeoProps.openGraph,
-  //         description: frontMatter.description,
-  //         title: frontMatter.title,
-  //         ...(frontMatter.image
-  //           ? { images: [{ url: frontMatter.image }] }
-  //           : {}),
-  //       },
-  //       titleTemplate: `%s – Ponder`,
-  //     };
-  //   return {
-  //     ...defaultSeoProps,
-  //     title: "Ponder – A backend framework for crypto apps",
-  //   };
-  // },
 };
 
 export default config;

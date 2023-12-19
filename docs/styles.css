@@ -64,9 +64,6 @@
 }
 
 /* LINK OVERRIDES */
-/* a {
-  font-weight: 500;
-} */
 ._underline {
   text-decoration-line: none;
   transition-property: color;
