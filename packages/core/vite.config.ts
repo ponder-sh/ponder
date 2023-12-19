@@ -15,6 +15,7 @@ export default defineConfig({
       threads: {
         minThreads: 4,
         maxThreads: 4,
+        useAtomics: true,
       },
     },
   },
