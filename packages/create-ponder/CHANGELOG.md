@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.1.2
+
+### Patch Changes
+
+- [#535](https://github.com/ponder-sh/ponder/pull/535) [`d9277db8922dd6e7203b35daeb98673807559cbf`](https://github.com/ponder-sh/ponder/commit/d9277db8922dd6e7203b35daeb98673807559cbf) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed bug where create-ponder was still prompting for a template choice even when an etherscan contract link was submitted
+
 ## 0.1.1
 
 ## 0.1.0
