@@ -83,7 +83,7 @@ export class PostgresIndexingStore implements IndexingStore {
     this.migrator = new Migrator({
       db,
       provider: migrationProvider,
-      migrationTableSchema: "ponder_index",
+      migrationTableSchema: "indexer_migrations",
     });
     this.db = db.withPlugin(new WithSchemaPlugin(this.databaseSchemaName));
   }
@@ -347,6 +347,7 @@ export class PostgresIndexingStore implements IndexingStore {
       throw Error("No tables have been created");
     }
 
+    // Check the first row to see if it is published. If it is, then we can use it as the public schema. If not, we need to find the latest published schema.
     const { schema, namespace_version, is_published } = schemaRow[0];
     if (is_published) {
       this.publicSchema = schema;
@@ -369,7 +370,7 @@ export class PostgresIndexingStore implements IndexingStore {
       return;
     }
 
-    // If there is a published schema, it is the latest so we want it to be the public schema.
+    // If there is a published schema, then it is the latest so we want it to be the public schema.
     this.publicSchema = publishedResult.schema;
     this.publicNamespace = "public";
   };
@@ -1039,7 +1040,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
   private handlePublishedSchema = async (schema: Schema) => {
     this.common.logger.debug({
-      msg: `Received notification that namespace has been published`,
+      msg: `Updating public schema with new published version`,
       service: "indexing",
     });
     this.publicSchema = schema;
