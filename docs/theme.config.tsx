@@ -77,12 +77,7 @@ const config: DocsThemeConfig = {
       config.frontMatter.description ??
       "Ponder is an open-source framework for crypto apps focused on developer experience and performance.";
 
-    const image =
-      config.frontMatter.image ??
-      "https://ponder.sh/" +
-        (isDefault
-          ? "og.png"
-          : `api/og?title=${config.frontMatter.title}&description=${description}`);
+    const image = config.frontMatter.image ?? "https://ponder.sh/og.png";
 
     return (
       <>
