@@ -9,7 +9,7 @@
       "CHANGELOG.md",
       "**/dist",
       "docs/",
-      "benchmarks/",
+      "benchmarks/apps/subgraph-*",
       "pnpm-lock.yaml",
       "**/.ponder"
     ]
