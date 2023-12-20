@@ -58,6 +58,7 @@ test("events are put back in queue if telemetry service is killed", async (conte
   telemetry.record({ event: "test" });
   await telemetry.flush();
 
+  // @ts-ignore
   expect(telemetry.events.length).toBe(1);
 });
 
