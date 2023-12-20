@@ -531,9 +531,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
               `Internal: Indexing function not found for ${fullEventName}`,
             );
 
-          // The "setup" event should use the contract start block number for contract calls.
-          // TODO: Consider implications of using 0 as the timestamp here.
-          this.currentIndexingCheckpoint = zeroCheckpoint;
+          // The "setup" event uses the contract start block number for contract calls.
+          // TODO: Consider implications of this "synthetic" checkpoint on record versioning.
+          this.currentIndexingCheckpoint = {
+            ...zeroCheckpoint,
+            chainId: task.event.chainId,
+            blockNumber: task.event.blockNumber,
+          };
 
           try {
             this.common.logger.trace({

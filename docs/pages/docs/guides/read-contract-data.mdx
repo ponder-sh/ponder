@@ -226,6 +226,8 @@ The `context.client` object is a custom [Viem Client](https://viem.sh/docs/clien
 
 The `blockNumber`/`blockTag` RPC request parameter is automatically set to the block number of the current event (`event.block.number`). It's not possible to override this behavior.
 
+For contract-specific [`"setup"` events](/docs/api-reference/indexing-functions), the contract's `startBlock` is used.
+
 ### Caching
 
 To speed up indexing and avoid unnecessary RPC requests, all method calls are cached. When an indexing function calls a method with a specific set of arguments for the first time, it will make an RPC request. Any subsequent calls to the same method with the same arguments will be served from the cache.

@@ -61,12 +61,10 @@ const readContractTransferIndexingFunction = vi.fn(
 );
 
 const indexingFunctions: IndexingFunctions = {
-  _meta_: {},
   Erc20: { Transfer: transferIndexingFunction },
 };
 
 const readContractIndexingFunctions: IndexingFunctions = {
-  _meta_: {},
   Erc20: { Transfer: readContractTransferIndexingFunction },
 };
 
@@ -264,7 +262,7 @@ test("processEvents() updates event count metrics", async (context) => {
   await service.kill();
 });
 
-test("processEvents() client.readContract", async (context) => {
+test("processEvents() reads data from a contract", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
@@ -285,7 +283,7 @@ test("processEvents() client.readContract", async (context) => {
 
   await service.reset({
     schema,
-    indexingFunctions: readContractIndexingFunctions,
+    indexingFunctions: indexingFunctionsWithContractRead,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -296,6 +294,38 @@ test("processEvents() client.readContract", async (context) => {
     tableName: "Supply",
   });
   expect(supplyEvents.length).toBe(2);
+
+  await service.kill();
+});
+
+test("processEvents() recovers from errors while reading data from a contract", async (context) => {
+  const { common, syncStore, indexingStore } = context;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+  });
+
+  const spy = vi.spyOn(networks[0], "request");
+  spy.mockRejectedValueOnce(new Error("Unexpected error!"));
+
+  await service.reset({
+    schema,
+    indexingFunctions: indexingFunctionsWithContractRead,
+  });
+
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+  await service.processEvents();
+
+  const supplyEvents = await indexingStore.findMany({
+    tableName: "Supply",
+  });
+  expect(supplyEvents.length).toBe(1);
 
   await service.kill();
 });
