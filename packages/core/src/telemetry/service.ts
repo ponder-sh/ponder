@@ -7,7 +7,6 @@ import { randomBytes } from "crypto";
 import os from "os";
 import path from "path";
 import Conf from "conf";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { detect, getNpmVersion } from "detect-package-manager";
 import PQueue from "p-queue";

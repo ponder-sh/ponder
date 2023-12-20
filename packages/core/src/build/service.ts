@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 import path from "node:path";
 
 import Emittery from "emittery";

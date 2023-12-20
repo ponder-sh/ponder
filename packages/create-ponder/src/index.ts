@@ -14,7 +14,6 @@ import prettier from "prettier";
 import { default as prompts } from "prompts";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import rootPackageJson from "../package.json" assert { type: "json" };
 import { fromEtherscan } from "./etherscan.js";
