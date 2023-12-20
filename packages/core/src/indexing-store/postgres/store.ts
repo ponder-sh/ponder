@@ -44,12 +44,12 @@ export class PostgresIndexingStore implements IndexingStore {
   private common: Common;
 
   db: Kysely<any>;
-  subscriber: Subscriber;
+  private migrator: Migrator;
 
   schema?: Schema;
-  private migrator: Migrator;
   private databaseSchemaName: string;
 
+  private subscriber: Subscriber;
   private publicSchema?: Schema;
   private publicNamespace?: string;
 
@@ -329,52 +329,6 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   };
 
-  private initialLoadPublicSchema = async () => {
-    if (this.publicSchema && this.publicNamespace) return;
-    // Take the latest entry in the ponder_metadata table and use the schema.
-    const schemaRow = (await this.db
-      .withSchema("public")
-      .selectFrom("ponder_metadata")
-      .select(["schema", "namespace_version", "is_published"])
-      .orderBy("namespace_version", "desc")
-      .execute()) as {
-      schema?: Schema;
-      namespace_version: string;
-      is_published?: boolean;
-    }[];
-
-    if (schemaRow.length === 0) {
-      throw Error("No tables have been created");
-    }
-
-    // Check the first row to see if it is published. If it is, then we can use it as the public schema. If not, we need to find the latest published schema.
-    const { schema, namespace_version, is_published } = schemaRow[0];
-    if (is_published) {
-      this.publicSchema = schema;
-      this.publicNamespace = "public";
-      return;
-    }
-
-    const publishedResult = (await this.db
-      .withSchema("public")
-      .selectFrom("ponder_metadata")
-      .select("schema")
-      .where("is_published", "=", true)
-      .orderBy("namespace_version", "desc")
-      .executeTakeFirst()) as { schema: Schema };
-
-    // If there is no published schema, then this is the initial index load and we want to use the schema that was passed into the reload.
-    if (!publishedResult) {
-      this.publicSchema = schema;
-      this.publicNamespace = namespace_version;
-      return;
-    }
-
-    // If there is a published schema, then it is the latest so we want it to be the public schema.
-    this.publicSchema = publishedResult.schema;
-    this.publicNamespace = "public";
-  };
-
   findUniquePublic = async (params: {
     tableName: string;
     checkpoint?: Checkpoint | "latest";
@@ -384,12 +338,11 @@ export class PostgresIndexingStore implements IndexingStore {
       { method: "findUniquePublic", tableName: params.tableName },
       async () => {
         if (!this.publicSchema) {
-          await this.initialLoadPublicSchema();
+          await this.initializePublicSchema();
         }
 
         return this.internalFindUnique({
-          shouldUsePublicSchema: true,
-          shouldUsePublicNamespace: true,
+          isPublic: true,
           ...params,
         });
       },
@@ -408,11 +361,11 @@ export class PostgresIndexingStore implements IndexingStore {
       { method: "findManyPublic", tableName: params.tableName },
       async () => {
         if (!this.publicSchema) {
-          await this.initialLoadPublicSchema();
+          await this.initializePublicSchema();
         }
+
         return this.internalFindMany({
-          shouldUsePublicSchema: true,
-          shouldUsePublicNamespace: true,
+          isPublic: true,
           ...params,
         });
       },
@@ -428,8 +381,7 @@ export class PostgresIndexingStore implements IndexingStore {
       { method: "findUnique", tableName: params.tableName },
       async () => {
         return this.internalFindUnique({
-          shouldUsePublicSchema: false,
-          shouldUsePublicNamespace: false,
+          isPublic: false,
           ...params,
         });
       },
@@ -448,8 +400,7 @@ export class PostgresIndexingStore implements IndexingStore {
       { method: "findMany", tableName: params.tableName },
       async () => {
         return this.internalFindMany({
-          shouldUsePublicSchema: false,
-          shouldUsePublicNamespace: false,
+          isPublic: false,
           ...params,
         });
       },
@@ -458,23 +409,19 @@ export class PostgresIndexingStore implements IndexingStore {
 
   internalFindUnique = async ({
     tableName,
-    shouldUsePublicNamespace,
-    shouldUsePublicSchema,
+    isPublic,
     checkpoint = "latest",
     id,
   }: {
-    shouldUsePublicNamespace: boolean;
-    shouldUsePublicSchema: boolean;
     tableName: string;
+    isPublic: boolean;
     checkpoint?: Checkpoint | "latest";
     id: string | number | bigint;
   }) => {
     let schema = this.schema;
-    if (shouldUsePublicSchema) {
-      schema = this.publicSchema;
-    }
     let db = this.db;
-    if (shouldUsePublicNamespace) {
+    if (isPublic) {
+      schema = this.publicSchema;
       db = db.withSchema(this.publicNamespace || "public");
     }
 
@@ -506,13 +453,12 @@ export class PostgresIndexingStore implements IndexingStore {
     const row = await query.executeTakeFirst();
     if (row === undefined) return null;
 
-    return this.deserializeRow({ shouldUsePublicSchema, tableName, row });
+    return this.deserializeRow({ schema, tableName, row });
   };
 
   private internalFindMany = async ({
     tableName,
-    shouldUsePublicNamespace,
-    shouldUsePublicSchema,
+    isPublic,
     checkpoint = "latest",
     where,
     skip,
@@ -520,8 +466,7 @@ export class PostgresIndexingStore implements IndexingStore {
     orderBy,
   }: {
     tableName: string;
-    shouldUsePublicNamespace: boolean;
-    shouldUsePublicSchema: boolean;
+    isPublic: boolean;
     checkpoint?: Checkpoint | "latest";
     where?: WhereInput<any>;
     skip?: number;
@@ -529,8 +474,10 @@ export class PostgresIndexingStore implements IndexingStore {
     orderBy?: OrderByInput<any>;
   }) => {
     const table = `${tableName}_versioned`;
+    let schema = this.schema;
     let db = this.db;
-    if (shouldUsePublicNamespace) {
+    if (isPublic) {
+      schema = this.publicSchema;
       db = db.withSchema(this.publicNamespace || "public");
     }
 
@@ -583,9 +530,7 @@ export class PostgresIndexingStore implements IndexingStore {
     }
 
     const rows = await query.execute();
-    return rows.map((row) =>
-      this.deserializeRow({ shouldUsePublicSchema, tableName, row }),
-    );
+    return rows.map((row) => this.deserializeRow({ schema, tableName, row }));
   };
 
   create = async ({
@@ -1038,6 +983,52 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   };
 
+  private initializePublicSchema = async () => {
+    if (this.publicSchema && this.publicNamespace) return;
+    // Take the latest entry in the ponder_metadata table and use the schema.
+    const schemaRow = (await this.db
+      .withSchema("public")
+      .selectFrom("ponder_metadata")
+      .select(["schema", "namespace_version", "is_published"])
+      .orderBy("namespace_version", "desc")
+      .execute()) as {
+      schema?: Schema;
+      namespace_version: string;
+      is_published?: boolean;
+    }[];
+
+    if (schemaRow.length === 0) {
+      throw Error("No tables have been created");
+    }
+
+    // Check the first row to see if it is published. If it is, then we can use it as the public schema. If not, we need to find the latest published schema.
+    const { schema, namespace_version, is_published } = schemaRow[0];
+    if (is_published) {
+      this.publicSchema = schema;
+      this.publicNamespace = "public";
+      return;
+    }
+
+    const publishedResult = (await this.db
+      .withSchema("public")
+      .selectFrom("ponder_metadata")
+      .select("schema")
+      .where("is_published", "=", true)
+      .orderBy("namespace_version", "desc")
+      .executeTakeFirst()) as { schema: Schema };
+
+    // If there is no published schema, then this is the initial index load and we want to use the schema that was passed into the reload.
+    if (!publishedResult) {
+      this.publicSchema = schema;
+      this.publicNamespace = namespace_version;
+      return;
+    }
+
+    // If there is a published schema, then it is the latest so we want it to be the public schema.
+    this.publicSchema = publishedResult.schema;
+    this.publicNamespace = "public";
+  };
+
   private handlePublishedSchema = async (schema: Schema) => {
     this.common.logger.debug({
       msg: `Updating public schema with new published version`,
@@ -1050,16 +1041,13 @@ export class PostgresIndexingStore implements IndexingStore {
   private deserializeRow = ({
     tableName,
     row,
-    shouldUsePublicSchema = false,
+    schema = this.schema,
   }: {
     tableName: string;
     row: Record<string, unknown>;
     shouldUsePublicSchema?: boolean;
+    schema?: Schema;
   }) => {
-    let schema = this.schema;
-    if (shouldUsePublicSchema) {
-      schema = this.publicSchema;
-    }
     const columns = Object.entries(schema!.tables).find(
       ([name]) => name === tableName,
     )![1];
