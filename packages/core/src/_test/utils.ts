@@ -210,7 +210,7 @@ export const getRawRPCData = async (sources: Source[]) => {
 };
 
 /**
- * Mock function for `getLogEvents` that specifically returns the log events for the erc20 source.
+ * Mock function for `getLogEvents` that specifically returns the event data for the erc20 source.
  */
 export const getEventsErc20 = async (sources: Source[]) => {
   const rpcData = await getRawRPCData(sources);
