@@ -14,11 +14,7 @@ import {
   type RpcTransaction,
 } from "viem";
 
-import type {
-  FactoryCriteria,
-  LogFilterCriteria,
-  Topics,
-} from "@/config/sources.js";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { Common } from "@/Ponder.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
@@ -578,7 +574,7 @@ export class SqliteSyncStore implements SyncStore {
           ...logFilters,
           ...factories.map((f) => ({
             address: f.address,
-            topics: [f.eventSelector, null, null, null] as Topics,
+            topics: [f.eventSelector],
           })),
         ],
         interval,
