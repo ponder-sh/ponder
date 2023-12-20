@@ -10,9 +10,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@0x/abi-gen": "^5.8.5",
     "@ponder/core": "workspace:*",
-    "abi-gen": "^1.0.2",
     "viem": "^1.19.9"
   },
   "devDependencies": {
