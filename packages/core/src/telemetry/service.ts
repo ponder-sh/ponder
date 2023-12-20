@@ -3,14 +3,14 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import url from "node:url";
 
-import Conf from "conf";
 import { randomBytes } from "crypto";
+import os from "os";
+import path from "path";
+import Conf from "conf";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { detect, getNpmVersion } from "detect-package-manager";
-import os from "os";
 import PQueue from "p-queue";
-import path from "path";
 import pc from "picocolors";
 import process from "process";
 
@@ -220,7 +220,7 @@ export class TelemetryService {
       ? JSON.parse(fs.readFileSync("package.json", "utf8"))
       : undefined;
     const ponderVersion = packageJson
-      ? packageJson["dependencies"]["@ponder/core"]
+      ? packageJson.dependencies["@ponder/core"]
       : "unknown";
 
     const cpus = os.cpus() || [];
@@ -238,7 +238,7 @@ export class TelemetryService {
       cpuCount: cpus.length,
       cpuModel: cpus.length ? cpus[0].model : null,
       cpuSpeed: cpus.length ? cpus[0].speed : null,
-      memoryInMb: Math.trunc(os.totalmem() / Math.pow(1024, 2)),
+      memoryInMb: Math.trunc(os.totalmem() / 1024 ** 2),
       isExampleProject: this.options.telemetryIsExampleProject,
     } satisfies TelemetryEventContext;
 

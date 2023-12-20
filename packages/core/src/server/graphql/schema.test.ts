@@ -31,7 +31,7 @@ test("filter type has correct suffixes and types", () => {
 
   const typeMap = serverSchema.getTypeMap();
 
-  const tableFilterType = typeMap["TableFilter"];
+  const tableFilterType = typeMap.TableFilter;
   const fields = (tableFilterType.toConfig() as any).fields as Record<
     string,
     { name: string; type: GraphQLType }

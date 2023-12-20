@@ -29,7 +29,7 @@ const networks: Pick<Network, "url" | "request" | "chainId" | "name">[] = [
 const sources: Source[] = [
   {
     ...usdcContractConfig,
-    id: `USDC_mainnet`,
+    id: "USDC_mainnet",
     contractName: "USDC",
     networkName: "mainnet",
     criteria: { address: usdcContractConfig.address },

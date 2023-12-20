@@ -3,8 +3,8 @@ import React from "react";
 
 import { formatShortDate } from "@/utils/date.js";
 
-import type { UiState } from "./app.js";
 import { ProgressBar } from "./ProgressBar.js";
+import type { UiState } from "./app.js";
 
 export const IndexingBar = ({ ui }: { ui: UiState }) => {
   const completionRate =

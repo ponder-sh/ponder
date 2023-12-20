@@ -4,17 +4,17 @@ import path from "node:path";
 import Emittery from "emittery";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
-import { createServer, type ViteDevServer } from "vite";
+import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 
-import type { Config } from "@/config/config.js";
-import { buildNetwork, type Network } from "@/config/networks.js";
-import { buildSources, type Source } from "@/config/sources.js";
-import { validateConfig } from "@/config/validate.js";
 import type { Common } from "@/Ponder.js";
+import type { Config } from "@/config/config.js";
+import { type Network, buildNetwork } from "@/config/networks.js";
+import { type Source, buildSources } from "@/config/sources.js";
+import { validateConfig } from "@/config/validate.js";
 import type { Schema } from "@/schema/types.js";
 import { validateSchema } from "@/schema/validate.js";
 import { buildGqlSchema } from "@/server/graphql/schema.js";
@@ -165,7 +165,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     await this.viteDevServer?.close();
     this.common.logger.debug({
       service: "build",
-      msg: `Killed build service`,
+      msg: "Killed build service",
     });
   }
 
@@ -273,7 +273,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     if (Object.keys(result.indexingFunctions).length === 0) {
       this.common.logger.warn({
         service: "build",
-        msg: `No indexing functions were registered`,
+        msg: "No indexing functions were registered",
       });
       return;
     }

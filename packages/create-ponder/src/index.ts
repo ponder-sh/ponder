@@ -21,9 +21,9 @@ import { fromEtherscan } from "./etherscan.js";
 import { getPackageManager } from "./helpers/getPackageManager.js";
 import { notifyUpdate } from "./helpers/notifyUpdate.js";
 import {
+  ValidationError,
   validateProjectName,
   validateTemplateName,
-  ValidationError,
 } from "./helpers/validate.js";
 
 const log = console.log;
@@ -148,7 +148,7 @@ export async function run({
     projectPath = args[0].trim();
     const splitPath = projectPath.split("/");
     projectName = splitPath[splitPath.length - 1]?.trim() || "";
-    log(pico.green("✔"), pico.bold(`Using project name:`), projectName);
+    log(pico.green("✔"), pico.bold("Using project name:"), projectName);
   } else {
     const res = await prompts({
       initial: "my-app",
@@ -249,8 +249,7 @@ export async function run({
       import { http } from "viem";
 
       ${Object.values(config.contracts)
-        .map((c) => c.abi)
-        .flat()
+        .flatMap((c) => c.abi)
         .map(
           (abi) =>
             `import {${abi.name}} from "${abi.dir.slice(
@@ -330,8 +329,9 @@ export async function run({
   const packageJson = await fs.readJSON(path.join(targetPath, "package.json"));
   packageJson.name = projectName;
   packageJson.dependencies["@ponder/core"] = `^${rootPackageJson.version}`;
-  packageJson.devDependencies["eslint-config-ponder"] =
-    `^${rootPackageJson.version}`;
+  packageJson.devDependencies[
+    "eslint-config-ponder"
+  ] = `^${rootPackageJson.version}`;
   await fs.writeFile(
     path.join(targetPath, "package.json"),
     JSON.stringify(packageJson, null, 2),

@@ -27,14 +27,19 @@
       "recommended": true,
       "style": {
         "noNonNullAssertion": "off",
-        "noUselessElse": "off"
+        "noUselessElse": "off",
+        "noParameterAssign": "off"
       },
       "suspicious": {
-        "noExplicitAny": "off"
+        "noExplicitAny": "off",
+        "noAssignInExpressions": "off"
       },
       "complexity": {
         "noForEach": "off",
         "noBannedTypes": "off"
+      },
+      "performance": {
+        "noAccumulatingSpread": "off"
       }
     }
   }

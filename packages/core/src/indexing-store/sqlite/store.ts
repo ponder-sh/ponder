@@ -1,4 +1,4 @@
-import { Kysely, sql, SqliteDialect } from "kysely";
+import { Kysely, SqliteDialect, sql } from "kysely";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -446,7 +446,7 @@ export class SqliteIndexingStore implements IndexingStore {
         // If the update would be applied to a record other than the latest
         // record, throw an error.
         if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
-          throw new Error(`Cannot update a record in the past`);
+          throw new Error("Cannot update a record in the past");
         }
 
         // If the latest version has the same effectiveFromCheckpoint as the update,
@@ -554,7 +554,7 @@ export class SqliteIndexingStore implements IndexingStore {
             // If the update would be applied to a record other than the latest
             // record, throw an error.
             if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
-              throw new Error(`Cannot update a record in the past`);
+              throw new Error("Cannot update a record in the past");
             }
 
             // If the latest version has the same effectiveFrom timestamp as the update,
@@ -668,7 +668,7 @@ export class SqliteIndexingStore implements IndexingStore {
         // If the update would be applied to a record other than the latest
         // record, throw an error.
         if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
-          throw new Error(`Cannot update a record in the past`);
+          throw new Error("Cannot update a record in the past");
         }
 
         // If the latest version has the same effectiveFromCheckpoint as the update,

@@ -7,7 +7,7 @@ import {
 } from "@/_test/constants.js";
 import { publicClient } from "@/_test/utils.js";
 
-import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
+import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
 
 const client = publicClient.extend(
   ponderActions(() => 16375000n) as any,
