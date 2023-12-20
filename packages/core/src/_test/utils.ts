@@ -4,6 +4,7 @@ import type {
   Hash,
   Hex,
   RpcBlock,
+  RpcLog,
   RpcTransaction,
 } from "viem";
 import {
@@ -70,6 +71,10 @@ export const walletClient = createWalletClient({
   account: ALICE,
 });
 
+/**
+ * Returns the config for the local anvil testing suite.
+ * The suite contains an erc20 and mock factory + pair event sources.
+ */
 export const getConfig = (
   addresses: Awaited<ReturnType<typeof deploy>>,
 ): Config =>
@@ -98,6 +103,10 @@ export const getConfig = (
     },
   });
 
+/**
+ * Returns a network representing the local anvil chain.
+ * Set `finalityBlockCount` to 4 because `deploy()` + `simulate()` is 4 blocks.
+ */
 export const getNetworks = async () => {
   const network = await buildNetwork({
     networkName: "mainnet",
@@ -112,7 +121,13 @@ export const getSources = (
   addresses: Awaited<ReturnType<typeof deploy>>,
 ): Source[] => buildSources({ config: getConfig(addresses) });
 
-export const getRawEvents = async (sources: Source[]) => {
+/**
+ * Returns the logs, block, and transaction data for the blocks with events (1, 2, 3).
+ * Block 1 has two erc20 transfer events.
+ * Block 2 has a pair creation event.
+ * Block 3 has a swap event from the newly created pair.
+ */
+export const getRawRPCData = async (sources: Source[]) => {
   const latestBlock = await publicClient.getBlockNumber();
   const logs = (
     await Promise.all(
@@ -159,25 +174,61 @@ export const getRawEvents = async (sources: Source[]) => {
     ),
   );
 
-  return logs.map((log) => {
-    const block = blocks.find((b) => b!.number === log.blockNumber)!;
-
-    return {
-      log,
-      block: block as RpcBlock<BlockTag, true>,
-      transaction: block.transactions[
-        Number(log.transactionIndex!)
-      ] as RpcTransaction,
+  return {
+    block1: {
+      logs: [logs[0]!, logs[1]!],
+      block: blocks[0]!,
+      transactions: blocks[0]!.transactions,
+    },
+    block2: {
+      logs: [logs[2]],
+      block: blocks[1],
+      transactions: blocks[1]!.transactions,
+    },
+    block3: {
+      logs: [logs[3]],
+      block: blocks[2],
+      transactions: blocks[2]!.transactions,
+    },
+  } as {
+    block1: {
+      logs: [RpcLog, RpcLog];
+      block: RpcBlock<BlockTag, true>;
+      transactions: [RpcTransaction, RpcTransaction];
     };
-  });
+    block2: {
+      logs: [RpcLog];
+      block: RpcBlock<BlockTag, true>;
+      transactions: [RpcTransaction];
+    };
+    block3: {
+      logs: [RpcLog];
+      block: RpcBlock<BlockTag, true>;
+      transactions: [RpcTransaction];
+    };
+  };
 };
 
+/**
+ * Mock function for `getLogEvents` that specifically returns the log events for the erc20 source.
+ */
 export const getEventsErc20 = async (sources: Source[]) => {
-  const events = await getRawEvents(sources);
+  const rpcData = await getRawRPCData(sources);
 
   async function* _getEvents({ toCheckpoint }: { toCheckpoint: Checkpoint }) {
     yield {
-      events: [events[0], events[1]]
+      events: [
+        {
+          log: rpcData.block1.logs[0],
+          block: rpcData.block1.block,
+          transaction: rpcData.block1.transactions[0]!,
+        },
+        {
+          log: rpcData.block1.logs[1],
+          block: rpcData.block1.block,
+          transaction: rpcData.block1.transactions[1]!,
+        },
+      ]
         .map((e) => ({
           log: formatLog(e.log),
           block: formatBlock(e.block),
@@ -221,6 +272,9 @@ export const getEventsErc20 = async (sources: Source[]) => {
   return _getEvents;
 };
 
+/**
+ * Returns a promise that resolves when all events are processed.
+ */
 export const onAllEventsIndexed = (ponder: Ponder) => {
   return new Promise<void>((resolve) => {
     ponder.indexingService.on("eventsProcessed", async ({ toCheckpoint }) => {
