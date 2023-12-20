@@ -39,9 +39,6 @@ test("buildSources() builds topics for multiple events", () => {
 
   expect(sources[0].criteria.topics).toMatchObject([
     [getEventSelector(event0), getEventSelector(event1)],
-    null,
-    null,
-    null,
   ]);
 });
 
@@ -72,9 +69,6 @@ test("buildSources() for duplicate event", () => {
 
   expect(sources[0].criteria.topics).toMatchObject([
     [getEventSelector(event1), getEventSelector(event1Overloaded)],
-    null,
-    null,
-    null,
   ]);
 });
 
@@ -134,8 +128,6 @@ test("buildSources() builds topics for event with args", () => {
   expect(sources[0].criteria.topics).toMatchObject([
     getEventSelector(event0),
     bytes1,
-    null,
-    null,
   ]);
 });
 
@@ -168,8 +160,6 @@ test("buildSources() builds topics for event with unnamed parameters", () => {
   expect(sources[0].criteria.topics).toMatchObject([
     getEventSelector(event1Overloaded),
     [bytes1, bytes2],
-    null,
-    null,
   ]);
 });
 

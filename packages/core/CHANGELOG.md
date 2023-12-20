@@ -1,5 +1,24 @@
 # @ponder/core
 
+## 0.1.2
+
+### Patch Changes
+
+- [#537](https://github.com/ponder-sh/ponder/pull/537) [`9fa46f308a08b019867c4c3b857f81bd39cd242b`](https://github.com/ponder-sh/ponder/commit/9fa46f308a08b019867c4c3b857f81bd39cd242b) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with multichain configuration, causing indexing to be severely delayed
+
+- [#533](https://github.com/ponder-sh/ponder/pull/533) [`689d97123bca57f36b6bcbdc29ba64657b06daf9`](https://github.com/ponder-sh/ponder/commit/689d97123bca57f36b6bcbdc29ba64657b06daf9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fix bug leading to multiple "server responding as healthy" logs
+
+- [#532](https://github.com/ponder-sh/ponder/pull/532) [`30e687f1e76aedb07b0edfe202ca76b9011e6cfc`](https://github.com/ponder-sh/ponder/commit/30e687f1e76aedb07b0edfe202ca76b9011e6cfc) Thanks [@kyscott18](https://github.com/kyscott18)! - - Fix vite file watcher listening to changes on generated files
+
+  - More intuitive errors, specifically from realtime and historical sync services
+  - Free up listeners from the queue more rapidly
+
+## 0.1.1
+
+### Patch Changes
+
+- [#527](https://github.com/ponder-sh/ponder/pull/527) [`6f245642e9cffdc35e0b24021749d1a85ef4f4c0`](https://github.com/ponder-sh/ponder/commit/6f245642e9cffdc35e0b24021749d1a85ef4f4c0) Thanks [@kyscott18](https://github.com/kyscott18)! - Fix bug in GraphQL server when resolving optional references
+
 ## 0.1.0
 
 ### Minor Changes

@@ -322,7 +322,6 @@ export class Ponder {
       error.stack = undefined;
       this.common.logger.fatal({
         service: "app",
-        msg: `Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)`,
         error,
       });
       this.kill();
@@ -575,6 +574,7 @@ export class Ponder {
     });
 
     this.indexingService.on("eventsProcessed", async ({ toCheckpoint }) => {
+      if (this.serverService.isHistoricalIndexingComplete) return;
       // If a batch of events are processed AND the historical sync is complete AND
       // the new toTimestamp is greater than the historical sync completion timestamp,
       // historical event processing is complete, and the server should begin responding as healthy.

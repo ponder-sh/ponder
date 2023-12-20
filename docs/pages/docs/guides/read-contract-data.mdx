@@ -1,8 +1,9 @@
 ---
-description: "A guide to reading contract data in a Ponder app"
+title: "Read contract data"
+description: "Learn how to read contract data by calling read-only functions directly."
 ---
 
-import { Callout } from "nextra-theme-docs";
+import { Callout } from "nextra/components";
 
 # Read contract data
 
@@ -297,7 +298,7 @@ import { ponder } from "@/generated";
 
 ponder.on("ZorbNft:Transfer", async ({ event, context }) => {
   // If this is a mint, read gradient metadata from the contract.
-  if (event.from.to === ZERO_ADDRESS) {
+  if (event.args.from === ZERO_ADDRESS) {
     const gradientData = await context.client.readContract({
       abi: context.contracts.ZorbNft.abi,
       address: context.contracts.ZorbNft.address,

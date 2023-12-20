@@ -1,9 +1,9 @@
 ---
-description: "API reference for the ponder.config.ts file"
+title: "Config API"
+description: "API reference for the Ponder config file."
 ---
 
-import { Callout } from "nextra-theme-docs";
-import { Tabs, Tab } from "nextra/components";
+import { Callout, Tabs } from "nextra/components";
 
 # Config API
 
@@ -124,21 +124,20 @@ export default createConfig({
 
 ### Filter
 
-| field     |          type           |                                                                                                                                                                                                                        |
-| :-------- | :---------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **event** | `AbiEvent \| undefined` | **Default: `undefined`**. An ABIType [`AbiEvent`](https://abitype.dev/api/types.html#abievent) object. Can be constructed using the [`parseAbiItem`](https://abitype.dev/api/human.html#parseabiitem) helper function. |
-| **args**  |  `any[] \| undefined`   | **Default: `undefined`**. An array of indexed argument values to filter for.                                                                                                                                           |
+| field     |               type                |                                                                                                                                                   |
+| :-------- | :-------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **event** | `string \| string[] \| undefined` | **Default: `undefined`**. One or more event names present in the provided ABI.                                                                    |
+| **args**  |       `object \| undefined`       | **Default: `undefined`**. An object containing indexed argument values to filter for. Only allowed if **one** event name was provided in `event`. |
 
 ## Database
 
-Ponder uses a SQL database to cache blockchain data and store indexed data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder works best with a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
+Ponder uses a SQL database to cache blockchain data and store indexed data. In development, Ponder uses a SQLite database located at `.ponder/store/`. In production, Ponder works best with a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
 
 See [Deploy to production](/guides/production) for more details.
 
 | field                |           type           |                                                                                                                |
 | :------------------- | :----------------------: | :------------------------------------------------------------------------------------------------------------- |
-| **kind**             | `"sqlite" \| "postgres"` | Database connector to use.                                                                                     |
-| **filename**         |  `string \| undefined`   | **Default: `.ponder/cache.db`**. Path to a SQLite database file. Only used if `kind: "sqlite"`.                |
+| **kind**             | `"sqlite" \| "postgres"` | Kind of database to use.                                                                                       |
 | **connectionString** |  `string \| undefined`   | **Default: `process.env.DATABASE_URL`**. Postgres database connection string. Only used if `kind: "postgres"`. |
 
 ## Options
@@ -156,45 +155,45 @@ import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
 export default createConfig({
-  networks: [
-    {
-      name: "mainnet",
+  networks: {
+    mainnet: {
       chainId: 1,
       transport: http(process.env.PONDER_RPC_URL_1),
     },
-  ],
-  contracts: [
-    {
-      name: "ArtGobblers",
+  },
+  contracts: {
+    ArtGobblers: {
       network: "mainnet",
       abi: "./abis/ArtGobblers.json",
       address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
       startBlock: 15863321,
     },
-  ],
+  },
 });
 ```
 
-### Async function
+### Using top-level await
 
 {/* prettier-ignore */}
-```ts filename="ponder.config.ts"
-import type { Config } from "@ponder/core";
+```ts filename="ponder.config.ts" {3,17}
+import { createConfig } from "@ponder/core";
 
-export const config: Config = async () => {
-  const startBlock = await fetch("http://...");
+const startBlock = await fetch("http://...");
 
-  return {
-    networks: [ /* ... */ ],
-    contracts: [
-      {
-        name: "ArtGobblers",
-        network: "mainnet",
-        abi: "./abis/ArtGobblers.json",
-        address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: startBlock
-      }
-    ]
-  };
-};
+export default createConfig({
+  networks: {
+    mainnet: {
+      chainId: 1,
+      transport: http(process.env.PONDER_RPC_URL_1),
+    },
+  },
+  contracts: {
+    ArtGobblers: {
+      network: "mainnet",
+      abi: "./abis/ArtGobblers.json",
+      address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+      startBlock,
+    },
+  },
+});
 ```

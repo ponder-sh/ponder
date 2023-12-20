@@ -28,6 +28,8 @@ const s = createSchema((p) => ({
     floatList: p.float().list(),
     booleanList: p.boolean().list(),
     bytesList: p.bytes().list(),
+    optional: p.string().optional(),
+    optionalList: p.string().list().optional(),
     enum: p.enum("TestEnum"),
     derived: p.many("EntityWithBigIntId.testEntityId"),
   }),
@@ -36,6 +38,12 @@ const s = createSchema((p) => ({
   EntityWithBigIntId: p.createTable({
     id: p.bigint(),
     testEntityId: p.string().references("TestEntity.id"),
+    testEntity: p.one("testEntityId"),
+  }),
+
+  EntityWithNullRef: p.createTable({
+    id: p.string(),
+    testEntityId: p.string().references("TestEntity.id").optional(),
     testEntity: p.one("testEntityId"),
   }),
 }));
@@ -118,12 +126,21 @@ const setup = async ({
     });
   };
 
+  const createEntityWithNullRef = async ({ id }: { id: string }) => {
+    await indexingStore.create({
+      tableName: "EntityWithNullRef",
+      checkpoint: zeroCheckpoint,
+      id,
+    });
+  };
+
   return {
     service,
     gql,
     createTestEntity,
     createEntityWithBigIntId,
     createEntityWithIntId,
+    createEntityWithNullRef,
   };
 };
 
@@ -246,6 +263,35 @@ test("serves all scalar list types correctly", async (context) => {
   await service.kill();
 });
 
+test("serves all optional types correctly", async (context) => {
+  const { common, indexingStore } = context;
+  const { service, gql, createTestEntity } = await setup({
+    common,
+    indexingStore,
+  });
+
+  await createTestEntity({ id: 0 });
+
+  const response = await gql(`
+    testEntitys {
+      optional
+      optionalList
+    }
+  `);
+
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { testEntitys } = response.body.data;
+
+  expect(testEntitys).toHaveLength(1);
+  expect(testEntitys[0]).toMatchObject({
+    optional: null,
+    optionalList: null,
+  });
+
+  await service.kill();
+});
+
 test("serves enum types correctly", async (context) => {
   const { common, indexingStore } = context;
   const { service, gql, createTestEntity } = await setup({
@@ -285,7 +331,7 @@ test("serves enum types correctly", async (context) => {
   await service.kill();
 });
 
-test("serves derived types correctly", async (context) => {
+test("serves many column types correctly", async (context) => {
   const { common, indexingStore } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ common, indexingStore });
@@ -316,13 +362,19 @@ test("serves derived types correctly", async (context) => {
   await service.kill();
 });
 
-test("serves relationship types correctly", async (context) => {
+test("serves one column types correctly", async (context) => {
   const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ common, indexingStore });
+  const {
+    service,
+    gql,
+    createTestEntity,
+    createEntityWithBigIntId,
+    createEntityWithNullRef,
+  } = await setup({ common, indexingStore });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
+  await createEntityWithNullRef({ id: "0" });
 
   const response = await gql(`
     entityWithBigIntIds {
@@ -337,11 +389,18 @@ test("serves relationship types correctly", async (context) => {
         bigInt
       }
     }
+    entityWithNullRefs {
+      id
+      testEntityId
+      testEntity {
+        id
+      }
+    }
   `);
 
   expect(response.body.errors).toBe(undefined);
   expect(response.statusCode).toBe(200);
-  const { entityWithBigIntIds } = response.body.data;
+  const { entityWithBigIntIds, entityWithNullRefs } = response.body.data;
 
   expect(entityWithBigIntIds).toHaveLength(1);
   expect(entityWithBigIntIds[0]).toMatchObject({
@@ -355,6 +414,13 @@ test("serves relationship types correctly", async (context) => {
       bytes: "0",
       bigInt: "0",
     },
+  });
+
+  expect(entityWithNullRefs).toHaveLength(1);
+  expect(entityWithNullRefs[0]).toMatchObject({
+    id: "0",
+    testEntityId: null,
+    testEntity: null,
   });
 
   await service.kill();

@@ -151,7 +151,11 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           "\\$&",
         )}/.*[^/]$`,
       );
-      if (ignoreRegex.test(file)) return;
+      if (
+        ignoreRegex.test(file) ||
+        path.join(this.common.options.generatedDir, "schema.graphql") === file
+      )
+        return;
 
       await handleFileChange([file]);
     });

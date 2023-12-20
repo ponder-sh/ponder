@@ -175,6 +175,9 @@ export async function run({
   });
   if (!nameValidation.valid) throw new ValidationError(nameValidation);
 
+  // Automatically use etherscan as a template when appropriate.
+  if (options.etherscanContractLink && !templateId) templateId = "etherscan";
+
   // Extract template ID from CLI or prompt
   if (!templateId) {
     templateId = (

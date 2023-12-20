@@ -282,7 +282,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               chainId: source.chainId,
               logFilter: {
                 address: source.criteria.address,
-                topics: [source.criteria.eventSelector, null, null, null],
+                topics: [source.criteria.eventSelector],
               },
             });
           const factoryChildAddressProgressTracker = new ProgressTracker({
@@ -652,7 +652,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const logs = await this._eth_getLogs(
       {
         address: factory.criteria.address,
-        topics: [factory.criteria.eventSelector, null, null, null],
+        topics: [factory.criteria.eventSelector],
         fromBlock: toHex(fromBlock),
         toBlock: toHex(toBlock),
       },
@@ -676,7 +676,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           chainId: factory.chainId,
           logFilter: {
             address: factory.criteria.address,
-            topics: [factory.criteria.eventSelector, null, null, null],
+            topics: [factory.criteria.eventSelector],
           },
           block,
           transactions: block.transactions.filter((tx) =>

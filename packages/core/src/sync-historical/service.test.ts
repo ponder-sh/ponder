@@ -62,7 +62,7 @@ test("start() with factory contract inserts log filter and factory log filter in
     chainId: sources[1].chainId,
     logFilter: {
       address: sources[1].criteria.address,
-      topics: [sources[1].criteria.eventSelector, null, null, null],
+      topics: [sources[1].criteria.eventSelector],
     },
   });
 

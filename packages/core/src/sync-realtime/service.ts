@@ -16,7 +16,7 @@ import {
 } from "@/config/sources.js";
 import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
+import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { poll } from "@/utils/poll.js";
 import { createQueue, type Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
@@ -82,14 +82,23 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.blocks = [];
 
     // Fetch the latest block, and remote chain Id for the network.
-    const [latestBlock, rpcChainId_] = await Promise.all([
-      requestWithRetry(() => this.getLatestBlock(undefined)),
-      requestWithRetry(() =>
-        request(this.network, { body: { method: "eth_chainId" } }),
-      ),
-    ]);
+    let latestBlock: BlockWithTransactions;
+    let rpcChainId: number;
+    try {
+      [latestBlock, rpcChainId] = await Promise.all([
+        requestWithRetry(() => this.getLatestBlock(undefined)),
+        requestWithRetry(() =>
+          request(this.network, { body: { method: "eth_chainId" } }).then((c) =>
+            hexToNumber(c),
+          ),
+        ),
+      ]);
+    } catch (error_) {
+      throw Error(
+        "Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)",
+      );
+    }
     const latestBlockNumber = hexToNumber(latestBlock.number);
-    const rpcChainId = hexToNumber(rpcChainId_);
 
     if (rpcChainId !== this.network.chainId)
       this.common.logger.warn({
@@ -137,6 +146,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       this.common.logger.warn({
         service: "realtime",
         msg: `No realtime contracts (network=${this.network.name})`,
+      });
+      this.emit("realtimeCheckpoint", {
+        ...maxCheckpoint,
+        chainId: this.network.chainId,
       });
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },
@@ -362,7 +375,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
               logFilters: [
                 {
                   address: factory.criteria.address,
-                  topics: [factory.criteria.eventSelector, null, null, null],
+                  topics: [factory.criteria.eventSelector],
                 },
               ],
             });
