@@ -1,5 +1,5 @@
-import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
+import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";

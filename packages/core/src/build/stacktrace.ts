@@ -76,7 +76,7 @@ export function parseViteNodeError(error: Error): ViteNodeError {
 
     const userStack = userStackFrames
       .map(({ file, lineNumber, column, methodName }) => {
-        const prefix = `    at`;
+        const prefix = "    at";
         const path = `${file}${lineNumber !== null ? `:${lineNumber}` : ""}${
           column !== null ? `:${column}` : ""
         }`;

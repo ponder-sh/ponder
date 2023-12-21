@@ -4,6 +4,7 @@ import request from "supertest";
 import { zeroAddress } from "viem";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
+import { Ponder } from "@/Ponder.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
   setupAnvil,
@@ -13,7 +14,6 @@ import {
 import { simulate } from "@/_test/simulate.js";
 import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
-import { Ponder } from "@/Ponder.js";
 import { range } from "@/utils/range.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -54,7 +54,6 @@ test("erc20", async (context) => {
     telemetryDisabled: true,
   } as const;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   for (const _ in range(0, 3)) {
     await simulate({
       erc20Address: context.erc20.address,

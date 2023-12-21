@@ -8,9 +8,9 @@
     "changeset:version": "changeset version && pnpm install --lockfile-only",
     "install:packages": "pnpm --filter \"./packages/**\" install",
     "install:examples": "pnpm --filter \"./examples/**\" install",
-    "lint": "eslint --cache .",
-    "lint:fix": "pnpm lint --fix",
-    "lint:format": "prettier --write .",
+    "format": "biome format . --write",
+    "lint": "biome check .",
+    "lint:fix": "pnpm lint --apply",
     "prepare": "npx simple-git-hooks",
     "test": "pnpm --parallel --no-bail test",
     "test:core": "pnpm --filter \"@ponder/core\" test:typecheck",
@@ -18,28 +18,16 @@
     "typecheck": "pnpm --filter \"./packages/**\" --parallel typecheck"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.4.1",
     "@changesets/changelog-github": "^0.4.8",
     "@changesets/cli": "^2.26.2",
-    "@typescript-eslint/eslint-plugin": "^6.12.0",
-    "@typescript-eslint/parser": "^6.12.0",
-    "eslint": "^8.54.0",
-    "eslint-config-prettier": "^9.0.0",
-    "eslint-plugin-import": "^2.29.0",
-    "eslint-plugin-prettier": "^5.0.1",
-    "eslint-plugin-simple-import-sort": "^10.0.0",
     "lint-staged": "^15.1.0",
-    "prettier": "^3.1.0",
     "simple-git-hooks": "^2.9.0",
     "typescript": "^5.3.3"
   },
   "lint-staged": {
-    "*.ts": [
-      "prettier --write",
-      "eslint --cache"
-    ],
-    "!(*.ts)": [
-      "prettier --write"
-    ]
+    "*.ts": ["biome format --no-errors-on-unmatched", "biome check"],
+    "!(*.ts)": ["biome format --no-errors-on-unmatched"]
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"

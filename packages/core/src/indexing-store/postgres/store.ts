@@ -1,4 +1,4 @@
-import { Kysely, PostgresDialect, sql, WithSchemaPlugin } from "kysely";
+import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -470,7 +470,7 @@ export class PostgresIndexingStore implements IndexingStore {
         // If the update would be applied to a record other than the latest
         // record, throw an error.
         if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
-          throw new Error(`Cannot update a record in the past`);
+          throw new Error("Cannot update a record in the past");
         }
 
         // If the latest version has the same effectiveFromCheckpoint as the update,
@@ -581,7 +581,7 @@ export class PostgresIndexingStore implements IndexingStore {
             // If the update would be applied to a record other than the latest
             // record, throw an error.
             if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
-              throw new Error(`Cannot update a record in the past`);
+              throw new Error("Cannot update a record in the past");
             }
 
             // If the latest version has the same effectiveFrom timestamp as the update,
@@ -701,7 +701,7 @@ export class PostgresIndexingStore implements IndexingStore {
         // If the update would be applied to a record other than the latest
         // record, throw an error.
         if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
-          throw new Error(`Cannot update a record in the past`);
+          throw new Error("Cannot update a record in the past");
         }
 
         // If the latest version has the same effectiveFromCheckpoint as the update,

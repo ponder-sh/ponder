@@ -1,9 +1,9 @@
 import request from "supertest";
 import { beforeEach, expect, test, vi } from "vitest";
 
+import type { Common } from "@/Ponder.js";
 import { setupIndexingStore } from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
-import type { Common } from "@/Ponder.js";
 import { createSchema } from "@/schema/schema.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
@@ -87,13 +87,13 @@ const setup = async ({
       data: {
         string: String(id),
         int: id,
-        float: id / Math.pow(10, 1),
+        float: id / 10 ** 1,
         boolean: id % 2 === 0,
         bytes: String(id),
         bigInt: BigInt(id),
         stringList: [String(id)],
         intList: [id],
-        floatList: [id / Math.pow(10, 1)],
+        floatList: [id / 10 ** 1],
         booleanList: [id % 2 === 0],
         bytesList: [String(id)],
         enum: ["ZERO", "ONE", "TWO"][id % 3],

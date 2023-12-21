@@ -1,4 +1,4 @@
-import { fallback, http, webSocket } from "viem";
+import { http, fallback, webSocket } from "viem";
 import { mainnet } from "viem/chains";
 import { expect, test, vi } from "vitest";
 

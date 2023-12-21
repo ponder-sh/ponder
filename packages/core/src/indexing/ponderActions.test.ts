@@ -6,7 +6,7 @@ import { erc20ABI } from "@/_test/generated.js";
 import { setupAnvil } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
 
-import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
+import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
 
 beforeEach((context) => setupAnvil(context));
 

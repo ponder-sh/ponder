@@ -595,7 +595,6 @@ test("getFactoryChildAddresses does not yield empty list", async ({
   });
 
   let didYield = false;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   for await (const _page of iterator) {
     didYield = true;
   }

@@ -1,4 +1,4 @@
-import { getAbiItem, http } from "viem";
+import { http, getAbiItem } from "viem";
 
 import { createConfig } from "../../../config/config.js";
 import { CONTRACTS } from "../../constants.js";

@@ -8,6 +8,7 @@ import type {
   RpcTransaction,
 } from "viem";
 import {
+  http,
   checksumAddress,
   createPublicClient,
   createTestClient,
@@ -17,16 +18,15 @@ import {
   formatTransaction,
   getAbiItem,
   getEventSelector,
-  http,
   slice,
   toHex,
 } from "viem";
 import { mainnet } from "viem/chains";
 
+import type { Common, Ponder } from "@/Ponder.js";
 import { type Config, createConfig } from "@/config/config.js";
 import { buildNetwork } from "@/config/networks.js";
-import { buildSources, type Source } from "@/config/sources.js";
-import type { Common, Ponder } from "@/Ponder.js";
+import { type Source, buildSources } from "@/config/sources.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 
 import { ALICE } from "./constants.js";

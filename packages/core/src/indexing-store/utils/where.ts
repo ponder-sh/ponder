@@ -180,7 +180,7 @@ export function buildSqlOrderByConditions({
   for (const orderBy_ of Array.isArray(orderBy) ? orderBy : [orderBy]) {
     const entries = Object.entries(orderBy_);
     if (entries.length !== 1) {
-      throw new Error(`Invalid sort condition: Must have exactly one property`);
+      throw new Error("Invalid sort condition: Must have exactly one property");
     }
     const [fieldName, direction] = entries[0];
     if (direction) {

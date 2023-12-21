@@ -1,4 +1,4 @@
-import { Box, render as inkRender, Text } from "ink";
+import { Box, Text, render as inkRender } from "ink";
 import React from "react";
 
 import type { Source } from "@/config/sources.js";
@@ -92,12 +92,16 @@ const App = (ui: UiState) => {
       </Box>
       {!isHistoricalSyncComplete && (
         <Box flexDirection="column">
-          {historicalSyncStats.map(({ contract, network, rate, eta }, idx) => (
-            <Box flexDirection="column" key={idx}>
+          {historicalSyncStats.map(({ contract, network, rate, eta }) => (
+            <Box flexDirection="column" key={`${contract}-${network}`}>
               <Text>
                 {contract} <Text dimColor>({network})</Text>
               </Text>
-              <HistoricalBar key={idx} rate={rate} eta={eta} />
+              <HistoricalBar
+                key={`${contract}-${network}`}
+                rate={rate}
+                eta={eta}
+              />
             </Box>
           ))}
         </Box>

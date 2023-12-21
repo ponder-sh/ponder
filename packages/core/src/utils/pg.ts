@@ -9,7 +9,6 @@ pg.types.setTypeParser(1700, BigInt);
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114
 const originalClientQuery = pg.Client.prototype.query;
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 pg.Client.prototype.query = async function query(
   ...args: [queryText: string, values: any[], callback: () => void]

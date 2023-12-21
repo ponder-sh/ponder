@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { HttpRequestError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 

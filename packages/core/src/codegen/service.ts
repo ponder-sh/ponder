@@ -32,7 +32,7 @@ export class CodegenService extends Emittery {
 
     this.common.logger.debug({
       service: "codegen",
-      msg: `Wrote new file at generated/schema.graphql`,
+      msg: "Wrote new file at generated/schema.graphql",
     });
   }
 }

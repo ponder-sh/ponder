@@ -3,11 +3,11 @@ import Emittery from "emittery";
 import type { Abi, Address, Client, Hex } from "viem";
 import { checksumAddress, createClient, decodeEventLog } from "viem";
 
+import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
-import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -24,12 +24,12 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatShortDate } from "@/utils/date.js";
 import { prettyPrint } from "@/utils/print.js";
-import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
+import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import { getErrorMessage } from "@/utils/request.js";
 import { wait } from "@/utils/wait.js";
 
 import { buildDatabaseModels } from "./model.js";
-import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
+import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
 import { addUserStackTrace } from "./trace.js";
 import { ponderTransport } from "./transport.js";
 
@@ -138,7 +138,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.common.logger.debug({
       service: "indexing",
-      msg: `Killed indexing service`,
+      msg: "Killed indexing service",
     });
   };
 
@@ -188,7 +188,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     });
     this.common.logger.debug({
       service: "indexing",
-      msg: `Paused event queue`,
+      msg: "Paused event queue",
     });
 
     this.hasError = false;
@@ -201,7 +201,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     await this.indexingStore.reload({ schema: this.schema });
     this.common.logger.debug({
       service: "indexing",
-      msg: `Reset indexing store`,
+      msg: "Reset indexing store",
     });
 
     // When we call indexingStore.reload() above, the indexing store is dropped.
@@ -242,7 +242,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           // No unsafe events have been processed, so no need to revert (case 1 & case 2).
           this.common.logger.debug({
             service: "indexing",
-            msg: `No unsafe events were detected while reconciling a reorg, no-op`,
+            msg: "No unsafe events were detected while reconciling a reorg, no-op",
           });
           return;
         }
@@ -525,7 +525,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           const fullEventName = `${event.contractName}:setup`;
 
           const indexingFunction =
-            indexingFunctions?.[event.contractName]?.["setup"];
+            indexingFunctions?.[event.contractName]?.setup;
           if (!indexingFunction)
             throw new Error(
               `Internal: Indexing function not found for ${fullEventName}`,

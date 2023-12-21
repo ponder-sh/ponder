@@ -1,9 +1,11 @@
 import { randomBytes } from "crypto";
 import type { Address } from "viem";
-import { beforeEach, type TestContext } from "vitest";
+import { type TestContext, beforeEach } from "vitest";
 
 import type { Config } from "@/config/config.js";
 import type { Network } from "@/config/networks.js";
+
+import type { Common } from "@/Ponder.js";
 import { buildOptions } from "@/config/options.js";
 import type { Factory, LogFilter } from "@/config/sources.js";
 import { UserErrorService } from "@/errors/service.js";
@@ -12,7 +14,6 @@ import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { LoggerService } from "@/logger/service.js";
 import { MetricsService } from "@/metrics/service.js";
-import type { Common } from "@/Ponder.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";

@@ -23,11 +23,9 @@ export async function notifyUpdate({ options }: { options: CLIOptions }) {
 
       log(
         pico.bold(
-          pico.yellow("A new version of `create-ponder` is available!") +
-            "\n" +
-            "You can update by running: " +
-            pico.cyan(updateMessage) +
-            "\n",
+          `${pico.yellow(
+            "A new version of `create-ponder` is available!",
+          )}\nYou can update by running: ${pico.cyan(updateMessage)}\n`,
         ),
       );
     }
