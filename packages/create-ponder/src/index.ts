@@ -271,7 +271,7 @@ export async function run({
               acc[name] = {
                 ...c,
                 abi: Array.isArray(c.abi)
-                  ? `mergeAbis(${c.abi.map((a) => a.name).join(",")})`
+                  ? `mergeAbis([${c.abi.map((a) => a.name).join(",")}])`
                   : c.abi.name,
               };
               return acc;
