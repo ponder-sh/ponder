@@ -32,8 +32,13 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "typescript": ">=5",
+    "typescript": ">=5.0.4",
     "viem": ">=1"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@babel/code-frame": "^7.23.4",
@@ -81,7 +86,6 @@
     "@viem/anvil": "^0.0.6",
     "supertest": "^6.3.3",
     "tsup": "^8.0.1",
-    "typescript": "^5.3.2",
     "viem": "^1.0.0",
     "vitest": "^1.0.2"
   },

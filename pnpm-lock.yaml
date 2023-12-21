@@ -477,7 +477,7 @@ importers:
         version: 7.23.5
       abitype:
         specifier: ^0.10.2
-        version: 0.10.3(typescript@5.3.2)
+        version: 0.10.3(typescript@5.3.3)
       async-mutex:
         specifier: ^0.4.0
         version: 0.4.0
@@ -556,6 +556,9 @@ importers:
       stacktrace-parser:
         specifier: ^0.1.10
         version: 0.1.10
+      typescript:
+        specifier: '>=5.0.4'
+        version: 5.3.3
       vite:
         specifier: ^5.0.7
         version: 5.0.7(@types/node@20.10.3)
@@ -601,13 +604,10 @@ importers:
         version: 6.3.3
       tsup:
         specifier: ^8.0.1
-        version: 8.0.1(typescript@5.3.2)
-      typescript:
-        specifier: ^5.3.2
-        version: 5.3.2
+        version: 8.0.1(typescript@5.3.3)
       viem:
         specifier: ^1.0.0
-        version: 1.19.9(typescript@5.3.2)
+        version: 1.19.9(typescript@5.3.3)(zod@3.22.4)
       vitest:
         specifier: ^1.0.2
         version: 1.0.4(@types/node@20.10.3)
@@ -5567,6 +5567,20 @@ packages:
         optional: true
     dependencies:
       typescript: 5.3.2
+
+  /abitype@0.10.3(typescript@5.3.3):
+    resolution: {integrity: sha512-tRN+7XIa7J9xugdbRzFv/95ka5ivR/sRe01eiWvM0HWWjHuigSZEACgKa0sj4wGuekTDtghCx+5Izk/cOi78pQ==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+      zod: ^3 >=3.22.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+      zod:
+        optional: true
+    dependencies:
+      typescript: 5.3.3
+    dev: false
 
   /abitype@0.8.7(typescript@5.3.2):
     resolution: {integrity: sha512-wQ7hV8Yg/yKmGyFpqrNZufCxbszDe5es4AZGYPBitocfSqXtjrTG9JMWFcc4N30ukl2ve48aBTwt7NJxVQdU3w==}
@@ -15593,6 +15607,45 @@ packages:
       sucrase: 3.34.0
       tree-kill: 1.2.2
       typescript: 5.3.2
+    transitivePeerDependencies:
+      - supports-color
+      - ts-node
+    dev: true
+
+  /tsup@8.0.1(typescript@5.3.3):
+    resolution: {integrity: sha512-hvW7gUSG96j53ZTSlT4j/KL0q1Q2l6TqGBFc6/mu/L46IoNWqLLUzLRLP1R8Q7xrJTmkDxxDoojV5uCVs1sVOg==}
+    engines: {node: '>=18'}
+    hasBin: true
+    peerDependencies:
+      '@microsoft/api-extractor': ^7.36.0
+      '@swc/core': ^1
+      postcss: ^8.4.12
+      typescript: '>=4.5.0'
+    peerDependenciesMeta:
+      '@microsoft/api-extractor':
+        optional: true
+      '@swc/core':
+        optional: true
+      postcss:
+        optional: true
+      typescript:
+        optional: true
+    dependencies:
+      bundle-require: 4.0.2(esbuild@0.19.8)
+      cac: 6.7.14
+      chokidar: 3.5.3
+      debug: 4.3.4(supports-color@8.1.1)
+      esbuild: 0.19.8
+      execa: 5.1.1
+      globby: 11.1.0
+      joycon: 3.1.1
+      postcss-load-config: 4.0.2(postcss@8.4.32)
+      resolve-from: 5.0.0
+      rollup: 4.6.1
+      source-map: 0.8.0-beta.0
+      sucrase: 3.34.0
+      tree-kill: 1.2.2
+      typescript: 5.3.3
     transitivePeerDependencies:
       - supports-color
       - ts-node
