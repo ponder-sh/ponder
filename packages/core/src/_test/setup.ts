@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
-import { beforeEach, type TestContext } from "vitest";
+import { type TestContext, beforeEach } from "vitest";
 
+import type { Common } from "@/Ponder.js";
 import { buildOptions } from "@/config/options.js";
 import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
@@ -8,7 +9,6 @@ import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { LoggerService } from "@/logger/service.js";
 import { MetricsService } from "@/metrics/service.js";
-import type { Common } from "@/Ponder.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";

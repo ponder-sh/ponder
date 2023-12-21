@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
-  checksumAddress,
   type EIP1193RequestFn,
   HttpRequestError,
+  checksumAddress,
   parseAbi,
 } from "viem";
 import { rpc } from "viem/utils";

@@ -68,8 +68,8 @@ export const sourceIsFactory = (source: Source): source is Factory =>
   source.type === "factory";
 
 export const buildSources = ({ config }: { config: Config }): Source[] => {
-  return Object.entries(config.contracts)
-    .map(([contractName, contract]) => {
+  return Object.entries(config.contracts).flatMap(
+    ([contractName, contract]) => {
       // Note: should we filter down which indexing functions are available based on the filters
       const events = getEvents({ abi: contract.abi });
 
@@ -130,7 +130,7 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
           (n): n is [string, Partial<ContractFilter<Abi, string, undefined>>] =>
             !!n[1],
         )
-        .map(([networkName, networkContract]) => {
+        .flatMap(([networkName, networkContract]) => {
           const network = config.networks[networkName]!;
 
           const sharedSource = {
@@ -183,10 +183,9 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
               topics,
             },
           } satisfies LogFilter;
-        })
-        .flat();
-    })
-    .flat();
+        });
+    },
+  );
 };
 
 const buildTopics = (

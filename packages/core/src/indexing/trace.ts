@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { codeFrameColumns } from "@babel/code-frame";
-import { parse as parseStackTrace, type StackFrame } from "stacktrace-parser";
+import { type StackFrame, parse as parseStackTrace } from "stacktrace-parser";
 
 import type { Options } from "@/config/options.js";
 
@@ -14,13 +14,13 @@ export const addUserStackTrace = (error: Error, options: Options) => {
   let userStackTrace: StackFrame[];
 
   // Find first frame that occurred within user code.
-  const firstUserFrameIndex = stackTrace.findIndex(
-    (frame) => frame.file?.includes(options.srcDir),
+  const firstUserFrameIndex = stackTrace.findIndex((frame) =>
+    frame.file?.includes(options.srcDir),
   );
 
   if (firstUserFrameIndex >= 0) {
-    userStackTrace = stackTrace.filter(
-      (frame) => frame.file?.includes(options.srcDir),
+    userStackTrace = stackTrace.filter((frame) =>
+      frame.file?.includes(options.srcDir),
     );
 
     const firstUserFrame = stackTrace[firstUserFrameIndex];
@@ -50,7 +50,7 @@ export const addUserStackTrace = (error: Error, options: Options) => {
   const formattedStackTrace = [
     `${error.name}: ${error.message}`,
     ...userStackTrace.map(({ file, lineNumber, column, methodName }) => {
-      const prefix = `    at`;
+      const prefix = "    at";
       const path = `${file}${lineNumber !== null ? `:${lineNumber}` : ""}${
         column !== null ? `:${column}` : ""
       }`;

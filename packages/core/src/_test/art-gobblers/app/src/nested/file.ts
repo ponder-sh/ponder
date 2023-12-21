@@ -1,7 +1,7 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { ponder } from "@/generated";
 
+// biome-ignore lint/suspicious/noRedeclare: :)
 declare const ponder: import("@/index.js").PonderApp<
   typeof import("../../ponder.config.ts").default,
   typeof import("../../ponder.schema.ts").default
@@ -29,7 +29,7 @@ ponder.on("ArtGobblers:GobblerClaimed", async ({ event, context }) => {
   });
 
   const token = await Token.findUnique({ id: event.args.gobblerId });
-  if (!token) throw new Error(`Token not found!`);
+  if (!token) throw new Error("Token not found!");
 
   await Token.delete({
     id: token.id,

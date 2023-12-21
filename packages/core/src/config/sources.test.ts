@@ -1,4 +1,4 @@
-import { getEventSelector, http, parseAbiItem } from "viem";
+import { http, getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
 import { createConfig } from "./config.js";

@@ -24,7 +24,7 @@ test("events are processed", async (context) => {
 
   expect(fetchSpy).toHaveBeenCalled();
 
-  const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]["body"]);
+  const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1].body);
   expect(fetchBody).toMatchObject({
     anonymousId: expect.any(String),
     context: expect.anything(),
@@ -58,7 +58,8 @@ test("events are put back in queue if telemetry service is killed", async (conte
   telemetry.record({ event: "test" });
   await telemetry.flush();
 
-  expect(telemetry["events"].length).toBe(1);
+  // @ts-ignore
+  expect(telemetry.events.length).toBe(1);
 });
 
 test("kill method should persist events and trigger detached flush", async (context) => {

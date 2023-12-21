@@ -36,7 +36,7 @@ const fetchPonderGraphql = async () => {
 
 const waitForSetupComplete = async () => {
   const endClock = startClock();
-  let duration: number = 0;
+  let duration = 0;
   await new Promise((resolve, reject) => {
     let timeout: undefined | NodeJS.Timeout = undefined;
     const interval = setInterval(async () => {
@@ -61,7 +61,7 @@ const waitForSetupComplete = async () => {
 
 const waitForSyncComplete = async () => {
   const endClock = startClock();
-  let duration: number = 0;
+  let duration = 0;
   await new Promise((resolve) => {
     const interval = setInterval(async () => {
       if (await fetchPonderGraphql()) {

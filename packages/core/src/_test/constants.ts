@@ -1,8 +1,8 @@
 import {
-  parseAbiItem,
   type RpcBlock,
   type RpcLog,
   type RpcTransaction,
+  parseAbiItem,
 } from "viem";
 
 import { getEvents } from "@/config/abi.js";

@@ -1,7 +1,7 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { ponder } from "@/generated";
 
+// biome-ignore lint/suspicious/noRedeclare: :)
 declare const ponder: import("@/index.js").PonderApp<
   typeof import("../ponder.config.ts").default,
   typeof import("../ponder.schema.ts").default
@@ -16,14 +16,14 @@ ponder.on(
       id: event.args.tokenId.toString(),
       create: {
         ownerId: event.args.to,
-        labelHash: "0x" + event.args.tokenId.toString(16),
+        labelHash: `0x${event.args.tokenId.toString(16)}`,
         transferredAt: Number(event.block.timestamp),
         stringArray: ["123", "abc"],
         intArray: [123, 456],
       },
       update: {
         ownerId: event.args.to,
-        labelHash: "0x" + event.args.tokenId.toString(16),
+        labelHash: `0x${event.args.tokenId.toString(16)}`,
         transferredAt: Number(event.block.timestamp),
       },
     });

@@ -137,7 +137,6 @@ export const ponderActions =
           ? { blockTag: "latest" }
           : { blockNumber: getCurrentBlockNumber() }),
       }),
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     readContract: <
       const TAbi extends Abi | readonly unknown[],

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { gql, GraphQLClient } from "graphql-request";
+import { GraphQLClient, gql } from "graphql-request";
 
 const client = new GraphQLClient("http://localhost:42069");
 

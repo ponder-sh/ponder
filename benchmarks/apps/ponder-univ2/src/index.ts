@@ -1,7 +1,7 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { ponder } from "@/generated";
 
+// biome-ignore lint/suspicious/noRedeclare: :)
 declare const ponder: import("@ponder/core").PonderApp<
   typeof import("../ponder.config.js").default,
   typeof import("../ponder.schema.js").default

@@ -1,8 +1,8 @@
 import {
-  checksumAddress,
   type EIP1193RequestFn,
   HttpRequestError,
   InvalidParamsRpcError,
+  checksumAddress,
 } from "viem";
 import { rpc } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";

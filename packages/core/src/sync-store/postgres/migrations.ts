@@ -2,7 +2,7 @@ import type { Kysely } from "kysely";
 import { type Migration, type MigrationProvider, sql } from "kysely";
 
 const migrations: Record<string, Migration> = {
-  ["2023_05_15_0_initial"]: {
+  "2023_05_15_0_initial": {
     async up(db: Kysely<any>) {
       await db.schema
         .createTable("blocks")
@@ -99,7 +99,7 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
-  ["2023_06_20_0_indices"]: {
+  "2023_06_20_0_indices": {
     async up(db: Kysely<any>) {
       await db.schema
         .createIndex("log_events_index")
@@ -120,7 +120,7 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
-  ["2023_07_18_0_better_indices"]: {
+  "2023_07_18_0_better_indices": {
     async up(db: Kysely<any>) {
       // Drop old indices.
       await db.schema.dropIndex("log_events_index").execute();
@@ -163,7 +163,7 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
-  ["2023_07_24_0_drop_finalized"]: {
+  "2023_07_24_0_drop_finalized": {
     async up(db: Kysely<any>) {
       await db.schema.alterTable("blocks").dropColumn("finalized").execute();
       await db.schema
@@ -177,7 +177,7 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
-  ["2023_09_19_0_new_sync_design"]: {
+  "2023_09_19_0_new_sync_design": {
     async up(db: Kysely<any>) {
       /** This table is no longer being used. */
       await db.schema.dropTable("logFilterCachedRanges").execute();
@@ -350,7 +350,7 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
-  ["2023_11_06_0_new_rpc_cache_design"]: {
+  "2023_11_06_0_new_rpc_cache_design": {
     async up(db: Kysely<any>) {
       await db.schema.dropTable("contractReadResults").execute();
 

@@ -5,12 +5,12 @@ import cors from "cors";
 import Emittery from "emittery";
 import express, { type Handler } from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
-import { formatError, GraphQLError } from "graphql";
+import { GraphQLError, formatError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
 
-import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
 
@@ -127,7 +127,7 @@ export class ServerService extends Emittery<ServerEvents> {
 
     this.common.logger.info({
       service: "server",
-      msg: `Started responding as healthy`,
+      msg: "Started responding as healthy",
     });
   }
 
@@ -264,7 +264,7 @@ export class ServerService extends Emittery<ServerEvents> {
     return async (req, res) => {
       try {
         const chainId = parseInt(req.query.chainId as string, 10);
-        if (isNaN(chainId)) {
+        if (Number.isNaN(chainId)) {
           res.status(400).end("chainId must exist and be a valid integer");
           return;
         }
