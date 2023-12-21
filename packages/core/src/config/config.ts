@@ -193,7 +193,7 @@ export type Network = {
    * }
    * ```
    */
-  transport: Transport;
+  transport: Transport | unknown;
   /** Polling frequency (in ms). Default: `1_000`. */
   pollingInterval?: number;
   /** Maximum concurrency of tasks during the historical sync. Default: `20`. */

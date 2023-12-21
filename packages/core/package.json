@@ -33,7 +33,7 @@
   },
   "peerDependencies": {
     "typescript": ">=5.0.4",
-    "viem": ">=1"
+    "viem": ">=1.16"
   },
   "peerDependenciesMeta": {
     "typescript": {
@@ -86,7 +86,6 @@
     "@viem/anvil": "^0.0.6",
     "supertest": "^6.3.3",
     "tsup": "^8.0.1",
-    "viem": "^1.0.0",
     "vitest": "^1.0.2"
   },
   "engines": {
