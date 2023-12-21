@@ -63,7 +63,6 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
             ) => {
               const { store } = context;
 
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-ignore
               const relatedRecordId = parent[column.referenceColumn];
 
@@ -88,7 +87,6 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
               // The parent object gets passed in here with relationship fields defined as the
               // string ID of the related entity. Here, we get the ID and query for that entity.
               // Then, the GraphQL server serves the resolved object here instead of the ID.
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-ignore
               const entityId = parent.id;
 

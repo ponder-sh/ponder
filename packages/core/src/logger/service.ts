@@ -101,12 +101,12 @@ const formatMessage = (log: { [key: string]: any }) => {
   const message = msg ?? errorMessage;
   const service = log.service as string | undefined;
 
-  result += pc.isColorSupported ? pc.gray(time + " ") : time + " ";
+  result += pc.isColorSupported ? pc.gray(`${time} `) : `${time} `;
   result += pc.isColorSupported ? level.colorize(level.label) : level.label;
   if (service)
     result += pc.isColorSupported
-      ? " " + pc.cyan(service.padEnd(10, " "))
-      : " " + service.padEnd(10, " ");
+      ? ` ${pc.cyan(service.padEnd(10, " "))}`
+      : ` ${service.padEnd(10, " ")}`;
   result += pc.reset(` ${message}`);
   return result;
 };

@@ -1,10 +1,10 @@
 import Emittery from "emittery";
 import type { Hex } from "viem";
 
+import type { Common } from "@/Ponder.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import { sourceIsFactory, sourceIsLogFilter } from "@/config/sources.js";
-import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import {
   type Checkpoint,
@@ -165,7 +165,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
 
       this.common.logger.debug({
         service: "gateway",
-        msg: `Completed historical sync across all networks`,
+        msg: "Completed historical sync across all networks",
       });
     }
   };

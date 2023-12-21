@@ -1,5 +1,5 @@
 import { createConfig } from "@ponder/core";
-import { getAbiItem, http } from "viem";
+import { http, getAbiItem } from "viem";
 
 import { FactoryAbi } from "./abis/FactoryAbi";
 import { PairAbi } from "./abis/PairAbi";

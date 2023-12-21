@@ -1,7 +1,6 @@
 {
   "recommendations": [
-    "dbaeumer.vscode-eslint",
-    "esbenp.prettier-vscode",
+    "biomejs.biome",
     "github.vscode-github-actions",
     "redhat.vscode-yaml",
     "mikestead.dotenv",

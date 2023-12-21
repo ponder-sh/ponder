@@ -4,7 +4,6 @@ import { prettyPrint } from "./print.js";
 
 export function improveSqliteErrors(database: BetterSqlite3.Database) {
   const originalPrepare = database.prepare;
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   database.prepare = (source: string) => {
     const statement = originalPrepare.apply(database, [source]);
@@ -42,7 +41,6 @@ export function improveSqliteErrors(database: BetterSqlite3.Database) {
       };
 
     for (const method of ["run", "get", "all"]) {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       statement[method] = wrapper(statement[method]);
     }

@@ -1,5 +1,5 @@
 import { type Abi, type AbiEvent, formatAbiItem } from "abitype";
-import { getEventSelector, type Hex } from "viem";
+import { type Hex, getEventSelector } from "viem";
 
 import { getDuplicateElements } from "@/utils/duplicates.js";
 

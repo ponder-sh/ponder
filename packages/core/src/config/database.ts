@@ -1,7 +1,7 @@
 import path from "node:path";
 
-import type { Config } from "@/config/config.js";
 import type { Common } from "@/Ponder.js";
+import type { Config } from "@/config/config.js";
 import pg from "@/utils/pg.js";
 
 type StoreConfig =

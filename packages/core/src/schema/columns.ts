@@ -70,10 +70,10 @@ const optional = <
 
     return column.list || column.references !== undefined
       ? {
-          [" column"]: newColumn,
+          " column": newColumn,
         }
       : {
-          [" column"]: newColumn,
+          " column": newColumn,
           list: list(newColumn as BaseColumn<TScalar, undefined, true, false>),
           references: references(
             newColumn as BaseColumn<TScalar, undefined, true, false>,
@@ -117,10 +117,10 @@ const list = <TScalar extends Scalar, TOptional extends boolean>(
     const newColumn = { ...column, list: true } as const;
     return column.optional
       ? {
-          [" column"]: newColumn,
+          " column": newColumn,
         }
       : {
-          [" column"]: newColumn,
+          " column": newColumn,
           optional: optional(
             newColumn as BaseColumn<TScalar, undefined, false, true>,
           ),
@@ -129,9 +129,7 @@ const list = <TScalar extends Scalar, TOptional extends boolean>(
 
 type References<TScalar extends Scalar, TOptional extends boolean> = <
   TReferences extends `${string}.id`,
->(
-  references: TReferences,
-) => TOptional extends true
+>(references: TReferences) => TOptional extends true
   ? InternalColumn<TScalar, TReferences, TOptional, false>
   : InternalColumn<TScalar, TReferences, TOptional, false> & {
       /**
@@ -164,9 +162,9 @@ const references = <TScalar extends Scalar, TOptional extends boolean>(
     const newColumn = { ...column, references } as const;
 
     return column.optional
-      ? { [" column"]: newColumn }
+      ? { " column": newColumn }
       : {
-          [" column"]: newColumn,
+          " column": newColumn,
           optional: optional(
             newColumn as BaseColumn<TScalar, TReferences, false, false>,
           ),
@@ -246,7 +244,7 @@ const emptyColumn =
     } as const;
 
     return {
-      [" column"]: column,
+      " column": column,
       optional: optional(column),
       list: list(column),
       references: references(column),
@@ -304,21 +302,21 @@ export type _Enum<
 export const _enum = <TType extends string>(
   type: TType,
 ): _Enum<TType, false, false> => ({
-  [" enum"]: {
+  " enum": {
     _type: "e",
     type,
     optional: false,
     list: false,
   },
   optional: () => ({
-    [" enum"]: {
+    " enum": {
       _type: "e",
       type,
       optional: true,
       list: false,
     },
     list: () => ({
-      [" enum"]: {
+      " enum": {
         _type: "e",
         type,
         optional: true,
@@ -328,14 +326,14 @@ export const _enum = <TType extends string>(
   }),
 
   list: () => ({
-    [" enum"]: {
+    " enum": {
       _type: "e",
       type,
       list: true,
       optional: false,
     },
     optional: () => ({
-      [" enum"]: {
+      " enum": {
         _type: "e",
         type,
         optional: true,

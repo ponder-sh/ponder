@@ -43,11 +43,11 @@ export type InternalColumn<
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown,
 > = {
-  [" column"]: BaseColumn<TType, TReferences, TOptional, TList>;
+  " column": BaseColumn<TType, TReferences, TOptional, TList>;
 };
 
 export type IDColumn<TType extends ID = ID> = {
-  [" column"]: BaseColumn<TType, undefined, false, false>;
+  " column": BaseColumn<TType, undefined, false, false>;
 };
 
 export type InternalEnum<
@@ -55,7 +55,7 @@ export type InternalEnum<
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown,
 > = {
-  [" enum"]: EnumColumn<TType, TOptional, TList>;
+  " enum": EnumColumn<TType, TOptional, TList>;
 };
 
 export type EnumColumn<
@@ -89,14 +89,14 @@ export type OneColumn<T extends string | unknown = unknown> = T extends string
 export type Table<
   TColumns extends
     | ({
-        id: { [" column"]: IDColumn };
+        id: { " column": IDColumn };
       } & Record<
         string,
         InternalEnum | InternalColumn | ManyColumn | OneColumn
       >)
     | unknown =
     | ({
-        id: { [" column"]: IDColumn };
+        id: { " column": IDColumn };
       } & Record<
         string,
         InternalEnum | InternalColumn | ManyColumn | OneColumn

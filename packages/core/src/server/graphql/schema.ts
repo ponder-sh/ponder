@@ -64,7 +64,7 @@ export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
       entityGqlType,
     });
 
-    const pluralFieldName = singularFieldName + "s";
+    const pluralFieldName = `${singularFieldName}s`;
     queryFields[pluralFieldName] = buildPluralField({
       table,
       tableName,

@@ -1,5 +1,3 @@
-/* eslint-disable prefer-const */
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PairCreated } from "../../generated/Factory/Factory";
 import { Pair, UniswapFactory } from "../../generated/schema";
 import { Pair as PairTemplate } from "../../generated/templates";

@@ -1,8 +1,8 @@
 import { type Chain, type Client, type Transport } from "viem";
 import { rpc } from "viem/utils";
 
-import type { Config } from "@/config/config.js";
 import type { Common } from "@/Ponder.js";
+import type { Config } from "@/config/config.js";
 import { chains } from "@/utils/chains.js";
 
 type Request = (

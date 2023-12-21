@@ -7,8 +7,8 @@ import { cac } from "cac";
 import dotenv from "dotenv";
 import pc from "picocolors";
 
-import { buildOptions } from "@/config/options.js";
 import { Ponder } from "@/Ponder.js";
+import { buildOptions } from "@/config/options.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = resolve(__dirname, "../../package.json");
@@ -22,10 +22,10 @@ const cli = cac("ponder")
   .version(packageJson.version)
   .usage("<command> [options]")
   .help()
-  .option("--config-file [path]", `Path to config file`, {
+  .option("--config-file [path]", "Path to config file", {
     default: "ponder.config.ts",
   })
-  .option("--root-dir [path]", `Path to project root directory`, {
+  .option("--root-dir [path]", "Path to project root directory", {
     default: ".",
   });
 

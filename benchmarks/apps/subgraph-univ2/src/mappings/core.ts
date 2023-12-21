@@ -1,4 +1,3 @@
-/* eslint-disable prefer-const */
 import {
   Burn as BurnEvent,
   Mint as MintEvent,
@@ -6,7 +5,6 @@ import {
   Swap as SwapEvent,
   UniswapFactory,
 } from "../../generated/schema";
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { Burn, Mint, Swap, Sync } from "../../generated/templates/Pair/Pair";
 import { FACTORY_ADDRESS } from "./helpers";
 
