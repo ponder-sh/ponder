@@ -101,24 +101,14 @@ After the build completes, pnpm links packages across the project for developmen
 
 ## Run the test suite
 
-### Environment variables
+### Generate ABIs
 
-The test suite uses [mainnet forking](https://book.getfoundry.sh/tutorials/forking-mainnet-with-cast-anvil) to test against real-world data. To get this working, you'll need to set up environment variables.
-
-First, cd into the package you're working on.
+The test suite uses the [Wagmi CLI](https://wagmi.sh/cli/getting-started) to generate ABIs for test contracts. This only needs to be done once during setup.
 
 ```bash
 cd packages/core
+pnpm wagmi generate
 ```
-
-Then, create a `env.local` file using the provided template.
-
-```bash
-cp .env.example .env.local
-```
-
-- `ANVIL_FORK_URL` must be a mainnet RPC URL from a service provider like [Alchemy](https://www.alchemy.com/).
-- `DATABASE_URL` (optional) is a connection string to a Postgres database. If `DATABASE_URL` is provided, the test suite will run against the specified Postgres database. If not, tests will run against an in-memory SQLite database. Unless you are specifically testing Postgres behavior, you don't need to run tests against Postgres locally and can instead rely on CI to catch any regressions.
 
 ### Running tests
 
@@ -127,14 +117,26 @@ The test suite uses [vitest](https://vitest.dev/guide) in concurrent mode as a t
 Herea are some commands to get you started.
 
 ```bash
-# run all tests in watch mode
+# Run all tests in watch mode
 pnpm test
 
-# run a single test file
-pnpm test path/to/file.test.ts
+# Run a single test file
+pnpm test /path/to/file.test.ts
 ```
 
 When adding new features or fixing bugs, it's important to add test cases to cover any new or updated behavior.
+
+### Run tests against Postgres
+
+By default, the test suite runs against in-memory SQLite databases which mimic Ponder development environments. Unless you are specifically testing Postgres behavior, you don't need to run tests against Postgres locally and can instead rely on CI to catch any regressions.
+
+To run the test suite against Postgres, set the `DATABASE_URL` env var in `packages/core/.env.local`.
+
+```bash
+DATABASE_URL=postgres://{username}@localhost:5432/{username}
+```
+
+Any test-friendly Postgres server will do. MacOS users can download [Postgres.app](https://postgresapp.com/documentation/), a simple way to get a Postgres server running on your local machine.
 
 <div align="right">
   <a href="#get-started">&uarr; back to top</a></b>

@@ -11,5 +11,10 @@ export default defineConfig({
   test: {
     globalSetup: ["src/_test/globalSetup.ts"],
     setupFiles: ["src/_test/setup.ts"],
+    poolOptions: {
+      threads: {
+        maxThreads: 4,
+      },
+    },
   },
 });

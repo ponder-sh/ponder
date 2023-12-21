@@ -13,7 +13,7 @@
     "lint:fix": "pnpm lint --apply",
     "prepare": "npx simple-git-hooks",
     "test": "pnpm --parallel --no-bail test",
-    "test:core": "pnpm --filter \"@ponder/core\" test",
+    "test:core": "pnpm --filter \"@ponder/core\" test:typecheck",
     "test:create-ponder": "pnpm --filter \"create-ponder\" test",
     "typecheck": "pnpm --filter \"./packages/**\" --parallel typecheck"
   },
