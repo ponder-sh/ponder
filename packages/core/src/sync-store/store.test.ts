@@ -96,9 +96,7 @@ test("insertLogFilterInterval inserts log filter intervals", async ({
       address: ["0xa", "0xb"],
       topics: [["0xc", "0xd"], null, "0xe", null],
     },
-    block: rpcData.block1.block,
-    transactions: [],
-    logs: [],
+    ...rpcData.block1,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
@@ -123,9 +121,7 @@ test("insertLogFilterInterval merges ranges on insertion", async ({
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { address: erc20.address },
-    block: rpcData.block1.block,
-    transactions: [],
-    logs: [],
+    ...rpcData.block1,
     interval: {
       startBlock: hexToBigInt(rpcData.block1.block.number!),
       endBlock: hexToBigInt(rpcData.block1.block.number!),
@@ -135,9 +131,7 @@ test("insertLogFilterInterval merges ranges on insertion", async ({
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { address: erc20.address },
-    block: rpcData.block3.block,
-    transactions: [],
-    logs: [],
+    ...rpcData.block3,
     interval: {
       startBlock: hexToBigInt(rpcData.block3.block.number!),
       endBlock: hexToBigInt(rpcData.block3.block.number!),
@@ -163,9 +157,7 @@ test("insertLogFilterInterval merges ranges on insertion", async ({
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { address: erc20.address },
-    block: rpcData.block2.block,
-    transactions: [],
-    logs: [],
+    ...rpcData.block2,
     interval: {
       startBlock: hexToBigInt(rpcData.block2.block.number!),
       endBlock: hexToBigInt(rpcData.block2.block.number!),
@@ -196,9 +188,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
     syncStore.insertLogFilterInterval({
       chainId: 1,
       logFilter: { address: erc20.address },
-      block: rpcData.block1.block,
-      transactions: [],
-      logs: [],
+      ...rpcData.block1,
       interval: {
         startBlock: hexToBigInt(rpcData.block1.block.number!),
         endBlock: hexToBigInt(rpcData.block1.block.number!),
@@ -207,9 +197,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
     syncStore.insertLogFilterInterval({
       chainId: 1,
       logFilter: { address: erc20.address },
-      block: rpcData.block2.block,
-      transactions: [],
-      logs: [],
+      ...rpcData.block2,
       interval: {
         startBlock: hexToBigInt(rpcData.block2.block.number!),
         endBlock: hexToBigInt(rpcData.block2.block.number!),
@@ -218,9 +206,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
     syncStore.insertLogFilterInterval({
       chainId: 1,
       logFilter: { address: erc20.address },
-      block: rpcData.block3.block,
-      transactions: [],
-      logs: [],
+      ...rpcData.block3,
       interval: {
         startBlock: hexToBigInt(rpcData.block3.block.number!),
         endBlock: hexToBigInt(rpcData.block3.block.number!),
@@ -253,9 +239,7 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async ({
       address: ["0xa", "0xb"],
       topics: [["0xc", "0xd"], null, "0xe", null],
     },
-    block: rpcData.block1.block,
-    transactions: [],
-    logs: [],
+    ...rpcData.block1,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
@@ -294,18 +278,14 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async ({
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {},
-    block: rpcData.block1.block,
-    transactions: [],
-    logs: [],
+    ...rpcData.block1,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { topics: [null, ["0xc", "0xd"], null, null] },
-    block: rpcData.block1.block,
-    transactions: [],
-    logs: [],
+    ...rpcData.block1,
     interval: { startBlock: 150n, endBlock: 250n },
   });
 
@@ -679,9 +659,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    block: rpcData.block3.block,
-    transactions: [],
-    logs: [],
+    ...rpcData.block3,
     interval: { startBlock: 750n, endBlock: 1000n },
   });
 
