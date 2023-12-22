@@ -127,7 +127,13 @@ function registerKilledProcessListener(fn: () => Promise<unknown>) {
 }
 
 function validateNodeVersion() {
-  if (Number(process.version.split(".")[0].slice(1)) < 18) {
+  const _nodeVersion = process.version.split(".");
+  const nodeVersion = [
+    Number(_nodeVersion[0].slice(1)),
+    Number(_nodeVersion[1]),
+    Number(_nodeVersion[2]),
+  ];
+  if (nodeVersion[0] < 18 || (nodeVersion[0] === 18 && nodeVersion[1] < 14)) {
     console.log(
       `Ponder requires ${pc.cyan("Node >=18")}, detected ${process.version}.`,
     );

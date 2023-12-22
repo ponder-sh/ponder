@@ -13,10 +13,8 @@
   "devDependencies": {
     "@wagmi/cli": "^1.5.2"
   },
-  "trustedDependencies": [
-    "better-sqlite3"
-  ],
+  "trustedDependencies": ["better-sqlite3"],
   "engines": {
-    "node": ">=18"
+    "node": ">=18.14"
   }
 }

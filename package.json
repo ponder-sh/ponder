@@ -26,13 +26,8 @@
     "typescript": "^5.3.3"
   },
   "lint-staged": {
-    "*.ts": [
-      "biome format --no-errors-on-unmatched",
-      "biome check"
-    ],
-    "!(*.ts)": [
-      "biome format --no-errors-on-unmatched"
-    ]
+    "*.ts": ["biome format --no-errors-on-unmatched", "biome check"],
+    "!(*.ts)": ["biome format --no-errors-on-unmatched"]
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
@@ -44,6 +39,6 @@
     }
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18.14"
   }
 }
