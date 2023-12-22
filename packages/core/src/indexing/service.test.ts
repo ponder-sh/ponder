@@ -283,7 +283,7 @@ test("processEvents() reads data from a contract", async (context) => {
 
   await service.reset({
     schema,
-    indexingFunctions: indexingFunctionsWithContractRead,
+    indexingFunctions: readContractIndexingFunctions,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -299,7 +299,14 @@ test("processEvents() reads data from a contract", async (context) => {
 });
 
 test("processEvents() recovers from errors while reading data from a contract", async (context) => {
-  const { common, syncStore, indexingStore } = context;
+  const { common, syncStore, indexingStore, sources, networks } = context;
+
+  const getEvents = vi.fn(await getEventsErc20(sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
 
   const service = new IndexingService({
     common,
@@ -315,7 +322,7 @@ test("processEvents() recovers from errors while reading data from a contract", 
 
   await service.reset({
     schema,
-    indexingFunctions: indexingFunctionsWithContractRead,
+    indexingFunctions: readContractIndexingFunctions,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -325,7 +332,7 @@ test("processEvents() recovers from errors while reading data from a contract", 
   const supplyEvents = await indexingStore.findMany({
     tableName: "Supply",
   });
-  expect(supplyEvents.length).toBe(1);
+  expect(supplyEvents.length).toBe(2);
 
   await service.kill();
 });
