@@ -15,7 +15,6 @@ import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Transaction } from "@/types/transaction.js";
-import { chains } from "@/utils/chains.js";
 import {
   type Checkpoint,
   isCheckpointEqual,
@@ -28,6 +27,7 @@ import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import { getErrorMessage } from "@/utils/request.js";
 import { wait } from "@/utils/wait.js";
 
+import { chains } from "@/utils/chains.js";
 import { buildDatabaseModels } from "./model.js";
 import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
 import { addUserStackTrace } from "./trace.js";
@@ -110,7 +110,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     syncStore: SyncStore;
     indexingStore: IndexingStore;
     syncGatewayService: SyncGateway;
-    networks: Pick<Network, "url" | "request" | "chainId" | "name">[];
+    networks: Network[];
     sources: Source[];
   }) {
     super();
@@ -705,7 +705,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
 const buildContexts = (
   sources: Source[],
-  networks: Pick<Network, "url" | "request" | "chainId" | "name">[],
+  networks: Network[],
   syncStore: SyncStore,
   actions: ReturnType<typeof ponderActions>,
 ) => {
@@ -733,7 +733,10 @@ const buildContexts = (
       chains.mainnet;
 
     const client = createClient({
-      transport: ponderTransport({ network, syncStore }),
+      transport: ponderTransport({
+        transport: network.client.transport,
+        syncStore,
+      }),
       chain: { ...defaultChain, name: network.name, id: network.chainId },
     });
 

@@ -1,5 +1,6 @@
 import Emittery from "emittery";
 import {
+  type BlockTag,
   type Hash,
   type Hex,
   InvalidParamsRpcError,
@@ -35,7 +36,7 @@ import {
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { getErrorMessage, request } from "@/utils/request.js";
+import { getErrorMessage } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
 
 import { validateHistoricalBlockRange } from "./utils.js";
@@ -487,26 +488,22 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     );
 
   private buildQueue = () => {
-    const worker: Worker<HistoricalSyncTask> = async ({
-      task,
-      queue,
-      signal,
-    }) => {
+    const worker: Worker<HistoricalSyncTask> = async ({ task, queue }) => {
       switch (task.kind) {
         case "LOG_FILTER": {
-          await this.logFilterTaskWorker({ task, signal });
+          await this.logFilterTaskWorker({ task });
           break;
         }
         case "FACTORY_CHILD_ADDRESS": {
-          await this.factoryChildAddressTaskWorker({ task, signal });
+          await this.factoryChildAddressTaskWorker({ task });
           break;
         }
         case "FACTORY_LOG_FILTER": {
-          await this.factoryLogFilterTaskWorker({ task, signal });
+          await this.factoryLogFilterTaskWorker({ task });
           break;
         }
         case "BLOCK": {
-          await this.blockTaskWorker({ task, signal });
+          await this.blockTaskWorker({ task });
           break;
         }
       }
@@ -537,47 +534,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         concurrency: this.network.maxHistoricalTaskConcurrency,
         autoStart: false,
       },
-      onError: ({ error, task, queue }) => {
-        const message = getErrorMessage(error);
-        switch (task.kind) {
-          case "LOG_FILTER": {
-            this.common.logger.warn({
-              service: "historical",
-              msg: `Log filter task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.logFilter.contractName}, network=${this.network.name}, error=${message})`,
-            });
-            const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask(task, { priority, retry: true });
-            break;
-          }
-          case "FACTORY_CHILD_ADDRESS": {
-            this.common.logger.warn({
-              service: "historical",
-              msg: `Factory child address task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.factory.contractName}, network=${this.network.name}, error=${message})`,
-            });
-            const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask(task, { priority, retry: true });
-            break;
-          }
-          case "FACTORY_LOG_FILTER": {
-            this.common.logger.warn({
-              service: "historical",
-              msg: `Factory log filter task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.factory.contractName}, network=${this.network.name}, error=${message})`,
-            });
-            const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask(task, { priority, retry: true });
-            break;
-          }
-          case "BLOCK": {
-            this.common.logger.warn({
-              service: "historical",
-              msg: `Block task failed, retrying... [${task.blockNumber}] (network=${this.network.name}, error=${message})`,
-            });
-            const priority = Number.MAX_SAFE_INTEGER - task.blockNumber;
-            queue.addTask(task, { priority, retry: true });
-            break;
-          }
-        }
-      },
     });
 
     return queue;
@@ -585,22 +541,17 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private logFilterTaskWorker = async ({
     task,
-    signal,
   }: {
     task: LogFilterTask;
-    signal: AbortSignal;
   }) => {
     const { logFilter, fromBlock, toBlock } = task;
 
-    const logs = await this._eth_getLogs(
-      {
-        address: logFilter.criteria.address,
-        topics: logFilter.criteria.topics,
-        fromBlock: toHex(fromBlock),
-        toBlock: toHex(toBlock),
-      },
-      signal,
-    );
+    const logs = await this._eth_getLogs({
+      address: logFilter.criteria.address,
+      topics: logFilter.criteria.topics,
+      fromBlock: toHex(fromBlock),
+      toBlock: toHex(toBlock),
+    });
 
     const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
 
@@ -642,22 +593,17 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private factoryChildAddressTaskWorker = async ({
     task,
-    signal,
   }: {
     task: FactoryChildAddressTask;
-    signal: AbortSignal;
   }) => {
     const { factory, fromBlock, toBlock } = task;
 
-    const logs = await this._eth_getLogs(
-      {
-        address: factory.criteria.address,
-        topics: [factory.criteria.eventSelector],
-        fromBlock: toHex(fromBlock),
-        toBlock: toHex(toBlock),
-      },
-      signal,
-    );
+    const logs = await this._eth_getLogs({
+      address: factory.criteria.address,
+      topics: [factory.criteria.eventSelector],
+      fromBlock: toHex(fromBlock),
+      toBlock: toHex(toBlock),
+    });
 
     // Insert the new child address logs into the store.
     await this.syncStore.insertFactoryChildAddressLogs({
@@ -733,10 +679,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private factoryLogFilterTaskWorker = async ({
     task: { factory, fromBlock, toBlock },
-    signal,
   }: {
     task: FactoryLogFilterTask;
-    signal: AbortSignal;
   }) => {
     const iterator = this.syncStore.getFactoryChildAddresses({
       chainId: factory.chainId,
@@ -747,15 +691,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const logs: RpcLog[] = [];
 
     for await (const childContractAddressBatch of iterator) {
-      const batchLogs = await this._eth_getLogs(
-        {
-          address: childContractAddressBatch,
-          topics: factory.criteria.topics,
-          fromBlock: toHex(fromBlock),
-          toBlock: toHex(toBlock),
-        },
-        signal,
-      );
+      const batchLogs = await this._eth_getLogs({
+        address: childContractAddressBatch,
+        topics: factory.criteria.topics,
+        fromBlock: toHex(fromBlock),
+        toBlock: toHex(toBlock),
+      });
       logs.push(...batchLogs);
     }
 
@@ -800,24 +741,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private blockTaskWorker = async ({
     task,
-    signal,
   }: {
     task: BlockTask;
-    signal: AbortSignal;
   }) => {
     const { blockNumber, callbacks } = task;
 
     const stopClock = startClock();
 
-    const block = (await request(this.network, {
-      body: {
+    const block = await this.network.client
+      .request({
         method: "eth_getBlockByNumber",
         params: [toHex(blockNumber), true],
-      },
-      fetchOptions: { signal },
-    })) as RpcBlock & {
-      transactions: RpcTransaction[];
-    };
+      })
+      .then((b) => b! as RpcBlock<BlockTag, true>);
 
     this.common.metrics.ponder_historical_rpc_request_duration.observe(
       { method: "eth_getBlockByNumber", network: this.network.name },
@@ -945,7 +881,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private _eth_getLogs = async (
     options: LogFilterCriteria & { fromBlock: Hex; toBlock: Hex },
-    signal: AbortSignal,
   ) => {
     const logs: RpcLog[] = [];
 
@@ -953,21 +888,18 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     const stopClock = startClock();
     try {
-      return await request(this.network, {
-        body: {
-          method: "eth_getLogs",
-          params: [
-            {
-              ...options,
-              address: options.address
-                ? Array.isArray(options.address)
-                  ? options.address.map((a) => toLowerCase(a))
-                  : toLowerCase(options.address)
-                : undefined,
-            },
-          ],
-        },
-        fetchOptions: { signal },
+      return await this.network.client.request({
+        method: "eth_getLogs",
+        params: [
+          {
+            ...options,
+            address: options.address
+              ? Array.isArray(options.address)
+                ? options.address.map((a) => toLowerCase(a))
+                : toLowerCase(options.address)
+              : undefined,
+          },
+        ],
       });
     } catch (err) {
       error = err as Partial<RpcError> & { name: string };
@@ -1048,14 +980,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
 
     for (const [from, to] of retryRanges) {
-      const logs_ = await this._eth_getLogs(
-        {
-          ...options,
-          fromBlock: from,
-          toBlock: to,
-        },
-        signal,
-      );
+      const logs_ = await this._eth_getLogs({
+        ...options,
+        fromBlock: from,
+        toBlock: to,
+      });
       logs.push(...logs_);
     }
 

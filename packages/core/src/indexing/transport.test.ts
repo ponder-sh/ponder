@@ -1,6 +1,5 @@
 import type { Transport } from "viem";
-import { getFunctionSelector, toHex } from "viem";
-import { rpc } from "viem/utils";
+import { http, getFunctionSelector, toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 
 import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
@@ -13,10 +12,7 @@ beforeEach((context) => setupSyncStore(context));
 
 test("default", ({ syncStore }) => {
   const transport = ponderTransport({
-    network: {
-      request: (options) => rpc.http("https://ponder.sh/rpc", options),
-      url: "https://ponder.sh/rpc",
-    },
+    transport: http("https://ponder.sh/rpc")({ chain: anvil }),
     syncStore,
   });
 
@@ -44,7 +40,7 @@ test("eth_call", async ({ syncStore, erc20 }) => {
 
   const transport = ponderTransport({
     network: {
-      request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
+      transport: http(anvil.rpcUrls.default.http[0])({ chain: anvil }),
       url: anvil.rpcUrls.default.http[0],
     },
     syncStore,
@@ -104,10 +100,7 @@ test("eth_getBalance", async ({ syncStore, erc20 }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    network: {
-      request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
-      url: anvil.rpcUrls.default.http[0],
-    },
+    transport: http(anvil.rpcUrls.default.http[0])({ chain: anvil }),
     syncStore,
   })({
     chain: anvil,
@@ -147,10 +140,7 @@ test("eth_getStorageAt", async ({ syncStore, erc20 }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    network: {
-      request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
-      url: anvil.rpcUrls.default.http[0],
-    },
+    transport: http(anvil.rpcUrls.default.http[0])({ chain: anvil }),
     syncStore,
   })({
     chain: anvil,
@@ -190,10 +180,7 @@ test("eth_getCode", async ({ syncStore, erc20 }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    network: {
-      request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
-      url: anvil.rpcUrls.default.http[0],
-    },
+    transport: http(anvil.rpcUrls.default.http[0])({ chain: anvil }),
     syncStore,
   })({
     chain: anvil,
@@ -231,10 +218,7 @@ test("eth_getCode", async ({ syncStore, erc20 }) => {
 
 test("fallback method", async ({ syncStore }) => {
   const transport = ponderTransport({
-    network: {
-      request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
-      url: anvil.rpcUrls.default.http[0],
-    },
+    transport: http(anvil.rpcUrls.default.http[0])({ chain: anvil }),
     syncStore,
   })({
     chain: anvil,

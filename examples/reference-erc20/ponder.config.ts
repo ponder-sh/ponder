@@ -1,12 +1,16 @@
 import { createConfig } from "@ponder/core";
 import { erc20ABI } from "@wagmi/core";
-import { http } from "viem";
+import { http, webSocket } from "viem";
 
 export default createConfig({
   networks: {
     mainnet: {
       chainId: 1,
       transport: http(process.env.PONDER_RPC_URL_1),
+      // transport: webSocket(
+      //   "wss://eth-mainnet.g.alchemy.com/v2/I96uJ_XZUY0peo6mhN8JSGYxoWehqunc",
+      // ),
+      maxHistoricalTaskConcurrency: 20,
     },
   },
   contracts: {

@@ -1,4 +1,4 @@
-import { type Chain, type Client, type Transport } from "viem";
+import { type Chain, type Client, type Transport, createClient } from "viem";
 import { rpc } from "viem/utils";
 
 import type { Common } from "@/Ponder.js";
@@ -13,7 +13,7 @@ type Request = (
 export type Network = {
   name: string;
   chainId: number;
-  request: Request;
+  client: Client;
   url: string;
   pollingInterval: number;
   defaultMaxBlockRange: number;
@@ -44,7 +44,7 @@ export async function buildNetwork({
 
   const rpcUrls = await getRpcUrlsForClient({ transport, chain });
 
-  const request = await getRequestForTransport({ transport, chain });
+  // const request = await getRequestForTransport({ transport, chain });
 
   rpcUrls.forEach((rpcUrl) => {
     if (isRpcUrlPublic(rpcUrl)) {
@@ -55,10 +55,13 @@ export async function buildNetwork({
     }
   });
 
+  const client = createClient({ chain, transport: network.transport });
+  console.log(client.transport);
+
   const resolvedNetwork: Network = {
     name: networkName,
     chainId: chainId,
-    request,
+    client,
     url: rpcUrls[0],
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
