@@ -42,9 +42,15 @@ export async function buildNetwork({
     id: chainId,
   };
 
-  const rpcUrls = await getRpcUrlsForClient({ transport, chain });
+  const rpcUrls = await getRpcUrlsForClient({
+    transport: transport as Transport,
+    chain,
+  });
 
-  const request = await getRequestForTransport({ transport, chain });
+  const request = await getRequestForTransport({
+    transport: transport as Transport,
+    chain,
+  });
 
   rpcUrls.forEach((rpcUrl) => {
     if (isRpcUrlPublic(rpcUrl)) {
