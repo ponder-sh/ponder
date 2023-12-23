@@ -28,11 +28,7 @@ import { startClock } from "@/utils/timer.js";
 import { getChainId } from "viem/actions";
 import { isMatchedLogInBloomFilter } from "./bloom.js";
 import { filterLogs } from "./filter.js";
-import {
-  type BlockWithTransactions,
-  type LightBlock,
-  rpcBlockToLightBlock,
-} from "./format.js";
+import { type LightBlock, rpcBlockToLightBlock } from "./format.js";
 
 type RealtimeSyncEvents = {
   realtimeCheckpoint: Checkpoint;
@@ -41,8 +37,8 @@ type RealtimeSyncEvents = {
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
 };
 
-type RealtimeBlockTask = RpcBlock<BlockTag, true>;
-type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
+type RealtimeBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
+type RealtimeSyncQueue = Queue<RealtimeBlock>;
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private common: Common;
@@ -85,7 +81,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.blocks = [];
 
     // Fetch the latest block, and remote chain Id for the network.
-    let latestBlock: RpcBlock<"latest", true>;
+    let latestBlock: RealtimeBlock;
     let rpcChainId: number;
     try {
       [latestBlock, rpcChainId] = await Promise.all([
@@ -98,7 +94,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         "Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)",
       );
     }
-    const latestBlockNumber = hexToNumber(latestBlock.number!);
+    const latestBlockNumber = hexToNumber(latestBlock.number);
 
     if (rpcChainId !== this.network.chainId)
       this.common.logger.warn({
@@ -230,7 +226,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       { method: "eth_getBlockByNumber", network: this.network.name },
       stopClock(),
     );
-    return latestBlock as RpcBlock<"latest", true>;
+    return latestBlock as RealtimeBlock;
   };
 
   // This method is only public for to support the tests.
@@ -250,27 +246,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   private buildQueue = () => {
-    const queue = createQueue<RealtimeBlockTask>({
+    const queue = createQueue<RealtimeBlock>({
       worker: async ({ task }) => {
         await this.blockTaskWorker({ block: task });
       },
       options: { concurrency: 1, autoStart: false },
-      // onError: ({ error, task }) => {
-      //   const message = getErrorMessage(error);
-
-      //   this.common.logger.warn({
-      //     service: "realtime",
-      //     msg: `Realtime sync task failed (network=${this.network.name}, error=${message})`,
-      //     network: this.network.name,
-      //     hash: task.hash,
-      //     parentHash: task.parentHash,
-      //     number: task.number,
-      //     timestamp: task.timestamp,
-      //   });
-
-      //   // Default to a retry (uses the retry options passed to the queue).
-      //   queue.addTask(task, { retry: true });
-      // },
     });
 
     return queue;
@@ -279,7 +259,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private blockTaskWorker = async ({
     block,
   }: {
-    block: RpcBlock<BlockTag, true>;
+    block: RealtimeBlock;
   }) => {
     const previousHeadBlock = this.blocks[this.blocks.length - 1];
 
@@ -383,7 +363,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             const iterator = this.syncStore.getFactoryChildAddresses({
               chainId: this.network.chainId,
               factory: factory.criteria,
-              upToBlockNumber: hexToBigInt(block.number!),
+              upToBlockNumber: hexToBigInt(block.number),
             });
             const childContractAddresses: Hex[] = [];
             for await (const batch of iterator) {
@@ -444,7 +424,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       this.emit("realtimeCheckpoint", {
         blockTimestamp: hexToNumber(newBlockWithTransactions.timestamp),
         chainId: this.network.chainId,
-        blockNumber: hexToNumber(newBlockWithTransactions.number!),
+        blockNumber: hexToNumber(newBlockWithTransactions.number),
       });
 
       // Add this block the local chain.
@@ -545,7 +525,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             },
             stopClock(),
           );
-          return block as BlockWithTransactions;
+          return block as RealtimeBlock;
         });
       });
 
@@ -553,7 +533,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       // Add blocks to the queue from oldest to newest. Include the current block.
       for (const block of [...missingBlocks, newBlockWithTransactions]) {
-        const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number!);
+        const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
         this.queue.addTask(block, { priority });
       }
 
@@ -616,7 +596,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         // Add blocks from the canonical chain (they've already been fetched).
         for (const block of canonicalBlocksWithTransactions) {
-          const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number!);
+          const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
           this.queue.addTask(block, { priority });
         }
 
@@ -656,9 +636,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           `Failed to fetch parent block with hash: ${canonicalBlock.parentHash}`,
         );
 
-      canonicalBlocksWithTransactions.unshift(
-        parentBlock_ as BlockWithTransactions,
-      );
+      canonicalBlocksWithTransactions.unshift(parentBlock_ as RealtimeBlock);
       depth += 1;
       canonicalBlock = rpcBlockToLightBlock(parentBlock_);
 

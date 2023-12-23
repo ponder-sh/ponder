@@ -36,7 +36,6 @@ import {
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { getErrorMessage } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
 
 import { validateHistoricalBlockRange } from "./utils.js";

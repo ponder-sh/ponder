@@ -1,20 +1,13 @@
 import { type Chain, type Client, type Transport, createClient } from "viem";
-import { rpc } from "viem/utils";
 
 import type { Common } from "@/Ponder.js";
 import type { Config } from "@/config/config.js";
 import { chains } from "@/utils/chains.js";
 
-type Request = (
-  options: Parameters<typeof rpc.webSocketAsync>[1] &
-    Parameters<typeof rpc.http>[1],
-) => any;
-
 export type Network = {
   name: string;
   chainId: number;
   client: Client;
-  url: string;
   pollingInterval: number;
   defaultMaxBlockRange: number;
   maxHistoricalTaskConcurrency: number;
@@ -44,8 +37,6 @@ export async function buildNetwork({
 
   const rpcUrls = await getRpcUrlsForClient({ transport, chain });
 
-  // const request = await getRequestForTransport({ transport, chain });
-
   rpcUrls.forEach((rpcUrl) => {
     if (isRpcUrlPublic(rpcUrl)) {
       common.logger.warn({
@@ -56,13 +47,11 @@ export async function buildNetwork({
   });
 
   const client = createClient({ chain, transport: network.transport });
-  console.log(client.transport);
 
   const resolvedNetwork: Network = {
     name: networkName,
     chainId: chainId,
     client,
-    url: rpcUrls[0],
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
     maxHistoricalTaskConcurrency: network.maxHistoricalTaskConcurrency ?? 20,
@@ -230,52 +219,6 @@ export async function getRpcUrlsForClient(parameters: {
   }
 
   return getRpcUrlsForTransport(transport);
-}
-
-export async function getRequestForTransport(parameters: {
-  transport: Transport;
-  chain: Chain;
-}): Promise<Request> {
-  // This is how viem converts a Transport into the Client.transport type.
-  const { config, value } = parameters.transport({
-    chain: parameters.chain,
-    pollingInterval: 4_000, // default viem value
-  });
-  const transport = { ...config, ...value } as Client["transport"];
-
-  switch (transport.type) {
-    case "http": {
-      const url = transport.url ?? parameters.chain.rpcUrls.default.http[0];
-
-      if (!url)
-        throw Error(
-          `Validation failed: Unable to find a http transport URL (network=${parameters.chain.name}). Commonly caused by unset env vars.`,
-        );
-
-      return (options) => rpc.http(url, options);
-    }
-    case "webSocket": {
-      const socket = await transport.getSocket();
-
-      if (!socket)
-        throw Error(
-          `Validation failed: Unable to find a websocket transport url (network=${parameters.chain.name}). Commonly caused by unset env vars.`,
-        );
-
-      return (options) => rpc.webSocketAsync(socket, options);
-    }
-    case "fallback": {
-      return await getRequestForTransport({
-        transport: () => transport.transports[0],
-        chain: parameters.chain,
-      });
-    }
-    default: {
-      throw Error(
-        `Validation failed: Unknown transport "${transport.type}" used. Please use "http", "websocket", or "fallback" (network=${parameters.chain.name})`,
-      );
-    }
-  }
 }
 
 let publicRpcUrls: Set<string> | undefined = undefined;

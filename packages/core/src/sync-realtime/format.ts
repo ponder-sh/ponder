@@ -1,11 +1,4 @@
-import {
-  type Hash,
-  type RpcBlock,
-  type RpcTransaction,
-  hexToNumber,
-} from "viem";
-
-import type { Prettify } from "@/types/utils.js";
+import { type Hash, type RpcBlock, hexToNumber } from "viem";
 
 export type LightBlock = {
   hash: Hash;
@@ -22,11 +15,3 @@ export function rpcBlockToLightBlock(block: RpcBlock): LightBlock {
     timestamp: hexToNumber(block.timestamp),
   };
 }
-
-export type BlockWithTransactions = Prettify<
-  Omit<RpcBlock, "hash" | "transactions"> & {
-    hash: Hash;
-    number: Hash;
-    transactions: RpcTransaction[];
-  }
->;

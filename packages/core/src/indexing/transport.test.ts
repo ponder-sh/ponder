@@ -11,8 +11,10 @@ beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupSyncStore(context));
 
 test("default", ({ syncStore }) => {
+  const httpTransport = http(anvil.rpcUrls.default.http[0])({ chain: anvil });
+
   const transport = ponderTransport({
-    transport: http("https://ponder.sh/rpc")({ chain: anvil }),
+    transport: { ...httpTransport.config, ...httpTransport.value },
     syncStore,
   });
 
@@ -38,11 +40,10 @@ test("default", ({ syncStore }) => {
 test("eth_call", async ({ syncStore, erc20 }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
+  const httpTransport = http(anvil.rpcUrls.default.http[0])({ chain: anvil });
+
   const transport = ponderTransport({
-    network: {
-      transport: http(anvil.rpcUrls.default.http[0])({ chain: anvil }),
-      url: anvil.rpcUrls.default.http[0],
-    },
+    transport: { ...httpTransport.config, ...httpTransport.value },
     syncStore,
   })({
     chain: anvil,
@@ -99,8 +100,10 @@ test("eth_call", async ({ syncStore, erc20 }) => {
 test("eth_getBalance", async ({ syncStore, erc20 }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
+  const httpTransport = http(anvil.rpcUrls.default.http[0])({ chain: anvil });
+
   const transport = ponderTransport({
-    transport: http(anvil.rpcUrls.default.http[0])({ chain: anvil }),
+    transport: { ...httpTransport.config, ...httpTransport.value },
     syncStore,
   })({
     chain: anvil,
@@ -139,8 +142,10 @@ test("eth_getBalance", async ({ syncStore, erc20 }) => {
 test("eth_getStorageAt", async ({ syncStore, erc20 }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
+  const httpTransport = http(anvil.rpcUrls.default.http[0])({ chain: anvil });
+
   const transport = ponderTransport({
-    transport: http(anvil.rpcUrls.default.http[0])({ chain: anvil }),
+    transport: { ...httpTransport.config, ...httpTransport.value },
     syncStore,
   })({
     chain: anvil,
@@ -179,8 +184,10 @@ test("eth_getStorageAt", async ({ syncStore, erc20 }) => {
 test("eth_getCode", async ({ syncStore, erc20 }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
+  const httpTransport = http(anvil.rpcUrls.default.http[0])({ chain: anvil });
+
   const transport = ponderTransport({
-    transport: http(anvil.rpcUrls.default.http[0])({ chain: anvil }),
+    transport: { ...httpTransport.config, ...httpTransport.value },
     syncStore,
   })({
     chain: anvil,
@@ -217,8 +224,10 @@ test("eth_getCode", async ({ syncStore, erc20 }) => {
 });
 
 test("fallback method", async ({ syncStore }) => {
+  const httpTransport = http(anvil.rpcUrls.default.http[0])({ chain: anvil });
+
   const transport = ponderTransport({
-    transport: http(anvil.rpcUrls.default.http[0])({ chain: anvil }),
+    transport: { ...httpTransport.config, ...httpTransport.value },
     syncStore,
   })({
     chain: anvil,
