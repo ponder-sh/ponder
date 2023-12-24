@@ -1,23 +1,23 @@
 import { expect, test } from "vitest";
-import { createTransportQueue } from "./transport.js";
+import { createRequestQueue } from "./transport.js";
 import { wait } from "./wait.js";
 
 /**
  * Returns a callback and an async function that resolves when the callback is invoked.
  */
-const createAsyncResolver = () => {
+const createAsyncResolver = <T>(x: T) => {
   let resolve: () => void;
-  const promise = new Promise<void>((res) => {
-    resolve = res;
+  const promise = new Promise<T>((res) => {
+    resolve = () => res(x);
   });
   return { resolve: resolve!, promiseFn: () => promise };
 };
 
-test("queue size and pending", async () => {
-  const queue = createTransportQueue(1);
+test("size and pending", async () => {
+  const queue = createRequestQueue(1);
 
-  const r1 = createAsyncResolver();
-  const r2 = createAsyncResolver();
+  const r1 = createAsyncResolver(undefined);
+  const r2 = createAsyncResolver(undefined);
 
   queue.add(r1.promiseFn);
   queue.add(r2.promiseFn);
@@ -30,11 +30,11 @@ test("queue size and pending", async () => {
   expect(await queue.size()).toBe(1);
 });
 
-test("queue request per second", async () => {
-  const queue = createTransportQueue(1);
+test("request per second", async () => {
+  const queue = createRequestQueue(1);
 
-  const r1 = createAsyncResolver();
-  const r2 = createAsyncResolver();
+  const r1 = createAsyncResolver(undefined);
+  const r2 = createAsyncResolver(undefined);
 
   queue.add(r1.promiseFn);
   queue.add(r2.promiseFn);
@@ -56,4 +56,15 @@ test("queue request per second", async () => {
 
   expect(await queue.size()).toBe(0);
   expect(await queue.pending()).toBe(0);
+});
+
+test("add() returns promise", async () => {
+  const queue = createRequestQueue(1);
+
+  const r1 = createAsyncResolver(1);
+  const promise = queue.add(r1.promiseFn);
+
+  r1.resolve();
+
+  expect(await promise).toBe(1);
 });
