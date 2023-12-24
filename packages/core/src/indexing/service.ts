@@ -1,8 +1,3 @@
-import { E_CANCELED, Mutex } from "async-mutex";
-import Emittery from "emittery";
-import type { Abi, Address, Client, Hex } from "viem";
-import { checksumAddress, createClient, decodeEventLog } from "viem";
-
 import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions.js";
 import type { Network } from "@/config/networks.js";
@@ -15,6 +10,7 @@ import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Transaction } from "@/types/transaction.js";
+import { chains } from "@/utils/chains.js";
 import {
   type Checkpoint,
   isCheckpointEqual,
@@ -26,8 +22,10 @@ import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import { getErrorMessage } from "@/utils/request.js";
 import { wait } from "@/utils/wait.js";
-
-import { chains } from "@/utils/chains.js";
+import { E_CANCELED, Mutex } from "async-mutex";
+import Emittery from "emittery";
+import type { Abi, Address, Client, Hex } from "viem";
+import { checksumAddress, createClient, decodeEventLog } from "viem";
 import { buildDatabaseModels } from "./model.js";
 import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
 import { addUserStackTrace } from "./trace.js";
@@ -734,7 +732,7 @@ const buildContexts = (
 
     const client = createClient({
       transport: ponderTransport({
-        transport: network.client.transport,
+        transport: { ...network.transport },
         syncStore,
       }),
       chain: { ...defaultChain, name: network.name, id: network.chainId },

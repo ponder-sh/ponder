@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { createRequestQueue } from "./transport.js";
+import { createRequestQueue } from "./requestQueue.js";
 import { wait } from "./wait.js";
 
 /**
@@ -105,4 +105,5 @@ test("add() ordering", async () => {
   r2.resolve();
 
   expect(await promise2).toBe(2);
+  expect(await queue.size()).toBe(1);
 });

@@ -1,13 +1,12 @@
-import { type Chain, type Client, type Transport, createClient } from "viem";
-
 import type { Common } from "@/Ponder.js";
 import type { Config } from "@/config/config.js";
 import { chains } from "@/utils/chains.js";
+import { type Chain, type Client, type Transport } from "viem";
 
 export type Network = {
   name: string;
   chainId: number;
-  client: Client;
+  transport: Client["transport"];
   pollingInterval: number;
   defaultMaxBlockRange: number;
   maxHistoricalTaskConcurrency: number;
@@ -46,12 +45,12 @@ export async function buildNetwork({
     }
   });
 
-  const client = createClient({ chain, transport: network.transport });
+  const _transport = transport({ chain });
 
   const resolvedNetwork: Network = {
     name: networkName,
     chainId: chainId,
-    client,
+    transport: { ..._transport.config, ..._transport.value },
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
     maxHistoricalTaskConcurrency: network.maxHistoricalTaskConcurrency ?? 20,

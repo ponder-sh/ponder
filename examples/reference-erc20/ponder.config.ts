@@ -1,4 +1,4 @@
-import { createConfig, rateLimitedRpc } from "@ponder/core";
+import { createConfig } from "@ponder/core";
 import { erc20ABI } from "@wagmi/core";
 import { http, webSocket } from "viem";
 
@@ -6,7 +6,7 @@ export default createConfig({
   networks: {
     mainnet: {
       chainId: 1,
-      transport: rateLimitedRpc(http(process.env.PONDER_RPC_URL_1), 5),
+      transport: http(process.env.PONDER_RPC_URL_1),
     },
   },
   contracts: {

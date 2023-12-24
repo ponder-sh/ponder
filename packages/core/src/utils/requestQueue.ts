@@ -27,7 +27,6 @@ type InternalQueue = {
  *
  * Two task types, historical and realtime.
  * FIFO ordering, with "realtime" tasks always run before "historical".
- * Must be started with `start()`.
  */
 export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
   let historicalQueue: InternalQueue = new Array();
@@ -37,7 +36,7 @@ export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
   let lastRequestTime = 0;
   let pending = 0;
   let timing = false;
-  let on = false;
+  let on = true;
 
   const processQueue = () => {
     if (!on) return;

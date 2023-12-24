@@ -1,6 +1,3 @@
-import { HttpRequestError } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
-
 import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { publicClient, testClient } from "@/_test/utils.js";
@@ -8,7 +5,8 @@ import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { range } from "@/utils/range.js";
-
+import { HttpRequestError } from "viem";
+import { beforeEach, expect, test, vi } from "vitest";
 import { RealtimeSyncService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -161,7 +159,7 @@ test("start() handles error while fetching new latest block gracefully", async (
 
   const blockNumbers = await getBlockNumbers();
 
-  const rpcRequestSpy = vi.spyOn(networks[0].client.transport, "request");
+  const rpcRequestSpy = vi.spyOn(networks[0].transport, "request");
 
   const service = new RealtimeSyncService({
     common,

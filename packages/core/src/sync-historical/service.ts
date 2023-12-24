@@ -38,6 +38,7 @@ import { toLowerCase } from "@/utils/lowercase.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
 
+import { request } from "@/utils/request.js";
 import { validateHistoricalBlockRange } from "./utils.js";
 
 type HistoricalSyncEvents = {
@@ -747,12 +748,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     const stopClock = startClock();
 
-    const block = await this.network.client
-      .request({
-        method: "eth_getBlockByNumber",
-        params: [toHex(blockNumber), true],
-      })
-      .then((b) => b! as RpcBlock<BlockTag, true>);
+    const block = await request(this.network, "historical", {
+      method: "eth_getBlockByNumber",
+      params: [toHex(blockNumber), true],
+    }).then((b) => b! as RpcBlock<BlockTag, true>);
 
     this.common.metrics.ponder_historical_rpc_request_duration.observe(
       { method: "eth_getBlockByNumber", network: this.network.name },
@@ -887,7 +886,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     const stopClock = startClock();
     try {
-      return await this.network.client.request({
+      return await request(this.network, "historical", {
         method: "eth_getLogs",
         params: [
           {
