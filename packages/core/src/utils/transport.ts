@@ -1,74 +1,64 @@
-import { type Transport, custom } from "viem";
-
-export const rateLimitedRpc = (
-  _transport: Transport,
-  requestsPerSecond = 5,
-): Transport => {
-  const interval = 1000 / requestsPerSecond;
-  let lastRequestTime = 0;
-
-  const allowRequest = () => {
-    const now = performance.now();
-    if (now - lastRequestTime > interval) {
-      lastRequestTime = now;
-      return true;
-    }
-    return false;
-  };
-
-  return ({ chain }) => {
-    const transport = _transport({ chain });
-    const c = custom({
-      async request({ method, params }) {
-        return new Promise((resolve) => {
-          const checkRequest = setInterval(async () => {
-            if (allowRequest()) {
-              clearInterval(checkRequest);
-
-              resolve(await transport.request({ method, params }));
-            }
-          }, interval);
-        });
-      },
-    });
-    return c({ chain });
-  };
-};
-
 type RequestQueue = {
-  add: <T>(func: () => Promise<T>) => Promise<T>;
+  /** Add a task to the queue. */
+  add: <T>(
+    func: () => Promise<T>,
+    type: "realtime" | "historical",
+  ) => Promise<T>;
+  /** Number of unsent requests. */
   size: () => Promise<number>;
+  /** Number of pending requests. */
   pending: () => Promise<number>;
+  /** Start execution of the tasks. */
+  start: () => void;
+  /** Pause execution of the tasks. */
+  pause: () => void;
+  /** Clear tasks from the queue. */
+  clear: () => void;
 };
+
+type InternalQueue = {
+  func: () => Promise<unknown>;
+  resolve: (value: unknown) => void;
+  reject: () => unknown;
+}[];
 
 /**
  * Creates a queue built to manage rpc requests.
+ *
+ * Two task types, historical and realtime.
+ * FIFO ordering, with "realtime" tasks always run before "historical".
+ * Must be started with `start()`.
  */
 export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
-  const queue: {
-    func: () => Promise<unknown>;
-    resolve: (value: unknown) => void;
-    reject: () => unknown;
-  }[] = new Array();
+  let historicalQueue: InternalQueue = new Array();
+  let realtimeQueue: InternalQueue = new Array();
   const interval = 1000 / requestsPerSecond;
 
   let lastRequestTime = 0;
   let pending = 0;
   let timing = false;
+  let on = false;
 
-  const processQueue = <T>() => {
-    if (queue.length === 0) return;
-    const now = performance.now();
+  const processQueue = () => {
+    if (!on) return;
+    const realtimeLength = realtimeQueue.length;
+    const historicalLength = historicalQueue.length;
+
+    if (realtimeLength === 0 && historicalLength === 0) return;
+    const now = Date.now();
     let timeSinceLastRequest = now - lastRequestTime;
 
     if (timeSinceLastRequest >= interval) {
       lastRequestTime = now;
-      const { func, resolve, reject } = queue.shift()!;
+      const { func, resolve, reject } =
+        realtimeLength === 0
+          ? historicalQueue.shift()!
+          : realtimeQueue.shift()!;
 
       pending += 1;
       func!()
         .then((a) => {
-          resolve(a as T);
+          resolve(a);
         })
         .catch(reject)
         .finally(() => {
@@ -87,20 +77,37 @@ export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
   };
 
   return {
-    add: <T>(func: () => Promise<T>): Promise<T> => {
+    add: <T>(
+      func: () => Promise<T>,
+      type: "realtime" | "historical",
+    ): Promise<T> => {
       const p = new Promise((resolve, reject) => {
-        queue.push({ func, resolve, reject });
+        (type === "realtime" ? realtimeQueue : historicalQueue).push({
+          func,
+          resolve,
+          reject,
+        });
       });
-      processQueue<T>();
+      processQueue();
       return p as Promise<T>;
     },
     size: async () =>
-      new Promise<number>((res) => setImmediate(() => res(queue.length))),
+      new Promise<number>((res) =>
+        setImmediate(() => res(realtimeQueue.length + historicalQueue.length)),
+      ),
     pending: async () =>
       new Promise<number>((res) => setImmediate(() => res(pending))),
-    // start
-    // pause
-    // clear
+    start: () => {
+      on = true;
+      processQueue();
+    },
+    pause: () => {
+      on = false;
+    },
+    clear: () => {
+      historicalQueue = new Array();
+      realtimeQueue = new Array();
+    },
     // onEmpty()
     // onIdle()
   };

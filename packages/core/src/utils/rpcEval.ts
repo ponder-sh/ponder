@@ -2,7 +2,6 @@ import { http, createClient, toHex } from "viem";
 import { mainnet } from "viem/chains";
 import { createQueue } from "./queue.js";
 import { range } from "./range.js";
-import { rateLimitedRpc } from "./transport.js";
 
 /**
  * Evalutes an rpc by sending 100 getBlockByNumber requests, with a concurrency of 20.
@@ -10,7 +9,7 @@ import { rateLimitedRpc } from "./transport.js";
 
 const client = createClient({
   chain: mainnet,
-  transport: rateLimitedRpc(http(process.env.ANVIL_FORK_URL, {})),
+  transport: http(process.env.ANVIL_FORK_URL, {}),
 });
 
 const queue = createQueue<bigint>({
