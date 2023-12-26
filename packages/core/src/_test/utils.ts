@@ -23,12 +23,12 @@ import {
 } from "viem";
 import { mainnet } from "viem/chains";
 
-import type { Common, Ponder } from "@/Ponder.js";
+import type { Ponder } from "@/Ponder.js";
 import { type Config, createConfig } from "@/config/config.js";
-import { buildNetwork } from "@/config/networks.js";
-import { type Source, buildSources } from "@/config/sources.js";
+import { type Source } from "@/config/types.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 
+import { buildNetworksAndSources } from "@/build/config/config.js";
 import { ALICE } from "./constants.js";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
 import type { deploy } from "./simulate.js";
@@ -107,19 +107,13 @@ export const getConfig = (
  * Returns a network representing the local anvil chain.
  * Set `finalityBlockCount` to 4 because `deploy()` + `simulate()` is 4 blocks.
  */
-export const getNetworks = async () => {
-  const network = await buildNetwork({
-    networkName: "mainnet",
-    network: { chainId: 1, transport: http(`http://127.0.0.1:8545/${poolId}`) },
-    common: { logger: { warn: () => {} } } as unknown as Common,
-  });
-
-  return [{ ...network, finalityBlockCount: 4 }];
-};
-
-export const getSources = (
+export const getNetworkAndSources = async (
   addresses: Awaited<ReturnType<typeof deploy>>,
-): Source[] => buildSources({ config: getConfig(addresses) });
+) => {
+  const config = getConfig(addresses);
+  const { networks, sources } = await buildNetworksAndSources({ config });
+  return { networks, sources };
+};
 
 /**
  * Returns the logs, block, and transaction data for the blocks with events (1, 2, 3).

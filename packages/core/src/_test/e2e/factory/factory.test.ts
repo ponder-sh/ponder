@@ -60,12 +60,10 @@ test("factory", async (context) => {
   }
 
   const ponder = new Ponder({ options: testOptions });
-  await ponder.setup({
+  await ponder.start({
     syncStore: context.syncStore,
     indexingStore: context.indexingStore,
   });
-
-  await ponder.start();
 
   await onAllEventsIndexed(ponder);
 

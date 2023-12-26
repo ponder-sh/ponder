@@ -20,7 +20,7 @@ import {
   type LogFilterCriteria,
   type Source,
   sourceIsLogFilter,
-} from "@/config/sources.js";
+} from "@/config/types.js";
 import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";

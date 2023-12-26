@@ -1,10 +1,7 @@
-import { zeroAddress } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
+import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 
-import { setupSyncStore } from "@/_test/setup.js";
-import { getNetworks, getSources } from "@/_test/utils.js";
-import type { Network } from "@/config/networks.js";
-import type { Source } from "@/config/sources.js";
+import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
+
 import {
   type Checkpoint,
   maxCheckpoint,
@@ -13,30 +10,25 @@ import {
 
 import { SyncGateway } from "./service.js";
 
+beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupSyncStore(context));
 
-const mainnet = await getNetworks().then((n) => n[0]);
-const optimism = {
-  ...mainnet,
-  name: "optimism",
-  chainId: 10,
-} as const satisfies Network;
+function getMultichainNetworksAndSources(context: TestContext) {
+  const mainnet = context.networks[0];
+  const optimism = { ...mainnet, name: "optimism", chainId: 10 };
 
-const networks = [mainnet, optimism] as const satisfies Network[];
+  const sources = [
+    context.sources[0],
+    {
+      ...context.sources[0],
+      id: `Erc20_${optimism.name}`,
+      networkName: optimism.name,
+      chainId: optimism.chainId,
+    },
+  ];
 
-const _sources = getSources({
-  erc20Address: zeroAddress,
-  factoryAddress: zeroAddress,
-});
-const sources = [
-  _sources[0],
-  {
-    ..._sources[0],
-    id: `Erc20_${optimism.name}`,
-    networkName: optimism.name,
-    chainId: optimism.chainId,
-  },
-] as const satisfies Source[];
+  return { networks: [mainnet, optimism], sources };
+}
 
 function createCheckpoint(checkpoint: Partial<Checkpoint>): Checkpoint {
   return { ...zeroCheckpoint, ...checkpoint };
@@ -44,6 +36,9 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): Checkpoint {
 
 test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
   const { common, syncStore } = context;
+
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
@@ -71,11 +66,14 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
 test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", async (context) => {
   const { common, syncStore } = context;
 
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const [mainnet, optimism] = networks;
+
   const service = new SyncGateway({
     common,
     syncStore,
-    sources,
     networks,
+    sources,
   });
   const emitSpy = vi.spyOn(service, "emit");
 
@@ -102,6 +100,9 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
 
 test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final historical sync is complete", async (context) => {
   const { common, syncStore } = context;
+
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
@@ -133,6 +134,9 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
 
 test("handleNewHistoricalCheckpoint emits new checkpoint when other chain is completed", async (context) => {
   const { common, syncStore } = context;
+
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
@@ -168,6 +172,9 @@ test("handleNewHistoricalCheckpoint emits new checkpoint when other chain is com
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
   const { common, syncStore } = context;
 
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const [mainnet, optimism] = networks;
+
   const service = new SyncGateway({
     common,
     syncStore,
@@ -199,6 +206,9 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
 
 test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is complete", async (context) => {
   const { common, syncStore } = context;
+
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
@@ -243,6 +253,9 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
   const { common, syncStore } = context;
 
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const [mainnet, optimism] = networks;
+
   const service = new SyncGateway({
     common,
     syncStore,
@@ -269,6 +282,9 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) 
 
 test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequent event is earlier", async (context) => {
   const { common, syncStore } = context;
+
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
@@ -302,6 +318,9 @@ test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequ
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent event is later", async (context) => {
   const { common, syncStore } = context;
 
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const [mainnet, optimism] = networks;
+
   const service = new SyncGateway({
     common,
     syncStore,
@@ -334,6 +353,9 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent even
 
 test("resetCheckpoints resets the checkpoint states", async (context) => {
   const { common, syncStore } = context;
+
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,

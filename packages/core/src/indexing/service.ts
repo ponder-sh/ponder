@@ -4,9 +4,9 @@ import type { Abi, Address, Client, Hex } from "viem";
 import { checksumAddress, createClient, decodeEventLog } from "viem";
 
 import type { Common } from "@/Ponder.js";
-import type { IndexingFunctions } from "@/build/functions.js";
+import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { Network } from "@/config/networks.js";
-import type { Source } from "@/config/sources.js";
+import type { Source } from "@/config/types.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
@@ -342,7 +342,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             )
               .filter((name) => name !== "setup")
               .map((safeEventName) => {
-                const abiItemMeta = source.events.bySafeName[safeEventName];
+                const abiItemMeta = source.abiEvents.bySafeName[safeEventName];
                 if (!abiItemMeta)
                   throw new Error(
                     `Invariant violation: No abiItemMeta found for ${source.contractName}:${safeEventName}`,
@@ -375,7 +375,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 throw new Error(
                   `Invariant violation: Source ID not found ${sourceId}`,
                 );
-              const abiItemMeta = source.events.bySelector[selector];
+              const abiItemMeta = source.abiEvents.bySelector[selector];
 
               // This means that the contract has emitted events that are not present in the ABI
               // that the user has provided. Use the raw selector as the event name for the metric.
@@ -425,7 +425,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               throw new Error(
                 `Invariant violation: Source ID not found ${event.sourceId}`,
               );
-            const abiItemMeta = source.events.bySelector[selector];
+            const abiItemMeta = source.abiEvents.bySelector[selector];
             if (!abiItemMeta)
               throw new Error(
                 `Invariant violation: No abiItemMeta found for ${source.contractName}:${selector}`,

@@ -1,13 +1,13 @@
-import type { NonReferenceColumn, Schema } from "./types.js";
+import type { NonReferenceColumn, Schema } from "../../schema/types.js";
 import {
   isEnumColumn,
   isManyColumn,
   isOneColumn,
   isReferenceColumn,
   referencedTableName,
-} from "./utils.js";
+} from "../../schema/utils.js";
 
-export const validateSchema = ({ schema }: { schema: Schema }): void => {
+export const buildSchema = ({ schema }: { schema: Schema }) => {
   // Validate enums
   Object.entries(schema.enums).forEach(([name, _enum]) => {
     validateTableOrColumnName(name, "Enum");
@@ -177,6 +177,8 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
       }
     });
   });
+
+  return { schema };
 };
 
 const validateTableOrColumnName = (key: string, type: string) => {
@@ -188,3 +190,14 @@ const validateTableOrColumnName = (key: string, type: string) => {
       `Validation failed: ${type} name contains an invalid character (name=${key})`,
     );
 };
+
+export function safeBuildSchema({ schema }: { schema: Schema }) {
+  try {
+    const result = buildSchema({ schema });
+    return { success: true, data: result } as const;
+  } catch (error_) {
+    const error = error_ as Error;
+    error.stack = undefined;
+    return { success: false, error } as const;
+  }
+}

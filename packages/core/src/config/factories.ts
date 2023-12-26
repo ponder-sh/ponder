@@ -3,8 +3,7 @@ import { getEventSelector } from "viem";
 
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
-
-import type { FactoryCriteria } from "./sources.js";
+import type { FactoryCriteria } from "./types.js";
 
 export function buildFactoryCriteria({
   address: _address,
@@ -41,9 +40,9 @@ export function buildFactoryCriteria({
 
   if (nonIndexedInputPosition === -1) {
     throw new Error(
-      `Factory event parameter '${parameter}' not found in factory event signature. Found: ${event.inputs
-        .map((i) => i.name)
-        .join(", ")}.`,
+      `Factory event parameter not found in factory event signature. Got '${parameter}', expected one of [${event.inputs
+        .map((i) => `'${i.name}'`)
+        .join(", ")}].`,
     );
   }
 

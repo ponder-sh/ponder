@@ -4,7 +4,7 @@ import {
 } from "ethereum-bloom-filters";
 import type { Address, Hex } from "viem";
 
-import type { Topics } from "@/config/sources.js";
+import type { Topics } from "@/config/types.js";
 
 export function isMatchedLogInBloomFilter({
   bloom,

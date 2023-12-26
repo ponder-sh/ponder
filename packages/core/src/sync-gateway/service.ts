@@ -3,8 +3,8 @@ import type { Hex } from "viem";
 
 import type { Common } from "@/Ponder.js";
 import type { Network } from "@/config/networks.js";
-import type { Source } from "@/config/sources.js";
-import { sourceIsFactory, sourceIsLogFilter } from "@/config/sources.js";
+import { sourceIsFactory, sourceIsLogFilter } from "@/config/types.js";
+import type { Source } from "@/config/types.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import {
   type Checkpoint,

@@ -1,6 +1,6 @@
 import { type Address, type Hex, type RpcLog } from "viem";
 
-import type { Topics } from "@/config/sources.js";
+import type { Topics } from "@/config/types.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
 export function filterLogs({

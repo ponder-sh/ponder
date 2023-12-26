@@ -3,7 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 
 import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/types.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 beforeEach((context) => setupAnvil(context));

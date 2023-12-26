@@ -1,7 +1,7 @@
 import { Box, Text, render as inkRender } from "ink";
 import React from "react";
 
-import type { Source } from "@/config/sources.js";
+import type { Source } from "@/config/types.js";
 
 import { HistoricalBar } from "./HistoricalBar.js";
 import { IndexingBar } from "./IndexingBar.js";

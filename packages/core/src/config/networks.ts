@@ -1,8 +1,6 @@
-import { type Chain, type Client, type Transport } from "viem";
+import type { Chain, Client, Transport } from "viem";
 import { rpc } from "viem/utils";
 
-import type { Common } from "@/Ponder.js";
-import type { Config } from "@/config/config.js";
 import { chains } from "@/utils/chains.js";
 
 type Request = (
@@ -20,54 +18,6 @@ export type Network = {
   maxHistoricalTaskConcurrency: number;
   finalityBlockCount: number;
 };
-
-export async function buildNetwork({
-  networkName,
-  network,
-  common,
-}: {
-  networkName: string;
-  network: Config["networks"][string];
-  common: Common;
-}) {
-  const { chainId, transport } = network;
-
-  const defaultChain =
-    Object.values(chains).find((c) => ("id" in c ? c.id === chainId : false)) ??
-    chains.mainnet;
-
-  const chain = {
-    ...defaultChain,
-    name: networkName,
-    id: chainId,
-  };
-
-  const rpcUrls = await getRpcUrlsForClient({ transport, chain });
-
-  const request = await getRequestForTransport({ transport, chain });
-
-  rpcUrls.forEach((rpcUrl) => {
-    if (isRpcUrlPublic(rpcUrl)) {
-      common.logger.warn({
-        service: "config",
-        msg: `Using public RPC URL for network "${networkName}". Ponder requires an RPC URL with a higher rate limit.`,
-      });
-    }
-  });
-
-  const resolvedNetwork: Network = {
-    name: networkName,
-    chainId: chainId,
-    request,
-    url: rpcUrls[0],
-    pollingInterval: network.pollingInterval ?? 1_000,
-    defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
-    maxHistoricalTaskConcurrency: network.maxHistoricalTaskConcurrency ?? 20,
-    finalityBlockCount: getFinalityBlockCount({ chainId }),
-  };
-
-  return resolvedNetwork;
-}
 
 export function getDefaultMaxBlockRange({
   chainId,
@@ -130,7 +80,7 @@ export function getDefaultMaxBlockRange({
  * @param network The network to get the finality block count for.
  * @returns The finality block count.
  */
-function getFinalityBlockCount({ chainId }: { chainId: number }) {
+export function getFinalityBlockCount({ chainId }: { chainId: number }) {
   let finalityBlockCount: number;
   switch (chainId) {
     // Mainnet and mainnet testnets.

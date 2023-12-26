@@ -3,14 +3,14 @@ import process from "node:process";
 
 import type { GraphQLSchema } from "graphql";
 
-import type { IndexingFunctions } from "@/build/functions.js";
+import type { IndexingFunctions } from "@/build/functions/functions.js";
 import { BuildService } from "@/build/service.js";
 import { CodegenService } from "@/codegen/service.js";
 import type { Config } from "@/config/config.js";
 import { buildDatabase } from "@/config/database.js";
 import { type Network } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
-import type { Source } from "@/config/sources.js";
+import type { Source } from "@/config/types.js";
 import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
@@ -82,6 +82,123 @@ export class Ponder {
     this.buildService = new BuildService({ common: this.common });
   }
 
+  async dev({
+    syncStore,
+    indexingStore,
+  }: {
+    // These options are only used for testing.
+    syncStore?: SyncStore;
+    indexingStore?: IndexingStore;
+  } = {}) {
+    const success = await this.setupBuildService();
+    if (!success) return;
+    await this.setupCoreServices({ syncStore, indexingStore });
+
+    this.common.telemetry.record({
+      event: "App Started",
+      properties: {
+        command: "ponder dev",
+        contractCount: this.sources.length,
+        databaseKind: this.syncStore.kind,
+      },
+    });
+
+    this.serverService.registerDevRoutes();
+    await this.serverService.start();
+    await this.startSyncServices();
+  }
+
+  async start({
+    syncStore,
+    indexingStore,
+  }: {
+    // These options are only used for testing.
+    syncStore?: SyncStore;
+    indexingStore?: IndexingStore;
+  } = {}) {
+    const success = await this.setupBuildService();
+    if (!success) return;
+    await this.setupCoreServices({ syncStore, indexingStore });
+
+    this.common.telemetry.record({
+      event: "App Started",
+      properties: {
+        command: "ponder start",
+        contractCount: this.sources.length,
+        databaseKind: this.syncStore.kind,
+      },
+    });
+
+    // If not using `dev`, can kill the build service here to avoid hot reloads.
+    await this.buildService.kill();
+    await this.serverService.start();
+    await this.startSyncServices();
+  }
+
+  async serve() {
+    this.common.logger.debug({
+      service: "app",
+      msg: `Started using config file: ${path.relative(
+        this.common.options.rootDir,
+        this.common.options.configFile,
+      )}`,
+    });
+
+    const success = await this.setupBuildService();
+    if (!success) return;
+
+    const database = buildDatabase({
+      common: this.common,
+      config: this.config,
+    });
+
+    this.indexingStore =
+      database.indexing.kind === "sqlite"
+        ? new SqliteIndexingStore({
+            common: this.common,
+            file: database.indexing.file,
+          })
+        : new PostgresIndexingStore({
+            common: this.common,
+            pool: database.indexing.pool,
+          });
+
+    this.serverService = new ServerService({
+      common: this.common,
+      indexingStore: this.indexingStore,
+    });
+
+    this.serverService.setup();
+    await this.serverService.start();
+
+    // TODO: Make this less hacky. This was a quick way to make the schema available
+    // to the findUnique and findMany functions without having to change the API.
+    this.indexingStore.schema = this.schema;
+
+    this.serverService.reloadGraphqlSchema({
+      graphqlSchema: this.graphqlSchema,
+    });
+
+    this.common.telemetry.record({
+      event: "App Started",
+      properties: {
+        command: "ponder serve",
+        databaseKind: this.indexingStore.kind,
+      },
+    });
+  }
+
+  async codegen() {
+    const success = await this.setupBuildService();
+    if (!success) return;
+
+    this.codegenService.generateGraphqlSchemaFile({
+      graphqlSchema: this.graphqlSchema,
+    });
+
+    await this.kill();
+  }
+
   private async setupBuildService() {
     this.common.logger.debug({
       service: "app",
@@ -98,42 +215,26 @@ export class Ponder {
     // If any are undefined, there was an error in config, schema, or indexing functions.
     // For now, we can just exit. No need to call `this.kill()` because no services are set up.
 
-    const config = await this.buildService.loadConfig();
-    if (!config) {
+    const result = await this.buildService.initialLoad();
+    if (result.error) {
+      this.common.logger.error({
+        service: "build",
+        error: result.error,
+      });
       this.common.logger.fatal({
         service: "app",
-        msg: "Config build failed: killing app",
+        msg: "Failed initial build, exiting...",
       });
       await this.buildService.kill();
-      return;
+      return false;
     }
 
-    const schema = await this.buildService.loadSchema();
-    if (!schema) {
-      this.common.logger.fatal({
-        service: "app",
-        msg: "Schema build failed: killing app",
-      });
-      await this.buildService.kill();
-      return;
-    }
-
-    const indexingFunctions = await this.buildService.loadIndexingFunctions();
-    if (!indexingFunctions) {
-      this.common.logger.fatal({
-        service: "app",
-        msg: "Indexing function build failed: killing app",
-      });
-      await this.buildService.kill();
-      return;
-    }
-
-    this.config = config.config;
-    this.sources = config.sources;
-    this.networks = config.networks;
-    this.schema = schema.schema;
-    this.graphqlSchema = schema.graphqlSchema;
-    this.indexingFunctions = indexingFunctions;
+    this.config = result.config;
+    this.sources = result.sources;
+    this.networks = result.networks;
+    this.schema = result.schema;
+    this.graphqlSchema = result.graphqlSchema;
+    this.indexingFunctions = result.indexingFunctions;
 
     return true;
   }
@@ -255,57 +356,6 @@ export class Ponder {
     this.registerServiceDependencies();
   }
 
-  /**
-   * Setup Ponder services
-   * @returns True if setup was successful
-   */
-  async setup({
-    syncStore,
-    indexingStore,
-  }: {
-    // These options are only used for testing.
-    syncStore?: SyncStore;
-    indexingStore?: IndexingStore;
-  } = {}) {
-    const success = await this.setupBuildService();
-    if (!success) return false;
-
-    await this.setupCoreServices({ syncStore, indexingStore });
-    return true;
-  }
-
-  async dev() {
-    this.common.telemetry.record({
-      event: "App Started",
-      properties: {
-        command: "ponder dev",
-        contractCount: this.sources.length,
-        databaseKind: this.syncStore.kind,
-      },
-    });
-    this.serverService.registerDevRoutes();
-    await this.serverService.start();
-
-    await this.startSyncServices();
-  }
-
-  async start() {
-    this.common.telemetry.record({
-      event: "App Started",
-      properties: {
-        command: "ponder start",
-        contractCount: this.sources.length,
-        databaseKind: this.syncStore.kind,
-      },
-    });
-
-    // If not using `dev`, can kill the build service here to avoid hot reloads.
-    await this.buildService.kill();
-    await this.serverService.start();
-
-    await this.startSyncServices();
-  }
-
   private async startSyncServices() {
     try {
       await Promise.all(
@@ -320,97 +370,28 @@ export class Ponder {
     } catch (error_) {
       const error = error_ as Error;
       error.stack = undefined;
-      this.common.logger.fatal({
-        service: "app",
-        error,
-      });
-      this.kill();
+      this.common.logger.fatal({ service: "app", error });
+      await this.kill();
     }
-  }
-
-  async codegen() {
-    const result = await this.buildService.loadSchema();
-    if (result) {
-      const { graphqlSchema } = result;
-      this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
-    }
-
-    await this.kill();
-  }
-
-  async serve() {
-    this.common.logger.debug({
-      service: "app",
-      msg: `Started using config file: ${path.relative(
-        this.common.options.rootDir,
-        this.common.options.configFile,
-      )}`,
-    });
-
-    // Initialize the Vite server and Vite Node runner.
-    await this.buildService.setup();
-
-    const config = await this.buildService.loadConfig();
-    const schemaResult = await this.buildService.loadSchema();
-    if (!config || !schemaResult) {
-      await this.buildService.kill();
-      // TODO: Better logs/error handling here.
-      return;
-    }
-    // Kill the build service here to avoid hot reloads.
-    await this.buildService.kill();
-
-    const database = buildDatabase({
-      common: this.common,
-      config: config.config,
-    });
-    this.indexingStore =
-      database.indexing.kind === "sqlite"
-        ? new SqliteIndexingStore({
-            common: this.common,
-            file: database.indexing.file,
-          })
-        : new PostgresIndexingStore({
-            common: this.common,
-            pool: database.indexing.pool,
-          });
-
-    this.serverService = new ServerService({
-      common: this.common,
-      indexingStore: this.indexingStore,
-    });
-
-    this.serverService.setup();
-    await this.serverService.start();
-
-    const { schema, graphqlSchema } = schemaResult;
-
-    // TODO: Make this less hacky. This was a quick way to make the schema available
-    // to the findUnique and findMany functions without having to change the API.
-    this.indexingStore.schema = schema;
-
-    this.serverService.reloadGraphqlSchema({ graphqlSchema });
-
-    this.common.telemetry.record({
-      event: "App Started",
-      properties: {
-        command: "ponder serve",
-        databaseKind: this.indexingStore.kind,
-      },
-    });
   }
 
   /**
    * Shutdown sequence.
    */
   async kill() {
+    this.buildService.clearListeners();
+    this.syncServices.forEach(({ historical, realtime }) => {
+      historical.clearListeners();
+      realtime.clearListeners();
+    });
+    this.serverService.clearListeners();
+    this.indexingService.clearListeners();
+    this.common.metrics.resetMetrics();
     this.syncGatewayService.clearListeners();
 
     this.common.telemetry.record({
       event: "App Killed",
-      properties: {
-        processDuration: process.uptime(),
-      },
+      properties: { processDuration: process.uptime() },
     });
 
     this.uiService.kill();

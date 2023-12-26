@@ -1,8 +1,8 @@
 import { http, getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
-import { createConfig } from "./config.js";
-import { buildSources } from "./sources.js";
+import { createConfig } from "../../config/config.js";
+import { buildNetworksAndSources } from "./config.js";
 
 const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
 const event1 = parseAbiItem("event Event1()");
@@ -14,7 +14,7 @@ const bytes1 =
 const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
 
-test("buildSources() builds topics for multiple events", () => {
+test("buildNetworksAndSources() builds topics for multiple events", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -35,14 +35,14 @@ test("buildSources() builds topics for multiple events", () => {
     },
   });
 
-  const sources = buildSources({ config });
+  const { sources } = await buildNetworksAndSources({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     [getEventSelector(event0), getEventSelector(event1)],
   ]);
 });
 
-test("buildSources() for duplicate event", () => {
+test("buildNetworksAndSources() for duplicate event", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -65,14 +65,14 @@ test("buildSources() for duplicate event", () => {
     },
   });
 
-  const sources = buildSources({ config });
+  const { sources } = await buildNetworksAndSources({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     [getEventSelector(event1), getEventSelector(event1Overloaded)],
   ]);
 });
 
-test("buildSources() multichain", () => {
+test("buildNetworksAndSources() multichain", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -92,12 +92,12 @@ test("buildSources() multichain", () => {
     },
   });
 
-  const sources = buildSources({ config });
+  const { sources } = await buildNetworksAndSources({ config });
 
   expect(sources.length).toBe(2);
 });
 
-test("buildSources() builds topics for event with args", () => {
+test("buildNetworksAndSources() builds topics for event with args", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -123,7 +123,7 @@ test("buildSources() builds topics for event with args", () => {
     },
   });
 
-  const sources = buildSources({ config });
+  const { sources } = await buildNetworksAndSources({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     getEventSelector(event0),
@@ -131,7 +131,7 @@ test("buildSources() builds topics for event with args", () => {
   ]);
 });
 
-test("buildSources() builds topics for event with unnamed parameters", () => {
+test("buildNetworksAndSources() builds topics for event with unnamed parameters", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -155,7 +155,7 @@ test("buildSources() builds topics for event with unnamed parameters", () => {
     },
   });
 
-  const sources = buildSources({ config });
+  const { sources } = await buildNetworksAndSources({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     getEventSelector(event1Overloaded),
@@ -163,7 +163,7 @@ test("buildSources() builds topics for event with unnamed parameters", () => {
   ]);
 });
 
-test("buildSources() overrides default values with network values", () => {
+test("buildNetworksAndSources() overrides default values with network values", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -188,12 +188,12 @@ test("buildSources() overrides default values with network values", () => {
     },
   });
 
-  const sources = buildSources({ config });
+  const { sources } = await buildNetworksAndSources({ config });
 
   expect(sources[0].criteria.address).toBe(address1);
 });
 
-test("buildSources() network shortcut", () => {
+test("buildNetworksAndSources() network shortcut", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -214,7 +214,7 @@ test("buildSources() network shortcut", () => {
     },
   });
 
-  const sources = buildSources({ config });
+  const { sources } = await buildNetworksAndSources({ config });
 
   expect(sources[0].networkName).toBe("mainnet");
 });

@@ -21,7 +21,7 @@ export type ViteNodeError =
   | ESBuildContextError
   | Error;
 
-export function parseViteNodeError(error: Error): ViteNodeError {
+export function parseViteNodeError(file: string, error: Error): ViteNodeError {
   let resolvedError: ViteNodeError;
 
   if (/^(Transform failed|Build failed|Context failed)/.test(error.message)) {
@@ -60,14 +60,12 @@ export function parseViteNodeError(error: Error): ViteNodeError {
           : new ESBuildContextError(innerError.detail);
     if (innerError.location)
       resolvedError.stack = `    at ${innerError.location}`;
-  } else {
-    // Handle ViteNode vm.runModuleInContext execution errors.
-    // If there is no stack, we can't detect what kind of error this is.
-    if (!error.stack) return error;
-
+  }
+  // If it's not an ESBuild error, it's a user-land vm.runModuleInContext execution error.
+  // Attempt to build a user-land stack trace.
+  else if (error.stack) {
     const stackFrames = parseStackTrace(error.stack);
 
-    // Filter for only user-land stack frames.
     const userStackFrames = [];
     for (const rawStackFrame of stackFrames) {
       if (rawStackFrame.methodName.includes("ViteNodeRunner.runModule")) break;
@@ -91,30 +89,46 @@ export function parseViteNodeError(error: Error): ViteNodeError {
     resolvedError = error;
     resolvedError.stack = userStack;
   }
-
-  // Attempt to build a code frame for the top of the user stack.
-  if (!resolvedError.stack) return error;
-  const userStackFrames = parseStackTrace(resolvedError.stack);
-
-  let codeFrame: string | undefined = undefined;
-  for (const { file, lineNumber, column } of userStackFrames) {
-    if (file !== null && lineNumber !== null) {
-      try {
-        const sourceFileContents = readFileSync(file, { encoding: "utf-8" });
-        codeFrame = codeFrameColumns(
-          sourceFileContents,
-          { start: { line: lineNumber, column: column ?? undefined } },
-          { highlightCode: true },
-        );
-        break;
-      } catch (err) {
-        // No-op.
-      }
-    }
+  // Still a vm.runModuleInContext execution error, but no stack.
+  else {
+    resolvedError = error;
   }
 
-  resolvedError.stack = `${resolvedError.name}: ${resolvedError.message}\n${resolvedError.stack}`;
-  if (codeFrame) resolvedError.stack += `\n${codeFrame}`;
+  // Attempt to build a code frame for the top of the user stack. This works for
+  // both ESBuild and vm.runModuleInContext errors.
+  if (resolvedError.stack) {
+    const userStackFrames = parseStackTrace(resolvedError.stack);
+
+    let codeFrame: string | undefined = undefined;
+    for (const { file, lineNumber, column } of userStackFrames) {
+      if (file !== null && lineNumber !== null) {
+        try {
+          const sourceFileContents = readFileSync(file, { encoding: "utf-8" });
+          codeFrame = codeFrameColumns(
+            sourceFileContents,
+            { start: { line: lineNumber, column: column ?? undefined } },
+            { highlightCode: true },
+          );
+          break;
+        } catch (err) {
+          // No-op.
+        }
+      }
+    }
+
+    resolvedError.stack = `${resolvedError.name}: ${resolvedError.message}\n${resolvedError.stack}`;
+    if (codeFrame) resolvedError.stack += `\n${codeFrame}`;
+  }
+
+  // Finally, add a useful relative file name and verb to the error message.
+  const verb =
+    resolvedError.name === "ESBuildTransformError"
+      ? "transforming"
+      : resolvedError.name === "ESBuildBuildError" ||
+          resolvedError.name === "ESBuildContextError"
+        ? "building"
+        : "executing";
+  resolvedError.message = `Error while ${verb} ${file}: ${resolvedError.message}`;
 
   return resolvedError;
 }
