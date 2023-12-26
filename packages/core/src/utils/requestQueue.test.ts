@@ -18,9 +18,7 @@ test("start", async () => {
 
   const r1 = createAsyncResolver(undefined);
 
-  queue.add(r1.promiseFn, "realtime");
-
-  queue.start();
+  queue.add("realtime", r1.promiseFn);
 
   r1.resolve();
 
@@ -34,10 +32,8 @@ test("size and pending", async () => {
   const r1 = createAsyncResolver(undefined);
   const r2 = createAsyncResolver(undefined);
 
-  queue.add(r1.promiseFn, "realtime");
-  queue.add(r2.promiseFn, "realtime");
-
-  queue.start();
+  queue.add("realtime", r1.promiseFn);
+  queue.add("realtime", r2.promiseFn);
 
   expect(await queue.size()).toBe(1);
   expect(await queue.pending()).toBe(1);
@@ -53,10 +49,8 @@ test("request per second", async () => {
   const r1 = createAsyncResolver(undefined);
   const r2 = createAsyncResolver(undefined);
 
-  queue.add(r1.promiseFn, "realtime");
-  queue.add(r2.promiseFn, "realtime");
-
-  queue.start();
+  queue.add("realtime", r1.promiseFn);
+  queue.add("realtime", r2.promiseFn);
 
   expect(await queue.size()).toBe(1);
   expect(await queue.pending()).toBe(1);
@@ -81,9 +75,7 @@ test("add() returns promise", async () => {
   const queue = createRequestQueue(1);
 
   const r1 = createAsyncResolver(1);
-  const promise = queue.add(r1.promiseFn, "realtime");
-
-  queue.start();
+  const promise = queue.add("realtime", r1.promiseFn);
 
   r1.resolve();
 
@@ -92,12 +84,13 @@ test("add() returns promise", async () => {
 
 test("add() ordering", async () => {
   const queue = createRequestQueue(1);
+  queue.pause();
 
   const r1 = createAsyncResolver(1);
   const r2 = createAsyncResolver(2);
 
-  queue.add(r1.promiseFn, "historical");
-  const promise2 = queue.add(r2.promiseFn, "realtime");
+  queue.add("historical", r1.promiseFn);
+  const promise2 = queue.add("realtime", r2.promiseFn);
 
   queue.start();
 

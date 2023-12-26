@@ -1,8 +1,12 @@
 type RequestQueue = {
-  /** Add a task to the queue. */
-  add: <T>(
+  /**
+   * Add a task to the queue.
+   * Lower block number means higher priority for historical tasks.
+   */
+  add: <T, TType extends "realtime" | "historical">(
+    type: TType,
     func: () => Promise<T>,
-    type: "realtime" | "historical",
+    blockNumber?: TType extends "historical" ? number : never,
   ) => Promise<T>;
   /** Number of unsent requests. */
   size: () => Promise<number>;
@@ -76,10 +80,14 @@ export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
   };
 
   return {
-    add: <T>(
+    add: <T, TType extends "realtime" | "historical">(
+      type: TType,
       func: () => Promise<T>,
-      type: "realtime" | "historical",
+      blockNumber?: TType extends "historical" ? number : never,
     ): Promise<T> => {
+      if (type === "historical" && typeof blockNumber === "number") {
+        // use blocknumber as priority
+      }
       const p = new Promise((resolve, reject) => {
         (type === "realtime" ? realtimeQueue : historicalQueue).push({
           func,
