@@ -115,7 +115,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    */
   private blockTasksEnqueuedCheckpoint = 0;
 
-  private isSyncRequired = true;
   private progressLogInterval?: NodeJS.Timeout;
 
   constructor({
@@ -137,7 +136,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.sources = sources;
   }
 
-  async setup({
+  setup({
     latestBlockNumber,
     finalizedBlockNumber,
   }: {
@@ -148,8 +147,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.blockTasksEnqueuedCheckpoint = 0;
     this.finalizedBlockNumber = finalizedBlockNumber;
 
-    this.isSyncRequired = await Promise.all(
-      this.sources.map(async (source) => {
+    return Promise.all(
+      this.sources.map((source) => {
         const { isHistoricalSyncRequired, startBlock, endBlock } =
           validateHistoricalBlockRange({
             startBlock: source.startBlock,
@@ -159,7 +158,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           });
 
         if (sourceIsLogFilter(source)) {
-          this.setupLogFilterSource({
+          return this.setupLogFilterSource({
             source,
             isHistoricalSyncRequired,
             startBlock,
@@ -167,7 +166,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             finalizedBlockNumber,
           });
         } else {
-          this.setupFactorySource({
+          return this.setupFactorySource({
             source,
             isHistoricalSyncRequired,
             startBlock,
@@ -175,11 +174,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             finalizedBlockNumber,
           });
         }
-
-        return isHistoricalSyncRequired;
       }),
-    ).then((isHistoricalSyncRequiredArr) =>
-      isHistoricalSyncRequiredArr.some((x) => x === true),
     );
   }
 
@@ -462,7 +457,18 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // requested range was cached, so the sync is complete. However, we still
     // need to emit the historicalCheckpoint event with some timestamp. It should
     // be safe to use the current timestamp.
-    if (this.isSyncRequired === false) {
+    if (
+      Object.values(this.logFilterProgressTrackers).every((t) =>
+        t.isComplete(),
+      ) &&
+      Object.values(this.factoryChildAddressProgressTrackers).every((t) =>
+        t.isComplete(),
+      ) &&
+      Object.values(this.factoryLogFilterProgressTrackers).every((t) =>
+        t.isComplete(),
+      ) &&
+      this.blockProgressTracker.isComplete()
+    ) {
       this.emit("historicalCheckpoint", {
         blockTimestamp: Math.round(Date.now() / 1000),
         chainId: this.network.chainId,
@@ -551,7 +557,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         task.toBlock,
       ]);
 
-      this.checkSyncCompletion();
+      if (logIntervals.length === 0) this.checkSyncCompletion();
 
       this.enqueueBlockTasks();
 
@@ -618,7 +624,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             factory.id
           ].addCompletedInterval([fromBlock, toBlock]);
 
-        this.checkSyncCompletion();
+        if (logIntervals.length === 0) this.checkSyncCompletion();
 
         if (isUpdated) {
           // It's possible for the factory log filter to have already completed some or
@@ -725,7 +731,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         toBlock,
       ]);
 
-      this.checkSyncCompletion();
+      if (logIntervals.length === 0) this.checkSyncCompletion();
 
       this.enqueueBlockTasks();
 

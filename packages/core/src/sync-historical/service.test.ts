@@ -6,6 +6,8 @@ import { getEventsErc20, publicClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
+import { on } from "events";
+import { requestKill } from "@/utils/request.js";
 import { HistoricalSyncService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -29,7 +31,7 @@ test("start() with log filter inserts log filter interval records", async (conte
   });
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[0].chainId,
@@ -40,7 +42,7 @@ test("start() with log filter inserts log filter interval records", async (conte
     [0, blockNumbers.finalizedBlockNumber],
   ]);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() with factory contract inserts log filter and factory log filter interval records", async (context) => {
@@ -56,7 +58,7 @@ test("start() with factory contract inserts log filter and factory log filter in
   });
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const childAddressLogFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[1].chainId,
@@ -78,7 +80,7 @@ test("start() with factory contract inserts log filter and factory log filter in
     [0, blockNumbers.finalizedBlockNumber],
   ]);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() with factory contract inserts child contract addresses", async (context) => {
@@ -94,7 +96,7 @@ test("start() with factory contract inserts child contract addresses", async (co
   });
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: sources[1].chainId,
@@ -107,7 +109,7 @@ test("start() with factory contract inserts child contract addresses", async (co
 
   expect(childContractAddresses).toMatchObject([toLowerCase(factory.pair)]);
 
-  await service.kill();
+  requestKill();
 });
 
 test("setup() with log filter and factory contract updates block metrics", async (context) => {
@@ -126,6 +128,7 @@ test("setup() with log filter and factory contract updates block metrics", async
   const cachedBlocksMetric = (
     await common.metrics.ponder_historical_cached_blocks.get()
   ).values;
+
   expect(cachedBlocksMetric).toMatchObject([
     { labels: { network: "mainnet", contract: "Erc20" }, value: 0 },
     {
@@ -162,7 +165,7 @@ test("setup() with log filter and factory contract updates block metrics", async
     },
   ]);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() with log filter and factory contract updates completed blocks metrics", async (context) => {
@@ -178,7 +181,7 @@ test("start() with log filter and factory contract updates completed blocks metr
   });
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const completedBlocksMetric = (
     await common.metrics.ponder_historical_completed_blocks.get()
@@ -201,7 +204,7 @@ test("start() with log filter and factory contract updates completed blocks metr
     },
   ]);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() with log filter and factory contract updates rpc request duration metrics", async (context) => {
@@ -218,7 +221,7 @@ test("start() with log filter and factory contract updates rpc request duration 
   await service.setup(blockNumbers);
   service.start();
 
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const requestsDurationMetric = (
     await common.metrics.ponder_historical_rpc_request_duration.get()
@@ -241,7 +244,7 @@ test("start() with log filter and factory contract updates rpc request duration 
     ]),
   );
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() adds log filter events to sync store", async (context) => {
@@ -257,7 +260,7 @@ test("start() adds log filter events to sync store", async (context) => {
   });
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const iterator = syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
@@ -280,7 +283,7 @@ test("start() adds log filter events to sync store", async (context) => {
 
   expect(erc20Events).toMatchObject(events);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() adds log filter and factory contract events to sync store", async (context) => {
@@ -296,7 +299,7 @@ test("start() adds log filter and factory contract events to sync store", async 
   });
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const iterator = syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
@@ -324,7 +327,7 @@ test("start() adds log filter and factory contract events to sync store", async 
   expect(sourceIds.includes("Erc20")).toBe(true);
   expect(sourceIds.includes("Pair")).toBe(true);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() retries unexpected error in log filter task", async (context) => {
@@ -345,7 +348,7 @@ test("start() retries unexpected error in log filter task", async (context) => {
   });
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[0].chainId,
@@ -357,7 +360,7 @@ test("start() retries unexpected error in log filter task", async (context) => {
   ]);
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() retries unexpected error in block task", async (context) => {
@@ -376,7 +379,7 @@ test("start() retries unexpected error in block task", async (context) => {
   });
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[0].chainId,
@@ -388,7 +391,7 @@ test("start() retries unexpected error in block task", async (context) => {
   ]);
   expect(spy).toHaveBeenCalledTimes(3);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() handles Alchemy 'Log response size exceeded' error", async (context) => {
@@ -416,7 +419,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   });
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[0].chainId,
@@ -427,7 +430,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   ]);
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 10,000 blocks range' error", async (context) => {
@@ -454,7 +457,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   });
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[0].chainId,
@@ -466,7 +469,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   ]);
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() emits sync completed event", async (context) => {
@@ -483,10 +486,11 @@ test("start() emits sync completed event", async (context) => {
   await service.setup(await getBlockNumbers());
   service.start();
 
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
+
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() emits checkpoint and sync completed event if 100% cached", async (context) => {
@@ -503,8 +507,9 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
 
   await service.setup(blockNumbers);
   service.start();
-  await service.onIdle();
-  await service.kill();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
+
+  requestKill();
 
   service = new HistoricalSyncService({
     common,
@@ -516,8 +521,13 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup(blockNumbers);
+
+  const onComplete = new Promise<void>((resolve) =>
+    service.on("syncComplete", resolve),
+  );
   service.start();
-  await service.onIdle();
+
+  await onComplete;
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     blockTimestamp: expect.any(Number),
@@ -527,7 +537,7 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
   expect(emitSpy).toHaveBeenCalledTimes(2);
 
-  await service.kill();
+  requestKill();
 });
 
 test("start() emits historicalCheckpoint event", async (context) => {
@@ -549,7 +559,7 @@ test("start() emits historicalCheckpoint event", async (context) => {
   await service.setup(blockNumbers);
   service.start();
 
-  await service.onIdle();
+  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     blockTimestamp: Number(finalizedBlock.timestamp),
@@ -557,5 +567,5 @@ test("start() emits historicalCheckpoint event", async (context) => {
     blockNumber: Number(finalizedBlock.number),
   });
 
-  await service.kill();
+  requestKill();
 });

@@ -18,3 +18,5 @@ export const request = <
   blockNumber?: TType extends "historical" ? number : never,
 ): RequestReturnType<TParameters["method"]> =>
   requestQueue.add(type, () => network.transport.request(params), blockNumber);
+
+export const requestKill = () => requestQueue.kill();
