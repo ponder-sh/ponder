@@ -31,6 +31,8 @@ type InternalQueue = {
  *
  * Two task types, historical and realtime.
  * FIFO ordering, with "realtime" tasks always run before "historical".
+ *
+ * @todo Change this to accept RPC requests instead of arbitrary callbacks
  */
 export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
   let historicalQueue: InternalQueue = new Array();
@@ -116,6 +118,8 @@ export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
       realtimeQueue = new Array();
     },
     // onEmpty()
+    // onHistoricalQueueIdle
     // onIdle()
+    // kill()
   };
 };
