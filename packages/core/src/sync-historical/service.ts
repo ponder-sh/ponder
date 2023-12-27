@@ -194,7 +194,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     source: LogFilter;
     isHistoricalSyncRequired: boolean;
     startBlock: number;
-    endBlock: number;
+    endBlock: number | undefined;
     finalizedBlockNumber: number;
   }): Promise<void> => {
     if (!isHistoricalSyncRequired) {
@@ -222,7 +222,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         },
       });
     const logFilterProgressTracker = new ProgressTracker({
-      target: [startBlock, endBlock],
+      target: [startBlock, endBlock!],
       completed: completedLogFilterIntervals,
     });
     this.logFilterProgressTrackers[source.id] = logFilterProgressTracker;
@@ -250,7 +250,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
     }
 
-    const targetBlockCount = endBlock - startBlock + 1;
+    const targetBlockCount = endBlock! - startBlock + 1;
     const cachedBlockCount =
       targetBlockCount - intervalSum(requiredLogFilterIntervals);
 
@@ -281,7 +281,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     source: Factory;
     isHistoricalSyncRequired: boolean;
     startBlock: number;
-    endBlock: number;
+    endBlock: number | undefined;
     finalizedBlockNumber: number;
   }) => {
     // Factory
@@ -318,7 +318,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         },
       });
     const factoryChildAddressProgressTracker = new ProgressTracker({
-      target: [startBlock, endBlock],
+      target: [startBlock, endBlock!],
       completed: completedFactoryChildAddressIntervals,
     });
     this.factoryChildAddressProgressTrackers[source.id] =
@@ -346,7 +346,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
     }
 
-    const targetFactoryChildAddressBlockCount = endBlock - startBlock + 1;
+    const targetFactoryChildAddressBlockCount = endBlock! - startBlock + 1;
     const cachedFactoryChildAddressBlockCount =
       targetFactoryChildAddressBlockCount -
       intervalSum(requiredFactoryChildAddressIntervals);
@@ -372,7 +372,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         factory: source.criteria,
       });
     const factoryLogFilterProgressTracker = new ProgressTracker({
-      target: [startBlock, endBlock],
+      target: [startBlock, endBlock!],
       completed: completedFactoryLogFilterIntervals,
     });
     this.factoryLogFilterProgressTrackers[source.id] =
@@ -408,7 +408,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
     }
 
-    const targetFactoryLogFilterBlockCount = endBlock - startBlock + 1;
+    const targetFactoryLogFilterBlockCount = endBlock! - startBlock + 1;
     const cachedFactoryLogFilterBlockCount =
       targetFactoryLogFilterBlockCount -
       intervalSum(requiredFactoryLogFilterIntervals);
