@@ -266,6 +266,18 @@ export class ProgressTracker {
     return this._checkpoint;
   }
 
+  isComplete = () => {
+    if (
+      this._completed &&
+      this._completed.length === 1 &&
+      this._completed[0][0] === this.target[0] &&
+      this._completed[0][1] === this.target[1]
+    )
+      return true;
+
+    return false;
+  };
+
   private invalidateCache() {
     this._required = null;
     this._checkpoint = null;
@@ -368,4 +380,8 @@ export class BlockProgressTracker {
     // Otherwise, the checkpoint is not updated.
     return null;
   }
+
+  isComplete = () => {
+    return this.pendingBlocks.length === 0;
+  };
 }

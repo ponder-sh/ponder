@@ -29,7 +29,6 @@ import {
   type Hex,
   type RpcBlock,
   type RpcLog,
-  type RpcTransaction,
   hexToNumber,
   toHex,
 } from "viem";
@@ -37,7 +36,7 @@ import {
   type LogFilterError,
   getLogFilterRetryRanges,
 } from "./getLogFilterRetryRanges.js";
-import { validateHistoricalBlockRange } from "./utils.js";
+import { validateHistoricalBlockRange } from "./validateHistoricalBlockRange.js";
 
 type HistoricalSyncEvents = {
   /**
@@ -107,7 +106,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    */
   private blockCallbacks: Record<
     number,
-    ((block: RpcBlock & { transactions: RpcTransaction[] }) => Promise<void>)[]
+    ((block: HistoricalBlock) => Promise<void>)[]
   > = {};
 
   /**
@@ -479,28 +478,33 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
   }
 
-  // Logic for deciding if the queue is complete
-  // private buildQueue = () => {
-
-  //   // If this is not the final task, return.
-  //   if (queue.size > 0 || queue.pending > 1) return;
-  //   // If this is the final task but the kill() method has been called, do nothing.
-  //   if (this.isKilling) return;
-
-  //   // If this is the final task, run the cleanup/completion logic.
-  //   clearInterval(this.progressLogInterval);
-  //   this.emit("syncComplete");
-  //   const startTimestamp =
-  //     (await this.common.metrics.ponder_historical_start_timestamp.get())
-  //       .values?.[0]?.value ?? Date.now();
-  //   const duration = Date.now() - startTimestamp;
-  //   this.common.logger.info({
-  //     service: "historical",
-  //     msg: `Completed sync in ${formatEta(duration)} (network=${
-  //       this.network.name
-  //     })`,
-  //   });
-  // };
+  private checkSyncCompletion = async () => {
+    if (
+      Object.values(this.logFilterProgressTrackers).every((t) =>
+        t.isComplete(),
+      ) &&
+      Object.values(this.factoryChildAddressProgressTrackers).every((t) =>
+        t.isComplete(),
+      ) &&
+      Object.values(this.factoryLogFilterProgressTrackers).every((t) =>
+        t.isComplete(),
+      ) &&
+      this.blockProgressTracker.isComplete()
+    ) {
+      clearInterval(this.progressLogInterval);
+      this.emit("syncComplete");
+      const startTimestamp =
+        (await this.common.metrics.ponder_historical_start_timestamp.get())
+          .values?.[0]?.value ?? Date.now();
+      const duration = Date.now() - startTimestamp;
+      this.common.logger.info({
+        service: "historical",
+        msg: `Completed sync in ${formatEta(duration)} (network=${
+          this.network.name
+        })`,
+      });
+    }
+  };
 
   private logFilterTaskWorker = (task: LogFilterTask) => {
     const { logFilter, fromBlock, toBlock } = task;
@@ -546,6 +550,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         task.fromBlock,
         task.toBlock,
       ]);
+
+      this.checkSyncCompletion();
 
       this.enqueueBlockTasks();
 
@@ -611,6 +617,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           this.factoryChildAddressProgressTrackers[
             factory.id
           ].addCompletedInterval([fromBlock, toBlock]);
+
+        this.checkSyncCompletion();
+
         if (isUpdated) {
           // It's possible for the factory log filter to have already completed some or
           // all of the block interval here. To avoid duplicates, only add intervals that
@@ -716,6 +725,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         toBlock,
       ]);
 
+      this.checkSyncCompletion();
+
       this.enqueueBlockTasks();
 
       this.common.logger.trace({
@@ -760,6 +771,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           blockNumber,
           blockTimestamp: hexToNumber(block.timestamp),
         });
+
+        this.checkSyncCompletion();
 
         if (newBlockCheckpoint) {
           this.emit("historicalCheckpoint", {
