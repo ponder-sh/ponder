@@ -6,8 +6,6 @@ import { getEventsErc20, publicClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
-import { on } from "events";
-import { requestKill } from "@/utils/request.js";
 import { HistoricalSyncService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -42,7 +40,7 @@ test("start() with log filter inserts log filter interval records", async (conte
     [0, blockNumbers.finalizedBlockNumber],
   ]);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() with factory contract inserts log filter and factory log filter interval records", async (context) => {
@@ -80,7 +78,7 @@ test("start() with factory contract inserts log filter and factory log filter in
     [0, blockNumbers.finalizedBlockNumber],
   ]);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() with factory contract inserts child contract addresses", async (context) => {
@@ -109,7 +107,7 @@ test("start() with factory contract inserts child contract addresses", async (co
 
   expect(childContractAddresses).toMatchObject([toLowerCase(factory.pair)]);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("setup() with log filter and factory contract updates block metrics", async (context) => {
@@ -165,7 +163,7 @@ test("setup() with log filter and factory contract updates block metrics", async
     },
   ]);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() with log filter and factory contract updates completed blocks metrics", async (context) => {
@@ -204,7 +202,7 @@ test("start() with log filter and factory contract updates completed blocks metr
     },
   ]);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() with log filter and factory contract updates rpc request duration metrics", async (context) => {
@@ -244,7 +242,7 @@ test("start() with log filter and factory contract updates rpc request duration 
     ]),
   );
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() adds log filter events to sync store", async (context) => {
@@ -283,7 +281,7 @@ test("start() adds log filter events to sync store", async (context) => {
 
   expect(erc20Events).toMatchObject(events);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() adds log filter and factory contract events to sync store", async (context) => {
@@ -327,7 +325,7 @@ test("start() adds log filter and factory contract events to sync store", async 
   expect(sourceIds.includes("Erc20")).toBe(true);
   expect(sourceIds.includes("Pair")).toBe(true);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() retries unexpected error in log filter task", async (context) => {
@@ -360,7 +358,7 @@ test("start() retries unexpected error in log filter task", async (context) => {
   ]);
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() retries unexpected error in block task", async (context) => {
@@ -391,7 +389,7 @@ test("start() retries unexpected error in block task", async (context) => {
   ]);
   expect(spy).toHaveBeenCalledTimes(3);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() handles Alchemy 'Log response size exceeded' error", async (context) => {
@@ -430,7 +428,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   ]);
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 10,000 blocks range' error", async (context) => {
@@ -469,7 +467,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   ]);
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() emits sync completed event", async (context) => {
@@ -490,7 +488,7 @@ test("start() emits sync completed event", async (context) => {
 
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() emits checkpoint and sync completed event if 100% cached", async (context) => {
@@ -509,7 +507,7 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   service.start();
   await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
-  requestKill();
+  networks[0].requestQueue.kill();
 
   service = new HistoricalSyncService({
     common,
@@ -537,7 +535,7 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
   expect(emitSpy).toHaveBeenCalledTimes(2);
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });
 
 test("start() emits historicalCheckpoint event", async (context) => {
@@ -567,5 +565,5 @@ test("start() emits historicalCheckpoint event", async (context) => {
     blockNumber: Number(finalizedBlock.number),
   });
 
-  requestKill();
+  networks[0].requestQueue.kill();
 });

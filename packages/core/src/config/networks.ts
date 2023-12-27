@@ -1,16 +1,18 @@
 import type { Common } from "@/Ponder.js";
 import type { Config } from "@/config/config.js";
 import { chains } from "@/utils/chains.js";
+import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { type Chain, type Client, type Transport } from "viem";
 
 export type Network = {
   name: string;
   chainId: number;
-  transport: Client["transport"];
   pollingInterval: number;
   defaultMaxBlockRange: number;
-  maxHistoricalTaskConcurrency: number;
+  requestPerSecond: number;
   finalityBlockCount: number;
+  requestQueue: RequestQueue;
+  transport: Client["transport"];
 };
 
 export async function buildNetwork({
@@ -53,8 +55,15 @@ export async function buildNetwork({
     transport: { ..._transport.config, ..._transport.value },
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
-    maxHistoricalTaskConcurrency: network.maxHistoricalTaskConcurrency ?? 20,
+    requestPerSecond: network.requestsPerSecond ?? 20,
     finalityBlockCount: getFinalityBlockCount({ chainId }),
+    requestQueue: createRequestQueue(
+      {
+        ..._transport.config,
+        ..._transport.value,
+      },
+      network.requestsPerSecond ?? 20,
+    ),
   };
 
   return resolvedNetwork;

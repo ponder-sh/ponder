@@ -1,15 +1,28 @@
-type RequestQueue = {
+import type { Client, EIP1193Parameters, PublicRpcSchema } from "viem";
+
+type RequestReturnType<
+  method extends EIP1193Parameters<PublicRpcSchema>["method"],
+> = Promise<Extract<PublicRpcSchema[number], { Method: method }>["ReturnType"]>;
+
+export type RequestQueue = {
   /**
    * Add a task to the queue.
    * Lower block number means higher priority for historical tasks.
    */
-  add: <T, TType extends "realtime" | "historical">(
+  request: <
+    TParameters extends EIP1193Parameters<PublicRpcSchema>,
+    TType extends "realtime" | "historical",
+  >(
     type: TType,
-    func: () => Promise<T>,
+    params: TParameters,
     blockNumber?: TType extends "historical" ? number : never,
-  ) => Promise<T>;
+  ) => RequestReturnType<TParameters["method"]>;
   /** Number of unsent requests. */
   size: () => Promise<number>;
+  /** Number of unsent realtime requests. */
+  realtimeSize: () => Promise<number>;
+  /** Number of unsent historical requests. */
+  historicalSize: () => Promise<number>;
   /** Number of pending requests. */
   pending: () => Promise<number>;
   /** Start execution of the tasks. */
@@ -23,7 +36,7 @@ type RequestQueue = {
 };
 
 type Task = {
-  func: () => Promise<unknown>;
+  params: EIP1193Parameters<PublicRpcSchema>;
   resolve: (value: unknown) => void;
   reject: () => unknown;
 };
@@ -36,7 +49,10 @@ type Task = {
  *
  * @todo Change this to accept RPC requests instead of arbitrary callbacks
  */
-export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
+export const createRequestQueue = (
+  transport: Client["transport"],
+  requestsPerSecond: number,
+): RequestQueue => {
   let historicalQueue: Task[] = new Array();
   let realtimeQueue: Task[] = new Array();
   const interval = 1000 / requestsPerSecond;
@@ -60,16 +76,17 @@ export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
 
     if (timeSinceLastRequest >= interval) {
       lastRequestTime = now;
-      const { func, resolve, reject } =
+      const { params, resolve, reject } =
         realtimeLength === 0
           ? historicalQueue.shift()!
           : realtimeQueue.shift()!;
 
       const _id = id;
       pending += 1;
-      pendingRequests.set(_id, { func, resolve, reject });
+      pendingRequests.set(_id, { params, resolve, reject });
 
-      func!()
+      transport
+        .request(params)
         .then((a) => {
           resolve(a);
         })
@@ -78,8 +95,9 @@ export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
           pendingRequests.delete(_id);
           id += 1;
           pending -= 1;
-          timeSinceLastRequest = 0;
         });
+
+      timeSinceLastRequest = 0;
     }
 
     if (!timing) {
@@ -92,27 +110,38 @@ export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
   };
 
   return {
-    add: <T, TType extends "realtime" | "historical">(
+    request: <
+      TParameters extends EIP1193Parameters<PublicRpcSchema>,
+      TType extends "realtime" | "historical",
+    >(
       type: TType,
-      func: () => Promise<T>,
+      params: TParameters,
       blockNumber?: TType extends "historical" ? number : never,
-    ): Promise<T> => {
+    ): RequestReturnType<TParameters["method"]> => {
       if (type === "historical" && typeof blockNumber === "number") {
         // use blocknumber as priority
       }
       const p = new Promise((resolve, reject) => {
         (type === "realtime" ? realtimeQueue : historicalQueue).push({
-          func,
+          params,
           resolve,
           reject,
         });
       });
       processQueue();
-      return p as Promise<T>;
+      return p as RequestReturnType<TParameters["method"]>;
     },
     size: async () =>
       new Promise<number>((res) =>
         setImmediate(() => res(realtimeQueue.length + historicalQueue.length)),
+      ),
+    realtimeSize: async () =>
+      new Promise<number>((res) =>
+        setImmediate(() => res(realtimeQueue.length)),
+      ),
+    historicalSize: async () =>
+      new Promise<number>((res) =>
+        setImmediate(() => res(historicalQueue.length)),
       ),
     pending: async () =>
       new Promise<number>((res) => setImmediate(() => res(pending))),

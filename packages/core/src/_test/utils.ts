@@ -83,6 +83,7 @@ export const getConfig = (
       mainnet: {
         chainId: 1,
         transport: http(`http://127.0.0.1:8545/${poolId}`),
+        requestsPerSecond: 1,
       },
     },
     contracts: {
@@ -110,7 +111,11 @@ export const getConfig = (
 export const getNetworks = async () => {
   const network = await buildNetwork({
     networkName: "mainnet",
-    network: { chainId: 1, transport: http(`http://127.0.0.1:8545/${poolId}`) },
+    network: {
+      chainId: 1,
+      transport: http(`http://127.0.0.1:8545/${poolId}`),
+      requestsPerSecond: 1,
+    },
     common: { logger: { warn: () => {} } } as unknown as Common,
   });
 

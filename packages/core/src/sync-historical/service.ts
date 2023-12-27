@@ -20,7 +20,6 @@ import {
   intervalSum,
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { request } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
 import Emittery from "emittery";
 import {
@@ -747,15 +746,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     const stopClock = startClock();
 
-    return request(
-      this.network,
-      "historical",
-      {
-        method: "eth_getBlockByNumber",
-        params: [toHex(blockNumber), true],
-      },
-      blockNumber,
-    )
+    return this.network.requestQueue
+      .request(
+        "historical",
+        {
+          method: "eth_getBlockByNumber",
+          params: [toHex(blockNumber), true],
+        },
+        blockNumber,
+      )
       .then((block) => {
         this.common.metrics.ponder_historical_rpc_request_duration.observe(
           { method: "eth_getBlockByNumber", network: this.network.name },
@@ -903,8 +902,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     const stopClock = startClock();
     try {
-      return request(
-        this.network,
+      return this.network.requestQueue.request(
         "historical",
         {
           method: "eth_getLogs",
