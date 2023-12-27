@@ -100,3 +100,27 @@ test("add() ordering", async () => {
   expect(await promise2).toBe(2);
   expect(await queue.size()).toBe(1);
 });
+
+test("kill()", async () => {
+  const queue = createRequestQueue(1);
+
+  const r1 = createAsyncResolver(undefined);
+  const r2 = createAsyncResolver(undefined);
+
+  let reject1 = false;
+  let reject2 = false;
+
+  queue.add("realtime", r1.promiseFn).catch(() => {
+    reject1 = true;
+  });
+  queue.add("realtime", r2.promiseFn).catch(() => {
+    reject2 = true;
+  });
+
+  queue.kill();
+
+  await new Promise((resolve) => setImmediate(resolve)).then(() => {
+    expect(reject1).toBe(true);
+    expect(reject2).toBe(true);
+  });
+});
