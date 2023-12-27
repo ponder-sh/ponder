@@ -10,7 +10,7 @@ import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { poll } from "@/utils/poll.js";
 import { type Queue, createQueue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
-import { getErrorMessage, request } from "@/utils/request.js";
+import { request } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
 import Emittery from "emittery";
 import pLimit from "p-limit";
@@ -234,12 +234,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       const block = await this.getLatestBlock();
       const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
       this.queue.addTask(block, { priority });
-    } catch (error) {
+    } catch (error_) {
+      const error = error_ as Error;
       // Do nothing, log the error. Might consider a retry limit here after which the service should die.
-      const message = getErrorMessage(error as Error);
       this.common.logger.warn({
         service: "realtime",
-        msg: `Error while fetching latest block (error=${message})`,
+        msg: `Error while fetching latest block (error=${`${error.name}: ${error.message}`})`,
       });
     }
   };

@@ -1,8 +1,5 @@
 import path from "node:path";
 import process from "node:process";
-
-import type { GraphQLSchema } from "graphql";
-
 import type { IndexingFunctions } from "@/build/functions.js";
 import { BuildService } from "@/build/service.js";
 import { CodegenService } from "@/codegen/service.js";
@@ -28,6 +25,7 @@ import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
+import type { GraphQLSchema } from "graphql";
 
 export type Common = {
   options: Options;
@@ -425,7 +423,6 @@ export class Ponder {
     await Promise.all(
       this.syncServices.map(async ({ realtime, historical }) => {
         await realtime.kill();
-        await historical.kill();
       }),
     );
 
@@ -461,7 +458,6 @@ export class Ponder {
     await Promise.all(
       this.syncServices.map(async ({ realtime, historical }) => {
         await realtime.kill();
-        await historical.kill();
       }),
     );
 
@@ -495,7 +491,6 @@ export class Ponder {
         await Promise.all(
           this.syncServices.map(async ({ realtime, historical }) => {
             await realtime.kill();
-            await historical.kill();
           }),
         );
       }
@@ -628,7 +623,6 @@ export class Ponder {
 
       // Reload the sync services for the specific chain by killing, setting up, and then starting again.
       await syncServiceForChainId.realtime.kill();
-      await syncServiceForChainId.historical.kill();
 
       try {
         const blockNumbers = await syncServiceForChainId.realtime.setup();

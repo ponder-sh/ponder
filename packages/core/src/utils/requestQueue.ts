@@ -18,13 +18,15 @@ type RequestQueue = {
   pause: () => void;
   /** Clear tasks from the queue. */
   clear: () => void;
+  /** Reject all promises in the queue. */
+  kill: () => void;
 };
 
-type InternalQueue = {
+type Task = {
   func: () => Promise<unknown>;
   resolve: (value: unknown) => void;
   reject: () => unknown;
-}[];
+};
 
 /**
  * Creates a queue built to manage rpc requests.
@@ -35,14 +37,17 @@ type InternalQueue = {
  * @todo Change this to accept RPC requests instead of arbitrary callbacks
  */
 export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
-  let historicalQueue: InternalQueue = new Array();
-  let realtimeQueue: InternalQueue = new Array();
+  let historicalQueue: Task[] = new Array();
+  let realtimeQueue: Task[] = new Array();
   const interval = 1000 / requestsPerSecond;
 
   let lastRequestTime = 0;
   let pending = 0;
   let timing = false;
   let on = true;
+
+  let id = 0;
+  const pendingRequests: Map<number, Task> = new Map();
 
   const processQueue = () => {
     if (!on) return;
@@ -60,13 +65,18 @@ export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
           ? historicalQueue.shift()!
           : realtimeQueue.shift()!;
 
+      const _id = id;
       pending += 1;
+      pendingRequests.set(_id, { func, resolve, reject });
+
       func!()
         .then((a) => {
           resolve(a);
         })
         .catch(reject)
         .finally(() => {
+          pendingRequests.delete(_id);
+          id += 1;
           pending -= 1;
           timeSinceLastRequest = 0;
         });
@@ -117,9 +127,16 @@ export const createRequestQueue = (requestsPerSecond: number): RequestQueue => {
       historicalQueue = new Array();
       realtimeQueue = new Array();
     },
-    // onEmpty()
-    // onHistoricalQueueIdle
-    // onIdle()
-    // kill()
+    kill: () => {
+      for (const { reject } of historicalQueue) {
+        reject();
+      }
+      for (const { reject } of realtimeQueue) {
+        reject();
+      }
+      for (const [, { reject }] of pendingRequests) {
+        reject();
+      }
+    },
   };
 };

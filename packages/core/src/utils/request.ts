@@ -1,15 +1,8 @@
 import type { Network } from "@/config/networks.js";
 import type { EIP1193Parameters, PublicRpcSchema } from "viem";
-import { TASK_TIMEOUT } from "./queue.js";
 import { createRequestQueue } from "./requestQueue.js";
 
-// TODO:Kyle Don't need this anymore
-export const getErrorMessage = (error: Error) =>
-  error.name === "TimeoutError"
-    ? `Timed out after ${TASK_TIMEOUT} ms`
-    : `${error.name}: ${error.message}`;
-
-const requestQueue = createRequestQueue(5);
+const requestQueue = createRequestQueue(60);
 
 export type RequestReturnType<
   method extends EIP1193Parameters<PublicRpcSchema>["method"],

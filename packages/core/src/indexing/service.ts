@@ -20,7 +20,6 @@ import {
 import { formatShortDate } from "@/utils/date.js";
 import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { getErrorMessage } from "@/utils/request.js";
 import { wait } from "@/utils/wait.js";
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
@@ -577,9 +576,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             } else {
               this.common.logger.warn({
                 service: "indexing",
-                msg: `Indexing function failed, retrying... (event=${fullEventName}, error=${getErrorMessage(
-                  error,
-                )})`,
+                msg: `Indexing function failed, retrying... (event=${fullEventName}, error=${`${error.name}: ${error.message}`})`,
               });
               await this.indexingStore.revert({
                 checkpoint: this.currentIndexingCheckpoint,
@@ -673,7 +670,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 service: "indexing",
                 msg: `Indexing function failed, retrying... (event=${fullEventName}, block=${Number(
                   event.block.number,
-                )}, error=${getErrorMessage(error)})`,
+                )}, error=${`${error.name}: ${error.message}`})`,
               });
               await this.indexingStore.revert({
                 checkpoint: this.currentIndexingCheckpoint,
