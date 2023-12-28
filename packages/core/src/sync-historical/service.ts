@@ -52,29 +52,6 @@ type HistoricalSyncEvents = {
 
 type HistoricalBlock = RpcBlock<"finalized", true>;
 
-type LogFilterTask = {
-  logFilter: LogFilter;
-  fromBlock: number;
-  toBlock: number;
-};
-
-type FactoryChildAddressTask = {
-  factory: Factory;
-  fromBlock: number;
-  toBlock: number;
-};
-
-type FactoryLogFilterTask = {
-  factory: Factory;
-  fromBlock: number;
-  toBlock: number;
-};
-
-type BlockTask = {
-  blockNumber: number;
-  callbacks: ((block: HistoricalBlock) => Promise<void>)[];
-};
-
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private common: Common;
   private syncStore: SyncStore;
@@ -133,48 +110,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.syncStore = syncStore;
     this.network = network;
     this.sources = sources;
-  }
-
-  setup({
-    latestBlockNumber,
-    finalizedBlockNumber,
-  }: {
-    latestBlockNumber: number;
-    finalizedBlockNumber: number;
-  }) {
-    // Initialize state variables. Required when restarting the service.
-    this.blockTasksEnqueuedCheckpoint = 0;
-    this.finalizedBlockNumber = finalizedBlockNumber;
-
-    return Promise.all(
-      this.sources.map((source) => {
-        const { isHistoricalSyncRequired, startBlock, endBlock } =
-          validateHistoricalBlockRange({
-            startBlock: source.startBlock,
-            endBlock: source.endBlock,
-            finalizedBlockNumber,
-            latestBlockNumber,
-          });
-
-        if (sourceIsLogFilter(source)) {
-          return this.setupLogFilterSource({
-            source,
-            isHistoricalSyncRequired,
-            startBlock,
-            endBlock,
-            finalizedBlockNumber,
-          });
-        } else {
-          return this.setupFactorySource({
-            source,
-            isHistoricalSyncRequired,
-            startBlock,
-            endBlock,
-            finalizedBlockNumber,
-          });
-        }
-      }),
-    );
   }
 
   private setupLogFilterSource = async ({
@@ -430,7 +365,47 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
   };
 
-  start() {
+  async start({
+    latestBlockNumber,
+    finalizedBlockNumber,
+  }: {
+    latestBlockNumber: number;
+    finalizedBlockNumber: number;
+  }) {
+    // Initialize state variables. Required when restarting the service.
+    this.blockTasksEnqueuedCheckpoint = 0;
+    this.finalizedBlockNumber = finalizedBlockNumber;
+
+    await Promise.all(
+      this.sources.map((source) => {
+        const { isHistoricalSyncRequired, startBlock, endBlock } =
+          validateHistoricalBlockRange({
+            startBlock: source.startBlock,
+            endBlock: source.endBlock,
+            finalizedBlockNumber,
+            latestBlockNumber,
+          });
+
+        if (sourceIsLogFilter(source)) {
+          return this.setupLogFilterSource({
+            source,
+            isHistoricalSyncRequired,
+            startBlock,
+            endBlock,
+            finalizedBlockNumber,
+          });
+        } else {
+          return this.setupFactorySource({
+            source,
+            isHistoricalSyncRequired,
+            startBlock,
+            endBlock,
+            finalizedBlockNumber,
+          });
+        }
+      }),
+    );
+
     this.common.metrics.ponder_historical_start_timestamp.set(Date.now());
 
     // Emit status update logs on an interval for each active log filter.
@@ -511,9 +486,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
   };
 
-  private logFilterTaskWorker = (task: LogFilterTask) => {
-    const { logFilter, fromBlock, toBlock } = task;
-
+  private logFilterTaskWorker = ({
+    logFilter,
+    fromBlock,
+    toBlock,
+  }: {
+    logFilter: LogFilter;
+    fromBlock: number;
+    toBlock: number;
+  }) => {
     return this._eth_getLogs({
       address: logFilter.criteria.address,
       topics: logFilter.criteria.topics,
@@ -552,8 +533,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       }
 
       this.logFilterProgressTrackers[logFilter.id].addCompletedInterval([
-        task.fromBlock,
-        task.toBlock,
+        fromBlock,
+        toBlock,
       ]);
 
       if (logIntervals.length === 0) this.checkSyncCompletion();
@@ -562,14 +543,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       this.common.logger.trace({
         service: "historical",
-        msg: `Completed LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${task.fromBlock}, ${task.toBlock}] (contract=${logFilter.contractName}, network=${this.network.name})`,
+        msg: `Completed LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${logFilter.contractName}, network=${this.network.name})`,
       });
     });
   };
 
-  private factoryChildAddressTaskWorker = (task: FactoryChildAddressTask) => {
-    const { factory, fromBlock, toBlock } = task;
-
+  private factoryChildAddressTaskWorker = ({
+    factory,
+    fromBlock,
+    toBlock,
+  }: { factory: Factory; fromBlock: number; toBlock: number }) => {
     this._eth_getLogs({
       address: factory.criteria.address,
       topics: [factory.criteria.eventSelector],
@@ -666,7 +649,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     factory,
     fromBlock,
     toBlock,
-  }: FactoryLogFilterTask) => {
+  }: { factory: Factory; fromBlock: number; toBlock: number }) => {
     const iterator = this.syncStore.getFactoryChildAddresses({
       chainId: factory.chainId,
       factory: factory.criteria,
@@ -741,9 +724,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
   };
 
-  private blockTaskWorker = (task: BlockTask) => {
-    const { blockNumber, callbacks } = task;
-
+  private blockTaskWorker = ({
+    blockNumber,
+    callbacks,
+  }: {
+    blockNumber: number;
+    callbacks: ((block: HistoricalBlock) => Promise<void>)[];
+  }) => {
     const stopClock = startClock();
 
     return this.network.requestQueue

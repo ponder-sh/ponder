@@ -159,6 +159,8 @@ export const createRequestQueue = (
     clear: () => {
       historicalQueue = new Array();
       realtimeQueue = new Array();
+
+      lastRequestTime = 0;
     },
     kill: () => {
       for (const { reject } of historicalQueue) {

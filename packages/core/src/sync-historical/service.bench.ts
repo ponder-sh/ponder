@@ -32,8 +32,7 @@ test.skipIf(process.env.CI === "true")(
 
     const stopClock = startClock();
 
-    await service.setup(await getBlockNumbers());
-    service.start();
+    await service.start(await getBlockNumbers());
 
     await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
