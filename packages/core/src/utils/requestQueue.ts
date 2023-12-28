@@ -46,8 +46,6 @@ type Task = {
  *
  * Two task types, historical and realtime.
  * FIFO ordering, with "realtime" tasks always run before "historical".
- *
- * @todo Change this to accept RPC requests instead of arbitrary callbacks
  */
 export const createRequestQueue = (
   transport: Client["transport"],
@@ -55,7 +53,10 @@ export const createRequestQueue = (
 ): RequestQueue => {
   let historicalQueue: Task[] = new Array();
   let realtimeQueue: Task[] = new Array();
-  const interval = 1000 / requestsPerSecond;
+  const interval =
+    1000 / requestsPerSecond > 50 ? 1000 / requestsPerSecond : 50;
+  const requestBatchSize =
+    1000 / requestsPerSecond > 50 ? 1 : Math.floor(requestsPerSecond / 20);
 
   let lastRequestTime = 0;
   let pending = 0;
@@ -67,35 +68,38 @@ export const createRequestQueue = (
 
   const processQueue = () => {
     if (!on) return;
-    const realtimeLength = realtimeQueue.length;
-    const historicalLength = historicalQueue.length;
 
-    if (realtimeLength === 0 && historicalLength === 0) return;
+    if (realtimeQueue.length === 0 && historicalQueue.length === 0) return;
     const now = Date.now();
     let timeSinceLastRequest = now - lastRequestTime;
 
     if (timeSinceLastRequest >= interval) {
       lastRequestTime = now;
-      const { params, resolve, reject } =
-        realtimeLength === 0
-          ? historicalQueue.shift()!
-          : realtimeQueue.shift()!;
 
-      const _id = id;
-      pending += 1;
-      pendingRequests.set(_id, { params, resolve, reject });
+      for (let i = 0; i < requestBatchSize; i++) {
+        const { params, resolve, reject } =
+          realtimeQueue.length === 0
+            ? historicalQueue.shift()!
+            : realtimeQueue.shift()!;
 
-      transport
-        .request(params)
-        .then((a) => {
-          resolve(a);
-        })
-        .catch(reject)
-        .finally(() => {
-          pendingRequests.delete(_id);
-          id += 1;
-          pending -= 1;
-        });
+        const _id = id;
+        pending += 1;
+        pendingRequests.set(_id, { params, resolve, reject });
+
+        transport
+          .request(params)
+          .then((a) => {
+            resolve(a);
+          })
+          .catch(reject)
+          .finally(() => {
+            pendingRequests.delete(_id);
+            id += 1;
+            pending -= 1;
+          });
+
+        if (realtimeQueue.length === 0 && historicalQueue.length === 0) break;
+      }
 
       timeSinceLastRequest = 0;
     }
