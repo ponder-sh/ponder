@@ -729,7 +729,7 @@ const buildContexts = (
 
     const client = createClient({
       transport: ponderTransport({
-        transport: { ...network.transport },
+        requestQueue: network.requestQueue,
         syncStore,
       }),
       chain: { ...defaultChain, name: network.name, id: network.chainId },
