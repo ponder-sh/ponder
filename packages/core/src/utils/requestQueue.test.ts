@@ -5,8 +5,8 @@ import { wait } from "./wait.js";
 
 beforeEach((context) => setupAnvil(context));
 
-test("start", async ({ networks }) => {
-  const queue = networks[0].requestQueue;
+test("start", async () => {
+  const queue = (await getNetworks(1))[0].requestQueue;
 
   queue.request("realtime", { method: "eth_chainId" });
 
@@ -14,8 +14,8 @@ test("start", async ({ networks }) => {
   expect(await queue.pending()).toBe(1);
 });
 
-test("size and pending", async ({ networks }) => {
-  const queue = networks[0].requestQueue;
+test("size and pending", async () => {
+  const queue = (await getNetworks(1))[0].requestQueue;
 
   const r1 = queue.request("realtime", { method: "eth_chainId" });
   queue.request("realtime", { method: "eth_chainId" });
@@ -53,16 +53,16 @@ test("request per second", async () => {
   expect(await queue.pending()).toBe(0);
 });
 
-test("add() returns promise", async ({ networks }) => {
-  const queue = networks[0].requestQueue;
+test("add() returns promise", async () => {
+  const queue = (await getNetworks(1))[0].requestQueue;
 
   const r1 = queue.request("realtime", { method: "eth_chainId" });
 
   expect(await r1).toBe("0x1");
 });
 
-test("add() ordering", async ({ networks }) => {
-  const queue = networks[0].requestQueue;
+test("add() ordering", async () => {
+  const queue = (await getNetworks(1))[0].requestQueue;
   queue.pause();
 
   queue.request("historical", {
@@ -78,8 +78,8 @@ test("add() ordering", async ({ networks }) => {
   expect(await queue.historicalSize()).toBe(1);
 });
 
-test("kill()", async ({ networks }) => {
-  const queue = networks[0].requestQueue;
+test("kill()", async () => {
+  const queue = (await getNetworks(1))[0].requestQueue;
 
   let reject1 = false;
   let reject2 = false;
