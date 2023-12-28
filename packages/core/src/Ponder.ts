@@ -309,10 +309,8 @@ export class Ponder {
       await Promise.all(
         this.syncServices.map(async ({ historical, realtime }) => {
           const blockNumbers = await realtime.setup();
-          await historical.setup(blockNumbers);
-
-          historical.start();
           await realtime.start();
+          await historical.start(blockNumbers);
         }),
       );
     } catch (error_) {
@@ -421,7 +419,9 @@ export class Ponder {
     ]);
 
     await Promise.all(
-      this.syncServices.map(async ({ realtime, historical }) => {
+      this.syncServices.map(async ({ realtime, network }) => {
+        network.requestQueue.kill();
+
         await realtime.kill();
       }),
     );
@@ -456,7 +456,10 @@ export class Ponder {
     ]);
 
     await Promise.all(
-      this.syncServices.map(async ({ realtime, historical }) => {
+      this.syncServices.map(async ({ realtime, network }) => {
+        network.requestQueue.kill();
+        network.requestQueue.clear();
+
         await realtime.kill();
       }),
     );
@@ -489,7 +492,11 @@ export class Ponder {
         // while building or validating the config on a hot reload.
         await this.indexingService.kill();
         await Promise.all(
-          this.syncServices.map(async ({ realtime, historical }) => {
+          this.syncServices.map(async ({ realtime, network }) => {
+            network.requestQueue.kill();
+            //NOTE: clear is only needed if this is not a fatal error
+            network.requestQueue.clear();
+
             await realtime.kill();
           }),
         );
@@ -624,9 +631,12 @@ export class Ponder {
       // Reload the sync services for the specific chain by killing, setting up, and then starting again.
       await syncServiceForChainId.realtime.kill();
 
+      let blockNumbers: {
+        latestBlockNumber: number;
+        finalizedBlockNumber: number | undefined;
+      };
       try {
-        const blockNumbers = await syncServiceForChainId.realtime.setup();
-        await syncServiceForChainId.historical.setup(blockNumbers);
+        blockNumbers = await syncServiceForChainId.realtime.setup();
       } catch (error_) {
         const error = error_ as Error;
         error.stack = undefined;
@@ -636,10 +646,11 @@ export class Ponder {
           error,
         });
         this.kill();
+        // NOTE: Should we return here?
       }
 
       await syncServiceForChainId.realtime.start();
-      syncServiceForChainId.historical.start();
+      await syncServiceForChainId.historical.start(blockNumbers!);
 
       // NOTE: We have to reset the historical state after restarting the sync services
       // otherwise the state will be out of sync.

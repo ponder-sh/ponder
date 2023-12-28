@@ -20,6 +20,7 @@ import {
   hexToBigInt,
   hexToNumber,
   numberToHex,
+  zeroHash,
 } from "viem";
 import { isMatchedLogInBloomFilter } from "./bloom.js";
 import { filterLogs } from "./filter.js";
@@ -44,7 +45,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   // Queue of unprocessed blocks.
   private queue: RealtimeSyncQueue;
   // Block number of the current finalized block.
-  private finalizedBlockNumber = 0;
+  private finalizedBlockNumber: number | undefined = undefined;
   // Local representation of the unfinalized portion of the chain.
   private blocks: LightBlock[] = [];
   // Function to stop polling for new blocks.
@@ -86,7 +87,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           .then(hexToNumber),
       ]);
     } catch (error_) {
-      console.log(error_);
       throw Error(
         "Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)",
       );
@@ -111,10 +111,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // Set the finalized block number according to the network's finality threshold.
     // If the finality block count is greater than the latest block number, set to zero.
-    const finalizedBlockNumber = Math.max(
-      0,
-      latestBlockNumber - this.network.finalityBlockCount,
-    );
+    // NOTE: why don't we use the parameter "finalized"?
+    const finalizedBlockNumber =
+      latestBlockNumber - this.network.finalityBlockCount < 0
+        ? undefined
+        : latestBlockNumber - this.network.finalityBlockCount;
     this.finalizedBlockNumber = finalizedBlockNumber;
 
     // Add the latest block to the unfinalized block queue.
@@ -131,9 +132,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // The service won't poll for new blocks and won't emit any events.
     const endBlocks = this.sources.map((f) => f.endBlock);
     if (
+      this.finalizedBlockNumber !== undefined &&
       endBlocks.every(
         (endBlock) =>
-          endBlock !== undefined && endBlock < this.finalizedBlockNumber,
+          endBlock !== undefined && endBlock < this.finalizedBlockNumber!,
       )
     ) {
       this.common.logger.warn({
@@ -214,7 +216,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const stopClock = startClock();
     const latestBlock = await this.network.requestQueue.request("realtime", {
       method: "eth_getBlockByNumber",
-      params: ["finalized", true],
+      params: ["latest", true],
     });
     if (!latestBlock) throw new Error("Unable to fetch latest block");
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
@@ -434,12 +436,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       // and mark data as cached in the store.
       if (
         newBlock.number >
-        this.finalizedBlockNumber + 2 * this.network.finalityBlockCount
+        (this.finalizedBlockNumber ?? 0) + 2 * this.network.finalityBlockCount
       ) {
         const newFinalizedBlock = this.blocks.find(
           (block) =>
             block.number ===
-            this.finalizedBlockNumber + this.network.finalityBlockCount,
+            (this.finalizedBlockNumber ?? 0) + this.network.finalityBlockCount,
         )!;
 
         // Remove now-finalized blocks from the local chain (except for the block at newFinalizedBlockNumber).
@@ -460,7 +462,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             .filter(sourceIsFactory)
             .map((f) => f.criteria),
           interval: {
-            startBlock: BigInt(this.finalizedBlockNumber + 1),
+            startBlock: BigInt((this.finalizedBlockNumber ?? 0) + 1),
             endBlock: BigInt(newFinalizedBlock.number),
           },
         });
@@ -555,7 +557,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       msg: `Detected reorg with forked block (${canonicalBlock.number}, ${canonicalBlock.hash}) (network=${this.network.name})`,
     });
 
-    while (canonicalBlock.number > this.finalizedBlockNumber) {
+    while (canonicalBlock.number > (this.finalizedBlockNumber ?? -1)) {
       const commonAncestorBlock = this.blocks.find(
         (b) => b.hash === canonicalBlock.parentHash,
       );
@@ -603,6 +605,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         return;
       }
+
+      // If we reached the end of the chain, break
+      if (canonicalBlock.parentHash === zeroHash) break;
 
       // If the parent block is not present in our local chain, keep traversing up the canonical chain.
       const stopClock = startClock();

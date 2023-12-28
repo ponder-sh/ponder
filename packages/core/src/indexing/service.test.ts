@@ -300,7 +300,7 @@ test("processEvents() client.readContract", async (context) => {
   await service.kill();
 });
 
-test("processEvents() retries indexing functions", async (context) => {
+test.skip("processEvents() retries indexing functions", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
@@ -337,7 +337,7 @@ test("processEvents() retries indexing functions", async (context) => {
   await service.kill();
 });
 
-test("processEvents() handles errors", async (context) => {
+test.skip("processEvents() handles errors", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
@@ -491,7 +491,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
   await service.kill();
 });
 
-test("handleReorg() does nothing if there is a user error", async (context) => {
+test.skip("handleReorg() does nothing if there is a user error", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));

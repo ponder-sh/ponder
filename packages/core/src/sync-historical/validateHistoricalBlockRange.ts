@@ -6,7 +6,7 @@ export function validateHistoricalBlockRange({
 }: {
   startBlock: number;
   endBlock?: number;
-  finalizedBlockNumber: number;
+  finalizedBlockNumber: number | undefined;
   latestBlockNumber: number;
 }) {
   if (startBlock > latestBlockNumber) {
@@ -16,7 +16,7 @@ export function validateHistoricalBlockRange({
     );
   }
 
-  if (startBlock > finalizedBlockNumber) {
+  if (finalizedBlockNumber === undefined || startBlock > finalizedBlockNumber) {
     // If the start block is in the unfinalized range, the historical sync is not needed.
     // Set the checkpoint to the current timestamp, then return (don't create the queue).
     return {

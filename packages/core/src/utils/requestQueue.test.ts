@@ -1,4 +1,5 @@
 import { setupAnvil } from "@/_test/setup.js";
+import { getNetworks } from "@/_test/utils.js";
 import { beforeEach, expect, test } from "vitest";
 import { wait } from "./wait.js";
 
@@ -27,8 +28,8 @@ test("size and pending", async ({ networks }) => {
   expect(await queue.size()).toBe(1);
 });
 
-test("request per second", async ({ networks }) => {
-  const queue = networks[0].requestQueue;
+test("request per second", async () => {
+  const queue = (await getNetworks(1))[0].requestQueue;
 
   const r1 = queue.request("realtime", { method: "eth_chainId" });
   const r2 = queue.request("realtime", { method: "eth_chainId" });

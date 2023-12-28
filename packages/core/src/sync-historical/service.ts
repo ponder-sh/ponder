@@ -60,7 +60,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   /**
    * Service configuration. Will eventually be reloadable.
    */
-  private finalizedBlockNumber: number = null!;
+  private finalizedBlockNumber: number | undefined = undefined;
   private sources: Source[];
 
   /**
@@ -123,13 +123,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     isHistoricalSyncRequired: boolean;
     startBlock: number;
     endBlock: number | undefined;
-    finalizedBlockNumber: number;
+    finalizedBlockNumber: number | undefined;
   }): Promise<void> => {
     if (!isHistoricalSyncRequired) {
-      this.logFilterProgressTrackers[source.id] = new ProgressTracker({
-        target: [startBlock, finalizedBlockNumber],
-        completed: [[startBlock, finalizedBlockNumber]],
-      });
+      if (this.finalizedBlockNumber !== undefined) {
+        this.logFilterProgressTrackers[source.id] = new ProgressTracker({
+          target: [startBlock, finalizedBlockNumber!],
+          completed: [[startBlock, finalizedBlockNumber!]],
+        });
+      }
       this.common.metrics.ponder_historical_total_blocks.set(
         { network: this.network.name, contract: source.contractName },
         0,
@@ -210,20 +212,21 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     isHistoricalSyncRequired: boolean;
     startBlock: number;
     endBlock: number | undefined;
-    finalizedBlockNumber: number;
+    finalizedBlockNumber: number | undefined;
   }) => {
     // Factory
     if (!isHistoricalSyncRequired) {
-      this.factoryChildAddressProgressTrackers[source.id] = new ProgressTracker(
-        {
-          target: [startBlock, finalizedBlockNumber],
-          completed: [[startBlock, finalizedBlockNumber]],
-        },
-      );
-      this.factoryLogFilterProgressTrackers[source.id] = new ProgressTracker({
-        target: [startBlock, finalizedBlockNumber],
-        completed: [[startBlock, finalizedBlockNumber]],
-      });
+      if (this.finalizedBlockNumber !== undefined) {
+        this.factoryChildAddressProgressTrackers[source.id] =
+          new ProgressTracker({
+            target: [startBlock, finalizedBlockNumber!],
+            completed: [[startBlock, finalizedBlockNumber!]],
+          });
+        this.factoryLogFilterProgressTrackers[source.id] = new ProgressTracker({
+          target: [startBlock, finalizedBlockNumber!],
+          completed: [[startBlock, finalizedBlockNumber!]],
+        });
+      }
       this.common.metrics.ponder_historical_total_blocks.set(
         { network: this.network.name, contract: source.contractName },
         0,
@@ -370,7 +373,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     finalizedBlockNumber,
   }: {
     latestBlockNumber: number;
-    finalizedBlockNumber: number;
+    finalizedBlockNumber: number | undefined;
   }) {
     // Initialize state variables. Required when restarting the service.
     this.blockTasksEnqueuedCheckpoint = 0;
@@ -443,11 +446,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       ) &&
       this.blockProgressTracker.isComplete()
     ) {
-      this.emit("historicalCheckpoint", {
-        blockTimestamp: Math.round(Date.now() / 1000),
-        chainId: this.network.chainId,
-        blockNumber: this.finalizedBlockNumber,
-      });
+      if (this.finalizedBlockNumber !== undefined) {
+        this.emit("historicalCheckpoint", {
+          blockTimestamp: Math.round(Date.now() / 1000),
+          chainId: this.network.chainId,
+          blockNumber: this.finalizedBlockNumber,
+        });
+      }
       clearInterval(this.progressLogInterval);
       this.emit("syncComplete");
       this.common.logger.info({

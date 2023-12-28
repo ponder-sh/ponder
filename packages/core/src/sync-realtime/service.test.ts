@@ -37,6 +37,7 @@ test("setup() returns block numbers", async (context) => {
   expect(finalizedBlockNumber).toBe(blockNumbers.finalizedBlockNumber);
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("start() adds blocks to the store from finalized to latest", async (context) => {
@@ -63,6 +64,7 @@ test("start() adds blocks to the store from finalized to latest", async (context
   ]);
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("start() adds all required transactions to the store", async (context) => {
@@ -93,6 +95,7 @@ test("start() adds all required transactions to the store", async (context) => {
   });
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("start() adds all matched logs to the store", async (context) => {
@@ -116,6 +119,7 @@ test("start() adds all matched logs to the store", async (context) => {
   });
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("start() handles new blocks", async (context) => {
@@ -152,6 +156,7 @@ test("start() handles new blocks", async (context) => {
   ]);
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("start() handles error while fetching new latest block gracefully", async (context) => {
@@ -195,6 +200,7 @@ test("start() handles error while fetching new latest block gracefully", async (
   ]);
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("start() emits realtimeCheckpoint events", async (context) => {
@@ -243,6 +249,7 @@ test("start() emits realtimeCheckpoint events", async (context) => {
   });
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("start() inserts log filter interval records for finalized blocks", async (context) => {
@@ -287,6 +294,7 @@ test("start() inserts log filter interval records for finalized blocks", async (
   });
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
@@ -350,6 +358,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   ]);
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
@@ -396,6 +405,7 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
   });
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("emits deepReorg event after deep reorg", async (context) => {
@@ -453,6 +463,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
   });
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });
 
 test("start() with factory contract inserts new child contracts records and child contract events", async (context) => {
@@ -514,4 +525,5 @@ test("start() with factory contract inserts new child contracts records and chil
   );
 
   await service.kill();
+  networks[0].requestQueue.clear();
 });

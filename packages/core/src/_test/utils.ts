@@ -108,7 +108,7 @@ export const getConfig = (
  * Returns a network representing the local anvil chain.
  * Set `finalityBlockCount` to 4 because `deploy()` + `simulate()` is 4 blocks.
  */
-export const getNetworks = async (requestsPerSecond = 10) => {
+export const getNetworks = async (requestsPerSecond = 20) => {
   const network = await buildNetwork({
     networkName: "mainnet",
     network: {
