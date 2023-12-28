@@ -12,7 +12,6 @@ import { type Queue, createQueue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
 import Emittery from "emittery";
-import pLimit from "p-limit";
 import {
   type BlockTag,
   type Hex,
@@ -187,12 +186,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // Add an empty task the queue (the worker will fetch the latest block).
     // TODO: optimize latency here using filters or subscriptions.
-    this.unpoll = poll(
-      async () => {
-        await this.addNewLatestBlock();
-      },
-      { emitOnBegin: false, interval: this.network.pollingInterval },
-    );
+    this.unpoll = poll(() => this.addNewLatestBlock(), {
+      emitOnBegin: false,
+      interval: this.network.pollingInterval,
+    });
   };
 
   kill = async () => {
@@ -243,16 +240,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
   };
 
-  private buildQueue = () => {
-    const queue = createQueue<RealtimeBlock>({
-      worker: async ({ task }) => {
-        await this.blockTaskWorker({ block: task });
-      },
+  private buildQueue = () =>
+    createQueue<RealtimeBlock>({
+      worker: ({ task }) =>
+        this.blockTaskWorker({ block: task }).then(() => {}),
       options: { concurrency: 1, autoStart: false },
     });
-
-    return queue;
-  };
 
   private blockTaskWorker = async ({
     block,
@@ -503,11 +496,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         newBlock.number,
       );
 
-      // Fetch all missing blocks using a request concurrency limit of 10.
-      const limit = pLimit(10);
-
-      const missingBlockRequests = missingBlockNumbers.map((number) => {
-        return limit(async () => {
+      // Fetch all missing blocks
+      const missingBlocks = await Promise.all(
+        missingBlockNumbers.map(async (number) => {
           const stopClock = startClock();
           const block = await this.network.requestQueue.request("realtime", {
             method: "eth_getBlockByNumber",
@@ -524,10 +515,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             stopClock(),
           );
           return block as RealtimeBlock;
-        });
-      });
-
-      const missingBlocks = await Promise.all(missingBlockRequests);
+        }),
+      );
 
       // Add blocks to the queue from oldest to newest. Include the current block.
       for (const block of [...missingBlocks, newBlockWithTransactions]) {
