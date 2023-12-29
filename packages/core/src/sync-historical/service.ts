@@ -2,7 +2,9 @@ import type { Common } from "@/Ponder.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Factory,
+  type FactoryCriteria,
   type LogFilter,
+  type LogFilterCriteria,
   type Source,
   type Topics,
   sourceIsLogFilter,
@@ -28,7 +30,9 @@ import {
   type Hex,
   type RpcBlock,
   type RpcLog,
+  RpcRequestError,
   hexToNumber,
+  numberToHex,
   toHex,
 } from "viem";
 import {
@@ -51,6 +55,13 @@ type HistoricalSyncEvents = {
 };
 
 type HistoricalBlock = RpcBlock<"finalized", true>;
+
+type LogInterval = {
+  startBlock: number;
+  endBlock: number;
+  logs: RpcLog[];
+  transactionHashes: Set<Hash>;
+};
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private common: Common;
@@ -505,27 +516,24 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       topics: logFilter.criteria.topics,
       fromBlock: toHex(fromBlock),
       toBlock: toHex(toBlock),
-    }).then((logs) => {
-      const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
+    })
+      .then((logs) => {
+        const logIntervals = this.buildLogIntervals({
+          fromBlock,
+          toBlock,
+          logs,
+        });
 
-      for (const logInterval of logIntervals) {
-        const { startBlock, endBlock, logs, transactionHashes } = logInterval;
-        (this.blockCallbacks[endBlock] ||= []).push((block) =>
-          this.syncStore
-            .insertLogFilterInterval({
+        for (const logInterval of logIntervals) {
+          const { startBlock, endBlock } = logInterval;
+
+          (this.blockCallbacks[endBlock] ||= []).push((block) =>
+            this._insertLogFilterInterval({
+              logInterval,
+              logFilter: logFilter.criteria,
               chainId: logFilter.chainId,
               block,
-              transactions: block.transactions.filter((tx) =>
-                transactionHashes.has(tx.hash),
-              ),
-              logs,
-              logFilter: logFilter.criteria,
-              interval: {
-                startBlock: BigInt(startBlock),
-                endBlock: BigInt(endBlock),
-              },
-            })
-            .then(() => {
+            }).then(() => {
               this.common.metrics.ponder_historical_completed_blocks.inc(
                 {
                   network: this.network.name,
@@ -534,23 +542,118 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 endBlock - startBlock + 1,
               );
             }),
-        );
-      }
+          );
+        }
 
-      this.logFilterProgressTrackers[logFilter.id].addCompletedInterval([
-        fromBlock,
-        toBlock,
-      ]);
+        this.logFilterProgressTrackers[logFilter.id].addCompletedInterval([
+          fromBlock,
+          toBlock,
+        ]);
 
-      if (logIntervals.length === 0) this.checkSyncCompletion();
+        if (logIntervals.length === 0) this.checkSyncCompletion();
 
-      this.enqueueBlockTasks();
+        this.enqueueBlockTasks();
 
-      this.common.logger.trace({
-        service: "historical",
-        msg: `Completed LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${logFilter.contractName}, network=${this.network.name})`,
+        this.common.logger.trace({
+          service: "historical",
+          msg: `Completed LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${logFilter.contractName}, network=${this.network.name})`,
+        });
+      })
+      .catch((error: RpcRequestError) => {
+        error.stack = undefined;
+        this.common.logger.error({
+          service: "historical",
+          msg: `Log filter task failed... [${fromBlock}, ${toBlock}] (contract=${
+            logFilter.contractName
+          }, network=${
+            this.network.name
+          }, error=${`${error.name}: ${error.message}`})`,
+          error,
+        });
       });
+  };
+
+  private factoryLogFilterTaskWorker = async ({
+    factory,
+    fromBlock,
+    toBlock,
+  }: { factory: Factory; fromBlock: number; toBlock: number }) => {
+    const iterator = this.syncStore.getFactoryChildAddresses({
+      chainId: factory.chainId,
+      factory: factory.criteria,
+      upToBlockNumber: BigInt(toBlock),
     });
+
+    const childAddresses: Address[][] = [];
+    for await (const childContractAddressBatch of iterator) {
+      childAddresses.push(childContractAddressBatch);
+    }
+
+    return Promise.all(
+      childAddresses.map((c) =>
+        this._eth_getLogs({
+          address: c,
+          topics: factory.criteria.topics,
+          fromBlock: numberToHex(fromBlock),
+          toBlock: numberToHex(toBlock),
+        }),
+      ),
+    )
+      .then((_logs) => {
+        const logs = _logs.flat();
+
+        const logIntervals = this.buildLogIntervals({
+          fromBlock,
+          toBlock,
+          logs,
+        });
+
+        for (const logInterval of logIntervals) {
+          const { startBlock, endBlock } = logInterval;
+
+          (this.blockCallbacks[endBlock] ||= []).push((block) =>
+            this._insertFactoryLogFilterInterval({
+              chainId: factory.chainId,
+              factory: factory.criteria,
+              block,
+              logInterval,
+            }).then(() => {
+              this.common.metrics.ponder_historical_completed_blocks.inc(
+                {
+                  network: this.network.name,
+                  contract: factory.contractName,
+                },
+                endBlock - startBlock + 1,
+              );
+            }),
+          );
+        }
+
+        this.factoryLogFilterProgressTrackers[factory.id].addCompletedInterval([
+          fromBlock,
+          toBlock,
+        ]);
+
+        if (logIntervals.length === 0) this.checkSyncCompletion();
+
+        this.enqueueBlockTasks();
+
+        this.common.logger.trace({
+          service: "historical",
+          msg: `Completed FACTORY_LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
+        });
+      })
+      .catch((error: RpcRequestError) => {
+        error.stack = undefined;
+        this.common.logger.warn({
+          service: "historical",
+          msg: `Factory log filter task failed, retrying... [${fromBlock}, ${toBlock}] (contract=${
+            factory.contractName
+          }, network=${
+            this.network.name
+          }, error=${`${error.name}: ${error.message}`})`,
+        });
+      });
   };
 
   private factoryChildAddressTaskWorker = ({
@@ -566,12 +669,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     })
       .then((logs) =>
         // Insert the new child address logs into the store.
-        this.syncStore
-          .insertFactoryChildAddressLogs({
-            chainId: factory.chainId,
-            logs,
-          })
-          .then(() => logs),
+        this._insertFactoryChildAddressLogs({
+          chainId: factory.chainId,
+          logs,
+        }).then(() => logs),
       )
       .then((logs) => {
         const logIntervals = this.buildLogIntervals({
@@ -581,26 +682,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
 
         for (const logInterval of logIntervals) {
-          const { startBlock, endBlock, logs, transactionHashes } = logInterval;
-          (this.blockCallbacks[endBlock] ||= []).push((block) =>
-            // Register block callbacks for the child address logs. This is how
-            // the intervals will be recorded (marking the child address logs as
-            // cached on subsequent starts).
-            this.syncStore.insertLogFilterInterval({
-              chainId: factory.chainId,
+          (this.blockCallbacks[logInterval.endBlock] ||= []).push((block) =>
+            this._insertLogFilterInterval({
+              logInterval,
               logFilter: {
                 address: factory.criteria.address,
                 topics: [factory.criteria.eventSelector],
               },
+              chainId: factory.chainId,
               block,
-              transactions: block.transactions.filter((tx) =>
-                transactionHashes.has(tx.hash),
-              ),
-              logs,
-              interval: {
-                startBlock: BigInt(startBlock),
-                endBlock: BigInt(endBlock),
-              },
             }),
           );
         }
@@ -647,86 +737,23 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           service: "historical",
           msg: `Completed FACTORY_CHILD_ADDRESS task [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
         });
+      })
+      .catch((error) => {
+        if (error instanceof RpcRequestError) {
+          error.stack === undefined;
+          this.common.logger.error({
+            service: "historical",
+            msg: `Factory child address task failed... [${fromBlock}, ${toBlock}] (contract=${
+              factory.contractName
+            }, network=${
+              this.network.name
+            }, eerror=${`${error.name}: ${error.message}`})`,
+            error,
+          });
+        } else {
+          // DB ERROR from _insertFactoryChildAddressLogs
+        }
       });
-  };
-
-  private factoryLogFilterTaskWorker = async ({
-    factory,
-    fromBlock,
-    toBlock,
-  }: { factory: Factory; fromBlock: number; toBlock: number }) => {
-    const iterator = this.syncStore.getFactoryChildAddresses({
-      chainId: factory.chainId,
-      factory: factory.criteria,
-      upToBlockNumber: BigInt(toBlock),
-    });
-
-    const childAddresses: Address[][] = [];
-    for await (const childContractAddressBatch of iterator) {
-      childAddresses.push(childContractAddressBatch);
-    }
-
-    return Promise.all(
-      childAddresses.map((c) =>
-        this._eth_getLogs({
-          address: c,
-          topics: factory.criteria.topics,
-          fromBlock: toHex(fromBlock),
-          toBlock: toHex(toBlock),
-        }),
-      ),
-    ).then((_logs) => {
-      const logs = _logs.flat();
-
-      const logIntervals = this.buildLogIntervals({
-        fromBlock,
-        toBlock,
-        logs,
-      });
-
-      for (const logInterval of logIntervals) {
-        const { startBlock, endBlock, logs, transactionHashes } = logInterval;
-        (this.blockCallbacks[endBlock] ||= []).push((block) =>
-          this.syncStore
-            .insertFactoryLogFilterInterval({
-              chainId: factory.chainId,
-              factory: factory.criteria,
-              block,
-              transactions: block.transactions.filter((tx) =>
-                transactionHashes.has(tx.hash),
-              ),
-              logs,
-              interval: {
-                startBlock: BigInt(startBlock),
-                endBlock: BigInt(endBlock),
-              },
-            })
-            .then(() => {
-              this.common.metrics.ponder_historical_completed_blocks.inc(
-                {
-                  network: this.network.name,
-                  contract: factory.contractName,
-                },
-                endBlock - startBlock + 1,
-              );
-            }),
-        );
-      }
-
-      this.factoryLogFilterProgressTrackers[factory.id].addCompletedInterval([
-        fromBlock,
-        toBlock,
-      ]);
-
-      if (logIntervals.length === 0) this.checkSyncCompletion();
-
-      this.enqueueBlockTasks();
-
-      this.common.logger.trace({
-        service: "historical",
-        msg: `Completed FACTORY_LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
-      });
-    });
   };
 
   private blockTaskWorker = ({
@@ -736,32 +763,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     blockNumber: number;
     callbacks: ((block: HistoricalBlock) => Promise<void>)[];
   }) => {
-    const stopClock = startClock();
-
-    return this.network.requestQueue
-      .request(
-        "historical",
-        {
-          method: "eth_getBlockByNumber",
-          params: [toHex(blockNumber), true],
-        },
-        blockNumber,
-      )
-      .then((block) => {
-        this.common.metrics.ponder_historical_rpc_request_duration.observe(
-          { method: "eth_getBlockByNumber", network: this.network.name },
-          stopClock(),
-        );
-
-        return block;
-      })
-      .then((block) => {
-        if (!block) throw new Error(`Block not found: ${blockNumber}`);
-        return block! as HistoricalBlock;
-      })
-      .then(
-        (block): Promise<HistoricalBlock> =>
-          Promise.all(callbacks.map((cb) => cb(block))).then(() => block),
+    return this._eth_getBlockByNumber({ blockNumber })
+      .then((block) =>
+        Promise.all(callbacks.map((cb) => cb(block))).then(() => block),
       )
       .then((block) => {
         const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
@@ -785,6 +789,20 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             callbacks.length
           } callbacks (network=${this.network.name})`,
         });
+      })
+      .catch((error) => {
+        if (error instanceof RpcRequestError) {
+          error.stack = undefined;
+          this.common.logger.error({
+            service: "historical",
+            msg: `Block task failed... [${blockNumber}] (network=${
+              this.network.name
+            }, error=${`${error.name}: ${error.message}`})`,
+            error,
+          });
+        } else {
+          // DB ERROR caused by callbacks
+        }
       });
   };
 
@@ -796,7 +814,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     fromBlock: number;
     toBlock: number;
     logs: RpcLog[];
-  }) => {
+  }): LogInterval[] => {
     const logsByBlockNumber: Record<number, RpcLog[] | undefined> = {};
     const txHashesByBlockNumber: Record<number, Set<Hash> | undefined> = {};
 
@@ -882,7 +900,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   };
 
   /**
-   * Calls eth_getLogs on the rpc, handles different error types and retries them.
+   * Helper function for "eth_getLogs" rpc request.
+   * Handles different error types and retries the request if applicable.
    */
   private _eth_getLogs = (params: {
     address?: Address | Address[];
@@ -890,8 +909,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     fromBlock: Hex;
     toBlock: Hex;
   }): Promise<RpcLog[]> => {
-    let error: LogFilterError | null = null;
-
     const stopClock = startClock();
     try {
       return this.network.requestQueue.request(
@@ -915,29 +932,126 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         hexToNumber(params.fromBlock),
       );
     } catch (err) {
-      error = err as LogFilterError;
+      const retryRanges = getLogFilterRetryRanges(
+        err as LogFilterError,
+        params.fromBlock,
+        params.toBlock,
+      );
+
+      return Promise.all(
+        retryRanges.map(([from, to]) =>
+          this._eth_getLogs({
+            fromBlock: from,
+            toBlock: to,
+            topics: params.topics,
+            address: params.address,
+          }),
+        ),
+      ).then((l) => l.flat());
     } finally {
       this.common.metrics.ponder_historical_rpc_request_duration.observe(
         { method: "eth_getLogs", network: this.network.name },
         stopClock(),
       );
     }
+  };
 
-    const retryRanges = getLogFilterRetryRanges(
-      error,
-      params.fromBlock,
-      params.toBlock,
-    );
+  /**
+   * Helper function for "eth_getBlockByNumber" request.
+   */
+  private _eth_getBlockByNumber = (params: {
+    blockNumber: number;
+  }): Promise<HistoricalBlock> => {
+    const stopClock = startClock();
 
-    return Promise.all(
-      retryRanges.map(([from, to]) =>
-        this._eth_getLogs({
-          fromBlock: from,
-          toBlock: to,
-          topics: params.topics,
-          address: params.address,
-        }),
+    try {
+      return this.network.requestQueue
+        .request(
+          "historical",
+          {
+            method: "eth_getBlockByNumber",
+            params: [numberToHex(params.blockNumber), true],
+          },
+          params.blockNumber,
+        )
+        .then((block) => {
+          if (!block) throw new Error(`Block not found: ${params.blockNumber}`);
+          return block as HistoricalBlock;
+        });
+    } finally {
+      this.common.metrics.ponder_historical_rpc_request_duration.observe(
+        { method: "eth_getBlockByNumber", network: this.network.name },
+        stopClock(),
+      );
+    }
+  };
+
+  /**
+   * Helper function for "insertLogFilterInterval"
+   */
+  private _insertLogFilterInterval = ({
+    logInterval: { transactionHashes, logs, startBlock, endBlock },
+    logFilter,
+    block,
+    chainId,
+  }: {
+    logInterval: LogInterval;
+    logFilter: LogFilterCriteria;
+    block: HistoricalBlock;
+    chainId: number;
+  }) =>
+    this.syncStore.insertLogFilterInterval({
+      chainId,
+      logFilter,
+      block,
+      transactions: block.transactions.filter((tx) =>
+        transactionHashes.has(tx.hash),
       ),
-    ).then((l) => l.flat());
+      logs,
+      interval: {
+        startBlock: BigInt(startBlock),
+        endBlock: BigInt(endBlock),
+      },
+    });
+
+  /**
+   * Helper function for "insertFactoryLogFilterInterval"
+   */
+  private _insertFactoryLogFilterInterval = ({
+    logInterval: { transactionHashes, logs, startBlock, endBlock },
+    factory,
+    block,
+    chainId,
+  }: {
+    logInterval: LogInterval;
+    factory: FactoryCriteria;
+    block: HistoricalBlock;
+    chainId: number;
+  }) =>
+    this.syncStore.insertFactoryLogFilterInterval({
+      chainId: chainId,
+      factory: factory,
+      block,
+      transactions: block.transactions.filter((tx) =>
+        transactionHashes.has(tx.hash),
+      ),
+      logs,
+      interval: {
+        startBlock: BigInt(startBlock),
+        endBlock: BigInt(endBlock),
+      },
+    });
+
+  /**
+   * Helper function for "insertFactoryChildAddressLogs"
+   */
+  private _insertFactoryChildAddressLogs = ({
+    chainId,
+    logs,
+  }: { chainId: number; logs: RpcLog[] }) => {
+    return this.syncStore.insertFactoryChildAddressLogs({
+      chainId,
+      logs,
+    });
   };
 }

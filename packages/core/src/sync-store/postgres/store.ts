@@ -1301,6 +1301,7 @@ export class PostgresSyncStore implements SyncStore {
     return exprs;
   };
 
+  /** @todo Add retry logic */
   private transaction = async <U>(
     callback: (tx: KyselyTransaction<SyncStoreTables>) => Promise<U>,
   ) => {

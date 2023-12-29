@@ -1,5 +1,6 @@
 import { setupAnvil } from "@/_test/setup.js";
 import { getNetworks } from "@/_test/utils.js";
+import { RpcRequestError, zeroHash } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { wait } from "./wait.js";
 
@@ -96,4 +97,23 @@ test("kill()", async () => {
     expect(reject1).toBe(true);
     expect(reject2).toBe(true);
   });
+});
+
+test("request() error", async () => {
+  const queue = (await getNetworks(1))[0].requestQueue;
+
+  let error: any;
+
+  const r1 = queue
+    .request("realtime", {
+      method: "eth_getBlocByHash" as "eth_getBlockByHash",
+      params: [zeroHash, false],
+    })
+    .catch((_error) => {
+      error = _error;
+    });
+
+  await r1;
+
+  expect(error).toBeInstanceOf(RpcRequestError);
 });

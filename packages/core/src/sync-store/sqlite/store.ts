@@ -775,6 +775,7 @@ export class SqliteSyncStore implements SyncStore {
 
   /** CONTRACT READS */
 
+  // NOTE: This should probably be a transaction
   insertRpcRequestResult = async ({
     blockNumber,
     chainId,
@@ -1318,6 +1319,7 @@ export class SqliteSyncStore implements SyncStore {
     return exprs;
   };
 
+  /** @todo Add retry logic */
   private transaction = async <U>(
     callback: (tx: KyselyTransaction<SyncStoreTables>) => Promise<U>,
   ) => {
