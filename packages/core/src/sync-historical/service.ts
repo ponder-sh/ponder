@@ -912,7 +912,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const stopClock = startClock();
     try {
       return this.network.requestQueue.request(
-        "historical",
         {
           method: "eth_getLogs",
           params: [
@@ -967,7 +966,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     try {
       return this.network.requestQueue
         .request(
-          "historical",
           {
             method: "eth_getBlockByNumber",
             params: [numberToHex(params.blockNumber), true],

@@ -1,4 +1,5 @@
 import type { Client, EIP1193Parameters, PublicRpcSchema } from "viem";
+import { lowerBound } from "./lowerBound.js";
 
 type RequestReturnType<
   method extends EIP1193Parameters<PublicRpcSchema>["method"],
@@ -9,20 +10,12 @@ export type RequestQueue = {
    * Add a task to the queue.
    * Lower block number means higher priority for historical tasks.
    */
-  request: <
-    TParameters extends EIP1193Parameters<PublicRpcSchema>,
-    TType extends "realtime" | "historical",
-  >(
-    type: TType,
+  request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
     params: TParameters,
-    blockNumber?: TType extends "historical" ? number : never,
+    blockNumber: number | "latest" | null,
   ) => RequestReturnType<TParameters["method"]>;
   /** Number of unsent requests. */
   size: () => Promise<number>;
-  /** Number of unsent realtime requests. */
-  realtimeSize: () => Promise<number>;
-  /** Number of unsent historical requests. */
-  historicalSize: () => Promise<number>;
   /** Number of pending requests. */
   pending: () => Promise<number>;
   /** Start execution of the tasks. */
@@ -33,26 +26,31 @@ export type RequestQueue = {
   clear: () => void;
   /** Reject all promises in the queue. */
   kill: () => void;
+
+  queue: Task[];
 };
 
+/**
+ * Internal representation of a task in the request queue.
+ *
+ * @param blockNumber The blockNumber (priority) of the task.
+ * "latest" represents the highest priority. "null" represents lowest priority
+ */
 type Task = {
   params: EIP1193Parameters<PublicRpcSchema>;
   resolve: (value: unknown) => void;
   reject: () => unknown;
+  blockNumber: number | "latest" | null;
 };
 
 /**
  * Creates a queue built to manage rpc requests.
- *
- * Two task types, historical and realtime.
- * FIFO ordering, with "realtime" tasks always run before "historical".
  */
 export const createRequestQueue = (
   transport: Client["transport"],
   requestsPerSecond: number,
 ): RequestQueue => {
-  let historicalQueue: Task[] = new Array();
-  let realtimeQueue: Task[] = new Array();
+  let queue: Task[] = new Array();
   const interval =
     1000 / requestsPerSecond > 50 ? 1000 / requestsPerSecond : 50;
   const requestBatchSize =
@@ -69,7 +67,7 @@ export const createRequestQueue = (
   const processQueue = () => {
     if (!on) return;
 
-    if (realtimeQueue.length === 0 && historicalQueue.length === 0) return;
+    if (queue.length === 0) return;
     const now = Date.now();
     let timeSinceLastRequest = now - lastRequestTime;
 
@@ -77,14 +75,11 @@ export const createRequestQueue = (
       lastRequestTime = now;
 
       for (let i = 0; i < requestBatchSize; i++) {
-        const { params, resolve, reject } =
-          realtimeQueue.length === 0
-            ? historicalQueue.shift()!
-            : realtimeQueue.shift()!;
+        const { params, resolve, reject, blockNumber } = queue.shift()!;
 
         const _id = id;
         pending += 1;
-        pendingRequests.set(_id, { params, resolve, reject });
+        pendingRequests.set(_id, { params, resolve, reject, blockNumber });
 
         transport
           .request(params)
@@ -98,7 +93,7 @@ export const createRequestQueue = (
             pending -= 1;
           });
 
-        if (realtimeQueue.length === 0 && historicalQueue.length === 0) break;
+        if (queue.length === 0) break;
       }
 
       timeSinceLastRequest = 0;
@@ -114,39 +109,69 @@ export const createRequestQueue = (
   };
 
   return {
-    request: <
-      TParameters extends EIP1193Parameters<PublicRpcSchema>,
-      TType extends "realtime" | "historical",
-    >(
-      type: TType,
+    request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
       params: TParameters,
-      blockNumber?: TType extends "historical" ? number : never,
+      blockNumber: number | "latest" | null,
     ): RequestReturnType<TParameters["method"]> => {
-      if (type === "historical" && typeof blockNumber === "number") {
-        // use blocknumber as priority
-      }
-      const p = new Promise((resolve, reject) => {
-        (type === "realtime" ? realtimeQueue : historicalQueue).push({
-          params,
-          resolve,
-          reject,
+      let p: Promise<unknown>;
+
+      if (blockNumber === "latest") {
+        p = new Promise((resolve, reject) => {
+          queue.splice(0, 0, {
+            params,
+            resolve,
+            reject,
+            blockNumber,
+          });
         });
-      });
+      } else {
+        // Use blocknumber as priority
+
+        if (
+          blockNumber === null ||
+          (queue.length !== 0 &&
+            queue[queue.length - 1].blockNumber === "latest")
+        ) {
+          // Add element to the very end
+          p = new Promise((resolve, reject) => {
+            queue.push({
+              params,
+              resolve,
+              reject,
+              blockNumber,
+            });
+          });
+        } else {
+          // Add element based on block number priority
+          const index = lowerBound(
+            queue,
+            { blockNumber },
+            (a: Pick<Task, "blockNumber">, b: Pick<Task, "blockNumber">) => {
+              if (a.blockNumber === b.blockNumber) return 0;
+              if (a.blockNumber === "latest") return -1;
+              if (b.blockNumber === "latest") return 1;
+              if (a.blockNumber === null) return 1;
+              if (b.blockNumber === null) return -1;
+              return a.blockNumber - b.blockNumber;
+            },
+          );
+
+          p = new Promise((resolve, reject) => {
+            queue.splice(index, 0, {
+              params,
+              resolve,
+              reject,
+              blockNumber,
+            });
+          });
+        }
+      }
+
       processQueue();
       return p as RequestReturnType<TParameters["method"]>;
     },
     size: async () =>
-      new Promise<number>((res) =>
-        setImmediate(() => res(realtimeQueue.length + historicalQueue.length)),
-      ),
-    realtimeSize: async () =>
-      new Promise<number>((res) =>
-        setImmediate(() => res(realtimeQueue.length)),
-      ),
-    historicalSize: async () =>
-      new Promise<number>((res) =>
-        setImmediate(() => res(historicalQueue.length)),
-      ),
+      new Promise<number>((res) => setImmediate(() => res(queue.length))),
     pending: async () =>
       new Promise<number>((res) => setImmediate(() => res(pending))),
     start: () => {
@@ -157,21 +182,17 @@ export const createRequestQueue = (
       on = false;
     },
     clear: () => {
-      historicalQueue = new Array();
-      realtimeQueue = new Array();
-
+      queue = new Array();
       lastRequestTime = 0;
     },
     kill: () => {
-      for (const { reject } of historicalQueue) {
-        reject();
-      }
-      for (const { reject } of realtimeQueue) {
+      for (const { reject } of queue) {
         reject();
       }
       for (const [, { reject }] of pendingRequests) {
         reject();
       }
     },
+    queue,
   };
 };

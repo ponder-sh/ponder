@@ -6,10 +6,16 @@ import { wait } from "./wait.js";
 
 beforeEach((context) => setupAnvil(context));
 
-test("start", async () => {
+test("pause + start", async () => {
   const queue = (await getNetworks(1))[0].requestQueue;
+  queue.pause();
 
-  queue.request("realtime", { method: "eth_chainId" });
+  queue.request({ method: "eth_chainId" }, null);
+
+  expect(await queue.size()).toBe(1);
+  expect(await queue.pending()).toBe(0);
+
+  queue.start();
 
   expect(await queue.size()).toBe(0);
   expect(await queue.pending()).toBe(1);
@@ -18,8 +24,8 @@ test("start", async () => {
 test("size and pending", async () => {
   const queue = (await getNetworks(1))[0].requestQueue;
 
-  const r1 = queue.request("realtime", { method: "eth_chainId" });
-  queue.request("realtime", { method: "eth_chainId" });
+  const r1 = queue.request({ method: "eth_chainId" }, null);
+  queue.request({ method: "eth_chainId" }, null);
 
   expect(await queue.size()).toBe(1);
   expect(await queue.pending()).toBe(1);
@@ -32,8 +38,8 @@ test("size and pending", async () => {
 test("request per second", async () => {
   const queue = (await getNetworks(1))[0].requestQueue;
 
-  const r1 = queue.request("realtime", { method: "eth_chainId" });
-  const r2 = queue.request("realtime", { method: "eth_chainId" });
+  const r1 = queue.request({ method: "eth_chainId" }, null);
+  const r2 = queue.request({ method: "eth_chainId" }, null);
 
   expect(await queue.size()).toBe(1);
   expect(await queue.pending()).toBe(1);
@@ -57,26 +63,36 @@ test("request per second", async () => {
 test("add() returns promise", async () => {
   const queue = (await getNetworks(1))[0].requestQueue;
 
-  const r1 = queue.request("realtime", { method: "eth_chainId" });
+  const r1 = queue.request({ method: "eth_chainId" }, null);
 
   expect(await r1).toBe("0x1");
 });
 
-test("add() ordering", async () => {
+test.only("add() ordering", async () => {
   const queue = (await getNetworks(1))[0].requestQueue;
   queue.pause();
 
-  queue.request("historical", {
-    method: "eth_chainId",
-  });
-  const r2 = queue.request("realtime", { method: "eth_chainId" });
+  queue.request(
+    { method: "eth_getLogs", params: [{ blockHash: "0x5" }] },
+    null,
+  );
+  queue.request(
+    { method: "eth_getLogs", params: [{ blockHash: "0x1" }] },
+    "latest",
+  );
 
-  queue.start();
+  expect(queue.queue[0].params.params).toStrictEqual([{ blockHash: "0x1" }]);
+  expect(queue.queue[1].params.params).toStrictEqual([{ blockHash: "0x5" }]);
 
-  await r2;
+  queue.request({ method: "eth_getLogs", params: [{ blockHash: "0x3" }] }, 3);
+  queue.request({ method: "eth_getLogs", params: [{ blockHash: "0x4" }] }, 4);
+  queue.request({ method: "eth_getLogs", params: [{ blockHash: "0x2" }] }, 2);
 
-  expect(await queue.realtimeSize()).toBe(0);
-  expect(await queue.historicalSize()).toBe(1);
+  expect(queue.queue[0].params.params).toStrictEqual([{ blockHash: "0x1" }]);
+  expect(queue.queue[1].params.params).toStrictEqual([{ blockHash: "0x2" }]);
+  expect(queue.queue[2].params.params).toStrictEqual([{ blockHash: "0x3" }]);
+  expect(queue.queue[3].params.params).toStrictEqual([{ blockHash: "0x4" }]);
+  expect(queue.queue[4].params.params).toStrictEqual([{ blockHash: "0x5" }]);
 });
 
 test("kill()", async () => {
@@ -84,10 +100,10 @@ test("kill()", async () => {
 
   let reject1 = false;
   let reject2 = false;
-  queue.request("realtime", { method: "eth_chainId" }).catch(() => {
+  queue.request({ method: "eth_chainId" }, null).catch(() => {
     reject1 = true;
   });
-  queue.request("realtime", { method: "eth_chainId" }).catch(() => {
+  queue.request({ method: "eth_chainId" }, null).catch(() => {
     reject2 = true;
   });
 
@@ -105,10 +121,13 @@ test("request() error", async () => {
   let error: any;
 
   const r1 = queue
-    .request("realtime", {
-      method: "eth_getBlocByHash" as "eth_getBlockByHash",
-      params: [zeroHash, false],
-    })
+    .request(
+      {
+        method: "eth_getBlocByHash" as "eth_getBlockByHash",
+        params: [zeroHash, false],
+      },
+      null,
+    )
     .catch((_error) => {
       error = _error;
     });
