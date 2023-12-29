@@ -441,8 +441,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
     }, 10_000);
 
-    // Edge case: If there are no tasks in the queue, this means the entire
-    // requested range was cached, so the sync is complete. However, we still
+    // Edge case: The entire requested range was cached, or there is no
+    // historical sync required, so the sync is complete. However, we still
     // need to emit the historicalCheckpoint event with some timestamp. It should
     // be safe to use the current timestamp.
     if (
@@ -510,8 +510,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     logFilter: LogFilter;
     fromBlock: number;
     toBlock: number;
-  }) => {
-    return this._eth_getLogs({
+  }) =>
+    this._eth_getLogs({
       address: logFilter.criteria.address,
       topics: logFilter.criteria.topics,
       fromBlock: toHex(fromBlock),
@@ -571,7 +571,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           error,
         });
       });
-  };
 
   private factoryLogFilterTaskWorker = async ({
     factory,
@@ -660,7 +659,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     factory,
     fromBlock,
     toBlock,
-  }: { factory: Factory; fromBlock: number; toBlock: number }) => {
+  }: { factory: Factory; fromBlock: number; toBlock: number }) =>
     this._eth_getLogs({
       address: factory.criteria.address,
       topics: [factory.criteria.eventSelector],
@@ -754,7 +753,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           // DB ERROR from _insertFactoryChildAddressLogs
         }
       });
-  };
 
   private blockTaskWorker = ({
     blockNumber,
@@ -762,8 +760,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }: {
     blockNumber: number;
     callbacks: ((block: HistoricalBlock) => Promise<void>)[];
-  }) => {
-    return this._eth_getBlockByNumber({ blockNumber })
+  }) =>
+    this._eth_getBlockByNumber({ blockNumber })
       .then((block) =>
         Promise.all(callbacks.map((cb) => cb(block))).then(() => block),
       )
@@ -804,7 +802,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           // DB ERROR caused by callbacks
         }
       });
-  };
 
   private buildLogIntervals = ({
     fromBlock,
