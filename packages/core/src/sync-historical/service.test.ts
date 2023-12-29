@@ -343,11 +343,11 @@ test.skip("start() retries unexpected error in log filter task", async (context)
   const { common, syncStore, networks, sources } = context;
 
   const network = networks[0];
-  const rpcRequestSpy = vi.spyOn(network.transport, "request");
-
-  rpcRequestSpy.mockRejectedValueOnce(new Error("Unexpected error!"));
+  const rpcRequestSpy = vi.spyOn(network.requestQueue, "request");
 
   const blockNumbers = await getBlockNumbers();
+
+  // rpcRequestSpy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const service = new HistoricalSyncService({
     common,
