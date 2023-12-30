@@ -64,14 +64,14 @@ export class MetricsService {
     this.ponder_rpc_request_duration = new prometheus.Histogram({
       name: "ponder_rpc_request_duration",
       help: "Duration of RPC requests",
-      labelNames: ["network", "method", "priority"] as const,
+      labelNames: ["network", "method"] as const,
       buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
     this.ponder_rpc_request_lag = new prometheus.Histogram({
       name: "ponder_rpc_request_lag",
       help: "Time RPC requests spend waiting in the request queue",
-      labelNames: ["network", "method", "priority"] as const,
+      labelNames: ["network", "method"] as const,
       buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
