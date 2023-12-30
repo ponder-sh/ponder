@@ -6,8 +6,8 @@ import { wait } from "./wait.js";
 
 beforeEach((context) => setupAnvil(context));
 
-test("pause + start", async () => {
-  const queue = (await getNetworks(1))[0].requestQueue;
+test("pause + start", async ({ common }) => {
+  const queue = (await getNetworks(common, 1))[0].requestQueue;
   queue.pause();
 
   queue.request({ method: "eth_chainId" }, null);
@@ -21,8 +21,8 @@ test("pause + start", async () => {
   expect(await queue.pending()).toBe(1);
 });
 
-test("size and pending", async () => {
-  const queue = (await getNetworks(1))[0].requestQueue;
+test("size and pending", async ({ common }) => {
+  const queue = (await getNetworks(common, 1))[0].requestQueue;
 
   const r1 = queue.request({ method: "eth_chainId" }, null);
   queue.request({ method: "eth_chainId" }, null);
@@ -35,8 +35,8 @@ test("size and pending", async () => {
   expect(await queue.size()).toBe(1);
 });
 
-test("request per second", async () => {
-  const queue = (await getNetworks(1))[0].requestQueue;
+test("request per second", async ({ common }) => {
+  const queue = (await getNetworks(common, 1))[0].requestQueue;
 
   const r1 = queue.request({ method: "eth_chainId" }, null);
   const r2 = queue.request({ method: "eth_chainId" }, null);
@@ -60,16 +60,16 @@ test("request per second", async () => {
   expect(await queue.pending()).toBe(0);
 });
 
-test("add() returns promise", async () => {
-  const queue = (await getNetworks(1))[0].requestQueue;
+test("add() returns promise", async ({ common }) => {
+  const queue = (await getNetworks(common, 1))[0].requestQueue;
 
   const r1 = queue.request({ method: "eth_chainId" }, null);
 
   expect(await r1).toBe("0x1");
 });
 
-test.only("add() ordering", async () => {
-  const queue = (await getNetworks(1))[0].requestQueue;
+test.only("add() ordering", async ({ common }) => {
+  const queue = (await getNetworks(common, 1))[0].requestQueue;
   queue.pause();
 
   queue.request(
@@ -95,8 +95,8 @@ test.only("add() ordering", async () => {
   expect(queue.queue[4].params.params).toStrictEqual([{ blockHash: "0x5" }]);
 });
 
-test("kill()", async () => {
-  const queue = (await getNetworks(1))[0].requestQueue;
+test("kill()", async ({ common }) => {
+  const queue = (await getNetworks(common, 1))[0].requestQueue;
 
   let reject1 = false;
   let reject2 = false;
@@ -115,8 +115,8 @@ test("kill()", async () => {
   });
 });
 
-test("request() error", async () => {
-  const queue = (await getNetworks(1))[0].requestQueue;
+test("request() error", async ({ common }) => {
+  const queue = (await getNetworks(common, 1))[0].requestQueue;
 
   let error: any;
 
