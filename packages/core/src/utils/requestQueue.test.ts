@@ -68,7 +68,7 @@ test("add() returns promise", async ({ common }) => {
   expect(await r1).toBe("0x1");
 });
 
-test.only("add() ordering", async ({ common }) => {
+test("add() ordering", async ({ common }) => {
   const queue = (await getNetworks(common, 1))[0].requestQueue;
   queue.pause();
 
