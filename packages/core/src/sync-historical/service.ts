@@ -788,7 +788,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
       })
       .catch((error) => {
-        // TODO: make sure that the block not found error is handled correctly
         if (error instanceof RpcRequestError) {
           error.stack = undefined;
           this.common.logger.error({
