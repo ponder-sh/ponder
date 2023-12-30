@@ -26,6 +26,7 @@ import { startClock } from "@/utils/timer.js";
 import Emittery from "emittery";
 import {
   type Address,
+  BlockNotFoundError,
   type Hash,
   type Hex,
   type RpcBlock,
@@ -798,6 +799,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             }, error=${`${error.name}: ${error.message}`})`,
             error,
           });
+        } else if (error instanceof BlockNotFoundError) {
+          // TODO: Block not found
         } else {
           // DB ERROR caused by callbacks
         }
@@ -970,7 +973,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           params.blockNumber,
         )
         .then((block) => {
-          if (!block) throw new Error(`Block not found: ${params.blockNumber}`);
+          if (!block)
+            throw new BlockNotFoundError({
+              blockNumber: BigInt(params.blockNumber),
+            });
           return block as HistoricalBlock;
         });
     } finally {
