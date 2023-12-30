@@ -188,7 +188,7 @@ export async function setupAnvil(context: TestContext) {
   const addresses = await deploy();
   const pair = await simulate(addresses);
 
-  context.networks = await getNetworks();
+  context.networks = await getNetworks(context.common);
   context.sources = getSources(addresses) as [LogFilter, Factory];
   context.config = getConfig(addresses);
   context.erc20 = { address: addresses.erc20Address };

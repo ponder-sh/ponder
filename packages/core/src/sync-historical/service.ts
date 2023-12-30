@@ -22,7 +22,6 @@ import {
   intervalSum,
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { startClock } from "@/utils/timer.js";
 import Emittery from "emittery";
 import {
   type Address,
@@ -906,7 +905,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     fromBlock: Hex;
     toBlock: Hex;
   }): Promise<RpcLog[]> => {
-    const stopClock = startClock();
     try {
       return this.network.requestQueue.request(
         {
@@ -944,11 +942,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           }),
         ),
       ).then((l) => l.flat());
-    } finally {
-      this.common.metrics.ponder_historical_rpc_request_duration.observe(
-        { method: "eth_getLogs", network: this.network.name },
-        stopClock(),
-      );
     }
   };
 
@@ -957,29 +950,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    */
   private _eth_getBlockByNumber = (params: {
     blockNumber: number;
-  }): Promise<HistoricalBlock> => {
-    const stopClock = startClock();
-
-    try {
-      return this.network.requestQueue
-        .request(
-          {
-            method: "eth_getBlockByNumber",
-            params: [numberToHex(params.blockNumber), true],
-          },
-          params.blockNumber,
-        )
-        .then((block) => {
-          if (!block) throw new Error(`Block not found: ${params.blockNumber}`);
-          return block as HistoricalBlock;
-        });
-    } finally {
-      this.common.metrics.ponder_historical_rpc_request_duration.observe(
-        { method: "eth_getBlockByNumber", network: this.network.name },
-        stopClock(),
-      );
-    }
-  };
+  }): Promise<HistoricalBlock> =>
+    this.network.requestQueue
+      .request(
+        {
+          method: "eth_getBlockByNumber",
+          params: [numberToHex(params.blockNumber), true],
+        },
+        params.blockNumber,
+      )
+      .then((block) => {
+        if (!block) throw new Error(`Block not found: ${params.blockNumber}`);
+        return block as HistoricalBlock;
+      });
 
   /**
    * Helper function for "insertLogFilterInterval"

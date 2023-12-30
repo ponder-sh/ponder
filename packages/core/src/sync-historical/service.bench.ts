@@ -26,7 +26,7 @@ test.skipIf(process.env.CI === "true")(
     const service = new HistoricalSyncService({
       common,
       syncStore,
-      network: (await getNetworks(20))[0],
+      network: (await getNetworks(common, 20))[0],
       sources: [sources[0]],
     });
 

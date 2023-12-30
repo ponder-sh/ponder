@@ -1,6 +1,3 @@
-import { zeroAddress } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
-
 import { setupSyncStore } from "@/_test/setup.js";
 import { getNetworks, getSources } from "@/_test/utils.js";
 import type { Network } from "@/config/networks.js";
@@ -10,12 +7,15 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { zeroAddress } from "viem";
+import { beforeEach, expect, test, vi } from "vitest";
 
+import type { Common } from "@/Ponder.js";
 import { SyncGateway } from "./service.js";
 
 beforeEach((context) => setupSyncStore(context));
 
-const mainnet = await getNetworks().then((n) => n[0]);
+const mainnet = await getNetworks({} as Common).then((n) => n[0]);
 const optimism = {
   ...mainnet,
   name: "optimism",
