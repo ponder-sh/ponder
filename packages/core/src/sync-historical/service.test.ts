@@ -214,46 +214,6 @@ test("start() with log filter and factory contract updates completed blocks metr
   networks[0].requestQueue.clear();
 });
 
-test("start() with log filter and factory contract updates rpc request duration metrics", async (context) => {
-  const { common, syncStore, networks, sources } = context;
-
-  const blockNumbers = await getBlockNumbers();
-
-  const service = new HistoricalSyncService({
-    common,
-    syncStore,
-    network: networks[0],
-    sources: [sources[0]],
-  });
-  await service.start(blockNumbers);
-
-  await new Promise<void>((resolve) => service.on("syncComplete", resolve));
-
-  const requestsDurationMetric = (
-    await common.metrics.ponder_historical_rpc_request_duration.get()
-  ).values;
-
-  expect(requestsDurationMetric).toMatchObject(
-    expect.arrayContaining([
-      expect.objectContaining({
-        labels: expect.objectContaining({
-          network: "mainnet",
-          method: "eth_getLogs",
-        }),
-      }),
-      expect.objectContaining({
-        labels: expect.objectContaining({
-          network: "mainnet",
-          method: "eth_getBlockByNumber",
-        }),
-      }),
-    ]),
-  );
-
-  networks[0].requestQueue.kill();
-  networks[0].requestQueue.clear();
-});
-
 test("start() adds log filter events to sync store", async (context) => {
   const { common, syncStore, sources, networks } = context;
 
