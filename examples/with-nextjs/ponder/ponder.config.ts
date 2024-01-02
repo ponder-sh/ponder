@@ -1,5 +1,5 @@
 import { createConfig } from "@ponder/core";
-import { createPublicClient, http } from "viem";
+import { http, createPublicClient } from "viem";
 
 import { Weth9Abi } from "./abis/Weth9Abi";
 

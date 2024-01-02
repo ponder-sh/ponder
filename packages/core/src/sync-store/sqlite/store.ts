@@ -2,24 +2,20 @@ import {
   type ExpressionBuilder,
   Kysely,
   Migrator,
-  sql,
   SqliteDialect,
   type Transaction as KyselyTransaction,
+  sql,
 } from "kysely";
 import {
-  checksumAddress,
   type Hex,
   type RpcBlock,
   type RpcLog,
   type RpcTransaction,
+  checksumAddress,
 } from "viem";
 
-import type {
-  FactoryCriteria,
-  LogFilterCriteria,
-  Topics,
-} from "@/config/sources.js";
 import type { Common } from "@/Ponder.js";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
@@ -39,10 +35,10 @@ import { wait } from "@/utils/wait.js";
 import type { SyncStore } from "../store.js";
 import type { BigIntText } from "./format.js";
 import {
+  type SyncStoreTables,
   rpcToSqliteBlock,
   rpcToSqliteLog,
   rpcToSqliteTransaction,
-  type SyncStoreTables,
 } from "./format.js";
 import { migrationProvider } from "./migrations.js";
 
@@ -578,7 +574,7 @@ export class SqliteSyncStore implements SyncStore {
           ...logFilters,
           ...factories.map((f) => ({
             address: f.address,
-            topics: [f.eventSelector, null, null, null] as Topics,
+            topics: [f.eventSelector],
           })),
         ],
         interval,
@@ -716,9 +712,9 @@ export class SqliteSyncStore implements SyncStore {
     logFilters: LogFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const logFilterFragments = logFilters
-      .map((logFilter) => buildLogFilterFragments({ ...logFilter, chainId }))
-      .flat();
+    const logFilterFragments = logFilters.flatMap((logFilter) =>
+      buildLogFilterFragments({ ...logFilter, chainId }),
+    );
 
     await Promise.all(
       logFilterFragments.map(async (logFilterFragment) => {
@@ -752,9 +748,9 @@ export class SqliteSyncStore implements SyncStore {
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const factoryFragments = factories
-      .map((factory) => buildFactoryFragments({ ...factory, chainId }))
-      .flat();
+    const factoryFragments = factories.flatMap((factory) =>
+      buildFactoryFragments({ ...factory, chainId }),
+    );
 
     await Promise.all(
       factoryFragments.map(async (fragment) => {

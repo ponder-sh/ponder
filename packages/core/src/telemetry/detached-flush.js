@@ -2,7 +2,6 @@ import fs from "node:fs";
 
 async function detachedFlush() {
   const args = [...process.argv];
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_execPath, _scriptPath, telemetryUrl, eventsFilePath] = args;
 
   const eventsContent = fs.readFileSync(eventsFilePath, "utf8");

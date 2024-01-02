@@ -1,6 +1,5 @@
 import { BigInt } from "@graphprotocol/graph-ts";
 
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
   Approval as TApprovalEvent,
   Transfer as TTransferEvent,

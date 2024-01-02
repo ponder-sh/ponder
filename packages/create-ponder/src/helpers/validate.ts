@@ -1,5 +1,5 @@
-import fs from "fs-extra";
 import path from "path";
+import fs from "fs-extra";
 import pico from "picocolors";
 import validatePackageName from "validate-npm-package-name";
 
@@ -64,7 +64,7 @@ export async function validateTemplateName({
   if (isNameRequired && !templateId)
     return {
       valid: false,
-      message: `🙈 no template provided.`,
+      message: "🙈 no template provided.",
       problems: "👉 select a template or provide one using --template.",
     };
 

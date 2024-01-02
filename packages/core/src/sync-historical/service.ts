@@ -2,16 +2,17 @@ import Emittery from "emittery";
 import {
   type Hash,
   type Hex,
-  hexToNumber,
   InvalidParamsRpcError,
   LimitExceededRpcError,
   type RpcBlock,
   type RpcError,
   type RpcLog,
   type RpcTransaction,
+  hexToNumber,
   toHex,
 } from "viem";
 
+import type { Common } from "@/Ponder.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Factory,
@@ -21,20 +22,19 @@ import {
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import { getHistoricalSyncStats } from "@/metrics/utils.js";
-import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   BlockProgressTracker,
+  ProgressTracker,
   getChunks,
   intervalDifference,
   intervalIntersection,
   intervalSum,
-  ProgressTracker,
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
+import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import { getErrorMessage, request } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
 
@@ -282,7 +282,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               chainId: source.chainId,
               logFilter: {
                 address: source.criteria.address,
-                topics: [source.criteria.eventSelector, null, null, null],
+                topics: [source.criteria.eventSelector],
               },
             });
           const factoryChildAddressProgressTracker = new ProgressTracker({
@@ -481,9 +481,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
   };
 
-  onIdle = async () => {
-    await this.queue.onIdle();
-  };
+  onIdle = () =>
+    new Promise((resolve) =>
+      setImmediate(() => this.queue.onIdle().then(resolve)),
+    );
 
   private buildQueue = () => {
     const worker: Worker<HistoricalSyncTask> = async ({
@@ -651,7 +652,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const logs = await this._eth_getLogs(
       {
         address: factory.criteria.address,
-        topics: [factory.criteria.eventSelector, null, null, null],
+        topics: [factory.criteria.eventSelector],
         fromBlock: toHex(fromBlock),
         toBlock: toHex(toBlock),
       },
@@ -675,7 +676,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           chainId: factory.chainId,
           logFilter: {
             address: factory.criteria.address,
-            topics: [factory.criteria.eventSelector, null, null, null],
+            topics: [factory.criteria.eventSelector],
           },
           block,
           transactions: block.transactions.filter((tx) =>

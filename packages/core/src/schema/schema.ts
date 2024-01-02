@@ -1,10 +1,10 @@
 import {
+  type EmptyModifier,
   type _Enum,
   _enum,
   bigint,
   boolean,
   bytes,
-  type EmptyModifier,
   float,
   int,
   many,
@@ -42,14 +42,14 @@ declare global {
 export const createTable = <
   TColumns extends
     | ({
-        id: { [" column"]: IDColumn };
+        id: { " column": IDColumn };
       } & Record<
         string,
         InternalEnum | InternalColumn | ManyColumn | OneColumn
       >)
     | unknown =
     | ({
-        id: { [" column"]: IDColumn };
+        id: { " column": IDColumn };
       } & Record<
         string,
         InternalEnum | InternalColumn | ManyColumn | OneColumn
@@ -66,7 +66,7 @@ export const createTable = <
 } =>
   Object.entries(
     columns as {
-      id: { [" column"]: IDColumn };
+      id: { " column": IDColumn };
     } & Record<string, InternalEnum | InternalColumn | ManyColumn | OneColumn>,
   ).reduce(
     (

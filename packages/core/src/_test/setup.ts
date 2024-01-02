@@ -1,22 +1,27 @@
 import { randomBytes } from "crypto";
-import { beforeEach, type TestContext } from "vitest";
+import type { Address } from "viem";
+import { type TestContext, beforeEach } from "vitest";
 
+import type { Config } from "@/config/config.js";
+import type { Network } from "@/config/networks.js";
+
+import type { Common } from "@/Ponder.js";
 import { buildOptions } from "@/config/options.js";
+import type { Factory, LogFilter } from "@/config/sources.js";
 import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { LoggerService } from "@/logger/service.js";
 import { MetricsService } from "@/metrics/service.js";
-import type { Common } from "@/Ponder.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import pg from "@/utils/pg.js";
 
-import { FORK_BLOCK_NUMBER, vitalik } from "./constants.js";
-import { testClient } from "./utils.js";
+import { deploy, simulate } from "./simulate.js";
+import { getConfig, getNetworks, getSources, testClient } from "./utils.js";
 
 /**
  * Inject an isolated sync store into the test context.
@@ -31,6 +36,11 @@ declare module "vitest" {
     common: Common;
     syncStore: SyncStore;
     indexingStore: IndexingStore;
+    sources: [LogFilter, Factory];
+    networks: Network[];
+    config: Config;
+    erc20: { address: Address };
+    factory: { address: Address; pair: Address };
   }
 }
 
@@ -54,7 +64,7 @@ beforeEach((context) => {
  * Sets up an isolated SyncStore on the test context.
  *
  * ```ts
- * // Add this to any test suite that uses the test client.
+ * // Add this to any test suite that uses the SyncStore client.
  * beforeEach((context) => setupSyncStore(context))
  * ```
  */
@@ -110,7 +120,7 @@ export async function setupSyncStore(
  * Sets up an isolated IndexingStore on the test context.
  *
  * ```ts
- * // Add this to any test suite that uses the test client.
+ * // Add this to any test suite that uses the IndexingStore client.
  * beforeEach((context) => setupIndexingStore(context))
  * ```
  */
@@ -164,18 +174,27 @@ export async function setupIndexingStore(context: TestContext) {
 }
 
 /**
- * Resets the Anvil instance to the defaults.
+ * Sets up an isolated Ethereum client on the test context, with the appropriate Erc20 + Factory state.
  *
  * ```ts
- * // Add this to any test suite that uses the test client.
- * beforeEach(resetTestClient)
+ * // Add this to any test suite that uses the Ethereum client.
+ * beforeEach((context) => setupAnvil(context))
  * ```
  */
-export async function resetTestClient() {
-  await testClient.impersonateAccount({ address: vitalik.address });
-  await testClient.setAutomine(false);
+export async function setupAnvil(context: TestContext) {
+  const emptySnapshotId = await testClient.snapshot();
+
+  // Chain state setup shared across all tests.
+  const addresses = await deploy();
+  const pair = await simulate(addresses);
+
+  context.networks = await getNetworks();
+  context.sources = getSources(addresses) as [LogFilter, Factory];
+  context.config = getConfig(addresses);
+  context.erc20 = { address: addresses.erc20Address };
+  context.factory = { address: addresses.factoryAddress, pair };
 
   return async () => {
-    await testClient.reset({ blockNumber: FORK_BLOCK_NUMBER });
+    await testClient.revert({ id: emptySnapshotId });
   };
 }

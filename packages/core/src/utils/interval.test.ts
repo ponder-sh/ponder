@@ -2,12 +2,12 @@ import { expect, test } from "vitest";
 
 import {
   BlockProgressTracker,
+  ProgressTracker,
   getChunks,
   intervalDifference,
   intervalIntersection,
   intervalSum,
   intervalUnion,
-  ProgressTracker,
 } from "./interval.js";
 
 test("intervalSum handles empty input", () => {

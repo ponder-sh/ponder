@@ -23,12 +23,7 @@ declare global {
 /**
  * There are up to 4 topics in an EVM log, so given that this could be more strict.
  */
-export type Topics = [
-  Hex | Hex[] | null,
-  Hex | Hex[] | null,
-  Hex | Hex[] | null,
-  Hex | Hex[] | null,
-];
+export type Topics = (Hex | Hex[] | null)[];
 
 export type LogFilterCriteria = {
   address?: Address | Address[];
@@ -73,8 +68,8 @@ export const sourceIsFactory = (source: Source): source is Factory =>
   source.type === "factory";
 
 export const buildSources = ({ config }: { config: Config }): Source[] => {
-  return Object.entries(config.contracts)
-    .map(([contractName, contract]) => {
+  return Object.entries(config.contracts).flatMap(
+    ([contractName, contract]) => {
       // Note: should we filter down which indexing functions are available based on the filters
       const events = getEvents({ abi: contract.abi });
 
@@ -135,7 +130,7 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
           (n): n is [string, Partial<ContractFilter<Abi, string, undefined>>] =>
             !!n[1],
         )
-        .map(([networkName, networkContract]) => {
+        .flatMap(([networkName, networkContract]) => {
           const network = config.networks[networkName]!;
 
           const sharedSource = {
@@ -188,10 +183,9 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
               topics,
             },
           } satisfies LogFilter;
-        })
-        .flat();
-    })
-    .flat();
+        });
+    },
+  );
 };
 
 const buildTopics = (
@@ -202,22 +196,13 @@ const buildTopics = (
     // List of event signatures
     return [
       filter.event.map((event) => getEventSelector(findAbiEvent(abi, event))),
-      null,
-      null,
-      null,
     ];
   } else {
     // Single event with args
-    const topics = encodeEventTopics({
+    return encodeEventTopics({
       abi: [findAbiEvent(abi, filter.event)],
       args: filter.args as GetEventArgs<Abi, string>,
     });
-    return [
-      topics[0] ?? null,
-      topics[1] ?? null,
-      topics[2] ?? null,
-      topics[3] ?? null,
-    ];
   }
 };
 

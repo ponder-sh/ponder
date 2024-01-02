@@ -1,71 +1,80 @@
-import { keccak256, toHex } from "viem/utils";
-import { expect, test } from "vitest";
+import { parseEther, toHex } from "viem/utils";
+import { beforeEach, expect, test } from "vitest";
 
-import {
-  uniswapV3PoolFactoryConfig,
-  usdcContractConfig,
-} from "@/_test/constants.js";
+import { BOB } from "@/_test/constants.js";
+import { erc20ABI } from "@/_test/generated.js";
+import { setupAnvil } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
 
-import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
+import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
 
-const client = publicClient.extend(
-  ponderActions(() => 16375000n) as any,
-) as ReadOnlyClient;
+beforeEach((context) => setupAnvil(context));
 
-const usdcTotalSupply16375000 = 40921687992499550n;
+const getClient = async () => {
+  const blockNumber = await publicClient.getBlockNumber();
+  return publicClient.extend(
+    ponderActions(() => blockNumber) as any,
+  ) as ReadOnlyClient;
+};
 
 test("getBalance()", async () => {
-  const balance = await client.getBalance({
-    address: "0xA0Cf798816D4b9b9866b5330EEa46a18382f251e",
-  });
+  const balance = await getClient().then((client) =>
+    client.getBalance({
+      address: BOB,
+    }),
+  );
 
-  expect(balance).toBe(398806329552690329n);
+  expect(balance).toBe(parseEther("10000"));
 });
 
-test("getBytecode()", async () => {
-  const bytecode = await client.getBytecode({
-    address: usdcContractConfig.address,
-  });
+test("getBytecode()", async (context) => {
+  const bytecode = await getClient().then((client) =>
+    client.getBytecode({
+      address: context.erc20.address,
+    }),
+  );
 
   expect(bytecode).toBeTruthy();
-  expect(keccak256(bytecode!)).toBe(
-    "0xd80d4b7c890cb9d6a4893e6b52bc34b56b25335cb13716e0d1d31383e6b41505",
+});
+
+test("getStorageAt()", async (context) => {
+  const storage = await getClient().then((client) =>
+    client.getStorageAt({
+      address: context.erc20.address,
+      // totalSupply is in the third storage slot
+      slot: toHex(2),
+    }),
   );
+
+  expect(BigInt(storage!)).toBe(parseEther("1"));
 });
 
-test("getStorageAt()", async () => {
-  const storage = await client.getStorageAt({
-    address: uniswapV3PoolFactoryConfig.criteria.address,
-    slot: toHex(3),
-  });
-
-  expect(storage).toBe(
-    "0x0000000000000000000000001a9c8182c09f50c8318d769245bea52c32be35bc",
+// Note:Kyle the local chain doesn't have a deployed instance of "multicall3"
+test.todo("multicall()", async (context) => {
+  const totalSupply = await getClient().then((client) =>
+    client.multicall({
+      allowFailure: false,
+      contracts: [
+        {
+          abi: erc20ABI,
+          functionName: "totalSupply",
+          address: context.erc20.address,
+        },
+      ],
+    }),
   );
+
+  expect(totalSupply).toMatchObject([parseEther("1")]);
 });
 
-test("multicall()", async () => {
-  const totalSupply = await client.multicall({
-    allowFailure: false,
-    contracts: [
-      {
-        abi: usdcContractConfig.abi,
-        functionName: "totalSupply",
-        address: usdcContractConfig.address,
-      },
-    ],
-  });
+test("readContract()", async (context) => {
+  const totalSupply = await getClient().then((client) =>
+    client.readContract({
+      abi: erc20ABI,
+      functionName: "totalSupply",
+      address: context.erc20.address,
+    }),
+  );
 
-  expect(totalSupply).toMatchObject([usdcTotalSupply16375000]);
-});
-
-test("readContract()", async () => {
-  const totalSupply = await client.readContract({
-    abi: usdcContractConfig.abi,
-    functionName: "totalSupply",
-    address: usdcContractConfig.address,
-  });
-
-  expect(totalSupply).toBe(usdcTotalSupply16375000);
+  expect(totalSupply).toBe(parseEther("1"));
 });

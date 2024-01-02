@@ -12,10 +12,10 @@ import { type Network } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
 import type { Source } from "@/config/sources.js";
 import { UserErrorService } from "@/errors/service.js";
-import { IndexingService } from "@/indexing/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import { type IndexingStore } from "@/indexing-store/store.js";
+import { IndexingService } from "@/indexing/service.js";
 import { LoggerService } from "@/logger/service.js";
 import { MetricsService } from "@/metrics/service.js";
 import type { Schema } from "@/schema/types.js";
@@ -102,7 +102,7 @@ export class Ponder {
     if (!config) {
       this.common.logger.fatal({
         service: "app",
-        msg: `Config build failed: killing app`,
+        msg: "Config build failed: killing app",
       });
       await this.buildService.kill();
       return;
@@ -112,7 +112,7 @@ export class Ponder {
     if (!schema) {
       this.common.logger.fatal({
         service: "app",
-        msg: `Schema build failed: killing app`,
+        msg: "Schema build failed: killing app",
       });
       await this.buildService.kill();
       return;
@@ -122,7 +122,7 @@ export class Ponder {
     if (!indexingFunctions) {
       this.common.logger.fatal({
         service: "app",
-        msg: `Indexing function build failed: killing app`,
+        msg: "Indexing function build failed: killing app",
       });
       await this.buildService.kill();
       return;
@@ -434,7 +434,7 @@ export class Ponder {
 
     this.common.logger.debug({
       service: "app",
-      msg: `Finished shutdown sequence`,
+      msg: "Finished shutdown sequence",
     });
   }
 
@@ -609,20 +609,22 @@ export class Ponder {
       this.syncGatewayService.resetCheckpoints({ chainId });
 
       // Clear all the metrics for the sources.
-      syncServiceForChainId.sources.forEach(({ networkName, contractName }) => {
-        this.common.metrics.ponder_historical_total_blocks.set(
-          { network: networkName, contract: contractName },
-          0,
-        );
-        this.common.metrics.ponder_historical_completed_blocks.set(
-          { network: networkName, contract: contractName },
-          0,
-        );
-        this.common.metrics.ponder_historical_cached_blocks.set(
-          { network: networkName, contract: contractName },
-          0,
-        );
-      });
+      syncServiceForChainId.sources.forEach(
+        ({ networkName, contractName }) => {
+          this.common.metrics.ponder_historical_total_blocks.set(
+            { network: networkName, contract: contractName },
+            0,
+          );
+          this.common.metrics.ponder_historical_completed_blocks.set(
+            { network: networkName, contract: contractName },
+            0,
+          );
+          this.common.metrics.ponder_historical_cached_blocks.set(
+            { network: networkName, contract: contractName },
+            0,
+          );
+        },
+      );
 
       // Reload the sync services for the specific chain by killing, setting up, and then starting again.
       await syncServiceForChainId.realtime.kill();
@@ -636,7 +638,7 @@ export class Ponder {
         error.stack = undefined;
         this.common.logger.fatal({
           service: "app",
-          msg: `Failed to fetch initial realtime data`,
+          msg: "Failed to fetch initial realtime data",
           error,
         });
         this.kill();

@@ -36,7 +36,6 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
       );
 
     // NOTE: This is a to make sure the user didn't override the ID type
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     const type = table.id.type;
     if (
@@ -70,14 +69,12 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
       );
 
     // NOTE: This is a to make sure the user didn't override the optional type
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     if (table.id.optional === true)
       throw Error(
         `Validation failed: "id" column cannot be optional (table=${table})`,
       );
     // NOTE: This is a to make sure the user didn't override the list type
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     if (table.id.list === true)
       throw Error(`Validation failed: "id" cannot be a list (table=${table})`);

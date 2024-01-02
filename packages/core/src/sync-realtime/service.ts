@@ -2,23 +2,23 @@ import Emittery from "emittery";
 import pLimit from "p-limit";
 import {
   type Hex,
+  type RpcLog,
   hexToBigInt,
   hexToNumber,
   numberToHex,
-  type RpcLog,
 } from "viem";
 
+import type { Common } from "@/Ponder.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Source,
   sourceIsFactory,
   sourceIsLogFilter,
 } from "@/config/sources.js";
-import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { poll } from "@/utils/poll.js";
-import { createQueue, type Queue } from "@/utils/queue.js";
+import { type Queue, createQueue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
 import { getErrorMessage, request, requestWithRetry } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
@@ -161,7 +161,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // If the latest block was not added to the queue, setup was not completed successfully.
     if (this.queue.size === 0) {
       throw new Error(
-        `Unable to start. Must call setup() method before start().`,
+        "Unable to start. Must call setup() method before start().",
       );
     }
 
@@ -173,7 +173,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         params: [numberToHex(this.finalizedBlockNumber), false],
       },
     });
-    if (!finalizedBlock) throw new Error(`Unable to fetch finalized block`);
+    if (!finalizedBlock) throw new Error("Unable to fetch finalized block");
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
       { method: "eth_getBlockByNumber", network: this.network.name },
       stopClock(),
@@ -230,7 +230,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       },
       fetchOptions: { signal },
     });
-    if (!latestBlock_) throw new Error(`Unable to fetch latest block`);
+    if (!latestBlock_) throw new Error("Unable to fetch latest block");
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
       { method: "eth_getBlockByNumber", network: this.network.name },
       stopClock(),
@@ -305,8 +305,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // 2) This is the new head block (happy path). Yay!
     if (
-      newBlock.number == previousHeadBlock.number + 1 &&
-      newBlock.parentHash == previousHeadBlock.hash
+      newBlock.number === previousHeadBlock.number + 1 &&
+      newBlock.parentHash === previousHeadBlock.hash
     ) {
       this.common.logger.debug({
         service: "realtime",
@@ -375,7 +375,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
               logFilters: [
                 {
                   address: factory.criteria.address,
-                  topics: [factory.criteria.eventSelector, null, null, null],
+                  topics: [factory.criteria.eventSelector],
                 },
               ],
             });

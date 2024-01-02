@@ -49,7 +49,7 @@ test("publish() creates views", async (context) => {
 
   if (indexingStore.kind === "sqlite") {
     const { rows } = await indexingStore.db.executeQuery<any>(
-      CompiledQuery.raw(`SELECT * FROM sqlite_master`),
+      CompiledQuery.raw("SELECT * FROM sqlite_master"),
     );
     const petView = rows.find((r) => r.type === "view" && r.name === "Pet");
     expect(petView).toBeTruthy();
@@ -60,7 +60,7 @@ test("publish() creates views", async (context) => {
   } else {
     const { rows } = await indexingStore.db.executeQuery<any>(
       CompiledQuery.raw(
-        `SELECT table_name, table_schema FROM information_schema.views;`,
+        "SELECT table_name, table_schema FROM information_schema.views;",
       ),
     );
     const petView = rows.find(
@@ -279,7 +279,7 @@ test("update() updates a record using an update function", async (context) => {
     checkpoint: createCheckpoint(11),
     id: "id1",
     data: ({ current }) => ({
-      name: current.name + " and Skipper",
+      name: `${current.name} and Skipper`,
     }),
   });
 

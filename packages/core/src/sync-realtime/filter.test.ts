@@ -1,125 +1,100 @@
-import type { RpcLog } from "viem";
-import { expect, test } from "vitest";
+import { getAbiItem, getEventSelector, toHex, zeroHash } from "viem";
+import { beforeEach, expect, test } from "vitest";
+
+import { erc20ABI, pairABI } from "@/_test/generated.js";
+import { setupAnvil } from "@/_test/setup.js";
+import { publicClient } from "@/_test/utils.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 
 import { filterLogs } from "./filter.js";
 
-export const logs: RpcLog[] = [
-  {
-    address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
-    blockHash:
-      "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-    blockNumber: "0xe6e55f",
-    data: "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
-    logIndex: "0x6c",
-    removed: false,
-    topics: [
-      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-      "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
-      "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
-    ],
-    transactionHash:
-      "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-    transactionIndex: "0x45",
-  },
-  {
-    address: "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
-    blockHash:
-      "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-    blockNumber: "0xe6e55f",
-    data: "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
-    logIndex: "0x6d",
-    removed: false,
-    topics: [],
-    transactionHash:
-      "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-    transactionIndex: "0x46",
-  },
-  {
-    address: "0xa4b1f606b66105fa45cb5db23d2f6597075701ea",
-    blockHash:
-      "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-    blockNumber: "0xe6e55f",
-    data: "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
-    logIndex: "0x6d",
-    removed: false,
-    topics: [
-      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-      "0x45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98bc3f1f606b66105fa",
-    ],
-    transactionHash:
-      "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-    transactionIndex: "0x46",
-  },
-];
+beforeEach((context) => setupAnvil(context));
 
-test("filterLogs handles one logFilter, one address", () => {
+const AliceHex = toLowerCase(
+  "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+);
+
+const BobHex = toLowerCase(
+  "0x00000000000000000000000070997970C51812dc3A010C7d01b50e0d17dc79C8",
+);
+
+const getLogs = async () => {
+  const blockNumber = await publicClient.getBlockNumber();
+  return publicClient.request({
+    method: "eth_getLogs",
+    params: [{ fromBlock: toHex(blockNumber - 3n) }],
+  });
+};
+
+test("filterLogs handles one logFilter, one address", async (context) => {
+  const logs = await getLogs();
+
   const filteredLogs = filterLogs({
     logs,
-    logFilters: [{ address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da" }],
+    logFilters: [{ address: context.erc20.address }],
   });
 
-  expect(filteredLogs).toHaveLength(1);
-  expect(filteredLogs[0].address).toEqual(
-    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
-  );
+  expect(filteredLogs).toHaveLength(2);
+  expect(filteredLogs[0].address).toEqual(context.erc20.address);
+  expect(filteredLogs[1].address).toEqual(context.erc20.address);
 });
 
-test("filterLogs handles one logFilter, two addresses", () => {
+test("filterLogs handles one logFilter, two addresses", async (context) => {
+  const logs = await getLogs();
+
   const filteredLogs = filterLogs({
     logs,
     logFilters: [
       {
-        address: [
-          "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
-          "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
-        ],
+        address: [context.erc20.address, context.factory.address],
       },
     ],
   });
 
-  expect(filteredLogs).toHaveLength(2);
-  expect(filteredLogs[0].address).toEqual(
-    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
-  );
-  expect(filteredLogs[1].address).toEqual(
-    "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
-  );
+  expect(filteredLogs).toHaveLength(3);
+  expect(filteredLogs[0].address).toEqual(context.erc20.address);
+  expect(filteredLogs[1].address).toEqual(context.erc20.address);
+  expect(filteredLogs[2].address).toEqual(context.factory.address);
 });
 
-test("filterLogs handles empty array of addresses", () => {
+test("filterLogs handles empty array of addresses", async () => {
+  const logs = await getLogs();
+
   const filteredLogs = filterLogs({
     logs,
     logFilters: [{ address: [] }],
   });
 
   expect(filteredLogs).toStrictEqual(logs);
+  expect(logs).toHaveLength(4);
 });
 
-test("filterLogs handles two logFilters, one address each", () => {
+test("filterLogs handles two logFilters, one address each", async (context) => {
+  const logs = await getLogs();
+
   const filteredLogs = filterLogs({
     logs,
     logFilters: [
-      { address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da" },
-      { address: "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da" },
+      { address: context.erc20.address },
+      { address: context.factory.address },
     ],
   });
 
-  expect(filteredLogs).toHaveLength(2);
-  expect(filteredLogs[0].address).toEqual(
-    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
-  );
-  expect(filteredLogs[1].address).toEqual(
-    "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
-  );
+  expect(filteredLogs).toHaveLength(3);
+  expect(filteredLogs[0].address).toEqual(context.erc20.address);
+  expect(filteredLogs[1].address).toEqual(context.erc20.address);
+  expect(filteredLogs[2].address).toEqual(context.factory.address);
 });
 
-test("filterLogs handles one logFilter, one topic", () => {
+test("filterLogs handles one logFilter, one topic", async (context) => {
+  const logs = await getLogs();
+
   const filteredLogs = filterLogs({
     logs,
     logFilters: [
       {
         topics: [
-          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
           null,
           null,
           null,
@@ -128,28 +103,22 @@ test("filterLogs handles one logFilter, one topic", () => {
     ],
   });
 
-  // Should match log 1 and 3.
   expect(filteredLogs).toHaveLength(2);
-  expect(filteredLogs[0].topics).toMatchObject([
-    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-    "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
-    "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
-  ]);
-  expect(filteredLogs[1].topics).toEqual([
-    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-    "0x45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98bc3f1f606b66105fa",
-  ]);
+  expect(filteredLogs[0].address).toEqual(context.erc20.address);
+  expect(filteredLogs[1].address).toEqual(context.erc20.address);
 });
 
-test("filterLogs handles one logFilter, many topics", () => {
+test("filterLogs handles one logFilter, many topics", async () => {
+  const logs = await getLogs();
+
   const filteredLogs = filterLogs({
     logs,
     logFilters: [
       {
         topics: [
-          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
+          AliceHex,
           null,
-          "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
           null,
         ],
       },
@@ -159,31 +128,23 @@ test("filterLogs handles one logFilter, many topics", () => {
   // Should match log 1 only.
   expect(filteredLogs).toHaveLength(1);
   expect(filteredLogs[0].topics).toMatchObject([
-    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-    "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
-    "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
+    getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
+    AliceHex,
+    BobHex,
   ]);
 });
 
-test("filterLogs handles two logFilters, one topic each", () => {
+test("filterLogs handles two logFilters, one topic each", async () => {
+  const logs = await getLogs();
+
   const filteredLogs = filterLogs({
     logs,
     logFilters: [
       {
-        topics: [
-          null,
-          null,
-          "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
-          null,
-        ],
+        topics: [null, zeroHash, null, null],
       },
       {
-        topics: [
-          null,
-          "0x45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98bc3f1f606b66105fa",
-          null,
-          null,
-        ],
+        topics: [null, null, BobHex, null],
       },
     ],
   });
@@ -191,43 +152,43 @@ test("filterLogs handles two logFilters, one topic each", () => {
   // Should match log 1 and 3.
   expect(filteredLogs).toHaveLength(2);
   expect(filteredLogs[0].topics).toMatchObject([
-    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-    "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
-    "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
+    getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
+    zeroHash,
+    AliceHex,
   ]);
   expect(filteredLogs[1].topics).toEqual([
-    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-    "0x45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98bc3f1f606b66105fa",
+    getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
+    AliceHex,
+    BobHex,
   ]);
 });
 
-test("filterLogs handles one logFilter, one topic, list of values", () => {
+test("filterLogs handles one logFilter, one topic, list of values", async () => {
+  const logs = await getLogs();
+
   const filteredLogs = filterLogs({
     logs,
     logFilters: [
       {
-        topics: [
-          null,
-          [
-            "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
-            "0x45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98bc3f1f606b66105fa",
-          ],
-          null,
-          null,
-        ],
+        topics: [null, null, [AliceHex, BobHex], null],
       },
     ],
   });
 
-  // Should match log 1 and 3.
-  expect(filteredLogs).toHaveLength(2);
+  expect(filteredLogs).toHaveLength(3);
   expect(filteredLogs[0].topics).toMatchObject([
-    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-    "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
-    "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
+    getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
+    zeroHash,
+    AliceHex,
   ]);
   expect(filteredLogs[1].topics).toEqual([
-    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-    "0x45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98bc3f1f606b66105fa",
+    getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
+    AliceHex,
+    BobHex,
+  ]);
+  expect(filteredLogs[2].topics).toEqual([
+    getEventSelector(getAbiItem({ abi: pairABI, name: "Swap" })),
+    AliceHex,
+    AliceHex,
   ]);
 });

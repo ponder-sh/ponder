@@ -69,7 +69,7 @@ const waitForGraphNode = async () => {
 
 const waitForSyncComplete = async () => {
   const endClock = startClock();
-  let duration: number = 0;
+  let duration = 0;
 
   await new Promise((resolve) => {
     const interval = setInterval(async () => {
@@ -85,7 +85,7 @@ const waitForSyncComplete = async () => {
 };
 
 const subgraph = async () => {
-  console.log(`Waiting for Graph Node to be ready...`);
+  console.log("Waiting for Graph Node to be ready...");
   const setupDuration = await waitForGraphNode();
 
   console.log(process.argv[2]);

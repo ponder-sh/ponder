@@ -1,10 +1,10 @@
 import { expect, test } from "vitest";
 
 import {
-  decodeToBigInt,
-  encodeAsText,
   EVM_MAX_UINT,
   EVM_MIN_INT,
+  decodeToBigInt,
+  encodeAsText,
 } from "./encoding.js";
 
 test("encodeAsText handles small positive integer", () => {
