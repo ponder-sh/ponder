@@ -29,8 +29,6 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
     numberToHex(1),
   );
 
-  console.log(retryRanges);
-
   expect(retryRanges).toHaveLength(2);
   expect(retryRanges[0]).toMatchObject([numberToHex(1), numberToHex(10000)]);
   expect(retryRanges[1]).toMatchObject([
