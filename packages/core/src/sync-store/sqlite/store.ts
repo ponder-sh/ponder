@@ -1,21 +1,6 @@
-import {
-  type ExpressionBuilder,
-  Kysely,
-  Migrator,
-  SqliteDialect,
-  type Transaction as KyselyTransaction,
-  sql,
-} from "kysely";
-import {
-  type Hex,
-  type RpcBlock,
-  type RpcLog,
-  type RpcTransaction,
-  checksumAddress,
-} from "viem";
-
 import type { Common } from "@/Ponder.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import { SyncStoreError } from "@/errors/syncStore.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
@@ -31,7 +16,21 @@ import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
 import { BetterSqlite3, improveSqliteErrors } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
-
+import {
+  type ExpressionBuilder,
+  Kysely,
+  Migrator,
+  SqliteDialect,
+  type Transaction as KyselyTransaction,
+  sql,
+} from "kysely";
+import {
+  type Hex,
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+  checksumAddress,
+} from "viem";
 import type { SyncStore } from "../store.js";
 import type { BigIntText } from "./format.js";
 import {
@@ -1319,18 +1318,27 @@ export class SqliteSyncStore implements SyncStore {
     return exprs;
   };
 
-  /** @todo Add retry logic */
-  private transaction = async <U>(
+  private transaction = <U>(
     callback: (tx: KyselyTransaction<SyncStoreTables>) => Promise<U>,
-  ) => {
-    return await this.db.transaction().execute(async (tx) => {
-      return await Promise.race([
-        callback(tx),
-        wait(15_000).then(() => {
-          throw new Error("SQLite transaction timed out after 15 seconds.");
-        }),
-      ]);
-    });
+    // @ts-ignore
+  ): Promise<U> => {
+    for (let i = 0; i < 4; i++) {
+      try {
+        return this.db.transaction().execute((tx) => {
+          return Promise.race([
+            callback(tx),
+            wait(15_000).then(() => {
+              throw new Error("SQLite transaction timed out after 15 seconds.");
+            }),
+          ]);
+        });
+      } catch (error) {
+        if (i === 3)
+          throw new SyncStoreError("Failed to write sync data to database.", {
+            cause: error as Error,
+          });
+      }
+    }
   };
 
   private record(methodName: string, duration: number) {

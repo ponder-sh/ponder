@@ -9,6 +9,7 @@ import {
   type Topics,
   sourceIsLogFilter,
 } from "@/config/sources.js";
+import { SyncStoreError } from "@/errors/syncStore.js";
 import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
@@ -56,7 +57,7 @@ type HistoricalSyncEvents = {
   /**
    * Emitted when a critical error occurs
    */
-  error: BlockNotFoundError | RpcRequestError;
+  error: BlockNotFoundError | RpcRequestError | SyncStoreError;
 };
 
 type HistoricalBlock = RpcBlock<"finalized", true>;
@@ -745,21 +746,17 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
       })
       .catch((error) => {
-        if (error instanceof RpcRequestError) {
-          error.stack === undefined;
-          this.common.logger.error({
-            service: "historical",
-            msg: `Factory child address task failed... [${fromBlock}, ${toBlock}] (contract=${
-              factory.contractName
-            }, network=${
-              this.network.name
-            }, eerror=${`${error.name}: ${error.message}`})`,
-            error,
-          });
-          this.emit("error", error);
-        } else {
-          // DB ERROR from _insertFactoryChildAddressLogs
-        }
+        error.stack === undefined;
+        this.common.logger.error({
+          service: "historical",
+          msg: `Factory child address task failed... [${fromBlock}, ${toBlock}] (contract=${
+            factory.contractName
+          }, network=${
+            this.network.name
+          }, eerror=${`${error.name}: ${error.message}`})`,
+          error,
+        });
+        this.emit("error", error);
       });
 
   private blockTaskWorker = ({
@@ -797,22 +794,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
       })
       .catch((error) => {
-        if (
-          error instanceof RpcRequestError ||
-          error instanceof BlockNotFoundError
-        ) {
-          error.stack = undefined;
-          this.common.logger.error({
-            service: "historical",
-            msg: `Block task failed... [${blockNumber}] (network=${
-              this.network.name
-            }, error=${`${error.name}: ${error.message}`})`,
-            error,
-          });
-          this.emit("error", error);
-        } else {
-          // DB ERROR caused by callbacks
-        }
+        error.stack = undefined;
+        this.common.logger.error({
+          service: "historical",
+          msg: `Block task failed... [${blockNumber}] (network=${
+            this.network.name
+          }, error=${`${error.name}: ${error.message}`})`,
+          error,
+        });
+        this.emit("error", error);
       });
 
   private buildLogIntervals = ({
