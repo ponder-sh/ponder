@@ -52,6 +52,11 @@ type HistoricalSyncEvents = {
    * of events for all registered sources between their start block and this timestamp (inclusive).
    */
   historicalCheckpoint: Checkpoint;
+
+  /**
+   * Emitted when a critical error occurs
+   */
+  error: BlockNotFoundError | RpcRequestError;
 };
 
 type HistoricalBlock = RpcBlock<"finalized", true>;
@@ -570,6 +575,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           }, error=${`${error.name}: ${error.message}`})`,
           error,
         });
+        this.emit("error", error);
       });
 
   private factoryLogFilterTaskWorker = async ({
@@ -652,6 +658,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             this.network.name
           }, error=${`${error.name}: ${error.message}`})`,
         });
+        this.emit("error", error);
       });
   };
 
@@ -749,6 +756,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             }, eerror=${`${error.name}: ${error.message}`})`,
             error,
           });
+          this.emit("error", error);
         } else {
           // DB ERROR from _insertFactoryChildAddressLogs
         }
@@ -789,7 +797,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
       })
       .catch((error) => {
-        if (error instanceof RpcRequestError) {
+        if (
+          error instanceof RpcRequestError ||
+          error instanceof BlockNotFoundError
+        ) {
           error.stack = undefined;
           this.common.logger.error({
             service: "historical",
@@ -798,8 +809,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             }, error=${`${error.name}: ${error.message}`})`,
             error,
           });
-        } else if (error instanceof BlockNotFoundError) {
-          // TODO: Block not found
+          this.emit("error", error);
         } else {
           // DB ERROR caused by callbacks
         }
