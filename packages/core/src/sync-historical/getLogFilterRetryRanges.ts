@@ -79,7 +79,7 @@ export const getLogFilterRetryRanges = (
     const midpoint = Math.floor(
       (Number(toBlock) - Number(fromBlock)) / 2 + Number(fromBlock),
     );
-    retryRanges.push([toHex(fromBlock), toHex(midpoint)]);
+    retryRanges.push([fromBlock, toHex(midpoint)]);
     retryRanges.push([toHex(midpoint + 1), toBlock]);
   } else {
     // Throw any unrecognized errors.
