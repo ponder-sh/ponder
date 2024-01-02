@@ -57,13 +57,15 @@ export async function buildNetwork({
     defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
     requestPerSecond: network.requestsPerSecond ?? 20,
     finalityBlockCount: getFinalityBlockCount({ chainId }),
-    requestQueue: createRequestQueue(
-      {
+    requestQueue: createRequestQueue({
+      transport: {
         ..._transport.config,
         ..._transport.value,
       },
-      network.requestsPerSecond ?? 20,
-    ),
+      requestsPerSecond: network.requestsPerSecond ?? 20,
+      networkName,
+      metrics: common.metrics,
+    }),
   };
 
   return resolvedNetwork;

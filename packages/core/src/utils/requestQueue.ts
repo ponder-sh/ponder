@@ -1,5 +1,7 @@
+import type { MetricsService } from "@/metrics/service.js";
 import type { Client, EIP1193Parameters, PublicRpcSchema } from "viem";
 import { lowerBound } from "./lowerBound.js";
+import { startClock } from "./timer.js";
 
 type RequestReturnType<
   method extends EIP1193Parameters<PublicRpcSchema>["method"],
@@ -41,15 +43,23 @@ type Task = {
   resolve: (value: unknown) => void;
   reject: () => unknown;
   blockNumber: number | "latest" | null;
+  stopClockLag: () => number;
 };
 
 /**
  * Creates a queue built to manage rpc requests.
  */
-export const createRequestQueue = (
-  transport: Client["transport"],
-  requestsPerSecond: number,
-): RequestQueue => {
+export const createRequestQueue = ({
+  requestsPerSecond,
+  metrics,
+  transport,
+  networkName,
+}: {
+  requestsPerSecond: number;
+  metrics: MetricsService;
+  networkName: string;
+  transport: Client["transport"];
+}): RequestQueue => {
   let queue: Task[] = new Array();
   const interval =
     1000 / requestsPerSecond > 50 ? 1000 / requestsPerSecond : 50;
@@ -62,7 +72,7 @@ export const createRequestQueue = (
   let on = true;
 
   let id = 0;
-  const pendingRequests: Map<number, Task> = new Map();
+  const pendingRequests: Map<number, Pick<Task, "reject">> = new Map();
 
   const processQueue = () => {
     if (!on) return;
@@ -75,11 +85,20 @@ export const createRequestQueue = (
       lastRequestTime = now;
 
       for (let i = 0; i < requestBatchSize; i++) {
-        const { params, resolve, reject, blockNumber } = queue.shift()!;
+        const { params, resolve, reject, stopClockLag } = queue.shift()!;
 
         const _id = id;
         pending += 1;
-        pendingRequests.set(_id, { params, resolve, reject, blockNumber });
+        pendingRequests.set(_id, {
+          reject,
+        });
+
+        metrics.ponder_rpc_request_lag.observe(
+          { method: params.method, network: networkName },
+          stopClockLag(),
+        );
+
+        const stopClock = startClock();
 
         transport
           .request(params)
@@ -91,6 +110,11 @@ export const createRequestQueue = (
             pendingRequests.delete(_id);
             id += 1;
             pending -= 1;
+
+            metrics.ponder_rpc_request_duration.observe(
+              { method: params.method, network: networkName },
+              stopClock(),
+            );
           });
 
         if (queue.length === 0) break;
@@ -115,56 +139,57 @@ export const createRequestQueue = (
     ): RequestReturnType<TParameters["method"]> => {
       let p: Promise<unknown>;
 
+      const stopClockLag = startClock();
+
       if (blockNumber === "latest") {
+        // Add element to the front of the queue
         p = new Promise((resolve, reject) => {
           queue.splice(0, 0, {
             params,
             resolve,
             reject,
             blockNumber,
+            stopClockLag,
+          });
+        });
+      } else if (
+        blockNumber === null ||
+        (queue.length !== 0 && queue[queue.length - 1].blockNumber === "latest")
+      ) {
+        // Add element to the very end
+        p = new Promise((resolve, reject) => {
+          queue.push({
+            params,
+            resolve,
+            reject,
+            blockNumber,
+            stopClockLag,
           });
         });
       } else {
-        // Use blocknumber as priority
+        // Add element based on block number priority
+        const index = lowerBound(
+          queue,
+          { blockNumber },
+          (a: Pick<Task, "blockNumber">, b: Pick<Task, "blockNumber">) => {
+            if (a.blockNumber === b.blockNumber) return 0;
+            if (a.blockNumber === "latest") return -1;
+            if (b.blockNumber === "latest") return 1;
+            if (a.blockNumber === null) return 1;
+            if (b.blockNumber === null) return -1;
+            return a.blockNumber - b.blockNumber;
+          },
+        );
 
-        if (
-          blockNumber === null ||
-          (queue.length !== 0 &&
-            queue[queue.length - 1].blockNumber === "latest")
-        ) {
-          // Add element to the very end
-          p = new Promise((resolve, reject) => {
-            queue.push({
-              params,
-              resolve,
-              reject,
-              blockNumber,
-            });
+        p = new Promise((resolve, reject) => {
+          queue.splice(index, 0, {
+            params,
+            resolve,
+            reject,
+            blockNumber,
+            stopClockLag,
           });
-        } else {
-          // Add element based on block number priority
-          const index = lowerBound(
-            queue,
-            { blockNumber },
-            (a: Pick<Task, "blockNumber">, b: Pick<Task, "blockNumber">) => {
-              if (a.blockNumber === b.blockNumber) return 0;
-              if (a.blockNumber === "latest") return -1;
-              if (b.blockNumber === "latest") return 1;
-              if (a.blockNumber === null) return 1;
-              if (b.blockNumber === null) return -1;
-              return a.blockNumber - b.blockNumber;
-            },
-          );
-
-          p = new Promise((resolve, reject) => {
-            queue.splice(index, 0, {
-              params,
-              resolve,
-              reject,
-              blockNumber,
-            });
-          });
-        }
+        });
       }
 
       processQueue();
