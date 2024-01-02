@@ -14,8 +14,8 @@ export default createConfig({
       network: "mainnet",
       abi: erc4626ABI,
       address: "0xc21F107933612eCF5677894d45fc060767479A9b",
-      startBlock: 13142655,
-      endBlock: 13150000,
+      startBlock: 15774471,
+      endBlock: 18712028,
     },
   },
 });
