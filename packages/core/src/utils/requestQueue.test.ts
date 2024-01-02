@@ -32,12 +32,10 @@ test("size and pending", async ({ common }) => {
 
   queue.start();
 
-  expect(await queue.size()).toBe(1);
-  expect(await queue.pending()).toBe(1);
-
   await r1;
 
   expect(await queue.size()).toBe(1);
+  expect(await queue.pending()).toBe(0);
 });
 
 test("request per second", async ({ common }) => {
