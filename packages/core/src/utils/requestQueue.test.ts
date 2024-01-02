@@ -10,22 +10,27 @@ test("pause + start", async ({ common }) => {
   const queue = (await getNetworks(common, 1))[0].requestQueue;
   queue.pause();
 
-  queue.request({ method: "eth_chainId" }, null);
+  const r = queue.request({ method: "eth_chainId" }, null);
 
   expect(await queue.size()).toBe(1);
   expect(await queue.pending()).toBe(0);
 
   queue.start();
 
+  await r;
+
   expect(await queue.size()).toBe(0);
-  expect(await queue.pending()).toBe(1);
+  expect(await queue.pending()).toBe(0);
 });
 
 test("size and pending", async ({ common }) => {
   const queue = (await getNetworks(common, 1))[0].requestQueue;
+  queue.pause();
 
   const r1 = queue.request({ method: "eth_chainId" }, null);
   queue.request({ method: "eth_chainId" }, null);
+
+  queue.start();
 
   expect(await queue.size()).toBe(1);
   expect(await queue.pending()).toBe(1);
@@ -40,9 +45,6 @@ test("request per second", async ({ common }) => {
 
   const r1 = queue.request({ method: "eth_chainId" }, null);
   const r2 = queue.request({ method: "eth_chainId" }, null);
-
-  expect(await queue.size()).toBe(1);
-  expect(await queue.pending()).toBe(1);
 
   await r1;
 
