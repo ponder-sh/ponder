@@ -54,9 +54,7 @@ type SetupTask = {
   };
 };
 type LogEventTask = { kind: "LOG"; event: LogEvent };
-type IndexingFunctionTask = (SetupTask | LogEventTask) & {
-  _retryCount?: number;
-};
+type IndexingFunctionTask = SetupTask | LogEventTask;
 type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
 
 export class IndexingService extends Emittery<IndexingEvents> {
@@ -532,57 +530,60 @@ export class IndexingService extends Emittery<IndexingEvents> {
           // TODO: Consider implications of using 0 as the timestamp here.
           this.currentIndexingCheckpoint = zeroCheckpoint;
 
-          try {
-            this.common.logger.trace({
-              service: "indexing",
-              msg: `Started indexing function (event="${fullEventName}", block=${event.blockNumber})`,
-            });
-
-            // Running user code here!
-            await indexingFunction({
-              context: { db: this.db, ...this.contexts[event.chainId] },
-            });
-
-            this.common.logger.trace({
-              service: "indexing",
-              msg: `Completed indexing function (event="${fullEventName}", block=${event.blockNumber})`,
-            });
-
-            const labels = {
-              network: event.networkName,
-              contract: event.contractName,
-              event: "setup",
-            };
-            this.common.metrics.ponder_indexing_processed_events.inc(labels);
-          } catch (error_) {
-            // Remove all remaining tasks from the queue.
-            queue.pause();
-
-            const error = error_ as Error & { meta: string };
-
-            if (task._retryCount !== undefined && task._retryCount >= 2) {
-              queue.clear();
-              this.hasError = true;
-              this.common.metrics.ponder_indexing_has_error.set(1);
-
-              addUserStackTrace(error, this.common.options);
-
-              this.common.logger.error({
+          for (let i = 0; i < 4; i++) {
+            try {
+              this.common.logger.trace({
                 service: "indexing",
-                msg: `Error while processing "setup" event: ${error.message}`,
-                error,
+                msg: `Started indexing function (event="${fullEventName}", block=${event.blockNumber})`,
               });
-              this.common.errors.submitUserError();
-            } else {
-              this.common.logger.warn({
+
+              // Running user code here!
+              await indexingFunction({
+                context: { db: this.db, ...this.contexts[event.chainId] },
+              });
+
+              this.common.logger.trace({
                 service: "indexing",
-                msg: `Indexing function failed, retrying... (event=${fullEventName}, error=${`${error.name}: ${error.message}`})`,
+                msg: `Completed indexing function (event="${fullEventName}", block=${event.blockNumber})`,
               });
-              await this.indexingStore.revert({
-                checkpoint: this.currentIndexingCheckpoint,
-              });
-              queue.addTask(task, { priority: 1, retry: true });
-              queue.start();
+
+              const labels = {
+                network: event.networkName,
+                contract: event.contractName,
+                event: "setup",
+              };
+              this.common.metrics.ponder_indexing_processed_events.inc(labels);
+
+              break;
+            } catch (error_) {
+              // Remove all remaining tasks from the queue.
+              queue.pause();
+
+              const error = error_ as Error & { meta: string };
+
+              if (i === 3) {
+                queue.clear();
+                this.hasError = true;
+                this.common.metrics.ponder_indexing_has_error.set(1);
+
+                addUserStackTrace(error, this.common.options);
+
+                this.common.logger.error({
+                  service: "indexing",
+                  msg: `Error while processing "setup" event: ${error.message}`,
+                  error,
+                });
+                this.common.errors.submitUserError();
+              } else {
+                this.common.logger.warn({
+                  service: "indexing",
+                  msg: `Indexing function failed, retrying... (event=${fullEventName}, error=${`${error.name}: ${error.message}`})`,
+                });
+                await this.indexingStore.revert({
+                  checkpoint: this.currentIndexingCheckpoint,
+                });
+                queue.start();
+              }
             }
           }
 
@@ -607,76 +608,79 @@ export class IndexingService extends Emittery<IndexingEvents> {
             logIndex: event.log.logIndex,
           };
 
-          try {
-            this.common.logger.trace({
-              service: "indexing",
-              msg: `Started indexing function (event="${fullEventName}", block=${event.block.number})`,
-            });
+          for (let i = 0; i < 4; i++) {
+            try {
+              this.common.logger.trace({
+                service: "indexing",
+                msg: `Started indexing function (event="${fullEventName}", block=${event.block.number})`,
+              });
 
-            // Running user code here!
-            await indexingFunction({
-              event: {
-                name: event.eventName,
-                args: event.args,
-                log: event.log,
-                transaction: event.transaction,
-                block: event.block,
-              },
-              context: { db: this.db, ...this.contexts[event.chainId] },
-            });
+              // Running user code here!
+              await indexingFunction({
+                event: {
+                  name: event.eventName,
+                  args: event.args,
+                  log: event.log,
+                  transaction: event.transaction,
+                  block: event.block,
+                },
+                context: { db: this.db, ...this.contexts[event.chainId] },
+              });
 
-            this.common.logger.trace({
-              service: "indexing",
-              msg: `Completed indexing function (event="${fullEventName}", block=${event.block.number})`,
-            });
+              this.common.logger.trace({
+                service: "indexing",
+                msg: `Completed indexing function (event="${fullEventName}", block=${event.block.number})`,
+              });
 
-            const labels = {
-              network: event.networkName,
-              contract: event.contractName,
-              event: event.eventName,
-            };
-            this.common.metrics.ponder_indexing_processed_events.inc(labels);
-            this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-              this.currentIndexingCheckpoint.blockTimestamp,
-            );
-          } catch (error_) {
-            // Remove all remaining tasks from the queue.
-            queue.pause();
+              const labels = {
+                network: event.networkName,
+                contract: event.contractName,
+                event: event.eventName,
+              };
+              this.common.metrics.ponder_indexing_processed_events.inc(labels);
+              this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
+                this.currentIndexingCheckpoint.blockTimestamp,
+              );
 
-            const error = error_ as Error & { meta?: string };
+              break;
+            } catch (error_) {
+              // Remove all remaining tasks from the queue.
+              queue.pause();
 
-            if (task._retryCount !== undefined && task._retryCount >= 2) {
-              queue.clear();
-              this.hasError = true;
-              this.common.metrics.ponder_indexing_has_error.set(1);
+              const error = error_ as Error & { meta?: string };
 
-              addUserStackTrace(error, this.common.options);
-              if (error.meta) {
-                error.meta += `\nEvent args:\n${prettyPrint(event.args)}`;
+              if (i === 3) {
+                queue.clear();
+                this.hasError = true;
+                this.common.metrics.ponder_indexing_has_error.set(1);
+
+                addUserStackTrace(error, this.common.options);
+                if (error.meta) {
+                  error.meta += `\nEvent args:\n${prettyPrint(event.args)}`;
+                } else {
+                  error.meta = `Event args:\n${prettyPrint(event.args)}`;
+                }
+
+                this.common.logger.error({
+                  service: "indexing",
+                  msg: `Error while processing "${fullEventName}" event at block ${Number(
+                    event.block.number,
+                  )}:`,
+                  error,
+                });
+                this.common.errors.submitUserError();
               } else {
-                error.meta = `Event args:\n${prettyPrint(event.args)}`;
+                this.common.logger.warn({
+                  service: "indexing",
+                  msg: `Indexing function failed, retrying... (event=${fullEventName}, block=${Number(
+                    event.block.number,
+                  )}, error=${`${error.name}: ${error.message}`})`,
+                });
+                await this.indexingStore.revert({
+                  checkpoint: this.currentIndexingCheckpoint,
+                });
+                queue.start();
               }
-
-              this.common.logger.error({
-                service: "indexing",
-                msg: `Error while processing "${fullEventName}" event at block ${Number(
-                  event.block.number,
-                )}:`,
-                error,
-              });
-              this.common.errors.submitUserError();
-            } else {
-              this.common.logger.warn({
-                service: "indexing",
-                msg: `Indexing function failed, retrying... (event=${fullEventName}, block=${Number(
-                  event.block.number,
-                )}, error=${`${error.name}: ${error.message}`})`,
-              });
-              await this.indexingStore.revert({
-                checkpoint: this.currentIndexingCheckpoint,
-              });
-              queue.addTask(task, { priority: 1, retry: true });
-              queue.start();
             }
           }
 

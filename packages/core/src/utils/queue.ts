@@ -5,16 +5,8 @@ import type { Prettify } from "@/types/utils.js";
 
 type TaskOptions = { priority?: number; retry?: boolean };
 
-/* How long to wait before aborting a task. */
-export const TASK_TIMEOUT = 8000;
-/* How long to wait before retrying a task. */
-export const TASK_RETRY_TIMEOUT = [150, 300, 600, 1_200];
-
 export type Queue<TTask> = PQueue & {
-  addTask: (
-    task: TTask & { _retryCount?: number },
-    options?: TaskOptions,
-  ) => Promise<void>;
+  addTask: (task: TTask, options?: TaskOptions) => Promise<void>;
 };
 
 type QueueOptions = Prettify<
