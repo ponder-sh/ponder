@@ -420,9 +420,8 @@ export class Ponder {
 
     await Promise.all(
       this.syncServices.map(async ({ realtime, network }) => {
-        network.requestQueue.kill();
-
         await realtime.kill();
+        network.requestQueue.kill();
       }),
     );
 
@@ -493,11 +492,10 @@ export class Ponder {
         await this.indexingService.kill();
         await Promise.all(
           this.syncServices.map(async ({ realtime, network }) => {
-            network.requestQueue.kill();
-            //NOTE: clear is only needed if this is not a fatal error
-            network.requestQueue.clear();
-
             await realtime.kill();
+
+            network.requestQueue.kill();
+            network.requestQueue.clear();
           }),
         );
       }
