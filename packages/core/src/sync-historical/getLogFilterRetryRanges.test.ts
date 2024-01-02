@@ -9,7 +9,7 @@ test("getLogFilterRetryRanges handles Alchemy 'Log response size exceeded' error
     ),
   );
 
-  const retryRanges = getLogFilterRetryRanges(error, "0x3", "0x1");
+  const retryRanges = getLogFilterRetryRanges(error, "0x1", "0x3");
 
   expect(retryRanges).toHaveLength(2);
   expect(retryRanges[0]).toMatchObject(["0x1", "0x2"]);
@@ -25,8 +25,8 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
 
   const retryRanges = getLogFilterRetryRanges(
     error,
-    numberToHex(20_000),
     numberToHex(1),
+    numberToHex(20_000),
   );
 
   expect(retryRanges).toHaveLength(2);

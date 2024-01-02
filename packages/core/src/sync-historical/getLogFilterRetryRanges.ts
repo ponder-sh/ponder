@@ -18,8 +18,8 @@ export type RetryRanges = [Hex, Hex][];
  */
 export const getLogFilterRetryRanges = (
   error: LogFilterError,
-  toBlock: Hex,
   fromBlock: Hex,
+  toBlock: Hex,
 ): RetryRanges => {
   const retryRanges: RetryRanges = [];
   if (
