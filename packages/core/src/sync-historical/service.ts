@@ -397,7 +397,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.finalizedBlockNumber = finalizedBlockNumber;
 
     await Promise.all(
-      this.sources.map((source) => {
+      this.sources.map(async (source) => {
         const { isHistoricalSyncRequired, startBlock, endBlock } =
           validateHistoricalBlockRange({
             startBlock: source.startBlock,
@@ -407,7 +407,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           });
 
         if (sourceIsLogFilter(source)) {
-          return this.setupLogFilterSource({
+          await this.setupLogFilterSource({
             source,
             isHistoricalSyncRequired,
             startBlock,
@@ -415,7 +415,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             finalizedBlockNumber,
           });
         } else {
-          return this.setupFactorySource({
+          await this.setupFactorySource({
             source,
             isHistoricalSyncRequired,
             startBlock,
@@ -508,7 +508,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
   };
 
-  private logFilterTaskWorker = ({
+  private logFilterTaskWorker = async ({
     logFilter,
     fromBlock,
     toBlock,
@@ -516,71 +516,72 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     logFilter: LogFilter;
     fromBlock: number;
     toBlock: number;
-  }) =>
-    this._eth_getLogs({
-      address: logFilter.criteria.address,
-      topics: logFilter.criteria.topics,
-      fromBlock: toHex(fromBlock),
-      toBlock: toHex(toBlock),
-    })
-      .then((logs) => {
-        const logIntervals = this.buildLogIntervals({
-          fromBlock,
-          toBlock,
-          logs,
-        });
-
-        for (const logInterval of logIntervals) {
-          const { startBlock, endBlock } = logInterval;
-
-          if (this.blockCallbacks[endBlock] === undefined)
-            this.blockCallbacks[endBlock] = [];
-
-          this.blockCallbacks[endBlock].push(async (block) => {
-            await this._insertLogFilterInterval({
-              logInterval,
-              logFilter: logFilter.criteria,
-              chainId: logFilter.chainId,
-              block,
-            });
-
-            this.common.metrics.ponder_historical_completed_blocks.inc(
-              {
-                network: this.network.name,
-                contract: logFilter.contractName,
-              },
-              endBlock - startBlock + 1,
-            );
-          });
-        }
-
-        this.logFilterProgressTrackers[logFilter.id].addCompletedInterval([
-          fromBlock,
-          toBlock,
-        ]);
-
-        if (logIntervals.length === 0) this.checkSyncCompletion();
-
-        this.enqueueBlockTasks();
-
-        this.common.logger.trace({
-          service: "historical",
-          msg: `Completed LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${logFilter.contractName}, network=${this.network.name})`,
-        });
-      })
-      .catch((error: RpcRequestError) => {
-        error.stack = undefined;
-        this.common.logger.error({
-          service: "historical",
-          msg: `Log filter task failed... [${fromBlock}, ${toBlock}] (contract=${
-            logFilter.contractName
-          }, network=${
-            this.network.name
-          }, error=${`${error.name}: ${error.message}`})`,
-          error,
-        });
-        this.emit("error", error);
+  }) => {
+    try {
+      const logs = await this._eth_getLogs({
+        address: logFilter.criteria.address,
+        topics: logFilter.criteria.topics,
+        fromBlock: toHex(fromBlock),
+        toBlock: toHex(toBlock),
       });
+      const logIntervals = this.buildLogIntervals({
+        fromBlock,
+        toBlock,
+        logs,
+      });
+
+      for (const logInterval of logIntervals) {
+        const { startBlock, endBlock } = logInterval;
+
+        if (this.blockCallbacks[endBlock] === undefined)
+          this.blockCallbacks[endBlock] = [];
+
+        this.blockCallbacks[endBlock].push(async (block) => {
+          await this._insertLogFilterInterval({
+            logInterval,
+            logFilter: logFilter.criteria,
+            chainId: logFilter.chainId,
+            block,
+          });
+
+          this.common.metrics.ponder_historical_completed_blocks.inc(
+            {
+              network: this.network.name,
+              contract: logFilter.contractName,
+            },
+            endBlock - startBlock + 1,
+          );
+        });
+      }
+
+      this.logFilterProgressTrackers[logFilter.id].addCompletedInterval([
+        fromBlock,
+        toBlock,
+      ]);
+
+      this.enqueueBlockTasks();
+
+      if (logIntervals.length === 0) await this.checkSyncCompletion();
+
+      this.common.logger.trace({
+        service: "historical",
+        msg: `Completed LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${logFilter.contractName}, network=${this.network.name})`,
+      });
+    } catch (error_) {
+      const error = error_ as Error;
+      error.stack = undefined;
+      this.common.logger.error({
+        service: "historical",
+        msg: `Log filter task failed... [${fromBlock}, ${toBlock}] (contract=${
+          logFilter.contractName
+        }, network=${
+          this.network.name
+        }, error=${`${error.name}: ${error.message}`})`,
+        error,
+      });
+      this.emit("error", error);
+    }
+  };
 
   private factoryLogFilterTaskWorker = async ({
     factory,
@@ -645,9 +646,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         toBlock,
       ]);
 
-      if (logIntervals.length === 0) this.checkSyncCompletion();
-
       this.enqueueBlockTasks();
+
+      if (logIntervals.length === 0) await this.checkSyncCompletion();
 
       this.common.logger.trace({
         service: "historical",
@@ -716,8 +717,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           factory.id
         ].addCompletedInterval([fromBlock, toBlock]);
 
-      if (logIntervals.length === 0) this.checkSyncCompletion();
-
       if (isUpdated) {
         // It's possible for the factory log filter to have already completed some or
         // all of the block interval here. To avoid duplicates, only add intervals that
@@ -740,6 +739,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           });
         }
       }
+
+      if (logIntervals.length === 0) await this.checkSyncCompletion();
+
       this.common.metrics.ponder_historical_completed_blocks.inc(
         {
           network: this.network.name,
@@ -785,8 +787,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         blockTimestamp: hexToNumber(block.timestamp),
       });
 
-      this.checkSyncCompletion();
-
       if (newBlockCheckpoint) {
         this.emit("historicalCheckpoint", {
           blockTimestamp: newBlockCheckpoint.blockTimestamp,
@@ -794,6 +794,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           blockNumber: newBlockCheckpoint.blockNumber,
         });
       }
+
+      await this.checkSyncCompletion();
 
       this.common.logger.trace({
         service: "historical",
