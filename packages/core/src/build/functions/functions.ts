@@ -1,5 +1,5 @@
 export type RawIndexingFunctions = {
-  [fileName: string]: { [eventName: string]: (...args: any) => any };
+  [fileName: string]: { name: string; fn: (...args: any) => any }[];
 };
 
 export type IndexingFunctions = {
@@ -17,11 +17,13 @@ export function buildIndexingFunctions({
   const indexingFunctions: IndexingFunctions = {};
 
   for (const fileFns of Object.values(rawIndexingFunctions)) {
-    for (const [eventKey, fn] of Object.entries(fileFns)) {
+    for (const { name: eventKey, fn } of fileFns) {
       const eventNameComponents = eventKey.split(":");
       const [sourceName, eventName] = eventNameComponents;
       if (eventNameComponents.length !== 2 || !sourceName || !eventName) {
-        throw new Error(`Validation failed: Invalid event name '${eventKey}'.`);
+        throw new Error(
+          `Validation failed: Invalid event '${eventKey}', expected format '{contractName}:{eventName}'.`,
+        );
       }
 
       indexingFunctions[sourceName] ||= {};

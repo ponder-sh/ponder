@@ -137,14 +137,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
       if (invalidated.includes(this.common.options.schemaFile)) {
         const schemaResult = await this.loadSchema();
+        const validationResult = this.validate();
 
-        if (schemaResult.success) {
+        if (schemaResult.success && validationResult.success) {
           this.emit("newSchema", schemaResult);
         } else {
-          this.common.logger.error({
-            service: "build",
-            error: schemaResult.error,
-          });
+          const error = schemaResult.error ?? (validationResult.error as Error);
+          this.common.logger.error({ service: "build", error });
           this.common.errors.submitUserError();
         }
       }
@@ -299,13 +298,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
     for (const result of loadResults) {
       const { file, exports } = result;
-
       const fns = (exports?.ponder?.fns ?? []) as { name: string; fn: any }[];
-      const fnsForFile: Record<string, any> = {};
-      for (const { name, fn } of fns) fnsForFile[name] = fn;
-
-      // Override the indexing functions for this file.
-      (this.rawIndexingFunctions || {})[file] = fnsForFile;
+      (this.rawIndexingFunctions || {})[file] = fns;
     }
 
     const buildResult = safeBuildIndexingFunctions({
@@ -320,6 +314,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     const indexingFunctions = buildResult.data.indexingFunctions;
+    this.indexingFunctions = indexingFunctions;
 
     return { success: true, indexingFunctions } as const;
   }
@@ -338,11 +333,16 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
         const source = this.sources.find((s) => s.contractName === sourceName);
         if (!source) {
+          // Multi-network contracts have N sources, but the hint here should not have duplicates.
+          const uniqueContractNames = [
+            ...new Set(this.sources.map((s) => s.contractName)),
+          ];
           const error = new Error(
-            `Validation failed: Invalid contract name for event '${eventKey}'. Got '${sourceName}', expected one of [${this.sources
-              .map((s) => `'${s.contractName}'`)
+            `Validation failed: Invalid contract name for event '${eventKey}'. Got '${sourceName}', expected one of [${uniqueContractNames
+              .map((n) => `'${n}'`)
               .join(", ")}].`,
           );
+          error.stack = undefined;
           return { success: false, error } as const;
         }
 
@@ -356,6 +356,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
               .map((eventName) => `'${eventName}'`)
               .join(", ")}].`,
           );
+          error.stack = undefined;
           return { success: false, error } as const;
         }
       }
