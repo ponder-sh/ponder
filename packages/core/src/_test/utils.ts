@@ -112,7 +112,8 @@ export const getNetworkAndSources = async (
 ) => {
   const config = getConfig(addresses);
   const { networks, sources } = await buildNetworksAndSources({ config });
-  return { networks, sources };
+  const mainnet = { ...networks[0], finalityBlockCount: 4 };
+  return { networks: [mainnet], sources };
 };
 
 /**
