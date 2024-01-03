@@ -211,7 +211,10 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const schemaResult = await this.loadSchema();
     if (!schemaResult.success) return { error: schemaResult.error } as const;
 
-    const indexingFunctionsResult = await this.loadIndexingFunctions();
+    const files = glob.sync(
+      path.join(this.common.options.srcDir, "**/*.{js,mjs,ts,mts}"),
+    );
+    const indexingFunctionsResult = await this.loadIndexingFunctions({ files });
     if (!indexingFunctionsResult.success)
       return { error: indexingFunctionsResult.error } as const;
 
@@ -249,7 +252,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     for (const warning of buildResult.data.warnings) {
-      this.common.logger.warn({ service: "config", msg: warning });
+      this.common.logger.warn({ service: "build", msg: warning });
     }
 
     const { sources, networks } = buildResult.data;
@@ -267,30 +270,19 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const rawSchema = loadResult.exports.default as Schema;
 
     const buildResult = safeBuildSchema({ schema: rawSchema });
-
     if (buildResult.error) {
       return { success: false, error: buildResult.error } as const;
     }
 
+    const schema = buildResult.data.schema;
+
     // TODO: Probably move this elsewhere. Also, handle errors.
     const graphqlSchema = buildGqlSchema(buildResult.data.schema);
 
-    return {
-      success: true,
-      schema: buildResult.data.schema,
-      graphqlSchema,
-    } as const;
+    return { success: true, schema, graphqlSchema } as const;
   }
 
-  private async loadIndexingFunctions({
-    files: files_,
-  }: { files?: string[] } = {}) {
-    const files =
-      files_ ??
-      glob.sync(
-        path.join(this.common.options.srcDir, "**/*.{js,cjs,mjs,ts,mts}"),
-      );
-
+  private async loadIndexingFunctions({ files }: { files: string[] }) {
     const rawLoadResults = await Promise.all(
       files.map((file) => this.executeFile(file)),
     );
@@ -319,26 +311,22 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const buildResult = safeBuildIndexingFunctions({
       rawIndexingFunctions: this.rawIndexingFunctions,
     });
-
     if (!buildResult.success) {
       return { success: false, error: buildResult.error } as const;
     }
 
     for (const warning of buildResult.data.warnings) {
-      this.common.logger.warn({ service: "config", msg: warning });
+      this.common.logger.warn({ service: "build", msg: warning });
     }
 
-    return {
-      success: true,
-      indexingFunctions: buildResult.data.indexingFunctions,
-    } as const;
+    const indexingFunctions = buildResult.data.indexingFunctions;
+
+    return { success: true, indexingFunctions } as const;
   }
 
   /**
    * Validates and builds the latest config, schema, and indexing functions.
-   *
-   * Returns valid values, an error (the first encountered error), or undefined
-   * if not all raw values have been loaded yet.
+   * Returns an error if validation fails.
    */
   private validate() {
     if (!this.sources || !this.indexingFunctions)
