@@ -396,6 +396,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.blockTasksEnqueuedCheckpoint = 0;
     this.finalizedBlockNumber = finalizedBlockNumber;
 
+    this.network.requestQueue.pause();
+
     await Promise.all(
       this.sources.map(async (source) => {
         const { isHistoricalSyncRequired, startBlock, endBlock } =
@@ -425,6 +427,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         }
       }),
     );
+
+    this.network.requestQueue.start();
 
     this.common.metrics.ponder_historical_start_timestamp.set(Date.now());
 
