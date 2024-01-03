@@ -1,7 +1,10 @@
 import { startProxy } from "@viem/anvil";
+import dotenv from "dotenv";
 import { Pool } from "pg";
 
 export default async function () {
+  dotenv.config({ path: ".env.local" });
+
   const shutdownProxy = await startProxy({
     options: {
       chainId: 1,
