@@ -12,6 +12,7 @@ import { type Queue, createQueue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
 import Emittery from "emittery";
 import {
+  BlockNotFoundError,
   type BlockTag,
   type Hex,
   type RpcBlock,
@@ -30,6 +31,7 @@ type RealtimeSyncEvents = {
   finalityCheckpoint: Checkpoint;
   shallowReorg: Checkpoint;
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
+  error: Error;
 };
 
 type RealtimeBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
@@ -80,15 +82,38 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     let rpcChainId: number;
     try {
       [latestBlock, rpcChainId] = await Promise.all([
-        this.getLatestBlock(),
+        this.network.requestQueue
+          .request(
+            {
+              method: "eth_getBlockByNumber",
+              params: ["latest", true],
+            },
+            "latest",
+          )
+          .then((block) => {
+            if (block === null)
+              throw new BlockNotFoundError({
+                blockHash: undefined,
+                blockNumber: undefined,
+              });
+
+            return block as RealtimeBlock;
+          }),
         this.network.requestQueue
           .request({ method: "eth_chainId" }, "latest")
           .then(hexToNumber),
       ]);
     } catch (error_) {
-      throw Error(
-        "Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)",
-      );
+      const error = error_ as Error;
+      error.stack = undefined;
+      this.common.logger.error({
+        service: "historical",
+        msg: `Realtime sync setup failed (network=${
+          this.network.name
+        }, error=${`${error.name}: ${error.message}`})`,
+        error,
+      });
+      throw error_;
     }
     const latestBlockNumber = hexToNumber(latestBlock.number);
 
@@ -160,19 +185,43 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     // Fetch the block at the finalized block number.
-    const finalizedBlock = await this.network.requestQueue.request(
-      {
-        method: "eth_getBlockByNumber",
-        params: ["finalized", true],
-      },
-      "latest",
-    );
-    if (!finalizedBlock) throw new Error("Unable to fetch finalized block");
+    let finalizedBlock: RealtimeBlock;
+    try {
+      const block = await this.network.requestQueue.request(
+        {
+          method: "eth_getBlockByNumber",
+          params: ["finalized", true],
+        },
+        "latest",
+      );
+
+      if (block === null)
+        throw new BlockNotFoundError({
+          blockHash: undefined,
+          blockNumber: undefined,
+        });
+
+      finalizedBlock = block as RealtimeBlock;
+    } catch (error_) {
+      const error = error_ as Error;
+
+      error.stack = undefined;
+      this.common.logger.error({
+        service: "historical",
+        msg: `Realtime sync failed fetching finalized block (network=${
+          this.network.name
+        }, error=${`${error.name}: ${error.message}`})`,
+        error,
+      });
+
+      this.emit("error", error);
+      return;
+    }
 
     this.common.logger.info({
       service: "realtime",
       msg: `Fetched finalized block at ${hexToNumber(
-        finalizedBlock.number!,
+        finalizedBlock.number,
       )} (network=${this.network.name})`,
     });
 
@@ -208,39 +257,60 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     await this.queue.onIdle();
   };
 
-  private getLatestBlock = async () => {
-    // Fetch the latest block for the network.
-    const latestBlock = await this.network.requestQueue.request(
-      {
-        method: "eth_getBlockByNumber",
-        params: ["latest", true],
-      },
-      "latest",
-    );
-    if (!latestBlock) throw new Error("Unable to fetch latest block");
-    return latestBlock as RealtimeBlock;
-  };
-
   // This method is only public for to support the tests.
   addNewLatestBlock = async () => {
     try {
-      const block = await this.getLatestBlock();
+      const block = await this.network.requestQueue
+        .request(
+          {
+            method: "eth_getBlockByNumber",
+            params: ["latest", true],
+          },
+          null,
+        )
+        .then((block) => {
+          if (block === null)
+            throw new BlockNotFoundError({
+              blockHash: undefined,
+              blockNumber: undefined,
+            });
+
+          return block as RealtimeBlock;
+        });
       const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
       this.queue.addTask(block, { priority });
     } catch (error_) {
       const error = error_ as Error;
-      // Do nothing, log the error. Might consider a retry limit here after which the service should die.
-      this.common.logger.warn({
-        service: "realtime",
-        msg: `Error while fetching latest block (error=${`${error.name}: ${error.message}`})`,
+      error.stack = undefined;
+      this.common.logger.error({
+        service: "historical",
+        msg: `Realtime sync failed fetching latest block (network=${
+          this.network.name
+        }, error=${`${error.name}: ${error.message}`})`,
+        error,
       });
+      this.emit("error", error);
     }
   };
 
   private buildQueue = () =>
     createQueue<RealtimeBlock>({
-      worker: ({ task }) =>
-        this.blockTaskWorker({ block: task }).then(() => {}),
+      worker: async ({ task }) => {
+        try {
+          await this.blockTaskWorker({ block: task });
+        } catch (error_) {
+          const error = error_ as Error;
+          error.stack = undefined;
+          this.common.logger.error({
+            service: "historical",
+            msg: `Realtime block task failed(network=${
+              this.network.name
+            }, error=${`${error.name}: ${error.message}`})`,
+            error,
+          });
+          this.emit("error", error);
+        }
+      },
       options: { concurrency: 1, autoStart: false },
     });
 
@@ -492,17 +562,22 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       // Fetch all missing blocks
       const missingBlocks = await Promise.all(
         missingBlockNumbers.map(async (number) => {
-          const block = await this.network.requestQueue.request(
-            {
-              method: "eth_getBlockByNumber",
-              params: [numberToHex(number), true],
-            },
-            null,
-          );
-          if (!block) {
-            throw new Error(`Failed to fetch block number: ${number}`);
-          }
-          return block as RealtimeBlock;
+          return this.network.requestQueue
+            .request(
+              {
+                method: "eth_getBlockByNumber",
+                params: [numberToHex(number), true],
+              },
+              null,
+            )
+            .then((block) => {
+              if (block === null)
+                throw new BlockNotFoundError({
+                  blockHash: undefined,
+                  blockNumber: undefined,
+                });
+              return block as RealtimeBlock;
+            });
         }),
       );
 
@@ -596,18 +671,23 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       if (canonicalBlock.parentHash === zeroHash) break;
 
       // If the parent block is not present in our local chain, keep traversing up the canonical chain.
-      const parentBlock_ = await this.network.requestQueue.request(
-        {
-          method: "eth_getBlockByHash",
-          params: [canonicalBlock.parentHash, true],
-        },
-        null,
-      );
+      const parentBlock_ = await this.network.requestQueue
+        .request(
+          {
+            method: "eth_getBlockByHash",
+            params: [canonicalBlock.parentHash, true],
+          },
+          null,
+        )
+        .then((block) => {
+          if (block === null)
+            throw new BlockNotFoundError({
+              blockHash: undefined,
+              blockNumber: undefined,
+            });
 
-      if (!parentBlock_)
-        throw new Error(
-          `Failed to fetch parent block with hash: ${canonicalBlock.parentHash}`,
-        );
+          return block as RealtimeBlock;
+        });
 
       canonicalBlocksWithTransactions.unshift(parentBlock_ as RealtimeBlock);
       depth += 1;

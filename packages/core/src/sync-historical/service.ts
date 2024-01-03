@@ -661,13 +661,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     } catch (error_) {
       const error = error_ as Error;
       error.stack = undefined;
-      this.common.logger.warn({
+      this.common.logger.error({
         service: "historical",
         msg: `Factory log filter task failed [${fromBlock}, ${toBlock}] (contract=${
           factory.contractName
         }, network=${
           this.network.name
         }, error=${`${error.name}: ${error.message}`})`,
+        error,
       });
       this.emit("error", error);
     }
