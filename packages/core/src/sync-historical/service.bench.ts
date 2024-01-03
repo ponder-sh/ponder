@@ -1,12 +1,21 @@
-import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
+import { setupAnvil, setupContext, setupSyncStore } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { getNetworks, publicClient } from "@/_test/utils.js";
-import { startClock } from "@/utils/timer.js";
-import { beforeEach, test } from "vitest";
+import { type TestContext, bench } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
-beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
+let context = {} as TestContext;
+const setup = async () => {
+  context = {} as TestContext;
+  setupContext(context);
+  await setupAnvil(context);
+
+  for (let i = 0; i < 100; i++)
+    await simulate({
+      erc20Address: context.erc20.address,
+      factoryAddress: context.factory.address,
+    });
+};
 
 const getBlockNumbers = () =>
   publicClient.getBlockNumber().then((b) => ({
@@ -14,29 +23,29 @@ const getBlockNumbers = () =>
     finalizedBlockNumber: Number(b),
   }));
 
-test.skipIf(process.env.CI === "true")(
+bench(
   "Historical sync benchmark",
-  async ({ erc20, factory, common, syncStore, sources }) => {
-    for (let i = 0; i < 100; i++)
-      await simulate({
-        erc20Address: erc20.address,
-        factoryAddress: factory.address,
-      });
+  async () => {
+    const teardownSync = await setupSyncStore(context);
 
     const service = new HistoricalSyncService({
-      common,
-      syncStore,
-      network: (await getNetworks(common, 20))[0],
-      sources: [sources[0]],
+      common: context.common,
+      syncStore: context.syncStore,
+      network: (await getNetworks(context.common, 20))[0],
+      sources: [context.sources[0]],
     });
-
-    const stopClock = startClock();
 
     await service.start(await getBlockNumbers());
 
     await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
-    console.log(`Historical sync took ${stopClock()} milliseconds`);
+    await teardownSync();
   },
-  10_000,
+  {
+    setup,
+    iterations: 5,
+    warmupIterations: 1,
+    time: 10_000,
+    warmupTime: 10_000,
+  },
 );

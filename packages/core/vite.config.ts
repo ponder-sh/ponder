@@ -11,7 +11,7 @@ export default defineConfig({
   test: {
     globalSetup: ["src/_test/globalSetup.ts"],
     setupFiles: ["src/_test/setup.ts"],
-    include: ["**/*.test.ts", "**/*.bench.ts"],
+    include: ["**/*.test.ts"],
     poolOptions: {
       threads: {
         maxThreads: 4,

@@ -45,6 +45,10 @@ declare module "vitest" {
 }
 
 beforeEach((context) => {
+  setupContext(context);
+});
+
+export const setupContext = (context: TestContext) => {
   const options = {
     ...buildOptions({
       cliOptions: { configFile: "", rootDir: "" },
@@ -58,7 +62,7 @@ beforeEach((context) => {
     metrics: new MetricsService(),
     telemetry: new TelemetryService({ options }),
   };
-});
+};
 
 /**
  * Sets up an isolated SyncStore on the test context.
