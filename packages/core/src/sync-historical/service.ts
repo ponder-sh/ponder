@@ -57,7 +57,7 @@ type HistoricalSyncEvents = {
   /**
    * Emitted when a critical error occurs
    */
-  error: BlockNotFoundError | RpcRequestError | SyncStoreError;
+  error: BlockNotFoundError | RpcRequestError | SyncStoreError | Error;
 };
 
 type HistoricalBlock = RpcBlock<"finalized", true>;
@@ -587,230 +587,234 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     fromBlock,
     toBlock,
   }: { factory: Factory; fromBlock: number; toBlock: number }) => {
-    const iterator = this.syncStore.getFactoryChildAddresses({
-      chainId: factory.chainId,
-      factory: factory.criteria,
-      upToBlockNumber: BigInt(toBlock),
-    });
-
-    const childAddresses: Address[][] = [];
-    for await (const childContractAddressBatch of iterator) {
-      childAddresses.push(childContractAddressBatch);
-    }
-
-    return Promise.all(
-      childAddresses.map((c) =>
-        this._eth_getLogs({
-          address: c,
-          topics: factory.criteria.topics,
-          fromBlock: numberToHex(fromBlock),
-          toBlock: numberToHex(toBlock),
-        }),
-      ),
-    )
-      .then((_logs) => {
-        const logs = _logs.flat();
-
-        const logIntervals = this.buildLogIntervals({
-          fromBlock,
-          toBlock,
-          logs,
-        });
-
-        for (const logInterval of logIntervals) {
-          const { startBlock, endBlock } = logInterval;
-
-          if (this.blockCallbacks[endBlock] === undefined)
-            this.blockCallbacks[endBlock] = [];
-
-          this.blockCallbacks[endBlock].push(async (block) => {
-            await this._insertFactoryLogFilterInterval({
-              chainId: factory.chainId,
-              factory: factory.criteria,
-              block,
-              logInterval,
-            });
-
-            this.common.metrics.ponder_historical_completed_blocks.inc(
-              {
-                network: this.network.name,
-                contract: factory.contractName,
-              },
-              endBlock - startBlock + 1,
-            );
-          });
-        }
-
-        this.factoryLogFilterProgressTrackers[factory.id].addCompletedInterval([
-          fromBlock,
-          toBlock,
-        ]);
-
-        if (logIntervals.length === 0) this.checkSyncCompletion();
-
-        this.enqueueBlockTasks();
-
-        this.common.logger.trace({
-          service: "historical",
-          msg: `Completed FACTORY_LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
-        });
-      })
-      .catch((error: RpcRequestError) => {
-        error.stack = undefined;
-        this.common.logger.warn({
-          service: "historical",
-          msg: `Factory log filter task failed, retrying... [${fromBlock}, ${toBlock}] (contract=${
-            factory.contractName
-          }, network=${
-            this.network.name
-          }, error=${`${error.name}: ${error.message}`})`,
-        });
-        this.emit("error", error);
+    try {
+      const iterator = this.syncStore.getFactoryChildAddresses({
+        chainId: factory.chainId,
+        factory: factory.criteria,
+        upToBlockNumber: BigInt(toBlock),
       });
+
+      const childAddresses: Address[][] = [];
+      for await (const childContractAddressBatch of iterator) {
+        childAddresses.push(childContractAddressBatch);
+      }
+
+      const logs = await Promise.all(
+        childAddresses.map(async (c) =>
+          this._eth_getLogs({
+            address: c,
+            topics: factory.criteria.topics,
+            fromBlock: numberToHex(fromBlock),
+            toBlock: numberToHex(toBlock),
+          }),
+        ),
+      ).then((l) => l.flat());
+
+      const logIntervals = this.buildLogIntervals({
+        fromBlock,
+        toBlock,
+        logs,
+      });
+
+      for (const logInterval of logIntervals) {
+        const { startBlock, endBlock } = logInterval;
+
+        if (this.blockCallbacks[endBlock] === undefined)
+          this.blockCallbacks[endBlock] = [];
+
+        this.blockCallbacks[endBlock].push(async (block) => {
+          await this._insertFactoryLogFilterInterval({
+            chainId: factory.chainId,
+            factory: factory.criteria,
+            block,
+            logInterval,
+          });
+
+          this.common.metrics.ponder_historical_completed_blocks.inc(
+            {
+              network: this.network.name,
+              contract: factory.contractName,
+            },
+            endBlock - startBlock + 1,
+          );
+        });
+      }
+
+      this.factoryLogFilterProgressTrackers[factory.id].addCompletedInterval([
+        fromBlock,
+        toBlock,
+      ]);
+
+      if (logIntervals.length === 0) this.checkSyncCompletion();
+
+      this.enqueueBlockTasks();
+
+      this.common.logger.trace({
+        service: "historical",
+        msg: `Completed FACTORY_LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
+      });
+    } catch (error_) {
+      const error = error_ as Error;
+      error.stack = undefined;
+      this.common.logger.warn({
+        service: "historical",
+        msg: `Factory log filter task failed [${fromBlock}, ${toBlock}] (contract=${
+          factory.contractName
+        }, network=${
+          this.network.name
+        }, error=${`${error.name}: ${error.message}`})`,
+      });
+      this.emit("error", error);
+    }
   };
 
-  private factoryChildAddressTaskWorker = ({
+  private factoryChildAddressTaskWorker = async ({
     factory,
     fromBlock,
     toBlock,
-  }: { factory: Factory; fromBlock: number; toBlock: number }) =>
-    this._eth_getLogs({
-      address: factory.criteria.address,
-      topics: [factory.criteria.eventSelector],
-      fromBlock: toHex(fromBlock),
-      toBlock: toHex(toBlock),
-    })
-      .then(async (logs) => {
-        // Insert the new child address logs into the store.
-        await this._insertFactoryChildAddressLogs({
-          chainId: factory.chainId,
-          logs,
-        });
-
-        const logIntervals = this.buildLogIntervals({
-          fromBlock,
-          toBlock,
-          logs,
-        });
-
-        for (const logInterval of logIntervals) {
-          if (this.blockCallbacks[logInterval.endBlock] === undefined)
-            this.blockCallbacks[logInterval.endBlock] = [];
-
-          this.blockCallbacks[logInterval.endBlock].push((block) =>
-            this._insertLogFilterInterval({
-              logInterval,
-              logFilter: {
-                address: factory.criteria.address,
-                topics: [factory.criteria.eventSelector],
-              },
-              chainId: factory.chainId,
-              block,
-            }),
-          );
-        }
-
-        // Update the checkpoint, and if necessary, enqueue factory log filter tasks.
-        const { isUpdated, prevCheckpoint, newCheckpoint } =
-          this.factoryChildAddressProgressTrackers[
-            factory.id
-          ].addCompletedInterval([fromBlock, toBlock]);
-
-        if (logIntervals.length === 0) this.checkSyncCompletion();
-
-        if (isUpdated) {
-          // It's possible for the factory log filter to have already completed some or
-          // all of the block interval here. To avoid duplicates, only add intervals that
-          // are still marked as required.
-          const requiredIntervals = intervalIntersection(
-            [[prevCheckpoint + 1, newCheckpoint]],
-            this.factoryLogFilterProgressTrackers[factory.id].getRequired(),
-          );
-          const factoryLogFilterChunks = getChunks({
-            intervals: requiredIntervals,
-            maxChunkSize:
-              factory.maxBlockRange ?? this.network.defaultMaxBlockRange,
-          });
-
-          for (const [fromBlock, toBlock] of factoryLogFilterChunks) {
-            this.factoryLogFilterTaskWorker({
-              factory,
-              fromBlock,
-              toBlock,
-            });
-          }
-        }
-        this.common.metrics.ponder_historical_completed_blocks.inc(
-          {
-            network: this.network.name,
-            contract: `${factory.contractName}_factory`,
-          },
-          toBlock - fromBlock + 1,
-        );
-
-        this.common.logger.trace({
-          service: "historical",
-          msg: `Completed FACTORY_CHILD_ADDRESS task [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
-        });
-      })
-      .catch((error) => {
-        error.stack === undefined;
-        this.common.logger.error({
-          service: "historical",
-          msg: `Factory child address task failed... [${fromBlock}, ${toBlock}] (contract=${
-            factory.contractName
-          }, network=${
-            this.network.name
-          }, eerror=${`${error.name}: ${error.message}`})`,
-          error,
-        });
-        this.emit("error", error);
+  }: { factory: Factory; fromBlock: number; toBlock: number }) => {
+    try {
+      const logs = await this._eth_getLogs({
+        address: factory.criteria.address,
+        topics: [factory.criteria.eventSelector],
+        fromBlock: toHex(fromBlock),
+        toBlock: toHex(toBlock),
       });
 
-  private blockTaskWorker = ({
+      // Insert the new child address logs into the store.
+      await this._insertFactoryChildAddressLogs({
+        chainId: factory.chainId,
+        logs,
+      });
+
+      const logIntervals = this.buildLogIntervals({
+        fromBlock,
+        toBlock,
+        logs,
+      });
+
+      for (const logInterval of logIntervals) {
+        if (this.blockCallbacks[logInterval.endBlock] === undefined)
+          this.blockCallbacks[logInterval.endBlock] = [];
+
+        this.blockCallbacks[logInterval.endBlock].push(async (block) => {
+          await this._insertLogFilterInterval({
+            logInterval,
+            logFilter: {
+              address: factory.criteria.address,
+              topics: [factory.criteria.eventSelector],
+            },
+            chainId: factory.chainId,
+            block,
+          });
+        });
+      }
+
+      // Update the checkpoint, and if necessary, enqueue factory log filter tasks.
+      const { isUpdated, prevCheckpoint, newCheckpoint } =
+        this.factoryChildAddressProgressTrackers[
+          factory.id
+        ].addCompletedInterval([fromBlock, toBlock]);
+
+      if (logIntervals.length === 0) this.checkSyncCompletion();
+
+      if (isUpdated) {
+        // It's possible for the factory log filter to have already completed some or
+        // all of the block interval here. To avoid duplicates, only add intervals that
+        // are still marked as required.
+        const requiredIntervals = intervalIntersection(
+          [[prevCheckpoint + 1, newCheckpoint]],
+          this.factoryLogFilterProgressTrackers[factory.id].getRequired(),
+        );
+        const factoryLogFilterChunks = getChunks({
+          intervals: requiredIntervals,
+          maxChunkSize:
+            factory.maxBlockRange ?? this.network.defaultMaxBlockRange,
+        });
+
+        for (const [fromBlock, toBlock] of factoryLogFilterChunks) {
+          this.factoryLogFilterTaskWorker({
+            factory,
+            fromBlock,
+            toBlock,
+          });
+        }
+      }
+      this.common.metrics.ponder_historical_completed_blocks.inc(
+        {
+          network: this.network.name,
+          contract: `${factory.contractName}_factory`,
+        },
+        toBlock - fromBlock + 1,
+      );
+
+      this.common.logger.trace({
+        service: "historical",
+        msg: `Completed FACTORY_CHILD_ADDRESS task [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
+      });
+    } catch (error_) {
+      const error = error_ as Error;
+
+      this.common.logger.error({
+        service: "historical",
+        msg: `Factory child address task failed... [${fromBlock}, ${toBlock}] (contract=${
+          factory.contractName
+        }, network=${
+          this.network.name
+        }, eerror=${`${error.name}: ${error.message}`})`,
+        error,
+      });
+      this.emit("error", error);
+    }
+  };
+
+  private blockTaskWorker = async ({
     blockNumber,
     callbacks,
   }: {
     blockNumber: number;
     callbacks: ((block: HistoricalBlock) => Promise<void>)[];
-  }) =>
-    this._eth_getBlockByNumber({ blockNumber })
-      .then(async (block) => {
-        await Promise.all(callbacks.map((cb) => cb(block)));
+  }) => {
+    try {
+      const block = await this._eth_getBlockByNumber({ blockNumber });
 
-        const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
-          blockNumber,
-          blockTimestamp: hexToNumber(block.timestamp),
-        });
+      await Promise.all(callbacks.map((cb) => cb(block)));
 
-        this.checkSyncCompletion();
-
-        if (newBlockCheckpoint) {
-          this.emit("historicalCheckpoint", {
-            blockTimestamp: newBlockCheckpoint.blockTimestamp,
-            chainId: this.network.chainId,
-            blockNumber: newBlockCheckpoint.blockNumber,
-          });
-        }
-
-        this.common.logger.trace({
-          service: "historical",
-          msg: `Completed BLOCK task ${hexToNumber(block.number!)} with ${
-            callbacks.length
-          } callbacks (network=${this.network.name})`,
-        });
-      })
-      .catch((error) => {
-        error.stack = undefined;
-        this.common.logger.error({
-          service: "historical",
-          msg: `Block task failed... [${blockNumber}] (network=${
-            this.network.name
-          }, error=${`${error.name}: ${error.message}`})`,
-          error,
-        });
-        this.emit("error", error);
+      const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
+        blockNumber,
+        blockTimestamp: hexToNumber(block.timestamp),
       });
+
+      this.checkSyncCompletion();
+
+      if (newBlockCheckpoint) {
+        this.emit("historicalCheckpoint", {
+          blockTimestamp: newBlockCheckpoint.blockTimestamp,
+          chainId: this.network.chainId,
+          blockNumber: newBlockCheckpoint.blockNumber,
+        });
+      }
+
+      this.common.logger.trace({
+        service: "historical",
+        msg: `Completed BLOCK task ${hexToNumber(block.number!)} with ${
+          callbacks.length
+        } callbacks (network=${this.network.name})`,
+      });
+    } catch (error_) {
+      const error = error_ as Error;
+
+      error.stack = undefined;
+      this.common.logger.error({
+        service: "historical",
+        msg: `Block task failed... [${blockNumber}] (network=${
+          this.network.name
+        }, error=${`${error.name}: ${error.message}`})`,
+        error,
+      });
+      this.emit("error", error);
+    }
+  };
 
   private buildLogIntervals = ({
     fromBlock,
