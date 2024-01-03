@@ -623,7 +623,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               factory: factory.criteria,
               block,
               logInterval,
-            }).then(() => {
+            }).then((_) => {
               this.common.metrics.ponder_historical_completed_blocks.inc(
                 {
                   network: this.network.name,
@@ -631,6 +631,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 },
                 endBlock - startBlock + 1,
               );
+              return _;
             }),
           );
         }
