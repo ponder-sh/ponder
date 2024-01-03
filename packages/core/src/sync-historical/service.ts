@@ -533,22 +533,25 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         for (const logInterval of logIntervals) {
           const { startBlock, endBlock } = logInterval;
 
-          (this.blockCallbacks[endBlock] ||= []).push((block) =>
-            this._insertLogFilterInterval({
+          if (this.blockCallbacks[endBlock] === undefined)
+            this.blockCallbacks[endBlock] = [];
+
+          this.blockCallbacks[endBlock].push(async (block) => {
+            await this._insertLogFilterInterval({
               logInterval,
               logFilter: logFilter.criteria,
               chainId: logFilter.chainId,
               block,
-            }).then(() => {
-              this.common.metrics.ponder_historical_completed_blocks.inc(
-                {
-                  network: this.network.name,
-                  contract: logFilter.contractName,
-                },
-                endBlock - startBlock + 1,
-              );
-            }),
-          );
+            });
+
+            this.common.metrics.ponder_historical_completed_blocks.inc(
+              {
+                network: this.network.name,
+                contract: logFilter.contractName,
+              },
+              endBlock - startBlock + 1,
+            );
+          });
         }
 
         this.logFilterProgressTrackers[logFilter.id].addCompletedInterval([
@@ -617,23 +620,25 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         for (const logInterval of logIntervals) {
           const { startBlock, endBlock } = logInterval;
 
-          (this.blockCallbacks[endBlock] ||= []).push((block) =>
-            this._insertFactoryLogFilterInterval({
+          if (this.blockCallbacks[endBlock] === undefined)
+            this.blockCallbacks[endBlock] = [];
+
+          this.blockCallbacks[endBlock].push(async (block) => {
+            await this._insertFactoryLogFilterInterval({
               chainId: factory.chainId,
               factory: factory.criteria,
               block,
               logInterval,
-            }).then((_) => {
-              this.common.metrics.ponder_historical_completed_blocks.inc(
-                {
-                  network: this.network.name,
-                  contract: factory.contractName,
-                },
-                endBlock - startBlock + 1,
-              );
-              return _;
-            }),
-          );
+            });
+
+            this.common.metrics.ponder_historical_completed_blocks.inc(
+              {
+                network: this.network.name,
+                contract: factory.contractName,
+              },
+              endBlock - startBlock + 1,
+            );
+          });
         }
 
         this.factoryLogFilterProgressTrackers[factory.id].addCompletedInterval([
@@ -675,14 +680,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       fromBlock: toHex(fromBlock),
       toBlock: toHex(toBlock),
     })
-      .then((logs) =>
+      .then(async (logs) => {
         // Insert the new child address logs into the store.
-        this._insertFactoryChildAddressLogs({
+        await this._insertFactoryChildAddressLogs({
           chainId: factory.chainId,
           logs,
-        }).then(() => logs),
-      )
-      .then((logs) => {
+        });
+
         const logIntervals = this.buildLogIntervals({
           fromBlock,
           toBlock,
@@ -690,7 +694,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
 
         for (const logInterval of logIntervals) {
-          (this.blockCallbacks[logInterval.endBlock] ||= []).push((block) =>
+          if (this.blockCallbacks[logInterval.endBlock] === undefined)
+            this.blockCallbacks[logInterval.endBlock] = [];
+
+          this.blockCallbacks[logInterval.endBlock].push((block) =>
             this._insertLogFilterInterval({
               logInterval,
               logFilter: {
@@ -768,10 +775,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     callbacks: ((block: HistoricalBlock) => Promise<void>)[];
   }) =>
     this._eth_getBlockByNumber({ blockNumber })
-      .then((block) =>
-        Promise.all(callbacks.map((cb) => cb(block))).then(() => block),
-      )
-      .then((block) => {
+      .then(async (block) => {
+        await Promise.all(callbacks.map((cb) => cb(block)));
+
         const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
           blockNumber,
           blockTimestamp: hexToNumber(block.timestamp),
