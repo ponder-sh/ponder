@@ -50,21 +50,23 @@ type Task = {
  * Creates a queue built to manage rpc requests.
  */
 export const createRequestQueue = ({
-  requestsPerSecond,
+  maxRequestsPerSecond,
   metrics,
   transport,
   networkName,
 }: {
-  requestsPerSecond: number;
+  maxRequestsPerSecond: number;
   metrics: MetricsService;
   networkName: string;
   transport: Client["transport"];
 }): RequestQueue => {
   let queue: Task[] = new Array();
   const interval =
-    1000 / requestsPerSecond > 50 ? 1000 / requestsPerSecond : 50;
+    1000 / maxRequestsPerSecond > 50 ? 1000 / maxRequestsPerSecond : 50;
   const requestBatchSize =
-    1000 / requestsPerSecond > 50 ? 1 : Math.floor(requestsPerSecond / 20);
+    1000 / maxRequestsPerSecond > 50
+      ? 1
+      : Math.floor(maxRequestsPerSecond / 20);
 
   let lastRequestTime = 0;
   let pending = 0;

@@ -9,7 +9,7 @@ export type Network = {
   chainId: number;
   pollingInterval: number;
   defaultMaxBlockRange: number;
-  requestPerSecond: number;
+  maxRequestsPerSecond: number;
   finalityBlockCount: number;
   requestQueue: RequestQueue;
   transport: Client["transport"];
@@ -55,14 +55,14 @@ export async function buildNetwork({
     transport: { ..._transport.config, ..._transport.value },
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
-    requestPerSecond: network.requestsPerSecond ?? 20,
+    maxRequestsPerSecond: network.maxRequestsPerSecond ?? 100,
     finalityBlockCount: getFinalityBlockCount({ chainId }),
     requestQueue: createRequestQueue({
       transport: {
         ..._transport.config,
         ..._transport.value,
       },
-      requestsPerSecond: network.requestsPerSecond ?? 20,
+      maxRequestsPerSecond: network.maxRequestsPerSecond ?? 100,
       networkName,
       metrics: common.metrics,
     }),
