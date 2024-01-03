@@ -13,7 +13,12 @@ import {
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { Abi } from "abitype";
-import type { Factory, LogFilter, Source, Topics } from "../../config/types.js";
+import type {
+  Factory,
+  LogFilter,
+  Source,
+  Topics,
+} from "../../config/sources.js";
 
 export async function buildNetworksAndSources({ config }: { config: Config }) {
   const warnings: string[] = [];

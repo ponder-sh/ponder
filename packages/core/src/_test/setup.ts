@@ -7,7 +7,7 @@ import type { Network } from "@/config/networks.js";
 
 import type { Common } from "@/Ponder.js";
 import { buildOptions } from "@/config/options.js";
-import type { Factory, LogFilter } from "@/config/types.js";
+import type { Factory, LogFilter } from "@/config/sources.js";
 import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";

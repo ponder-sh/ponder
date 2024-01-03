@@ -25,7 +25,7 @@ import { mainnet } from "viem/chains";
 
 import type { Ponder } from "@/Ponder.js";
 import { type Config, createConfig } from "@/config/config.js";
-import { type Source } from "@/config/types.js";
+import { type Source } from "@/config/sources.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 
 import { buildNetworksAndSources } from "@/build/config/config.js";

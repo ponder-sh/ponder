@@ -10,7 +10,7 @@ import type { Config } from "@/config/config.js";
 import { buildDatabase } from "@/config/database.js";
 import { type Network } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
-import type { Source } from "@/config/types.js";
+import type { Source } from "@/config/sources.js";
 import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";

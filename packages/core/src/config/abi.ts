@@ -10,7 +10,7 @@ import {
 
 import { getDuplicateElements } from "@/utils/duplicates.js";
 import type { Config } from "./config.js";
-import type { Topics } from "./types.js";
+import type { Topics } from "./sources.js";
 
 /**
  * Fix issue with Array.isArray not checking readonly arrays

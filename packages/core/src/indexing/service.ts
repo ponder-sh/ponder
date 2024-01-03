@@ -6,7 +6,7 @@ import { checksumAddress, createClient, decodeEventLog } from "viem";
 import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { Network } from "@/config/networks.js";
-import type { Source } from "@/config/types.js";
+import type { Source } from "@/config/sources.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";

@@ -1,7 +1,7 @@
 import type { Kysely, Migrator } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/types.js";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";

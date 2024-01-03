@@ -15,7 +15,7 @@ import type { Config } from "@/config/config.js";
 import type { Network } from "@/config/networks.js";
 import type { Schema } from "@/schema/types.js";
 
-import type { Source } from "@/config/types.js";
+import type { Source } from "@/config/sources.js";
 import { buildGqlSchema } from "@/server/graphql/schema.js";
 import { safeBuildNetworksAndSources } from "./config/config.js";
 import {

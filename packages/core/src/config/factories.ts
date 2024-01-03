@@ -3,7 +3,7 @@ import { getEventSelector } from "viem";
 
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
-import type { FactoryCriteria } from "./types.js";
+import type { FactoryCriteria } from "./sources.js";
 
 export function buildFactoryCriteria({
   address: _address,

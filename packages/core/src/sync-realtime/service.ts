@@ -14,7 +14,7 @@ import {
   type Source,
   sourceIsFactory,
   sourceIsLogFilter,
-} from "@/config/types.js";
+} from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { poll } from "@/utils/poll.js";
