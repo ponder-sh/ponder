@@ -23,11 +23,17 @@
     "@changesets/cli": "^2.26.2",
     "lint-staged": "^15.1.0",
     "simple-git-hooks": "^2.9.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "viem": "^1.21.4"
   },
   "lint-staged": {
-    "*.ts": ["biome format --no-errors-on-unmatched", "biome check"],
-    "!(*.ts)": ["biome format --no-errors-on-unmatched"]
+    "*.ts": [
+      "biome format --no-errors-on-unmatched",
+      "biome check"
+    ],
+    "!(*.ts)": [
+      "biome format --no-errors-on-unmatched"
+    ]
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
