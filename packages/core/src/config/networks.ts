@@ -12,7 +12,6 @@ export type Network = {
   maxRequestsPerSecond: number;
   finalityBlockCount: number;
   requestQueue: RequestQueue;
-  transport: Client["transport"];
 };
 
 export async function buildNetwork({
@@ -52,7 +51,6 @@ export async function buildNetwork({
   const resolvedNetwork: Network = {
     name: networkName,
     chainId: chainId,
-    transport: { ..._transport.config, ..._transport.value },
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
     maxRequestsPerSecond: network.maxRequestsPerSecond ?? 100,

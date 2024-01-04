@@ -164,7 +164,7 @@ test("start() handles error while fetching new latest block gracefully", async (
 
   const blockNumbers = await getBlockNumbers();
 
-  const rpcRequestSpy = vi.spyOn(networks[0].transport, "request");
+  const rpcRequestSpy = vi.spyOn(networks[0].requestQueue, "request");
 
   const service = new RealtimeSyncService({
     common,
