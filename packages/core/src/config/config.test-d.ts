@@ -177,13 +177,15 @@ test("createConfig() events", () => {
     },
   });
 
+  config.contracts.c.abi;
+
   assertType<typeof config.contracts.c.filter.event>(
     [] as unknown as ["Event0", "Event1"],
   );
 });
 
 test("createConfig() has strict arg types for event", () => {
-  createConfig({
+  const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
@@ -198,6 +200,8 @@ test("createConfig() has strict arg types for event", () => {
       },
     },
   });
+
+  assertType<typeof config.contracts.c.filter.event>("" as "Event0");
 });
 
 test("createConfig() filter with unnamed parameters", () => {

@@ -1,14 +1,12 @@
 import type { Abi, AbiEvent, FormatAbiItem } from "abitype";
 import type { GetEventArgs, Transport } from "viem";
 
-export type FilterAbiEvents<T extends Abi> = T extends readonly [
-  infer First,
-  ...infer Rest extends Abi,
-]
-  ? First extends AbiEvent
-    ? readonly [First, ...FilterAbiEvents<Rest>]
-    : FilterAbiEvents<Rest>
-  : [];
+export type FilterAbiEvents<T extends Abi | readonly unknown[]> =
+  T extends readonly [infer First, ...infer Rest extends Abi]
+    ? First extends AbiEvent
+      ? readonly [First, ...FilterAbiEvents<Rest>]
+      : FilterAbiEvents<Rest>
+    : [];
 
 /**
  * Remove TElement from TArr.
@@ -65,12 +63,12 @@ export type RecoverAbiEvent<
 /** Required fields for a contract. */
 export type ContractRequired<
   TNetworkNames extends string,
-  TAbi extends Abi | unknown,
+  TAbi extends Abi | readonly unknown[],
   TEventName extends string,
   TFactoryEvent extends AbiEvent | undefined,
 > = {
   /** Contract application byte interface. */
-  abi: Abi;
+  abi: TAbi;
   /**
    * Network that this contract is deployed to. Must match a network name in `networks`.
    * Any filter information overrides the values in the higher level "contracts" property.
@@ -88,7 +86,7 @@ export type ContractRequired<
 
 /** Fields for a contract used to filter down which events indexed. */
 export type ContractFilter<
-  TAbi extends Abi | unknown,
+  TAbi extends Abi | readonly unknown[],
   TEventName extends string,
   TFactoryEvent extends AbiEvent | undefined,
 > = (
@@ -105,6 +103,7 @@ export type ContractFilter<
         /** ABI event that announces the creation of a new instance of this contract. */
         event: AbiEvent;
         /** Name of the factory event parameter that contains the new child contract address. */
+        p: TFactoryEvent;
         parameter: TFactoryEvent extends AbiEvent
           ? TFactoryEvent["inputs"][number]["name"]
           : string;
@@ -157,7 +156,7 @@ export type ContractFilter<
 /** Contract in Ponder config. */
 export type Contract<
   TNetworkNames extends string,
-  TAbi extends Abi | unknown,
+  TAbi extends Abi | readonly unknown[],
   TEventName extends string,
   TFactoryEvent extends AbiEvent | undefined,
 > = ContractRequired<TNetworkNames, TAbi, TEventName, TFactoryEvent> &
@@ -210,7 +209,7 @@ export type Config = {
   database?: Database;
   networks: Record<string, Network>;
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
-  contracts: Record<string, Contract<string, Abi, string, undefined>>;
+  contracts: Record<string, Contract<string, Abi, string, AbiEvent>>;
   /** Configuration for Ponder internals. */
   options?: Option;
 };
@@ -240,7 +239,7 @@ export const createConfig = <
   const TContracts extends {
     [ContractName in keyof TContracts]: Contract<
       keyof TNetworks & string,
-      TContracts[ContractName]["abi"],
+      TContracts[ContractName]["abi"] & (Abi | readonly unknown[]),
       TContracts[ContractName]["filter"] extends {
         event: infer _event extends string;
       }
@@ -258,8 +257,7 @@ export const createConfig = <
 >(config: {
   database?: Database;
   networks: TNetworks;
-  contracts: TContracts &
-    Record<string, Contract<string, Abi, string, AbiEvent>>;
+  contracts: TContracts;
   options?: Option;
 }): {
   database?: Database;
