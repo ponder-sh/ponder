@@ -338,12 +338,57 @@ test("buildNetworksAndSources() validates against specifying both factory and ad
         },
       },
     },
-  }) as any;
+  });
 
   const result = await safeBuildNetworksAndSources({ config });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
     "Validation failed: Contract 'a' cannot specify both 'factory' and 'address' options.",
+  );
+});
+
+test("buildNetworksAndSources() validates address prefix", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    },
+    // @ts-expect-error
+    contracts: {
+      a: {
+        network: "mainnet",
+        abi: [event0],
+        address: "0b0000000000000000000000000000000000000001",
+      },
+    },
+  });
+
+  const result = await safeBuildNetworksAndSources({ config });
+
+  expect(result.success).toBe(false);
+  expect(result.error?.message).toBe(
+    "Validation failed: Invalid prefix for address '0b0000000000000000000000000000000000000001'. Got '0b', expected '0x'.",
+  );
+});
+
+test("buildNetworksAndSources() validates address length", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    },
+    contracts: {
+      a: {
+        network: "mainnet",
+        abi: [event0],
+        address: "0x000000000001",
+      },
+    },
+  });
+
+  const result = await safeBuildNetworksAndSources({ config });
+
+  expect(result.success).toBe(false);
+  expect(result.error?.message).toBe(
+    "Validation failed: Invalid length for address '0x000000000001'. Got 14, expected 42 characters.",
   );
 });

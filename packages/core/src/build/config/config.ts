@@ -194,15 +194,35 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
         } satisfies Factory;
       }
 
+      const validatedAddress = Array.isArray(resolvedAddress)
+        ? resolvedAddress.map((r) => toLowerCase(r))
+        : resolvedAddress
+          ? toLowerCase(resolvedAddress)
+          : undefined;
+
+      if (validatedAddress !== undefined) {
+        for (const address of Array.isArray(validatedAddress)
+          ? validatedAddress
+          : [validatedAddress]) {
+          if (!address.startsWith("0x"))
+            throw new Error(
+              `Validation failed: Invalid prefix for address '${address}'. Got '${address.slice(
+                0,
+                2,
+              )}', expected '0x'.`,
+            );
+          if (address.length !== 42)
+            throw new Error(
+              `Validation failed: Invalid length for address '${address}'. Got ${address.length}, expected 42 characters.`,
+            );
+        }
+      }
+
       return {
         ...baseContract,
         type: "logFilter",
         criteria: {
-          address: Array.isArray(resolvedAddress)
-            ? resolvedAddress.map((r) => toLowerCase(r))
-            : resolvedAddress
-              ? toLowerCase(resolvedAddress)
-              : undefined,
+          address: validatedAddress,
           topics,
         },
       } satisfies LogFilter;
