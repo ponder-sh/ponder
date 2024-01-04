@@ -6,7 +6,7 @@ export default createConfig({
   networks: {
     mainnet: {
       chainId: 1,
-      transport: http("https://rpc.ankr.com/eth", { retryCount: 4 }),
+      transport: http(),
     },
   },
   contracts: {
