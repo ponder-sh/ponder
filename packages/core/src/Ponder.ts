@@ -409,9 +409,12 @@ export class Ponder {
       },
     });
 
-    for (const { network } of this.syncServices) {
-      network.requestQueue.kill();
-    }
+    await Promise.all(
+      this.syncServices.map(async ({ realtime, network }) => {
+        network.requestQueue.kill();
+        await realtime.kill();
+      }),
+    );
 
     this.uiService.kill();
 
@@ -421,12 +424,6 @@ export class Ponder {
       await this.serverService.kill(),
       await this.common.telemetry.kill(),
     ]);
-
-    await Promise.all(
-      this.syncServices.map(async ({ realtime }) => {
-        await realtime.kill();
-      }),
-    );
 
     await this.indexingStore.kill();
     await this.syncStore.kill();

@@ -196,7 +196,7 @@ export type Network = {
   transport: Transport;
   /** Polling frequency (in ms). Default: `1_000`. */
   pollingInterval?: number;
-  /** Maximum number of network request per second. Default: `100`. */
+  /** Maximum number of RPC requests per second. Default: `100`. */
   maxRequestsPerSecond?: number;
 };
 

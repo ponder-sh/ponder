@@ -491,18 +491,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // historical sync required, so the sync is complete. However, we still
     // need to emit the historicalCheckpoint event with some timestamp. It should
     // be safe to use the current timestamp.
-    if (
-      Object.values(this.logFilterProgressTrackers).every((t) =>
-        t.isComplete(),
-      ) &&
-      Object.values(this.factoryChildAddressProgressTrackers).every((t) =>
-        t.isComplete(),
-      ) &&
-      Object.values(this.factoryLogFilterProgressTrackers).every((t) =>
-        t.isComplete(),
-      ) &&
-      this.blockProgressTracker.isComplete()
-    ) {
+    if (this.isSyncComplete()) {
       if (this.finalizedBlockNumber !== undefined) {
         this.emit("historicalCheckpoint", {
           blockTimestamp: Math.round(Date.now() / 1000),
@@ -520,8 +509,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
   }
 
-  private checkSyncCompletion = async () => {
-    if (
+  private isSyncComplete = () => {
+    return (
       Object.values(this.logFilterProgressTrackers).every((t) =>
         t.isComplete(),
       ) &&
@@ -532,7 +521,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         t.isComplete(),
       ) &&
       this.blockProgressTracker.isComplete()
-    ) {
+    );
+  };
+
+  private checkSyncCompletion = async () => {
+    if (this.isSyncComplete()) {
       clearInterval(this.progressLogInterval);
       this.emit("syncComplete");
       const startTimestamp =
