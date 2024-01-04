@@ -1,8 +1,8 @@
 import type { Server } from "node:http";
 import { createServer } from "node:http";
 
+import { Emittery } from "@/utils/emittery.js";
 import cors from "cors";
-import Emittery from "emittery";
 import express, { type Handler } from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { GraphQLError, formatError } from "graphql";
@@ -45,11 +45,7 @@ export class ServerService extends Emittery<ServerEvents> {
     this.app = express();
   }
 
-  setup() {
-    this.registerRoutes();
-  }
-
-  private registerRoutes() {
+  setup({ registerDevRoutes }: { registerDevRoutes: boolean }) {
     // Middleware.
     this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
     this.app.use(this.middlewareMetrics());
@@ -67,10 +63,10 @@ export class ServerService extends Emittery<ServerEvents> {
       "/",
       this.handleGraphql({ shouldWaitForHistoricalSync: false }),
     );
-  }
 
-  public registerDevRoutes() {
-    this.app.post("/admin/reload", this.handleAdminReload());
+    if (registerDevRoutes) {
+      this.app.post("/admin/reload", this.handleAdminReload());
+    }
   }
 
   async start() {

@@ -1,5 +1,5 @@
+import { Emittery } from "@/utils/emittery.js";
 import { E_CANCELED, Mutex } from "async-mutex";
-import Emittery from "emittery";
 import type { Abi, Address, Client, Hex } from "viem";
 import { checksumAddress, createClient, decodeEventLog } from "viem";
 

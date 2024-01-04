@@ -92,19 +92,21 @@ export class Ponder {
   } = {}) {
     const success = await this.setupBuildService();
     if (!success) return;
-    await this.setupCoreServices({ syncStore, indexingStore });
 
     this.common.telemetry.record({
       event: "App Started",
       properties: {
         command: "ponder dev",
         contractCount: this.sources.length,
-        databaseKind: this.syncStore.kind,
+        databaseKind: this.config.database?.kind,
       },
     });
 
-    this.serverService.registerDevRoutes();
-    await this.serverService.start();
+    await this.setupCoreServices({ isDev: true, syncStore, indexingStore });
+
+    // If running `ponder dev`, register build service listeners to handle hot reloads.
+    this.registerBuildServiceEventListeners();
+
     await this.startSyncServices();
   }
 
@@ -118,34 +120,31 @@ export class Ponder {
   } = {}) {
     const success = await this.setupBuildService();
     if (!success) return;
-    await this.setupCoreServices({ syncStore, indexingStore });
 
     this.common.telemetry.record({
       event: "App Started",
       properties: {
         command: "ponder start",
         contractCount: this.sources.length,
-        databaseKind: this.syncStore.kind,
+        databaseKind: this.config.database?.kind,
       },
     });
 
-    // If not using `dev`, can kill the build service here to avoid hot reloads.
-    await this.buildService.kill();
-    await this.serverService.start();
+    await this.setupCoreServices({ isDev: false, syncStore, indexingStore });
     await this.startSyncServices();
   }
 
   async serve() {
-    this.common.logger.debug({
-      service: "app",
-      msg: `Started using config file: ${path.relative(
-        this.common.options.rootDir,
-        this.common.options.configFile,
-      )}`,
-    });
-
     const success = await this.setupBuildService();
     if (!success) return;
+
+    this.common.telemetry.record({
+      event: "App Started",
+      properties: {
+        command: "ponder serve",
+        databaseKind: this.config.database?.kind,
+      },
+    });
 
     const database = buildDatabase({
       common: this.common,
@@ -168,7 +167,7 @@ export class Ponder {
       indexingStore: this.indexingStore,
     });
 
-    this.serverService.setup();
+    this.serverService.setup({ registerDevRoutes: false });
     await this.serverService.start();
 
     // TODO: Make this less hacky. This was a quick way to make the schema available
@@ -177,14 +176,6 @@ export class Ponder {
 
     this.serverService.reloadGraphqlSchema({
       graphqlSchema: this.graphqlSchema,
-    });
-
-    this.common.telemetry.record({
-      event: "App Started",
-      properties: {
-        command: "ponder serve",
-        databaseKind: this.indexingStore.kind,
-      },
     });
   }
 
@@ -223,7 +214,7 @@ export class Ponder {
       });
       this.common.logger.fatal({
         service: "app",
-        msg: "Failed initial build, exiting...",
+        msg: "Failed intial build",
       });
       await this.buildService.kill();
       return false;
@@ -240,13 +231,15 @@ export class Ponder {
   }
 
   private async setupCoreServices({
+    isDev,
     syncStore,
     indexingStore,
   }: {
+    isDev: boolean;
     // These options are only used for testing.
     syncStore?: SyncStore;
     indexingStore?: IndexingStore;
-  } = {}) {
+  }) {
     const database = buildDatabase({
       common: this.common,
       config: this.config,
@@ -335,11 +328,9 @@ export class Ponder {
 
     // One-time setup for some services.
     await this.syncStore.migrateUp();
-    this.serverService.setup();
 
-    this.codegenService.generateGraphqlSchemaFile({
-      graphqlSchema: this.graphqlSchema,
-    });
+    this.serverService.setup({ registerDevRoutes: isDev });
+    await this.serverService.start();
     this.serverService.reloadGraphqlSchema({
       graphqlSchema: this.graphqlSchema,
     });
@@ -351,9 +342,11 @@ export class Ponder {
     });
     await this.indexingService.processEvents();
 
-    // Once all services have been successfully created & started
-    // using the initial config, register service dependencies.
-    this.registerServiceDependencies();
+    this.codegenService.generateGraphqlSchemaFile({
+      graphqlSchema: this.graphqlSchema,
+    });
+
+    this.registerCoreServiceEventListeners();
   }
 
   private async startSyncServices() {
@@ -380,14 +373,7 @@ export class Ponder {
    */
   async kill() {
     this.buildService.clearListeners();
-    this.syncServices.forEach(({ historical, realtime }) => {
-      historical.clearListeners();
-      realtime.clearListeners();
-    });
-    this.serverService.clearListeners();
-    this.indexingService.clearListeners();
-    this.common.metrics.resetMetrics();
-    this.syncGatewayService.clearListeners();
+    this.clearCoreServiceEventListeners();
 
     this.common.telemetry.record({
       event: "App Killed",
@@ -397,18 +383,15 @@ export class Ponder {
     this.uiService.kill();
 
     await Promise.all([
-      await this.indexingService.kill(),
-      await this.buildService.kill(),
-      await this.serverService.kill(),
-      await this.common.telemetry.kill(),
-    ]);
-
-    await Promise.all(
-      this.syncServices.map(async ({ realtime, historical }) => {
+      ...this.syncServices.map(async ({ realtime, historical }) => {
         await realtime.kill();
         await historical.kill();
       }),
-    );
+      this.indexingService.kill(),
+      this.buildService.kill(),
+      this.serverService.kill(),
+      this.common.telemetry.kill(),
+    ]);
 
     await this.indexingStore.kill();
     await this.syncStore.kill();
@@ -420,96 +403,71 @@ export class Ponder {
   }
 
   /**
-   * Very similar to `kill()`, but don't kill the ui service or build service.
+   * Kill all services other than the build, UI, and common services.
    */
-  private async reload() {
-    this.buildService.clearListeners();
-    this.syncServices.forEach(({ historical, realtime }) => {
-      historical.clearListeners();
-      realtime.clearListeners();
-    });
-    this.serverService.clearListeners();
-    this.indexingService.clearListeners();
-    this.common.metrics.resetMetrics();
-    this.syncGatewayService.clearListeners();
+  private async killCoreServices() {
+    this.clearCoreServiceEventListeners();
 
     await Promise.all([
-      await this.indexingService.kill(),
-      await this.serverService.kill(),
-      await this.common.telemetry.kill(),
-    ]);
-
-    await Promise.all(
-      this.syncServices.map(async ({ realtime, historical }) => {
+      ...this.syncServices.map(async ({ realtime, historical }) => {
         await realtime.kill();
         await historical.kill();
       }),
-    );
+      this.indexingService.kill(),
+      this.serverService.kill(),
+    ]);
 
     await this.indexingStore.kill();
     await this.syncStore.kill();
+
+    await this.common.metrics.resetMetrics();
   }
 
-  private registerServiceDependencies() {
-    this.buildService.on("newConfig", async (build) => {
-      if (build) {
+  private registerBuildServiceEventListeners() {
+    this.buildService.onSerial(
+      "newConfig",
+      async ({ config, sources, networks }) => {
         this.common.errors.hasUserError = false;
-        this.common.logger.info({
-          service: "app",
-          msg: "Reloading ponder with new config",
-        });
 
-        // Clear all listeners. Will be added back in setup.
-        await this.reload();
+        const startBlock = sources.find(
+          (s) => s.networkName === "base",
+        )!.startBlock;
 
-        this.config = build.config;
-        this.sources = build.sources;
-        this.networks = build.networks;
+        console.log(sources);
 
-        await this.setupCoreServices();
-        // NOTE: We know we are in dev mode if the build service is receiving events. Build events are disabled in production.
-        await this.dev();
-      } else {
-        // If the build service emits the "newConfig" event with undefined, it means there was an error
-        // while building or validating the config on a hot reload.
-        await this.indexingService.kill();
-        await Promise.all(
-          this.syncServices.map(async ({ realtime, historical }) => {
-            await realtime.kill();
-            await historical.kill();
-          }),
-        );
-      }
-    });
+        console.log("entering newConfig with ", startBlock);
 
-    this.buildService.on("newSchema", async (build) => {
-      if (build) {
+        await this.killCoreServices();
+
+        this.config = config;
+        this.sources = sources;
+        this.networks = networks;
+
+        await this.setupCoreServices({ isDev: true });
+
+        await this.startSyncServices();
+
+        console.log("exiting newConfig");
+      },
+    );
+
+    this.buildService.onSerial(
+      "newSchema",
+      async ({ schema, graphqlSchema }) => {
         this.common.errors.hasUserError = false;
-        this.common.logger.info({
-          service: "app",
-          msg: "Reloading ponder with new schema",
-        });
 
-        this.schema = build.schema;
-        this.graphqlSchema = build.graphqlSchema;
+        this.schema = schema;
+        this.graphqlSchema = graphqlSchema;
 
-        this.codegenService.generateGraphqlSchemaFile({
-          graphqlSchema: build.graphqlSchema,
-        });
-        this.serverService.reloadGraphqlSchema({
-          graphqlSchema: build.graphqlSchema,
-        });
+        this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
+        this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
-        await this.indexingService.reset({ schema: build.schema });
+        await this.indexingService.reset({ schema });
         await this.indexingService.processEvents();
-      } else {
-        // If the build service emits the "newSchema" event with undefined, it means there was an error
-        // while building or validating the schema on a hot reload.
-        await this.indexingService.kill();
-      }
-    });
+      },
+    );
 
-    this.buildService.on(
+    this.buildService.onSerial(
       "newIndexingFunctions",
       async ({ indexingFunctions }) => {
         this.common.errors.hasUserError = false;
@@ -521,6 +479,26 @@ export class Ponder {
       },
     );
 
+    this.buildService.on("error", async ({ kind }) => {
+      this.common.errors.submitUserError();
+
+      if (kind === "config") {
+        await this.indexingService.kill();
+        await Promise.all(
+          this.syncServices.map(async ({ realtime, historical }) => {
+            await realtime.kill();
+            await historical.kill();
+          }),
+        );
+      } else if (kind === "schema") {
+        await this.indexingService.kill();
+      } else if (kind === "indexingFunctions") {
+        await this.indexingService.kill();
+      }
+    });
+  }
+
+  private registerCoreServiceEventListeners() {
     this.syncServices.forEach(({ network, historical, realtime }) => {
       historical.on("historicalCheckpoint", (checkpoint) => {
         this.syncGatewayService.handleNewHistoricalCheckpoint(checkpoint);
@@ -569,7 +547,6 @@ export class Ponder {
       }
     });
 
-    // Server listeners.
     this.serverService.on("admin:reload", async ({ chainId }) => {
       const syncServiceForChainId = this.syncServices.find(
         ({ network }) => network.chainId === chainId,
@@ -637,5 +614,15 @@ export class Ponder {
       await this.indexingService.reset();
       await this.indexingService.processEvents();
     });
+  }
+
+  private clearCoreServiceEventListeners() {
+    this.syncServices.forEach(({ historical, realtime }) => {
+      historical.clearListeners();
+      realtime.clearListeners();
+    });
+    this.syncGatewayService.clearListeners();
+    this.indexingService.clearListeners();
+    this.serverService.clearListeners();
   }
 }

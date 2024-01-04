@@ -1,6 +1,12 @@
 import path from "node:path";
-
-import Emittery from "emittery";
+import type { Common } from "@/Ponder.js";
+import { safeBuildSchema } from "@/build/schema/schema.js";
+import type { Config } from "@/config/config.js";
+import type { Network } from "@/config/networks.js";
+import type { Source } from "@/config/sources.js";
+import type { Schema } from "@/schema/types.js";
+import { buildGqlSchema } from "@/server/graphql/schema.js";
+import { Emittery } from "@/utils/emittery.js";
 import { glob } from "glob";
 import { GraphQLSchema } from "graphql";
 import { type ViteDevServer, createServer } from "vite";
@@ -8,15 +14,6 @@ import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
-
-import type { Common } from "@/Ponder.js";
-import { safeBuildSchema } from "@/build/schema/schema.js";
-import type { Config } from "@/config/config.js";
-import type { Network } from "@/config/networks.js";
-import type { Schema } from "@/schema/types.js";
-
-import type { Source } from "@/config/sources.js";
-import { buildGqlSchema } from "@/server/graphql/schema.js";
 import { safeBuildNetworksAndSources } from "./config/config.js";
 import {
   type IndexingFunctions,
@@ -28,11 +25,10 @@ import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 type BuildServiceEvents = {
-  newConfig:
-    | { config: Config; sources: Source[]; networks: Network[] }
-    | undefined;
+  newConfig: { config: Config; sources: Source[]; networks: Network[] };
   newIndexingFunctions: { indexingFunctions: IndexingFunctions };
-  newSchema: { schema: Schema; graphqlSchema: GraphQLSchema } | undefined;
+  newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
+  error: { kind: "config" | "schema" | "indexingFunctions"; error: Error };
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
@@ -131,7 +127,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         } else {
           const error = configResult.error ?? (validationResult.error as Error);
           this.common.logger.error({ service: "build", error });
-          this.common.errors.submitUserError();
+          this.emit("error", { kind: "config", error });
         }
       }
 
@@ -144,7 +140,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         } else {
           const error = schemaResult.error ?? (validationResult.error as Error);
           this.common.logger.error({ service: "build", error });
-          this.common.errors.submitUserError();
+          this.emit("error", { kind: "schema", error });
         }
       }
 
@@ -170,7 +166,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           const error =
             indexingFunctionsResult.error ?? (validationResult.error as Error);
           this.common.logger.error({ service: "build", error });
-          this.common.errors.submitUserError();
+          this.emit("error", { kind: "indexingFunctions", error });
         }
       }
     };
@@ -196,6 +192,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async kill() {
+    this.cancelMutexes();
     await this.viteDevServer?.close();
     this.common.logger.debug({
       service: "build",
