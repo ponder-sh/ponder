@@ -2,13 +2,18 @@ import { http, getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
 import { createConfig } from "../../config/config.js";
-import { buildNetworksAndSources } from "./config.js";
+import {
+  buildNetworksAndSources,
+  safeBuildNetworksAndSources,
+} from "./config.js";
 
 const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
 const event1 = parseAbiItem("event Event1()");
 const event1Overloaded = parseAbiItem("event Event1(bytes32 indexed)");
+const eventFactory = parseAbiItem("event EventFactory(address indexed child)");
 
 const address1 = "0x0000000000000000000000000000000000000001";
+const address2 = "0x0000000000000000000000000000000000000001";
 const bytes1 =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
 const bytes2 =
@@ -42,7 +47,7 @@ test("buildNetworksAndSources() builds topics for multiple events", async () => 
   ]);
 });
 
-test("buildNetworksAndSources() for duplicate event", async () => {
+test("buildNetworksAndSources() handles overloaded event signatures and combines topics", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -72,7 +77,7 @@ test("buildNetworksAndSources() for duplicate event", async () => {
   ]);
 });
 
-test("buildNetworksAndSources() multichain", async () => {
+test("buildNetworksAndSources() creates a source for each network for multi-network contracts", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -163,7 +168,7 @@ test("buildNetworksAndSources() builds topics for event with unnamed parameters"
   ]);
 });
 
-test("buildNetworksAndSources() overrides default values with network values", async () => {
+test("buildNetworksAndSources() overrides default values with network-specific values", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -173,27 +178,27 @@ test("buildNetworksAndSources() overrides default values with network values", a
     },
     contracts: {
       a: {
-        network: {
-          mainnet: {
-            address: address1,
-          },
-        },
         abi: [event0],
         filter: { event: ["Event0"] },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
         maxBlockRange: 10,
+        network: {
+          mainnet: {
+            address: address2,
+          },
+        },
       },
     },
   });
 
   const { sources } = await buildNetworksAndSources({ config });
 
-  expect(sources[0].criteria.address).toBe(address1);
+  expect(sources[0].criteria.address).toBe(address2);
 });
 
-test("buildNetworksAndSources() network shortcut", async () => {
+test("buildNetworksAndSources() handles network name shortcut", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -217,4 +222,128 @@ test("buildNetworksAndSources() network shortcut", async () => {
   const { sources } = await buildNetworksAndSources({ config });
 
   expect(sources[0].networkName).toBe("mainnet");
+});
+
+test("buildNetworksAndSources() validates network name", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      a: {
+        // @ts-expect-error
+        network: "mainnetz",
+        abi: [event0],
+        address: address1,
+      },
+    },
+  });
+
+  const result = await safeBuildNetworksAndSources({ config });
+
+  expect(result.success).toBe(false);
+  expect(result.error?.message).toBe(
+    "Validation failed: Invalid network for contract 'a'. Got 'mainnetz', expected one of ['mainnet'].",
+  );
+});
+
+test("buildNetworksAndSources() warns for public RPC URL", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    },
+    contracts: {
+      a: {
+        network: "mainnet",
+        abi: [event0],
+        address: address1,
+      },
+    },
+  });
+
+  const result = await safeBuildNetworksAndSources({ config });
+
+  expect(result.success).toBe(true);
+  expect(result.data?.warnings[0]).toBe(
+    "Network 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
+  );
+});
+
+test("buildNetworksAndSources() validates against multiple events and indexed argument values", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    },
+    // @ts-expect-error
+    contracts: {
+      a: {
+        network: "mainnet",
+        abi: [event0, event1],
+        filter: {
+          event: ["Event0", "Event1"],
+          args: [bytes1],
+        },
+      },
+    },
+  }) as any;
+
+  const result = await safeBuildNetworksAndSources({ config });
+
+  expect(result.success).toBe(false);
+  expect(result.error?.message).toBe(
+    "Validation failed: Event filter for contract 'a' cannot contain indexed argument values if multiple events are provided.",
+  );
+});
+
+test("buildNetworksAndSources() validates event filter event name must be present in ABI", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    },
+    contracts: {
+      a: {
+        network: "mainnet",
+        abi: [event0],
+        filter: {
+          // @ts-expect-error
+          event: "Event2",
+        },
+      },
+    },
+  });
+
+  const result = await safeBuildNetworksAndSources({ config });
+
+  expect(result.success).toBe(false);
+  expect(result.error?.message).toBe(
+    "Validation failed: Invalid filter for contract 'a'. Got event name 'Event2', expected one of ['Event0'].",
+  );
+});
+
+test("buildNetworksAndSources() validates against specifying both factory and address", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    },
+    // @ts-expect-error
+    contracts: {
+      a: {
+        network: "mainnet",
+        abi: [event0],
+        address: address1,
+        factory: {
+          address: address2,
+          event: eventFactory,
+          parameter: "child",
+        },
+      },
+    },
+  }) as any;
+
+  const result = await safeBuildNetworksAndSources({ config });
+
+  expect(result.success).toBe(false);
+  expect(result.error?.message).toBe(
+    "Validation failed: Contract 'a' cannot specify both 'factory' and 'address' options.",
+  );
 });

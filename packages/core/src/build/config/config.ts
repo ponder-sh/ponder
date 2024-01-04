@@ -133,8 +133,8 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
           Array.isArray(rawContract.filter.event) &&
           rawContract.filter.args !== undefined
         ) {
-          warnings.push(
-            `Event filter for contract '${rawContract.contractName}' specifies multiple events AND provides indexed argument values. This is often a mistake.`,
+          throw new Error(
+            `Validation failed: Event filter for contract '${rawContract.contractName}' cannot contain indexed argument values if multiple events are provided.`,
           );
         }
 
@@ -152,7 +152,7 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
                 abiEvents.bySafeName,
               )
                 .map((n) => `'${n}'`)
-                .join(", ")}]`,
+                .join(", ")}].`,
             );
           }
         }
