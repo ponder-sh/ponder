@@ -1,6 +1,10 @@
 import type { ParseAbiItem } from "abitype";
 import { assertType, test } from "vitest";
-import type { FilterAbiEvents, SafeEventNames } from "./utilityTypes.js";
+import type {
+  FilterAbiEvents,
+  RecoverAbiEvent,
+  SafeEventNames,
+} from "./utilityTypes.js";
 
 type Event0 = ParseAbiItem<"event Event0(bytes32 indexed arg)">;
 type Event1 = ParseAbiItem<"event Event1()">;
@@ -19,7 +23,7 @@ test("SafeEventNames", () => {
     // ^?
     readonly [Event0, Event1]
   >;
-  assertType<"Event0" | "Event1">({} as unknown as a);
+  assertType<readonly ["Event0", "Event1"]>({} as unknown as a);
 });
 
 test("SafeEventNames overloaded", () => {
@@ -27,5 +31,17 @@ test("SafeEventNames overloaded", () => {
     // ^?
     readonly [Event1, Event1Overloaded]
   >;
-  assertType<"Event1()" | "Event1(bytes32 indexed)">({} as unknown as a);
+  assertType<readonly ["Event1()", "Event1(bytes32 indexed)"]>(
+    {} as unknown as a,
+  );
+});
+
+test("RecoverAbiEvent", () => {
+  type a = RecoverAbiEvent<
+    // ^?
+    readonly [Event0, Event1],
+    "Event0"
+  >;
+
+  assertType<Event0>({} as a);
 });

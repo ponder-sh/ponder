@@ -25,20 +25,41 @@ type FilterElement<
   : [];
 
 /**
- * Return an array of safe event names that handle event overridding.
+ * Return an union of safe event names that handle event overridding.
  */
 export type SafeEventNames<
   abi extends readonly AbiEvent[],
   arr extends readonly AbiEvent[] = abi,
 > = abi extends readonly [
-  infer first extends AbiEvent,
-  ...infer rest extends readonly AbiEvent[],
+  infer First extends AbiEvent,
+  ...infer Rest extends readonly AbiEvent[],
 ]
-  ? first["name"] extends FilterElement<first, arr>[number]["name"]
+  ? First["name"] extends FilterElement<First, arr>[number]["name"]
     ? // Overriding occurs, use full name
-      FormatAbiItem<first> extends `event ${infer longEvent extends string}`
-      ? longEvent | SafeEventNames<rest, arr>
+      FormatAbiItem<First> extends `event ${infer LongEvent extends string}`
+      ? readonly [LongEvent, ...SafeEventNames<Rest, arr>]
       : never
     : // Short name
-      first["name"] | SafeEventNames<rest, arr>
+      readonly [First["name"], ...SafeEventNames<Rest, arr>]
+  : [];
+
+/**
+ * Recover the element from {@link abi} at the index where {@link safeName} is equal to {@link safeNames}[index].
+ */
+export type RecoverAbiEvent<
+  abi extends readonly AbiEvent[],
+  safeName extends string,
+  safeNames extends SafeEventNames<abi> = SafeEventNames<abi>,
+> = abi extends readonly [
+  infer firstAbi,
+  ...infer restAbi extends readonly AbiEvent[],
+]
+  ? safeNames extends readonly [
+      infer firstName,
+      ...infer restName extends SafeEventNames<restAbi>,
+    ]
+    ? firstName extends safeName
+      ? firstAbi
+      : RecoverAbiEvent<restAbi, safeName, restName>
+    : never
   : never;

@@ -9,7 +9,10 @@ test("EventFilter with strict event", () => {
   type t = EventFilter<readonly [Event0], "Event0">;
   //   ^?
 
-  assertType<{ event: "Event0" }>({} as unknown as t);
+  assertType<{
+    event: "Event0";
+    args: { arg?: `0x${string}` | readonly `0x${string}`[] | null | undefined };
+  }>({} as unknown as t);
 });
 
 test("EventFilter with strict event array", () => {

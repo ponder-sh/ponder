@@ -1,5 +1,10 @@
+import type { AbiEvent } from "abitype";
 import type { Abi, GetEventArgs } from "viem";
-import type { FilterAbiEvents, SafeEventNames } from "./utilityTypes.js";
+import type {
+  FilterAbiEvents,
+  RecoverAbiEvent,
+  SafeEventNames,
+} from "./utilityTypes.js";
 
 export type DefaultEventFilter =
   | {
@@ -11,23 +16,39 @@ export type DefaultEventFilter =
       args?: never;
     };
 
-type EventName<abi extends Abi | readonly unknown[]> = Abi extends abi
-  ? string | readonly string[]
-  : readonly unknown[] extends abi
-    ? string | readonly string[]
-    :
-        | SafeEventNames<FilterAbiEvents<abi & Abi>>
-        | readonly SafeEventNames<FilterAbiEvents<abi & Abi>>[];
+type EventName<abi extends Abi | readonly unknown[]> =
+  | Abi
+  | readonly unknown[] extends abi
+  ? unknown
+  :
+      | SafeEventNames<FilterAbiEvents<abi & Abi>>[number]
+      | readonly SafeEventNames<FilterAbiEvents<abi & Abi>>[number][];
 
-// type Args<abi extends Abi | readonly unknown[]> = Abi extends abi
-// ?
+type Args<
+  abi extends Abi | readonly unknown[],
+  eventName extends EventName<abi>,
+> = Abi | readonly unknown[] extends abi
+  ? unknown
+  : eventName extends readonly string[]
+    ? never
+    : GetEventArgs<
+        abi,
+        string,
+        {
+          EnableUnion: true;
+          IndexedOnly: true;
+          Required: false;
+        },
+        RecoverAbiEvent<
+          abi extends infer _abi extends readonly AbiEvent[] ? _abi : never,
+          eventName extends infer _eventName extends string ? _eventName : never
+        >
+      >;
 
 export type EventFilter<
   abi extends Abi | readonly unknown[] = Abi,
   eventName extends EventName<abi> = EventName<abi>,
-  args extends eventName extends readonly string[]
-    ? never
-    : "hi" = eventName extends readonly string[] ? never : "hi",
+  args extends Args<abi, eventName> = Args<abi, eventName>,
 > = Abi extends abi
   ? DefaultEventFilter
   : readonly unknown[] extends abi
