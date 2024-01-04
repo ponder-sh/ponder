@@ -204,7 +204,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       finalizedBlock = block as RealtimeBlock;
     } catch (error_) {
       const error = error_ as Error;
-
+      if (error_ === undefined) return;
       error.stack = undefined;
       this.common.logger.error({
         service: "historical",
@@ -280,6 +280,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
       this.queue.addTask(block, { priority });
     } catch (error_) {
+      if (error_ === undefined) return;
       const error = error_ as Error;
       error.stack = undefined;
       this.common.logger.error({
@@ -299,6 +300,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         try {
           await this.blockTaskWorker({ block: task });
         } catch (error_) {
+          if (error_ === undefined) return;
           const error = error_ as Error;
           error.stack = undefined;
           this.common.logger.error({

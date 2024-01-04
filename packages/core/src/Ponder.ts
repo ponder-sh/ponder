@@ -409,6 +409,10 @@ export class Ponder {
       },
     });
 
+    for (const { network } of this.syncServices) {
+      network.requestQueue.kill();
+    }
+
     this.uiService.kill();
 
     await Promise.all([
@@ -419,9 +423,8 @@ export class Ponder {
     ]);
 
     await Promise.all(
-      this.syncServices.map(async ({ realtime, network }) => {
+      this.syncServices.map(async ({ realtime }) => {
         await realtime.kill();
-        network.requestQueue.kill();
       }),
     );
 
@@ -549,6 +552,24 @@ export class Ponder {
         this.syncGatewayService.handleHistoricalSyncComplete({
           chainId: network.chainId,
         });
+      });
+
+      historical.on("error", async () => {
+        this.common.logger.fatal({
+          service: "app",
+          msg: "Historical sync service failed: killing app",
+        });
+
+        await this.kill();
+      });
+
+      realtime.on("error", async () => {
+        this.common.logger.fatal({
+          service: "app",
+          msg: "Realtime sync service failed: killing app",
+        });
+
+        await this.kill();
       });
 
       realtime.on("realtimeCheckpoint", (checkpoint) => {
