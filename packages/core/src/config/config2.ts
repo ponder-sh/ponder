@@ -1,7 +1,8 @@
+import type { Prettify } from "@/types/utils.js";
 import type { Abi, AbiEvent } from "abitype";
-import type { Transport } from "viem";
+import { type Transport } from "viem";
 
-type BlockConfig = {
+export type BlockConfig = {
   /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
   startBlock?: number;
   /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
@@ -10,7 +11,7 @@ type BlockConfig = {
   maxBlockRange?: number;
 };
 
-type DatabaseConfig =
+export type DatabaseConfig =
   | {
       kind: "sqlite";
       /** Path to SQLite database file. Default: `"./.ponder/cache.db"`. */
@@ -22,12 +23,12 @@ type DatabaseConfig =
       connectionString?: string;
     };
 
-type OptionConfig = {
+export type OptionConfig = {
   /** Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
   maxHealthcheckDuration?: number;
 };
 
-type NetworkConfig = {
+export type NetworkConfig = {
   /** Chain ID of the network. */
   chainId: number;
   /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
@@ -84,8 +85,8 @@ type AddressConfig<
       /** Factory contract configuration. */
       factory: FactoryConfig<event, parameter>;
     };
-/** Required fields for a contract. */
-export type ContractRequired<
+
+type ContractRequired<
   networkNames extends string,
   abi extends Abi | readonly unknown[],
   // TEventName extends string,
@@ -98,12 +99,29 @@ export type ContractRequired<
    * Any filter information overrides the values in the higher level "contracts" property.
    * Factories cannot override an address and vice versa.
    */
-  // network:
-  //   | Partial<
-  //       Record<
-  //         networkNames,
-  //         Partial<ContractFilter<TAbi, TEventName, TFactoryEvent>>
-  //       >
-  //     >
-  //   | networkNames;
+  network: Partial<Record<networkNames, ContractOptional>> | networkNames;
 };
+
+type ContractOptional = BlockConfig;
+
+export type ContractConfig<
+  networkNames extends string = string,
+  abi extends Abi | readonly unknown[] = Abi,
+> = Prettify<ContractOptional & ContractRequired<networkNames, abi>>;
+
+export const createConfig = <
+  networkNames extends string,
+  contractNames extends string,
+  const abi extends Abi | readonly unknown[],
+  const contract extends Record<
+    contractNames,
+    ContractConfig<networkNames, abi>
+  > = Record<string, ContractConfig<networkNames, abi>>,
+>(config: {
+  networks: { [name in networkNames]: NetworkConfig };
+  contracts: { [name in keyof contract]: contract[name] };
+  database?: DatabaseConfig;
+  options?: OptionConfig;
+}) => config;
+
+export type Config = Parameters<typeof createConfig>[0];

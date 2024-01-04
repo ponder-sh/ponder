@@ -4,6 +4,7 @@ import { assertType, test } from "vitest";
 import type { DefaultEventFilter, EventFilter } from "./eventFilter.js";
 
 type Event0 = ParseAbiItem<"event Event0(bytes32 indexed arg)">;
+type Func = ParseAbiItem<"function func()">;
 
 test("EventFilter with strict event", () => {
   type t = EventFilter<readonly [Event0], "Event0">;
@@ -31,4 +32,14 @@ test("EventFilter with weak abi 2", () => {
   type t = EventFilter<readonly unknown[]>;
   //   ^?
   assertType<DefaultEventFilter>({} as unknown as t);
+});
+
+test("EventFilter with extra abi", () => {
+  type t = EventFilter<readonly [Event0, Func], "Event0">;
+  //   ^?
+
+  assertType<{
+    event: "Event0";
+    args: { arg?: `0x${string}` | readonly `0x${string}`[] | null | undefined };
+  }>({} as unknown as t);
 });

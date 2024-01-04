@@ -31,16 +31,16 @@ export type SafeEventNames<
   abi extends readonly AbiEvent[],
   arr extends readonly AbiEvent[] = abi,
 > = abi extends readonly [
-  infer First extends AbiEvent,
-  ...infer Rest extends readonly AbiEvent[],
+  infer first extends AbiEvent,
+  ...infer rest extends readonly AbiEvent[],
 ]
-  ? First["name"] extends FilterElement<First, arr>[number]["name"]
+  ? first["name"] extends FilterElement<first, arr>[number]["name"]
     ? // Overriding occurs, use full name
-      FormatAbiItem<First> extends `event ${infer LongEvent extends string}`
-      ? readonly [LongEvent, ...SafeEventNames<Rest, arr>]
+      FormatAbiItem<first> extends `event ${infer longEvent extends string}`
+      ? readonly [longEvent, ...SafeEventNames<rest, arr>]
       : never
     : // Short name
-      readonly [First["name"], ...SafeEventNames<Rest, arr>]
+      readonly [first["name"], ...SafeEventNames<rest, arr>]
   : [];
 
 /**

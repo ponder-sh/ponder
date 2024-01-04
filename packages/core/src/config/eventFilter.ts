@@ -40,9 +40,11 @@ type Args<
           Required: false;
         },
         RecoverAbiEvent<
-          abi extends infer _abi extends readonly AbiEvent[] ? _abi : never,
-          eventName extends infer _eventName extends string ? _eventName : never
-        >
+          FilterAbiEvents<abi extends Abi ? abi : Abi>,
+          eventName & string
+        > extends infer abiEvent extends AbiEvent
+          ? abiEvent
+          : AbiEvent
       >;
 
 export type EventFilter<
