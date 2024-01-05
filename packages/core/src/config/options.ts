@@ -70,7 +70,7 @@ export const buildOptions = ({
   if (cliOptions.hostname !== undefined) {
     hostname = cliOptions.hostname;
   } else {
-    hostname = "0.0.0.0";
+    hostname = "::";
   }
 
   let maxHealthcheckDuration: number;
