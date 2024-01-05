@@ -72,8 +72,6 @@ type ContractRequired<
     | (contractNetwork extends allNetworkNames ? contractNetwork : never);
 };
 
-type ContractOptional = BlockConfig;
-
 type GetContract<
   networks extends { [name: string]: unknown },
   contract,
@@ -85,8 +83,7 @@ type GetContract<
     ? // 1.a Contract has a valid abi and network
       Prettify<
         ContractRequired<networks, abi, contractNetwork> &
-          GetAddress<Omit<contract, "network" | "abi">> &
-          ContractOptional
+          GetAddress<Omit<contract, "network" | "abi">>
       >
     : // 1.b Contract has valid abi and invalid network
       Prettify<ContractRequired<networks, abi>>
@@ -99,11 +96,11 @@ type GetContract<
 
 type ContractsConfig<
   networks extends { [name: string]: unknown },
-  contracts extends { [name: string]: unknown },
+  contracts,
 > = {} extends contracts // contracts empty, return empty
   ? {}
   : contracts extends { c2: infer contract }
-    ? { c2: GetContract<networks, contract> }
+    ? { c2: GetContract<networks, contract> & BlockConfig }
     : never;
 
 type NetworksConfig<networks extends { [name: string]: unknown }> = {

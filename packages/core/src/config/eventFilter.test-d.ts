@@ -1,45 +1,63 @@
-import type { Abi } from "abitype";
-import type { ParseAbiItem } from "viem";
-import { assertType, test } from "vitest";
-import type { DefaultEventFilter, EventFilter } from "./eventFilter.js";
+import { parseAbiItem } from "viem";
+import { test } from "vitest";
+import type { GetEventFilter } from "./eventFilter.js";
 
-type Event0 = ParseAbiItem<"event Event0(bytes32 indexed arg)">;
-type Func = ParseAbiItem<"function func()">;
+const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
+const event1 = parseAbiItem("event Event1()");
+const event1Overloaded = parseAbiItem("event Event1(bytes32 indexed arg)");
+const func = parseAbiItem("function func()");
 
-test("EventFilter with strict event", () => {
-  type t = EventFilter<readonly [Event0], "Event0">;
-  //   ^?
+const abi = [event0, event1, event1Overloaded, func] as const;
 
-  assertType<{
-    event: "Event0";
-    args: { arg?: `0x${string}` | readonly `0x${string}`[] | null | undefined };
-  }>({} as unknown as t);
+const eventFilter = <const contract>(e: GetEventFilter<contract>) => e;
+
+test("no event filter", () => {
+  eventFilter({});
 });
 
-test("EventFilter with strict event array", () => {
-  type t = EventFilter<readonly [Event0], readonly ["Event0"]>;
-  //   ^?
-  assertType<{ event: readonly ["Event0"]; args?: never }>({} as unknown as t);
+test("event filter with no event", () => {
+  eventFilter({
+    abi,
+    // @ts-expect-error
+    filter: {},
+  });
 });
 
-test("EventFilter with weak abi 1", () => {
-  type t = EventFilter<Abi>;
-  //   ^?
-  assertType<DefaultEventFilter>({} as unknown as t);
+test("event filter with list of events");
+
+test("event filter with event", () => {
+  eventFilter({
+    abi,
+
+    filter: {
+      event: "Event1(bytes32 indexed arg)",
+    },
+  });
 });
 
-test("EventFilter with weak abi 2", () => {
-  type t = EventFilter<readonly unknown[]>;
-  //   ^?
-  assertType<DefaultEventFilter>({} as unknown as t);
+test("event filter with invalid event", () => {
+  eventFilter({
+    filter: {
+      abi,
+
+      // @ts-expect-error
+      event: "made up",
+      args: undefined,
+    },
+  });
 });
 
-test("EventFilter with extra abi", () => {
-  type t = EventFilter<readonly [Event0, Func], "Event0">;
-  //   ^?
+test("event filter with event and args", () => {
+  eventFilter({
+    filter: {
+      abi,
 
-  assertType<{
-    event: "Event0";
-    args: { arg?: `0x${string}` | readonly `0x${string}`[] | null | undefined };
-  }>({} as unknown as t);
+      event: "Event1(bytes32 indexed arg)",
+      args: {
+        arg: "0x",
+      },
+    },
+  });
 });
+
+test("event filter with weak abi");

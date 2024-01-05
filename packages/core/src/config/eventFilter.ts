@@ -47,22 +47,31 @@ type Args<
           : AbiEvent
       >;
 
-export type EventFilter<
-  abi extends Abi | readonly unknown[] = Abi,
-  eventName extends EventName<abi> = EventName<abi>,
-  args extends Args<abi, eventName> = Args<abi, eventName>,
-> = Abi extends abi
-  ? DefaultEventFilter
-  : readonly unknown[] extends abi
-    ? DefaultEventFilter
-    : eventName extends readonly string[]
-      ? {
-          event: eventName;
-          args?: never;
-        }
-      : eventName extends string
-        ? {
-            event: eventName;
-            args: args;
-          }
-        : never;
+export type GetEventFilter<abi extends Abi, filter> = filter extends {
+  // 1. Contract has a filter
+  event: infer event extends SafeEventNames<FilterAbiEvents<abi>>[number];
+}
+  ? // ? // 1.a Contract has a filter and a valid event
+    //   {
+    //     event:
+    //       | SafeEventNames<FilterAbiEvents<abi>>[number]
+    //       | (event extends SafeEventNames<FilterAbiEvents<abi>>[number]
+    //           ? event
+    //           : never);
+    //     args: event;
+    //   }
+    // : // 1.b Contract has a filter and an invalid event
+    //   {
+    //     event: SafeEventNames<FilterAbiEvents<abi>>[number];
+    //     a?: abi;
+    //     args?: GetEventArgs<Abi | readonly unknown[], string>;
+    //   };
+
+    // 1.a Contract has a filter and a valid event
+    {
+      event: event;
+    }
+  : // 1.b Contract has a filter and an invalid event
+    {
+      event: "b";
+    };

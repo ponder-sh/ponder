@@ -24,6 +24,7 @@ test("createConfig basic", () => {
         network: "mainnet",
         // ^?
         startBlock: 0,
+        // ^?
       },
     },
   });
@@ -132,7 +133,30 @@ test("createConfig address and factory", () => {
   });
 });
 
-test("createConfig filter", () => {});
+test("createConfig filter", () => {
+  createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(),
+      },
+      optimism: {
+        chainId: 10,
+        transport: http(),
+      },
+    },
+    contracts: {
+      c2: {
+        abi: [event1],
+        network: "mainnet",
+        // ^?
+        filter: {
+          event: "",
+        },
+      },
+    },
+  });
+});
 test("createConfig filter multiple events", () => {});
 test("createConfig filter with args", () => {});
 
