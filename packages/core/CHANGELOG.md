@@ -1,5 +1,17 @@
 # @ponder/core
 
+## 0.1.3
+
+### Patch Changes
+
+- [#544](https://github.com/ponder-sh/ponder/pull/544) [`27faea77df50f92424ef8282495b31a2e90f7742`](https://github.com/ponder-sh/ponder/commit/27faea77df50f92424ef8282495b31a2e90f7742) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where contract calls within "setup" indexing functions did not use the correct block number. Now, they use the contract's `startBlock`.
+
+- [#544](https://github.com/ponder-sh/ponder/pull/544) [`27faea77df50f92424ef8282495b31a2e90f7742`](https://github.com/ponder-sh/ponder/commit/27faea77df50f92424ef8282495b31a2e90f7742) Thanks [@0xOlias](https://github.com/0xOlias)! - Added new runtime validations for `ponder.schema.ts`, `ponder.config.ts`, and the indexing function API. Fixed a bug where rapid config reloads caused a race condition that often broke the app during development.
+
+- [#536](https://github.com/ponder-sh/ponder/pull/536) [`4fc9480a53a9f485a4907adc41f495c8a968dcc5`](https://github.com/ponder-sh/ponder/commit/4fc9480a53a9f485a4907adc41f495c8a968dcc5) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the `database` option in `ponder.config.ts` was not being used.
+
+- [#543](https://github.com/ponder-sh/ponder/pull/543) [`a696b2625ef1eef611ce507b177f6c1ca72c52a9`](https://github.com/ponder-sh/ponder/commit/a696b2625ef1eef611ce507b177f6c1ca72c52a9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fix compliance with some RPCs, primarily Ankr, by reformatting eth_getLogs calls
+
 ## 0.1.2
 
 ### Patch Changes
