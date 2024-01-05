@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Fix bug in codegen command
+Fixed bug in codegen command caused by undefined codegen service. Also no longer fails silently. 
