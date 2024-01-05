@@ -11,7 +11,6 @@ import { buildDatabase } from "@/config/database.js";
 import { type Network } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
 import type { Source } from "@/config/sources.js";
-import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import { type IndexingStore } from "@/indexing-store/store.js";
@@ -32,7 +31,6 @@ import { UiService } from "@/ui/service.js";
 export type Common = {
   options: Options;
   logger: LoggerService;
-  errors: UserErrorService;
   metrics: MetricsService;
   telemetry: TelemetryService;
 };
@@ -73,11 +71,10 @@ export class Ponder {
       level: options.logLevel,
       dir: options.logDir,
     });
-    const errors = new UserErrorService();
     const metrics = new MetricsService();
     const telemetry = new TelemetryService({ options });
 
-    this.common = { options, logger, errors, metrics, telemetry };
+    this.common = { options, logger, metrics, telemetry };
 
     this.buildService = new BuildService({ common: this.common });
   }
@@ -427,7 +424,7 @@ export class Ponder {
     this.buildService.onSerial(
       "newConfig",
       async ({ config, sources, networks }) => {
-        this.common.errors.hasUserError = false;
+        this.uiService.ui.indexingError = false;
 
         await this.killCoreServices();
 
@@ -444,7 +441,7 @@ export class Ponder {
     this.buildService.onSerial(
       "newSchema",
       async ({ schema, graphqlSchema }) => {
-        this.common.errors.hasUserError = false;
+        this.uiService.ui.indexingError = false;
 
         this.schema = schema;
         this.graphqlSchema = graphqlSchema;
@@ -460,7 +457,7 @@ export class Ponder {
     this.buildService.onSerial(
       "newIndexingFunctions",
       async ({ indexingFunctions }) => {
-        this.common.errors.hasUserError = false;
+        this.uiService.ui.indexingError = false;
 
         this.indexingFunctions = indexingFunctions;
 
@@ -469,22 +466,17 @@ export class Ponder {
       },
     );
 
-    this.buildService.on("error", async ({ kind }) => {
-      this.common.errors.submitUserError();
+    this.buildService.onSerial("error", async () => {
+      this.uiService.ui.indexingError = true;
 
-      if (kind === "config") {
-        await this.indexingService.kill();
-        await Promise.all(
-          this.syncServices.map(async ({ realtime, historical }) => {
-            await realtime.kill();
-            await historical.kill();
-          }),
-        );
-      } else if (kind === "schema") {
-        await this.indexingService.kill();
-      } else if (kind === "indexingFunctions") {
-        await this.indexingService.kill();
-      }
+      await this.indexingService.kill();
+
+      await Promise.all(
+        this.syncServices.map(async ({ realtime, historical }) => {
+          await realtime.kill();
+          await historical.kill();
+        }),
+      );
     });
   }
 
@@ -535,6 +527,10 @@ export class Ponder {
         this.serverService.setIsHistoricalIndexingComplete();
         await this.indexingStore.publish();
       }
+    });
+
+    this.indexingService.on("error", async () => {
+      this.uiService.ui.indexingError = true;
     });
 
     this.serverService.on("admin:reload", async ({ chainId }) => {

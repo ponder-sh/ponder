@@ -8,7 +8,6 @@ import type { Network } from "@/config/networks.js";
 import type { Common } from "@/Ponder.js";
 import { buildOptions } from "@/config/options.js";
 import type { Factory, LogFilter } from "@/config/sources.js";
-import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
@@ -54,7 +53,6 @@ beforeEach((context) => {
   context.common = {
     options,
     logger: new LoggerService({ level: "silent" }),
-    errors: new UserErrorService(),
     metrics: new MetricsService(),
     telemetry: new TelemetryService({ options }),
   };

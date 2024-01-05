@@ -408,8 +408,6 @@ test("processEvents() handles errors", async (context) => {
   expect(transferIndexingFunction).toHaveBeenCalledTimes(4);
   expect(indexingStoreRevertSpy).toHaveBeenCalledTimes(3);
 
-  expect(common.errors.hasUserError).toBe(true);
-
   await service.kill();
 });
 

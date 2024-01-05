@@ -35,6 +35,7 @@ import { ponderTransport } from "./transport.js";
 
 type IndexingEvents = {
   eventsProcessed: { toCheckpoint: Checkpoint };
+  error: { error: Error };
 };
 
 type LogEvent = {
@@ -96,7 +97,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private eventsProcessedToCheckpoint: Checkpoint = zeroCheckpoint;
 
   private currentIndexingCheckpoint: Checkpoint = zeroCheckpoint;
-  private hasError = false;
+  private isPaused = false;
 
   constructor({
     common,
@@ -130,6 +131,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }
 
   kill = async () => {
+    this.isPaused = true;
     this.queue?.pause();
     this.queue?.clear();
     await this.queue?.onIdle();
@@ -191,7 +193,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       msg: "Paused event queue",
     });
 
-    this.hasError = false;
+    this.isPaused = false;
     this.common.metrics.ponder_indexing_has_error.set(0);
 
     this.common.metrics.ponder_indexing_matched_events.reset();
@@ -232,7 +234,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     try {
       await this.eventProcessingMutex.runExclusive(async () => {
         // If there is a user error, the queue & indexing store will be wiped on reload (case 4).
-        if (this.hasError) return;
+        if (this.isPaused) return;
 
         const hasProcessedInvalidEvents = isCheckpointGreaterThan(
           this.eventsProcessedToCheckpoint,
@@ -282,7 +284,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   processEvents = async () => {
     try {
       await this.eventProcessingMutex.runExclusive(async () => {
-        if (this.hasError || !this.queue || !this.indexingFunctions) return;
+        if (this.isPaused || !this.queue || !this.indexingFunctions) return;
 
         const fromCheckpoint = this.eventsProcessedToCheckpoint;
         const toCheckpoint = this.syncGatewayService.checkpoint;
@@ -569,8 +571,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
             if (task._retryCount !== undefined && task._retryCount >= 2) {
               queue.clear();
-              this.hasError = true;
-              this.common.metrics.ponder_indexing_has_error.set(1);
+              this.isPaused = true;
 
               addUserStackTrace(error, this.common.options);
 
@@ -579,7 +580,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 msg: `Error while processing "setup" event: ${error.message}`,
                 error,
               });
-              this.common.errors.submitUserError();
+
+              this.common.metrics.ponder_indexing_has_error.set(1);
+              this.emit("error", { error });
             } else {
               this.common.logger.warn({
                 service: "indexing",
@@ -656,8 +659,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
             if (task._retryCount !== undefined && task._retryCount >= 2) {
               queue.clear();
-              this.hasError = true;
-              this.common.metrics.ponder_indexing_has_error.set(1);
+              this.isPaused = true;
 
               addUserStackTrace(error, this.common.options);
               if (error.meta) {
@@ -673,7 +675,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 )}:`,
                 error,
               });
-              this.common.errors.submitUserError();
+
+              this.common.metrics.ponder_indexing_has_error.set(1);
+              this.emit("error", { error });
             } else {
               this.common.logger.warn({
                 service: "indexing",
