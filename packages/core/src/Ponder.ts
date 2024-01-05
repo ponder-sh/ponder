@@ -180,11 +180,15 @@ export class Ponder {
     const success = await this.setupBuildService();
     if (!success) return;
 
+    this.codegenService = new CodegenService({ common: this.common });
+
     this.codegenService.generateGraphqlSchemaFile({
       graphqlSchema: this.graphqlSchema,
     });
 
-    await this.kill();
+    this.buildService.clearListeners();
+    await this.buildService.kill();
+    await this.common.telemetry.kill();
   }
 
   private async setupBuildService() {

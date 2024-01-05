@@ -78,7 +78,7 @@ cli
     const codegenOptions = {
       ...options,
       uiEnabled: false,
-      logLevel: "silent" as const,
+      logLevel: "error" as const,
     };
 
     const ponder = new Ponder({ options: codegenOptions });
