@@ -14,7 +14,9 @@ export type Options = {
   logDir: string;
 
   port: number;
+  hostname: string;
   maxHealthcheckDuration: number;
+
   telemetryUrl: string;
   telemetryDisabled: boolean;
   telemetryIsExampleProject: boolean;
@@ -28,30 +30,69 @@ export const buildOptions = ({
 }: {
   cliOptions: CliOptions;
 }): Options => {
-  const railwayHealthcheckTimeout = process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC
-    ? Math.max(Number(process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC) - 5, 0) // Add 5 seconds of buffer.
-    : undefined;
+  let rootDir: string;
+  if (cliOptions.root !== undefined) {
+    rootDir = path.resolve(cliOptions.root);
+  } else {
+    rootDir = path.resolve(".");
+  }
 
-  const logLevel = (
-    process.env.PONDER_LOG_LEVEL &&
+  let logLevel: LevelWithSilent;
+  if (cliOptions.trace) {
+    logLevel = "trace";
+  } else if (cliOptions.v !== undefined) {
+    if (Array.isArray(cliOptions.v)) {
+      logLevel = "trace";
+    } else {
+      logLevel = "debug";
+    }
+  } else if (
+    process.env.PONDER_LOG_LEVEL !== undefined &&
     ["silent", "fatal", "error", "warn", "info", "debug", "trace"].includes(
       process.env.PONDER_LOG_LEVEL,
     )
-      ? process.env.PONDER_LOG_LEVEL
-      : "info"
-  ) as LevelWithSilent;
+  ) {
+    logLevel = process.env.PONDER_LOG_LEVEL as LevelWithSilent;
+  } else {
+    logLevel = "info";
+  }
 
-  const defaults = {
-    rootDir: path.resolve(cliOptions.rootDir),
-    configFile: cliOptions.configFile,
-    schemaFile: "ponder.schema.ts",
-    srcDir: "src",
-    generatedDir: "generated",
-    ponderDir: ".ponder",
-    logDir: ".ponder/logs",
+  let port: number;
+  if (cliOptions.port !== undefined) {
+    port = Number(cliOptions.port);
+  } else if (process.env.PORT !== undefined) {
+    port = Number(process.env.PORT);
+  } else {
+    port = 42069;
+  }
 
-    port: Number(process.env.PORT ?? 42069),
-    maxHealthcheckDuration: railwayHealthcheckTimeout ?? 240,
+  let hostname: string;
+  if (cliOptions.hostname !== undefined) {
+    hostname = cliOptions.hostname;
+  } else {
+    hostname = "0.0.0.0";
+  }
+
+  let maxHealthcheckDuration: number;
+  if (process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC) {
+    const railwayTimeout = Number(process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC);
+    maxHealthcheckDuration = Math.max(railwayTimeout - 5, 0);
+  } else {
+    maxHealthcheckDuration = 240;
+  }
+
+  return {
+    rootDir,
+    configFile: path.join(rootDir, cliOptions.config),
+    schemaFile: path.join(rootDir, "ponder.schema.ts"),
+    srcDir: path.join(rootDir, "src"),
+    generatedDir: path.join(rootDir, "generated"),
+    ponderDir: path.join(rootDir, ".ponder"),
+    logDir: path.join(rootDir, ".ponder", "logs"),
+
+    port,
+    hostname,
+    maxHealthcheckDuration,
 
     telemetryUrl: "https://ponder.sh/api/telemetry",
     telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),
@@ -61,16 +102,5 @@ export const buildOptions = ({
 
     logLevel,
     uiEnabled: true,
-  };
-
-  return {
-    ...defaults,
-    // Resolve paths
-    configFile: path.join(defaults.rootDir, defaults.configFile),
-    schemaFile: path.join(defaults.rootDir, defaults.schemaFile),
-    srcDir: path.join(defaults.rootDir, defaults.srcDir),
-    generatedDir: path.join(defaults.rootDir, defaults.generatedDir),
-    ponderDir: path.join(defaults.rootDir, defaults.ponderDir),
-    logDir: path.join(defaults.rootDir, defaults.logDir),
   };
 };
