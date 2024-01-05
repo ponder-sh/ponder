@@ -41,8 +41,10 @@ export class ServerService extends Emittery<ServerEvents> {
 
     this.common = common;
     this.indexingStore = indexingStore;
-    this.port = this.common.options.port;
     this.app = express();
+
+    // This gets updated to the resolved port if the requested port is in use.
+    this.port = this.common.options.port;
   }
 
   setup({ registerDevRoutes }: { registerDevRoutes: boolean }) {
@@ -81,7 +83,7 @@ export class ServerService extends Emittery<ServerEvents> {
             this.port += 1;
             setTimeout(() => {
               server.close();
-              server.listen(this.port);
+              server.listen(this.port, this.common.options.hostname);
             }, 5);
           } else {
             reject(error);
@@ -91,7 +93,7 @@ export class ServerService extends Emittery<ServerEvents> {
           this.common.metrics.ponder_server_port.set(this.port);
           resolve(server);
         })
-        .listen(this.port);
+        .listen(this.port, this.common.options.hostname);
     });
 
     const terminator = createHttpTerminator({ server });
@@ -231,22 +233,10 @@ export class ServerService extends Emittery<ServerEvents> {
         case "POST":
           return this.graphqlMiddleware(req, res, next);
         case "GET": {
-          const host = req.get("host");
-          if (!host) {
-            return res.status(400).send("No host header provided");
-          }
-          const protocol = [
-            `localhost:${this.port}`,
-            `0.0.0.0:${this.port}`,
-            `127.0.0.1:${this.port}`,
-          ].includes(host)
-            ? "http"
-            : "https";
-          const endpoint = `${protocol}://${host}`;
           return res
             .status(200)
             .setHeader("Content-Type", "text/html")
-            .send(graphiQLHtml({ endpoint }));
+            .send(graphiQLHtml);
         }
         case "HEAD":
           return res.status(200).send();
