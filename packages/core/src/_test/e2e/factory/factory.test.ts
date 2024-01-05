@@ -40,10 +40,7 @@ afterEach(() => {
 
 test("factory", async (context) => {
   const options = buildOptions({
-    cliOptions: {
-      rootDir: "./src/_test/e2e/factory",
-      configFile: "ponder.config.ts",
-    },
+    cliOptions: { root: "./src/_test/e2e/factory", config: "ponder.config.ts" },
   });
   const testOptions = {
     ...options,

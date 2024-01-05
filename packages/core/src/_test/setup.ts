@@ -45,9 +45,7 @@ declare module "vitest" {
 
 beforeEach((context) => {
   const options = {
-    ...buildOptions({
-      cliOptions: { configFile: "", rootDir: "" },
-    }),
+    ...buildOptions({ cliOptions: { config: "", root: "" } }),
     telemetryDisabled: true,
   };
   context.common = {
