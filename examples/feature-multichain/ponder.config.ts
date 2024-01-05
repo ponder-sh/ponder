@@ -20,7 +20,7 @@ export default createConfig({
   networks: {
     mainnet: {
       chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1, { timeout: 100 }),
+      transport: http(process.env.PONDER_RPC_URL_1),
     },
     base: {
       chainId: 8453,
