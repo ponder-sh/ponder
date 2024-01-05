@@ -2,7 +2,6 @@ import { http, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
 import {
   type DatabaseConfig,
-  type NetworkConfig,
   type OptionConfig,
   createConfig,
 } from "./config2.js";
@@ -19,21 +18,24 @@ test("createConfig basic", () => {
         chainId: 1,
         transport: http(),
       },
+      optimism: {
+        chainId: 10,
+        transport: http(),
+      },
     },
     contracts: {
-      c1: {
-        abi: [event0],
-        network: "mainnet",
-      },
       c2: {
+        // ^?
         abi: [event1],
         network: "mainnet",
+        // ^?
+        startBlock: 0,
       },
     },
   });
 
   assertType<{
-    networks: { mainnet: NetworkConfig };
+    // networks: { mainnet: NetworkConfig; optimism: NetworkConfig };
     contracts: {
       c1: {
         abi: readonly [typeof event0];
@@ -57,7 +59,7 @@ test("createConfig no extra properties", () => {
       },
     },
     contracts: {
-      c1: {
+      c2: {
         abi: [event0],
         network: "mainnet",
         // @ts-expect-error
@@ -67,8 +69,10 @@ test("createConfig no extra properties", () => {
   });
 });
 
-test("createConfig address", () => {});
-test("createConfig factory", () => {});
+test("createConfig address");
+
+test("createConfig factory");
+
 test("createConfig address and factory");
 
 test("createConfig filter", () => {});
@@ -77,4 +81,21 @@ test("createConfig filter with args", () => {});
 
 test("createConfig network overrides", () => {});
 
-test("createConfig weak Abi", () => {});
+test("createConfig weak Abi", () => {
+  const abi = [event0, func] as readonly unknown[];
+
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(),
+      },
+    },
+    contracts: {
+      c1: {
+        abi,
+        network: "mainnet",
+      },
+    },
+  });
+});

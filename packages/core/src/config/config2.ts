@@ -1,5 +1,5 @@
 import type { Prettify } from "@/types/utils.js";
-import type { Abi, AbiEvent } from "abitype";
+import type { Abi } from "abitype";
 import { type Transport } from "viem";
 
 export type BlockConfig = {
@@ -52,45 +52,12 @@ export type NetworkConfig = {
   maxHistoricalTaskConcurrency?: number;
 };
 
-type FactoryConfig<
-  event extends AbiEvent = AbiEvent,
-  parameter extends AbiEvent extends event
-    ? string
-    : event["inputs"][number]["name"] = AbiEvent extends event
-    ? string
-    : event["inputs"][number]["name"],
-> = {
-  /** Address of the factory contract that creates this contract. */
-  address: `0x${string}`;
-  /** ABI event that announces the creation of a new instance of this contract. */
-  event: event;
-  /** Name of the factory event parameter that contains the new child contract address. */
-  parameter: parameter;
-};
-
-type AddressConfig<
-  event extends AbiEvent = AbiEvent,
-  parameter extends AbiEvent extends event
-    ? string
-    : event["inputs"][number]["name"] = AbiEvent extends event
-    ? string
-    : event["inputs"][number]["name"],
-> =
-  | {
-      address: `0x${string}` | readonly `0x${string}`[];
-      factory?: never;
-    }
-  | {
-      address?: never;
-      /** Factory contract configuration. */
-      factory: FactoryConfig<event, parameter>;
-    };
-
 type ContractRequired<
-  networkNames extends string,
+  networks extends { [name: string]: unknown },
   abi extends Abi | readonly unknown[],
-  // TEventName extends string,
-  // TFactoryEvent extends AbiEvent | undefined,
+  contractNetwork extends keyof networks = keyof networks,
+  ///
+  allNetworkNames = keyof networks,
 > = {
   /** Contract application byte interface. */
   abi: abi;
@@ -99,29 +66,63 @@ type ContractRequired<
    * Any filter information overrides the values in the higher level "contracts" property.
    * Factories cannot override an address and vice versa.
    */
-  network: Partial<Record<networkNames, ContractOptional>> | networkNames;
+  network:
+    | allNetworkNames
+    | (contractNetwork extends allNetworkNames ? contractNetwork : never);
 };
 
 type ContractOptional = BlockConfig;
 
-export type ContractConfig<
-  networkNames extends string = string,
-  abi extends Abi | readonly unknown[] = Abi,
-> = Prettify<ContractOptional & ContractRequired<networkNames, abi>>;
+type GetContract<
+  networks extends { [name: string]: unknown },
+  contract,
+> = contract extends {
+  abi: infer abi extends Abi;
+}
+  ? // 1. Contract has valid abi
+    contract extends { network: infer contractNetwork extends keyof networks }
+    ? // 1.a Contract has valid abi and network
+      Prettify<
+        ContractRequired<networks, abi, contractNetwork> & ContractOptional
+      >
+    : // 1.b Contract has valid abi and invalid network
+      Prettify<ContractRequired<networks, abi> & ContractOptional>
+  : // 2. Contract has invalid abi
+    contract extends { network: infer contractNetwork extends keyof networks }
+    ? // 2.a Contract has invalid abi and valid network
+      Prettify<
+        ContractRequired<networks, Abi, contractNetwork> & ContractOptional
+      >
+    : // 2.b Contract has invalid abi and invalid network
+      Prettify<ContractRequired<networks, Abi> & ContractOptional>;
+
+type ContractsConfig<
+  networks extends { [name: string]: unknown },
+  contracts extends { [name: string]: unknown },
+> = {} extends contracts // contracts empty, return empty
+  ? {}
+  : contracts extends { c2: infer contract }
+    ? { c2: GetContract<networks, contract> }
+    : never;
+
+type NetworksConfig<networks extends { [name: string]: unknown }> = {
+  [networkName in keyof networks]: NetworkConfig;
+};
 
 export const createConfig = <
-  networkNames extends string,
-  contractNames extends string,
-  const abi extends Abi | readonly unknown[],
-  const contract extends Record<
-    contractNames,
-    ContractConfig<networkNames, abi>
-  > = Record<string, ContractConfig<networkNames, abi>>,
+  const networks extends { [name: string]: unknown },
+  const contracts extends { [name: string]: unknown },
 >(config: {
-  networks: { [name in networkNames]: NetworkConfig };
-  contracts: { [name in keyof contract]: contract[name] };
+  // TODO: add jsdoc to these properties.
+  networks: NetworksConfig<networks>;
+  contracts: ContractsConfig<networks, contracts>;
   database?: DatabaseConfig;
   options?: OptionConfig;
-}) => config;
+
+  n?: networks;
+  c?: contracts;
+}) => {
+  return config;
+};
 
 export type Config = Parameters<typeof createConfig>[0];
