@@ -429,14 +429,6 @@ export class Ponder {
       async ({ config, sources, networks }) => {
         this.common.errors.hasUserError = false;
 
-        const startBlock = sources.find(
-          (s) => s.networkName === "base",
-        )!.startBlock;
-
-        console.log(sources);
-
-        console.log("entering newConfig with ", startBlock);
-
         await this.killCoreServices();
 
         this.config = config;
@@ -446,8 +438,6 @@ export class Ponder {
         await this.setupCoreServices({ isDev: true });
 
         await this.startSyncServices();
-
-        console.log("exiting newConfig");
       },
     );
 
