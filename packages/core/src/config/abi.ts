@@ -1,7 +1,26 @@
 import { type Abi, type AbiEvent, formatAbiItem } from "abitype";
-import { type Hex, getEventSelector } from "viem";
+import {
+  type GetEventArgs,
+  type Hex,
+  encodeEventTopics,
+  getAbiItem,
+  getEventSelector,
+  parseAbiItem,
+} from "viem";
 
 import { getDuplicateElements } from "@/utils/duplicates.js";
+import type { Config } from "./config.js";
+import type { Topics } from "./sources.js";
+
+/**
+ * Fix issue with Array.isArray not checking readonly arrays
+ * {@link https://github.com/microsoft/TypeScript/issues/17002}
+ */
+declare global {
+  interface ArrayConstructor {
+    isArray(arg: ReadonlyArray<any> | any): arg is ReadonlyArray<any>;
+  }
+}
 
 type AbiEventMeta = {
   // Event name (if no overloads) or full event signature (if name is overloaded).
@@ -17,11 +36,10 @@ type AbiEventMeta = {
 
 export type AbiEvents = {
   bySafeName: { [key: string]: AbiEventMeta | undefined };
-  bySignature: { [key: string]: AbiEventMeta | undefined };
   bySelector: { [key: Hex]: AbiEventMeta | undefined };
 };
 
-export const getEvents = ({ abi }: { abi: Abi }) => {
+export const buildAbiEvents = ({ abi }: { abi: Abi }) => {
   const abiEvents = abi
     .filter((item): item is AbiEvent => item.type === "event")
     .filter((item) => item.anonymous === undefined || item.anonymous === false);
@@ -41,11 +59,42 @@ export const getEvents = ({ abi }: { abi: Abi }) => {
       const abiEventMeta = { safeName, signature, selector, item };
 
       acc.bySafeName[safeName] = abiEventMeta;
-      acc.bySignature[signature] = abiEventMeta;
       acc.bySelector[selector] = abiEventMeta;
 
       return acc;
     },
-    { bySafeName: {}, bySignature: {}, bySelector: {} },
+    { bySafeName: {}, bySelector: {} },
   );
+};
+
+export function buildTopics(
+  abi: Abi,
+  filter: NonNullable<Config["contracts"][string]["filter"]>,
+): Topics {
+  if (Array.isArray(filter.event)) {
+    // List of event signatures
+    return [
+      filter.event.map((event) => getEventSelector(findAbiEvent(abi, event))),
+    ];
+  } else {
+    // Single event with args
+    return encodeEventTopics({
+      abi: [findAbiEvent(abi, filter.event)],
+      args: filter.args as GetEventArgs<Abi, string>,
+    });
+  }
+}
+
+/**
+ * Finds the event ABI item for the event name or event signature.
+ *
+ * @param eventName Event name or event signature if there are duplicates
+ */
+const findAbiEvent = (abi: Abi, eventName: string): AbiEvent => {
+  if (eventName.includes("(")) {
+    // full event signature
+    return parseAbiItem(`event ${eventName}`) as AbiEvent;
+  } else {
+    return getAbiItem({ abi, name: eventName }) as AbiEvent;
+  }
 };

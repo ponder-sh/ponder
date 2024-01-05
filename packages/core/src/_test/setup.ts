@@ -8,7 +8,6 @@ import type { Network } from "@/config/networks.js";
 import type { Common } from "@/Ponder.js";
 import { buildOptions } from "@/config/options.js";
 import type { Factory, LogFilter } from "@/config/sources.js";
-import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
@@ -21,7 +20,7 @@ import { TelemetryService } from "@/telemetry/service.js";
 import pg from "@/utils/pg.js";
 
 import { deploy, simulate } from "./simulate.js";
-import { getConfig, getNetworks, getSources, testClient } from "./utils.js";
+import { getConfig, getNetworkAndSources, testClient } from "./utils.js";
 
 /**
  * Inject an isolated sync store into the test context.
@@ -54,7 +53,6 @@ beforeEach((context) => {
   context.common = {
     options,
     logger: new LoggerService({ level: "silent" }),
-    errors: new UserErrorService(),
     metrics: new MetricsService(),
     telemetry: new TelemetryService({ options }),
   };
@@ -188,9 +186,11 @@ export async function setupAnvil(context: TestContext) {
   const addresses = await deploy();
   const pair = await simulate(addresses);
 
-  context.networks = await getNetworks();
-  context.sources = getSources(addresses) as [LogFilter, Factory];
   context.config = getConfig(addresses);
+
+  const { networks, sources } = await getNetworkAndSources(addresses);
+  context.networks = networks;
+  context.sources = sources as [LogFilter, Factory];
   context.erc20 = { address: addresses.erc20Address };
   context.factory = { address: addresses.factoryAddress, pair };
 

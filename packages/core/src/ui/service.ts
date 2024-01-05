@@ -84,9 +84,6 @@ export class UiService {
       this.ui.processedEventCount = processedEventCount;
       this.ui.eventsProcessedToTimestamp = latestProcessedTimestamp;
 
-      // Errors
-      this.ui.indexingError = this.common.errors.hasUserError;
-
       // Server
       const port = (await this.common.metrics.ponder_server_port.get())
         .values[0].value;

@@ -8,7 +8,7 @@ import {
   setupSyncStore,
 } from "@/_test/setup.js";
 import { getEventsErc20 } from "@/_test/utils.js";
-import type { IndexingFunctions } from "@/build/functions.js";
+import type { IndexingFunctions } from "@/build/functions/functions.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -61,12 +61,10 @@ const readContractTransferIndexingFunction = vi.fn(
 );
 
 const indexingFunctions: IndexingFunctions = {
-  _meta_: {},
   Erc20: { Transfer: transferIndexingFunction },
 };
 
 const readContractIndexingFunctions: IndexingFunctions = {
-  _meta_: {},
   Erc20: { Transfer: readContractTransferIndexingFunction },
 };
 
@@ -264,7 +262,7 @@ test("processEvents() updates event count metrics", async (context) => {
   await service.kill();
 });
 
-test("processEvents() client.readContract", async (context) => {
+test("processEvents() reads data from a contract", async (context) => {
   const { common, syncStore, indexingStore, sources, networks } = context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
@@ -282,6 +280,45 @@ test("processEvents() client.readContract", async (context) => {
     sources,
     networks,
   });
+
+  await service.reset({
+    schema,
+    indexingFunctions: readContractIndexingFunctions,
+  });
+
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+  await service.processEvents();
+
+  const supplyEvents = await indexingStore.findMany({
+    tableName: "Supply",
+  });
+  expect(supplyEvents.length).toBe(2);
+
+  await service.kill();
+});
+
+test("processEvents() recovers from errors while reading data from a contract", async (context) => {
+  const { common, syncStore, indexingStore, sources, networks } = context;
+
+  const getEvents = vi.fn(await getEventsErc20(sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+  });
+
+  const spy = vi.spyOn(networks[0], "request");
+  spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   await service.reset({
     schema,
@@ -370,8 +407,6 @@ test("processEvents() handles errors", async (context) => {
 
   expect(transferIndexingFunction).toHaveBeenCalledTimes(4);
   expect(indexingStoreRevertSpy).toHaveBeenCalledTimes(3);
-
-  expect(common.errors.hasUserError).toBe(true);
 
   await service.kill();
 });

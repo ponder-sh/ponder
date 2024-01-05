@@ -1,5 +1,4 @@
 import type { Source } from "@/config/sources.js";
-
 import type { MetricsService } from "./service.js";
 
 export async function getHistoricalSyncStats({

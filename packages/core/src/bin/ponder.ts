@@ -48,8 +48,6 @@ cli
     const ponder = new Ponder({ options: devOptions });
     registerKilledProcessListener(() => ponder.kill());
 
-    const isSetupSuccessful = await ponder.setup();
-    if (!isSetupSuccessful) return;
     await ponder.dev();
   });
 
@@ -66,8 +64,6 @@ cli
     const ponder = new Ponder({ options: startOptions });
     registerKilledProcessListener(() => ponder.kill());
 
-    const isSetupSuccessful = await ponder.setup();
-    if (!isSetupSuccessful) return;
     await ponder.start();
   });
 
@@ -88,8 +84,6 @@ cli
     const ponder = new Ponder({ options: codegenOptions });
     registerKilledProcessListener(() => ponder.kill());
 
-    const isSetupSuccessful = await ponder.setup();
-    if (!isSetupSuccessful) return;
     await ponder.codegen();
   });
 
