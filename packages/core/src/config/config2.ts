@@ -1,6 +1,7 @@
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import { type Transport } from "viem";
+import type { GetAddress } from "./address.js";
 
 export type BlockConfig = {
   /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
@@ -79,22 +80,22 @@ type GetContract<
 > = contract extends {
   abi: infer abi extends Abi;
 }
-  ? // 1. Contract has valid abi
+  ? // 1. Contract has a valid abi
     contract extends { network: infer contractNetwork extends keyof networks }
-    ? // 1.a Contract has valid abi and network
+    ? // 1.a Contract has a valid abi and network
       Prettify<
-        ContractRequired<networks, abi, contractNetwork> & ContractOptional
+        ContractRequired<networks, abi, contractNetwork> &
+          GetAddress<Omit<contract, "network" | "abi">> &
+          ContractOptional
       >
     : // 1.b Contract has valid abi and invalid network
-      Prettify<ContractRequired<networks, abi> & ContractOptional>
-  : // 2. Contract has invalid abi
+      Prettify<ContractRequired<networks, abi>>
+  : // 2. Contract has an invalid abi
     contract extends { network: infer contractNetwork extends keyof networks }
-    ? // 2.a Contract has invalid abi and valid network
-      Prettify<
-        ContractRequired<networks, Abi, contractNetwork> & ContractOptional
-      >
-    : // 2.b Contract has invalid abi and invalid network
-      Prettify<ContractRequired<networks, Abi> & ContractOptional>;
+    ? // 2.a Contract has an invalid abi and a valid network
+      Prettify<ContractRequired<networks, Abi, contractNetwork>>
+    : // 2.b Contract has an invalid abi and an invalid network
+      Prettify<ContractRequired<networks, Abi>>;
 
 type ContractsConfig<
   networks extends { [name: string]: unknown },
@@ -118,9 +119,6 @@ export const createConfig = <
   contracts: ContractsConfig<networks, contracts>;
   database?: DatabaseConfig;
   options?: OptionConfig;
-
-  n?: networks;
-  c?: contracts;
 }) => {
   return config;
 };
