@@ -14,7 +14,7 @@ export type Options = {
   logDir: string;
 
   port: number;
-  hostname: string;
+  hostname?: string;
   maxHealthcheckDuration: number;
 
   telemetryUrl: string;
@@ -66,12 +66,7 @@ export const buildOptions = ({
     port = 42069;
   }
 
-  let hostname: string;
-  if (cliOptions.hostname !== undefined) {
-    hostname = cliOptions.hostname;
-  } else {
-    hostname = "::";
-  }
+  const hostname = cliOptions.hostname;
 
   let maxHealthcheckDuration: number;
   if (process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC) {

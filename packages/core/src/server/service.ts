@@ -93,6 +93,9 @@ export class ServerService extends Emittery<ServerEvents> {
           this.common.metrics.ponder_server_port.set(this.port);
           resolve(server);
         })
+        // Note that this.common.options.hostname can be undefined if the user did not specify one.
+        // In this case, Node.js uses `::` if IPv6 is available and `0.0.0.0` otherwise.
+        // https://nodejs.org/api/net.html#serverlistenport-host-backlog-callback
         .listen(this.port, this.common.options.hostname);
     });
 
