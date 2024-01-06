@@ -11,7 +11,7 @@ export type ParseAbiEvent<
   signature extends string,
   ///
   abiEvents extends AbiEvent = ExtractAbiEvents<abi>,
-  noOverloadEvent = Extract<abiEvents, { name: signature; type: "event" }>,
+  noOverloadEvent = Extract<abiEvents, { name: signature }>,
   overloadEvent extends AbiEvent = ParseAbiItem<`event ${signature}`> &
     AbiEvent,
 > = [noOverloadEvent] extends [never]
@@ -27,7 +27,7 @@ export type FormatAbiEvent<
   abiEvents extends AbiEvent = ExtractAbiEvents<abi>,
   matchingNameEvents extends AbiEvent = Extract<
     abiEvents,
-    { name: event["name"]; type: "event" }
+    { name: event["name"] }
   >,
 > = [matchingNameEvents] extends [never]
   ? never
@@ -38,9 +38,18 @@ export type FormatAbiEvent<
       : never;
 
 /**
+ * {@link https://stackoverflow.com/questions/53953814/typescript-check-if-a-type-is-a-union}
+ */
+type IsUnion<
+  T,
+  ///
+  U extends T = T,
+> = T extends unknown ? ([U] extends [T] ? false : true) : false;
+
+/**
  * Return an union of safe event names that handle event overridding.
  */
-export type SafeEventNames1<
+export type SafeEventNames<
   abi extends Abi,
   ///
   abiEvents extends AbiEvent = ExtractAbiEvents<abi>,

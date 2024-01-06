@@ -1,10 +1,11 @@
 import type { AbiEvent, ParseAbiItem } from "abitype";
-import type { Abi } from "viem";
+import { type Abi } from "viem";
 import { assertType, test } from "vitest";
 import type {
+  ExtractAbiEvents,
   FormatAbiEvent,
   ParseAbiEvent,
-  SafeEventNames1,
+  SafeEventNames,
 } from "./utilityTypes.js";
 
 type Event0 = ParseAbiItem<"event Event0(bytes32 indexed arg)">;
@@ -12,7 +13,26 @@ type Event1 = ParseAbiItem<"event Event1()">;
 type Event1Overloaded = ParseAbiItem<"event Event1(bytes32 indexed)">;
 type Func = ParseAbiItem<"function func()">;
 
-// TODO: test ExtractAbiEvents
+test("ExtractAbiEvents", () => {
+  type a = ExtractAbiEvents<readonly [Event0, Event1, Event1Overloaded, Func]>;
+  //   ^?
+  assertType<Event0 | Event1 | Event1Overloaded>({} as unknown as a);
+  assertType<a>({} as unknown as Event0 | Event1 | Event1Overloaded);
+});
+
+test("ExtractAbiEvents semi-weak abi", () => {
+  type a = ExtractAbiEvents<(Event0 | Event1 | Event1Overloaded | Func)[]>;
+  //   ^?
+  assertType<Event0 | Event1 | Event1Overloaded>({} as unknown as a);
+  assertType<a>({} as unknown as Event0 | Event1 | Event1Overloaded);
+});
+
+test("ExtractAbiEvents no events", () => {
+  type a = ExtractAbiEvents<readonly [Func]>;
+  //   ^?
+  assertType<AbiEvent>({} as unknown as a);
+  assertType<a>({} as unknown as AbiEvent);
+});
 
 test("ParseAbiEvent no overloaded events ", () => {
   type a = ParseAbiEvent<
@@ -116,34 +136,38 @@ test("FormatAbiEvent with no matching events", () => {
 });
 
 test("SafeEventNames no overloaded events", () => {
-  type a = SafeEventNames1<
+  type a = SafeEventNames<
     // ^?
-    readonly [Event0, Event1]
+    readonly [Event0, Event1, Func]
   >;
   assertType<"Event0" | "Event1">({} as unknown as a);
   assertType<a>({} as unknown as "Event0" | "Event1");
 });
 
 test("SafeEventNames overloaded events", () => {
-  type a = SafeEventNames1<
+  type a = SafeEventNames<
     // ^?
-    readonly [Event1, Event1Overloaded]
+    readonly [Event0, Event1, Event1Overloaded, Func]
   >;
-  assertType<"Event1()" | "Event1(bytes32 indexed)">({} as unknown as a);
-  assertType<a>({} as unknown as "Event1()" | "Event1(bytes32 indexed)");
+  assertType<"Event0" | "Event1()" | "Event1(bytes32 indexed)">(
+    {} as unknown as a,
+  );
+  assertType<a>(
+    {} as unknown as "Event0" | "Event1()" | "Event1(bytes32 indexed)",
+  );
 });
 
 test("SafeEventNames semi-weak abi", () => {
-  type a = SafeEventNames1<
+  type a = SafeEventNames<
     // ^?
-    (Event0 | Event1)[]
+    (Event0 | Event1 | Func)[]
   >;
   assertType<"Event0" | "Event1">({} as unknown as a);
   assertType<a>({} as unknown as "Event0" | "Event1");
 });
 
 test("SafeEventNames weak abi", () => {
-  type a = SafeEventNames1<Abi>;
+  type a = SafeEventNames<Abi>;
   //   ^?
   assertType<string>({} as unknown as a);
   assertType<a>({} as unknown as string);

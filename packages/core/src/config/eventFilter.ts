@@ -1,12 +1,11 @@
-import type { Prettify } from "@/types/utils.js";
 import type { Abi, GetEventArgs } from "viem";
-import type { ParseAbiEvent, SafeEventNames1 } from "./utilityTypes.js";
+import type { ParseAbiEvent, SafeEventNames } from "./utilityTypes.js";
 
 export type GetEventFilter<
   abi extends Abi,
   contract,
   ///
-  safeEventNames extends string = SafeEventNames1<abi>,
+  safeEventNames extends string = SafeEventNames<abi>,
 > = contract extends {
   filter: {
     // 1. Contract has a filter
@@ -16,7 +15,7 @@ export type GetEventFilter<
   ? // 1.a Contract has a filter and a valid event
     {
       filter: {
-        event: safeEventNames | (event extends safeEventNames ? event : never);
+        event: safeEventNames | event;
         args?: GetEventArgs<
           abi,
           string,
@@ -34,7 +33,5 @@ export type GetEventFilter<
       filter: {
         event: safeEventNames;
         args?: GetEventArgs<Abi | readonly unknown[], string>;
-        a?: safeEventNames;
-        c?: Prettify<Omit<contract, "abi">>;
       };
     };

@@ -52,9 +52,10 @@ test("event filter with invalid event", () => {
 
 test("event filter with extra parameter", () => {
   eventFilter({
+    abi,
     filter: {
       // @ts-expect-error
-      abi,
+      a: 0,
       event: "Event1",
     },
   });
