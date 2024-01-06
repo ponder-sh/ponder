@@ -2,7 +2,9 @@ import { http, type Abi, parseAbiItem } from "viem";
 import { test } from "vitest";
 import { createConfig } from "./config2.js";
 
-const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
+const event0 = parseAbiItem(
+  "event Event0(bytes32 indexed arg, bytes32 indexed arg1)",
+);
 const event1 = parseAbiItem("event Event1()");
 const func = parseAbiItem("function func()");
 
@@ -19,12 +21,15 @@ test("createConfig basic", () => {
       },
     },
     contracts: {
+      c1: {
+        abi: [event1],
+        network: "mainnet",
+        startBlock: 0,
+      },
       c2: {
         abi: [event1],
         network: "mainnet",
-        // ^?
         startBlock: 0,
-        // ^?
       },
     },
   });
@@ -67,8 +72,6 @@ test("createConfig address", () => {
       c2: {
         abi: [event1],
         network: "mainnet",
-        // ^?
-        startBlock: 0,
         address: "0x1",
       },
     },
@@ -91,8 +94,6 @@ test("createConfig factory", () => {
       c2: {
         abi: [event1],
         network: "mainnet",
-        // ^?
-        startBlock: 0,
         factory: {
           address: "0x",
           event: event0,
@@ -119,8 +120,6 @@ test("createConfig address and factory", () => {
       c2: {
         abi: [event1],
         network: "mainnet",
-        // ^?
-        startBlock: 0,
         factory: {
           address: "0x",
           event: event0,
@@ -149,16 +148,64 @@ test("createConfig filter", () => {
       c2: {
         abi: [event1],
         network: "mainnet",
-        // ^?
         filter: {
-          event: "",
+          event: "Event1",
         },
       },
     },
   });
 });
-test("createConfig filter multiple events", () => {});
-test("createConfig filter with args", () => {});
+
+test("createConfig filter with args", () => {
+  createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(),
+      },
+      optimism: {
+        chainId: 10,
+        transport: http(),
+      },
+    },
+    contracts: {
+      c2: {
+        abi: [event0, event1],
+        network: "mainnet",
+        filter: {
+          event: "Event0",
+          args: {
+            arg: ["0x"],
+          },
+        },
+      },
+    },
+  });
+});
+
+test("createConfig filter multiple events", () => {
+  createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(),
+      },
+      optimism: {
+        chainId: 10,
+        transport: http(),
+      },
+    },
+    contracts: {
+      c2: {
+        abi: [event0, event1],
+        network: "mainnet",
+        filter: {
+          event: ["Event0", "Event1"],
+        },
+      },
+    },
+  });
+});
 
 test("createConfig network overrides", () => {});
 

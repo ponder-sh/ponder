@@ -24,7 +24,9 @@ export type GetEventFilter<
       ? // 1.b.i Filter event is a valid string
         {
           filter: {
-            event: safeEventNames | event;
+            event:
+              | safeEventNames
+              | (event extends safeEventNames ? event : never);
             args?: GetEventArgs<
               abi,
               string,
@@ -46,7 +48,7 @@ export type GetEventFilter<
         }
   : // 2. Contract doesn't have a filter with event
     {
-      filter: {
+      filter?: {
         event: safeEventNames | readonly safeEventNames[];
         args?: GetEventArgs<Abi | readonly unknown[], string>;
       };

@@ -2,6 +2,7 @@ import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import { type Transport } from "viem";
 import type { GetAddress } from "./address.js";
+import type { GetEventFilter } from "./eventFilter.js";
 
 export type BlockConfig = {
   /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
@@ -83,25 +84,48 @@ type GetContract<
     ? // 1.a Contract has a valid abi and network
       Prettify<
         ContractRequired<networks, abi, contractNetwork> &
-          GetAddress<Omit<contract, "network" | "abi">>
+          GetAddress<Omit<contract, "network" | "abi" | "filter">> &
+          GetEventFilter<
+            abi,
+            Omit<contract, "network" | "address" | "factory" | "abi">
+          >
       >
     : // 1.b Contract has valid abi and invalid network
-      Prettify<ContractRequired<networks, abi>>
+      Prettify<ContractRequired<networks, abi>> &
+        GetAddress<Omit<contract, "network" | "abi" | "filter">> &
+        GetEventFilter<
+          abi,
+          Omit<contract, "network" | "address" | "factory" | "abi">
+        >
   : // 2. Contract has an invalid abi
     contract extends { network: infer contractNetwork extends keyof networks }
     ? // 2.a Contract has an invalid abi and a valid network
-      Prettify<ContractRequired<networks, Abi, contractNetwork>>
+      Prettify<
+        ContractRequired<networks, Abi, contractNetwork> &
+          GetAddress<Omit<contract, "network" | "abi" | "filter">> &
+          GetEventFilter<
+            Abi,
+            Omit<contract, "network" | "address" | "factory" | "abi">
+          >
+      >
     : // 2.b Contract has an invalid abi and an invalid network
-      Prettify<ContractRequired<networks, Abi>>;
+      Prettify<
+        ContractRequired<networks, Abi> &
+          GetAddress<Omit<contract, "network" | "abi" | "filter">> &
+          GetEventFilter<
+            Abi,
+            Omit<contract, "network" | "address" | "factory" | "abi">
+          >
+      >;
 
 type ContractsConfig<
   networks extends { [name: string]: unknown },
   contracts,
 > = {} extends contracts // contracts empty, return empty
   ? {}
-  : contracts extends { c2: infer contract }
-    ? { c2: GetContract<networks, contract> & BlockConfig }
-    : never;
+  : {
+      [name in keyof contracts]: GetContract<networks, contracts[name]>;
+    };
 
 type NetworksConfig<networks extends { [name: string]: unknown }> = {
   [networkName in keyof networks]: NetworkConfig;
