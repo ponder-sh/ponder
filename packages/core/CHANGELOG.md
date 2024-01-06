@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.1.4
+
+### Patch Changes
+
+- [#557](https://github.com/ponder-sh/ponder/pull/557) [`83e2b4a7a05d847832ba60adde361736deeb3b2c`](https://github.com/ponder-sh/ponder/commit/83e2b4a7a05d847832ba60adde361736deeb3b2c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed bug in codegen command caused by undefined codegen service. Also no longer fails silently.
+
+- [#559](https://github.com/ponder-sh/ponder/pull/559) [`ab3b3e544ae0b67937aa11462495b2d5e5f80eb3`](https://github.com/ponder-sh/ponder/commit/ab3b3e544ae0b67937aa11462495b2d5e5f80eb3) Thanks [@0xOlias](https://github.com/0xOlias)! - Added new CLI options `--port`/`-p`, `--hostname`/`-H`, `--debug`/`-v`, and `--trace`/`-vv`. Renamed options `--config-file` to `config` and `--root-dir` to `--root`.
+
 ## 0.1.3
 
 ### Patch Changes
