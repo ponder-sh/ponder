@@ -76,7 +76,7 @@ jobs:
         run: cd packages/core/ && pnpm wagmi generate
 
       - name: Test
-        run: pnpm test:core
+        run: pnpm --filter core test:typecheck
         env:
           DATABASE_URL: ${{ matrix.database == 'Postgres' && steps.postgres.outputs.connection-uri || '' }}
 
@@ -96,6 +96,6 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Test
-        run: pnpm test:create-ponder
+        run: pnpm --filter create-ponder test
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}

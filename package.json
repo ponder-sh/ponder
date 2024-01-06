@@ -6,15 +6,11 @@
     "build": "pnpm --filter \"./packages/**\" --parallel build",
     "changeset:release": "pnpm build && changeset publish",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
-    "install:packages": "pnpm --filter \"./packages/**\" install",
-    "install:examples": "pnpm --filter \"./examples/**\" install",
     "format": "biome format . --write",
     "lint": "biome check .",
     "lint:fix": "pnpm lint --apply",
     "prepare": "npx simple-git-hooks",
     "test": "pnpm --parallel --no-bail test",
-    "test:core": "pnpm --filter \"@ponder/core\" test:typecheck",
-    "test:create-ponder": "pnpm --filter \"create-ponder\" test",
     "typecheck": "pnpm --filter \"./packages/**\" --parallel typecheck"
   },
   "devDependencies": {
