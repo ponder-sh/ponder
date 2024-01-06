@@ -1,6 +1,3 @@
-import type { AbiEvent } from "abitype";
-import type { Abi, GetEventArgs } from "viem";
-
 import type {
   Config,
   FilterAbiEvents,
@@ -13,6 +10,8 @@ import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Transaction } from "@/types/transaction.js";
+import type { AbiEvent } from "abitype";
+import type { Abi, GetEventArgs } from "viem";
 
 import type { Prettify } from "./utils.js";
 

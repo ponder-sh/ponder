@@ -38,15 +38,6 @@ export type FormatAbiEvent<
       : never;
 
 /**
- * {@link https://stackoverflow.com/questions/53953814/typescript-check-if-a-type-is-a-union}
- */
-type IsUnion<
-  T,
-  ///
-  U extends T = T,
-> = T extends unknown ? ([U] extends [T] ? false : true) : false;
-
-/**
  * Return an union of safe event names that handle event overridding.
  */
 export type SafeEventNames<
