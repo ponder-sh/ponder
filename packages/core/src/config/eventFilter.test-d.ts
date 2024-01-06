@@ -27,7 +27,38 @@ test("event filter with no event", () => {
   });
 });
 
-test("event filter with list of events");
+test("event filter with list of events", () => {
+  eventFilter({
+    abi,
+
+    filter: {
+      event: ["Event0"],
+    },
+  });
+});
+
+test("event filter with invalid list of events", () => {
+  eventFilter({
+    abi,
+
+    filter: {
+      // @ts-expect-error
+      event: ["Evnt0"],
+    },
+  });
+});
+
+test("event filter with list of events with args", () => {
+  eventFilter({
+    abi,
+
+    filter: {
+      event: ["Event0"],
+      // @ts-expect-error
+      args: undefined,
+    },
+  });
+});
 
 test("event filter with event", () => {
   eventFilter({
