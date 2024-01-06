@@ -1,4 +1,4 @@
-import { parseAbiItem } from "viem";
+import { type Abi, parseAbiItem } from "viem";
 import { test } from "vitest";
 import type { GetEventFilter } from "./eventFilter.js";
 
@@ -7,9 +7,13 @@ const event1 = parseAbiItem("event Event1()");
 const event1Overloaded = parseAbiItem("event Event1(bytes32 indexed arg)");
 const func = parseAbiItem("function func()");
 
-const abi = [event0, event1, event1Overloaded, func] as const;
+const abi = [event0, event1, func] as const;
 
-const eventFilter = <const contract>(e: GetEventFilter<contract>) => e;
+const eventFilter = <const contract>(
+  e: contract extends { abi: infer abi extends Abi }
+    ? GetEventFilter<abi, contract> & { abi: Abi }
+    : contract,
+) => e as contract;
 
 test("no event filter", () => {
   eventFilter({});
@@ -30,16 +34,15 @@ test("event filter with event", () => {
     abi,
 
     filter: {
-      event: "Event1(bytes32 indexed arg)",
+      event: "Event0",
     },
   });
 });
 
 test("event filter with invalid event", () => {
   eventFilter({
+    abi,
     filter: {
-      abi,
-
       // @ts-expect-error
       event: "made up",
       args: undefined,
@@ -47,12 +50,22 @@ test("event filter with invalid event", () => {
   });
 });
 
-test("event filter with event and args", () => {
+test("event filter with extra parameter", () => {
   eventFilter({
     filter: {
+      // @ts-expect-error
       abi,
+      event: "Event1",
+    },
+  });
+});
 
-      event: "Event1(bytes32 indexed arg)",
+test("event filter with event and args", () => {
+  eventFilter({
+    abi,
+
+    filter: {
+      event: "Event0",
       args: {
         arg: "0x",
       },

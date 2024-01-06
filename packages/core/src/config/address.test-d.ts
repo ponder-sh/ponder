@@ -53,6 +53,20 @@ test("factory with weak event", () => {
   });
 });
 
+test("factory with extra parameter", () => {
+  address({
+    // ^?
+    factory: {
+      address: "0x",
+      event: event0,
+      parameter: "arg",
+
+      // @ts-expect-error
+      a: 0,
+    },
+  });
+});
+
 test("address and factory", () => {
   address({
     //  ^?
