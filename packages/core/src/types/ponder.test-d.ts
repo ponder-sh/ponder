@@ -1,5 +1,5 @@
 import type { ParseAbiItem } from "abitype";
-import type { Hex } from "viem";
+import type { Abi, Hex } from "viem";
 import { assertType, test } from "vitest";
 
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";

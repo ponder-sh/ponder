@@ -3,6 +3,7 @@ import type { Abi } from "abitype";
 import { type Transport } from "viem";
 import type { GetAddress } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
+import type { NonStrictPick } from "./utilityTypes.js";
 
 export type BlockConfig = {
   /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
@@ -62,37 +63,36 @@ type AbiConfig<abi extends Abi | readonly unknown[]> = {
 type GetNetwork<
   networks,
   contract,
+  abi extends Abi,
   ///
-  allNetworkNames = keyof networks,
+  allNetworkNames extends string = [keyof networks] extends [never]
+    ? string
+    : keyof networks & string,
 > = contract extends { network: infer network }
-  ? network extends infer contractNetwork extends allNetworkNames
-    ? {
-        /**
-         * Network that this contract is deployed to. Must match a network name in `networks`.
-         * Any filter information overrides the values in the higher level "contracts" property.
-         * Factories cannot override an address and vice versa.
-         */
-        network:
-          | allNetworkNames
-          | (contractNetwork extends allNetworkNames ? contractNetwork : never);
-      }
-    : {
-        /**
-         * Network that this contract is deployed to. Must match a network name in `networks`.
-         * Any filter information overrides the values in the higher level "contracts" property.
-         * Factories cannot override an address and vice versa.
-         */
-        network: allNetworkNames;
-      }
-  : { network: string };
-
-type NonStrictPick<T, K> = {
-  [P in Extract<keyof T, K>]: T[P];
-};
+  ? {
+      network:
+        | allNetworkNames
+        | {
+            [name in allNetworkNames]?: Prettify<
+              GetAddress<NonStrictPick<network, "factory" | "address">> &
+                GetEventFilter<abi, NonStrictPick<contract, "filter">> &
+                BlockConfig
+            >;
+          };
+    }
+  : {
+      network:
+        | allNetworkNames
+        | {
+            [name in allNetworkNames]?: Prettify<
+              GetAddress<unknown> & GetEventFilter<abi, unknown> & BlockConfig
+            >;
+          };
+    };
 
 type ContractConfig<networks, contract, abi extends Abi> = Prettify<
   AbiConfig<abi> &
-    GetNetwork<networks, NonStrictPick<contract, "network">> &
+    GetNetwork<networks, NonStrictPick<contract, "network">, abi> &
     GetAddress<NonStrictPick<contract, "factory" | "address">> &
     GetEventFilter<abi, NonStrictPick<contract, "filter">> &
     BlockConfig
@@ -113,9 +113,11 @@ type ContractsConfig<networks, contracts> = {} extends contracts
       [name in keyof contracts]: GetContract<networks, contracts[name]>;
     };
 
-type NetworksConfig<networks> = {
-  [networkName in keyof networks]: NetworkConfig;
-};
+type NetworksConfig<networks> = {} extends networks
+  ? {}
+  : {
+      [networkName in keyof networks]: NetworkConfig;
+    };
 
 export const createConfig = <const networks, const contracts>(config: {
   // TODO: add jsdoc to these properties.

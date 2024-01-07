@@ -37,19 +37,14 @@ export type GetAddress<contract> = contract extends {
   : // 2. Contract has an address
     contract extends { address: `0x${string}` | readonly `0x${string}`[] }
     ? { address?: `0x${string}` | readonly `0x${string}`[]; factory?: never }
-    :
-        | {
-            address?: `0x${string}` | readonly `0x${string}`[];
-            factory?: never;
-          }
-        | {
-            address?: never;
-            factory?: {
-              /** Address of the factory contract that creates this contract. */
-              address: `0x${string}`;
-              /** ABI event that announces the creation of a new instance of this contract. */
-              event: AbiEvent;
-              /** Name of the factory event parameter that contains the new child contract address. */
-              parameter: string;
-            };
-          };
+    : {
+        address?: `0x${string}` | readonly `0x${string}`[];
+        factory?: {
+          /** Address of the factory contract that creates this contract. */
+          address: `0x${string}`;
+          /** ABI event that announces the creation of a new instance of this contract. */
+          event: AbiEvent;
+          /** Name of the factory event parameter that contains the new child contract address. */
+          parameter: string;
+        };
+      };

@@ -28,7 +28,7 @@ test("createConfig basic", () => {
       },
       c2: {
         abi: [event1],
-        network: "mainnet",
+        network: "optimism",
         startBlock: 0,
       },
     },
@@ -207,7 +207,39 @@ test("createConfig filter multiple events", () => {
   });
 });
 
-test("createConfig network overrides", () => {});
+test("createConfig network overrides", () => {
+  createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(),
+      },
+      optimism: {
+        chainId: 10,
+        transport: http(),
+      },
+    },
+    contracts: {
+      c1: {
+        abi: [event1],
+        network: "mainnet",
+        startBlock: 0,
+      },
+      c2: {
+        abi: [event1],
+        network: {
+          optimism: {
+            address: "0x",
+            filter: {
+              event: "Event1",
+            },
+          },
+        },
+        startBlock: 0,
+      },
+    },
+  });
+});
 
 test("createConfig weak Abi", () => {
   const abi = [event0, func] as Abi;

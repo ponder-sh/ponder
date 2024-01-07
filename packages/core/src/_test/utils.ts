@@ -75,9 +75,7 @@ export const walletClient = createWalletClient({
  * Returns the config for the local anvil testing suite.
  * The suite contains an erc20 and mock factory + pair event sources.
  */
-export const getConfig = (
-  addresses: Awaited<ReturnType<typeof deploy>>,
-): Config =>
+export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
   createConfig({
     networks: {
       mainnet: {
@@ -119,7 +117,7 @@ export const getNetworks = async () => {
 
 export const getSources = (
   addresses: Awaited<ReturnType<typeof deploy>>,
-): Source[] => buildSources({ config: getConfig(addresses) });
+): Source[] => buildSources({ config: getConfig(addresses) as Config });
 
 /**
  * Returns the logs, block, and transaction data for the blocks with events (1, 2, 3).

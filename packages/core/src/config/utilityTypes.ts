@@ -1,6 +1,10 @@
 import type { Abi, AbiEvent, FormatAbiItem } from "abitype";
 import type { ParseAbiItem } from "viem";
 
+export type NonStrictPick<T, K> = {
+  [P in Extract<keyof T, K>]: T[P];
+};
+
 export type ExtractAbiEvents<
   abi extends Abi,
   events = Extract<abi[number], { type: "event" }>,
