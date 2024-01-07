@@ -70,6 +70,11 @@ type GetNetwork<
     : keyof networks & string,
 > = contract extends { network: infer network }
   ? {
+      /**
+       * Network that this contract is deployed to. Must match a network name in `networks`.
+       * Any filter information overrides the values in the higher level "contracts" property.
+       * Factories cannot override an address and vice versa.
+       */
       network:
         | allNetworkNames
         | {
@@ -81,6 +86,11 @@ type GetNetwork<
           };
     }
   : {
+      /**
+       * Network that this contract is deployed to. Must match a network name in `networks`.
+       * Any filter information overrides the values in the higher level "contracts" property.
+       * Factories cannot override an address and vice versa.
+       */
       network:
         | allNetworkNames
         | {
