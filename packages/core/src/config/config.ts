@@ -64,26 +64,27 @@ type GetNetwork<
   contract,
   ///
   allNetworkNames = keyof networks,
-> = contract extends { network: infer contractNetwork extends keyof networks }
-  ? {
-      a?: Prettify<contract>;
-      /**
-       * Network that this contract is deployed to. Must match a network name in `networks`.
-       * Any filter information overrides the values in the higher level "contracts" property.
-       * Factories cannot override an address and vice versa.
-       */
-      network:
-        | allNetworkNames
-        | (contractNetwork extends allNetworkNames ? contractNetwork : never);
-    }
-  : {
-      /**
-       * Network that this contract is deployed to. Must match a network name in `networks`.
-       * Any filter information overrides the values in the higher level "contracts" property.
-       * Factories cannot override an address and vice versa.
-       */
-      network: allNetworkNames;
-    };
+> = contract extends { network: infer network }
+  ? network extends infer contractNetwork extends allNetworkNames
+    ? {
+        /**
+         * Network that this contract is deployed to. Must match a network name in `networks`.
+         * Any filter information overrides the values in the higher level "contracts" property.
+         * Factories cannot override an address and vice versa.
+         */
+        network:
+          | allNetworkNames
+          | (contractNetwork extends allNetworkNames ? contractNetwork : never);
+      }
+    : {
+        /**
+         * Network that this contract is deployed to. Must match a network name in `networks`.
+         * Any filter information overrides the values in the higher level "contracts" property.
+         * Factories cannot override an address and vice versa.
+         */
+        network: allNetworkNames;
+      }
+  : { network: string };
 
 type NonStrictPick<T, K> = {
   [P in Extract<keyof T, K>]: T[P];
@@ -97,7 +98,7 @@ type ContractConfig<networks, contract, abi extends Abi> = Prettify<
     BlockConfig
 >;
 
-type GetContract<networks, contract> = contract extends {
+type GetContract<networks = unknown, contract = unknown> = contract extends {
   abi: infer abi extends Abi;
 }
   ? // 1. Contract has a valid abi
@@ -122,15 +123,19 @@ export const createConfig = <const networks, const contracts>(config: {
   contracts: ContractsConfig<networks, contracts>;
   database?: DatabaseConfig;
   options?: OptionConfig;
-}) => {
-  return config;
+}): CreateConfigReturnType<networks, contracts> =>
+  config as CreateConfigReturnType<networks, contracts>;
+
+export type Config = {
+  networks: { [name: string]: NetworkConfig };
+  contracts: { [name: string]: GetContract };
+  database?: DatabaseConfig;
+  options?: OptionConfig;
 };
 
-// export type CreateConfigParameters = {
-//   networks: { [name: string]: NetworkConfig };
-//   contracts: ContractsConfig<networks, contracts>;
-//   database?: DatabaseConfig;
-//   options?: OptionConfig;
-// };
-
-// export type CreateConfigReturnType = CreateConfigParameters;
+export type CreateConfigReturnType<networks, contracts> = {
+  networks: networks;
+  contracts: contracts;
+  database?: DatabaseConfig;
+  options?: OptionConfig;
+};

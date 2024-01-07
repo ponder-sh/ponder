@@ -1,66 +1,59 @@
-import type {
-  Config,
-  FilterAbiEvents,
-  RecoverAbiEvent,
-  SafeEventNames,
-} from "@/config/config.js";
+import type { Config } from "@/config/config.js";
+import type { ParseAbiEvent, SafeEventNames } from "@/config/utilityTypes.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type { Infer, Schema } from "@/schema/types.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Transaction } from "@/types/transaction.js";
-import type { AbiEvent } from "abitype";
 import type { Abi, GetEventArgs } from "viem";
-
 import type { Prettify } from "./utils.js";
 
 type Setup = "setup";
 
 /** "{ContractName}:{EventName}". */
-export type Names<TContracts extends Config["contracts"]> = {
-  [key in keyof TContracts]: `${key & string}:${
-    | (SafeEventNames<
-        FilterAbiEvents<TContracts[key]["abi"]>
-      >[number] extends infer events extends string
-        ? TContracts[key]["filter"] extends {
-            event: infer filterEvents extends string | string[];
+export type Names<contracts extends Config["contracts"]> = {
+  [name in keyof contracts]: `${name & string}:${
+    | (SafeEventNames<contracts[name]["abi"]> extends infer events extends
+        string
+        ? contracts[name]["filter"] extends {
+            event: infer filterEvents extends string | readonly string[];
           }
           ? Extract<
               events,
-              filterEvents extends string[]
+              filterEvents extends readonly string[]
                 ? filterEvents[number]
                 : filterEvents
             >
           : events
         : never)
     | Setup}`;
-}[keyof TContracts];
+}[keyof contracts];
 
-type ExtractEventName<TName extends string> =
-  TName extends `${string}:${infer EventName extends string}`
+type ExtractEventName<name extends string> =
+  name extends `${string}:${infer EventName extends string}`
     ? EventName
     : never;
 
-type ExtractContractName<TName extends string> =
-  TName extends `${infer ContractName extends string}:${string}`
+type ExtractContractName<name extends string> =
+  name extends `${infer ContractName extends string}:${string}`
     ? ContractName
     : never;
 
 export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
   on: <
-    TName extends Names<TConfig["contracts"]>,
-    TContractName extends
-      ExtractContractName<TName> = ExtractContractName<TName>,
-    TEventName extends ExtractEventName<TName> = ExtractEventName<TName>,
+    name extends Names<TConfig["contracts"]>,
+    ///
+    contractName extends ExtractContractName<name> = ExtractContractName<name>,
+    eventName extends ExtractEventName<name> = ExtractEventName<name>,
   >(
-    name: TName,
+    _name: name,
     indexingFunction: (
-      args: (TEventName extends Setup
+      args: (eventName extends Setup
         ? {}
         : {
             event: {
-              name: TEventName;
+              name: eventName;
               args: GetEventArgs<
                 Abi,
                 string,
@@ -69,11 +62,10 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
                   IndexedOnly: false;
                   Required: true;
                 },
-                AbiEvent &
-                  RecoverAbiEvent<
-                    FilterAbiEvents<TConfig["contracts"][TContractName]["abi"]>,
-                    TEventName
-                  >
+                ParseAbiEvent<
+                  TConfig["contracts"][contractName]["abi"],
+                  eventName
+                >
               >;
               log: Log;
               block: Block;
@@ -113,18 +105,18 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
                   >["endBlock"];
             };
           };
-          network: TConfig["contracts"][TContractName]["network"] extends string
+          network: TConfig["contracts"][contractName]["network"] extends string
             ? {
-                name: TConfig["contracts"][TContractName]["network"];
-                chainId: TConfig["networks"][TConfig["contracts"][TContractName]["network"]]["chainId"];
+                name: TConfig["contracts"][contractName]["network"];
+                chainId: TConfig["networks"][TConfig["contracts"][contractName]["network"]]["chainId"];
               }
             : {
-                [key in keyof TConfig["contracts"][TContractName]["network"]]: {
+                [key in keyof TConfig["contracts"][contractName]["network"]]: {
                   name: key;
                   chainId: TConfig["networks"][key &
                     keyof TConfig["networks"]]["chainId"];
                 };
-              }[keyof TConfig["contracts"][TContractName]["network"]];
+              }[keyof TConfig["contracts"][contractName]["network"]];
           client: Prettify<Omit<ReadOnlyClient, "extend">>;
           db: {
             [key in keyof Infer<TSchema>]: DatabaseModel<Infer<TSchema>[key]>;

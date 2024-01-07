@@ -14,9 +14,11 @@ test("PonderApp setup", () => {
   type p = PonderApp<
     // ^?
     {
-      networks: any;
+      networks: {
+        mainnet: any;
+      };
       contracts: {
-        Contract: { network: any; abi: [] };
+        Contract: { network: "mainnet"; abi: Abi };
       };
     },
     any
