@@ -22,7 +22,7 @@ const optimism = {
   chainId: 10,
 } as const satisfies Network;
 
-const networks = [mainnet, optimism] as const satisfies Network[];
+const networks = [mainnet, optimism] satisfies Network[];
 
 const _sources = getSources({
   erc20Address: zeroAddress,
@@ -36,7 +36,7 @@ const sources = [
     networkName: optimism.name,
     chainId: optimism.chainId,
   },
-] as const satisfies Source[];
+] satisfies Source[];
 
 function createCheckpoint(checkpoint: Partial<Checkpoint>): Checkpoint {
   return { ...zeroCheckpoint, ...checkpoint };
