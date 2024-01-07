@@ -54,83 +54,69 @@ export type NetworkConfig = {
   maxHistoricalTaskConcurrency?: number;
 };
 
-type ContractRequired<
-  networks extends { [name: string]: unknown },
-  abi extends Abi | readonly unknown[],
-  ///
-  contractNetwork extends keyof networks = keyof networks,
-  allNetworkNames = keyof networks,
-> = {
+type AbiConfig<abi extends Abi | readonly unknown[]> = {
   /** Contract application byte interface. */
   abi: abi;
-  /**
-   * Network that this contract is deployed to. Must match a network name in `networks`.
-   * Any filter information overrides the values in the higher level "contracts" property.
-   * Factories cannot override an address and vice versa.
-   */
-  network:
-    | allNetworkNames
-    | (contractNetwork extends allNetworkNames ? contractNetwork : never);
 };
+
+type GetNetwork<
+  networks,
+  contract,
+  ///
+  allNetworkNames = keyof networks,
+> = contract extends { network: infer contractNetwork extends keyof networks }
+  ? {
+      a?: Prettify<contract>;
+      /**
+       * Network that this contract is deployed to. Must match a network name in `networks`.
+       * Any filter information overrides the values in the higher level "contracts" property.
+       * Factories cannot override an address and vice versa.
+       */
+      network:
+        | allNetworkNames
+        | (contractNetwork extends allNetworkNames ? contractNetwork : never);
+    }
+  : {
+      /**
+       * Network that this contract is deployed to. Must match a network name in `networks`.
+       * Any filter information overrides the values in the higher level "contracts" property.
+       * Factories cannot override an address and vice versa.
+       */
+      network: allNetworkNames;
+    };
 
 type NonStrictPick<T, K> = {
-  [P in Extract<keyof T, K>]?: T[P];
+  [P in Extract<keyof T, K>]: T[P];
 };
 
-type GetContract<
-  networks extends { [name: string]: unknown },
-  contract,
-> = contract extends {
+type ContractConfig<networks, contract, abi extends Abi> = Prettify<
+  AbiConfig<abi> &
+    GetNetwork<networks, NonStrictPick<contract, "network">> &
+    GetAddress<NonStrictPick<contract, "factory" | "address">> &
+    GetEventFilter<abi, NonStrictPick<contract, "filter">> &
+    BlockConfig
+>;
+
+type GetContract<networks, contract> = contract extends {
   abi: infer abi extends Abi;
 }
   ? // 1. Contract has a valid abi
-    contract extends { network: infer contractNetwork extends keyof networks }
-    ? // 1.a Contract has a valid abi and network
-      Prettify<
-        ContractRequired<networks, abi, contractNetwork> &
-          GetAddress<NonStrictPick<contract, "factory" | "address">> &
-          GetEventFilter<abi, NonStrictPick<contract, "filter">> &
-          BlockConfig
-      >
-    : // 1.b Contract has valid abi and invalid network
-      Prettify<ContractRequired<networks, abi>> &
-        GetAddress<NonStrictPick<contract, "factory" | "address">> &
-        GetEventFilter<abi, NonStrictPick<contract, "filter">> &
-        BlockConfig
+    ContractConfig<networks, contract, abi>
   : // 2. Contract has an invalid abi
-    contract extends { network: infer contractNetwork extends keyof networks }
-    ? // 2.a Contract has an invalid abi and a valid network
-      Prettify<
-        ContractRequired<networks, Abi, contractNetwork> &
-          GetAddress<NonStrictPick<contract, "factory" | "address">> &
-          GetEventFilter<Abi, NonStrictPick<contract, "filter">> &
-          BlockConfig
-      >
-    : // 2.b Contract has an invalid abi and an invalid network
-      Prettify<
-        ContractRequired<networks, Abi> &
-          GetAddress<NonStrictPick<contract, "factory" | "address">> &
-          GetEventFilter<Abi, NonStrictPick<contract, "filter">> &
-          BlockConfig
-      >;
+    ContractConfig<networks, contract, Abi>;
 
-type ContractsConfig<
-  networks extends { [name: string]: unknown },
-  contracts,
-> = {} extends contracts // contracts empty, return empty
-  ? {}
+type ContractsConfig<networks, contracts> = {} extends contracts
+  ? // contracts empty, return empty
+    {}
   : {
       [name in keyof contracts]: GetContract<networks, contracts[name]>;
     };
 
-type NetworksConfig<networks extends { [name: string]: unknown }> = {
+type NetworksConfig<networks> = {
   [networkName in keyof networks]: NetworkConfig;
 };
 
-export const createConfig = <
-  const networks extends { [name: string]: unknown },
-  const contracts extends { [name: string]: unknown },
->(config: {
+export const createConfig = <const networks, const contracts>(config: {
   // TODO: add jsdoc to these properties.
   networks: NetworksConfig<networks>;
   contracts: ContractsConfig<networks, contracts>;
@@ -140,6 +126,11 @@ export const createConfig = <
   return config;
 };
 
-export type CreateConfigParameters = Parameters<typeof createConfig>[0];
+// export type CreateConfigParameters = {
+//   networks: { [name: string]: NetworkConfig };
+//   contracts: ContractsConfig<networks, contracts>;
+//   database?: DatabaseConfig;
+//   options?: OptionConfig;
+// };
 
-export type CreateConfigReturnType = CreateConfigParameters;
+// export type CreateConfigReturnType = CreateConfigParameters;

@@ -15,7 +15,7 @@ export type GetEventFilter<
     event extends readonly string[]
     ? // 1.a Filter event is an array
       {
-        filter: {
+        filter?: {
           event: readonly safeEventNames[];
         };
       }
@@ -23,7 +23,7 @@ export type GetEventFilter<
       event extends safeEventNames
       ? // 1.b.i Filter event is a valid string
         {
-          filter: {
+          filter?: {
             event:
               | safeEventNames
               | (event extends safeEventNames ? event : never);
@@ -41,7 +41,7 @@ export type GetEventFilter<
         }
       : // 1.b.ii Filter event is an invalid string
         {
-          filter: {
+          filter?: {
             event: safeEventNames;
             args?: GetEventArgs<Abi | readonly unknown[], string>;
           };
