@@ -2,17 +2,18 @@ import type { AbiEvent } from "abitype";
 
 // TODO: support unnamed parameter
 export type GetAddress<contract> = contract extends {
-  factory: unknown;
+  factory?: unknown;
 }
   ? // 1. Contract contains a factory
     contract extends {
-      factory: {
+      factory?: {
         event: infer event extends AbiEvent;
       };
     }
     ? // 1.a Contract has a valid factory event
       {
-        factory: {
+        address?: never;
+        factory?: {
           /** Address of the factory contract that creates this contract. */
           address: `0x${string}`;
           /** ABI event that announces the creation of a new instance of this contract. */
@@ -23,7 +24,8 @@ export type GetAddress<contract> = contract extends {
       }
     : // 1.b Contract has an invalid factory event
       {
-        factory: {
+        address?: never;
+        factory?: {
           /** Address of the factory contract that creates this contract. */
           address: `0x${string}`;
           /** ABI event that announces the creation of a new instance of this contract. */
@@ -33,6 +35,21 @@ export type GetAddress<contract> = contract extends {
         };
       }
   : // 2. Contract has an address
-    contract extends { address: unknown }
-    ? { address: `0x${string}` | readonly `0x${string}`[] }
-    : contract;
+    contract extends { address?: any }
+    ? { address?: `0x${string}` | readonly `0x${string}`[]; factory?: never }
+    :
+        | {
+            address?: `0x${string}` | readonly `0x${string}`[];
+            factory?: never;
+          }
+        | {
+            address?: never;
+            factory?: {
+              /** Address of the factory contract that creates this contract. */
+              address: `0x${string}`;
+              /** ABI event that announces the creation of a new instance of this contract. */
+              event: AbiEvent;
+              /** Name of the factory event parameter that contains the new child contract address. */
+              parameter: string;
+            };
+          };

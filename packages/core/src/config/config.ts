@@ -73,6 +73,10 @@ type ContractRequired<
     | (contractNetwork extends allNetworkNames ? contractNetwork : never);
 };
 
+type NonStrictPick<T, K> = {
+  [P in Extract<keyof T, K>]?: T[P];
+};
+
 type GetContract<
   networks extends { [name: string]: unknown },
   contract,
@@ -84,38 +88,30 @@ type GetContract<
     ? // 1.a Contract has a valid abi and network
       Prettify<
         ContractRequired<networks, abi, contractNetwork> &
-          GetAddress<Omit<contract, "network" | "abi" | "filter">> &
-          GetEventFilter<
-            abi,
-            Omit<contract, "network" | "address" | "factory" | "abi">
-          >
+          GetAddress<NonStrictPick<contract, "factory" | "address">> &
+          GetEventFilter<abi, NonStrictPick<contract, "filter">> &
+          BlockConfig
       >
     : // 1.b Contract has valid abi and invalid network
       Prettify<ContractRequired<networks, abi>> &
-        GetAddress<Omit<contract, "network" | "abi" | "filter">> &
-        GetEventFilter<
-          abi,
-          Omit<contract, "network" | "address" | "factory" | "abi">
-        >
+        GetAddress<NonStrictPick<contract, "factory" | "address">> &
+        GetEventFilter<abi, NonStrictPick<contract, "filter">> &
+        BlockConfig
   : // 2. Contract has an invalid abi
     contract extends { network: infer contractNetwork extends keyof networks }
     ? // 2.a Contract has an invalid abi and a valid network
       Prettify<
         ContractRequired<networks, Abi, contractNetwork> &
-          GetAddress<Omit<contract, "network" | "abi" | "filter">> &
-          GetEventFilter<
-            Abi,
-            Omit<contract, "network" | "address" | "factory" | "abi">
-          >
+          GetAddress<NonStrictPick<contract, "factory" | "address">> &
+          GetEventFilter<Abi, NonStrictPick<contract, "filter">> &
+          BlockConfig
       >
     : // 2.b Contract has an invalid abi and an invalid network
       Prettify<
         ContractRequired<networks, Abi> &
-          GetAddress<Omit<contract, "network" | "abi" | "filter">> &
-          GetEventFilter<
-            Abi,
-            Omit<contract, "network" | "address" | "factory" | "abi">
-          >
+          GetAddress<NonStrictPick<contract, "factory" | "address">> &
+          GetEventFilter<Abi, NonStrictPick<contract, "filter">> &
+          BlockConfig
       >;
 
 type ContractsConfig<
@@ -144,4 +140,6 @@ export const createConfig = <
   return config;
 };
 
-export type Config = Parameters<typeof createConfig>[0];
+export type CreateConfigParameters = Parameters<typeof createConfig>[0];
+
+export type CreateConfigReturnType = CreateConfigParameters;

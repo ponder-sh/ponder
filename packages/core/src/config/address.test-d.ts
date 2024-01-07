@@ -2,7 +2,13 @@ import { type AbiEvent, parseAbiItem } from "abitype";
 import { test } from "vitest";
 import type { GetAddress } from "./address.js";
 
-const address = <const contract>(c: GetAddress<contract>) => c;
+const address = <const contract>(
+  c: contract extends {
+    factory?: unknown;
+  }
+    ? GetAddress<contract>
+    : contract,
+) => c;
 
 const event0 = parseAbiItem(
   "event Event0(bytes32 indexed arg, bytes32 indexed arg1)",
