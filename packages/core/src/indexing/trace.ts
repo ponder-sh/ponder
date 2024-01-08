@@ -6,7 +6,7 @@ import { type StackFrame, parse as parseStackTrace } from "stacktrace-parser";
 import type { Options } from "@/config/options.js";
 
 export const addUserStackTrace = (error: Error, options: Options) => {
-  if (!error.stack) return undefined;
+  if (!error.stack) return;
 
   const stackTrace = parseStackTrace(error.stack);
 
