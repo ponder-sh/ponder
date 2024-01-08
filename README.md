@@ -88,17 +88,21 @@ export const config = {
 
 ### 4. Define your schema
 
-The `schema.graphql` file contains a model of your application data. The entity types defined here correspond to database tables.
+The `ponder.schema.ts` file contains the database schema, and defines the shape data that the GraphQL API serves.
 
 ```ts
-// schema.graphql
+// ponder.schema.ts
 
-type EnsName @entity {
-  id: String!
-  name: String!
-  owner: String!
-  registeredAt: Int!
-}
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  EnsName: p.createTable({
+    id: p.string(),
+    name: p.string(),
+    owner: p.string(),
+    registeredAt: p.int(),
+  }),
+}));
 ```
 
 ### 5. Write indexing functions
