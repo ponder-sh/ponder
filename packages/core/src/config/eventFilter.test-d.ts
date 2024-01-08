@@ -7,7 +7,7 @@ const event1 = parseAbiItem("event Event1()");
 const event1Overloaded = parseAbiItem("event Event1(bytes32 indexed arg)");
 const func = parseAbiItem("function func()");
 
-const abi = [event0, event1, func] as const;
+const abi = [event0, event1, event1Overloaded, func] as const;
 
 const eventFilter = <const contract>(
   e: contract extends { abi: infer abi extends Abi }
@@ -65,7 +65,7 @@ test("event filter with event", () => {
     abi,
 
     filter: {
-      event: "Event0",
+      event: "Event1()",
     },
   });
 });
@@ -87,7 +87,7 @@ test("event filter with extra parameter", () => {
     filter: {
       // @ts-expect-error
       a: 0,
-      event: "Event1",
+      event: "Event1()",
     },
   });
 });

@@ -263,3 +263,5 @@ test("createConfig weak Abi", () => {
     },
   });
 });
+
+test("createConfig event overloading");

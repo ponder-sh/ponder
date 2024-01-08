@@ -1,6 +1,5 @@
 import type { AbiEvent } from "abitype";
 
-// TODO: support unnamed parameter
 export type GetAddress<contract> = contract extends {
   factory: unknown;
 }
