@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.1.5
+
+### Patch Changes
+
+- [#549](https://github.com/ponder-sh/ponder/pull/549) [`76c1e9721d784009196548dc468a7a862eb4337e`](https://github.com/ponder-sh/ponder/commit/76c1e9721d784009196548dc468a7a862eb4337e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed peer dependency rules with TypeScript and viem. User versions of these packages are now used.
+
+- [#565](https://github.com/ponder-sh/ponder/pull/565) [`caf12cf27273e761805b091a4549a768ce87d692`](https://github.com/ponder-sh/ponder/commit/caf12cf27273e761805b091a4549a768ce87d692) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the hostname was not set properly for `ponder start` and `ponder serve`.
+
+- [#549](https://github.com/ponder-sh/ponder/pull/549) [`76c1e9721d784009196548dc468a7a862eb4337e`](https://github.com/ponder-sh/ponder/commit/76c1e9721d784009196548dc468a7a862eb4337e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed ponder.config.ts typechecking with older versions of TypeScript. Also, improved abi type inference with ponder config types.
+
 ## 0.1.4
 
 ### Patch Changes
