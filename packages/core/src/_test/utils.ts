@@ -24,7 +24,7 @@ import {
 import { mainnet } from "viem/chains";
 
 import type { Ponder } from "@/Ponder.js";
-import { type Config, createConfig } from "@/config/config.js";
+import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 
@@ -75,9 +75,7 @@ export const walletClient = createWalletClient({
  * Returns the config for the local anvil testing suite.
  * The suite contains an erc20 and mock factory + pair event sources.
  */
-export const getConfig = (
-  addresses: Awaited<ReturnType<typeof deploy>>,
-): Config =>
+export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
   createConfig({
     networks: {
       mainnet: {

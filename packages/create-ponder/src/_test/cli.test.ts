@@ -47,10 +47,11 @@ test("create etherscan", async () => {
     },
   });
 
-  const templateFiles = fs
-    .readdirSync(join(__dirname, "..", "..", "templates", "etherscan"), {
+  const templateFiles = (
+    fs.readdirSync(join(__dirname, "..", "..", "templates", "etherscan"), {
       recursive: true,
-    })
+    }) as string[]
+  )
     .concat("ponder.config.ts")
     .concat("abis/WETH9Abi.ts")
     .concat("src/WETH9.ts")

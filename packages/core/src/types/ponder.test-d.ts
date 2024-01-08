@@ -1,5 +1,5 @@
 import type { ParseAbiItem } from "abitype";
-import type { Hex } from "viem";
+import type { Abi, Hex } from "viem";
 import { assertType, test } from "vitest";
 
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
@@ -14,9 +14,11 @@ test("PonderApp setup", () => {
   type p = PonderApp<
     // ^?
     {
-      networks: any;
+      networks: {
+        mainnet: any;
+      };
       contracts: {
-        Contract: { network: any; abi: [] };
+        Contract: { network: "mainnet"; abi: Abi };
       };
     },
     any

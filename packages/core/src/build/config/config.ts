@@ -1,5 +1,5 @@
 import { buildAbiEvents, buildTopics } from "@/config/abi.js";
-import type { Config, ContractFilter } from "@/config/config.js";
+import type { Config } from "@/config/config.js";
 import { buildFactoryCriteria } from "@/config/factories.js";
 import {
   type Network,
@@ -9,10 +9,8 @@ import {
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
-
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { Abi } from "abitype";
 import type {
   Factory,
   LogFilter,
@@ -85,12 +83,13 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
         };
       }
 
+      type DefinedNetworkOverride = NonNullable<
+        Exclude<Config["contracts"][string]["network"], string>[string]
+      >;
+
       // Multiple networks case.
       return Object.entries(contract.network)
-        .filter(
-          (n): n is [string, Partial<ContractFilter<Abi, string, undefined>>] =>
-            !!n[1],
-        )
+        .filter((n): n is [string, DefinedNetworkOverride] => !!n[1])
         .map(([networkName, overrides]) => ({
           id: `${contractName}_${networkName}`,
           contractName,

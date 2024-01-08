@@ -1,5 +1,8 @@
-import { getAbiItem, getEventSelector, toHex, zeroHash } from "viem";
+import { getAbiItem, getEventSelector, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
+
+const zeroHash =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 import { erc20ABI, pairABI } from "@/_test/generated.js";
 import { setupAnvil } from "@/_test/setup.js";

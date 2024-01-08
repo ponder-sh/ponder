@@ -176,8 +176,18 @@ function registerKilledProcessListener(fn: () => Promise<unknown>) {
   process.on("SIGTERM", listener); // `kill` command
 }
 
+/**
+ * Checks the user's node version at run time. Used in combinatatin with
+ * package.json "engine" field to ensure proper use.
+ */
 function validateNodeVersion() {
-  if (Number(process.version.split(".")[0].slice(1)) < 18) {
+  const _nodeVersion = process.version.split(".");
+  const nodeVersion = [
+    Number(_nodeVersion[0].slice(1)),
+    Number(_nodeVersion[1]),
+    Number(_nodeVersion[2]),
+  ];
+  if (nodeVersion[0] < 18 || (nodeVersion[0] === 18 && nodeVersion[1] < 14)) {
     console.log(
       `Ponder requires ${pc.cyan("Node >=18")}, detected ${process.version}.`,
     );

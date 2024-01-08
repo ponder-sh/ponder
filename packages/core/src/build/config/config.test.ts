@@ -1,7 +1,7 @@
 import { http, getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
-import { createConfig } from "../../config/config.js";
+import { type Config, createConfig } from "../../config/config.js";
 import {
   buildNetworksAndSources,
   safeBuildNetworksAndSources,
@@ -274,13 +274,13 @@ test("buildNetworksAndSources() validates against multiple events and indexed ar
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
     },
-    // @ts-expect-error
     contracts: {
       a: {
         network: "mainnet",
         abi: [event0, event1],
         filter: {
           event: ["Event0", "Event1"],
+          // @ts-expect-error
           args: [bytes1],
         },
       },
@@ -325,11 +325,11 @@ test("buildNetworksAndSources() validates against specifying both factory and ad
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
     },
-    // @ts-expect-error
     contracts: {
       a: {
         network: "mainnet",
         abi: [event0],
+        // @ts-expect-error
         address: address1,
         factory: {
           address: address2,
@@ -353,15 +353,15 @@ test("buildNetworksAndSources() validates address prefix", async () => {
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
     },
-    // @ts-expect-error
     contracts: {
       a: {
         network: "mainnet",
         abi: [event0],
+        // @ts-expect-error
         address: "0b0000000000000000000000000000000000000001",
       },
     },
-  });
+  }) as Config;
 
   const result = await safeBuildNetworksAndSources({ config });
 
