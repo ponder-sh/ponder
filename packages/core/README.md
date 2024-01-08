@@ -64,6 +64,8 @@ Ponder fetches event logs for the contracts added to `ponder.config.ts`, and pas
 // ponder.config.ts
 import { http } from "viem";
 
+import { BaseRegistrarAbi } from "./abis/BaseRegistrar";
+
 export const config = {
   networks: [
     {
@@ -76,7 +78,7 @@ export const config = {
     {
       name: "BaseRegistrar",
       network: "mainnet",
-      abi: "./abis/BaseRegistrar.json",
+      abi: BaseRegistrarAbi,
       address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
       startBlock: 9380410,
     },
