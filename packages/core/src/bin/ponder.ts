@@ -126,6 +126,10 @@ function registerKilledProcessListener(fn: () => Promise<unknown>) {
   process.on("SIGTERM", listener); // `kill` command
 }
 
+/**
+ * Checks the user's node version at run time. Used in combinatatin with
+ * package.json "engine" field to ensure proper use.
+ */
 function validateNodeVersion() {
   const _nodeVersion = process.version.split(".");
   const nodeVersion = [
