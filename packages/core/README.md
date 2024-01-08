@@ -64,6 +64,8 @@ Ponder fetches event logs for the contracts added to `ponder.config.ts`, and pas
 // ponder.config.ts
 import { http } from "viem";
 
+import { BaseRegistrarAbi } from "./abis/BaseRegistrar";
+
 export const config = {
   networks: [
     {
@@ -76,7 +78,7 @@ export const config = {
     {
       name: "BaseRegistrar",
       network: "mainnet",
-      abi: "./abis/BaseRegistrar.json",
+      abi: BaseRegistrarAbi,
       address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
       startBlock: 9380410,
     },
@@ -86,17 +88,21 @@ export const config = {
 
 ### 4. Define your schema
 
-The `schema.graphql` file contains a model of your application data. The entity types defined here correspond to database tables.
+The `ponder.schema.ts` file contains the database schema, and defines the shape data that the GraphQL API serves.
 
 ```ts
-// schema.graphql
+// ponder.schema.ts
 
-type EnsName @entity {
-  id: String!
-  name: String!
-  owner: String!
-  registeredAt: Int!
-}
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  EnsName: p.createTable({
+    id: p.string(),
+    name: p.string(),
+    owner: p.string(),
+    registeredAt: p.int(),
+  }),
+}));
 ```
 
 ### 5. Write indexing functions

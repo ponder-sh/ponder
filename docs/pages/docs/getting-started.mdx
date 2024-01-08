@@ -64,6 +64,8 @@ First, we add `BaseRegistrar` as a contract in our config file. Ponder's sync en
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
+import { BaseRegistrarAbi } from "./abis/BaseRegistrar";
+
 export default createConfig({
   networks: {
     mainnet: {
@@ -74,7 +76,7 @@ export default createConfig({
   contracts: {
     BaseRegistrar: {
       network: "mainnet",
-      abi: "./abis/BaseRegistrar.json",
+      abi: BaseRegistrarAbi,
       address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
       startBlock: 9380410,
     },
