@@ -81,19 +81,21 @@ cli
 
 cli
   .command("start", "Start the app in production mode")
-  .option("-p, --port [PORT]", "Port number for the the web server", {
-    default: 42069,
-  })
-  .option("-H, --hostname [HOSTNAME]", "Hostname for the web server", {
-    default: "0.0.0.0",
-  })
+  .option(
+    "-p, --port [PORT]",
+    "Port number for the the web server (default: 42069)",
+  )
+  .option(
+    "-H, --hostname [HOSTNAME]",
+    "Hostname for the web server (default: 0.0.0.0)",
+  )
   .option(
     "-v, --debug",
-    "Enable debug logging (realtime blocks, internal events)",
+    "Enable debug logs including realtime blocks, internal events, etc",
   )
   .option(
     "-vv, --trace",
-    "Enable trace logging (db query logs, indexing checkpoints)",
+    "Enable trace logs including db queries, indexing checkpoints, etc",
   )
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
@@ -111,19 +113,21 @@ cli
 
 cli
   .command("serve", "Start the web server (experimental)")
-  .option("-p, --port [PORT]", "Port number for the the web server", {
-    default: 42069,
-  })
-  .option("-H, --hostname [HOSTNAME]", "Hostname for the web server", {
-    default: "0.0.0.0",
-  })
+  .option(
+    "-p, --port [PORT]",
+    "Port number for the the web server (default: 42069)",
+  )
+  .option(
+    "-H, --hostname [HOSTNAME]",
+    "Hostname for the web server (default: 0.0.0.0)",
+  )
   .option(
     "-v, --debug",
-    "Enable debug logging (realtime blocks, internal events)",
+    "Enable debug logs including realtime blocks, internal events, etc",
   )
   .option(
     "-vv, --trace",
-    "Enable trace logging (db query logs, indexing checkpoints)",
+    "Enable trace logs including db queries, indexing checkpoints, etc",
   )
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
