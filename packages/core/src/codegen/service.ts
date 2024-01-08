@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import Emittery from "emittery";
+import { Emittery } from "@/utils/emittery.js";
 import type { GraphQLSchema } from "graphql";
 import { printSchema } from "graphql";
 

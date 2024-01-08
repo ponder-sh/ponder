@@ -55,18 +55,20 @@ const setup = async ({
   indexingStore,
   options = {
     hasCompletedHistoricalIndexing: true,
+    registerDevRoutes: false,
   },
 }: {
   common: Common;
   indexingStore: IndexingStore;
   options?: {
-    hasCompletedHistoricalIndexing?: boolean;
+    hasCompletedHistoricalIndexing: boolean;
+    registerDevRoutes: boolean;
   };
 }) => {
   await indexingStore.reload({ schema: s });
 
   const service = new ServerService({ common, indexingStore });
-  service.setup();
+  service.setup({ registerDevRoutes: options.registerDevRoutes });
   await service.start();
   service.reloadGraphqlSchema({ graphqlSchema });
 
@@ -1552,6 +1554,7 @@ test("responds with appropriate status code pre and post historical sync", async
     indexingStore,
     options: {
       hasCompletedHistoricalIndexing: false,
+      registerDevRoutes: false,
     },
   });
 
@@ -1658,9 +1661,9 @@ test("/admin/reload emits chainIds in reload event", async (context) => {
     indexingStore,
     options: {
       hasCompletedHistoricalIndexing: false,
+      registerDevRoutes: true,
     },
   });
-  service.registerDevRoutes();
 
   const emitSpy = vi.spyOn(service, "emit");
 
@@ -1683,9 +1686,9 @@ test("/admin/reload fails with non-integer chain IDs", async (context) => {
     indexingStore,
     options: {
       hasCompletedHistoricalIndexing: false,
+      registerDevRoutes: true,
     },
   });
-  service.registerDevRoutes();
 
   const emitSpy = vi.spyOn(service, "emit");
 
@@ -1706,6 +1709,7 @@ test("/admin/reload does not exist if dev routes aren't registered", async (cont
     indexingStore,
     options: {
       hasCompletedHistoricalIndexing: false,
+      registerDevRoutes: false,
     },
   });
 

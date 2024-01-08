@@ -15,7 +15,7 @@ test("buildFactoryCriteria throws if provided parameter not found in inputs", ()
       parameter: "fakeParameter",
     }),
   ).toThrowError(
-    "Factory event parameter 'fakeParameter' not found in factory event signature. Found: deployer, name, llamaCore, llamaExecutor, llamaPolicy, chainId.",
+    "Factory event parameter not found in factory event signature. Got 'fakeParameter', expected one of ['deployer', 'name', 'llamaCore', 'llamaExecutor', 'llamaPolicy', 'chainId'].",
   );
 });
 

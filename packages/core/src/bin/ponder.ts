@@ -18,25 +18,53 @@ const packageJson = JSON.parse(
 
 dotenv.config({ path: ".env.local" });
 
-const cli = cac("ponder")
-  .version(packageJson.version)
-  .usage("<command> [options]")
-  .help()
-  .option("--config-file [path]", "Path to config file", {
-    default: "ponder.config.ts",
-  })
-  .option("--root-dir [path]", "Path to project root directory", {
-    default: ".",
-  });
-
+/**
+ * CLI options for `ponder` commands. Note that we don't always use CAC's built-in
+ * default value behavior, because we want to know downstream if the user explicitly
+ * set a value or not.
+ */
 export type CliOptions = {
   help?: boolean;
-  configFile: string;
-  rootDir: string;
+  root?: string;
+  config: string;
+  port?: number;
+  hostname?: string;
+  // CAC converts `-vv` to { v: [true, true], debug: [true, true] }
+  v?: boolean | boolean[];
+  debug?: boolean | boolean[];
+  trace?: boolean;
 };
 
+const cli = cac("ponder")
+  .version(packageJson.version)
+  .usage("<command> [OPTIONS]")
+  .option(
+    "--root [PATH]",
+    "Path to the project root directory (default: working directory)",
+  )
+  .option("--config [PATH]", "Path to the project config file", {
+    default: "ponder.config.ts",
+  })
+  .help();
+
 cli
-  .command("dev", "Start the development server")
+  .command("dev", "Start the app in development mode")
+  .option(
+    "-p, --port [PORT]",
+    "Port number for the the web server (default: 42069)",
+  )
+  .option(
+    "-H, --hostname [HOSTNAME]",
+    "Hostname for the web server (default: 0.0.0.0)",
+  )
+  .option(
+    "-v, --debug",
+    "Enable debug logs including realtime blocks, internal events, etc",
+  )
+  .option(
+    "-vv, --trace",
+    "Enable trace logs including db queries, indexing checkpoints, etc",
+  )
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
@@ -48,13 +76,25 @@ cli
     const ponder = new Ponder({ options: devOptions });
     registerKilledProcessListener(() => ponder.kill());
 
-    const isSetupSuccessful = await ponder.setup();
-    if (!isSetupSuccessful) return;
     await ponder.dev();
   });
 
 cli
-  .command("start", "Start the production indexing server")
+  .command("start", "Start the app in production mode")
+  .option("-p, --port [PORT]", "Port number for the the web server", {
+    default: 42069,
+  })
+  .option("-H, --hostname [HOSTNAME]", "Hostname for the web server", {
+    default: "0.0.0.0",
+  })
+  .option(
+    "-v, --debug",
+    "Enable debug logging (realtime blocks, internal events)",
+  )
+  .option(
+    "-vv, --trace",
+    "Enable trace logging (db query logs, indexing checkpoints)",
+  )
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
@@ -66,35 +106,25 @@ cli
     const ponder = new Ponder({ options: startOptions });
     registerKilledProcessListener(() => ponder.kill());
 
-    const isSetupSuccessful = await ponder.setup();
-    if (!isSetupSuccessful) return;
     await ponder.start();
   });
 
 cli
-  .command("codegen", "Emit type files, then exit")
-  .action(async (cliOptions: CliOptions) => {
-    if (cliOptions.help) process.exit(0);
-
-    validateNodeVersion();
-
-    const options = buildOptions({ cliOptions });
-    const codegenOptions = {
-      ...options,
-      uiEnabled: false,
-      logLevel: "silent" as const,
-    };
-
-    const ponder = new Ponder({ options: codegenOptions });
-    registerKilledProcessListener(() => ponder.kill());
-
-    const isSetupSuccessful = await ponder.setup();
-    if (!isSetupSuccessful) return;
-    await ponder.codegen();
-  });
-
-cli
-  .command("serve", "Start the web server")
+  .command("serve", "Start the web server (experimental)")
+  .option("-p, --port [PORT]", "Port number for the the web server", {
+    default: 42069,
+  })
+  .option("-H, --hostname [HOSTNAME]", "Hostname for the web server", {
+    default: "0.0.0.0",
+  })
+  .option(
+    "-v, --debug",
+    "Enable debug logging (realtime blocks, internal events)",
+  )
+  .option(
+    "-vv, --trace",
+    "Enable trace logging (db query logs, indexing checkpoints)",
+  )
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
@@ -107,6 +137,26 @@ cli
     registerKilledProcessListener(() => ponder.kill());
 
     await ponder.serve();
+  });
+
+cli
+  .command("codegen", "Generate the schema.graphql file, then exit")
+  .action(async (cliOptions: CliOptions) => {
+    if (cliOptions.help) process.exit(0);
+
+    validateNodeVersion();
+
+    const options = buildOptions({ cliOptions });
+    const codegenOptions = {
+      ...options,
+      uiEnabled: false,
+      logLevel: "error" as const,
+    };
+
+    const ponder = new Ponder({ options: codegenOptions });
+    registerKilledProcessListener(() => ponder.kill());
+
+    await ponder.codegen();
   });
 
 cli.parse();

@@ -1,6 +1,6 @@
 ---
-title: "Indexing function API"
-description: "API reference for indexing function files."
+title: "API Reference: Indexing functions"
+description: "Learn about the options available in Ponder indexing functions."
 ---
 
 import { Callout } from "nextra/components";
@@ -237,16 +237,51 @@ ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
   details.
 </Callout>
 
-## The `"setup"` event
+## `"setup"` event
 
-You can also define an indexing function for a special event called `"setup"` that runs before all other events. The `"setup"` event does not have an `event` argument, it only receives `context`.
+You can also define a setup function for each contract that runs before indexing begins.
+
+- The indexing function does not receive an `event` argument, only `context`.
+- If you read from contracts in a `"setup"` indexing function, the `blockNumber` for the request is set to the contract's `startBlock`.
+
+For example, you might have a singleton `World` record that gets updated in indexing functions. Without the `"setup"` event, you would need to upsert the record in each indexing function that attempts to use it, which is clunky and inefficient.
+
+<div className="code-columns">
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
 
-ponder.on("setup", async ({ context }) => {
-  const { db } = context;
-
-  // ...
+ponder.on("FunGame:NewPlayer", async ({ context }) => {
+  await context.db.World.upsert({
+    id: 1,
+    create: { playerCount: 0 },
+    update: ({ current }) => ({
+      ...current,
+      playerCount: current.playerCount + 1,
+    }),
+  });
 });
 ```
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("FunGame:setup", async ({ context }) => {
+  await context.db.World.create({
+    id: 1,
+    data: { playerCount: 0 },
+  });
+});
+
+ponder.on("FunGame:NewPlayer", async ({ context }) => {
+  await context.db.World.update({
+    id: 1,
+    data: ({ current }) => ({
+      ...current,
+      playerCount: current.playerCount + 1,
+    }),
+  });
+});
+```
+
+</div>

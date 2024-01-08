@@ -1,5 +1,13 @@
 # create-ponder
 
+## 0.1.4
+
+## 0.1.3
+
+### Patch Changes
+
+- [#548](https://github.com/ponder-sh/ponder/pull/548) [`260d7828dc8e929b430a3051ada5205e335eb703`](https://github.com/ponder-sh/ponder/commit/260d7828dc8e929b430a3051ada5205e335eb703) Thanks [@kyscott18](https://github.com/kyscott18)! - Fix a bug with mergeAbis codegen
+
 ## 0.1.2
 
 ### Patch Changes

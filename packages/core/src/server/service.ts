@@ -1,8 +1,8 @@
 import type { Server } from "node:http";
 import { createServer } from "node:http";
 
+import { Emittery } from "@/utils/emittery.js";
 import cors from "cors";
-import Emittery from "emittery";
 import express, { type Handler } from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { GraphQLError, formatError } from "graphql";
@@ -41,15 +41,13 @@ export class ServerService extends Emittery<ServerEvents> {
 
     this.common = common;
     this.indexingStore = indexingStore;
-    this.port = this.common.options.port;
     this.app = express();
+
+    // This gets updated to the resolved port if the requested port is in use.
+    this.port = this.common.options.port;
   }
 
-  setup() {
-    this.registerRoutes();
-  }
-
-  private registerRoutes() {
+  setup({ registerDevRoutes }: { registerDevRoutes: boolean }) {
     // Middleware.
     this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
     this.app.use(this.middlewareMetrics());
@@ -67,10 +65,10 @@ export class ServerService extends Emittery<ServerEvents> {
       "/",
       this.handleGraphql({ shouldWaitForHistoricalSync: false }),
     );
-  }
 
-  public registerDevRoutes() {
-    this.app.post("/admin/reload", this.handleAdminReload());
+    if (registerDevRoutes) {
+      this.app.post("/admin/reload", this.handleAdminReload());
+    }
   }
 
   async start() {
@@ -85,7 +83,7 @@ export class ServerService extends Emittery<ServerEvents> {
             this.port += 1;
             setTimeout(() => {
               server.close();
-              server.listen(this.port);
+              server.listen(this.port, this.common.options.hostname);
             }, 5);
           } else {
             reject(error);
@@ -95,7 +93,10 @@ export class ServerService extends Emittery<ServerEvents> {
           this.common.metrics.ponder_server_port.set(this.port);
           resolve(server);
         })
-        .listen(this.port);
+        // Note that this.common.options.hostname can be undefined if the user did not specify one.
+        // In this case, Node.js uses `::` if IPv6 is available and `0.0.0.0` otherwise.
+        // https://nodejs.org/api/net.html#serverlistenport-host-backlog-callback
+        .listen(this.port, this.common.options.hostname);
     });
 
     const terminator = createHttpTerminator({ server });
@@ -235,22 +236,10 @@ export class ServerService extends Emittery<ServerEvents> {
         case "POST":
           return this.graphqlMiddleware(req, res, next);
         case "GET": {
-          const host = req.get("host");
-          if (!host) {
-            return res.status(400).send("No host header provided");
-          }
-          const protocol = [
-            `localhost:${this.port}`,
-            `0.0.0.0:${this.port}`,
-            `127.0.0.1:${this.port}`,
-          ].includes(host)
-            ? "http"
-            : "https";
-          const endpoint = `${protocol}://${host}`;
           return res
             .status(200)
             .setHeader("Content-Type", "text/html")
-            .send(graphiQLHtml({ endpoint }));
+            .send(graphiQLHtml);
         }
         case "HEAD":
           return res.status(200).send();

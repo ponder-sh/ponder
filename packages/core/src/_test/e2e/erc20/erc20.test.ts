@@ -42,10 +42,7 @@ afterEach(() => {
 
 test("erc20", async (context) => {
   const options = buildOptions({
-    cliOptions: {
-      rootDir: "./src/_test/e2e/erc20",
-      configFile: "ponder.config.ts",
-    },
+    cliOptions: { root: "./src/_test/e2e/erc20", config: "ponder.config.ts" },
   });
   const testOptions = {
     ...options,
@@ -62,12 +59,10 @@ test("erc20", async (context) => {
   }
 
   const ponder = new Ponder({ options: testOptions });
-  await ponder.setup({
+  await ponder.start({
     syncStore: context.syncStore,
     indexingStore: context.indexingStore,
   });
-
-  await ponder.start();
 
   await onAllEventsIndexed(ponder);
 

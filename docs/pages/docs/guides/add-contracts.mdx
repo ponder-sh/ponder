@@ -360,7 +360,7 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 
 **Factory contract requirements & limitations**
 
-1. **Scaling**: Ponder does not currently support factory contracts with more than 10,000 children. This includes Uniswap V2, V3, and many other permissionless pool-based DeFi protocols. Why not? The Ethereum JSON-RPC API does not scale well for factory contracts. There's only so much that Ponder's sync engine can do about this while remaining compatible with the JSON-RPC API. We're actively working to address scaling challenges via features like remote sync, shared caching, and concurrent indexing. Thanks for your patience.
+1. **Scaling**: The sync engine does not currently support factory contracts with more than 10,000 children. This includes Uniswap V2, V3, and many other permissionless pool-based DeFi protocols. Why not? The Ethereum JSON-RPC API does not scale well for factory contracts. There's only so much that Ponder's sync engine can do about this while remaining compatible with the JSON-RPC API. We're actively working to address scaling challenges via features like remote sync, shared caching, and concurrent indexing. Thanks for your patience.
 2. **Event signature requirements**: The factory contract must emit an event log announcing the creation of each new child contract that contains the new child contract address as a named parameter (with type `"address"`). The parameter can be either indexed or non-indexed. Here are a few factory event signatures with their eligibility explained:
 
 ```solidity
@@ -381,7 +381,7 @@ struct ChildContract {
 event ChildCreated(ChildContract child);
 ```
 
-3. **Nested factory patterns**: Ponder doesn't support factory patterns that are nested beyond a single layer.
+3. **Nested factory patterns**: The sync engine doesn't support factory patterns that are nested beyond a single layer.
 
 ### Proxy & upgradable contracts
 
@@ -396,11 +396,13 @@ Tip: On Etherscan, there is a link to the current implementation contract on the
 
 ## Event filter
 
-Custom event filters allow you to index events emitted by _any contract on the network_ that match some criteria.
+The `filter` option filters for events by signature and indexed argument values. This makes it possible to index events emitted by _any contract on the network_ that match the specified signature and arguments.
+
+<Callout type="info">If you're indexing a popular contract but only need an infrequent event (e.g. `OwnershipTransferred`), you can use the `filter` option alongside `address` or `factory` to sync only those event(s). By default, the sync engine fetches all events emitted by the contracts you specify.</Callout>
 
 ### By event name or signature
 
-The `filter.event` field accepts an event name (or list of event names) present in the provided ABI.
+The `filter.event` option accepts an event name (or list of event names) present in the provided ABI.
 
 ```ts filename="ponder.config.ts" {14}
 import { createConfig } from "@ponder/core";
@@ -432,6 +434,7 @@ import { ponder } from "@/generated";
 
 ponder.on("ERC20:Transfer", async ({ event }) => {
   // This is the address of the contract that emitted the event.
+  // With this config, it could be any ERC20 contract on mainnet.
   event.log.address;
   //        ^? string
 });
@@ -441,7 +444,7 @@ ponder.on("ERC20:Transfer", async ({ event }) => {
 
 You can use the `filter.event` and `filter.args` options together to filter for events that have specific indexed argument values. Each indexed argument field accepts a single value or a list of values to match.
 
-This example filters for all ERC20 `Transfer` events where the `from` parameter equals a specific address, and the `to` parameter equals one of two addresses.
+This example filters for all ERC20 `Transfer` events where the `from` argument matches a specific address, and the `to` argument matches one of two addresses.
 
 ```ts filename="ponder.config.ts" {14-23}
 import { createConfig } from "@ponder/core";
@@ -489,7 +492,11 @@ ponder.on("ERC20:Transfer", async ({ event }) => {
 
 ## Block range
 
-The optional `startBlock` and `endBlock` options specify the block range to index. The default value for `startBlock` is `0{:ts}`. If you don't provide an `endBlock`, Ponder will index the contract in realtime and handle chain reorganizations.
+The optional `startBlock` and `endBlock` options specify the block range to index.
+
+The default value for `startBlock` is `0{:ts}`, and the default value for `endBlock` is `undefined{:ts}`. When `endBlock` is `undefined{:ts}`, Ponder will index the contract in realtime as new blocks are mined and automatically handle chain reorganizations.
+
+If `endBlock` is defined, Ponder will not sync or index any events after that block. This option can be useful if you're only interested in a slice of historical data, or to enable faster feedback loops during development where it's not necessary to index the entire history.
 
 <Callout type="info">
   Yes, it's annoying to keep track of deployment block numbers. We're working on

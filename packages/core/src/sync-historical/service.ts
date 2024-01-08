@@ -1,4 +1,4 @@
-import Emittery from "emittery";
+import { Emittery } from "@/utils/emittery.js";
 import {
   type Hash,
   type Hex,
