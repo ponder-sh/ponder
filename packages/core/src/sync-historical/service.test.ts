@@ -126,41 +126,25 @@ test("setup() with log filter and factory contract updates block metrics", async
   const cachedBlocksMetric = (
     await common.metrics.ponder_historical_cached_blocks.get()
   ).values;
-  expect(cachedBlocksMetric).toMatchObject([
-    { labels: { network: "mainnet", contract: "Erc20" }, value: 0 },
-    {
-      labels: {
-        network: "mainnet",
-        contract: "Pair_factory",
-      },
-      value: 0,
-    },
-    {
-      labels: { network: "mainnet", contract: "Pair" },
-      value: 0,
-    },
-  ]);
+  expect(cachedBlocksMetric).toEqual(
+    expect.arrayContaining([
+      { labels: { network: "mainnet", contract: "Erc20" }, value: 0 },
+      { labels: { network: "mainnet", contract: "Pair_factory" }, value: 0 },
+      { labels: { network: "mainnet", contract: "Pair" }, value: 0 },
+    ]),
+  );
 
   const totalBlocksMetric = (
     await common.metrics.ponder_historical_total_blocks.get()
   ).values;
-  expect(totalBlocksMetric).toMatchObject([
-    {
-      labels: { network: "mainnet", contract: "Erc20" },
-      value: blockNumbers.finalizedBlockNumber + 1,
-    },
-    {
-      labels: {
-        network: "mainnet",
-        contract: "Pair_factory",
-      },
-      value: blockNumbers.finalizedBlockNumber + 1,
-    },
-    {
-      labels: { network: "mainnet", contract: "Pair" },
-      value: blockNumbers.finalizedBlockNumber + 1,
-    },
-  ]);
+  const value = blockNumbers.finalizedBlockNumber + 1;
+  expect(totalBlocksMetric).toEqual(
+    expect.arrayContaining([
+      { labels: { network: "mainnet", contract: "Erc20" }, value },
+      { labels: { network: "mainnet", contract: "Pair_factory" }, value },
+      { labels: { network: "mainnet", contract: "Pair" }, value },
+    ]),
+  );
 
   await service.kill();
 });
@@ -183,23 +167,14 @@ test("start() with log filter and factory contract updates completed blocks metr
   const completedBlocksMetric = (
     await common.metrics.ponder_historical_completed_blocks.get()
   ).values;
-  expect(completedBlocksMetric).toMatchObject([
-    {
-      labels: {
-        network: "mainnet",
-        contract: "Pair_factory",
-      },
-      value: blockNumbers.finalizedBlockNumber + 1,
-    },
-    {
-      labels: { network: "mainnet", contract: "Erc20" },
-      value: blockNumbers.finalizedBlockNumber + 1,
-    },
-    {
-      labels: { network: "mainnet", contract: "Pair" },
-      value: blockNumbers.finalizedBlockNumber + 1,
-    },
-  ]);
+  const value = blockNumbers.finalizedBlockNumber + 1;
+  expect(completedBlocksMetric).toEqual(
+    expect.arrayContaining([
+      { labels: { network: "mainnet", contract: "Pair_factory" }, value },
+      { labels: { network: "mainnet", contract: "Erc20" }, value },
+      { labels: { network: "mainnet", contract: "Pair" }, value },
+    ]),
+  );
 
   await service.kill();
 });
