@@ -92,12 +92,10 @@ test("kill method should persist events and trigger detached flush", async (cont
 
   await telemetry.kill();
 
-  console.log(writeFileSyncSpy);
-
   const eventsFileNameArgument = writeFileSyncSpy.mock.calls[0][0];
   const scriptFileNameArgument = writeFileSyncSpy.mock.calls[1][0];
 
   expect(spawn).toHaveBeenCalled();
-  expect(eventsFileName).toBe(eventsFileName);
-  expect(scriptFileName).toBe(scriptFileName);
+  expect(eventsFileNameArgument).toBe(eventsFileName);
+  expect(scriptFileNameArgument).toBe(scriptFileName);
 });
