@@ -1,7 +1,6 @@
 import child_process from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
-import url from "node:url";
 
 import { randomBytes } from "crypto";
 import os from "os";
@@ -15,8 +14,6 @@ import process from "process";
 
 import type { Options } from "@/config/options.js";
 import { getGitRemoteUrl } from "@/telemetry/remote.js";
-
-const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 
 type TelemetryEvent = {
   event: string;
@@ -61,12 +58,19 @@ export class TelemetryService {
     this.options = options;
     this.conf = new Conf({ projectName: "ponder" });
     this.notify();
+    this.establishHeartbeat();
   }
 
   record(event: TelemetryEvent) {
     if (this.disabled) return;
     this.events.push(event);
     this.queue.add(() => this.processEvent());
+  }
+
+  establishHeartbeat() {
+    setInterval(() => {
+      this.record({ event: "Heartbeat" });
+    }, 60_000);
   }
 
   async flush() {
@@ -100,7 +104,7 @@ export class TelemetryService {
       });
     } catch (e) {
       const error = e as { name: string };
-      if (error.name === "AbortError") {
+      if (error.name === "AbortError" || error.name === "TimeoutError") {
         this.events.push(serializedEvent);
       } else {
         throw error;
@@ -134,6 +138,49 @@ export class TelemetryService {
     );
   }
 
+  private detachedFlushScript() {
+    return `const fs = require('fs');
+
+        async function detachedFlush() {
+          const args = [...process.argv];
+          const [_execPath, _scriptPath, telemetryUrl, eventsFilePath] = args;
+
+          let eventsContent;
+          try {
+            eventsContent = fs.readFileSync(eventsFilePath, "utf8");
+            fs.rmSync(eventsFilePath);
+          } catch (e) {
+            return;
+          }
+          const events = JSON.parse(eventsContent);
+          try {
+            await Promise.all(
+              events.map(async (event) => {
+                await fetch(telemetryUrl, {
+                  method: "POST",
+                  body: JSON.stringify(event),
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                });
+              })
+            );
+          } catch (e) {
+            fs.rmSync(_scriptPath);
+            console.error(e);
+          }
+        }
+
+        detachedFlush()
+          .then(() => {
+            process.exit(0);
+          })
+          .catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });`;
+  }
+
   private flushDetached() {
     if (this.events.length === 0) return;
 
@@ -146,13 +193,18 @@ export class TelemetryService {
     const serializedEvents = JSON.stringify(eventsWithContext);
 
     const telemetryEventsFilePath = path.join(
-      this.options.ponderDir,
+      os.tmpdir(),
       "telemetry-events.json",
     );
-    fs.writeFileSync(telemetryEventsFilePath, serializedEvents);
+    const detachedFlushScriptPath = path.join(os.tmpdir(), "detached-flush.js");
 
+    //Write remaining events and flush script to tmp files
+    fs.writeFileSync(telemetryEventsFilePath, serializedEvents);
+    fs.writeFileSync(detachedFlushScriptPath, this.detachedFlushScript());
+
+    //Spawn child
     child_process.spawn(process.execPath, [
-      path.join(__dirname, "detached-flush.js"),
+      detachedFlushScriptPath,
       this.options.telemetryUrl,
       telemetryEventsFilePath,
     ]);

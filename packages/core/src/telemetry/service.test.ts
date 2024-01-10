@@ -72,7 +72,9 @@ test("kill method should persist events and trigger detached flush", async (cont
 
   const spawn = vi.spyOn(child_process, "spawn");
   const telemetry = new TelemetryService({ options });
-  const fileName = path.join(options.ponderDir, "telemetry-events.json");
+
+  const eventsFileName = path.join(tmpdir(), "telemetry-events.json");
+  const scriptFileName = path.join(tmpdir(), "detached-flush.js");
 
   const writeFileSyncSpy = vi
     .spyOn(fs, "writeFileSync")
@@ -90,8 +92,12 @@ test("kill method should persist events and trigger detached flush", async (cont
 
   await telemetry.kill();
 
-  const fileNameArgument = writeFileSyncSpy.mock.calls[0][0];
+  console.log(writeFileSyncSpy);
+
+  const eventsFileNameArgument = writeFileSyncSpy.mock.calls[0][0];
+  const scriptFileNameArgument = writeFileSyncSpy.mock.calls[1][0];
 
   expect(spawn).toHaveBeenCalled();
-  expect(fileNameArgument).toBe(fileName);
+  expect(eventsFileName).toBe(eventsFileName);
+  expect(scriptFileName).toBe(scriptFileName);
 });
