@@ -699,7 +699,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     const queue = createQueue({
       worker: indexingFunctionWorker,
-      context: undefined,
       options: {
         concurrency: 1,
         autoStart: false,

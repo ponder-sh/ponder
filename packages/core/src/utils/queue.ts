@@ -15,16 +15,14 @@ type QueueOptions = Prettify<
   Options<TPQueue<() => Promise<unknown>, DefaultAddOptions>, DefaultAddOptions>
 >;
 
-export type Worker<TTask, TContext = undefined, TReturn = void> = (arg: {
+export type Worker<TTask, TReturn = void> = (arg: {
   task: TTask;
-  context: TContext | undefined;
   queue: Queue<TTask>;
 }) => Promise<TReturn>;
 
-type OnError<TTask, TContext = undefined> = (arg: {
+type OnError<TTask> = (arg: {
   error: Error;
   task: TTask;
-  context: TContext | undefined;
   queue: Queue<TTask>;
 }) => unknown;
 
@@ -35,17 +33,15 @@ type OnError<TTask, TContext = undefined> = (arg: {
  * - An onError callback that is called _within_ the failed task scope,
  *   allowing the user to retry/add more tasks without the queue going idle.
  */
-export function createQueue<TTask, TContext = undefined, TReturn = void>({
+export function createQueue<TTask, TReturn = void>({
   worker,
-  context,
   options,
   onError,
   onIdle,
 }: {
-  worker: Worker<TTask, TContext, TReturn>;
-  context?: TContext;
+  worker: Worker<TTask, TReturn>;
   options?: QueueOptions;
-  onError?: OnError<TTask, TContext>;
+  onError?: OnError<TTask>;
   onIdle?: () => unknown;
 }): Queue<TTask> {
   const queue = new PQueue(options) as Queue<TTask>;
@@ -62,7 +58,6 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
         () => {
           return worker({
             task,
-            context,
             queue,
           });
         },
@@ -73,7 +68,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
     } catch (error_: any) {
       task.error = true;
 
-      await onError?.({ error: error_ as Error, task, context, queue });
+      await onError?.({ error: error_ as Error, task, queue });
     }
   };
 
