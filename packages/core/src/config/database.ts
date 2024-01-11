@@ -2,17 +2,12 @@ import path from "node:path";
 
 import type { Common } from "@/Ponder.js";
 import type { Config } from "@/config/config.js";
-import pg from "@/utils/pg.js";
+import { createPool } from "@/utils/pg.js";
+import type { Pool } from "pg";
 
 type StoreConfig =
-  | {
-      kind: "sqlite";
-      file: string;
-    }
-  | {
-      kind: "postgres";
-      pool: pg.Pool;
-    };
+  | { kind: "sqlite"; file: string }
+  | { kind: "postgres"; pool: Pool };
 
 type DatabaseConfig = {
   sync: StoreConfig;
@@ -38,10 +33,10 @@ export const buildDatabase = ({
         indexing: { kind: "sqlite", file: defaultIndexingFilePath },
       } satisfies DatabaseConfig;
     } else {
-      const connectionString =
-        config.database.connectionString ?? process.env.DATABASE_URL;
+      const connectionString = (config.database.connectionString ??
+        process.env.DATABASE_URL)!;
 
-      const pool = new pg.Pool({ connectionString });
+      const pool = createPool(connectionString);
       return {
         sync: { kind: "postgres", pool },
         indexing: { kind: "postgres", pool },
@@ -51,7 +46,7 @@ export const buildDatabase = ({
 
   // Otherwise, check if the DATABASE_URL env var is set. If it is, use it, otherwise use SQLite.
   if (process.env.DATABASE_URL) {
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const pool = createPool(process.env.DATABASE_URL);
     return {
       sync: { kind: "postgres", pool },
       indexing: { kind: "postgres", pool },
