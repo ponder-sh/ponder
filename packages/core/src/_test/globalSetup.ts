@@ -1,5 +1,5 @@
+import { createPool } from "@/utils/pg.js";
 import { startProxy } from "@viem/anvil";
-import { Pool } from "pg";
 
 export default async function () {
   const shutdownProxy = await startProxy({
@@ -12,7 +12,7 @@ export default async function () {
   let cleanupDatabase: () => Promise<void>;
   if (process.env.DATABASE_URL) {
     cleanupDatabase = async () => {
-      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      const pool = createPool(process.env.DATABASE_URL!);
 
       const schemaRows = await pool.query(`
         SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname ~ '^vitest_pool_';
