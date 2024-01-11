@@ -100,19 +100,21 @@ export class TelemetryService {
       context: this.context,
     };
 
+    const signal = AbortSignal.timeout(500);
+
     try {
       await fetch(this.options.telemetryUrl, {
         method: "POST",
         body: JSON.stringify(serializedEvent),
         headers: { "Content-Type": "application/json" },
-        signal: this.controller.signal,
+        signal: signal,
       });
     } catch (e) {
       const error = e as { name: string };
       if (error.name === "AbortError" || error.name === "TimeoutError") {
         this.events.push(serializedEvent);
       } else {
-        throw error;
+        // Do nothing
       }
     }
   };
@@ -123,7 +125,7 @@ export class TelemetryService {
     this.controller.abort();
     await this.queue.onIdle();
     this.killHeartbeat();
-    this.flushDetached();
+    this.flush();
   }
 
   private notify() {
@@ -142,78 +144,6 @@ export class TelemetryService {
         "Attention",
       )}: Ponder now collects completely anonymous telemetry regarding usage. This data helps shape Ponder's roadmap and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`,
     );
-  }
-
-  private detachedFlushScript() {
-    return `const fs = require('fs');
-
-        async function detachedFlush() {
-          const args = [...process.argv];
-          const [_execPath, _scriptPath, telemetryUrl, eventsFilePath] = args;
-
-          let eventsContent;
-          try {
-            eventsContent = fs.readFileSync(eventsFilePath, "utf8");
-            fs.rmSync(eventsFilePath);
-          } catch (e) {
-            return;
-          }
-          const events = JSON.parse(eventsContent);
-          try {
-            await Promise.all(
-              events.map(async (event) => {
-                await fetch(telemetryUrl, {
-                  method: "POST",
-                  body: JSON.stringify(event),
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                });
-              })
-            );
-          } catch (e) {
-            fs.rmSync(_scriptPath);
-            console.error(e);
-          }
-        }
-
-        detachedFlush()
-          .then(() => {
-            process.exit(0);
-          })
-          .catch((error) => {
-            console.error(error);
-            process.exit(1);
-          });`;
-  }
-
-  private flushDetached() {
-    if (this.events.length === 0) return;
-
-    const eventsWithContext = this.events.map((event) => ({
-      ...event,
-      anonymousId: this.anonymousId,
-      // Note that it's possible for the context to be undefined here.
-      context: this.context,
-    }));
-    const serializedEvents = JSON.stringify(eventsWithContext);
-
-    const telemetryEventsFilePath = path.join(
-      os.tmpdir(),
-      "telemetry-events.json",
-    );
-    const detachedFlushScriptPath = path.join(os.tmpdir(), "detached-flush.js");
-
-    //Write remaining events and flush script to tmp files
-    fs.writeFileSync(telemetryEventsFilePath, serializedEvents);
-    fs.writeFileSync(detachedFlushScriptPath, this.detachedFlushScript());
-
-    //Spawn child
-    child_process.spawn(process.execPath, [
-      detachedFlushScriptPath,
-      this.options.telemetryUrl,
-      telemetryEventsFilePath,
-    ]);
   }
 
   get disabled() {
