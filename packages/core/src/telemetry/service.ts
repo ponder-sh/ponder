@@ -53,6 +53,7 @@ export class TelemetryService {
 
   private controller = new AbortController();
   private context?: TelemetryEventContext;
+  private heartbeatIntervalId?: NodeJS.Timeout;
 
   constructor({ options }: { options: Options }) {
     this.options = options;
@@ -67,10 +68,14 @@ export class TelemetryService {
     this.queue.add(() => this.processEvent());
   }
 
-  establishHeartbeat() {
-    setInterval(() => {
+  private establishHeartbeat() {
+    this.heartbeatIntervalId = setInterval(() => {
       this.record({ event: "Heartbeat" });
     }, 60_000);
+  }
+
+  private killHeartbeat() {
+    clearInterval(this.heartbeatIntervalId);
   }
 
   async flush() {
@@ -117,6 +122,7 @@ export class TelemetryService {
     this.queue.clear();
     this.controller.abort();
     await this.queue.onIdle();
+    this.killHeartbeat();
     this.flushDetached();
   }
 

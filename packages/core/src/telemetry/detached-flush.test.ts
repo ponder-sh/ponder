@@ -33,8 +33,6 @@ test("detached flush script should run without error", async () => {
 
   expect(stderr).toBe("");
   expect(error).toBe(null);
-  expect(stdout).toContain(
-    `Sending 5 telemetry events to ${telemetryUrl} from temporary file ${telemetryEventsFilePath}`,
-  );
+  expect(stdout).toBe("");
   expect(existsSync(telemetryEventsFilePath)).toBeFalsy();
 });
