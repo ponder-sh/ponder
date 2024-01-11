@@ -5,10 +5,7 @@ import PQueue from "p-queue";
 type TaskOptions = { priority?: number };
 
 export type Queue<TTask> = PQueue & {
-  addTask: (
-    task: TTask & { error: boolean },
-    options?: TaskOptions,
-  ) => Promise<void>;
+  addTask: (task: TTask, options?: TaskOptions) => Promise<void>;
 };
 
 type QueueOptions = Prettify<
@@ -66,8 +63,6 @@ export function createQueue<TTask, TReturn = void>({
         },
       );
     } catch (error_: any) {
-      task.error = true;
-
       await onError?.({ error: error_ as Error, task, queue });
     }
   };

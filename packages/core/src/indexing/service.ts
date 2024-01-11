@@ -319,7 +319,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
                       chainId: network.chainId,
                       blockNumber: contracts[sourceName].startBlock,
                     },
-                    error: false,
                   });
                   this.common.metrics.ponder_indexing_handled_events.inc(
                     labels,
@@ -450,7 +449,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
                   block: event.block,
                   transaction: event.transaction,
                 },
-                error: false,
               });
             } catch (err) {
               // Sometimes, logs match a selector but cannot be decoded using the provided ABI.

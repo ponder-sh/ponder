@@ -37,7 +37,7 @@ type RealtimeSyncEvents = {
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
 };
 
-type RealtimeBlockTask = { block: BlockWithTransactions; error: boolean };
+type RealtimeBlockTask = { block: BlockWithTransactions };
 type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
@@ -124,7 +124,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // Add the latest block to the unfinalized block queue.
     // The queue won't start immediately; see syncUnfinalizedData for details.
     const priority = Number.MAX_SAFE_INTEGER - latestBlockNumber;
-    this.queue.addTask({ block: latestBlock, error: false }, { priority });
+    this.queue.addTask({ block: latestBlock }, { priority });
 
     return { latestBlockNumber, finalizedBlockNumber };
   };
@@ -235,7 +235,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     try {
       const block = await this.getLatestBlock();
       const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
-      this.queue.addTask({ block, error: false }, { priority });
+      this.queue.addTask({ block }, { priority });
     } catch (error_) {
       const error = error_ as Error;
       // Do nothing, log the error. Might consider a retry limit here after which the service should die.
@@ -266,14 +266,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         });
 
         // Default to a retry (uses the retry options passed to the queue).
-        queue.addTask({ ...task, error: false });
+        queue.addTask({ ...task });
       },
     });
 
     return queue;
   };
 
-  private blockTaskWorker = async ({ block, error }: RealtimeBlockTask) => {
+  private blockTaskWorker = async ({ block }: RealtimeBlockTask) => {
     const previousHeadBlock = this.blocks[this.blocks.length - 1];
 
     // If no block is passed, fetch the latest block.
@@ -547,7 +547,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       // Add blocks to the queue from oldest to newest. Include the current block.
       for (const block of [...missingBlocks, newBlockWithTransactions]) {
         const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
-        this.queue.addTask({ block, error: false }, { priority });
+        this.queue.addTask({ block }, { priority });
       }
 
       this.common.logger.debug({
@@ -610,7 +610,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // Add blocks from the canonical chain (they've already been fetched).
         for (const block of canonicalBlocksWithTransactions) {
           const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
-          this.queue.addTask({ block, error: false }, { priority });
+          this.queue.addTask({ block }, { priority });
         }
 
         // Also add a new latest block, so we don't have to wait for the next poll to

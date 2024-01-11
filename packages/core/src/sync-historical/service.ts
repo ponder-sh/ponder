@@ -57,7 +57,6 @@ type LogFilterTask = {
   logFilter: LogFilter;
   fromBlock: number;
   toBlock: number;
-  error: boolean;
 };
 
 type FactoryChildAddressTask = {
@@ -65,7 +64,6 @@ type FactoryChildAddressTask = {
   factory: Factory;
   fromBlock: number;
   toBlock: number;
-  error: boolean;
 };
 
 type FactoryLogFilterTask = {
@@ -73,7 +71,6 @@ type FactoryLogFilterTask = {
   factory: Factory;
   fromBlock: number;
   toBlock: number;
-  error: boolean;
 };
 
 type BlockTask = {
@@ -82,7 +79,6 @@ type BlockTask = {
   callbacks: ((
     block: RpcBlock & { transactions: RpcTransaction[] },
   ) => Promise<void>)[];
-  error: boolean;
 };
 
 type HistoricalSyncTask =
@@ -227,7 +223,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 logFilter: source,
                 fromBlock,
                 toBlock,
-                error: false,
               },
               { priority: Number.MAX_SAFE_INTEGER - fromBlock },
             );
@@ -317,7 +312,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 factory: source,
                 fromBlock,
                 toBlock,
-                error: false,
               },
               { priority: Number.MAX_SAFE_INTEGER - fromBlock },
             );
@@ -388,7 +382,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 factory: source,
                 fromBlock,
                 toBlock,
-                error: false,
               },
               { priority: Number.MAX_SAFE_INTEGER - fromBlock },
             );
@@ -557,7 +550,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask({ ...task, error: false }, { priority });
+            queue.addTask({ ...task }, { priority });
             break;
           }
           case "FACTORY_CHILD_ADDRESS": {
@@ -572,7 +565,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask({ ...task, error: false }, { priority });
+            queue.addTask({ ...task }, { priority });
             break;
           }
           case "FACTORY_LOG_FILTER": {
@@ -587,7 +580,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask({ ...task, error: false }, { priority });
+            queue.addTask({ ...task }, { priority });
             break;
           }
           case "BLOCK": {
@@ -600,7 +593,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.blockNumber;
-            queue.addTask({ ...task, error: false }, { priority });
+            queue.addTask({ ...task }, { priority });
             break;
           }
         }
@@ -623,8 +616,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       fromBlock: toHex(fromBlock),
       toBlock: toHex(toBlock),
     });
-
-    if (task.error) return;
 
     const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
 
@@ -736,7 +727,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             factory,
             fromBlock,
             toBlock,
-            error: false,
           },
           { priority: Number.MAX_SAFE_INTEGER - fromBlock },
         );
@@ -841,11 +831,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     if (!block) throw new Error(`Block not found: ${blockNumber}`);
 
-    if (task.error) return;
-
     await Promise.all(callbacks.map((cb) => cb(block)));
-
-    if (task.error) return;
 
     const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
       blockNumber,
@@ -954,7 +940,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           {
             kind: "BLOCK",
             blockNumber,
-            error: false,
+
             callbacks: this.blockCallbacks[blockNumber],
           },
           { priority: Number.MAX_SAFE_INTEGER - blockNumber },
