@@ -118,7 +118,6 @@ export class TelemetryService {
     this.killHeartbeat();
     setTimeout(this.controller.abort, 500);
     await this.queue.onIdle();
-    this.flush();
   }
 
   private notify() {
