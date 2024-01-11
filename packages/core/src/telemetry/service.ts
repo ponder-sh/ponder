@@ -100,31 +100,24 @@ export class TelemetryService {
       context: this.context,
     };
 
-    const signal = AbortSignal.timeout(500);
-
     try {
       await fetch(this.options.telemetryUrl, {
         method: "POST",
         body: JSON.stringify(serializedEvent),
         headers: { "Content-Type": "application/json" },
-        signal: signal,
+        signal: this.controller.signal,
       });
     } catch (e) {
-      const error = e as { name: string };
-      if (error.name === "AbortError" || error.name === "TimeoutError") {
-        this.events.push(serializedEvent);
-      } else {
-        // Do nothing
-      }
+      // Do nothing
     }
   };
 
   async kill() {
     this.queue.pause();
     this.queue.clear();
-    this.controller.abort();
-    await this.queue.onIdle();
     this.killHeartbeat();
+    setTimeout(this.controller.abort, 500);
+    await this.queue.onIdle();
     this.flush();
   }
 
