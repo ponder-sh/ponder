@@ -35,7 +35,6 @@ import {
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { getErrorMessage, request } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
 
 import { validateHistoricalBlockRange } from "./utils.js";
@@ -58,6 +57,7 @@ type LogFilterTask = {
   logFilter: LogFilter;
   fromBlock: number;
   toBlock: number;
+  error: boolean;
 };
 
 type FactoryChildAddressTask = {
@@ -65,6 +65,7 @@ type FactoryChildAddressTask = {
   factory: Factory;
   fromBlock: number;
   toBlock: number;
+  error: boolean;
 };
 
 type FactoryLogFilterTask = {
@@ -72,6 +73,7 @@ type FactoryLogFilterTask = {
   factory: Factory;
   fromBlock: number;
   toBlock: number;
+  error: boolean;
 };
 
 type BlockTask = {
@@ -80,6 +82,7 @@ type BlockTask = {
   callbacks: ((
     block: RpcBlock & { transactions: RpcTransaction[] },
   ) => Promise<void>)[];
+  error: boolean;
 };
 
 type HistoricalSyncTask =
@@ -120,6 +123,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     number,
     ((block: RpcBlock & { transactions: RpcTransaction[] }) => Promise<void>)[]
   > = {};
+  // private blockCallbackId
 
   /**
    * Block tasks have been added to the queue up to and including this block number.
@@ -218,7 +222,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           for (const [fromBlock, toBlock] of logFilterTaskChunks) {
             this.queue.addTask(
-              { kind: "LOG_FILTER", logFilter: source, fromBlock, toBlock },
+              {
+                kind: "LOG_FILTER",
+                logFilter: source,
+                fromBlock,
+                toBlock,
+                error: false,
+              },
               { priority: Number.MAX_SAFE_INTEGER - fromBlock },
             );
           }
@@ -307,6 +317,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 factory: source,
                 fromBlock,
                 toBlock,
+                error: false,
               },
               { priority: Number.MAX_SAFE_INTEGER - fromBlock },
             );
@@ -377,6 +388,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 factory: source,
                 fromBlock,
                 toBlock,
+                error: false,
               },
               { priority: Number.MAX_SAFE_INTEGER - fromBlock },
             );
@@ -487,26 +499,22 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     );
 
   private buildQueue = () => {
-    const worker: Worker<HistoricalSyncTask> = async ({
-      task,
-      queue,
-      signal,
-    }) => {
+    const worker: Worker<HistoricalSyncTask> = async ({ task, queue }) => {
       switch (task.kind) {
         case "LOG_FILTER": {
-          await this.logFilterTaskWorker({ task, signal });
+          await this.logFilterTaskWorker({ task });
           break;
         }
         case "FACTORY_CHILD_ADDRESS": {
-          await this.factoryChildAddressTaskWorker({ task, signal });
+          await this.factoryChildAddressTaskWorker({ task });
           break;
         }
         case "FACTORY_LOG_FILTER": {
-          await this.factoryLogFilterTaskWorker({ task, signal });
+          await this.factoryLogFilterTaskWorker({ task });
           break;
         }
         case "BLOCK": {
-          await this.blockTaskWorker({ task, signal });
+          await this.blockTaskWorker({ task });
           break;
         }
       }
@@ -538,42 +546,61 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         autoStart: false,
       },
       onError: ({ error, task, queue }) => {
-        const message = getErrorMessage(error);
         switch (task.kind) {
           case "LOG_FILTER": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Log filter task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.logFilter.contractName}, network=${this.network.name}, error=${message})`,
+              msg: `Log filter task failed, retrying... [${task.fromBlock}, ${
+                task.toBlock
+              }] (contract=${task.logFilter.contractName}, network=${
+                this.network.name
+              }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask(task, { priority, retry: true });
+            queue.addTask({ ...task, error: false }, { priority });
             break;
           }
           case "FACTORY_CHILD_ADDRESS": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Factory child address task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.factory.contractName}, network=${this.network.name}, error=${message})`,
+              msg: `Factory child address task failed, retrying... [${
+                task.fromBlock
+              }, ${task.toBlock}] (contract=${
+                task.factory.contractName
+              }, network=${
+                this.network.name
+              }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask(task, { priority, retry: true });
+            queue.addTask({ ...task, error: false }, { priority });
             break;
           }
           case "FACTORY_LOG_FILTER": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Factory log filter task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.factory.contractName}, network=${this.network.name}, error=${message})`,
+              msg: `Factory log filter task failed, retrying... [${
+                task.fromBlock
+              }, ${task.toBlock}] (contract=${
+                task.factory.contractName
+              }, network=${
+                this.network.name
+              }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask(task, { priority, retry: true });
+            queue.addTask({ ...task, error: false }, { priority });
             break;
           }
           case "BLOCK": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Block task failed, retrying... [${task.blockNumber}] (network=${this.network.name}, error=${message})`,
+              msg: `Block task failed, retrying... [${
+                task.blockNumber
+              }] (network=${
+                this.network.name
+              }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.blockNumber;
-            queue.addTask(task, { priority, retry: true });
+            queue.addTask({ ...task, error: false }, { priority });
             break;
           }
         }
@@ -585,22 +612,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private logFilterTaskWorker = async ({
     task,
-    signal,
   }: {
     task: LogFilterTask;
-    signal: AbortSignal;
   }) => {
     const { logFilter, fromBlock, toBlock } = task;
 
-    const logs = await this._eth_getLogs(
-      {
-        address: logFilter.criteria.address,
-        topics: logFilter.criteria.topics,
-        fromBlock: toHex(fromBlock),
-        toBlock: toHex(toBlock),
-      },
-      signal,
-    );
+    const logs = await this._eth_getLogs({
+      address: logFilter.criteria.address,
+      topics: logFilter.criteria.topics,
+      fromBlock: toHex(fromBlock),
+      toBlock: toHex(toBlock),
+    });
+
+    if (task.error) return;
 
     const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
 
@@ -642,22 +666,17 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private factoryChildAddressTaskWorker = async ({
     task,
-    signal,
   }: {
     task: FactoryChildAddressTask;
-    signal: AbortSignal;
   }) => {
     const { factory, fromBlock, toBlock } = task;
 
-    const logs = await this._eth_getLogs(
-      {
-        address: factory.criteria.address,
-        topics: [factory.criteria.eventSelector],
-        fromBlock: toHex(fromBlock),
-        toBlock: toHex(toBlock),
-      },
-      signal,
-    );
+    const logs = await this._eth_getLogs({
+      address: factory.criteria.address,
+      topics: [factory.criteria.eventSelector],
+      fromBlock: toHex(fromBlock),
+      toBlock: toHex(toBlock),
+    });
 
     // Insert the new child address logs into the store.
     await this.syncStore.insertFactoryChildAddressLogs({
@@ -712,7 +731,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       for (const [fromBlock, toBlock] of factoryLogFilterChunks) {
         this.queue.addTask(
-          { kind: "FACTORY_LOG_FILTER", factory, fromBlock, toBlock },
+          {
+            kind: "FACTORY_LOG_FILTER",
+            factory,
+            fromBlock,
+            toBlock,
+            error: false,
+          },
           { priority: Number.MAX_SAFE_INTEGER - fromBlock },
         );
       }
@@ -733,10 +758,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private factoryLogFilterTaskWorker = async ({
     task: { factory, fromBlock, toBlock },
-    signal,
   }: {
     task: FactoryLogFilterTask;
-    signal: AbortSignal;
   }) => {
     const iterator = this.syncStore.getFactoryChildAddresses({
       chainId: factory.chainId,
@@ -747,15 +770,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const logs: RpcLog[] = [];
 
     for await (const childContractAddressBatch of iterator) {
-      const batchLogs = await this._eth_getLogs(
-        {
-          address: childContractAddressBatch,
-          topics: factory.criteria.topics,
-          fromBlock: toHex(fromBlock),
-          toBlock: toHex(toBlock),
-        },
-        signal,
-      );
+      const batchLogs = await this._eth_getLogs({
+        address: childContractAddressBatch,
+        topics: factory.criteria.topics,
+        fromBlock: toHex(fromBlock),
+        toBlock: toHex(toBlock),
+      });
       logs.push(...batchLogs);
     }
 
@@ -800,21 +820,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private blockTaskWorker = async ({
     task,
-    signal,
   }: {
     task: BlockTask;
-    signal: AbortSignal;
   }) => {
     const { blockNumber, callbacks } = task;
 
     const stopClock = startClock();
 
-    const block = (await request(this.network, {
-      body: {
-        method: "eth_getBlockByNumber",
-        params: [toHex(blockNumber), true],
-      },
-      fetchOptions: { signal },
+    const block = (await this.network.request({
+      method: "eth_getBlockByNumber",
+      params: [toHex(blockNumber), true],
     })) as RpcBlock & {
       transactions: RpcTransaction[];
     };
@@ -826,7 +841,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     if (!block) throw new Error(`Block not found: ${blockNumber}`);
 
+    if (task.error) return;
+
     await Promise.all(callbacks.map((cb) => cb(block)));
+
+    if (task.error) return;
 
     const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
       blockNumber,
@@ -918,13 +937,24 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         .map(Number)
         .filter((blockNumber) => blockNumber <= blockTasksCanBeEnqueuedTo);
 
-      this.blockProgressTracker.addPendingBlocks({ blockNumbers: newBlocks });
+      try {
+        this.blockProgressTracker.addPendingBlocks({ blockNumbers: newBlocks });
+      } catch (error) {
+        console.log({
+          newCheckpoint: blockTasksCanBeEnqueuedTo,
+          currentCheckpoint: this.blockTasksEnqueuedCheckpoint,
+          newBlocks,
+        });
+
+        throw error;
+      }
 
       for (const blockNumber of newBlocks) {
         this.queue.addTask(
           {
             kind: "BLOCK",
             blockNumber,
+            error: false,
             callbacks: this.blockCallbacks[blockNumber],
           },
           { priority: Number.MAX_SAFE_INTEGER - blockNumber },
@@ -945,7 +975,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private _eth_getLogs = async (
     options: LogFilterCriteria & { fromBlock: Hex; toBlock: Hex },
-    signal: AbortSignal,
   ) => {
     const logs: RpcLog[] = [];
 
@@ -953,21 +982,18 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     const stopClock = startClock();
     try {
-      return await request(this.network, {
-        body: {
-          method: "eth_getLogs",
-          params: [
-            {
-              ...options,
-              address: options.address
-                ? Array.isArray(options.address)
-                  ? options.address.map((a) => toLowerCase(a))
-                  : toLowerCase(options.address)
-                : undefined,
-            },
-          ],
-        },
-        fetchOptions: { signal },
+      return this.network.request({
+        method: "eth_getLogs",
+        params: [
+          {
+            ...options,
+            address: options.address
+              ? Array.isArray(options.address)
+                ? options.address.map((a) => toLowerCase(a))
+                : toLowerCase(options.address)
+              : undefined,
+          },
+        ],
       });
     } catch (err) {
       error = err as Partial<RpcError> & { name: string };
@@ -1048,14 +1074,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
 
     for (const [from, to] of retryRanges) {
-      const logs_ = await this._eth_getLogs(
-        {
-          ...options,
-          fromBlock: from,
-          toBlock: to,
-        },
-        signal,
-      );
+      const logs_ = await this._eth_getLogs({
+        ...options,
+        fromBlock: from,
+        toBlock: to,
+      });
       logs.push(...logs_);
     }
 

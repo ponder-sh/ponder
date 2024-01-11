@@ -272,6 +272,10 @@ export class ProgressTracker {
   }
 }
 
+/**
+ * Need granular writes to db and retries at each step rather than at the task level
+ */
+
 export class BlockProgressTracker {
   private pendingBlocks: number[] = [];
   private completedBlocks: {

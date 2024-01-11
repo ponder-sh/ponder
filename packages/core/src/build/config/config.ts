@@ -5,7 +5,6 @@ import {
   type Network,
   getDefaultMaxBlockRange,
   getFinalityBlockCount,
-  getRequestForTransport,
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
@@ -38,7 +37,6 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
 
       // Note: These can throw.
       const rpcUrls = await getRpcUrlsForClient({ transport, chain });
-      const request = await getRequestForTransport({ transport, chain });
 
       rpcUrls.forEach((rpcUrl) => {
         if (isRpcUrlPublic(rpcUrl)) {
@@ -48,11 +46,14 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
         }
       });
 
+      const _transport = network.transport({ chain });
+
       return {
         name: networkName,
         chainId: chainId,
-        request,
-        url: rpcUrls[0],
+
+        request: { ..._transport.config, ..._transport.value }.request,
+
         pollingInterval: network.pollingInterval ?? 1_000,
         defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
         maxHistoricalTaskConcurrency:
