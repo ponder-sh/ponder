@@ -4,8 +4,6 @@ declare module "@/generated" {
     PonderEvent,
     PonderEventNames,
     PonderApp,
-    ExtractEventName,
-    ExtractContractName,
   } from "@ponder/core";
 
   type Config = typeof import("./ponder.config.ts").default;

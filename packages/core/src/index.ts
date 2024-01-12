@@ -9,8 +9,6 @@ export type {
   PonderEvent,
   PonderEventNames,
   PonderApp,
-  ExtractEventName,
-  ExtractContractName,
 } from "@/types/ponder.js";
 export type { Transaction } from "@/types/transaction.js";
 export { mergeAbis } from "@/utils/mergeAbis.js";
