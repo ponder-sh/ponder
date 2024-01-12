@@ -7,7 +7,7 @@ export type { DatabaseModel } from "@/types/model.js";
 export type {
   PonderContext,
   PonderEvent,
-  PonderNames,
+  PonderEventNames,
   PonderApp,
   ExtractEventName,
   ExtractContractName,

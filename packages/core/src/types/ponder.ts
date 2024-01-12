@@ -12,22 +12,21 @@ import type { Prettify } from "./utils.js";
 type Setup = "setup";
 
 /** "{ContractName}:{EventName}". */
-export type Names<contracts extends Config["contracts"]> = {
+export type FormatEventNames<contracts extends Config["contracts"]> = {
   [name in keyof contracts]: `${name & string}:${
-    | (SafeEventNames<contracts[name]["abi"]> extends infer events extends
-        string
-        ? contracts[name]["filter"] extends {
-            event: infer filterEvents extends string | readonly string[];
-          }
-          ? Extract<
-              events,
-              filterEvents extends readonly string[]
-                ? filterEvents[number]
-                : filterEvents
-            >
-          : events
-        : never)
-    | Setup}`;
+    // 1. Contract has a filter
+      | (contracts[name] extends {
+          filter: { event: infer event extends string | readonly string[] };
+        }
+          ? event extends SafeEventNames<contracts[name]["abi"]>
+            ? event
+            : event[number] extends SafeEventNames<contracts[name]["abi"]>
+              ? event[number]
+              : SafeEventNames<contracts[name]["abi"]>
+          : // 2. Contract doesn't have a filter
+            SafeEventNames<contracts[name]["abi"]>)
+      | Setup
+  }`;
 }[keyof contracts];
 
 export type ExtractEventName<name extends string> =
@@ -40,7 +39,9 @@ export type ExtractContractName<name extends string> =
     ? ContractName
     : never;
 
-export type PonderNames<config extends Config> = Names<config["contracts"]>;
+export type PonderEventNames<config extends Config> = FormatEventNames<
+  config["contracts"]
+>;
 
 export type PonderEvent<
   config extends Config,
@@ -116,7 +117,21 @@ export type PonderContext<
             keyof config["networks"]]["chainId"];
         };
       }[keyof config["contracts"][contractName]["network"]];
-  client: Prettify<Omit<ReadOnlyClient, "extend">>;
+  client: Prettify<
+    Omit<
+      ReadOnlyClient,
+      | "extend"
+      | "key"
+      | "batch"
+      | "cacheTime"
+      | "account"
+      | "type"
+      | "uid"
+      | "chain"
+      | "name"
+      | "pollingInterval"
+    >
+  >;
   db: {
     [key in keyof Infer<schema>]: DatabaseModel<Infer<schema>[key]>;
   };
@@ -124,7 +139,7 @@ export type PonderContext<
 
 export type PonderApp<config extends Config, schema extends Schema> = {
   on: <
-    name extends PonderNames<config>,
+    name extends PonderEventNames<config>,
     ///
     contractName extends ExtractContractName<name> = ExtractContractName<name>,
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
