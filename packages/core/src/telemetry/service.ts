@@ -1,4 +1,3 @@
-import child_process from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 
@@ -59,23 +58,15 @@ export class TelemetryService {
     this.options = options;
     this.conf = new Conf({ projectName: "ponder" });
     this.notify();
-    this.establishHeartbeat();
+    this.heartbeatIntervalId = setInterval(() => {
+      this.record({ event: "Heartbeat" });
+    }, 60_000);
   }
 
   record(event: TelemetryEvent) {
     if (this.disabled) return;
     this.events.push(event);
     this.queue.add(() => this.processEvent());
-  }
-
-  private establishHeartbeat() {
-    this.heartbeatIntervalId = setInterval(() => {
-      this.record({ event: "Heartbeat" });
-    }, 60_000);
-  }
-
-  private killHeartbeat() {
-    clearInterval(this.heartbeatIntervalId);
   }
 
   async flush() {
@@ -115,7 +106,7 @@ export class TelemetryService {
   async kill() {
     this.queue.pause();
     this.queue.clear();
-    this.killHeartbeat();
+    clearInterval(this.heartbeatIntervalId);
     setTimeout(this.controller.abort, 500);
     await this.queue.onIdle();
   }
@@ -134,7 +125,7 @@ export class TelemetryService {
     console.log(
       `${pc.magenta(
         "Attention",
-      )}: Ponder now collects completely anonymous telemetry regarding usage. This data helps shape Ponder's roadmap and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`,
+      )}: Ponder collects anonymous telemetry data to identify issues and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`,
     );
   }
 
