@@ -14,7 +14,7 @@ export type BlockConfig = {
   maxBlockRange?: number;
 };
 
-export type DatabaseConfig =
+type DatabaseConfig =
   | {
       kind: "sqlite";
       /** Path to SQLite database file. Default: `"./.ponder/cache.db"`. */

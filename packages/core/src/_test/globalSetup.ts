@@ -15,7 +15,7 @@ export default async function () {
   let cleanupDatabase: () => Promise<void>;
   if (process.env.DATABASE_URL) {
     cleanupDatabase = async () => {
-      const pool = createPool(process.env.DATABASE_URL!);
+      const pool = createPool({ connectionString: process.env.DATABASE_URL! });
 
       const schemaRows = await pool.query(`
         SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname ~ '^vitest_pool_';

@@ -14,6 +14,7 @@ import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { createPool } from "@/utils/pg.js";
+import { createSqliteDatabase } from "@/utils/sqlite.js";
 import pg from "pg";
 import type { Address } from "viem";
 import { type TestContext, beforeEach } from "vitest";
@@ -78,7 +79,7 @@ export async function setupSyncStore(
     databaseUrl.pathname = `/${databaseName}`;
     const connectionString = databaseUrl.toString();
 
-    const pool = createPool(connectionString);
+    const pool = createPool({ connectionString });
     await testClient.query(`CREATE DATABASE "${databaseName}"`);
 
     context.syncStore = new PostgresSyncStore({ common: context.common, pool });
@@ -99,7 +100,7 @@ export async function setupSyncStore(
   } else {
     context.syncStore = new SqliteSyncStore({
       common: context.common,
-      file: ":memory:",
+      database: createSqliteDatabase(":memory:"),
     });
 
     if (options.migrateUp) await context.syncStore.migrateUp();
@@ -153,7 +154,7 @@ export async function setupIndexingStore(context: TestContext) {
   } else {
     context.indexingStore = new SqliteIndexingStore({
       common: context.common,
-      file: ":memory:",
+      database: createSqliteDatabase(":memory:"),
     });
     return async () => {
       try {

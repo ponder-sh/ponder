@@ -47,6 +47,11 @@ export class PostgresSyncStore implements SyncStore {
     this.common = common;
     this.db = new Kysely<SyncStoreTables>({
       dialect: new PostgresDialect({ pool }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_postgres_query_count.inc({ kind: "sync" });
+        }
+      },
     });
 
     this.migrator = new Migrator({

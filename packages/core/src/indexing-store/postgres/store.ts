@@ -48,9 +48,13 @@ export class PostgresIndexingStore implements IndexingStore {
       service: "indexing",
     });
 
-    this.db = new Kysely({ dialect: new PostgresDialect({ pool }) }).withPlugin(
-      new WithSchemaPlugin(this.databaseSchemaName),
-    );
+    this.db = new Kysely({
+      dialect: new PostgresDialect({ pool }),
+      log(event) {
+        if (event.level === "query")
+          common.metrics.ponder_postgres_query_count.inc({ kind: "indexing" });
+      },
+    }).withPlugin(new WithSchemaPlugin(this.databaseSchemaName));
   }
 
   kill = async () => {

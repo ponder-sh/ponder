@@ -22,14 +22,13 @@ import type { Transaction } from "@/types/transaction.js";
 import type { NonNull } from "@/types/utils.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
-import { ensureDirExists } from "@/utils/exists.js";
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
-import { BetterSqlite3, improveSqliteErrors } from "@/utils/sqlite.js";
+import { type SqliteDatabase } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 
 import type { SyncStore } from "../store.js";
@@ -49,14 +48,17 @@ export class SqliteSyncStore implements SyncStore {
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({ common, file }: { common: Common; file: string }) {
+  constructor({
+    common,
+    database,
+  }: { common: Common; database: SqliteDatabase }) {
     this.common = common;
-    ensureDirExists(file);
-    const database = new BetterSqlite3(file);
-    improveSqliteErrors(database);
-    database.pragma("journal_mode = WAL");
     this.db = new Kysely<SyncStoreTables>({
       dialect: new SqliteDialect({ database }),
+      log(event) {
+        if (event.level === "query")
+          common.metrics.ponder_sqlite_query_count.inc({ kind: "sync" });
+      },
     });
 
     this.migrator = new Migrator({

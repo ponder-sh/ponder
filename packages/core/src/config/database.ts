@@ -3,13 +3,14 @@ import path from "node:path";
 import type { Common } from "@/Ponder.js";
 import type { Config } from "@/config/config.js";
 import { createPool } from "@/utils/pg.js";
+import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
 import type { Pool } from "pg";
 
 type StoreConfig =
-  | { kind: "sqlite"; file: string }
+  | { kind: "sqlite"; database: SqliteDatabase }
   | { kind: "postgres"; pool: Pool };
 
-type DatabaseConfig = {
+export type DatabaseConfig = {
   sync: StoreConfig;
   indexing: StoreConfig;
 };
@@ -29,14 +30,19 @@ export const buildDatabase = ({
   if (config.database?.kind) {
     if (config.database.kind === "sqlite") {
       return {
-        sync: { kind: "sqlite", file: defaultSyncFilePath },
-        indexing: { kind: "sqlite", file: defaultIndexingFilePath },
+        sync: {
+          kind: "sqlite",
+          database: createSqliteDatabase(defaultSyncFilePath),
+        },
+        indexing: {
+          kind: "sqlite",
+          database: createSqliteDatabase(defaultIndexingFilePath),
+        },
       } satisfies DatabaseConfig;
     } else {
       const connectionString = (config.database.connectionString ??
         process.env.DATABASE_URL)!;
-
-      const pool = createPool(connectionString);
+      const pool = createPool({ connectionString });
       return {
         sync: { kind: "postgres", pool },
         indexing: { kind: "postgres", pool },
@@ -46,15 +52,22 @@ export const buildDatabase = ({
 
   // Otherwise, check if the DATABASE_URL env var is set. If it is, use it, otherwise use SQLite.
   if (process.env.DATABASE_URL) {
-    const pool = createPool(process.env.DATABASE_URL);
+    const connectionString = process.env.DATABASE_URL;
+    const pool = createPool({ connectionString });
     return {
       sync: { kind: "postgres", pool },
       indexing: { kind: "postgres", pool },
     } satisfies DatabaseConfig;
   } else {
     return {
-      sync: { kind: "sqlite", file: defaultSyncFilePath },
-      indexing: { kind: "sqlite", file: defaultIndexingFilePath },
+      sync: {
+        kind: "sqlite",
+        database: createSqliteDatabase(defaultSyncFilePath),
+      },
+      indexing: {
+        kind: "sqlite",
+        database: createSqliteDatabase(defaultIndexingFilePath),
+      },
     } satisfies DatabaseConfig;
   }
 };

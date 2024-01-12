@@ -1,8 +1,9 @@
 import BetterSqlite3 from "better-sqlite3";
 
+import { ensureDirExists } from "./exists.js";
 import { prettyPrint } from "./print.js";
 
-export function improveSqliteErrors(database: BetterSqlite3.Database) {
+function improveSqliteErrors(database: BetterSqlite3.Database) {
   const originalPrepare = database.prepare;
   // @ts-ignore
   database.prepare = (source: string) => {
@@ -49,4 +50,12 @@ export function improveSqliteErrors(database: BetterSqlite3.Database) {
   };
 }
 
-export { BetterSqlite3 };
+export type SqliteDatabase = BetterSqlite3.Database;
+
+export function createSqliteDatabase(file: string): SqliteDatabase {
+  ensureDirExists(file);
+  const database = new BetterSqlite3(file);
+  improveSqliteErrors(database);
+  database.pragma("journal_mode = WAL");
+  return database;
+}

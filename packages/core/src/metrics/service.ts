@@ -1,3 +1,5 @@
+import type { DatabaseConfig } from "@/config/database.js";
+import type { Pool } from "pg";
 import prometheus from "prom-client";
 
 const httpRequestBucketsInMs = [
@@ -55,6 +57,13 @@ export class MetricsService {
   ponder_indexing_store_method_duration: prometheus.Histogram<
     "table" | "method"
   >;
+
+  ponder_postgres_idle_connection_count: prometheus.Counter = null!;
+  ponder_postgres_total_connection_count: prometheus.Counter = null!;
+  ponder_postgres_request_queue_count: prometheus.Counter = null!;
+  ponder_postgres_query_count: prometheus.Counter = null!;
+
+  ponder_sqlite_query_count: prometheus.Counter = null!;
 
   constructor() {
     this.registry = new prometheus.Registry();
@@ -192,6 +201,50 @@ export class MetricsService {
       buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
+  }
+
+  registerDatabaseMetrics(database: DatabaseConfig) {
+    if (database.sync.kind === "postgres") {
+      this.ponder_postgres_query_count = new prometheus.Counter({
+        name: "ponder_postgres_query_count",
+        help: "Number of queries executed by Postgres",
+        labelNames: ["kind"] as const,
+        registers: [this.registry],
+      });
+
+      const pool = database.sync.pool as unknown as Pool;
+      this.ponder_postgres_idle_connection_count = new prometheus.Gauge({
+        name: "ponder_postgres_idle_connection_count",
+        help: "Number of idle connections in the pool",
+        registers: [this.registry],
+        collect() {
+          this.set(pool.idleCount);
+        },
+      });
+      this.ponder_postgres_total_connection_count = new prometheus.Gauge({
+        name: "ponder_postgres_total_connection_count",
+        help: "Total number of connections in the pool",
+        registers: [this.registry],
+        collect() {
+          this.set(pool.totalCount);
+        },
+      });
+      this.ponder_postgres_request_queue_count = new prometheus.Gauge({
+        name: "ponder_postgres_request_queue_count",
+        help: "Number of transaction or query requests waiting for an available connection",
+        registers: [this.registry],
+        collect() {
+          this.set(pool.waitingCount);
+        },
+      });
+    } else {
+      this.ponder_sqlite_query_count = new prometheus.Counter({
+        name: "ponder_sqlite_query_count",
+        help: "Number of queries executed by SQLite",
+        labelNames: ["kind"] as const,
+        registers: [this.registry],
+      });
+    }
   }
 
   /**

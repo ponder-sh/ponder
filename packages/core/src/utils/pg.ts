@@ -1,4 +1,4 @@
-import pg from "pg";
+import pg, { type PoolConfig } from "pg";
 
 import { prettyPrint } from "./print.js";
 
@@ -45,10 +45,10 @@ pg.Client.prototype.query = async function query(
   }
 };
 
-export function createPool(connectionString: string) {
+export function createPool(config: PoolConfig) {
   return new pg.Pool({
-    connectionString,
     // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
     statement_timeout: 30_000,
+    ...config,
   });
 }
