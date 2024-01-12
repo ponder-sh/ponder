@@ -52,7 +52,7 @@ export class PostgresIndexingStore implements IndexingStore {
       dialect: new PostgresDialect({ pool }),
       log(event) {
         if (event.level === "query")
-          common.metrics.ponder_postgres_query_count.inc({ kind: "indexing" });
+          common.metrics.ponder_postgres_query_count?.inc({ kind: "indexing" });
       },
     }).withPlugin(new WithSchemaPlugin(this.databaseSchemaName));
   }

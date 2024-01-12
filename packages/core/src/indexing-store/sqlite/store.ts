@@ -48,7 +48,7 @@ export class SqliteIndexingStore implements IndexingStore {
       dialect: new SqliteDialect({ database }),
       log(event) {
         if (event.level === "query")
-          common.metrics.ponder_sqlite_query_count.inc({ kind: "indexing" });
+          common.metrics.ponder_sqlite_query_count?.inc({ kind: "indexing" });
       },
     });
   }

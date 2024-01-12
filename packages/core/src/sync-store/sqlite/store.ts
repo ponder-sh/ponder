@@ -57,7 +57,7 @@ export class SqliteSyncStore implements SyncStore {
       dialect: new SqliteDialect({ database }),
       log(event) {
         if (event.level === "query")
-          common.metrics.ponder_sqlite_query_count.inc({ kind: "sync" });
+          common.metrics.ponder_sqlite_query_count?.inc({ kind: "sync" });
       },
     });
 
