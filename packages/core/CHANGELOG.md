@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- [#572](https://github.com/ponder-sh/ponder/pull/572) [`8bf9730a4c5ace1c10deab04483951ad3d4df6dd`](https://github.com/ponder-sh/ponder/commit/8bf9730a4c5ace1c10deab04483951ad3d4df6dd) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed custom timeout and retry logic for RPC requests. Now, the timeout and retry logic of user-provided view transport will be used.
+- [#572](https://github.com/ponder-sh/ponder/pull/572) [`8bf9730a4c5ace1c10deab04483951ad3d4df6dd`](https://github.com/ponder-sh/ponder/commit/8bf9730a4c5ace1c10deab04483951ad3d4df6dd) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed custom timeout and retry logic for RPC requests. Now, the timeout and retry logic of the user-provided Viem transport will be used.
 
 ## 0.1.5
 
