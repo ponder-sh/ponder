@@ -926,17 +926,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         .map(Number)
         .filter((blockNumber) => blockNumber <= blockTasksCanBeEnqueuedTo);
 
-      try {
-        this.blockProgressTracker.addPendingBlocks({ blockNumbers: newBlocks });
-      } catch (error) {
-        console.log({
-          newCheckpoint: blockTasksCanBeEnqueuedTo,
-          currentCheckpoint: this.blockTasksEnqueuedCheckpoint,
-          newBlocks,
-        });
-
-        throw error;
-      }
+      this.blockProgressTracker.addPendingBlocks({ blockNumbers: newBlocks });
 
       for (const blockNumber of newBlocks) {
         this.queue.addTask(
