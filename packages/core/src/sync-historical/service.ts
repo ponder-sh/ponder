@@ -831,7 +831,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     if (!block) throw new Error(`Block not found: ${blockNumber}`);
 
-    await Promise.all(callbacks.map((cb) => cb(block)));
+    while (callbacks.length !== 0) {
+      await callbacks[callbacks.length - 1](block);
+      callbacks.pop()!;
+    }
 
     const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
       blockNumber,
