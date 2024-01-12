@@ -11,22 +11,27 @@ import type { Prettify } from "./utils.js";
 
 type Setup = "setup";
 
+type _FormatEventNames<
+  contract extends Config["contracts"][string],
+  ///
+  safeEventNames = SafeEventNames<contract["abi"]>,
+> = string extends safeEventNames
+  ? never
+  : contract extends {
+        filter: { event: infer event extends string | readonly string[] };
+      }
+    ? event extends safeEventNames
+      ? event
+      : event[number] extends safeEventNames
+        ? event[number]
+        : safeEventNames
+    : safeEventNames;
+
 /** "{ContractName}:{EventName}". */
 export type FormatEventNames<contracts extends Config["contracts"]> = {
   [name in keyof contracts]: `${name & string}:${
-    // 1. Contract has a filter
-      | (contracts[name] extends {
-          filter: { event: infer event extends string | readonly string[] };
-        }
-          ? event extends SafeEventNames<contracts[name]["abi"]>
-            ? event
-            : event[number] extends SafeEventNames<contracts[name]["abi"]>
-              ? event[number]
-              : SafeEventNames<contracts[name]["abi"]>
-          : // 2. Contract doesn't have a filter
-            SafeEventNames<contracts[name]["abi"]>)
-      | Setup
-  }`;
+    | _FormatEventNames<contracts[name]>
+    | Setup}`;
 }[keyof contracts];
 
 export type ExtractEventName<name extends string> =
@@ -66,6 +71,22 @@ export type PonderEvent<
       transaction: Transaction;
     };
 
+type ContextContractProperty = Exclude<
+  keyof Config["contracts"][string],
+  "abi" | "network" | "filter" | "factory"
+>;
+
+type ExtractOverridenProperty<
+  contract extends Config["contracts"][string],
+  property extends ContextContractProperty,
+  ///
+  base = Extract<contract, { [p in property]: unknown }>[property],
+  override = Extract<
+    contract["network"][keyof contract["network"]],
+    { [p in property]: unknown }
+  >[property],
+> = ([base] extends [never] ? undefined : base) | override;
+
 export type PonderContext<
   config extends Config,
   schema extends Schema,
@@ -74,33 +95,18 @@ export type PonderContext<
   contracts: {
     [_contractName in keyof config["contracts"]]: {
       abi: config["contracts"][_contractName]["abi"];
-      address:
-        | Extract<
-            config["contracts"][_contractName],
-            { address: unknown }
-          >["address"]
-        | Extract<
-            config["contracts"][_contractName]["network"][keyof config["contracts"][_contractName]["network"]],
-            { address: unknown }
-          >["address"];
-      startBlock:
-        | Extract<
-            config["contracts"][_contractName],
-            { startBlock: unknown }
-          >["startBlock"]
-        | Extract<
-            config["contracts"][_contractName]["network"][keyof config["contracts"][_contractName]["network"]],
-            { startBlock: unknown }
-          >["startBlock"];
-      endBlock:
-        | Extract<
-            config["contracts"][_contractName],
-            { endBlock: unknown }
-          >["endBlock"]
-        | Extract<
-            config["contracts"][_contractName]["network"][keyof config["contracts"][_contractName]["network"]],
-            { endBlock: unknown }
-          >["endBlock"];
+      address: ExtractOverridenProperty<
+        config["contracts"][_contractName],
+        "address"
+      >;
+      startBlock: ExtractOverridenProperty<
+        config["contracts"][_contractName],
+        "startBlock"
+      >;
+      endBlock: ExtractOverridenProperty<
+        config["contracts"][_contractName],
+        "endBlock"
+      >;
     };
   };
   network: config["contracts"][contractName]["network"] extends string
@@ -130,6 +136,7 @@ export type PonderContext<
       | "chain"
       | "name"
       | "pollingInterval"
+      | "transport"
     >
   >;
   db: {

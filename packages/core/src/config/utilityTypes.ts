@@ -16,8 +16,7 @@ export type ParseAbiEvent<
   ///
   abiEvents extends AbiEvent = ExtractAbiEvents<abi>,
   noOverloadEvent = Extract<abiEvents, { name: signature }>,
-  overloadEvent extends AbiEvent = ParseAbiItem<`event ${signature}`> &
-    AbiEvent,
+  overloadEvent = Extract<abiEvents, ParseAbiItem<`event ${signature}`>>,
 > = [noOverloadEvent] extends [never]
   ? [overloadEvent] extends [never]
     ? AbiEvent
