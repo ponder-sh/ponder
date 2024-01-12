@@ -15,18 +15,16 @@ declare module "@/generated" {
 
   export type EventNames = PonderEventNames<Config>;
 
-  export type Event<
-    name extends EventNames = EventNames,
-    ///
-    contractName extends ExtractContractName<name> = ExtractContractName<name>,
-    eventName extends ExtractEventName<name> = ExtractEventName<name>,
-  > = PonderEvent<Config, contractName, eventName>;
+  export type Event<name extends EventNames = EventNames> = PonderEvent<
+    Config,
+    name
+  >;
 
-  export type Context<
-    name extends EventNames = EventNames,
-    ///
-    contractName extends ExtractContractName<name> = ExtractContractName<name>,
-  > = PonderContext<Config, Schema, contractName>;
+  export type Context<name extends EventNames = EventNames> = PonderContext<
+    Config,
+    Schema,
+    name
+  >;
 
   export type IndexingFunctionArgs<name extends EventNames = EventNames> = {
     event: Event<name>;

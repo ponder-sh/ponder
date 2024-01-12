@@ -50,8 +50,10 @@ export type PonderEventNames<config extends Config> = FormatEventNames<
 
 export type PonderEvent<
   config extends Config,
-  contractName extends keyof config["contracts"],
-  eventName extends string,
+  name extends PonderEventNames<config>,
+  ///
+  contractName extends ExtractContractName<name> = ExtractContractName<name>,
+  eventName extends ExtractEventName<name> = ExtractEventName<name>,
 > = eventName extends Setup
   ? never
   : {
@@ -90,7 +92,9 @@ type ExtractOverridenProperty<
 export type PonderContext<
   config extends Config,
   schema extends Schema,
-  contractName extends keyof config["contracts"],
+  name extends PonderEventNames<config>,
+  ///
+  contractName extends ExtractContractName<name> = ExtractContractName<name>,
 > = {
   contracts: {
     [_contractName in keyof config["contracts"]]: {
@@ -145,16 +149,11 @@ export type PonderContext<
 };
 
 export type PonderApp<config extends Config, schema extends Schema> = {
-  on: <
-    name extends PonderEventNames<config>,
-    ///
-    contractName extends ExtractContractName<name> = ExtractContractName<name>,
-    eventName extends ExtractEventName<name> = ExtractEventName<name>,
-  >(
+  on: <name extends PonderEventNames<config>>(
     _name: name,
     indexingFunction: (
-      args: { event: PonderEvent<config, contractName, eventName> } & {
-        context: PonderContext<config, schema, contractName>;
+      args: { event: PonderEvent<config, name> } & {
+        context: PonderContext<config, schema, name>;
       },
     ) => Promise<void> | void,
   ) => void;

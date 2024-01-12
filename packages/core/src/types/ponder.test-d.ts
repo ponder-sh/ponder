@@ -135,7 +135,7 @@ test("FormatEventNames with weak abi", () => {
 });
 
 test("PonderContext db", () => {
-  type a = PonderContext<typeof config, typeof schema, "c1">["db"];
+  type a = PonderContext<typeof config, typeof schema, "c1:Event0">["db"];
   //   ^?
 
   type expectedDB = { table: DatabaseModel<{ id: string }> };
@@ -145,7 +145,7 @@ test("PonderContext db", () => {
 });
 
 test("PonderContext single network", () => {
-  type a = PonderContext<typeof config, typeof schema, "c1">["network"];
+  type a = PonderContext<typeof config, typeof schema, "c1:Event0">["network"];
   //   ^?
 
   type expectedNetwork = { name: "mainnet"; chainId: 1 };
@@ -155,7 +155,11 @@ test("PonderContext single network", () => {
 });
 
 test("PonderContext multi network", () => {
-  type a = PonderContext<typeof config, typeof schema, "c2">["network"];
+  type a = PonderContext<
+    typeof config,
+    typeof schema,
+    "c2:Event1()"
+  >["network"];
   //   ^?
 
   type expectedNetwork =
@@ -167,7 +171,7 @@ test("PonderContext multi network", () => {
 });
 
 test("PonderContext client", () => {
-  type a = PonderContext<typeof config, typeof schema, "c2">["client"];
+  type a = PonderContext<typeof config, typeof schema, "c2:Event1()">["client"];
   //   ^?
 
   type expectedFunctions =
@@ -183,7 +187,11 @@ test("PonderContext client", () => {
 });
 
 test("PonderContext contracts", () => {
-  type a = PonderContext<typeof config, typeof schema, "c2">["contracts"]["c2"];
+  type a = PonderContext<
+    typeof config,
+    typeof schema,
+    "c2:Event1()"
+  >["contracts"]["c2"];
   //   ^?
 
   type expectedAbi = [Event1, Event1Overloaded];
@@ -205,7 +213,7 @@ test("PonderContext contracts", () => {
 });
 
 test("PonderEvent", () => {
-  type a = PonderEvent<typeof config, "c1", "Event0">;
+  type a = PonderEvent<typeof config, "c1:Event0">;
   //   ^?
 
   type expectedEvent = {
@@ -224,7 +232,7 @@ test("PonderEvent", () => {
 });
 
 test("PonderEvent with unnamed parameters", () => {
-  type a = PonderEvent<typeof config, "c2", "Event1(bytes32)">;
+  type a = PonderEvent<typeof config, "c2:Event1(bytes32)">;
   //   ^?
 
   type expectedEvent = {
