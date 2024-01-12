@@ -669,22 +669,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       upToBlockNumber: BigInt(toBlock),
     });
 
-    // Note: Is this creating too many database queries at once?
-    const childAddresses: Address[][] = [];
+    const logs: RpcLog[] = [];
     for await (const childContractAddressBatch of iterator) {
-      childAddresses.push(childContractAddressBatch);
+      const _logs = await this._eth_getLogs({
+        address: childContractAddressBatch,
+        topics: factory.criteria.topics,
+        fromBlock: numberToHex(fromBlock),
+        toBlock: numberToHex(toBlock),
+      });
+      logs.push(..._logs);
     }
-
-    const logs = await Promise.all(
-      childAddresses.map(async (c) =>
-        this._eth_getLogs({
-          address: c,
-          topics: factory.criteria.topics,
-          fromBlock: numberToHex(fromBlock),
-          toBlock: numberToHex(toBlock),
-        }),
-      ),
-    ).then((l) => l.flat());
 
     const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
 

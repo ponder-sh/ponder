@@ -68,9 +68,6 @@ export const createRequestQueue = ({
   let timing = false;
   let on = true;
 
-  let id = 0;
-  const pendingRequests: Map<number, Pick<Task, "reject">> = new Map();
-
   const processQueue = () => {
     if (!on) return;
 
@@ -84,11 +81,7 @@ export const createRequestQueue = ({
       for (let i = 0; i < requestBatchSize; i++) {
         const { params, resolve, reject, stopClockLag } = queue.shift()!;
 
-        const _id = id;
         pending += 1;
-        pendingRequests.set(_id, {
-          reject,
-        });
 
         metrics.ponder_rpc_request_lag.observe(
           { method: params.method, network: networkName },
@@ -104,8 +97,6 @@ export const createRequestQueue = ({
           })
           .catch(reject)
           .finally(() => {
-            pendingRequests.delete(_id);
-            id += 1;
             pending -= 1;
 
             metrics.ponder_rpc_request_duration.observe(

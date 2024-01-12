@@ -74,7 +74,7 @@ test("request per second", async ({ common }) => {
   expect(await queue.pending()).toBe(0);
 });
 
-test("add() returns promise", async ({ common }) => {
+test("request() returns promise", async ({ common }) => {
   const queue = getQueue(common);
 
   const r1 = queue.request({ method: "eth_chainId" });
