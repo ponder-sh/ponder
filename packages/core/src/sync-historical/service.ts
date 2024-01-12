@@ -35,7 +35,6 @@ import {
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { startClock } from "@/utils/timer.js";
 
 import { validateHistoricalBlockRange } from "./utils.js";
 
@@ -815,19 +814,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }) => {
     const { blockNumber, callbacks } = task;
 
-    const stopClock = startClock();
-
     const block = (await this.network.request({
       method: "eth_getBlockByNumber",
       params: [toHex(blockNumber), true],
     })) as RpcBlock & {
       transactions: RpcTransaction[];
     };
-
-    this.common.metrics.ponder_historical_rpc_request_duration.observe(
-      { method: "eth_getBlockByNumber", network: this.network.name },
-      stopClock(),
-    );
 
     if (!block) throw new Error(`Block not found: ${blockNumber}`);
 
@@ -959,7 +951,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     let error: (Partial<RpcError> & { name: string }) | null = null;
 
-    const stopClock = startClock();
     try {
       return this.network.request({
         method: "eth_getLogs",
@@ -976,11 +967,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
     } catch (err) {
       error = err as Partial<RpcError> & { name: string };
-    } finally {
-      this.common.metrics.ponder_historical_rpc_request_duration.observe(
-        { method: "eth_getLogs", network: this.network.name },
-        stopClock(),
-      );
     }
 
     if (!error) return logs;
