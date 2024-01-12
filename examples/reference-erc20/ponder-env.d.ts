@@ -1,9 +1,11 @@
 declare module "@/generated" {
   import type {
-    PonderApp,
-    PonderEventNames,
-    PonderEvent,
     PonderContext,
+    PonderEvent,
+    PonderEventNames,
+    PonderApp,
+    ExtractEventName,
+    ExtractContractName,
   } from "@ponder/core";
 
   type Config = typeof import("./ponder.config.ts").default;
@@ -11,20 +13,23 @@ declare module "@/generated" {
 
   export const ponder: PonderApp<Config, Schema>;
 
-  export type Context = ExtractContext<Config, Schema>;
+  export type EventNames = PonderEventNames<Config>;
 
-  export type Names = PonderEventNames<Config>;
-
-  export type ExtractEvent<
-    name extends Names,
+  export type Event<
+    name extends EventNames = EventNames,
     ///
     contractName extends ExtractContractName<name> = ExtractContractName<name>,
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
   > = PonderEvent<Config, contractName, eventName>;
 
-  export type ExtractContext<
-    name extends Names,
+  export type Context<
+    name extends EventNames = EventNames,
     ///
     contractName extends ExtractContractName<name> = ExtractContractName<name>,
   > = PonderContext<Config, Schema, contractName>;
+
+  export type IndexingFunctionArgs<name extends EventNames = EventNames> = {
+    event: Event<name>;
+    context: Context<name>;
+  };
 }
