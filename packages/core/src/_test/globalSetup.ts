@@ -1,7 +1,10 @@
+import { createPool } from "@/utils/pg.js";
 import { startProxy } from "@viem/anvil";
-import { Pool } from "pg";
+import dotenv from "dotenv";
 
 export default async function () {
+  dotenv.config({ path: ".env.local" });
+
   const shutdownProxy = await startProxy({
     options: {
       chainId: 1,
@@ -12,7 +15,7 @@ export default async function () {
   let cleanupDatabase: () => Promise<void>;
   if (process.env.DATABASE_URL) {
     cleanupDatabase = async () => {
-      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      const pool = createPool({ connectionString: process.env.DATABASE_URL! });
 
       const schemaRows = await pool.query(`
         SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname ~ '^vitest_pool_';

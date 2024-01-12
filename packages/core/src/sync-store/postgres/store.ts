@@ -26,10 +26,8 @@ import {
   buildLogFilterFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
-import type pg from "@/utils/pg.js";
 import { range } from "@/utils/range.js";
-import { wait } from "@/utils/wait.js";
-
+import type { Pool } from "pg";
 import type { SyncStore } from "../store.js";
 import {
   type SyncStoreTables,
@@ -45,10 +43,15 @@ export class PostgresSyncStore implements SyncStore {
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({ common, pool }: { common: Common; pool: pg.Pool }) {
+  constructor({ common, pool }: { common: Common; pool: Pool }) {
     this.common = common;
     this.db = new Kysely<SyncStoreTables>({
       dialect: new PostgresDialect({ pool }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_postgres_query_count?.inc({ kind: "sync" });
+        }
+      },
     });
 
     this.migrator = new Migrator({
@@ -1301,18 +1304,9 @@ export class PostgresSyncStore implements SyncStore {
     return exprs;
   };
 
-  private transaction = async <U>(
+  private transaction = <U>(
     callback: (tx: KyselyTransaction<SyncStoreTables>) => Promise<U>,
-  ) => {
-    return await this.db.transaction().execute(async (tx) => {
-      return await Promise.race([
-        callback(tx),
-        wait(15_000).then(() => {
-          throw new Error("Postgres transaction timed out after 15 seconds.");
-        }),
-      ]);
-    });
-  };
+  ) => this.db.transaction().execute(callback);
 
   private record(methodName: string, start: number) {
     this.common.metrics.ponder_sync_store_method_duration.observe(

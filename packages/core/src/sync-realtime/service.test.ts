@@ -179,6 +179,7 @@ test("start() handles error while fetching new latest block gracefully", async (
   });
 
   // Mock a failed new block request.
+  // @ts-ignore
   rpcRequestSpy.mockRejectedValueOnce(
     new HttpRequestError({ url: "http://ponder.sh/rpc" }),
   );

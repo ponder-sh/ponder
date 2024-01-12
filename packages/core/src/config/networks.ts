@@ -1,18 +1,18 @@
-import type { Chain, Client, Transport } from "viem";
-import { rpc } from "viem/utils";
-
 import { chains } from "@/utils/chains.js";
-
-type Request = (
-  options: Parameters<typeof rpc.webSocketAsync>[1] &
-    Parameters<typeof rpc.http>[1],
-) => any;
+import type {
+  Chain,
+  Client,
+  EIP1193RequestFn,
+  PublicRpcSchema,
+  Transport,
+} from "viem";
 
 export type Network = {
   name: string;
   chainId: number;
-  request: Request;
-  url: string;
+
+  request: EIP1193RequestFn<PublicRpcSchema>;
+
   pollingInterval: number;
   defaultMaxBlockRange: number;
   maxHistoricalTaskConcurrency: number;
@@ -177,52 +177,6 @@ export async function getRpcUrlsForClient(parameters: {
   }
 
   return getRpcUrlsForTransport(transport);
-}
-
-export async function getRequestForTransport(parameters: {
-  transport: Transport;
-  chain: Chain;
-}): Promise<Request> {
-  // This is how viem converts a Transport into the Client.transport type.
-  const { config, value } = parameters.transport({
-    chain: parameters.chain,
-    pollingInterval: 4_000, // default viem value
-  });
-  const transport = { ...config, ...value } as Client["transport"];
-
-  switch (transport.type) {
-    case "http": {
-      const url = transport.url ?? parameters.chain.rpcUrls.default.http[0];
-
-      if (!url)
-        throw Error(
-          `Validation failed: Unable to find a http transport URL (network=${parameters.chain.name}). Commonly caused by unset env vars.`,
-        );
-
-      return (options) => rpc.http(url, options);
-    }
-    case "webSocket": {
-      const socket = await transport.getSocket();
-
-      if (!socket)
-        throw Error(
-          `Validation failed: Unable to find a websocket transport url (network=${parameters.chain.name}). Commonly caused by unset env vars.`,
-        );
-
-      return (options) => rpc.webSocketAsync(socket, options);
-    }
-    case "fallback": {
-      return await getRequestForTransport({
-        transport: () => transport.transports[0],
-        chain: parameters.chain,
-      });
-    }
-    default: {
-      throw Error(
-        `Validation failed: Unknown transport "${transport.type}" used. Please use "http", "websocket", or "fallback" (network=${parameters.chain.name})`,
-      );
-    }
-  }
 }
 
 let publicRpcUrls: Set<string> | undefined = undefined;

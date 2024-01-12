@@ -1,11 +1,7 @@
 import { randomBytes } from "crypto";
-import type { Address } from "viem";
-import { type TestContext, beforeEach } from "vitest";
-
+import type { Common } from "@/Ponder.js";
 import type { Config } from "@/config/config.js";
 import type { Network } from "@/config/networks.js";
-
-import type { Common } from "@/Ponder.js";
 import { buildOptions } from "@/config/options.js";
 import type { Factory, LogFilter } from "@/config/sources.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
@@ -17,8 +13,11 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
-import pg from "@/utils/pg.js";
-
+import { createPool } from "@/utils/pg.js";
+import { createSqliteDatabase } from "@/utils/sqlite.js";
+import pg from "pg";
+import type { Address } from "viem";
+import { type TestContext, beforeEach } from "vitest";
 import { deploy, simulate } from "./simulate.js";
 import { getConfig, getNetworkAndSources, testClient } from "./utils.js";
 
@@ -80,7 +79,7 @@ export async function setupSyncStore(
     databaseUrl.pathname = `/${databaseName}`;
     const connectionString = databaseUrl.toString();
 
-    const pool = new pg.Pool({ connectionString });
+    const pool = createPool({ connectionString });
     await testClient.query(`CREATE DATABASE "${databaseName}"`);
 
     context.syncStore = new PostgresSyncStore({ common: context.common, pool });
@@ -101,7 +100,7 @@ export async function setupSyncStore(
   } else {
     context.syncStore = new SqliteSyncStore({
       common: context.common,
-      file: ":memory:",
+      database: createSqliteDatabase(":memory:"),
     });
 
     if (options.migrateUp) await context.syncStore.migrateUp();
@@ -155,7 +154,7 @@ export async function setupIndexingStore(context: TestContext) {
   } else {
     context.indexingStore = new SqliteIndexingStore({
       common: context.common,
-      file: ":memory:",
+      database: createSqliteDatabase(":memory:"),
     });
     return async () => {
       try {

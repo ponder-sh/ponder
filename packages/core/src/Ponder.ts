@@ -145,12 +145,12 @@ export class Ponder {
       common: this.common,
       config: this.config,
     });
-
+    this.common.metrics.registerDatabaseMetrics(database);
     this.indexingStore =
       database.indexing.kind === "sqlite"
         ? new SqliteIndexingStore({
             common: this.common,
-            file: database.indexing.file,
+            database: database.indexing.database,
           })
         : new PostgresIndexingStore({
             common: this.common,
@@ -243,10 +243,14 @@ export class Ponder {
       common: this.common,
       config: this.config,
     });
+    this.common.metrics.registerDatabaseMetrics(database);
     this.syncStore =
       syncStore ??
       (database.sync.kind === "sqlite"
-        ? new SqliteSyncStore({ common: this.common, file: database.sync.file })
+        ? new SqliteSyncStore({
+            common: this.common,
+            database: database.sync.database,
+          })
         : new PostgresSyncStore({
             common: this.common,
             pool: database.sync.pool,
@@ -256,7 +260,7 @@ export class Ponder {
       (database.indexing.kind === "sqlite"
         ? new SqliteIndexingStore({
             common: this.common,
-            file: database.indexing.file,
+            database: database.indexing.database,
           })
         : new PostgresIndexingStore({
             common: this.common,
