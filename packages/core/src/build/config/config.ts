@@ -1,3 +1,4 @@
+import type { Common } from "@/Ponder.js";
 import { buildAbiEvents, buildTopics } from "@/config/abi.js";
 import type { Config } from "@/config/config.js";
 import { buildFactoryCriteria } from "@/config/factories.js";
@@ -10,6 +11,7 @@ import {
 } from "@/config/networks.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { createRequestQueue } from "@/utils/requestQueue.js";
 import type {
   Factory,
   LogFilter,
@@ -17,7 +19,10 @@ import type {
   Topics,
 } from "../../config/sources.js";
 
-export async function buildNetworksAndSources({ config }: { config: Config }) {
+export async function buildNetworksAndSources({
+  config,
+  common,
+}: { config: Config; common: Common }) {
   const warnings: string[] = [];
 
   const networks: Network[] = await Promise.all(
@@ -52,12 +57,16 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
         name: networkName,
         chainId: chainId,
 
-        request: { ..._transport.config, ..._transport.value }.request,
+        requestQueue: createRequestQueue({
+          metrics: common.metrics,
+          networkName,
+          maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
+          transport: { ..._transport.config, ..._transport.value },
+        }),
 
+        maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
         pollingInterval: network.pollingInterval ?? 1_000,
         defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
-        maxHistoricalTaskConcurrency:
-          network.maxHistoricalTaskConcurrency ?? 20,
         finalityBlockCount: getFinalityBlockCount({ chainId }),
       } satisfies Network;
     }),
@@ -233,9 +242,10 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
 
 export async function safeBuildNetworksAndSources({
   config,
-}: { config: Config }) {
+  common,
+}: { config: Config; common: Common }) {
   try {
-    const result = await buildNetworksAndSources({ config });
+    const result = await buildNetworksAndSources({ config, common });
 
     return { success: true, data: result } as const;
   } catch (error_) {

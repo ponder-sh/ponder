@@ -1,9 +1,8 @@
-import type { Address, Hex, Transport } from "viem";
-import { custom, hexToBigInt, maxUint256 } from "viem";
-
-import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
+import type { Address, Hex, Transport } from "viem";
+import { custom, hexToBigInt, maxUint256 } from "viem";
 
 const cachedMethods = [
   "eth_call",
@@ -13,10 +12,10 @@ const cachedMethods = [
 ] as const;
 
 export const ponderTransport = ({
-  network,
+  requestQueue,
   syncStore,
 }: {
-  network: Network;
+  requestQueue: RequestQueue;
   syncStore: SyncStore;
 }): Transport => {
   return ({ chain }) => {
@@ -72,7 +71,7 @@ export const ponderTransport = ({
 
           if (cachedResult?.result) return cachedResult.result;
           else {
-            const response = await network.request(body);
+            const response = await requestQueue.request(body);
             await syncStore.insertRpcRequestResult({
               blockNumber: blockNumberBigInt,
               chainId: chain!.id,
@@ -82,7 +81,7 @@ export const ponderTransport = ({
             return response;
           }
         } else {
-          return network.request(body);
+          return requestQueue.request(body);
         }
       },
     });

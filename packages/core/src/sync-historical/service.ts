@@ -534,7 +534,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const queue = createQueue<HistoricalSyncTask>({
       worker,
       options: {
-        concurrency: this.network.maxHistoricalTaskConcurrency,
+        concurrency: 20,
         autoStart: false,
       },
       onError: ({ error, task, queue }) => {
@@ -814,7 +814,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }) => {
     const { blockNumber, callbacks } = task;
 
-    const block = (await this.network.request({
+    const block = (await this.network.requestQueue.request({
       method: "eth_getBlockByNumber",
       params: [toHex(blockNumber), true],
     })) as RpcBlock & {
@@ -952,7 +952,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     let error: (Partial<RpcError> & { name: string }) | null = null;
 
     try {
-      return this.network.request({
+      return this.network.requestQueue.request({
         method: "eth_getLogs",
         params: [
           {

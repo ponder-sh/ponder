@@ -12,7 +12,7 @@ beforeEach((context) => setupSyncStore(context));
 
 test("default", ({ syncStore, networks }) => {
   const transport = ponderTransport({
-    network: networks[0],
+    requestQueue: networks[0].requestQueue,
     syncStore,
   });
 
@@ -39,7 +39,7 @@ test("eth_call", async ({ syncStore, erc20, networks }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    network: networks[0],
+    requestQueue: networks[0].requestQueue,
     syncStore,
   })({
     chain: anvil,
@@ -97,7 +97,7 @@ test("eth_getBalance", async ({ syncStore, erc20, networks }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    network: networks[0],
+    requestQueue: networks[0].requestQueue,
     syncStore,
   })({
     chain: anvil,
@@ -137,7 +137,7 @@ test("eth_getStorageAt", async ({ syncStore, erc20, networks }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    network: networks[0],
+    requestQueue: networks[0].requestQueue,
     syncStore,
   })({
     chain: anvil,
@@ -177,7 +177,7 @@ test("eth_getCode", async ({ syncStore, erc20, networks }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    network: networks[0],
+    requestQueue: networks[0].requestQueue,
     syncStore,
   })({
     chain: anvil,
@@ -215,7 +215,7 @@ test("eth_getCode", async ({ syncStore, erc20, networks }) => {
 
 test("fallback method", async ({ syncStore, networks }) => {
   const transport = ponderTransport({
-    network: networks[0],
+    requestQueue: networks[0].requestQueue,
     syncStore,
   })({
     chain: anvil,

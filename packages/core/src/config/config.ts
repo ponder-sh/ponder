@@ -51,8 +51,8 @@ export type NetworkConfig = {
   transport: Transport;
   /** Polling frequency (in ms). Default: `1_000`. */
   pollingInterval?: number;
-  /** Maximum concurrency of tasks during the historical sync. Default: `20`. */
-  maxHistoricalTaskConcurrency?: number;
+  /** Maximum number of RPC requests per second. Default: `50`. */
+  maxRequestsPerSecond?: number;
 };
 
 type AbiConfig<abi extends Abi | readonly unknown[]> = {

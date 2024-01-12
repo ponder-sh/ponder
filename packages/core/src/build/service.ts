@@ -241,6 +241,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const rawConfig = loadResult.exports.default as Config;
     const buildResult = await safeBuildNetworksAndSources({
       config: rawConfig,
+      common: this.common,
     });
 
     if (buildResult.error) {

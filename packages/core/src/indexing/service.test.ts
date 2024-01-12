@@ -317,8 +317,7 @@ test("processEvents() recovers from errors while reading data from a contract", 
     networks,
   });
 
-  const spy = vi.spyOn(networks[0], "request");
-  // @ts-ignore
+  const spy = vi.spyOn(networks[0].requestQueue, "request");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   await service.reset({

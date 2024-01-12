@@ -1,21 +1,16 @@
 import { chains } from "@/utils/chains.js";
-import type {
-  Chain,
-  Client,
-  EIP1193RequestFn,
-  PublicRpcSchema,
-  Transport,
-} from "viem";
+import type { RequestQueue } from "@/utils/requestQueue.js";
+import type { Chain, Client, Transport } from "viem";
 
 export type Network = {
   name: string;
   chainId: number;
 
-  request: EIP1193RequestFn<PublicRpcSchema>;
+  requestQueue: RequestQueue;
 
   pollingInterval: number;
   defaultMaxBlockRange: number;
-  maxHistoricalTaskConcurrency: number;
+  maxRequestsPerSecond: number;
   finalityBlockCount: number;
 };
 

@@ -85,7 +85,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     try {
       [latestBlock, rpcChainId] = await Promise.all([
         this.getLatestBlock(),
-        this.network
+        this.network.requestQueue
           .request({ method: "eth_chainId" })
           .then((c) => hexToNumber(c)),
       ]);
@@ -162,7 +162,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     // Fetch the block at the finalized block number.
-    const finalizedBlock = await this.network.request({
+    const finalizedBlock = await this.network.requestQueue.request({
       method: "eth_getBlockByNumber",
       params: [numberToHex(this.finalizedBlockNumber), false],
     });
@@ -211,7 +211,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   private getLatestBlock = async () => {
     // Fetch the latest block for the network.
-    const latestBlock_ = await this.network.request({
+    const latestBlock_ = await this.network.requestQueue.request({
       method: "eth_getBlockByNumber",
       params: ["latest", true],
     });
@@ -308,7 +308,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           matchedLogs = [];
         } else {
           // Block (maybe) contains logs matching the registered log filters.
-          logs = await this.network.request({
+          logs = await this.network.requestQueue.request({
             method: "eth_getLogs",
             params: [{ blockHash: newBlock.hash }],
           });
@@ -321,7 +321,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       } else {
         // The app has factory contracts.
         // Don't attempt to skip calling eth_getLogs, just call it every time.
-        logs = await this.network.request({
+        logs = await this.network.requestQueue.request({
           method: "eth_getLogs",
           params: [{ blockHash: newBlock.hash }],
         });
@@ -502,7 +502,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       const missingBlockRequests = missingBlockNumbers.map((number) => {
         return limit(async () => {
-          const block = await this.network.request({
+          const block = await this.network.requestQueue.request({
             method: "eth_getBlockByNumber",
             params: [numberToHex(number), true],
           });
@@ -602,7 +602,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       }
 
       // If the parent block is not present in our local chain, keep traversing up the canonical chain.
-      const parentBlock_ = await this.network.request({
+      const parentBlock_ = await this.network.requestQueue.request({
         method: "eth_getBlockByHash",
         params: [canonicalBlock.parentHash, true],
       });

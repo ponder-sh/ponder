@@ -266,9 +266,8 @@ test("start() retries unexpected error in log filter task", async (context) => {
   const { common, syncStore, networks, sources } = context;
 
   const network = networks[0];
-  const rpcRequestSpy = vi.spyOn(network, "request");
+  const rpcRequestSpy = vi.spyOn(network.requestQueue, "request");
 
-  // @ts-ignore
   rpcRequestSpy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const blockNumbers = await getBlockNumbers();
@@ -333,9 +332,8 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   const blockNumbers = await getBlockNumbers();
 
   const network = networks[0];
-  const rpcRequestSpy = vi.spyOn(network, "request");
+  const rpcRequestSpy = vi.spyOn(network.requestQueue, "request");
 
-  // @ts-ignore
   rpcRequestSpy.mockRejectedValueOnce(
     new InvalidParamsRpcError(
       new Error(
@@ -373,9 +371,8 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   const blockNumbers = await getBlockNumbers();
 
   const network = networks[0];
-  const rpcRequestSpy = vi.spyOn(network, "request");
+  const rpcRequestSpy = vi.spyOn(network.requestQueue, "request");
 
-  // @ts-ignore
   rpcRequestSpy.mockRejectedValueOnce(
     new HttpRequestError({
       url: "http://",
