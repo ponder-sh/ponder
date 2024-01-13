@@ -48,11 +48,4 @@ export type SafeEventNames<
   abi extends Abi,
   ///
   abiEvents extends AbiEvent = ExtractAbiEvents<abi>,
-  signatures extends string = FormatAbiItem<abiEvents>,
-> = string extends signatures
-  ? string
-  : {
-      [i in signatures]: ParseAbiItem<i> extends AbiEvent
-        ? FormatAbiEvent<abi, ParseAbiItem<i>>
-        : never;
-    }[signatures];
+> = abiEvents extends abiEvents ? FormatAbiEvent<abi, abiEvents> : never;
