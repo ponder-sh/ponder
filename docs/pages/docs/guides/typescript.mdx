@@ -3,24 +3,115 @@ title: "Ponder with TypeScript"
 description: "An overview of TypeScript support for Ponder."
 ---
 
+import { Callout } from 'nextra/components'
+
 # TypeScript
 
-Ponder takes advantage of _ to create a great developer experience. 
+Ponder uses advanced TypeScript features to offer end-to-end type safety without any code generation.
 
-- Ponder requires TypeScript >= v5.0.4 and viem >= v1.16.0.
-- Types for indexing functions are powered by `ponder-env.d.ts`.
-- Contract ABIs must be declared with `as const` for strict typing.
+<Callout type="info">We **strongly** recommend that Ponder users invest the time to set up a working TypeScript development environment. It will pay dividends in the long run.</Callout>
 
-## Editor Support
+## Requirements
 
-Code editors also must follow the TypeScript version requirements. With VSCode, this can be changed with `TypeScript: Select TypeScript version..." from the command palette.
+- TypeScript `v5.0.4` or greater and viem `v1.16.0` or greater.
+- Contract ABIs must be asserted `as const` following [ABIType guidelines](https://abitype.dev/guide/getting-started#usage).
+- The `ponder-env.d.ts` file must be included in your project.
 
-## Utility Types
+## `ponder-env.d.ts`
+
+This "magical" file is what makes Ponder's zero-codegen type system possible. The file contains a module declaration for `"@/generated"{:ts}` that exports types derived from your project's config and schema types.
+
+Occasionally, Ponder's dev server may make changes to `ponder-env.d.ts` after upgrading to a new version of `@ponder/core`. When this happens, please commit the changes into version control.
+
+## VSCode
+
+By default, VSCode's TypeScript language features use an internal version of TypeScript. Sometimes, this version does not meet Ponder's requirement of `v5.0.4`.
+
+To change VSCode's TypeScript version, run `TypeScript: Select TypeScript version..."` from the command palette and select `Use Workspace Version` or [update VSCode's version](https://stackoverflow.com/questions/39668731/what-typescript-version-is-visual-studio-code-using-how-to-update-it).
+
+## Utility types
+
+The `"@/generated"{:ts}` module exports several utility types designed to make your life easier.
 
 ### `EventNames`
 
+A union of all event names that are available from the contracts defined in `ponder.config.ts`.
+
+```ts
+import { ponder, type EventNames } from "@/generated";
+
+function helper(eventName: EventNames) {
+  eventName;
+  // ^? "Weth:Deposit" | "Weth:Withdraw" | "Weth:Approval | "Weth:Transfer"
+}
+```
+
 ### `Event`
+
+A generic type that optionally accepts an event name and returns the `event` object type for that event.
+
+```ts
+import { ponder, type Event } from "@/generated";
+
+function helper(event: Event<"Weth:Deposit">) {
+  event;
+  // ^? { 
+  //      args: { dst: `0x${string}`; wad: bigint };
+  //      block: Block;
+  //      event: "Deposit";
+  //      transaction: Transaction;
+  //      log: Log;
+  //    }  
+}
+```
+
+If no event name is provided, `Event` is the union of all event types. This can be useful if all you need is the `block`, `transaction`, and `log` types which are the same for all events.
+
+```ts
+import { ponder, type Event } from "@/generated";
+
+function helper(event: Event) {
+  event;
+  // ^? { args: { dst: `0x${string}`; wad: bigint }; block: Block; event: "Deposit"; transaction: Transaction; log: Log; }
+  //    | { args: { src: `0x${string}`; wad: bigint }; block: Block; event: "Withdraw"; transaction: Transaction; log: Log; }
+  //    ...
+}
+```
 
 ### `Context`
 
+A generic type that optionally accepts an event name and returns the `context` object type.
+
+```ts
+import { ponder, type Context } from "@/generated";
+
+function helper(context: Context<"Weth:Deposit">) {
+  event;
+  // ^? { 
+  //      network: { name: "mainnet"; chainId: 1; };
+  //      client: ReadonlyClient;
+  //      db: { Account: DatabaseModel<{ id: `0x${string}`; balance: bigint; }> };
+  //      contracts: { weth9: { abi: ...; address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" } };
+  //    }  
+}
+```
+
+If no event name is provided, `Context` returns the union of all context types. This can be useful if all you need is the `db` or `contracts` types which are the same for all events.
+
 ### `IndexingFunctionArgs`
+
+A generic type that optionally accepts an event name and returns the indexing function argument type.
+
+```ts
+import { ponder, type IndexingFunctionArgs } from "@/generated";
+
+function helper(args: IndexingFunctionArgs<"Weth:Deposit">) {
+  args;
+  // ^? { 
+  //      event: { ... };
+  //      context: { ... };
+  //    }
+}
+```
+
+Like `Event` and `Context`, `IndexingFunctionArgs` returns the union of all indexing function argument types if no event name is provided.
