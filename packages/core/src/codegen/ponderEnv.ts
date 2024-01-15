@@ -1,7 +1,7 @@
 export const ponderEnv = `// This file enables type checking and editor autocomplete for this Ponder project.
 // After upgrading, you may find that changes have been made to this file.
 // If this happens, please commit the changes. Do not manually edit this file.
-// See https://ponder.sh/docs/typescript for more information.
+// See https://ponder.sh/docs/guides/typescript for more information.
 
 declare module "@/generated" {
   import type {
