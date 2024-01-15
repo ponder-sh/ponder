@@ -73,7 +73,8 @@ function createCheckpoint(index: number): Checkpoint {
 }
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -89,6 +90,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
   await service.reset({ schema, indexingFunctions });
 
@@ -120,7 +122,8 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 });
 
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -136,6 +139,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
   await service.reset({ schema, indexingFunctions });
 
@@ -172,7 +176,8 @@ test("processEvents() calls indexing functions with correct arguments", async (c
 });
 
 test("processEvents() model methods insert data into the indexing store", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -188,6 +193,7 @@ test("processEvents() model methods insert data into the indexing store", async 
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -205,7 +211,8 @@ test("processEvents() model methods insert data into the indexing store", async 
 });
 
 test("processEvents() updates event count metrics", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -221,6 +228,7 @@ test("processEvents() updates event count metrics", async (context) => {
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -263,7 +271,8 @@ test("processEvents() updates event count metrics", async (context) => {
 });
 
 test("processEvents() reads data from a contract", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -279,6 +288,7 @@ test("processEvents() reads data from a contract", async (context) => {
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
 
   await service.reset({
@@ -299,7 +309,8 @@ test("processEvents() reads data from a contract", async (context) => {
 });
 
 test("processEvents() recovers from errors while reading data from a contract", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -315,9 +326,10 @@ test("processEvents() recovers from errors while reading data from a contract", 
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
 
-  const spy = vi.spyOn(networks[0].requestQueue, "request");
+  const spy = vi.spyOn(requestQueues[0], "request");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   await service.reset({
@@ -338,7 +350,8 @@ test("processEvents() recovers from errors while reading data from a contract", 
 });
 
 test("processEvents() retries indexing functions", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -354,6 +367,7 @@ test("processEvents() retries indexing functions", async (context) => {
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -375,7 +389,8 @@ test("processEvents() retries indexing functions", async (context) => {
 });
 
 test("processEvents() handles errors", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -391,6 +406,7 @@ test("processEvents() handles errors", async (context) => {
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -412,7 +428,8 @@ test("processEvents() handles errors", async (context) => {
 });
 
 test("reset() reloads the indexing store", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -428,6 +445,7 @@ test("reset() reloads the indexing store", async (context) => {
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
   await service.reset({ schema, indexingFunctions });
 
@@ -451,7 +469,8 @@ test("reset() reloads the indexing store", async (context) => {
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -467,6 +486,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
   await service.reset({ schema, indexingFunctions });
 
@@ -490,7 +510,8 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 });
 
 test("handleReorg() reverts the indexing store", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -506,6 +527,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -527,7 +549,8 @@ test("handleReorg() reverts the indexing store", async (context) => {
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -543,6 +566,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -568,7 +592,8 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -584,6 +609,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
   await service.reset({ schema, indexingFunctions });
 
@@ -618,7 +644,8 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { common, syncStore, indexingStore, sources, networks } = context;
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -634,6 +661,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     syncGatewayService,
     sources,
     networks,
+    requestQueues,
   });
   await service.reset({ schema, indexingFunctions });
 

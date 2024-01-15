@@ -25,6 +25,7 @@ import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
 import type { GraphQLSchema } from "graphql";
+import { type RequestQueue, createRequestQueue } from "./utils/requestQueue.js";
 
 export type Common = {
   options: Options;
@@ -49,6 +50,7 @@ export class Ponder {
   syncStore: SyncStore = undefined!;
   syncServices: {
     network: Network;
+    requestQueue: RequestQueue;
     sources: Source[];
     historical: HistoricalSyncService;
     realtime: RealtimeSyncService;
@@ -284,19 +286,28 @@ export class Ponder {
       const sourcesForNetwork = this.sources.filter(
         (source) => source.networkName === network.name,
       );
+
+      const requestQueue = createRequestQueue({
+        network,
+        metrics: this.common.metrics,
+      });
+
       return {
         network,
+        requestQueue,
         sources: sourcesForNetwork,
         historical: new HistoricalSyncService({
           common: this.common,
           syncStore: this.syncStore,
           network,
+          requestQueue,
           sources: sourcesForNetwork,
         }),
         realtime: new RealtimeSyncService({
           common: this.common,
           syncStore: this.syncStore,
           network,
+          requestQueue,
           sources: sourcesForNetwork,
         }),
       };
@@ -315,7 +326,8 @@ export class Ponder {
       indexingStore: this.indexingStore,
       syncGatewayService: this.syncGatewayService,
       sources: this.sources,
-      networks: networksToSync,
+      networks: this.syncServices.map((s) => s.network),
+      requestQueues: this.syncServices.map((s) => s.requestQueue),
     });
 
     this.serverService = new ServerService({

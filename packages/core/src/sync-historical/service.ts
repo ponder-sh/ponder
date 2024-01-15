@@ -23,6 +23,7 @@ import {
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   type Address,
   BlockNotFoundError,
@@ -99,6 +100,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private common: Common;
   private syncStore: SyncStore;
   private network: Network;
+  private requestQueue: RequestQueue;
 
   /**
    * Service configuration. Will eventually be reloadable.
@@ -142,11 +144,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     common,
     syncStore,
     network,
+    requestQueue,
     sources = [],
   }: {
     common: Common;
     syncStore: SyncStore;
     network: Network;
+    requestQueue: RequestQueue;
     sources?: Source[];
   }) {
     super();
@@ -154,6 +158,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.common = common;
     this.syncStore = syncStore;
     this.network = network;
+    this.requestQueue = requestQueue;
     this.sources = sources;
 
     this.queue = this.buildQueue();
@@ -944,7 +949,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     toBlock: Hex;
   }): Promise<RpcLog[]> => {
     try {
-      return this.network.requestQueue.request({
+      return this.requestQueue.request({
         method: "eth_getLogs",
         params: [
           {
@@ -986,7 +991,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private _eth_getBlockByNumber = (params: {
     blockNumber: number;
   }): Promise<HistoricalBlock> =>
-    this.network.requestQueue
+    this.requestQueue
       .request({
         method: "eth_getBlockByNumber",
         params: [numberToHex(params.blockNumber), true],

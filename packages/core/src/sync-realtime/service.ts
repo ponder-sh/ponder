@@ -21,6 +21,7 @@ import { poll } from "@/utils/poll.js";
 import { type Queue, createQueue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
 
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { isMatchedLogInBloomFilter } from "./bloom.js";
 import { filterLogs } from "./filter.js";
 import {
@@ -43,6 +44,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private common: Common;
   private syncStore: SyncStore;
   private network: Network;
+  private requestQueue: RequestQueue;
   private sources: Source[];
 
   // Queue of unprocessed blocks.
@@ -58,11 +60,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     common,
     syncStore,
     network,
+    requestQueue,
     sources = [],
   }: {
     common: Common;
     syncStore: SyncStore;
     network: Network;
+    requestQueue: RequestQueue;
     sources?: Source[];
   }) {
     super();
@@ -70,6 +74,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.common = common;
     this.syncStore = syncStore;
     this.network = network;
+    this.requestQueue = requestQueue;
     this.sources = sources;
 
     this.queue = this.buildQueue();
@@ -85,7 +90,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     try {
       [latestBlock, rpcChainId] = await Promise.all([
         this.getLatestBlock(),
-        this.network.requestQueue
+        this.requestQueue
           .request({ method: "eth_chainId" })
           .then((c) => hexToNumber(c)),
       ]);
@@ -162,7 +167,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     // Fetch the block at the finalized block number.
-    const finalizedBlock = await this.network.requestQueue.request({
+    const finalizedBlock = await this.requestQueue.request({
       method: "eth_getBlockByNumber",
       params: [numberToHex(this.finalizedBlockNumber), false],
     });
@@ -211,7 +216,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   private getLatestBlock = async () => {
     // Fetch the latest block for the network.
-    const latestBlock_ = await this.network.requestQueue.request({
+    const latestBlock_ = await this.requestQueue.request({
       method: "eth_getBlockByNumber",
       params: ["latest", true],
     });
@@ -308,7 +313,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           matchedLogs = [];
         } else {
           // Block (maybe) contains logs matching the registered log filters.
-          logs = await this.network.requestQueue.request({
+          logs = await this.requestQueue.request({
             method: "eth_getLogs",
             params: [{ blockHash: newBlock.hash }],
           });
@@ -321,7 +326,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       } else {
         // The app has factory contracts.
         // Don't attempt to skip calling eth_getLogs, just call it every time.
-        logs = await this.network.requestQueue.request({
+        logs = await this.requestQueue.request({
           method: "eth_getLogs",
           params: [{ blockHash: newBlock.hash }],
         });
@@ -502,7 +507,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       const missingBlockRequests = missingBlockNumbers.map((number) => {
         return limit(async () => {
-          const block = await this.network.requestQueue.request({
+          const block = await this.requestQueue.request({
             method: "eth_getBlockByNumber",
             params: [numberToHex(number), true],
           });
@@ -602,7 +607,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       }
 
       // If the parent block is not present in our local chain, keep traversing up the canonical chain.
-      const parentBlock_ = await this.network.requestQueue.request({
+      const parentBlock_ = await this.requestQueue.request({
         method: "eth_getBlockByHash",
         params: [canonicalBlock.parentHash, true],
       });

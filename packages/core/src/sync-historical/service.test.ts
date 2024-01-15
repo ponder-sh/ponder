@@ -18,13 +18,14 @@ const getBlockNumbers = () =>
   }));
 
 test("start() with log filter inserts log filter interval records", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, networks, requestQueues, sources } = context;
 
   const blockNumbers = await getBlockNumbers();
   const service = new HistoricalSyncService({
     common,
     syncStore,
-    network: networks[0]!,
+    network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
   await service.setup(blockNumbers);
@@ -44,7 +45,7 @@ test("start() with log filter inserts log filter interval records", async (conte
 });
 
 test("start() with factory contract inserts log filter and factory log filter interval records", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, networks, requestQueues, sources } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -52,6 +53,7 @@ test("start() with factory contract inserts log filter and factory log filter in
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[1]],
   });
   await service.setup(blockNumbers);
@@ -82,7 +84,8 @@ test("start() with factory contract inserts log filter and factory log filter in
 });
 
 test("start() with factory contract inserts child contract addresses", async (context) => {
-  const { common, syncStore, networks, sources, factory } = context;
+  const { common, syncStore, networks, sources, requestQueues, factory } =
+    context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -90,6 +93,7 @@ test("start() with factory contract inserts child contract addresses", async (co
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[1]],
   });
   await service.setup(blockNumbers);
@@ -111,7 +115,7 @@ test("start() with factory contract inserts child contract addresses", async (co
 });
 
 test("setup() with log filter and factory contract updates block metrics", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, networks, requestQueues, sources } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -119,6 +123,7 @@ test("setup() with log filter and factory contract updates block metrics", async
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources,
   });
   await service.setup(blockNumbers);
@@ -150,7 +155,7 @@ test("setup() with log filter and factory contract updates block metrics", async
 });
 
 test("start() with log filter and factory contract updates completed blocks metrics", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, networks, requestQueues, sources } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -158,6 +163,7 @@ test("start() with log filter and factory contract updates completed blocks metr
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources,
   });
   await service.setup(blockNumbers);
@@ -180,7 +186,7 @@ test("start() with log filter and factory contract updates completed blocks metr
 });
 
 test("start() adds log filter events to sync store", async (context) => {
-  const { common, syncStore, sources, networks } = context;
+  const { common, syncStore, sources, networks, requestQueues } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -188,6 +194,7 @@ test("start() adds log filter events to sync store", async (context) => {
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
   await service.setup(blockNumbers);
@@ -219,7 +226,7 @@ test("start() adds log filter events to sync store", async (context) => {
 });
 
 test("start() adds log filter and factory contract events to sync store", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, networks, requestQueues, sources } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -227,6 +234,7 @@ test("start() adds log filter and factory contract events to sync store", async 
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources,
   });
   await service.setup(blockNumbers);
@@ -263,10 +271,9 @@ test("start() adds log filter and factory contract events to sync store", async 
 });
 
 test("start() retries unexpected error in log filter task", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, networks, requestQueues, sources } = context;
 
-  const network = networks[0];
-  const rpcRequestSpy = vi.spyOn(network.requestQueue, "request");
+  const rpcRequestSpy = vi.spyOn(requestQueues[0], "request");
 
   rpcRequestSpy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
@@ -275,7 +282,8 @@ test("start() retries unexpected error in log filter task", async (context) => {
   const service = new HistoricalSyncService({
     common,
     syncStore,
-    network: network,
+    network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
   await service.setup(blockNumbers);
@@ -296,7 +304,7 @@ test("start() retries unexpected error in log filter task", async (context) => {
 });
 
 test("start() retries unexpected error in block task", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, networks, requestQueues, sources } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -307,6 +315,7 @@ test("start() retries unexpected error in block task", async (context) => {
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
   await service.setup(blockNumbers);
@@ -327,12 +336,11 @@ test("start() retries unexpected error in block task", async (context) => {
 });
 
 test("start() handles Alchemy 'Log response size exceeded' error", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, networks, requestQueues, sources } = context;
 
   const blockNumbers = await getBlockNumbers();
 
-  const network = networks[0];
-  const rpcRequestSpy = vi.spyOn(network.requestQueue, "request");
+  const rpcRequestSpy = vi.spyOn(requestQueues[0], "request");
 
   rpcRequestSpy.mockRejectedValueOnce(
     new InvalidParamsRpcError(
@@ -346,7 +354,8 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   const service = new HistoricalSyncService({
     common,
     syncStore,
-    network,
+    network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
   await service.setup(blockNumbers);
@@ -366,12 +375,11 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
 });
 
 test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 10,000 blocks range' error", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, networks, requestQueues, sources } = context;
 
   const blockNumbers = await getBlockNumbers();
 
-  const network = networks[0];
-  const rpcRequestSpy = vi.spyOn(network.requestQueue, "request");
+  const rpcRequestSpy = vi.spyOn(requestQueues[0], "request");
 
   rpcRequestSpy.mockRejectedValueOnce(
     new HttpRequestError({
@@ -384,7 +392,8 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   const service = new HistoricalSyncService({
     common,
     syncStore,
-    network,
+    network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
   await service.setup(blockNumbers);
@@ -405,12 +414,13 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
 });
 
 test("start() emits sync completed event", async (context) => {
-  const { common, syncStore, sources, networks } = context;
+  const { common, syncStore, sources, networks, requestQueues } = context;
 
   const service = new HistoricalSyncService({
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -425,7 +435,7 @@ test("start() emits sync completed event", async (context) => {
 });
 
 test("start() emits checkpoint and sync completed event if 100% cached", async (context) => {
-  const { common, syncStore, sources, networks } = context;
+  const { common, syncStore, sources, networks, requestQueues } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -433,6 +443,7 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -445,6 +456,7 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -466,7 +478,7 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
 });
 
 test("start() emits historicalCheckpoint event", async (context) => {
-  const { common, syncStore, sources, networks } = context;
+  const { common, syncStore, sources, networks, requestQueues } = context;
 
   const blockNumbers = await getBlockNumbers();
   const finalizedBlock = await publicClient.getBlock({
@@ -477,6 +489,7 @@ test("start() emits historicalCheckpoint event", async (context) => {
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
   const emitSpy = vi.spyOn(service, "emit");

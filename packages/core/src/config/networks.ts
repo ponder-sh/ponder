@@ -1,12 +1,11 @@
 import { chains } from "@/utils/chains.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import type { Chain, Client, Transport } from "viem";
 
 export type Network = {
   name: string;
   chainId: number;
 
-  requestQueue: RequestQueue;
+  transport: Client["transport"];
 
   pollingInterval: number;
   defaultMaxBlockRange: number;

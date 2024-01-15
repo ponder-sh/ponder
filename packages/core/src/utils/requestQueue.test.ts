@@ -1,7 +1,7 @@
 import type { Common } from "@/Ponder.js";
 import { setupAnvil } from "@/_test/setup.js";
-import { anvil } from "@/_test/utils.js";
-import { http, RpcRequestError } from "viem";
+import type { Network } from "@/config/networks.js";
+import { RpcRequestError } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createRequestQueue } from "./requestQueue.js";
 import { wait } from "./wait.js";
@@ -9,19 +9,15 @@ import { wait } from "./wait.js";
 beforeEach((context) => setupAnvil(context));
 
 /** Creates a request queue with a `maxRequestsPerSecond` of 1. */
-const getQueue = (common: Common) => {
-  const _transport = http()({ chain: anvil });
-
+const getQueue = (network: Network, common: Common) => {
   return createRequestQueue({
-    maxRequestsPerSecond: 1,
+    network: { ...network, maxRequestsPerSecond: 1 },
     metrics: common.metrics,
-    transport: { ..._transport.config, ..._transport.value },
-    networkName: "anvil",
   });
 };
 
-test("pause + start", async ({ common }) => {
-  const queue = getQueue(common);
+test("pause + start", async ({ networks, common }) => {
+  const queue = getQueue(networks[0], common);
   queue.pause();
 
   const r = queue.request({ method: "eth_chainId" });
@@ -37,8 +33,8 @@ test("pause + start", async ({ common }) => {
   expect(await queue.pending()).toBe(0);
 });
 
-test("size and pending", async ({ common }) => {
-  const queue = getQueue(common);
+test("size and pending", async ({ networks, common }) => {
+  const queue = getQueue(networks[0], common);
   queue.pause();
 
   const r1 = queue.request({ method: "eth_chainId" });
@@ -52,8 +48,8 @@ test("size and pending", async ({ common }) => {
   expect(await queue.pending()).toBe(0);
 });
 
-test("request per second", async ({ common }) => {
-  const queue = getQueue(common);
+test("request per second", async ({ networks, common }) => {
+  const queue = getQueue(networks[0], common);
 
   const r1 = queue.request({ method: "eth_chainId" });
   const r2 = queue.request({ method: "eth_chainId" });
@@ -74,16 +70,16 @@ test("request per second", async ({ common }) => {
   expect(await queue.pending()).toBe(0);
 });
 
-test("request() returns promise", async ({ common }) => {
-  const queue = getQueue(common);
+test("request() returns promise", async ({ networks, common }) => {
+  const queue = getQueue(networks[0], common);
 
   const r1 = queue.request({ method: "eth_chainId" });
 
   expect(await r1).toBe("0x1");
 });
 
-test("request() error", async ({ common }) => {
-  const queue = getQueue(common);
+test("request() error", async ({ networks, common }) => {
+  const queue = getQueue(networks[0], common);
 
   let error: any;
 

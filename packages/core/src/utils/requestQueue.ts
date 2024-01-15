@@ -1,5 +1,6 @@
+import type { Network } from "@/config/networks.js";
 import type { MetricsService } from "@/metrics/service.js";
-import type { Client, EIP1193Parameters, PublicRpcSchema } from "viem";
+import type { EIP1193Parameters, PublicRpcSchema } from "viem";
 import { startClock } from "./timer.js";
 
 type RequestReturnType<
@@ -45,23 +46,18 @@ type Task = {
  * Creates a queue built to manage rpc requests.
  */
 export const createRequestQueue = ({
-  maxRequestsPerSecond,
   metrics,
-  transport,
-  networkName,
-}: {
-  maxRequestsPerSecond: number;
-  metrics: MetricsService;
-  networkName: string;
-  transport: Client["transport"];
-}): RequestQueue => {
+  network,
+}: { network: Network; metrics: MetricsService }): RequestQueue => {
   let queue: Task[] = new Array();
   const interval =
-    1000 / maxRequestsPerSecond > 50 ? 1000 / maxRequestsPerSecond : 50;
+    1000 / network.maxRequestsPerSecond > 50
+      ? 1000 / network.maxRequestsPerSecond
+      : 50;
   const requestBatchSize =
-    1000 / maxRequestsPerSecond > 50
+    1000 / network.maxRequestsPerSecond > 50
       ? 1
-      : Math.floor(maxRequestsPerSecond / 20);
+      : Math.floor(network.maxRequestsPerSecond / 20);
 
   let lastRequestTime = 0;
   let pending = 0;
@@ -84,13 +80,13 @@ export const createRequestQueue = ({
         pending += 1;
 
         metrics.ponder_rpc_request_lag.observe(
-          { method: params.method, network: networkName },
+          { method: params.method, network: network.name },
           stopClockLag(),
         );
 
         const stopClock = startClock();
 
-        transport
+        network.transport
           .request(params)
           .then((a) => {
             resolve(a);
@@ -100,7 +96,7 @@ export const createRequestQueue = ({
             pending -= 1;
 
             metrics.ponder_rpc_request_duration.observe(
-              { method: params.method, network: networkName },
+              { method: params.method, network: network.name },
               stopClock(),
             );
           });

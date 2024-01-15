@@ -29,6 +29,7 @@ import { type Source } from "@/config/sources.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 
 import { buildNetworksAndSources } from "@/build/config/config.js";
+import { createRequestQueue } from "@/utils/requestQueue.js";
 import { ALICE } from "./constants.js";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
 import type { deploy } from "./simulate.js";
@@ -112,10 +113,13 @@ export const getNetworkAndSources = async (
   const config = getConfig(addresses);
   const { networks, sources } = await buildNetworksAndSources({
     config,
-    common,
   });
   const mainnet = { ...networks[0], finalityBlockCount: 4 };
-  return { networks: [mainnet], sources };
+  const requestQueue = createRequestQueue({
+    network: networks[0],
+    metrics: common.metrics,
+  });
+  return { networks: [mainnet], sources, requestQueues: [requestQueue] };
 };
 
 /**

@@ -27,6 +27,7 @@ import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import { wait } from "@/utils/wait.js";
 
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { buildDatabaseModels } from "./model.js";
 import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
 import { addUserStackTrace } from "./trace.js";
@@ -102,6 +103,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingStore,
     syncGatewayService,
     networks,
+    requestQueues,
     sources,
   }: {
     common: Common;
@@ -109,6 +111,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingStore: IndexingStore;
     syncGatewayService: SyncGateway;
     networks: Network[];
+    requestQueues: RequestQueue[];
     sources: Source[];
   }) {
     super();
@@ -122,6 +125,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.contexts = buildContexts(
       sources,
       networks,
+      requestQueues,
       syncStore,
       ponderActions(() => BigInt(this.currentIndexingCheckpoint.blockNumber)),
     );
@@ -710,6 +714,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 const buildContexts = (
   sources: Source[],
   networks: Network[],
+  requestQueues: RequestQueue[],
   syncStore: SyncStore,
   actions: ReturnType<typeof ponderActions>,
 ) => {
@@ -731,14 +736,14 @@ const buildContexts = (
     }
   > = {};
 
-  networks.forEach((network) => {
+  networks.forEach((network, i) => {
     const defaultChain =
       Object.values(chains).find((c) => c.id === network.chainId) ??
       chains.mainnet;
 
     const client = createClient({
       transport: ponderTransport({
-        requestQueue: network.requestQueue,
+        requestQueue: requestQueues[i],
         syncStore,
       }),
       chain: { ...defaultChain, name: network.name, id: network.chainId },

@@ -32,6 +32,7 @@ bench(
       common: context.common,
       syncStore: context.syncStore,
       network: context.networks[0],
+      requestQueue: context.requestQueues[0],
       sources: [context.sources[0]],
     });
 

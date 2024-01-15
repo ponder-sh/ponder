@@ -1,4 +1,3 @@
-import type { Common } from "@/Ponder.js";
 import { buildAbiEvents, buildTopics } from "@/config/abi.js";
 import type { Config } from "@/config/config.js";
 import { buildFactoryCriteria } from "@/config/factories.js";
@@ -11,7 +10,6 @@ import {
 } from "@/config/networks.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import type {
   Factory,
   LogFilter,
@@ -19,10 +17,7 @@ import type {
   Topics,
 } from "../../config/sources.js";
 
-export async function buildNetworksAndSources({
-  config,
-  common,
-}: { config: Config; common: Common }) {
+export async function buildNetworksAndSources({ config }: { config: Config }) {
   const warnings: string[] = [];
 
   const networks: Network[] = await Promise.all(
@@ -57,12 +52,7 @@ export async function buildNetworksAndSources({
         name: networkName,
         chainId: chainId,
 
-        requestQueue: createRequestQueue({
-          metrics: common.metrics,
-          networkName,
-          maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
-          transport: { ..._transport.config, ..._transport.value },
-        }),
+        transport: { ..._transport.config, ..._transport.value },
 
         maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
         pollingInterval: network.pollingInterval ?? 1_000,
@@ -242,10 +232,9 @@ export async function buildNetworksAndSources({
 
 export async function safeBuildNetworksAndSources({
   config,
-  common,
-}: { config: Config; common: Common }) {
+}: { config: Config }) {
   try {
-    const result = await buildNetworksAndSources({ config, common });
+    const result = await buildNetworksAndSources({ config });
 
     return { success: true, data: result } as const;
   } catch (error_) {

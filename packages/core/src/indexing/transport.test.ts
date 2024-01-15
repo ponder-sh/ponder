@@ -10,9 +10,9 @@ import { ponderTransport } from "./transport.js";
 beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupSyncStore(context));
 
-test("default", ({ syncStore, networks }) => {
+test("default", ({ syncStore, requestQueues }) => {
   const transport = ponderTransport({
-    requestQueue: networks[0].requestQueue,
+    requestQueue: requestQueues[0],
     syncStore,
   });
 
@@ -35,11 +35,11 @@ test("default", ({ syncStore, networks }) => {
   `);
 });
 
-test("eth_call", async ({ syncStore, erc20, networks }) => {
+test("eth_call", async ({ syncStore, erc20, requestQueues }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    requestQueue: networks[0].requestQueue,
+    requestQueue: requestQueues[0],
     syncStore,
   })({
     chain: anvil,
@@ -93,11 +93,11 @@ test("eth_call", async ({ syncStore, erc20, networks }) => {
   expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
-test("eth_getBalance", async ({ syncStore, erc20, networks }) => {
+test("eth_getBalance", async ({ syncStore, erc20, requestQueues }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    requestQueue: networks[0].requestQueue,
+    requestQueue: requestQueues[0],
     syncStore,
   })({
     chain: anvil,
@@ -133,11 +133,11 @@ test("eth_getBalance", async ({ syncStore, erc20, networks }) => {
   expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
-test("eth_getStorageAt", async ({ syncStore, erc20, networks }) => {
+test("eth_getStorageAt", async ({ syncStore, erc20, requestQueues }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    requestQueue: networks[0].requestQueue,
+    requestQueue: requestQueues[0],
     syncStore,
   })({
     chain: anvil,
@@ -173,11 +173,11 @@ test("eth_getStorageAt", async ({ syncStore, erc20, networks }) => {
   expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
-test("eth_getCode", async ({ syncStore, erc20, networks }) => {
+test("eth_getCode", async ({ syncStore, erc20, requestQueues }) => {
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
-    requestQueue: networks[0].requestQueue,
+    requestQueue: requestQueues[0],
     syncStore,
   })({
     chain: anvil,
@@ -213,9 +213,9 @@ test("eth_getCode", async ({ syncStore, erc20, networks }) => {
   expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
-test("fallback method", async ({ syncStore, networks }) => {
+test("fallback method", async ({ syncStore, requestQueues }) => {
   const transport = ponderTransport({
-    requestQueue: networks[0].requestQueue,
+    requestQueue: requestQueues[0],
     syncStore,
   })({
     chain: anvil,
