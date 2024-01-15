@@ -207,29 +207,39 @@ export async function run({
 
   const targetPath = path.join(process.cwd(), projectPath);
 
+  let link: string | undefined = undefined;
   if (templateMeta.id === "etherscan") {
-    let link = options.etherscanContractLink;
+    link = options.etherscanContractLink;
     if (!link) {
       const result = await prompts({
         type: "text",
         name: "link",
-        message: "Enter an Etherscan contract link",
+        message: "Enter a block explorer contract link",
         initial: "https://etherscan.io/address/0x97...",
       });
       link = result.link;
     }
-
-    config = await fromEtherscan({
-      rootDir: targetPath,
-      etherscanLink: link,
-      etherscanApiKey: options.etherscanApiKey,
-    });
   }
 
-  log(`Creating a repo at: ${pico.green(targetPath)}`);
   log();
-  log(`Using template: ${pico.bold(templateMeta.title)}`);
-  log();
+
+  if (templateMeta.id === "etherscan") {
+    const host = new URL(link!).host;
+    config = await oraPromise(
+      fromEtherscan({
+        rootDir: targetPath,
+        etherscanLink: link!,
+        etherscanApiKey: options.etherscanApiKey,
+      }),
+      {
+        text: `Fetching contract metadata from ${pico.bold(
+          host,
+        )}. This may take a few seconds.`,
+        failText: "Failed to fetch contract metadata.",
+        successText: `Fetched contract metadata from ${pico.bold(host)}.`,
+      },
+    );
+  }
 
   // Copy template contents into the target path
   const templatePath = path.join(templatesPath, templateMeta.id);
@@ -339,8 +349,6 @@ export async function run({
   const packageManager = getPackageManager({ options });
 
   // Install in background to not clutter screen
-  log(`Installing with: ${pico.bold(packageManager)}`);
-  log();
   const installArgs = [
     "install",
     packageManager === "npm" ? "--quiet" : "--silent",
@@ -358,31 +366,40 @@ export async function run({
       },
     }),
     {
-      text: "Installing packages. This may take a few seconds.",
+      text: `Installing packages with ${pico.bold(
+        packageManager,
+      )}. This may take a few seconds.`,
       failText: "Failed to install packages.",
-      successText: "Installed packages.",
+      successText: `Installed packages with ${pico.bold(packageManager)}.`,
     },
   );
-  log();
 
   // Create git repository
   if (!options.skipGit) {
-    await execa("git", ["init"], { cwd: targetPath });
-    await execa("git", ["add", "."], { cwd: targetPath });
-    await execa(
-      "git",
-      [
-        "commit",
-        "--no-verify",
-        "--message",
-        "chore: initial commit from create-ponder",
-      ],
-      { cwd: targetPath },
+    await oraPromise(
+      async () => {
+        await execa("git", ["init"], { cwd: targetPath });
+        await execa("git", ["add", "."], { cwd: targetPath });
+        await execa(
+          "git",
+          [
+            "commit",
+            "--no-verify",
+            "--message",
+            "chore: initial commit from create-ponder",
+          ],
+          { cwd: targetPath },
+        );
+      },
+      {
+        text: "Initializing git repository.",
+        failText: "Failed to initialize git repository.",
+        successText: "Initialized git repository.",
+      },
     );
-    log(pico.green("✔"), "Initialized git repository.");
-    log();
   }
 
+  log();
   log("―――――――――――――――――――――");
   log();
   log(
@@ -392,15 +409,15 @@ export async function run({
   );
   log();
   log(
-    `To start your app, run \`${pico.bold(
+    `To start your app, run ${pico.bold(
       pico.cyan(`cd ${projectPath}`),
-    )}\` and then \`${pico.bold(
+    )} and then ${pico.bold(
       pico.cyan(
         `${packageManager}${
           packageManager === "npm" || packageManager === "bun" ? " run" : ""
         } dev`,
       ),
-    )}\``,
+    )}`,
   );
   log();
   log("―――――――――――――――――――――");
