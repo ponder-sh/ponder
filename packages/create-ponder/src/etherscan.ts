@@ -8,16 +8,24 @@ import prettier from "prettier";
 import type { Chain } from "viem";
 import * as chains from "viem/chains";
 
-const chainsByExplorerHostname = Object.entries(chains).reduce(
-  (acc, [chainKey, chain]) => {
-    const url = (chain as Chain).blockExplorers?.default?.url;
-    if (!url) return acc;
-    const hostname = new URL(url).hostname;
-    acc[hostname] = { ...chain, key: chainKey } as Chain & { key: string };
-    return acc;
-  },
-  {} as Record<string, (Chain & { key: string }) | undefined>,
-);
+type ChainExplorer = {
+  name: string;
+  id: number;
+  explorer: NonNullable<Chain["blockExplorers"]>[string];
+};
+
+const chainExplorerByHostname: Record<string, ChainExplorer> = {};
+
+for (const [name, chain] of Object.entries(chains)) {
+  for (const explorer of Object.values((chain as Chain).blockExplorers ?? {})) {
+    const hostname = new URL(explorer.url).hostname;
+    chainExplorerByHostname[hostname] = {
+      name,
+      id: (chain as Chain).id,
+      explorer,
+    };
+  }
+}
 
 export const fromEtherscan = async ({
   rootDir,
@@ -32,15 +40,15 @@ export const fromEtherscan = async ({
 
   const explorerUrl = new URL(etherscanLink);
 
-  const chain = chainsByExplorerHostname[explorerUrl.hostname];
-  if (!chain)
+  const chainExplorer = chainExplorerByHostname[explorerUrl.hostname];
+  if (!chainExplorer)
     throw new Error(
       `Block explorer (${explorerUrl.hostname}) is not present in viem/chains.`,
     );
 
-  const name = chain.key;
-  const chainId = chain.id;
-  const apiUrl = chain.blockExplorers?.default?.apiUrl;
+  const name = chainExplorer.name;
+  const chainId = chainExplorer.id;
+  const apiUrl = chainExplorer.explorer.apiUrl;
   if (!apiUrl)
     throw new Error(
       `${pico.red("✗")} Block explorer (${
