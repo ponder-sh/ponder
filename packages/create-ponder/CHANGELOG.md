@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.1.7
+
+### Patch Changes
+
+- [#579](https://github.com/ponder-sh/ponder/pull/579) [`a0e4b154f4bab629d60880477dc6aa6ab64f95b0`](https://github.com/ponder-sh/ponder/commit/a0e4b154f4bab629d60880477dc6aa6ab64f95b0) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated block explorer template to use `viem/chains` explorer API URLs. Updated CLI styles.
+
 ## 0.1.6
 
 ## 0.1.5
