@@ -203,6 +203,7 @@ export class MetricsService {
 
   registerDatabaseMetrics(database: DatabaseConfig) {
     if (database.sync.kind === "postgres") {
+      this.registry.removeSingleMetric("ponder_postgres_query_count");
       this.ponder_postgres_query_count = new prometheus.Counter({
         name: "ponder_postgres_query_count",
         help: "Number of queries executed by Postgres",
@@ -211,6 +212,7 @@ export class MetricsService {
       });
 
       const pool = database.sync.pool as unknown as Pool;
+      this.registry.removeSingleMetric("ponder_postgres_idle_connection_count");
       this.ponder_postgres_idle_connection_count = new prometheus.Gauge({
         name: "ponder_postgres_idle_connection_count",
         help: "Number of idle connections in the pool",
@@ -219,6 +221,9 @@ export class MetricsService {
           this.set(pool.idleCount);
         },
       });
+      this.registry.removeSingleMetric(
+        "ponder_postgres_total_connection_count",
+      );
       this.ponder_postgres_total_connection_count = new prometheus.Gauge({
         name: "ponder_postgres_total_connection_count",
         help: "Total number of connections in the pool",
@@ -227,6 +232,7 @@ export class MetricsService {
           this.set(pool.totalCount);
         },
       });
+      this.registry.removeSingleMetric("ponder_postgres_request_queue_count");
       this.ponder_postgres_request_queue_count = new prometheus.Gauge({
         name: "ponder_postgres_request_queue_count",
         help: "Number of transaction or query requests waiting for an available connection",
@@ -236,6 +242,7 @@ export class MetricsService {
         },
       });
     } else {
+      this.registry.removeSingleMetric("ponder_sqlite_query_count");
       this.ponder_sqlite_query_count = new prometheus.Counter({
         name: "ponder_sqlite_query_count",
         help: "Number of queries executed by SQLite",

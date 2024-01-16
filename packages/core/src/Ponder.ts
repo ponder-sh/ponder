@@ -38,7 +38,7 @@ export class Ponder {
   common: Common;
   buildService: BuildService;
 
-  // Derived config
+  // User config and build artifacts
   config: Config = undefined!;
   sources: Source[] = undefined!;
   networks: Network[] = undefined!;
@@ -100,6 +100,7 @@ export class Ponder {
     });
 
     await this.setupCoreServices({ isDev: true, syncStore, indexingStore });
+    this.registerCoreServiceEventListeners();
 
     // If running `ponder dev`, register build service listeners to handle hot reloads.
     this.registerBuildServiceEventListeners();
@@ -128,6 +129,8 @@ export class Ponder {
     });
 
     await this.setupCoreServices({ isDev: false, syncStore, indexingStore });
+    this.registerCoreServiceEventListeners();
+
     await this.startSyncServices();
   }
 
@@ -360,8 +363,6 @@ export class Ponder {
     this.codegenService.generateGraphqlSchemaFile({
       graphqlSchema: this.graphqlSchema,
     });
-
-    this.registerCoreServiceEventListeners();
   }
 
   private async startSyncServices() {
@@ -387,7 +388,6 @@ export class Ponder {
    * Shutdown sequence.
    */
   async kill() {
-    // 0) Observability.
     this.common.logger.info({
       service: "app",
       msg: "Shutting down...",
@@ -397,21 +397,36 @@ export class Ponder {
       properties: { processDuration: process.uptime() },
     });
 
-    // 1) Remove listeners.
-    this.buildService.clearListeners();
+    this.clearBuildServiceEventListeners();
     this.clearCoreServiceEventListeners();
 
-    // 2) Kick off indexing store teardown. This is the longest-running operation
-    // in the shutdown sequence and we really want to make sure it completes.
-    const indexingStoreTeardownPromise = this.indexingStore.teardown();
-
-    // 2) Kill all common services.
-    this.uiService.kill();
     await Promise.all([
       this.buildService.kill(),
       this.serverService.kill(),
       this.common.telemetry.kill(),
     ]);
+    this.uiService.kill();
+
+    await this.killCoreServices();
+
+    // 7) Now all resources should be cleaned up. The process should exit gracefully.
+    this.common.logger.debug({
+      service: "app",
+      msg: "Finished shutdown sequence",
+    });
+  }
+
+  /**
+   * Kill sync and indexing services and stores.
+   */
+  private async killCoreServices() {
+    // 1) Kick off indexing store teardown. This is the longest-running operation
+    // in the shutdown sequence and we really want to make sure it completes.
+    const indexingStoreTeardownPromise = this.indexingStore.teardown();
+
+    // 2) Kill misc services.
+    await this.serverService.kill();
+    this.uiService.kill();
 
     // 3) Kill core services. Note that these methods pause and clear the queues
     // and set a boolean flag that allows tasks to fail silently with no retries.
@@ -433,33 +448,6 @@ export class Ponder {
     });
     await this.indexingStore.kill();
     await this.syncStore.kill();
-
-    // 6) Now all resources should be cleaned up. The process should exit gracefully.
-    this.common.logger.debug({
-      service: "app",
-      msg: "Finished shutdown sequence",
-    });
-  }
-
-  /**
-   * Kill all services other than the build, UI, and common services.
-   */
-  private async killCoreServices() {
-    this.clearCoreServiceEventListeners();
-
-    await Promise.all([
-      ...this.syncServices.map(async ({ realtime, historical }) => {
-        await realtime.kill();
-        await historical.kill();
-      }),
-      this.indexingService.kill(),
-      this.serverService.kill(),
-    ]);
-
-    await this.indexingStore.kill();
-    await this.syncStore.kill();
-
-    await this.common.metrics.resetMetrics();
   }
 
   private registerBuildServiceEventListeners() {
@@ -468,13 +456,17 @@ export class Ponder {
       async ({ config, sources, networks }) => {
         this.uiService.ui.indexingError = false;
 
+        this.clearCoreServiceEventListeners();
         await this.killCoreServices();
+
+        await this.common.metrics.resetMetrics();
 
         this.config = config;
         this.sources = sources;
         this.networks = networks;
 
         await this.setupCoreServices({ isDev: true });
+        this.registerCoreServiceEventListeners();
 
         await this.startSyncServices();
       },
@@ -520,6 +512,10 @@ export class Ponder {
         }),
       );
     });
+  }
+
+  private clearBuildServiceEventListeners() {
+    this.buildService.clearListeners();
   }
 
   private registerCoreServiceEventListeners() {
