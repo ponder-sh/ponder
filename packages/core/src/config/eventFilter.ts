@@ -24,9 +24,7 @@ export type GetEventFilter<
       ? // 1.b.i Filter event is a valid string
         {
           filter?: {
-            event:
-              | safeEventNames
-              | (event extends safeEventNames ? event : never);
+            event: safeEventNames | event;
             args?: GetEventArgs<
               abi,
               string,

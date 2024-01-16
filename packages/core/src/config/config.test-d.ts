@@ -1,5 +1,5 @@
-import { http, type Abi, parseAbiItem } from "viem";
-import { test } from "vitest";
+import { http, type Abi, type HttpTransport, parseAbiItem } from "viem";
+import { assertType, test } from "vitest";
 import { createConfig } from "./config.js";
 
 const event0 = parseAbiItem(
@@ -264,4 +264,40 @@ test("createConfig weak Abi", () => {
   });
 });
 
-test("createConfig event overloading");
+test("createConfig strict return type", () => {
+  const config = createConfig({
+    //  ^?
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(),
+      },
+      optimism: {
+        chainId: 10,
+        transport: http(),
+      },
+    },
+    contracts: {
+      c2: {
+        abi: [event0, event1],
+        network: "mainnet",
+        filter: {
+          event: "Event1",
+        },
+      },
+    },
+  });
+
+  assertType<{ mainnet: { chainId: 1; transport: HttpTransport } }>(
+    config.networks,
+  );
+  assertType<{
+    c2: {
+      abi: readonly [typeof event0, typeof event1];
+      network: "mainnet";
+      filter: {
+        event: "Event1";
+      };
+    };
+  }>(config.contracts);
+});

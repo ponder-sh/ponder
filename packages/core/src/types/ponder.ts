@@ -11,123 +11,150 @@ import type { Prettify } from "./utils.js";
 
 type Setup = "setup";
 
+type _FormatEventNames<
+  contract extends Config["contracts"][string],
+  ///
+  safeEventNames = SafeEventNames<contract["abi"]>,
+> = string extends safeEventNames
+  ? never
+  : contract extends {
+        filter: { event: infer event extends string | readonly string[] };
+      }
+    ? event extends safeEventNames
+      ? event
+      : event[number] extends safeEventNames
+        ? event[number]
+        : safeEventNames
+    : safeEventNames;
+
 /** "{ContractName}:{EventName}". */
-export type Names<contracts extends Config["contracts"]> = {
+export type FormatEventNames<contracts extends Config["contracts"]> = {
   [name in keyof contracts]: `${name & string}:${
-    | (SafeEventNames<contracts[name]["abi"]> extends infer events extends
-        string
-        ? contracts[name]["filter"] extends {
-            event: infer filterEvents extends string | readonly string[];
-          }
-          ? Extract<
-              events,
-              filterEvents extends readonly string[]
-                ? filterEvents[number]
-                : filterEvents
-            >
-          : events
-        : never)
+    | _FormatEventNames<contracts[name]>
     | Setup}`;
 }[keyof contracts];
 
-type ExtractEventName<name extends string> =
+export type ExtractEventName<name extends string> =
   name extends `${string}:${infer EventName extends string}`
     ? EventName
     : never;
 
-type ExtractContractName<name extends string> =
+export type ExtractContractName<name extends string> =
   name extends `${infer ContractName extends string}:${string}`
     ? ContractName
     : never;
 
-export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
-  on: <
-    name extends Names<TConfig["contracts"]>,
-    ///
-    contractName extends ExtractContractName<name> = ExtractContractName<name>,
-    eventName extends ExtractEventName<name> = ExtractEventName<name>,
-  >(
+export type PonderEventNames<config extends Config> = FormatEventNames<
+  config["contracts"]
+>;
+
+export type PonderEvent<
+  config extends Config,
+  name extends PonderEventNames<config>,
+  ///
+  contractName extends ExtractContractName<name> = ExtractContractName<name>,
+  eventName extends ExtractEventName<name> = ExtractEventName<name>,
+> = eventName extends Setup
+  ? never
+  : {
+      name: eventName;
+      args: GetEventArgs<
+        Abi,
+        string,
+        {
+          EnableUnion: false;
+          IndexedOnly: false;
+          Required: true;
+        },
+        ParseAbiEvent<config["contracts"][contractName]["abi"], eventName>
+      >;
+      log: Log;
+      block: Block;
+      transaction: Transaction;
+    };
+
+type ContextContractProperty = Exclude<
+  keyof Config["contracts"][string],
+  "abi" | "network" | "filter" | "factory"
+>;
+
+type ExtractOverridenProperty<
+  contract extends Config["contracts"][string],
+  property extends ContextContractProperty,
+  ///
+  base = Extract<contract, { [p in property]: unknown }>[property],
+  override = Extract<
+    contract["network"][keyof contract["network"]],
+    { [p in property]: unknown }
+  >[property],
+> = ([base] extends [never] ? undefined : base) | override;
+
+export type PonderContext<
+  config extends Config,
+  schema extends Schema,
+  name extends PonderEventNames<config>,
+  ///
+  contractName extends ExtractContractName<name> = ExtractContractName<name>,
+> = {
+  contracts: {
+    [_contractName in keyof config["contracts"]]: {
+      abi: config["contracts"][_contractName]["abi"];
+      address: ExtractOverridenProperty<
+        config["contracts"][_contractName],
+        "address"
+      >;
+      startBlock: ExtractOverridenProperty<
+        config["contracts"][_contractName],
+        "startBlock"
+      >;
+      endBlock: ExtractOverridenProperty<
+        config["contracts"][_contractName],
+        "endBlock"
+      >;
+    };
+  };
+  network: config["contracts"][contractName]["network"] extends string
+    ? // 1. No network overriding
+      {
+        name: config["contracts"][contractName]["network"];
+        chainId: config["networks"][config["contracts"][contractName]["network"]]["chainId"];
+      }
+    : // 2. Network overrides
+      {
+        [key in keyof config["contracts"][contractName]["network"]]: {
+          name: key;
+          chainId: config["networks"][key &
+            keyof config["networks"]]["chainId"];
+        };
+      }[keyof config["contracts"][contractName]["network"]];
+  client: Prettify<
+    Omit<
+      ReadOnlyClient,
+      | "extend"
+      | "key"
+      | "batch"
+      | "cacheTime"
+      | "account"
+      | "type"
+      | "uid"
+      | "chain"
+      | "name"
+      | "pollingInterval"
+      | "transport"
+    >
+  >;
+  db: {
+    [key in keyof Infer<schema>]: DatabaseModel<Infer<schema>[key]>;
+  };
+};
+
+export type PonderApp<config extends Config, schema extends Schema> = {
+  on: <name extends PonderEventNames<config>>(
     _name: name,
     indexingFunction: (
-      args: (eventName extends Setup
-        ? {}
-        : {
-            event: {
-              name: eventName;
-              args: GetEventArgs<
-                Abi,
-                string,
-                {
-                  EnableUnion: false;
-                  IndexedOnly: false;
-                  Required: true;
-                },
-                ParseAbiEvent<
-                  TConfig["contracts"][contractName]["abi"],
-                  eventName
-                >
-              >;
-              log: Log;
-              block: Block;
-              transaction: Transaction;
-            };
-          }) & {
-        context: {
-          contracts: {
-            [ContractName in keyof TConfig["contracts"]]: {
-              abi: TConfig["contracts"][ContractName]["abi"];
-              address:
-                | Extract<
-                    TConfig["contracts"][ContractName],
-                    { address: unknown }
-                  >["address"]
-                | Extract<
-                    TConfig["contracts"][ContractName]["network"][keyof TConfig["contracts"][ContractName]["network"]],
-                    { address: unknown }
-                  >["address"];
-              startBlock:
-                | Extract<
-                    TConfig["contracts"][ContractName],
-                    { startBlock: unknown }
-                  >["startBlock"]
-                | Extract<
-                    TConfig["contracts"][ContractName]["network"][keyof TConfig["contracts"][ContractName]["network"]],
-                    { startBlock: unknown }
-                  >["startBlock"];
-              endBlock:
-                | Extract<
-                    TConfig["contracts"][ContractName],
-                    { endBlock: unknown }
-                  >["endBlock"]
-                | Extract<
-                    TConfig["contracts"][ContractName]["network"][keyof TConfig["contracts"][ContractName]["network"]],
-                    { endBlock: unknown }
-                  >["endBlock"];
-            };
-          };
-          network: TConfig["contracts"][contractName]["network"] extends string
-            ? {
-                name: TConfig["contracts"][contractName]["network"];
-                chainId: TConfig["networks"][TConfig["contracts"][contractName]["network"]]["chainId"];
-              }
-            : {
-                [key in keyof TConfig["contracts"][contractName]["network"]]: {
-                  name: key;
-                  chainId: TConfig["networks"][key &
-                    keyof TConfig["networks"]]["chainId"];
-                };
-              }[keyof TConfig["contracts"][contractName]["network"]];
-          client: Prettify<Omit<ReadOnlyClient, "extend">>;
-          db: {
-            [key in keyof Infer<TSchema>]: DatabaseModel<Infer<TSchema>[key]>;
-          };
-        };
+      args: { event: PonderEvent<config, name> } & {
+        context: PonderContext<config, schema, name>;
       },
     ) => Promise<void> | void,
   ) => void;
 };
-
-export type ExtractContext<
-  TConfig extends Config,
-  TSchema extends Schema,
-> = Parameters<Parameters<PonderApp<TConfig, TSchema>["on"]>[1]>[0]["context"];

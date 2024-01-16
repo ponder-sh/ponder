@@ -183,6 +183,7 @@ export class Ponder {
     this.codegenService.generateGraphqlSchemaFile({
       graphqlSchema: this.graphqlSchema,
     });
+    this.codegenService.generatePonderEnv();
 
     this.buildService.clearListeners();
     await this.buildService.kill();
@@ -348,6 +349,7 @@ export class Ponder {
     this.codegenService.generateGraphqlSchemaFile({
       graphqlSchema: this.graphqlSchema,
     });
+    this.codegenService.generatePonderEnv();
 
     this.registerCoreServiceEventListeners();
   }
