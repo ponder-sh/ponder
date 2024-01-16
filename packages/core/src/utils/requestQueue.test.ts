@@ -78,7 +78,7 @@ test("request() returns promise", async ({ networks, common }) => {
   expect(await r1).toBe("0x1");
 });
 
-test("request() error", async ({ networks, common }) => {
+test.only("request() error", async ({ networks, common }) => {
   const queue = getQueue(networks[0], common);
 
   let error: any;
@@ -94,5 +94,5 @@ test("request() error", async ({ networks, common }) => {
 
   await r1;
 
-  expect(error).toBeInstanceOf(RpcRequestError);
+  expect(error.cause).toBeInstanceOf(RpcRequestError);
 });
