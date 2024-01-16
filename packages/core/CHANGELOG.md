@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.1.7
+
+### Patch Changes
+
+- [#576](https://github.com/ponder-sh/ponder/pull/576) [`fe200fc942bf3a7b163d25f4ef0f2ce81cf4e921`](https://github.com/ponder-sh/ponder/commit/fe200fc942bf3a7b163d25f4ef0f2ce81cf4e921) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `EventNames`, `Event`, `Context`, and `IndexingFunctionArgs` utility types to `ponder-env.d.ts`. NOTE: After upgrading, Ponder will make a change to your project's `ponder-env.d.ts` file. Please commit this change to version control without editing the file manually.
+
+- [#568](https://github.com/ponder-sh/ponder/pull/568) [`0c5d12a822086d8cbdbc2b0cff520676c0431997`](https://github.com/ponder-sh/ponder/commit/0c5d12a822086d8cbdbc2b0cff520676c0431997) Thanks [@grayleonard](https://github.com/grayleonard)! - Improve telemetry flush handling; Add heartbeat to telemetry service
+
 ## 0.1.6
 
 ### Patch Changes
