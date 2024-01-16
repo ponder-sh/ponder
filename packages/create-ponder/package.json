@@ -31,7 +31,8 @@
     "prettier": "^3.1.0",
     "prompts": "^2.4.2",
     "update-check": "^1.5.4",
-    "validate-npm-package-name": "^5.0.0"
+    "validate-npm-package-name": "^5.0.0",
+    "viem": "^2.0.10"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
