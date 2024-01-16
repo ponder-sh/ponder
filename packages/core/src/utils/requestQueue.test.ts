@@ -78,7 +78,7 @@ test("request() returns promise", async ({ networks, common }) => {
   expect(await r1).toBe("0x1");
 });
 
-test.only("request() error", async ({ networks, common }) => {
+test("request() error", async ({ networks, common }) => {
   const queue = getQueue(networks[0], common);
 
   let error: any;
