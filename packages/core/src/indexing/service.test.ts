@@ -118,7 +118,8 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     }),
   );
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
@@ -172,7 +173,8 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     }),
   );
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("processEvents() model methods insert data into the indexing store", async (context) => {
@@ -207,7 +209,8 @@ test("processEvents() model methods insert data into the indexing store", async 
   });
   expect(transferEvents.length).toBe(2);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("processEvents() updates event count metrics", async (context) => {
@@ -267,7 +270,8 @@ test("processEvents() updates event count metrics", async (context) => {
     },
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("processEvents() reads data from a contract", async (context) => {
@@ -305,7 +309,8 @@ test("processEvents() reads data from a contract", async (context) => {
   });
   expect(supplyEvents.length).toBe(2);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("processEvents() recovers from errors while reading data from a contract", async (context) => {
@@ -346,7 +351,8 @@ test("processEvents() recovers from errors while reading data from a contract", 
   });
   expect(supplyEvents.length).toBe(2);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("processEvents() retries indexing functions", async (context) => {
@@ -385,7 +391,8 @@ test("processEvents() retries indexing functions", async (context) => {
   expect(transferIndexingFunction).toHaveBeenCalledTimes(3);
   expect(indexingStoreRevertSpy).toHaveBeenCalledOnce();
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("processEvents() handles errors", async (context) => {
@@ -424,7 +431,8 @@ test("processEvents() handles errors", async (context) => {
   expect(transferIndexingFunction).toHaveBeenCalledTimes(4);
   expect(indexingStoreRevertSpy).toHaveBeenCalledTimes(3);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("reset() reloads the indexing store", async (context) => {
@@ -465,7 +473,8 @@ test("reset() reloads the indexing store", async (context) => {
   });
   expect(transferEventsAfterReset.length).toBe(0);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
@@ -506,7 +515,8 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReset).toBe(0);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("handleReorg() reverts the indexing store", async (context) => {
@@ -545,7 +555,8 @@ test("handleReorg() reverts the indexing store", async (context) => {
     checkpoint: checkpoint6,
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
@@ -588,7 +599,8 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
     checkpoint: checkpoint6,
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
@@ -640,7 +652,8 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     }),
   );
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
@@ -687,5 +700,6 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReorg).toBe(6);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });

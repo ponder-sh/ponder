@@ -57,6 +57,16 @@ export class PostgresIndexingStore implements IndexingStore {
     }).withPlugin(new WithSchemaPlugin(this.databaseSchemaName));
   }
 
+  async teardown() {
+    return this.wrap({ method: "teardown" }, async () => {
+      await this.db.schema
+        .dropSchema(this.databaseSchemaName)
+        .ifExists()
+        .cascade()
+        .execute();
+    });
+  }
+
   kill = async () => {
     return this.wrap({ method: "kill" }, async () => {
       try {

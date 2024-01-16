@@ -137,7 +137,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private blockTasksEnqueuedCheckpoint = 0;
 
   private queue: Queue<HistoricalSyncTask>;
-  private isKilling = false;
+
+  /** If true, failed tasks should not log errors or be retried. */
+  private isShuttingDown = false;
   private progressLogInterval?: NodeJS.Timeout;
 
   constructor({
@@ -172,7 +174,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     finalizedBlockNumber: number;
   }) {
     // Initialize state variables. Required when restarting the service.
-    this.isKilling = false;
+    this.isShuttingDown = false;
     this.blockTasksEnqueuedCheckpoint = 0;
 
     this.finalizedBlockNumber = finalizedBlockNumber;
@@ -484,14 +486,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.queue.start();
   }
 
-  kill = async () => {
-    this.isKilling = true;
+  kill = () => {
+    this.isShuttingDown = true;
     clearInterval(this.progressLogInterval);
-
     this.queue.pause();
     this.queue.clear();
-    await this.onIdle();
-
     this.common.logger.debug({
       service: "historical",
       msg: `Killed historical sync service (network=${this.network.name})`,
@@ -527,7 +526,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       // If this is not the final task, return.
       if (queue.size > 0 || queue.pending > 1) return;
       // If this is the final task but the kill() method has been called, do nothing.
-      if (this.isKilling) return;
+      if (this.isShuttingDown) return;
 
       // If this is the final task, run the cleanup/completion logic.
       clearInterval(this.progressLogInterval);
@@ -551,6 +550,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         autoStart: false,
       },
       onError: ({ error, task, queue }) => {
+        if (this.isShuttingDown) return;
+
         switch (task.kind) {
           case "LOG_FILTER": {
             this.common.logger.warn({

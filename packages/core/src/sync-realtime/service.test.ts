@@ -39,7 +39,8 @@ test("setup() returns block numbers", async (context) => {
   expect(latestBlockNumber).toBe(blockNumbers.latestBlockNumber);
   expect(finalizedBlockNumber).toBe(blockNumbers.finalizedBlockNumber);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() adds blocks to the store from finalized to latest", async (context) => {
@@ -66,7 +67,8 @@ test("start() adds blocks to the store from finalized to latest", async (context
     BigInt(blockNumbers.latestBlockNumber - 2),
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() adds all required transactions to the store", async (context) => {
@@ -97,7 +99,8 @@ test("start() adds all required transactions to the store", async (context) => {
     expect(requiredTransactionHashes.has(transaction.hash)).toEqual(true);
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() adds all matched logs to the store", async (context) => {
@@ -122,7 +125,8 @@ test("start() adds all matched logs to the store", async (context) => {
     expect(log.address).toEqual(erc20.address);
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() handles new blocks", async (context) => {
@@ -167,7 +171,8 @@ test("start() handles new blocks", async (context) => {
     BigInt(blockNumbers.latestBlockNumber + 1),
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() handles error while fetching new latest block gracefully", async (context) => {
@@ -219,7 +224,8 @@ test("start() handles error while fetching new latest block gracefully", async (
     BigInt(blockNumbers.latestBlockNumber + 1),
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() emits realtimeCheckpoint events", async (context) => {
@@ -268,7 +274,8 @@ test("start() emits realtimeCheckpoint events", async (context) => {
     chainId: 1,
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() inserts log filter interval records for finalized blocks", async (context) => {
@@ -321,7 +328,8 @@ test("start() inserts log filter interval records for finalized blocks", async (
     chainId: 1,
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
@@ -393,7 +401,8 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     BigInt(blockNumbers.latestBlockNumber + 1),
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
@@ -448,7 +457,8 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
     chainId: 1,
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("emits deepReorg event after deep reorg", async (context) => {
@@ -514,7 +524,8 @@ test("emits deepReorg event after deep reorg", async (context) => {
     minimumDepth: 5,
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() with factory contract inserts new child contracts records and child contract events", async (context) => {
@@ -584,5 +595,6 @@ test("start() with factory contract inserts new child contracts records and chil
     }),
   );
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });

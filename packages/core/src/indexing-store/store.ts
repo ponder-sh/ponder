@@ -84,6 +84,8 @@ export interface IndexingStore {
 
   reload(options?: { schema?: Schema }): Promise<void>;
 
+  teardown(): Promise<void>;
+
   kill(): Promise<void>;
 
   publish(): Promise<void>;

@@ -387,30 +387,54 @@ export class Ponder {
    * Shutdown sequence.
    */
   async kill() {
-    this.buildService.clearListeners();
-    this.clearCoreServiceEventListeners();
-
+    // 0) Observability.
+    this.common.logger.info({
+      service: "app",
+      msg: "Shutting down...",
+    });
     this.common.telemetry.record({
       event: "App Killed",
       properties: { processDuration: process.uptime() },
     });
 
-    this.uiService.kill();
+    // 1) Remove listeners.
+    this.buildService.clearListeners();
+    this.clearCoreServiceEventListeners();
 
+    // 2) Kick off indexing store teardown. This is the longest-running operation
+    // in the shutdown sequence and we really want to make sure it completes.
+    const indexingStoreTeardownPromise = this.indexingStore.teardown();
+
+    // 2) Kill all common services.
+    this.uiService.kill();
     await Promise.all([
-      ...this.syncServices.map(async ({ realtime, historical }) => {
-        await realtime.kill();
-        await historical.kill();
-      }),
-      this.indexingService.kill(),
       this.buildService.kill(),
       this.serverService.kill(),
       this.common.telemetry.kill(),
     ]);
 
+    // 3) Kill core services. Note that these methods pause and clear the queues
+    // and set a boolean flag that allows tasks to fail silently with no retries.
+    this.indexingService.kill();
+    this.syncServices.forEach(({ realtime, historical }) => {
+      realtime.kill();
+      historical.kill();
+    });
+
+    // 4) Indexing store cleanup. This is the longest-running operation,
+    // and we really want to make sure it completes.
+    await indexingStoreTeardownPromise;
+
+    // 5) Cancel all pending RPC requests and database queries. These will
+    // cause errors in the sync and indexing services, but they will be silent
+    // and the failed tasks will not be retried.
+    this.syncServices.forEach(({ requestQueue }) => {
+      requestQueue.kill();
+    });
     await this.indexingStore.kill();
     await this.syncStore.kill();
 
+    // 6) Now all resources should be cleaned up. The process should exit gracefully.
     this.common.logger.debug({
       service: "app",
       msg: "Finished shutdown sequence",

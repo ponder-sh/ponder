@@ -41,7 +41,8 @@ test("start() with log filter inserts log filter interval records", async (conte
     [0, blockNumbers.finalizedBlockNumber],
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() with factory contract inserts log filter and factory log filter interval records", async (context) => {
@@ -80,7 +81,8 @@ test("start() with factory contract inserts log filter and factory log filter in
     [0, blockNumbers.finalizedBlockNumber],
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() with factory contract inserts child contract addresses", async (context) => {
@@ -111,7 +113,8 @@ test("start() with factory contract inserts child contract addresses", async (co
 
   expect(childContractAddresses).toMatchObject([toLowerCase(factory.pair)]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("setup() with log filter and factory contract updates block metrics", async (context) => {
@@ -151,7 +154,8 @@ test("setup() with log filter and factory contract updates block metrics", async
     ]),
   );
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() with log filter and factory contract updates completed blocks metrics", async (context) => {
@@ -182,7 +186,8 @@ test("start() with log filter and factory contract updates completed blocks metr
     ]),
   );
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() adds log filter events to sync store", async (context) => {
@@ -222,7 +227,8 @@ test("start() adds log filter events to sync store", async (context) => {
 
   expect(erc20Events).toMatchObject(events);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() adds log filter and factory contract events to sync store", async (context) => {
@@ -267,7 +273,8 @@ test("start() adds log filter and factory contract events to sync store", async 
   expect(sourceIds.includes("Erc20")).toBe(true);
   expect(sourceIds.includes("Pair")).toBe(true);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() retries unexpected error in log filter task", async (context) => {
@@ -300,7 +307,8 @@ test("start() retries unexpected error in log filter task", async (context) => {
   ]);
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() retries unexpected error in block task", async (context) => {
@@ -332,7 +340,8 @@ test("start() retries unexpected error in block task", async (context) => {
   ]);
   expect(spy).toHaveBeenCalledTimes(3);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() handles Alchemy 'Log response size exceeded' error", async (context) => {
@@ -371,7 +380,8 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   ]);
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 10,000 blocks range' error", async (context) => {
@@ -410,7 +420,8 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   ]);
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() emits sync completed event", async (context) => {
@@ -431,7 +442,8 @@ test("start() emits sync completed event", async (context) => {
   await service.onIdle();
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() emits checkpoint and sync completed event if 100% cached", async (context) => {
@@ -450,7 +462,8 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 
   service = new HistoricalSyncService({
     common,
@@ -474,7 +487,8 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
   expect(emitSpy).toHaveBeenCalledTimes(2);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() emits historicalCheckpoint event", async (context) => {
@@ -505,5 +519,6 @@ test("start() emits historicalCheckpoint event", async (context) => {
     blockNumber: Number(finalizedBlock.number),
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });

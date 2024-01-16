@@ -53,8 +53,8 @@ export class SqliteIndexingStore implements IndexingStore {
     });
   }
 
-  async kill() {
-    return this.wrap({ method: "kill" }, async () => {
+  async teardown() {
+    return this.wrap({ method: "teardown" }, async () => {
       const tableNames = Object.keys(this.schema?.tables ?? {});
       if (tableNames.length > 0) {
         await this.db.transaction().execute(async (tx) => {
@@ -66,7 +66,11 @@ export class SqliteIndexingStore implements IndexingStore {
           );
         });
       }
+    });
+  }
 
+  async kill() {
+    return this.wrap({ method: "kill" }, async () => {
       try {
         await this.db.destroy();
       } catch (e) {

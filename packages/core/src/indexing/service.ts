@@ -96,6 +96,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   private currentIndexingCheckpoint: Checkpoint = zeroCheckpoint;
   private isPaused = false;
+  /** If true, failed tasks should not log errors or be retried. */
+  private isShuttingDown = false;
 
   constructor({
     common,
@@ -131,18 +133,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
   }
 
-  kill = async () => {
+  kill = () => {
     this.isPaused = true;
+    this.isShuttingDown = true;
     this.queue?.pause();
     this.queue?.clear();
-    await this.queue?.onIdle();
-
     this.eventProcessingMutex.cancel();
-
     this.common.logger.debug({
       service: "indexing",
       msg: "Killed indexing service",
     });
+  };
+
+  onIdle = async () => {
+    await this.queue?.onIdle();
   };
 
   /**
@@ -568,7 +572,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
               break;
             } catch (error_) {
-              // Remove all remaining tasks from the queue.
+              if (this.isShuttingDown) return;
 
               const error = error_ as Error & { meta: string };
 
@@ -656,6 +660,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
               break;
             } catch (error_) {
+              if (this.isShuttingDown) return;
+
               const error = error_ as Error & { meta?: string };
 
               if (i === 3) {

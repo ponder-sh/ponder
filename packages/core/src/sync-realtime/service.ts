@@ -47,14 +47,16 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private requestQueue: RequestQueue;
   private sources: Source[];
 
-  // Queue of unprocessed blocks.
+  /** Queue of unprocessed blocks. */
   private queue: RealtimeSyncQueue;
-  // Block number of the current finalized block.
+  /** Block number of the current finalized block. */
   private finalizedBlockNumber = 0;
-  // Local representation of the unfinalized portion of the chain.
+  /** Local representation of the unfinalized portion of the chain. */
   private blocks: LightBlock[] = [];
-  // Function to stop polling for new blocks.
-  private unpoll?: () => any | Promise<any>;
+  /** Function to stop polling for new blocks. */
+  private unpoll?: () => boolean;
+  /** If true, failed tasks should not log errors or be retried. */
+  private isShuttingDown = false;
 
   constructor({
     common,
@@ -197,13 +199,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     );
   };
 
-  kill = async () => {
-    await this.unpoll?.();
-
+  kill = () => {
+    this.isShuttingDown = true;
+    this.unpoll?.();
     this.queue.pause();
     this.queue.clear();
-    await this.onIdle();
-
     this.common.logger.debug({
       service: "realtime",
       msg: `Killed realtime sync service (network=${this.network.name})`,
@@ -247,6 +247,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       },
       options: { concurrency: 1, autoStart: false },
       onError: ({ error, task }) => {
+        if (this.isShuttingDown) return;
+
         this.common.logger.warn({
           service: "realtime",
           msg: `Realtime sync task failed (network=${

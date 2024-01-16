@@ -28,16 +28,10 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
         Object.values(chains).find((c) =>
           "id" in c ? c.id === chainId : false,
         ) ?? chains.mainnet;
+      const chain = { ...defaultChain, name: networkName, id: chainId };
 
-      const chain = {
-        ...defaultChain,
-        name: networkName,
-        id: chainId,
-      };
-
-      // Note: These can throw.
+      // Note: This can throw.
       const rpcUrls = await getRpcUrlsForClient({ transport, chain });
-
       rpcUrls.forEach((rpcUrl) => {
         if (isRpcUrlPublic(rpcUrl)) {
           warnings.push(
@@ -46,14 +40,11 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
         }
       });
 
-      const _transport = network.transport({ chain });
-
       return {
         name: networkName,
         chainId: chainId,
-
-        transport: { ..._transport.config, ..._transport.value },
-
+        chain,
+        transport: network.transport({ chain }),
         maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
         pollingInterval: network.pollingInterval ?? 1_000,
         defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),

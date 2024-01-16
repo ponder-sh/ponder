@@ -1,6 +1,11 @@
 import type { Network } from "@/config/networks.js";
 import type { MetricsService } from "@/metrics/service.js";
-import type { EIP1193Parameters, PublicRpcSchema } from "viem";
+import {
+  http,
+  type EIP1193Parameters,
+  type PublicRpcSchema,
+  type Transport,
+} from "viem";
 import { startClock } from "./timer.js";
 
 type RequestReturnType<
@@ -25,6 +30,8 @@ export type RequestQueue = {
   pause: () => void;
   /** Clear tasks from the queue. */
   clear: () => void;
+  /** Pause the queue, clear pending tasks, and cancel active tasks. */
+  kill: () => void;
   /** Internal tasks in the queue */
   queue: Task[];
 };
@@ -61,8 +68,29 @@ export const createRequestQueue = ({
 
   let lastRequestTime = 0;
   let pending = 0;
+  let timeout: NodeJS.Timeout | undefined = undefined;
   let timing = false;
   let on = true;
+
+  const abortController = new AbortController();
+
+  let transport: ReturnType<Transport>;
+  if (network.transport.config.type === "http") {
+    const value = network.transport.value as {
+      url: string;
+      fetchOptions?: RequestInit;
+    };
+    transport = http(value.url, {
+      ...network.transport.config,
+      fetchOptions: {
+        ...(value.fetchOptions ?? {}),
+        signal: abortController.signal,
+      },
+    })({ chain: network.chain });
+  } else {
+    // TODO: Support cancellation for webSocket and fallback transports.
+    transport = network.transport;
+  }
 
   const processQueue = () => {
     if (!on) return;
@@ -86,7 +114,7 @@ export const createRequestQueue = ({
 
         const stopClock = startClock();
 
-        network.transport
+        transport
           .request(params)
           .then((a) => {
             resolve(a);
@@ -109,7 +137,7 @@ export const createRequestQueue = ({
 
     if (!timing) {
       timing = true;
-      setTimeout(() => {
+      timeout = setTimeout(() => {
         timing = false;
         processQueue();
       }, interval - timeSinceLastRequest);
@@ -149,6 +177,14 @@ export const createRequestQueue = ({
     clear: () => {
       queue = new Array();
       lastRequestTime = 0;
+    },
+    kill: () => {
+      // NOTE: Should this go in clear or pause instead?
+      clearTimeout(timeout);
+      on = false;
+      queue = new Array();
+      lastRequestTime = 0;
+      abortController.abort();
     },
     queue,
   };
