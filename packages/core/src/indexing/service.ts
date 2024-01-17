@@ -23,7 +23,6 @@ import { dedupe } from "@/utils/dedupe.js";
 import { Emittery } from "@/utils/emittery.js";
 import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { wait } from "@/utils/wait.js";
 import { E_CANCELED, Mutex } from "async-mutex";
 import {
   type Abi,
@@ -91,7 +90,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
   > = {};
 
   private schema?: Schema;
-  private db: Record<string, DatabaseModel<any>> = {};
+  private db: (checkpoint: Checkpoint) => Record<string, DatabaseModel<any>> =
+    undefined!;
 
   private setupFunctionMap?: Record<
     string,
@@ -116,9 +116,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private eventProcessingMutex: Mutex;
   private queue?: IndexingFunctionQueue;
 
-  // TODO: delete
-  private eventsProcessedToCheckpoint: Checkpoint = zeroCheckpoint;
-  private currentIndexingCheckpoint: Checkpoint = zeroCheckpoint;
   private isPaused = false;
 
   constructor({
@@ -148,7 +145,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       sources,
       networks,
       syncStore,
-      ponderActions(() => BigInt(this.currentIndexingCheckpoint.blockNumber)),
+      ponderActions(() => 0n),
     );
   }
 
@@ -188,7 +185,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         common: this.common,
         indexingStore: this.indexingStore,
         schema: this.schema,
-        getCurrentIndexingCheckpoint: () => this.currentIndexingCheckpoint,
       });
     }
 
@@ -228,23 +224,23 @@ export class IndexingService extends Emittery<IndexingEvents> {
     // });
 
     // this.isPaused = false;
-    // this.common.metrics.ponder_indexing_has_error.set(0);
+    this.common.metrics.ponder_indexing_has_error.set(0);
 
-    // this.common.metrics.ponder_indexing_matched_events.reset();
-    // this.common.metrics.ponder_indexing_handled_events.reset();
-    // this.common.metrics.ponder_indexing_processed_events.reset();
+    this.common.metrics.ponder_indexing_matched_events.reset();
+    this.common.metrics.ponder_indexing_handled_events.reset();
+    this.common.metrics.ponder_indexing_processed_events.reset();
 
-    // await this.indexingStore.reload({ schema: this.schema });
-    // this.common.logger.debug({
-    //   service: "indexing",
-    //   msg: "Reset indexing store",
-    // });
+    await this.indexingStore.reload({ schema: this.schema });
+    this.common.logger.debug({
+      service: "indexing",
+      msg: "Reset indexing store",
+    });
 
     // // When we call indexingStore.reload() above, the indexing store is dropped.
     // // Set the latest processed timestamp to zero accordingly.
     // this.eventsProcessedToCheckpoint = zeroCheckpoint;
     // this.currentIndexingCheckpoint = zeroCheckpoint;
-    // this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
+    this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
   };
 
   private enqueueSetupTasks = (indexingFunctions: IndexingFunctions) => {
@@ -362,49 +358,49 @@ export class IndexingService extends Emittery<IndexingEvents> {
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
-  handleReorg = async (safeCheckpoint: Checkpoint) => {
-    try {
-      await this.eventProcessingMutex.runExclusive(async () => {
-        // If there is a user error, the queue & indexing store will be wiped on reload (case 4).
-        if (this.isPaused) return;
+  // handleReorg = async (safeCheckpoint: Checkpoint) => {
+  //   try {
+  //     await this.eventProcessingMutex.runExclusive(async () => {
+  //       // If there is a user error, the queue & indexing store will be wiped on reload (case 4).
+  //       if (this.isPaused) return;
 
-        const hasProcessedInvalidEvents = isCheckpointGreaterThan(
-          this.eventsProcessedToCheckpoint,
-          safeCheckpoint,
-        );
-        if (!hasProcessedInvalidEvents) {
-          // No unsafe events have been processed, so no need to revert (case 1 & case 2).
-          this.common.logger.debug({
-            service: "indexing",
-            msg: "No unsafe events were detected while reconciling a reorg, no-op",
-          });
-          return;
-        }
+  //       const hasProcessedInvalidEvents = isCheckpointGreaterThan(
+  //         this.eventsProcessedToCheckpoint,
+  //         safeCheckpoint,
+  //       );
+  //       if (!hasProcessedInvalidEvents) {
+  //         // No unsafe events have been processed, so no need to revert (case 1 & case 2).
+  //         this.common.logger.debug({
+  //           service: "indexing",
+  //           msg: "No unsafe events were detected while reconciling a reorg, no-op",
+  //         });
+  //         return;
+  //       }
 
-        // Unsafe events have been processed, must revert the indexing store and update
-        // eventsProcessedToTimestamp accordingly (case 3).
-        await this.indexingStore.revert({ checkpoint: safeCheckpoint });
+  //       // Unsafe events have been processed, must revert the indexing store and update
+  //       // eventsProcessedToTimestamp accordingly (case 3).
+  //       await this.indexingStore.revert({ checkpoint: safeCheckpoint });
 
-        this.eventsProcessedToCheckpoint = safeCheckpoint;
-        this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-          safeCheckpoint.blockTimestamp,
-        );
+  //       this.eventsProcessedToCheckpoint = safeCheckpoint;
+  //       this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
+  //         safeCheckpoint.blockTimestamp,
+  //       );
 
-        // Note: There's currently no way to know how many events are "thrown out"
-        // during the reorg reconciliation, so the event count metrics
-        // (e.g. ponder_indexing_processed_events) will be slightly inflated.
+  //       // Note: There's currently no way to know how many events are "thrown out"
+  //       // during the reorg reconciliation, so the event count metrics
+  //       // (e.g. ponder_indexing_processed_events) will be slightly inflated.
 
-        this.common.logger.debug({
-          service: "indexing",
-          msg: `Reverted indexing store to safe timestamp ${safeCheckpoint.blockTimestamp}`,
-        });
-      });
-    } catch (error) {
-      // Pending locks get cancelled in reset(). This is expected, so it's safe to
-      // ignore the error that is thrown when a pending lock is cancelled.
-      if (error !== E_CANCELED) throw error;
-    }
-  };
+  //       this.common.logger.debug({
+  //         service: "indexing",
+  //         msg: `Reverted indexing store to safe timestamp ${safeCheckpoint.blockTimestamp}`,
+  //       });
+  //     });
+  //   } catch (error) {
+  //     // Pending locks get cancelled in reset(). This is expected, so it's safe to
+  //     // ignore the error that is thrown when a pending lock is cancelled.
+  //     if (error !== E_CANCELED) throw error;
+  //   }
+  // };
 
   /**
    * Processes all newly available events.
@@ -646,7 +642,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           // The "setup" event uses the contract start block number for contract calls.
           // TODO: Consider implications of this "synthetic" checkpoint on record versioning.
-          this.currentIndexingCheckpoint = {
+          const checkpoint = {
             ...zeroCheckpoint,
             chainId: task.event.chainId,
             blockNumber: task.event.blockNumber,
@@ -660,9 +656,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
               });
 
               // Running user code here!
-              // await indexingFunction({
-              //   context: { db: this.db, ...this.contexts[event.chainId] },
-              // });
+              await indexingFunction({
+                context: {
+                  db: this.db(checkpoint),
+                  ...this.contexts[event.chainId],
+                },
+              });
 
               this.common.logger.trace({
                 service: "indexing",
@@ -703,7 +702,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
                   msg: `Indexing function failed, retrying... (event=${fullEventName}, error=${error.name}: ${error.message})`,
                 });
                 await this.indexingStore.revert({
-                  checkpoint: this.currentIndexingCheckpoint,
+                  checkpoint,
                 });
               }
             }
@@ -723,7 +722,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               `Internal: Indexing function not found for ${fullEventName}`,
             );
 
-          this.currentIndexingCheckpoint = {
+          const checkpoint = {
             blockTimestamp: Number(event.block.timestamp),
             chainId: event.chainId,
             blockNumber: Number(event.block.number),
@@ -737,18 +736,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 msg: `Started indexing function (event="${fullEventName}", block=${event.block.number})`,
               });
 
-              await wait(50);
               // Running user code here!
-              // await indexingFunction({
-              //   event: {
-              //     name: event.eventName,
-              //     args: event.args,
-              //     log: event.log,
-              //     transaction: event.transaction,
-              //     block: event.block,
-              //   },
-              //   context: { db: this.db, ...this.contexts[event.chainId] },
-              // });
+              await indexingFunction({
+                event: {
+                  name: event.eventName,
+                  args: event.args,
+                  log: event.log,
+                  transaction: event.transaction,
+                  block: event.block,
+                },
+                context: {
+                  db: this.db(checkpoint),
+                  ...this.contexts[event.chainId],
+                },
+              });
 
               this.common.logger.trace({
                 service: "indexing",
@@ -762,7 +763,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               };
               this.common.metrics.ponder_indexing_processed_events.inc(labels);
               this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-                this.currentIndexingCheckpoint.blockTimestamp,
+                checkpoint.blockTimestamp,
               );
 
               break;
@@ -799,7 +800,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
                   )}, error=${`${error.name}: ${error.message}`})`,
                 });
                 await this.indexingStore.revert({
-                  checkpoint: this.currentIndexingCheckpoint,
+                  checkpoint,
                 });
               }
             }
