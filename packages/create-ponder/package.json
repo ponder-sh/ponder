@@ -32,7 +32,8 @@
     "prompts": "^2.4.2",
     "update-check": "^1.5.4",
     "validate-npm-package-name": "^5.0.0",
-    "viem": "^2.0.10"
+    "viem": "^2.0.10",
+    "yaml": "^2.3.4"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",

@@ -24,6 +24,7 @@ import {
   validateProjectName,
   validateTemplateName,
 } from "./helpers/validate.js";
+import { fromSubgraphId } from "./subgraph.js";
 
 const log = console.log;
 
@@ -63,6 +64,11 @@ const templates = [
     id: "etherscan",
     title: "Etherscan contract link",
     description: "Bootstrap from an Etherscan contract link",
+  },
+  {
+    id: "subgraph",
+    title: "Subgraph ID",
+    description: "Bootstrap from a deployed Subgraph ID",
   },
   {
     id: "feature-factory",
@@ -241,6 +247,36 @@ export async function run({
     );
   }
 
+  if (templateMeta.id === "subgraph") {
+    let subgraphId = options.subgraphId;
+    if (!subgraphId) {
+      const result = await prompts({
+        type: "text",
+        name: "id",
+        message: "Enter a Subgraph ID",
+        initial: "Qmb3hd2hYd2nWFgcmRswykF1dUBSrDUrinYCgN1dmE1tNy",
+      });
+      subgraphId = result.id;
+    }
+    if (!subgraphId) {
+      log(pico.red("No Subgraph ID provided."));
+      process.exit(0);
+    }
+    config = await oraPromise(
+      fromSubgraphId({
+        rootDir: targetPath,
+        subgraphId: subgraphId,
+      }),
+      {
+        text: `Fetching Subgraph schema for ${pico.bold(
+          subgraphId,
+        )}. This may take a few seconds.`,
+        failText: "Failed to fetch Subgraph schema.",
+        successText: `Fetched Subgraph schema from ${pico.bold(subgraphId)}.`,
+      },
+    );
+  }
+
   // Copy template contents into the target path
   const templatePath = path.join(templatesPath, templateMeta.id);
   await cpy(path.join(templatePath, "**", "*"), targetPath, {
@@ -259,6 +295,10 @@ export async function run({
 
       ${Object.values(config.contracts)
         .flatMap((c) => c.abi)
+        .filter(
+          (tag, index, array) =>
+            array.findIndex((t) => t.dir === tag.dir) === index,
+        )
         .map(
           (abi) =>
             `import {${abi.name}} from "${abi.dir.slice(
@@ -305,7 +345,7 @@ export async function run({
         : contract.abi.abi;
 
       const abiEvents = abi.filter(
-        (item): item is AbiEvent => item.type === "event",
+        (item): item is AbiEvent => item.type === "event" && !item.anonymous,
       );
 
       const eventNamesToWrite = abiEvents
@@ -436,6 +476,7 @@ export async function run({
     )
     .option("--etherscan-contract-link [link]", "Etherscan contract link")
     .option("--etherscan-api-key [key]", "Etherscan API key")
+    .option("--subgraph-id [key]", "Subgraph ID")
     .option("--npm", "Use npm as your package manager")
     .option("--pnpm", "Use pnpm as your package manager")
     .option("--yarn", "Use yarn as your package manager")
