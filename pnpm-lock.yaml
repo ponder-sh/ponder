@@ -623,6 +623,9 @@ importers:
       viem:
         specifier: ^2.0.10
         version: 2.0.10(typescript@5.0.4)
+      yaml:
+        specifier: ^2.3.4
+        version: 2.3.4
     devDependencies:
       '@types/fs-extra':
         specifier: ^11.0.4

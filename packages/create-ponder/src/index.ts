@@ -24,6 +24,7 @@ import {
   validateProjectName,
   validateTemplateName,
 } from "./helpers/validate.js";
+import { fromSubgraphId } from "./subgraph.js";
 
 const log = console.log;
 
@@ -62,7 +63,12 @@ const templates = [
   {
     id: "etherscan",
     title: "Etherscan contract link",
-    description: "Bootstrap from an Etherscan contract link",
+    description: "Create from an Etherscan contract link",
+  },
+  {
+    id: "subgraph",
+    title: "Subgraph ID",
+    description: "Create from a deployed subgraph ID",
   },
   {
     id: "feature-factory",
@@ -119,6 +125,8 @@ export async function run({
   options: CLIOptions;
 }) {
   if (options.help) return;
+
+  const warnings: string[] = [];
 
   log();
   log(
@@ -207,9 +215,8 @@ export async function run({
 
   const targetPath = path.join(process.cwd(), projectPath);
 
-  let link: string | undefined = undefined;
+  let link: string | undefined = options.etherscanContractLink;
   if (templateMeta.id === "etherscan") {
-    link = options.etherscanContractLink;
     if (!link) {
       const result = await prompts({
         type: "text",
@@ -218,6 +225,23 @@ export async function run({
         initial: "https://etherscan.io/address/0x97...",
       });
       link = result.link;
+    }
+  }
+
+  let subgraphId: string | undefined = options.subgraphId;
+  if (templateMeta.id === "subgraph") {
+    if (!subgraphId) {
+      const result = await prompts({
+        type: "text",
+        name: "id",
+        message: "Enter a subgraph ID",
+        initial: "Qmb3hd2hYd2nWFgcmRswykF1dUBSrDUrinYCgN1dmE1tNy",
+      });
+      subgraphId = result.id;
+    }
+    if (!subgraphId) {
+      log(pico.red("No subgraph ID provided."));
+      process.exit(0);
     }
   }
 
@@ -241,6 +265,19 @@ export async function run({
     );
   }
 
+  if (templateMeta.id === "subgraph") {
+    const result = await oraPromise(
+      fromSubgraphId({ rootDir: targetPath, subgraphId: subgraphId! }),
+      {
+        text: "Fetching subgraph metadata. This may take a few seconds.",
+        failText: "Failed to fetch subgraph metadata.",
+        successText: `Fetched subgraph metadata for ${pico.bold(subgraphId)}.`,
+      },
+    );
+    config = result.config;
+    warnings.push(...result.warnings);
+  }
+
   // Copy template contents into the target path
   const templatePath = path.join(templatesPath, templateMeta.id);
   await cpy(path.join(templatePath, "**", "*"), targetPath, {
@@ -259,6 +296,10 @@ export async function run({
 
       ${Object.values(config.contracts)
         .flatMap((c) => c.abi)
+        .filter(
+          (tag, index, array) =>
+            array.findIndex((t) => t.dir === tag.dir) === index,
+        )
         .map(
           (abi) =>
             `import {${abi.name}} from "${abi.dir.slice(
@@ -305,7 +346,7 @@ export async function run({
         : contract.abi.abi;
 
       const abiEvents = abi.filter(
-        (item): item is AbiEvent => item.type === "event",
+        (item): item is AbiEvent => item.type === "event" && !item.anonymous,
       );
 
       const eventNamesToWrite = abiEvents
@@ -399,6 +440,11 @@ export async function run({
     );
   }
 
+  for (const warning of warnings) {
+    log();
+    log(pico.yellow(warning));
+  }
+
   log();
   log("―――――――――――――――――――――");
   log();
@@ -436,6 +482,7 @@ export async function run({
     )
     .option("--etherscan-contract-link [link]", "Etherscan contract link")
     .option("--etherscan-api-key [key]", "Etherscan API key")
+    .option("--subgraph-id [key]", "Subgraph ID")
     .option("--npm", "Use npm as your package manager")
     .option("--pnpm", "Use pnpm as your package manager")
     .option("--yarn", "Use yarn as your package manager")
