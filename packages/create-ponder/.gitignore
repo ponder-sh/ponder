@@ -3,3 +3,4 @@ dist/
 templates/*
 !templates/empty
 !templates/etherscan
+!templates/subgraph
