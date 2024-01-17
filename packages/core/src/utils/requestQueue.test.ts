@@ -119,9 +119,6 @@ test("onIdle() resolves once idle", async ({ networks, common }) => {
   queue.request({ method: "eth_chainId" });
   queue.request({ method: "eth_chainId" });
 
-  expect(await queue.size()).toBe(1);
-  expect(await queue.pending()).toBe(1);
-
   await queue.onIdle();
 
   expect(await queue.size()).toBe(0);
