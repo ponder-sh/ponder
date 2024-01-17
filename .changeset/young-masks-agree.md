@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Implemented a global queue that throttles RPC requests according to a new network config property "maxRequestsPerSecond". Increased compatibility with less powerful RPCs.
+Added new network option `maxRpcRequestsPerSecond` to limit the number of RPC requests that are made to a transport per second. Deprecated network option `maxHistoricalTaskConcurrency`.
