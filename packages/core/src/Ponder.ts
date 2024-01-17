@@ -433,21 +433,24 @@ export class Ponder {
     // 3) Kill core services. Note that these methods pause and clear the queues
     // and set a boolean flag that allows tasks to fail silently with no retries.
     this.indexingService.kill();
-    this.syncServices.forEach(({ realtime, historical }) => {
+    this.syncServices.forEach(({ realtime, historical, requestQueue }) => {
       realtime.kill();
       historical.kill();
+      requestQueue.clear(); // TODO: Remove this once viem supports canceling requests.
     });
 
     // 4) Indexing store cleanup. This is the longest-running operation,
     // and we really want to make sure it completes.
     await indexingStoreTeardownPromise;
 
-    // 5) Cancel all pending RPC requests and database queries. These will
+    // 5) Cancel pending RPC requests and database queries.
+    // TODO: Once supported by viem, cancel in-progress requests too. This will
     // cause errors in the sync and indexing services, but they will be silent
     // and the failed tasks will not be retried.
-    this.syncServices.forEach(({ requestQueue }) => {
-      requestQueue.kill();
-    });
+    await Promise.all(
+      this.syncServices.map(({ requestQueue }) => requestQueue.onIdle()),
+    );
+
     await this.indexingStore.kill();
     await this.syncStore.kill();
   }

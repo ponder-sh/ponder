@@ -96,3 +96,24 @@ test("request() error", async ({ networks, common }) => {
 
   expect(error.cause).toBeInstanceOf(RpcRequestError);
 });
+
+test.only("onIdle() works", async ({ networks, common }) => {
+  const queue = getQueue(networks[0], common);
+
+  queue.request({ method: "eth_chainId" });
+  queue.request({ method: "eth_chainId" });
+  queue.request({ method: "eth_chainId" });
+
+  expect(await queue.size()).toBe(2);
+  expect(await queue.pending()).toBe(1);
+
+  queue.clear();
+
+  expect(await queue.size()).toBe(0);
+  expect(await queue.pending()).toBe(1);
+
+  await queue.onIdle();
+
+  expect(await queue.size()).toBe(0);
+  expect(await queue.pending()).toBe(0);
+});

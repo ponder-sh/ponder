@@ -1,11 +1,6 @@
 import type { Network } from "@/config/networks.js";
 import type { MetricsService } from "@/metrics/service.js";
-import {
-  http,
-  type EIP1193Parameters,
-  type PublicRpcSchema,
-  type Transport,
-} from "viem";
+import { type EIP1193Parameters, type PublicRpcSchema } from "viem";
 import { startClock } from "./timer.js";
 
 type RequestReturnType<
@@ -28,10 +23,10 @@ export type RequestQueue = {
   start: () => void;
   /** Pause execution of the tasks. */
   pause: () => void;
+  /** Returns a promise that resolves when the queue is empty and all tasks have resolved. */
+  onIdle: () => Promise<void>;
   /** Clear tasks from the queue. */
   clear: () => void;
-  /** Pause the queue, clear pending tasks, and cancel active tasks. */
-  kill: () => void;
   /** Internal tasks in the queue */
   queue: Task[];
 };
@@ -72,25 +67,10 @@ export const createRequestQueue = ({
   let timing = false;
   let on = true;
 
-  const abortController = new AbortController();
-
-  let transport: ReturnType<Transport>;
-  if (network.transport.config.type === "http") {
-    const value = network.transport.value as {
-      url: string;
-      fetchOptions?: RequestInit;
-    };
-    transport = http(value.url, {
-      ...network.transport.config,
-      fetchOptions: {
-        ...(value.fetchOptions ?? {}),
-        signal: abortController.signal,
-      },
-    })({ chain: network.chain });
-  } else {
-    // TODO: Support cancellation for webSocket and fallback transports.
-    transport = network.transport;
-  }
+  let idleResolve: () => void;
+  let idlePromise: Promise<void> = new Promise<void>(
+    (resolve) => (idleResolve = resolve),
+  );
 
   const processQueue = () => {
     if (!on) return;
@@ -114,19 +94,34 @@ export const createRequestQueue = ({
 
         const stopClock = startClock();
 
-        transport
+        network.transport
           .request(params)
           .then((a) => {
             resolve(a);
           })
           .catch(reject)
-          .finally(() => {
+          .finally(async () => {
             pending -= 1;
-
             metrics.ponder_rpc_request_duration.observe(
               { method: params.method, network: network.name },
               stopClock(),
             );
+
+            await Promise.all([
+              new Promise<number>((res) =>
+                setImmediate(() => res(queue.length)),
+              ),
+              new Promise<number>((res) => setImmediate(() => res(pending))),
+            ]).then(([size, pending]) => {
+              console.log({ size, pending });
+              if (size === 0 && pending === 0) {
+                console.log("resolving idlePromise");
+                idleResolve();
+                idlePromise = new Promise<void>(
+                  (resolve) => (idleResolve = resolve),
+                );
+              }
+            });
           });
 
         if (queue.length === 0) break;
@@ -163,9 +158,9 @@ export const createRequestQueue = ({
       processQueue();
       return p as RequestReturnType<TParameters["method"]>;
     },
-    size: async () =>
+    size: () =>
       new Promise<number>((res) => setImmediate(() => res(queue.length))),
-    pending: async () =>
+    pending: () =>
       new Promise<number>((res) => setImmediate(() => res(pending))),
     start: () => {
       on = true;
@@ -174,17 +169,13 @@ export const createRequestQueue = ({
     pause: () => {
       on = false;
     },
+    onIdle: () =>
+      new Promise<void>((res) => setImmediate(() => idlePromise.then(res))),
     clear: () => {
-      queue = new Array();
-      lastRequestTime = 0;
-    },
-    kill: () => {
-      // NOTE: Should this go in clear or pause instead?
       clearTimeout(timeout);
-      on = false;
+      console.log("setting queue to new Array");
       queue = new Array();
       lastRequestTime = 0;
-      abortController.abort();
     },
     queue,
   };
