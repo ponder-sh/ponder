@@ -48,6 +48,7 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
         pollingInterval: network.pollingInterval ?? 1_000,
         defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
         finalityBlockCount: getFinalityBlockCount({ chainId }),
+        maxHistoricalTaskConcurrency: 20,
       } satisfies Network;
     }),
   );

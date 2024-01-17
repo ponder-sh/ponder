@@ -546,7 +546,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const queue = createQueue<HistoricalSyncTask>({
       worker,
       options: {
-        concurrency: 20,
+        concurrency: this.network.maxHistoricalTaskConcurrency,
         autoStart: false,
       },
       onError: ({ error, task, queue }) => {

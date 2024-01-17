@@ -6,8 +6,9 @@ export type Network = {
   chainId: number;
   transport: ReturnType<Transport>;
   pollingInterval: number;
-  defaultMaxBlockRange: number;
   maxRequestsPerSecond: number;
+  maxHistoricalTaskConcurrency: number;
+  defaultMaxBlockRange: number;
   finalityBlockCount: number;
 };
 
