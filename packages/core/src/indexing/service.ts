@@ -109,14 +109,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
       abiItem: AbiItem;
       eventSelectors: { [sourceId: string]: Hex[] };
       parents: string[];
+      serialQueued: boolean;
     }
   >;
 
   private eventProcessingMutex: Mutex;
   private queue?: IndexingFunctionQueue;
 
+  // TODO: delete
   private eventsProcessedToCheckpoint: Checkpoint = zeroCheckpoint;
-
   private currentIndexingCheckpoint: Checkpoint = zeroCheckpoint;
   private isPaused = false;
 
@@ -290,10 +291,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
     for (const key of Object.keys(this.indexingFunctionMap!)) {
       const parentCheckpoints = this.indexingFunctionMap[key].parents.map(
         (p) => {
-          if (p === key)
+          if (
+            p === key &&
+            this.indexingFunctionMap![key].serialQueued === false
+          ) {
+            this.indexingFunctionMap![key].serialQueued = true;
             return getEventCheckpoint(
               this.indexingFunctionMap![key].indexingFunctionTasks[0],
             );
+          }
 
           return this.indexingFunctionMap![p].checkpoint;
         },
@@ -314,8 +320,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         const eventsEnequeued = this.indexingFunctionMap[
           key
         ].indexingFunctionTasks.splice(0, maxCheckpointIndex);
-
-        console.log(eventsEnequeued);
 
         for (const { event } of eventsEnequeued) {
           const decodedLog = decodeEventLog({
@@ -410,8 +414,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * and the new checkpoint, adds them to the queue, then processes them.
    */
   processEvents = async () => {
-    this.queue?.start();
-    this.enqueueNextTasks();
+    this.eventProcessingMutex.runExclusive(() => {
+      this.queue?.start();
+
+      this.enqueueNextTasks();
+    });
+
     // try {
     //   await this.eventProcessingMutex.runExclusive(async () => {
     //     if (this.isPaused || !this.queue || !this.indexingFunctions) return;
@@ -802,7 +810,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
           this.indexingFunctionMap![fullEventName].checkpoint =
             getEventCheckpoint(task);
 
-          // this.enqueueNextTasks();
+          this.indexingFunctionMap![fullEventName].serialQueued = false;
+
+          this.enqueueNextTasks();
 
           break;
         }
@@ -956,6 +966,7 @@ const buildIndexingFunctionMap = (
         eventSelectors,
         abiItem: abiItem!,
         parents: dedupe(parents),
+        serialQueued: false,
       };
     }
   }
