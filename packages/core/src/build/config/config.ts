@@ -43,7 +43,6 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
       return {
         name: networkName,
         chainId: chainId,
-        chain,
         transport: network.transport({ chain }),
         maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
         pollingInterval: network.pollingInterval ?? 1_000,
