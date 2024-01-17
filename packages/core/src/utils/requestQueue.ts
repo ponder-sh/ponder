@@ -113,9 +113,7 @@ export const createRequestQueue = ({
               ),
               new Promise<number>((res) => setImmediate(() => res(pending))),
             ]).then(([size, pending]) => {
-              console.log({ size, pending });
               if (size === 0 && pending === 0) {
-                console.log("resolving idlePromise");
                 idleResolve();
                 idlePromise = new Promise<void>(
                   (resolve) => (idleResolve = resolve),
@@ -173,7 +171,6 @@ export const createRequestQueue = ({
       new Promise<void>((res) => setImmediate(() => idlePromise.then(res))),
     clear: () => {
       clearTimeout(timeout);
-      console.log("setting queue to new Array");
       queue = new Array();
       lastRequestTime = 0;
     },

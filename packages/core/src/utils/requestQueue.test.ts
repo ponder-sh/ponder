@@ -97,16 +97,31 @@ test("request() error", async ({ networks, common }) => {
   expect(error.cause).toBeInstanceOf(RpcRequestError);
 });
 
-test.only("onIdle() works", async ({ networks, common }) => {
+test("clear()", async ({ networks, common }) => {
   const queue = getQueue(networks[0], common);
 
+  queue.pause();
+
   queue.request({ method: "eth_chainId" });
   queue.request({ method: "eth_chainId" });
   queue.request({ method: "eth_chainId" });
 
-  expect(await queue.size()).toBe(2);
-  expect(await queue.pending()).toBe(1);
+  queue.clear();
 
+  expect(await queue.size()).toBe(0);
+  expect(await queue.pending()).toBe(0);
+});
+
+test("onIdle()", async ({ networks, common }) => {
+  const queue = getQueue(networks[0], common);
+
+  queue.pause();
+
+  queue.request({ method: "eth_chainId" });
+  queue.request({ method: "eth_chainId" });
+  queue.request({ method: "eth_chainId" });
+
+  queue.start();
   queue.clear();
 
   expect(await queue.size()).toBe(0);
