@@ -63,12 +63,12 @@ const templates = [
   {
     id: "etherscan",
     title: "Etherscan contract link",
-    description: "Bootstrap from an Etherscan contract link",
+    description: "Create from an Etherscan contract link",
   },
   {
     id: "subgraph",
     title: "Subgraph ID",
-    description: "Bootstrap from a deployed Subgraph ID",
+    description: "Create from a deployed subgraph ID",
   },
   {
     id: "feature-factory",
@@ -125,6 +125,8 @@ export async function run({
   options: CLIOptions;
 }) {
   if (options.help) return;
+
+  const warnings: string[] = [];
 
   log();
   log(
@@ -213,9 +215,8 @@ export async function run({
 
   const targetPath = path.join(process.cwd(), projectPath);
 
-  let link: string | undefined = undefined;
+  let link: string | undefined = options.etherscanContractLink;
   if (templateMeta.id === "etherscan") {
-    link = options.etherscanContractLink;
     if (!link) {
       const result = await prompts({
         type: "text",
@@ -224,6 +225,23 @@ export async function run({
         initial: "https://etherscan.io/address/0x97...",
       });
       link = result.link;
+    }
+  }
+
+  let subgraphId: string | undefined = options.subgraphId;
+  if (templateMeta.id === "subgraph") {
+    if (!subgraphId) {
+      const result = await prompts({
+        type: "text",
+        name: "id",
+        message: "Enter a subgraph ID",
+        initial: "Qmb3hd2hYd2nWFgcmRswykF1dUBSrDUrinYCgN1dmE1tNy",
+      });
+      subgraphId = result.id;
+    }
+    if (!subgraphId) {
+      log(pico.red("No subgraph ID provided."));
+      process.exit(0);
     }
   }
 
@@ -248,33 +266,16 @@ export async function run({
   }
 
   if (templateMeta.id === "subgraph") {
-    let subgraphId = options.subgraphId;
-    if (!subgraphId) {
-      const result = await prompts({
-        type: "text",
-        name: "id",
-        message: "Enter a Subgraph ID",
-        initial: "Qmb3hd2hYd2nWFgcmRswykF1dUBSrDUrinYCgN1dmE1tNy",
-      });
-      subgraphId = result.id;
-    }
-    if (!subgraphId) {
-      log(pico.red("No Subgraph ID provided."));
-      process.exit(0);
-    }
-    config = await oraPromise(
-      fromSubgraphId({
-        rootDir: targetPath,
-        subgraphId: subgraphId,
-      }),
+    const result = await oraPromise(
+      fromSubgraphId({ rootDir: targetPath, subgraphId: subgraphId! }),
       {
-        text: `Fetching Subgraph schema for ${pico.bold(
-          subgraphId,
-        )}. This may take a few seconds.`,
-        failText: "Failed to fetch Subgraph schema.",
-        successText: `Fetched Subgraph schema from ${pico.bold(subgraphId)}.`,
+        text: "Fetching subgraph metadata. This may take a few seconds.",
+        failText: "Failed to fetch subgraph metadata.",
+        successText: `Fetched subgraph metadata for ${pico.bold(subgraphId)}.`,
       },
     );
+    config = result.config;
+    warnings.push(...result.warnings);
   }
 
   // Copy template contents into the target path
@@ -437,6 +438,11 @@ export async function run({
         successText: "Initialized git repository.",
       },
     );
+  }
+
+  for (const warning of warnings) {
+    log();
+    log(pico.yellow(warning));
   }
 
   log();

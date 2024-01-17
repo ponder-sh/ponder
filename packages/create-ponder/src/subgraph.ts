@@ -1,7 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { SerializableConfig } from "@/index.js";
-import pico from "picocolors";
 import prettier from "prettier";
 import { parse } from "yaml";
 
@@ -42,14 +41,6 @@ export const fromSubgraphId = async ({
 
   const dataSources = manifest.dataSources as GraphSource[];
 
-  if (manifest.templates?.length > 0) {
-    console.log(
-      pico.yellow(
-        "\r\nDetected a factory pattern, which cannot be imported from Subgraph. See https://ponder.sh/docs/guides/add-contracts#factory-contracts for how to add them manually.",
-      ),
-    );
-  }
-
   mkdirSync(path.join(rootDir, "abis"), { recursive: true });
   mkdirSync(path.join(rootDir, "src"), { recursive: true });
 
@@ -71,9 +62,7 @@ export const fromSubgraphId = async ({
         abiPath,
         await prettier.format(
           `export const ${abi.name}Abi = ${abiContent} as const`,
-          {
-            parser: "typescript",
-          },
+          { parser: "typescript" },
         ),
       );
       abis[abi.name] = JSON.parse(abiContent);
@@ -122,5 +111,12 @@ export const fromSubgraphId = async ({
     contracts: contractsObject,
   };
 
-  return config;
+  const warnings = [];
+  if (manifest.templates?.length > 0) {
+    warnings.push(
+      "Factory pattern detected. Please reference the documentation on factory contracts (https://ponder.sh/docs/guides/add-contracts#factory-contracts).",
+    );
+  }
+
+  return { config, warnings };
 };
