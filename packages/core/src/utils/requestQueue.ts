@@ -167,8 +167,10 @@ export const createRequestQueue = ({
     pause: () => {
       on = false;
     },
-    onIdle: () =>
-      new Promise<void>((res) => setImmediate(() => idlePromise.then(res))),
+    onIdle: async () => {
+      if (queue.length === 0 && pending === 0) return;
+      await idlePromise;
+    },
     clear: () => {
       clearTimeout(timeout);
       queue = new Array();

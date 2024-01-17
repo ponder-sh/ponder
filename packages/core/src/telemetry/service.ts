@@ -13,6 +13,7 @@ import process from "process";
 
 import type { Options } from "@/config/options.js";
 import { getGitRemoteUrl } from "@/telemetry/remote.js";
+import { wait } from "@/utils/wait.js";
 
 type TelemetryEvent = {
   event: string;
@@ -104,11 +105,13 @@ export class TelemetryService {
   };
 
   async kill() {
+    clearInterval(this.heartbeatIntervalId);
     this.queue.pause();
     this.queue.clear();
-    clearInterval(this.heartbeatIntervalId);
-    setTimeout(this.controller.abort, 500);
-    await this.queue.onIdle();
+    await Promise.race([wait(500), this.queue.onIdle()]);
+    if (this.queue.pending > 0) {
+      this.controller.abort();
+    }
   }
 
   private notify() {

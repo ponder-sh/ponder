@@ -411,7 +411,7 @@ export class Ponder {
 
     await this.killCoreServices();
 
-    // 7) Now all resources should be cleaned up. The process should exit gracefully.
+    // Now all resources should be cleaned up. The process should exit gracefully.
     this.common.logger.debug({
       service: "app",
       msg: "Finished shutdown sequence",

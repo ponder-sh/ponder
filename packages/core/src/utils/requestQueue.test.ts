@@ -4,6 +4,7 @@ import type { Network } from "@/config/networks.js";
 import { RpcRequestError } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createRequestQueue } from "./requestQueue.js";
+import { startClock } from "./timer.js";
 import { wait } from "./wait.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -112,23 +113,30 @@ test("clear()", async ({ networks, common }) => {
   expect(await queue.pending()).toBe(0);
 });
 
-test("onIdle()", async ({ networks, common }) => {
+test("onIdle() resolves once idle", async ({ networks, common }) => {
   const queue = getQueue(networks[0], common);
 
-  queue.pause();
-
-  queue.request({ method: "eth_chainId" });
   queue.request({ method: "eth_chainId" });
   queue.request({ method: "eth_chainId" });
 
-  queue.start();
-  queue.clear();
-
-  expect(await queue.size()).toBe(0);
+  expect(await queue.size()).toBe(1);
   expect(await queue.pending()).toBe(1);
 
   await queue.onIdle();
 
   expect(await queue.size()).toBe(0);
   expect(await queue.pending()).toBe(0);
+});
+
+test("onIdle() resolves immediately if idle", async ({ networks, common }) => {
+  const queue = getQueue(networks[0], common);
+
+  queue.request({ method: "eth_chainId" });
+  queue.request({ method: "eth_chainId" });
+
+  await queue.onIdle();
+
+  const endClock = startClock();
+  await queue.onIdle();
+  expect(endClock()).toBeLessThan(5);
 });
