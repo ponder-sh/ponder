@@ -25,6 +25,7 @@ import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
 import type { GraphQLSchema } from "graphql";
+import type { TableAccess } from "./build/parseIndexingAst.js";
 
 export type Common = {
   options: Options;
@@ -44,6 +45,7 @@ export class Ponder {
   schema: Schema = undefined!;
   graphqlSchema: GraphQLSchema = undefined!;
   indexingFunctions: IndexingFunctions = undefined!;
+  tableAccess: TableAccess = undefined!;
 
   // Sync services
   syncStore: SyncStore = undefined!;
@@ -226,6 +228,7 @@ export class Ponder {
     this.schema = result.schema;
     this.graphqlSchema = result.graphqlSchema;
     this.indexingFunctions = result.indexingFunctions;
+    this.tableAccess = result.tableAccess;
 
     return true;
   }
@@ -343,6 +346,7 @@ export class Ponder {
     await this.indexingService.reset({
       indexingFunctions: this.indexingFunctions,
       schema: this.schema,
+      tableAccess: this.tableAccess,
     });
     await this.indexingService.processEvents();
 

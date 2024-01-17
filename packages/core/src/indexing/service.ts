@@ -1,10 +1,6 @@
-import { Emittery } from "@/utils/emittery.js";
-import { E_CANCELED, Mutex } from "async-mutex";
-import type { Abi, Address, Client, Hex } from "viem";
-import { checksumAddress, createClient, decodeEventLog } from "viem";
-
 import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
+import type { TableAccess } from "@/build/parseIndexingAst.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
@@ -18,15 +14,26 @@ import type { Transaction } from "@/types/transaction.js";
 import { chains } from "@/utils/chains.js";
 import {
   type Checkpoint,
-  isCheckpointEqual,
+  checkpointMin,
   isCheckpointGreaterThan,
+  maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { formatShortDate } from "@/utils/date.js";
+import { dedupe } from "@/utils/dedupe.js";
+import { Emittery } from "@/utils/emittery.js";
 import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import { wait } from "@/utils/wait.js";
-
+import { E_CANCELED, Mutex } from "async-mutex";
+import {
+  type Abi,
+  type AbiItem,
+  type Address,
+  type Client,
+  type Hex,
+  decodeEventLog,
+} from "viem";
+import { checksumAddress, createClient } from "viem";
 import { buildDatabaseModels } from "./model.js";
 import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
 import { addUserStackTrace } from "./trace.js";
@@ -86,7 +93,24 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private schema?: Schema;
   private db: Record<string, DatabaseModel<any>> = {};
 
-  private indexingFunctions?: IndexingFunctions;
+  private setupFunctionMap?: Record<
+    string,
+    { function: (...args: any) => any }
+  >;
+  private indexingFunctionMap?: Record<
+    string,
+    {
+      function: (...args: any) => any;
+      sourceName: string;
+      eventName: string;
+      checkpoint: Checkpoint;
+      maxTaskCheckpoint: Checkpoint;
+      indexingFunctionTasks: LogEventTask[];
+      abiItem: AbiItem;
+      eventSelectors: { [sourceId: string]: Hex[] };
+      parents: string[];
+    }
+  >;
 
   private eventProcessingMutex: Mutex;
   private queue?: IndexingFunctionQueue;
@@ -151,9 +175,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
   reset = async ({
     indexingFunctions: newIndexingFunctions,
     schema: newSchema,
+    tableAccess,
   }: {
     indexingFunctions?: IndexingFunctions;
     schema?: Schema;
+    tableAccess?: TableAccess;
   } = {}) => {
     if (newSchema) {
       this.schema = newSchema;
@@ -165,49 +191,154 @@ export class IndexingService extends Emittery<IndexingEvents> {
       });
     }
 
-    if (newIndexingFunctions) {
-      this.indexingFunctions = newIndexingFunctions;
+    if (newIndexingFunctions && tableAccess) {
+      this.indexingFunctionMap = buildIndexingFunctionMap(
+        newIndexingFunctions,
+        tableAccess,
+        this.sources,
+      );
+
+      for (const key of Object.keys(this.indexingFunctionMap)) {
+        await this.loadIndexingFunctionTasks(key);
+      }
+
+      this.queue = this.createEventQueue();
+
+      this.enqueueSetupTasks(newIndexingFunctions);
     }
 
     // If either the schema or indexing functions have not been provided yet,
     // we're not ready to process events. Just return early.
-    if (!this.schema || !this.indexingFunctions) return;
+    // if (!this.schema || this.indexingFunctionMap === {}) return;
 
     // Cancel all pending calls to processEvents and reset the mutex.
-    this.eventProcessingMutex.cancel();
-    this.eventProcessingMutex = new Mutex();
+    // this.eventProcessingMutex.cancel();
+    // this.eventProcessingMutex = new Mutex();
 
-    // Pause the old queue, (maybe) wait for the current indexing function to finish,
-    // then create a new queue using the new indexing functions.
-    this.queue?.clear();
-    this.queue?.pause();
-    await this.queue?.onIdle();
-    this.queue = this.createEventQueue({
-      indexingFunctions: this.indexingFunctions,
-    });
-    this.common.logger.debug({
-      service: "indexing",
-      msg: "Paused event queue",
-    });
+    // // Pause the old queue, (maybe) wait for the current indexing function to finish,
+    // // then create a new queue using the new indexing functions.
+    // this.queue?.clear();
+    // this.queue?.pause();
+    // await this.queue?.onIdle();
 
-    this.isPaused = false;
-    this.common.metrics.ponder_indexing_has_error.set(0);
+    // this.common.logger.debug({
+    //   service: "indexing",
+    //   msg: "Paused event queue",
+    // });
 
-    this.common.metrics.ponder_indexing_matched_events.reset();
-    this.common.metrics.ponder_indexing_handled_events.reset();
-    this.common.metrics.ponder_indexing_processed_events.reset();
+    // this.isPaused = false;
+    // this.common.metrics.ponder_indexing_has_error.set(0);
 
-    await this.indexingStore.reload({ schema: this.schema });
-    this.common.logger.debug({
-      service: "indexing",
-      msg: "Reset indexing store",
-    });
+    // this.common.metrics.ponder_indexing_matched_events.reset();
+    // this.common.metrics.ponder_indexing_handled_events.reset();
+    // this.common.metrics.ponder_indexing_processed_events.reset();
 
-    // When we call indexingStore.reload() above, the indexing store is dropped.
-    // Set the latest processed timestamp to zero accordingly.
-    this.eventsProcessedToCheckpoint = zeroCheckpoint;
-    this.currentIndexingCheckpoint = zeroCheckpoint;
-    this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
+    // await this.indexingStore.reload({ schema: this.schema });
+    // this.common.logger.debug({
+    //   service: "indexing",
+    //   msg: "Reset indexing store",
+    // });
+
+    // // When we call indexingStore.reload() above, the indexing store is dropped.
+    // // Set the latest processed timestamp to zero accordingly.
+    // this.eventsProcessedToCheckpoint = zeroCheckpoint;
+    // this.currentIndexingCheckpoint = zeroCheckpoint;
+    // this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
+  };
+
+  private enqueueSetupTasks = (indexingFunctions: IndexingFunctions) => {
+    for (const sourceName of Object.keys(indexingFunctions)) {
+      for (const eventName of Object.keys(indexingFunctions[sourceName])) {
+        if (eventName !== "setup") continue;
+
+        if (this.setupFunctionMap === undefined) {
+          this.setupFunctionMap = {};
+        }
+        this.setupFunctionMap![sourceName] = {
+          function: indexingFunctions[sourceName][eventName],
+        };
+
+        const contexts = Object.values(this.contexts).filter(
+          (c) => sourceName in c.contracts,
+        );
+
+        for (const { contracts, network } of contexts) {
+          const labels = {
+            network: network.name,
+            contract: sourceName,
+            event: "setup",
+          };
+          this.common.metrics.ponder_indexing_matched_events.inc(labels);
+
+          this.queue!.addTask({
+            kind: "SETUP",
+            event: {
+              networkName: network.name,
+              contractName: sourceName,
+              chainId: network.chainId,
+              blockNumber: contracts[sourceName].startBlock,
+            },
+          });
+        }
+      }
+    }
+  };
+
+  private enqueueNextTasks = () => {
+    if (this.indexingFunctionMap === undefined) return;
+
+    for (const key of Object.keys(this.indexingFunctionMap!)) {
+      const parentCheckpoints = this.indexingFunctionMap[key].parents.map(
+        (p) => {
+          if (p === key)
+            return getEventCheckpoint(
+              this.indexingFunctionMap![key].indexingFunctionTasks[0],
+            );
+
+          return this.indexingFunctionMap![p].checkpoint;
+        },
+      );
+
+      const minParentCheckpoint = checkpointMin(...parentCheckpoints);
+
+      // maximum checkpoint that is less than `minParentCheckpoint`
+      const maxCheckpointIndex = this.indexingFunctionMap[
+        key
+      ].indexingFunctionTasks.findIndex((task) =>
+        isCheckpointGreaterThan(getEventCheckpoint(task), minParentCheckpoint),
+      );
+
+      // TODO: logic is need to make sure multiple of the same events aren't being enqueued
+
+      if (maxCheckpointIndex !== 0) {
+        const eventsEnequeued = this.indexingFunctionMap[
+          key
+        ].indexingFunctionTasks.splice(0, maxCheckpointIndex);
+
+        console.log(eventsEnequeued);
+
+        for (const { event } of eventsEnequeued) {
+          const decodedLog = decodeEventLog({
+            abi: [this.indexingFunctionMap[key].abiItem],
+            data: event.log.data,
+            topics: event.log.topics,
+          });
+          this.queue!.addTask({
+            kind: "LOG",
+            event: {
+              networkName: event.networkName,
+              contractName: this.indexingFunctionMap[key].sourceName,
+              eventName: this.indexingFunctionMap[key].eventName,
+              chainId: event.chainId,
+              args: decodedLog.args ?? {},
+              log: event.log,
+              block: event.block,
+              transaction: event.transaction,
+            },
+          });
+        }
+      }
+    }
   };
 
   /**
@@ -279,243 +410,218 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * and the new checkpoint, adds them to the queue, then processes them.
    */
   processEvents = async () => {
-    try {
-      await this.eventProcessingMutex.runExclusive(async () => {
-        if (this.isPaused || !this.queue || !this.indexingFunctions) return;
-
-        const fromCheckpoint = this.eventsProcessedToCheckpoint;
-        const toCheckpoint = this.syncGatewayService.checkpoint;
-
-        // If we have already added events to the queue for the current checkpoint,
-        // do nothing and return. This can happen if a number of calls to processEvents
-        // "stack up" while one is being processed, and then they all run sequentially
-        // but the sync gateway service checkpoint has not moved.
-        if (!isCheckpointGreaterThan(toCheckpoint, fromCheckpoint)) return;
-
-        // If no events have been added yet, add the setup events for each chain & associated metrics.
-        if (isCheckpointEqual(fromCheckpoint, zeroCheckpoint)) {
-          Object.entries(this.indexingFunctions)
-            .filter(([, events]) =>
-              Object.keys(events).some((e) => e === "setup"),
-            )
-            .forEach(([sourceName]) => {
-              Object.values(this.contexts)
-                .filter(({ contracts }) => sourceName in contracts)
-                .forEach(({ contracts, network }) => {
-                  const labels = {
-                    network: network.name,
-                    contract: sourceName,
-                    event: "setup",
-                  };
-
-                  this.common.metrics.ponder_indexing_matched_events.inc(
-                    labels,
-                  );
-                  this.queue?.addTask({
-                    kind: "SETUP",
-                    event: {
-                      networkName: network.name,
-                      contractName: sourceName,
-                      chainId: network.chainId,
-                      blockNumber: contracts[sourceName].startBlock,
-                    },
-                  });
-                  this.common.metrics.ponder_indexing_handled_events.inc(
-                    labels,
-                  );
-                });
-            });
-        }
-
-        // Build source ID and event selector maps.
-        const sourcesById: { [sourceId: string]: Source } = {};
-        const registeredSelectorsBySourceId: { [sourceId: string]: Hex[] } = {};
-        for (const source of this.sources) {
-          sourcesById[source.id] = source;
-
-          const indexingFunctions =
-            this.indexingFunctions![source.contractName];
-          if (indexingFunctions) {
-            registeredSelectorsBySourceId[source.id] = Object.keys(
-              indexingFunctions,
-            )
-              .filter((name) => name !== "setup")
-              .map((safeEventName) => {
-                const abiItemMeta = source.abiEvents.bySafeName[safeEventName];
-                if (!abiItemMeta)
-                  throw new Error(
-                    `Invariant violation: No abiItemMeta found for ${source.contractName}:${safeEventName}`,
-                  );
-                return abiItemMeta.selector;
-              });
-          } else {
-            // It's possible for no indexing functions to be registered for a source.
-            registeredSelectorsBySourceId[source.id] = [];
-          }
-        }
-
-        const iterator = this.syncGatewayService.getEvents({
-          fromCheckpoint,
-          toCheckpoint,
-          includeEventSelectors: registeredSelectorsBySourceId,
-        });
-
-        let pageIndex = 0;
-
-        for await (const page of iterator) {
-          const { events, metadata } = page;
-
-          // Increment the metrics for the total number of matching & indexed events in this timestamp range.
-          // The metadata comes with every page, but is the same for all pages, so do this on the first page.
-          if (pageIndex === 0) {
-            metadata.counts.forEach(({ sourceId, selector, count }) => {
-              const source = sourcesById[sourceId];
-              if (!source)
-                throw new Error(
-                  `Invariant violation: Source ID not found ${sourceId}`,
-                );
-              const abiItemMeta = source.abiEvents.bySelector[selector];
-
-              // This means that the contract has emitted events that are not present in the ABI
-              // that the user has provided. Use the raw selector as the event name for the metric.
-              if (!abiItemMeta) {
-                const labels = {
-                  network: source.networkName,
-                  contract: source.contractName,
-                  event: selector,
-                };
-                this.common.metrics.ponder_indexing_matched_events.inc(
-                  labels,
-                  count,
-                );
-                return;
-              }
-
-              const labels = {
-                network: source.networkName,
-                contract: source.contractName,
-                event: abiItemMeta.safeName,
-              };
-              this.common.metrics.ponder_indexing_matched_events.inc(
-                labels,
-                count,
-              );
-              const isRegistered =
-                registeredSelectorsBySourceId[sourceId].includes(selector);
-              if (isRegistered) {
-                this.common.metrics.ponder_indexing_handled_events.inc(
-                  labels,
-                  count,
-                );
-              }
-            });
-          }
-
-          // Decode events and add them to the queue.
-          events.forEach((event) => {
-            const selector = event.log.topics[0];
-            // Should always have a selector because of the includeEventSelectors pattern.
-            if (!selector)
-              throw new Error(
-                `Invariant violation: Log is missing topics ${event.log.id}`,
-              );
-            const source = sourcesById[event.sourceId];
-            if (!source)
-              throw new Error(
-                `Invariant violation: Source ID not found ${event.sourceId}`,
-              );
-            const abiItemMeta = source.abiEvents.bySelector[selector];
-            if (!abiItemMeta)
-              throw new Error(
-                `Invariant violation: No abiItemMeta found for ${source.contractName}:${selector}`,
-              );
-
-            try {
-              const decodedLog = decodeEventLog({
-                abi: [abiItemMeta.item],
-                data: event.log.data,
-                topics: event.log.topics,
-              });
-
-              this.queue!.addTask({
-                kind: "LOG",
-                event: {
-                  networkName: source.networkName,
-                  contractName: source.contractName,
-                  eventName: abiItemMeta.safeName,
-                  chainId: event.chainId,
-                  args: decodedLog.args ?? {},
-                  log: event.log,
-                  block: event.block,
-                  transaction: event.transaction,
-                },
-              });
-            } catch (err) {
-              // Sometimes, logs match a selector but cannot be decoded using the provided ABI.
-              // This happens often when using custom event filters, because the indexed-ness
-              // of an event parameter is not taken into account when generating the selector.
-              this.common.logger.debug({
-                service: "app",
-                msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
-              });
-            }
-          });
-
-          // Process new events that were added to the queue.
-          this.queue.start();
-          await this.queue.onIdle();
-
-          // If the queue is already paused here, it means that reset() was called, interrupting
-          // event processing. When this happens, we want to return early.
-          if (this.queue.isPaused) return;
-
-          this.queue.pause();
-
-          if (events.length > 0) {
-            const { blockTimestamp, chainId, blockNumber, logIndex } =
-              metadata.pageEndCheckpoint;
-
-            this.common.logger.info({
-              service: "indexing",
-              msg: `Indexed ${
-                events.length === 1 ? "1 event" : `${events.length} events`
-              } up to ${formatShortDate(
-                blockTimestamp,
-              )} (chainId=${chainId} block=${blockNumber} logIndex=${logIndex})`,
-            });
-          }
-
-          pageIndex += 1;
-        }
-
-        this.emit("eventsProcessed", { toCheckpoint });
-        this.eventsProcessedToCheckpoint = toCheckpoint;
-
-        // Note that this happens both here and in the log event indexing function.
-        // They must also happen here to handle the case where no events were processed.
-        this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-          toCheckpoint.blockTimestamp,
-        );
-      });
-    } catch (error) {
-      // Pending locks get cancelled in reset(). This is expected, so it's safe to
-      // ignore the error that is thrown when a pending lock is cancelled.
-      if (error !== E_CANCELED) throw error;
-    }
+    this.queue?.start();
+    this.enqueueNextTasks();
+    // try {
+    //   await this.eventProcessingMutex.runExclusive(async () => {
+    //     if (this.isPaused || !this.queue || !this.indexingFunctions) return;
+    //     const fromCheckpoint = this.eventsProcessedToCheckpoint;
+    //     const toCheckpoint = this.syncGatewayService.checkpoint;
+    //     // If we have already added events to the queue for the current checkpoint,
+    //     // do nothing and return. This can happen if a number of calls to processEvents
+    //     // "stack up" while one is being processed, and then they all run sequentially
+    //     // but the sync gateway service checkpoint has not moved.
+    //     if (!isCheckpointGreaterThan(toCheckpoint, fromCheckpoint)) return;
+    //     // If no events have been added yet, add the setup events for each chain & associated metrics.
+    //     if (isCheckpointEqual(fromCheckpoint, zeroCheckpoint)) {
+    //       Object.entries(this.indexingFunctions)
+    //         .filter(([, events]) =>
+    //           Object.keys(events).some((e) => e === "setup"),
+    //         )
+    //         .forEach(([sourceName]) => {
+    //           Object.values(this.contexts)
+    //             .filter(({ contracts }) => sourceName in contracts)
+    //             .forEach(({ contracts, network }) => {
+    //               const labels = {
+    //                 network: network.name,
+    //                 contract: sourceName,
+    //                 event: "setup",
+    //               };
+    //               this.common.metrics.ponder_indexing_matched_events.inc(
+    //                 labels,
+    //               );
+    //               this.queue?.addTask({
+    //                 kind: "SETUP",
+    //                 event: {
+    //                   networkName: network.name,
+    //                   contractName: sourceName,
+    //                   chainId: network.chainId,
+    //                   blockNumber: contracts[sourceName].startBlock,
+    //                 },
+    //               });
+    //               this.common.metrics.ponder_indexing_handled_events.inc(
+    //                 labels,
+    //               );
+    //             });
+    //         });
+    //     }
+    //     // Build source ID and event selector maps.
+    //     const sourcesById: { [sourceId: string]: Source } = {};
+    //     const registeredSelectorsBySourceId: { [sourceId: string]: Hex[] } = {};
+    //     for (const source of this.sources) {
+    //       sourcesById[source.id] = source;
+    //       const indexingFunctions =
+    //         this.indexingFunctions![source.contractName];
+    //       if (indexingFunctions) {
+    //         registeredSelectorsBySourceId[source.id] = Object.keys(
+    //           indexingFunctions,
+    //         )
+    //           .filter((name) => name !== "setup")
+    //           .map((safeEventName) => {
+    //             const abiItemMeta = source.abiEvents.bySafeName[safeEventName];
+    //             if (!abiItemMeta)
+    //               throw new Error(
+    //                 `Invariant violation: No abiItemMeta found for ${source.contractName}:${safeEventName}`,
+    //               );
+    //             return abiItemMeta.selector;
+    //           });
+    //       } else {
+    //         // It's possible for no indexing functions to be registered for a source.
+    //         registeredSelectorsBySourceId[source.id] = [];
+    //       }
+    //     }
+    //     const iterator = this.syncGatewayService.getEvents({
+    //       fromCheckpoint,
+    //       toCheckpoint,
+    //       includeEventSelectors: registeredSelectorsBySourceId,
+    //     });
+    //     let pageIndex = 0;
+    //     for await (const page of iterator) {
+    //       const { events, metadata } = page;
+    //       // Increment the metrics for the total number of matching & indexed events in this timestamp range.
+    //       // The metadata comes with every page, but is the same for all pages, so do this on the first page.
+    //       if (pageIndex === 0) {
+    //         metadata.counts.forEach(({ sourceId, selector, count }) => {
+    //           const source = sourcesById[sourceId];
+    //           if (!source)
+    //             throw new Error(
+    //               `Invariant violation: Source ID not found ${sourceId}`,
+    //             );
+    //           const abiItemMeta = source.abiEvents.bySelector[selector];
+    //           // This means that the contract has emitted events that are not present in the ABI
+    //           // that the user has provided. Use the raw selector as the event name for the metric.
+    //           if (!abiItemMeta) {
+    //             const labels = {
+    //               network: source.networkName,
+    //               contract: source.contractName,
+    //               event: selector,
+    //             };
+    //             this.common.metrics.ponder_indexing_matched_events.inc(
+    //               labels,
+    //               count,
+    //             );
+    //             return;
+    //           }
+    //           const labels = {
+    //             network: source.networkName,
+    //             contract: source.contractName,
+    //             event: abiItemMeta.safeName,
+    //           };
+    //           this.common.metrics.ponder_indexing_matched_events.inc(
+    //             labels,
+    //             count,
+    //           );
+    //           const isRegistered =
+    //             registeredSelectorsBySourceId[sourceId].includes(selector);
+    //           if (isRegistered) {
+    //             this.common.metrics.ponder_indexing_handled_events.inc(
+    //               labels,
+    //               count,
+    //             );
+    //           }
+    //         });
+    //       }
+    //       // Decode events and add them to the queue.
+    //       events.forEach((event) => {
+    //         const selector = event.log.topics[0];
+    //         // Should always have a selector because of the includeEventSelectors pattern.
+    //         if (!selector)
+    //           throw new Error(
+    //             `Invariant violation: Log is missing topics ${event.log.id}`,
+    //           );
+    //         const source = sourcesById[event.sourceId];
+    //         if (!source)
+    //           throw new Error(
+    //             `Invariant violation: Source ID not found ${event.sourceId}`,
+    //           );
+    //         const abiItemMeta = source.abiEvents.bySelector[selector];
+    //         if (!abiItemMeta)
+    //           throw new Error(
+    //             `Invariant violation: No abiItemMeta found for ${source.contractName}:${selector}`,
+    //           );
+    //         try {
+    //           const decodedLog = decodeEventLog({
+    //             abi: [abiItemMeta.item],
+    //             data: event.log.data,
+    //             topics: event.log.topics,
+    //           });
+    //           this.queue!.addTask({
+    //             kind: "LOG",
+    //             event: {
+    //               networkName: source.networkName,
+    //               contractName: source.contractName,
+    //               eventName: abiItemMeta.safeName,
+    //               chainId: event.chainId,
+    //               args: decodedLog.args ?? {},
+    //               log: event.log,
+    //               block: event.block,
+    //               transaction: event.transaction,
+    //             },
+    //           });
+    //         } catch (err) {
+    //           // Sometimes, logs match a selector but cannot be decoded using the provided ABI.
+    //           // This happens often when using custom event filters, because the indexed-ness
+    //           // of an event parameter is not taken into account when generating the selector.
+    //           this.common.logger.debug({
+    //             service: "app",
+    //             msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
+    //           });
+    //         }
+    //       });
+    //       // Process new events that were added to the queue.
+    //       this.queue.start();
+    //       await this.queue.onIdle();
+    //       // If the queue is already paused here, it means that reset() was called, interrupting
+    //       // event processing. When this happens, we want to return early.
+    //       if (this.queue.isPaused) return;
+    //       this.queue.pause();
+    //       if (events.length > 0) {
+    //         const { blockTimestamp, chainId, blockNumber, logIndex } =
+    //           metadata.pageEndCheckpoint;
+    //         this.common.logger.info({
+    //           service: "indexing",
+    //           msg: `Indexed ${
+    //             events.length === 1 ? "1 event" : `${events.length} events`
+    //           } up to ${formatShortDate(
+    //             blockTimestamp,
+    //           )} (chainId=${chainId} block=${blockNumber} logIndex=${logIndex})`,
+    //         });
+    //       }
+    //       pageIndex += 1;
+    //     }
+    //     this.emit("eventsProcessed", { toCheckpoint });
+    //     this.eventsProcessedToCheckpoint = toCheckpoint;
+    //     // Note that this happens both here and in the log event indexing function.
+    //     // They must also happen here to handle the case where no events were processed.
+    //     this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
+    //       toCheckpoint.blockTimestamp,
+    //     );
+    //   });
+    // } catch (error) {
+    //   // Pending locks get cancelled in reset(). This is expected, so it's safe to
+    //   // ignore the error that is thrown when a pending lock is cancelled.
+    //   if (error !== E_CANCELED) throw error;
+    // }
   };
 
-  private createEventQueue = ({
-    indexingFunctions,
-  }: {
-    indexingFunctions: IndexingFunctions;
-  }) => {
+  private createEventQueue = () => {
     const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
       task,
     }) => {
       // This is a hack to ensure that the eventsProcessed method is called and updates
       // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
       // It does, however, slow down event processing a bit. Too frequent waits cause massive performance loses.
-      if (Math.floor(Math.random() * 100) === 69) await wait(0);
+      // if (Math.floor(Math.random() * 100) === 69) await wait(0);
 
       switch (task.kind) {
         case "SETUP": {
@@ -524,7 +630,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           const fullEventName = `${event.contractName}:setup`;
 
           const indexingFunction =
-            indexingFunctions?.[event.contractName]?.setup;
+            this.setupFunctionMap?.[event.contractName]?.function;
           if (!indexingFunction)
             throw new Error(
               `Internal: Indexing function not found for ${fullEventName}`,
@@ -546,9 +652,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
               });
 
               // Running user code here!
-              await indexingFunction({
-                context: { db: this.db, ...this.contexts[event.chainId] },
-              });
+              // await indexingFunction({
+              //   context: { db: this.db, ...this.contexts[event.chainId] },
+              // });
 
               this.common.logger.trace({
                 service: "indexing",
@@ -603,7 +709,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           const fullEventName = `${event.contractName}:${event.eventName}`;
 
           const indexingFunction =
-            indexingFunctions?.[event.contractName]?.[event.eventName];
+            this.indexingFunctionMap?.[fullEventName].function;
           if (!indexingFunction)
             throw new Error(
               `Internal: Indexing function not found for ${fullEventName}`,
@@ -623,17 +729,18 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 msg: `Started indexing function (event="${fullEventName}", block=${event.block.number})`,
               });
 
+              await wait(50);
               // Running user code here!
-              await indexingFunction({
-                event: {
-                  name: event.eventName,
-                  args: event.args,
-                  log: event.log,
-                  transaction: event.transaction,
-                  block: event.block,
-                },
-                context: { db: this.db, ...this.contexts[event.chainId] },
-              });
+              // await indexingFunction({
+              //   event: {
+              //     name: event.eventName,
+              //     args: event.args,
+              //     log: event.log,
+              //     transaction: event.transaction,
+              //     block: event.block,
+              //   },
+              //   context: { db: this.db, ...this.contexts[event.chainId] },
+              // });
 
               this.common.logger.trace({
                 service: "indexing",
@@ -689,6 +796,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
               }
             }
           }
+          await this.loadIndexingFunctionTasks(fullEventName);
+
+          // update checkpoint
+          this.indexingFunctionMap![fullEventName].checkpoint =
+            getEventCheckpoint(task);
+
+          // this.enqueueNextTasks();
 
           break;
         }
@@ -698,14 +812,156 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const queue = createQueue({
       worker: indexingFunctionWorker,
       options: {
-        concurrency: 1,
+        concurrency: 10,
         autoStart: false,
       },
     });
 
     return queue;
   };
+
+  /**
+   * Load indexing function tasks from the sync store.
+   *
+   * Max batch size is 1000.
+   */
+  private loadIndexingFunctionTasks = async (indexingFunctionKey: string) => {
+    if (this.indexingFunctionMap === undefined) return;
+
+    const currentTasks =
+      this.indexingFunctionMap[indexingFunctionKey].indexingFunctionTasks;
+
+    if (currentTasks.length >= 200) return;
+
+    const events = await this.syncGatewayService
+      .getEvents({
+        // Note: this should be slightly incremented to avoid retrieving duplicate events
+        fromCheckpoint:
+          this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint,
+        toCheckpoint: maxCheckpoint,
+        includeEventSelectors:
+          this.indexingFunctionMap[indexingFunctionKey].eventSelectors,
+        pageSize: 1_000,
+      })
+      .next();
+
+    // Note: Should we do something with the maxTaskCheckpoint
+    if (events.done === true) {
+      this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint =
+        maxCheckpoint;
+      return;
+    } else {
+      this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint =
+        events.value.metadata.pageEndCheckpoint;
+
+      for (const event of events.value.events) {
+        const source = this.sources.find((s) => s.id === event.sourceId)!;
+
+        try {
+          const decodedLog = decodeEventLog({
+            abi: [this.indexingFunctionMap[indexingFunctionKey].abiItem],
+            data: event.log.data,
+            topics: event.log.topics,
+          });
+
+          this.indexingFunctionMap[
+            indexingFunctionKey
+          ].indexingFunctionTasks.push({
+            kind: "LOG",
+            event: {
+              networkName: source.networkName,
+              contractName: source.contractName,
+              eventName:
+                this.indexingFunctionMap[indexingFunctionKey].eventName,
+              chainId: event.chainId,
+              args: decodedLog.args ?? {},
+              log: event.log,
+              block: event.block,
+              transaction: event.transaction,
+            },
+          });
+        } catch (err) {
+          // Sometimes, logs match a selector but cannot be decoded using the provided ABI.
+          // This happens often when using custom event filters, because the indexed-ness
+          // of an event parameter is not taken into account when generating the selector.
+          this.common.logger.debug({
+            service: "app",
+            msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
+          });
+        }
+      }
+    }
+  };
 }
+
+const buildIndexingFunctionMap = (
+  indexingFunctions: IndexingFunctions,
+  tableAccess: TableAccess,
+  sources: Source[],
+) => {
+  const indexingFunctionMap = {} as NonNullable<
+    IndexingService["indexingFunctionMap"]
+  >;
+
+  for (const sourceName of Object.keys(indexingFunctions)) {
+    for (const eventName of Object.keys(indexingFunctions[sourceName])) {
+      if (eventName === "setup") continue;
+
+      const indexingFunctionKey = `${sourceName}:${eventName}`;
+
+      // All tables that this indexing function key reads
+      const tableReads = tableAccess
+        .filter(
+          (t) =>
+            t.indexingFunctionKey === indexingFunctionKey &&
+            t.access === "read",
+        )
+        .map((t) => t.table);
+
+      // all indexing function keys that write to a table in `tableReads`
+      const parents = tableAccess
+        .filter((t) => t.access === "write" && tableReads.includes(t.table))
+        .map((t) => t.indexingFunctionKey);
+
+      const eventSelectors = {} as { [sourceId: string]: Hex[] };
+      let abiItem: AbiItem;
+
+      for (const source of sources) {
+        if (source.contractName === sourceName) {
+          if (eventSelectors[source.id] === undefined) {
+            eventSelectors[source.id] = [];
+          }
+
+          const abiItemMeta = source.abiEvents.bySafeName[eventName];
+          if (!abiItemMeta) {
+            throw new Error(
+              `Invariant violation: No abiItemMeta found for ${indexingFunctionKey}`,
+            );
+          }
+
+          abiItem = abiItemMeta.item;
+          eventSelectors[source.id].push(abiItemMeta.selector);
+        } else {
+          eventSelectors[source.id] = [];
+        }
+      }
+
+      indexingFunctionMap[indexingFunctionKey] = {
+        eventName,
+        sourceName,
+        function: indexingFunctions[sourceName][eventName],
+        checkpoint: zeroCheckpoint,
+        maxTaskCheckpoint: zeroCheckpoint,
+        indexingFunctionTasks: [],
+        eventSelectors,
+        abiItem: abiItem!,
+        parents: dedupe(parents),
+      };
+    }
+  }
+
+  return indexingFunctionMap;
+};
 
 const buildContexts = (
   sources: Source[],
@@ -773,4 +1029,13 @@ const buildContexts = (
   });
 
   return contexts;
+};
+
+const getEventCheckpoint = (logEvent: LogEventTask): Checkpoint => {
+  return {
+    blockNumber: Number(logEvent.event.block.number),
+    blockTimestamp: Number(logEvent.event.block.timestamp),
+    chainId: logEvent.event.chainId,
+    logIndex: logEvent.event.log.logIndex,
+  };
 };

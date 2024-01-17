@@ -20,6 +20,7 @@ import {
   type RawIndexingFunctions,
   safeBuildIndexingFunctions,
 } from "./functions/functions.js";
+import { parseIndexingAst } from "./parseIndexingAst.js";
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
@@ -43,6 +44,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   // Maintain the latest version of built user code to support validation.
   // Note that `networks` and `schema` are not currently needed for validation.
   private sources?: Source[];
+  private schema?: Schema;
   private indexingFunctions?: IndexingFunctions;
 
   constructor({ common }: { common: Common }) {
@@ -121,6 +123,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       if (invalidated.includes(this.common.options.configFile)) {
         const configResult = await this.loadConfig();
         const validationResult = this.validate();
+        this.analyze();
 
         if (configResult.success && validationResult.success) {
           this.emit("newConfig", configResult);
@@ -134,6 +137,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       if (invalidated.includes(this.common.options.schemaFile)) {
         const schemaResult = await this.loadSchema();
         const validationResult = this.validate();
+        this.analyze();
 
         if (schemaResult.success && validationResult.success) {
           this.emit("newSchema", schemaResult);
@@ -159,6 +163,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           files: indexingFunctionFiles,
         });
         const validationResult = this.validate();
+        this.analyze();
 
         if (indexingFunctionsResult.success && validationResult.success) {
           this.emit("newIndexingFunctions", indexingFunctionsResult);
@@ -215,6 +220,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return { error: indexingFunctionsResult.error } as const;
 
     const validationResult = this.validate();
+    const analyzeResult = this.analyze();
     if (!validationResult.success)
       return { error: validationResult.error } as const;
 
@@ -229,6 +235,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       schema,
       graphqlSchema,
       indexingFunctions,
+      tableAccess: analyzeResult,
     };
   }
 
@@ -271,6 +278,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     const schema = buildResult.data.schema;
+    this.schema = schema;
 
     // TODO: Probably move this elsewhere. Also, handle errors.
     const graphqlSchema = buildGqlSchema(buildResult.data.schema);
@@ -360,6 +368,24 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     return { success: true } as const;
+  }
+
+  private analyze() {
+    if (!this.rawIndexingFunctions || !this.schema) return [];
+
+    const tableNames = Object.keys(this.schema.tables);
+    const filePaths = Object.keys(this.rawIndexingFunctions);
+    const indexingFunctionKeys = Object.values(
+      this.rawIndexingFunctions,
+    ).flatMap((indexingFunctions) => indexingFunctions.map((x) => x.name));
+
+    const tableAccessMap = parseIndexingAst({
+      tableNames,
+      filePaths,
+      indexingFunctionKeys,
+    });
+
+    return tableAccessMap;
   }
 
   private async executeFile(file: string) {

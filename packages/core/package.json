@@ -42,6 +42,7 @@
     }
   },
   "dependencies": {
+    "@ast-grep/napi": "^0.17.1",
     "@babel/code-frame": "^7.23.4",
     "abitype": "^0.10.2",
     "async-mutex": "^0.4.0",

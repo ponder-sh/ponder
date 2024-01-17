@@ -111,10 +111,12 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     fromCheckpoint,
     toCheckpoint,
     includeEventSelectors,
+    pageSize,
   }: {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     includeEventSelectors: { [sourceId: string]: Hex[] };
+    pageSize?: number;
   }) {
     return this.syncStore.getLogEvents({
       fromCheckpoint,
@@ -135,6 +137,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
         toBlock: factory.endBlock,
         includeEventSelectors: includeEventSelectors[factory.id],
       })),
+      pageSize,
     });
   }
 
