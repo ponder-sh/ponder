@@ -2,7 +2,11 @@ import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { TableAccess } from "@/build/parseIndexingAst.js";
 import type { Network } from "@/config/networks.js";
-import type { Source } from "@/config/sources.js";
+import {
+  type Source,
+  sourceIsFactory,
+  sourceIsLogFilter,
+} from "@/config/sources.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
@@ -127,13 +131,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
       /* Buffer of in memory tasks that haven't been enqueued yet. */
       indexingFunctionTasks: LogEventTask[];
       abiEvent: AbiEvent;
-      eventSelectors: { [sourceId: string]: Hex[] };
+      eventSelector: Hex;
+      sources: Source[];
       /* Indexing function keys that write to tables that this indexing function key reads from. */
       parents: string[];
       /* Is this task a parent of itself. */
       selfReliance: boolean;
-
-      /** Is the db currently being read. */
       dbMutex: Mutex;
     }
   >;
@@ -388,7 +391,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
    */
   processEvents = async () => {
     this.queue!.start();
-    console.log("process events");
     this.enqueueNextTasks();
 
     // this.queue.start();
@@ -618,108 +620,102 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const maxTaskCheckpoint =
       this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint;
 
-    const events = await this.syncGatewayService
-      .getEvents({
-        // Note: this should be slightly incremented to avoid retrieving duplicate events
-        fromCheckpoint: {
-          ...maxTaskCheckpoint,
-          logIndex: maxTaskCheckpoint.logIndex
-            ? maxTaskCheckpoint.logIndex + 1
-            : maxCheckpoint.logIndex,
-        },
-        toCheckpoint: maxCheckpoint,
-        includeEventSelectors:
-          this.indexingFunctionMap[indexingFunctionKey].eventSelectors,
-        pageSize: 1_000,
-      })
-      .next();
+    const { events, metadata } = await this.syncGatewayService.getEvents({
+      fromCheckpoint: {
+        ...maxTaskCheckpoint,
+        logIndex: maxTaskCheckpoint.logIndex
+          ? maxTaskCheckpoint.logIndex + 1
+          : maxCheckpoint.logIndex,
+      },
+      toCheckpoint: maxCheckpoint,
+      limit: 1_000,
+      logFilters: this.indexingFunctionMap[indexingFunctionKey].sources
+        .filter(sourceIsLogFilter)
+        .map((logFilter) => ({
+          id: logFilter.id,
+          chainId: logFilter.chainId,
+          criteria: logFilter.criteria,
+          fromBlock: logFilter.startBlock,
+          toBlock: logFilter.endBlock,
+          includeEventSelectors: [
+            this.indexingFunctionMap![indexingFunctionKey].eventSelector,
+          ],
+        })),
+      factories: this.indexingFunctionMap[indexingFunctionKey].sources
+        .filter(sourceIsFactory)
+        .map((factory) => ({
+          id: factory.id,
+          chainId: factory.chainId,
+          criteria: factory.criteria,
+          fromBlock: factory.startBlock,
+          toBlock: factory.endBlock,
+          includeEventSelectors: [
+            this.indexingFunctionMap![indexingFunctionKey].eventSelector,
+          ],
+        })),
+    });
 
-    if (events.done === true) {
-      this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint =
-        maxCheckpoint;
-      return;
-    } else {
-      this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint =
-        events.value.metadata.pageEndCheckpoint;
+    this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint =
+      metadata.endCheckpoint;
 
-      events.value.metadata.counts.forEach(({ count, sourceId }) => {
-        // const source = sourcesById[sourceId];
-        // if (!source)
-        //   throw new Error(
-        //     `Invariant violation: Source ID not found ${sourceId}`,
-        //   );
-        // const abiItemMeta = source.abiEvents.bySelector[selector];
+    const keyMetadata = metadata.counts.find(
+      ({ selector }) =>
+        selector ===
+        this.indexingFunctionMap![indexingFunctionKey].eventSelector,
+    )!;
 
-        // // This means that the contract has emitted events that are not present in the ABI
-        // // that the user has provided. Use the raw selector as the event name for the metric.
-        // if (!abiItemMeta) {
-        //   const labels = {
-        //     network: source.networkName,
-        //     contract: source.contractName,
-        //     event: selector,
-        //   };
-        //   this.common.metrics.ponder_indexing_matched_events.inc(
-        //     labels,
-        //     count,
-        //   );
-        //   return;
-        // }
+    if (keyMetadata !== undefined) {
+      const labels = {
+        network: this.networkNames[keyMetadata.sourceId],
+        contract: this.indexingFunctionMap![indexingFunctionKey].contractName,
+        event: this.indexingFunctionMap![indexingFunctionKey].eventName,
+      };
 
-        const labels = {
-          network: this.networkNames[sourceId],
-          contract: this.indexingFunctionMap![indexingFunctionKey].contractName,
-          event: this.indexingFunctionMap![indexingFunctionKey].eventName,
-        };
-        this.common.metrics.ponder_indexing_matched_events.inc(labels, count);
-        // const isRegistered =
-        //   registeredSelectorsBySourceId[sourceId].includes(selector);
-        // if (isRegistered) {
-        this.common.metrics.ponder_indexing_handled_events.inc(labels, count);
-        // }
-      });
+      const count = keyMetadata.count > 1_000 ? 1_000 : keyMetadata.count;
+      this.common.metrics.ponder_indexing_matched_events.inc(labels, count);
+      this.common.metrics.ponder_indexing_handled_events.inc(labels, count);
+    }
 
-      for (const event of events.value.events) {
-        try {
-          const decodedLog = decodeEventLog({
-            abi: [this.indexingFunctionMap[indexingFunctionKey].abiEvent],
-            data: event.log.data,
-            topics: event.log.topics,
-          });
+    for (const event of events) {
+      try {
+        const decodedLog = decodeEventLog({
+          abi: [this.indexingFunctionMap[indexingFunctionKey].abiEvent],
+          data: event.log.data,
+          topics: event.log.topics,
+        });
 
-          this.indexingFunctionMap[
-            indexingFunctionKey
-          ].indexingFunctionTasks.push({
-            kind: "LOG",
+        this.indexingFunctionMap[
+          indexingFunctionKey
+        ].indexingFunctionTasks.push({
+          kind: "LOG",
+          event: {
+            networkName: this.networkNames[event.sourceId],
+            contractName:
+              this.indexingFunctionMap[indexingFunctionKey].contractName,
+            eventName: this.indexingFunctionMap[indexingFunctionKey].eventName,
+            chainId: event.chainId,
             event: {
-              networkName: this.networkNames[event.sourceId],
-              contractName:
-                this.indexingFunctionMap[indexingFunctionKey].contractName,
-              eventName:
-                this.indexingFunctionMap[indexingFunctionKey].eventName,
-              chainId: event.chainId,
-              event: {
-                args: decodedLog.args ?? {},
-                log: event.log,
-                block: event.block,
-                transaction: event.transaction,
-              },
-              checkpoint: {
-                blockNumber: Number(event.block.number),
-                blockTimestamp: Number(event.block.timestamp),
-                chainId: event.chainId,
-                logIndex: event.log.logIndex,
-              },
+              args: decodedLog.args ?? {},
+              log: event.log,
+              block: event.block,
+              transaction: event.transaction,
             },
-          });
-        } catch (err) {
-          // Sometimes, logs match a selector but cannot be decoded using the provided ABI.
-          // This happens often when using custom event filters, because the indexed-ness
-          // of an event parameter is not taken into account when generating the selector.
-          this.common.logger.debug({
-            service: "app",
-            msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
-          });
-        }
+            checkpoint: {
+              blockNumber: Number(event.block.number),
+              blockTimestamp: Number(event.block.timestamp),
+              chainId: event.chainId,
+              logIndex: event.log.logIndex,
+            },
+          },
+        });
+      } catch (err) {
+        // Sometimes, logs match a selector but cannot be decoded using the provided ABI.
+        // This happens often when using custom event filters, because the indexed-ness
+        // of an event parameter is not taken into account when generating the selector.
+        this.common.logger.debug({
+          service: "app",
+          msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
+        });
       }
     }
   };
@@ -777,38 +773,32 @@ const buildIndexingFunctionMap = (
           t.indexingFunctionKey === indexingFunctionKey,
       );
 
-      const eventSelectors = {} as { [sourceId: string]: Hex[] };
-      let abiEvent: AbiEvent;
+      const keySources = sources.filter((s) => s.contractName === contractName);
 
-      for (const source of sources) {
-        if (source.contractName === contractName) {
-          if (eventSelectors[source.id] === undefined) {
-            eventSelectors[source.id] = [];
-          }
+      const i = sources.findIndex(
+        (s) =>
+          s.contractName === contractName &&
+          s.abiEvents.bySafeName[eventName] !== undefined,
+      );
 
-          const abiItemMeta = source.abiEvents.bySafeName[eventName];
-          if (!abiItemMeta) {
-            throw new Error(
-              `Invariant violation: No abiItemMeta found for ${indexingFunctionKey}`,
-            );
-          }
-
-          abiEvent = abiItemMeta.item;
-          eventSelectors[source.id].push(abiItemMeta.selector);
-        } else {
-          eventSelectors[source.id] = [];
-        }
-      }
+      const abiEvent = sources[i].abiEvents.bySafeName[eventName]!.item;
+      const eventSelector =
+        sources[i].abiEvents.bySafeName[eventName]!.selector;
 
       indexingFunctionMap[indexingFunctionKey] = {
         eventName,
         contractName,
+
         checkpoint: zeroCheckpoint,
         maxEnqueuedCheckpoint: zeroCheckpoint,
         maxTaskCheckpoint: zeroCheckpoint,
+
+        sources: keySources,
         indexingFunctionTasks: [],
-        eventSelectors,
+
         abiEvent: abiEvent!,
+        eventSelector,
+
         parents: dedupe(parents),
         selfReliance,
         dbMutex: new Mutex(),
