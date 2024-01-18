@@ -152,6 +152,7 @@ export interface SyncStore {
   getLogEvents(arg: {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
+    limit: number;
     logFilters?: {
       id: string;
       chainId: number;
@@ -168,8 +169,7 @@ export interface SyncStore {
       toBlock?: number;
       includeEventSelectors?: Hex[];
     }[];
-    pageSize?: number;
-  }): AsyncGenerator<{
+  }): Promise<{
     events: {
       sourceId: string;
       chainId: number;
@@ -178,12 +178,8 @@ export interface SyncStore {
       transaction: Transaction;
     }[];
     metadata: {
-      counts: {
-        sourceId: string;
-        selector: Hex;
-        count: number;
-      }[];
-      pageEndCheckpoint: Checkpoint;
+      counts: { sourceId: string; selector: Hex; count: number }[];
+      endCheckpoint: Checkpoint;
     };
   }>;
 }
