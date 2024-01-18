@@ -310,7 +310,6 @@ export class Ponder {
       common: this.common,
       syncStore: this.syncStore,
       networks: networksToSync,
-      sources: this.sources,
     });
 
     this.indexingService = new IndexingService({

@@ -309,7 +309,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     if (this.indexingFunctionMap === undefined) return;
 
     for (const key of Object.keys(this.indexingFunctionMap!)) {
-      // return early if no tasks possible to enqueue.
       if (this.indexingFunctionMap[key].indexingFunctionTasks.length === 0)
         continue;
 
@@ -458,7 +457,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         if (i === 3) {
           this.queue!.pause();
           this.queue!.clear();
-          // this.isPaused = true;
 
           addUserStackTrace(error, this.common.options);
 
@@ -534,9 +532,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
         if (i === 3) {
           this.queue!.pause();
           this.queue!.clear();
-          // this.isPaused = true;
 
           addUserStackTrace(error, this.common.options);
+
           if (error.meta) {
             error.meta += `\nEvent args:\n${prettyPrint(event.event.args)}`;
           } else {
@@ -605,20 +603,17 @@ export class IndexingService extends Emittery<IndexingEvents> {
   };
 
   /**
-   * Load indexing function tasks from the sync store.
-   * Max batch size is 1000.
+   * Load a batch of indexing function tasks from the sync store into memory.
    */
   private loadIndexingFunctionTasks = async (indexingFunctionKey: string) => {
-    if (this.indexingFunctionMap === undefined) return;
-
     if (
-      this.indexingFunctionMap[indexingFunctionKey].indexingFunctionTasks
+      this.indexingFunctionMap![indexingFunctionKey].indexingFunctionTasks
         .length > 200
     )
       return;
 
     const maxTaskCheckpoint =
-      this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint;
+      this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint;
 
     const { events, metadata } = await this.syncGatewayService.getEvents({
       fromCheckpoint: {
@@ -629,33 +624,33 @@ export class IndexingService extends Emittery<IndexingEvents> {
       },
       toCheckpoint: maxCheckpoint,
       limit: 1_000,
-      logFilters: this.indexingFunctionMap[indexingFunctionKey].sources
-        .filter(sourceIsLogFilter)
-        .map((logFilter) => ({
-          id: logFilter.id,
-          chainId: logFilter.chainId,
-          criteria: logFilter.criteria,
-          fromBlock: logFilter.startBlock,
-          toBlock: logFilter.endBlock,
-          includeEventSelectors: [
-            this.indexingFunctionMap![indexingFunctionKey].eventSelector,
-          ],
-        })),
-      factories: this.indexingFunctionMap[indexingFunctionKey].sources
-        .filter(sourceIsFactory)
-        .map((factory) => ({
-          id: factory.id,
-          chainId: factory.chainId,
-          criteria: factory.criteria,
-          fromBlock: factory.startBlock,
-          toBlock: factory.endBlock,
-          includeEventSelectors: [
-            this.indexingFunctionMap![indexingFunctionKey].eventSelector,
-          ],
-        })),
+      logFilters: this.indexingFunctionMap![indexingFunctionKey].sources.filter(
+        sourceIsLogFilter,
+      ).map((logFilter) => ({
+        id: logFilter.id,
+        chainId: logFilter.chainId,
+        criteria: logFilter.criteria,
+        fromBlock: logFilter.startBlock,
+        toBlock: logFilter.endBlock,
+        includeEventSelectors: [
+          this.indexingFunctionMap![indexingFunctionKey].eventSelector,
+        ],
+      })),
+      factories: this.indexingFunctionMap![indexingFunctionKey].sources.filter(
+        sourceIsFactory,
+      ).map((factory) => ({
+        id: factory.id,
+        chainId: factory.chainId,
+        criteria: factory.criteria,
+        fromBlock: factory.startBlock,
+        toBlock: factory.endBlock,
+        includeEventSelectors: [
+          this.indexingFunctionMap![indexingFunctionKey].eventSelector,
+        ],
+      })),
     });
 
-    this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint =
+    this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint =
       metadata.endCheckpoint;
 
     const keyMetadata = metadata.counts.find(
@@ -676,23 +671,27 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.common.metrics.ponder_indexing_handled_events.inc(labels, count);
     }
 
+    const abi = [this.indexingFunctionMap![indexingFunctionKey].abiEvent];
+    const contractName =
+      this.indexingFunctionMap![indexingFunctionKey].contractName;
+    const eventName = this.indexingFunctionMap![indexingFunctionKey].eventName;
+
     for (const event of events) {
       try {
         const decodedLog = decodeEventLog({
-          abi: [this.indexingFunctionMap[indexingFunctionKey].abiEvent],
+          abi,
           data: event.log.data,
           topics: event.log.topics,
         });
 
-        this.indexingFunctionMap[
+        this.indexingFunctionMap![
           indexingFunctionKey
         ].indexingFunctionTasks.push({
           kind: "LOG",
           event: {
             networkName: this.networkNames[event.sourceId],
-            contractName:
-              this.indexingFunctionMap[indexingFunctionKey].contractName,
-            eventName: this.indexingFunctionMap[indexingFunctionKey].eventName,
+            contractName,
+            eventName,
             chainId: event.chainId,
             event: {
               args: decodedLog.args ?? {},

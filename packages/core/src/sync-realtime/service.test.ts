@@ -492,9 +492,10 @@ test("start() with factory contract inserts new child contracts records and chil
 
   expect(childContractAddresses).toMatchObject([toLowerCase(factory.pair)]);
 
-  const eventIterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     factories: [
       {
         id: "Pair",
@@ -503,8 +504,6 @@ test("start() with factory contract inserts new child contracts records and chil
       },
     ],
   });
-  const events = [];
-  for await (const page of eventIterator) events.push(...page.events);
 
   expect(events).toHaveLength(2);
   expect(events[0]).toMatchObject(

@@ -234,9 +234,10 @@ test("start() adds log filter events to sync store", async (context) => {
   service.start();
   await service.onIdle();
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [
       {
         id: sources[0].id,
@@ -245,8 +246,6 @@ test("start() adds log filter events to sync store", async (context) => {
       },
     ],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   const getEvents = await getEventsErc20(sources);
   const erc20Events = [];
@@ -273,9 +272,10 @@ test("start() adds log filter and factory contract events to sync store", async 
   service.start();
   await service.onIdle();
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [
       {
         id: "Erc20",
@@ -291,8 +291,6 @@ test("start() adds log filter and factory contract events to sync store", async 
       },
     ],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   const sourceIds = events.map((event) => event.sourceId);
 
