@@ -1,5 +1,13 @@
 # create-ponder
 
+## 0.1.8
+
+### Patch Changes
+
+- [#582](https://github.com/ponder-sh/ponder/pull/582) [`e7219d90178725fc51a8078358583844d7fe4a61`](https://github.com/ponder-sh/ponder/commit/e7219d90178725fc51a8078358583844d7fe4a61) Thanks [@grayleonard](https://github.com/grayleonard)! - Re-added subgraph ID support
+
+- [#585](https://github.com/ponder-sh/ponder/pull/585) [`2e208b41a0923ffa9b9179519294968ddd4b9cab`](https://github.com/ponder-sh/ponder/commit/2e208b41a0923ffa9b9179519294968ddd4b9cab) Thanks [@0xOlias](https://github.com/0xOlias)! - Renamed `create-ponder` CLI options `--etherscan-contract-link` to `--etherscan` and `--subgraph-id` to `--subgraph`.
+
 ## 0.1.7
 
 ### Patch Changes
