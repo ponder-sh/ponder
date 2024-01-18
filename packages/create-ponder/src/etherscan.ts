@@ -36,8 +36,9 @@ export const fromEtherscan = async ({
   etherscanLink: string;
   etherscanApiKey?: string;
 }) => {
-  const apiKey = etherscanApiKey || process.env.ETHERSCAN_API_KEY;
+  const warnings: string[] = [];
 
+  const apiKey = etherscanApiKey || process.env.ETHERSCAN_API_KEY;
   const explorerUrl = new URL(etherscanLink);
 
   const chainExplorer = chainExplorerByHostname[explorerUrl.hostname];
@@ -138,6 +139,14 @@ export const fromEtherscan = async ({
       if (!apiKey) await wait(5000);
       const { abi, contractName: implContractName } =
         await getContractAbiAndName(implAddress, apiUrl, apiKey);
+
+      if (typeof abi !== "string") {
+        warnings.push(
+          `Unable to fetch ABI for implementation contract ${implAddress}. Please see the proxy contract documentation for more details: https://ponder.sh/docs/guides/add-contracts#multiple-abis`,
+        );
+        continue;
+      }
+
       // Update the top-level contract name to the impl contract name.
       contractName = implContractName;
       abis.push({
@@ -203,7 +212,7 @@ export const fromEtherscan = async ({
     },
   };
 
-  return config;
+  return { config, warnings };
 };
 
 const fetchEtherscan = async (url: string) => {
