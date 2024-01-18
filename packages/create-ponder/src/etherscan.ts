@@ -163,9 +163,7 @@ export const fromEtherscan = async ({
       abiAbsolutePath,
       await prettier.format(
         `export const ${contractName}Abi = ${JSON.stringify(abi)} as const`,
-        {
-          parser: "typescript",
-        },
+        { parser: "typescript" },
       ),
     );
 
