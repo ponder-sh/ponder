@@ -41,7 +41,7 @@ test("create subgraph id", async () => {
     options: {
       template: "subgraph",
       skipGit: true,
-      subgraphId: "QmeCy8bjyudQYwddetkgKDKQTsFxWomvbgsDifnbWFEMK9",
+      subgraph: "QmeCy8bjyudQYwddetkgKDKQTsFxWomvbgsDifnbWFEMK9",
     },
   });
 
@@ -81,7 +81,7 @@ test("create etherscan", async () => {
       template: "etherscan",
       skipGit: true,
       etherscanApiKey: process.env.ETHERSCAN_API_KEY!,
-      etherscanContractLink:
+      etherscan:
         "https://etherscan.io/address/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     },
   });

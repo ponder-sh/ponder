@@ -53,7 +53,9 @@ export type NetworkConfig<network> = {
   transport: Transport;
   /** Polling frequency (in ms). Default: `1_000`. */
   pollingInterval?: number;
-  /** Maximum concurrency of tasks during the historical sync. Default: `20`. */
+  /** Maximum number of RPC requests per second. Default: `50`. */
+  maxRequestsPerSecond?: number;
+  /** (Deprecated) Maximum concurrency of tasks during the historical sync. Default: `20`. */
   maxHistoricalTaskConcurrency?: number;
 };
 

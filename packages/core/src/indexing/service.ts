@@ -28,6 +28,7 @@ import { dedupe } from "@/utils/dedupe.js";
 import { Emittery } from "@/utils/emittery.js";
 import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
 import type { AbiEvent } from "abitype";
 import { Mutex } from "async-mutex";
@@ -147,6 +148,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingStore,
     syncGatewayService,
     networks,
+    requestQueues,
     sources,
   }: {
     common: Common;
@@ -154,6 +156,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingStore: IndexingStore;
     syncGatewayService: SyncGateway;
     networks: Network[];
+    requestQueues: RequestQueue[];
     sources: Source[];
   }) {
     super();
@@ -166,6 +169,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.contexts = buildContexts(
       sources,
       networks,
+      requestQueues,
       syncStore,
       // TODO: fix this 0n problem
       ponderActions(() => 0n),
@@ -182,6 +186,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
       service: "indexing",
       msg: "Killed indexing service",
     });
+  };
+
+  onIdle = async () => {
+    await this.queue?.onIdle();
   };
 
   /**
@@ -811,6 +819,7 @@ const buildIndexingFunctionMap = (
 const buildContexts = (
   sources: Source[],
   networks: Network[],
+  requestQueues: RequestQueue[],
   syncStore: SyncStore,
   actions: ReturnType<typeof ponderActions>,
 ) => {
@@ -832,13 +841,16 @@ const buildContexts = (
     }
   > = {};
 
-  networks.forEach((network) => {
+  networks.forEach((network, i) => {
     const defaultChain =
       Object.values(chains).find((c) => c.id === network.chainId) ??
       chains.mainnet;
 
     const client = createClient({
-      transport: ponderTransport({ network, syncStore }),
+      transport: ponderTransport({
+        requestQueue: requestQueues[i],
+        syncStore,
+      }),
       chain: { ...defaultChain, name: network.name, id: network.chainId },
     });
 
