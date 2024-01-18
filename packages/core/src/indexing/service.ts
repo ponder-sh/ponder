@@ -15,6 +15,7 @@ import { chains } from "@/utils/chains.js";
 import {
   type Checkpoint,
   checkpointMin,
+  isCheckpointEqual,
   isCheckpointGreaterThan,
   maxCheckpoint,
   zeroCheckpoint,
@@ -85,6 +86,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private indexingFunctions?: IndexingFunctions;
   private schema?: Schema;
 
+  private queue?: IndexingFunctionQueue;
+
   private db: (checkpoint: Checkpoint) => Record<string, DatabaseModel<any>> =
     undefined!;
 
@@ -117,21 +120,23 @@ export class IndexingService extends Emittery<IndexingEvents> {
       eventName: string;
       /* Checkpoint of most recent completed task. */
       checkpoint: Checkpoint;
+      /* Checkpoint of the most recent enqueued task. */
+      maxEnqueuedCheckpoint: Checkpoint;
+      /* Checkpoint of the most recent task loaded from db. */
+      maxTaskCheckpoint: Checkpoint;
       /* Buffer of in memory tasks that haven't been enqueued yet. */
       indexingFunctionTasks: LogEventTask[];
       abiEvent: AbiEvent;
       eventSelectors: { [sourceId: string]: Hex[] };
       /* Indexing function keys that write to tables that this indexing function key reads from. */
       parents: string[];
-      /* Self reliance. */
-      serialQueued: boolean;
+      /* Is this task a parent of itself. */
+      selfReliance: boolean;
+
+      /** Is the db currently being read. */
+      dbMutex: Mutex;
     }
   >;
-
-  private eventProcessingMutex: Mutex;
-  private queue?: IndexingFunctionQueue;
-
-  // private isPaused = false;
 
   constructor({
     common,
@@ -155,12 +160,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.sources = sources;
     this.networkNames = buildNetworkNames(sources);
 
-    this.eventProcessingMutex = new Mutex();
-
     this.contexts = buildContexts(
       sources,
       networks,
       syncStore,
+      // TODO: fix this 0n problem
       ponderActions(() => 0n),
     );
   }
@@ -170,8 +174,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.queue?.pause();
     this.queue?.clear();
     await this.queue?.onIdle();
-
-    this.eventProcessingMutex.cancel();
 
     this.common.logger.debug({
       service: "indexing",
@@ -209,6 +211,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.common.metrics.ponder_indexing_processed_events.reset();
 
     if (newIndexingFunctions && tableAccess) {
+      this.indexingFunctions = newIndexingFunctions;
+
       this.indexingFunctionMap = buildIndexingFunctionMap(
         newIndexingFunctions,
         tableAccess,
@@ -229,8 +233,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     // if (!this.schema || this.indexingFunctionMap === {}) return;
 
     // Cancel all pending calls to processEvents and reset the mutex.
-    // this.eventProcessingMutex.cancel();
-    // this.eventProcessingMutex = new Mutex();
 
     // // Pause the old queue, (maybe) wait for the current indexing function to finish,
     // // then create a new queue using the new indexing functions.
@@ -304,21 +306,45 @@ export class IndexingService extends Emittery<IndexingEvents> {
     if (this.indexingFunctionMap === undefined) return;
 
     for (const key of Object.keys(this.indexingFunctionMap!)) {
-      const parentCheckpoints = this.indexingFunctionMap[key].parents.map(
-        (p) => {
-          if (
-            p === key &&
-            this.indexingFunctionMap![key].serialQueued === false &&
-            this.indexingFunctionMap![key].indexingFunctionTasks[0] !==
-              undefined
-          ) {
-            this.indexingFunctionMap![key].serialQueued = true;
-            return this.indexingFunctionMap![key].indexingFunctionTasks[0].event
-              .checkpoint;
-          }
+      // return early if no tasks possible to enqueue.
+      if (this.indexingFunctionMap[key].indexingFunctionTasks.length === 0)
+        continue;
 
-          return this.indexingFunctionMap![p].checkpoint;
-        },
+      if (this.indexingFunctionMap[key].parents.length === 0) {
+        if (
+          this.indexingFunctionMap[key].selfReliance &&
+          isCheckpointEqual(
+            this.indexingFunctionMap[key].checkpoint,
+            this.indexingFunctionMap[key].maxEnqueuedCheckpoint,
+          )
+        ) {
+          // enqueue one task
+
+          const tasksEnqueued = this.indexingFunctionMap[
+            key
+          ].indexingFunctionTasks.splice(0, 1);
+
+          this.indexingFunctionMap[key].maxEnqueuedCheckpoint =
+            tasksEnqueued[0].event.checkpoint;
+          this.queue!.addTask(tasksEnqueued[0]!);
+        } else if (!this.indexingFunctionMap[key].selfReliance) {
+          // enqueue all tasks
+
+          for (const task of this.indexingFunctionMap[key]
+            .indexingFunctionTasks) {
+            this.queue!.addTask(task);
+          }
+          this.indexingFunctionMap[key].maxEnqueuedCheckpoint =
+            this.indexingFunctionMap[key].indexingFunctionTasks[
+              this.indexingFunctionMap[key].indexingFunctionTasks.length - 1
+            ].event.checkpoint;
+          this.indexingFunctionMap[key].indexingFunctionTasks = [];
+        }
+        return;
+      }
+
+      const parentCheckpoints = this.indexingFunctionMap[key].parents.map(
+        (p) => this.indexingFunctionMap![p].checkpoint,
       );
 
       const minParentCheckpoint = checkpointMin(...parentCheckpoints);
@@ -329,16 +355,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
       ].indexingFunctionTasks.findIndex((task) =>
         isCheckpointGreaterThan(task.event.checkpoint, minParentCheckpoint),
       );
-
-      if (maxCheckpointIndex !== 0) {
-        const tasksEnequeued = this.indexingFunctionMap[
-          key
-        ].indexingFunctionTasks.splice(0, maxCheckpointIndex);
-
-        for (const task of tasksEnequeued) {
-          this.queue!.addTask(task);
-        }
-      }
     }
   };
 
@@ -371,11 +387,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * and the new checkpoint, adds them to the queue, then processes them.
    */
   processEvents = async () => {
-    this.eventProcessingMutex.runExclusive(() => {
-      this.queue?.start();
-
-      this.enqueueNextTasks();
-    });
+    this.queue!.start();
+    console.log("process events");
+    this.enqueueNextTasks();
 
     // this.queue.start();
     // await this.queue.onIdle();
@@ -417,6 +431,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
             ...this.contexts[event.chainId],
           },
         });
+
+        this.indexingFunctionMap![fullEventName].checkpoint = event.checkpoint;
 
         this.common.logger.trace({
           service: "indexing",
@@ -469,6 +485,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const event = task.event;
 
     const fullEventName = `${event.contractName}:${event.eventName}`;
+
     const indexingFunction =
       this.indexingFunctions![event.contractName][event.eventName];
 
@@ -490,6 +507,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
             ...this.contexts[event.chainId],
           },
         });
+
+        this.indexingFunctionMap![fullEventName].checkpoint = event.checkpoint;
 
         this.common.logger.trace({
           service: "indexing",
@@ -543,6 +562,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
         }
       }
     }
+
+    await this.indexingFunctionMap![fullEventName].dbMutex.runExclusive(() =>
+      this.loadIndexingFunctionTasks(fullEventName),
+    ).then(this.enqueueNextTasks);
+
+    // this.enqueueNextTasks();
   };
 
   private createEventQueue = () => {
@@ -552,7 +577,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       // This is a hack to ensure that the eventsProcessed method is called and updates
       // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
       // It does, however, slow down event processing a bit. Too frequent waits cause massive performance loses.
-      if (Math.floor(Math.random() * 100) === 69) await wait(0);
+      await wait(0);
 
       switch (task.kind) {
         case "SETUP": {
@@ -584,16 +609,24 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private loadIndexingFunctionTasks = async (indexingFunctionKey: string) => {
     if (this.indexingFunctionMap === undefined) return;
 
-    const currentTasks =
-      this.indexingFunctionMap[indexingFunctionKey].indexingFunctionTasks;
+    if (
+      this.indexingFunctionMap[indexingFunctionKey].indexingFunctionTasks
+        .length > 200
+    )
+      return;
 
-    if (currentTasks.length >= 200) return;
+    const maxTaskCheckpoint =
+      this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint;
 
     const events = await this.syncGatewayService
       .getEvents({
         // Note: this should be slightly incremented to avoid retrieving duplicate events
-        fromCheckpoint:
-          this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint,
+        fromCheckpoint: {
+          ...maxTaskCheckpoint,
+          logIndex: maxTaskCheckpoint.logIndex
+            ? maxTaskCheckpoint.logIndex + 1
+            : maxCheckpoint.logIndex,
+        },
         toCheckpoint: maxCheckpoint,
         includeEventSelectors:
           this.indexingFunctionMap[indexingFunctionKey].eventSelectors,
@@ -601,7 +634,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
       })
       .next();
 
-    if (events.done === false) {
+    if (events.done === true) {
+      this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint =
+        maxCheckpoint;
+      return;
+    } else {
+      this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint =
+        events.value.metadata.pageEndCheckpoint;
+
       events.value.metadata.counts.forEach(({ count, sourceId }) => {
         // const source = sourcesById[sourceId];
         // if (!source)
@@ -720,9 +760,22 @@ const buildIndexingFunctionMap = (
         .map((t) => t.table);
 
       // all indexing function keys that write to a table in `tableReads`
+      // except for itself.
       const parents = tableAccess
-        .filter((t) => t.access === "write" && tableReads.includes(t.table))
+        .filter(
+          (t) =>
+            t.access === "write" &&
+            tableReads.includes(t.table) &&
+            t.indexingFunctionKey !== indexingFunctionKey,
+        )
         .map((t) => t.indexingFunctionKey);
+
+      const selfReliance = tableAccess.some(
+        (t) =>
+          t.access === "write" &&
+          tableReads.includes(t.table) &&
+          t.indexingFunctionKey === indexingFunctionKey,
+      );
 
       const eventSelectors = {} as { [sourceId: string]: Hex[] };
       let abiEvent: AbiEvent;
@@ -751,11 +804,14 @@ const buildIndexingFunctionMap = (
         eventName,
         contractName,
         checkpoint: zeroCheckpoint,
+        maxEnqueuedCheckpoint: zeroCheckpoint,
+        maxTaskCheckpoint: zeroCheckpoint,
         indexingFunctionTasks: [],
         eventSelectors,
         abiEvent: abiEvent!,
         parents: dedupe(parents),
-        serialQueued: false,
+        selfReliance,
+        dbMutex: new Mutex(),
       };
     }
   }
