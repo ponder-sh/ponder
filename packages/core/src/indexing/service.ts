@@ -363,49 +363,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
-  // handleReorg = async (safeCheckpoint: Checkpoint) => {
-  //   try {
-  //     await this.eventProcessingMutex.runExclusive(async () => {
-  //       // If there is a user error, the queue & indexing store will be wiped on reload (case 4).
-  //       if (this.isPaused) return;
-
-  //       const hasProcessedInvalidEvents = isCheckpointGreaterThan(
-  //         this.eventsProcessedToCheckpoint,
-  //         safeCheckpoint,
-  //       );
-  //       if (!hasProcessedInvalidEvents) {
-  //         // No unsafe events have been processed, so no need to revert (case 1 & case 2).
-  //         this.common.logger.debug({
-  //           service: "indexing",
-  //           msg: "No unsafe events were detected while reconciling a reorg, no-op",
-  //         });
-  //         return;
-  //       }
-
-  //       // Unsafe events have been processed, must revert the indexing store and update
-  //       // eventsProcessedToTimestamp accordingly (case 3).
-  //       await this.indexingStore.revert({ checkpoint: safeCheckpoint });
-
-  //       this.eventsProcessedToCheckpoint = safeCheckpoint;
-  //       this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-  //         safeCheckpoint.blockTimestamp,
-  //       );
-
-  //       // Note: There's currently no way to know how many events are "thrown out"
-  //       // during the reorg reconciliation, so the event count metrics
-  //       // (e.g. ponder_indexing_processed_events) will be slightly inflated.
-
-  //       this.common.logger.debug({
-  //         service: "indexing",
-  //         msg: `Reverted indexing store to safe timestamp ${safeCheckpoint.blockTimestamp}`,
-  //       });
-  //     });
-  //   } catch (error) {
-  //     // Pending locks get cancelled in reset(). This is expected, so it's safe to
-  //     // ignore the error that is thrown when a pending lock is cancelled.
-  //     if (error !== E_CANCELED) throw error;
-  //   }
-  // };
+  handleReorg = async (safeCheckpoint: Checkpoint) => {
+    safeCheckpoint;
+  };
 
   /**
    * Processes all newly available events.
@@ -421,205 +381,23 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.enqueueNextTasks();
     });
 
-    // try {
-    //   await this.eventProcessingMutex.runExclusive(async () => {
-    //     if (this.isPaused || !this.queue || !this.indexingFunctions) return;
-    //     const fromCheckpoint = this.eventsProcessedToCheckpoint;
-    //     const toCheckpoint = this.syncGatewayService.checkpoint;
-    //     // If we have already added events to the queue for the current checkpoint,
-    //     // do nothing and return. This can happen if a number of calls to processEvents
-    //     // "stack up" while one is being processed, and then they all run sequentially
-    //     // but the sync gateway service checkpoint has not moved.
-    //     if (!isCheckpointGreaterThan(toCheckpoint, fromCheckpoint)) return;
-    //     // If no events have been added yet, add the setup events for each chain & associated metrics.
-    //     if (isCheckpointEqual(fromCheckpoint, zeroCheckpoint)) {
-    //       Object.entries(this.indexingFunctions)
-    //         .filter(([, events]) =>
-    //           Object.keys(events).some((e) => e === "setup"),
-    //         )
-    //         .forEach(([sourceName]) => {
-    //           Object.values(this.contexts)
-    //             .filter(({ contracts }) => sourceName in contracts)
-    //             .forEach(({ contracts, network }) => {
-    //               const labels = {
-    //                 network: network.name,
-    //                 contract: sourceName,
-    //                 event: "setup",
-    //               };
-    //               this.common.metrics.ponder_indexing_matched_events.inc(
-    //                 labels,
-    //               );
-    //               this.queue?.addTask({
-    //                 kind: "SETUP",
-    //                 event: {
-    //                   networkName: network.name,
-    //                   contractName: sourceName,
-    //                   chainId: network.chainId,
-    //                   blockNumber: contracts[sourceName].startBlock,
-    //                 },
-    //               });
-    //               this.common.metrics.ponder_indexing_handled_events.inc(
-    //                 labels,
-    //               );
-    //             });
-    //         });
-    //     }
-    //     // Build source ID and event selector maps.
-    //     const sourcesById: { [sourceId: string]: Source } = {};
-    //     const registeredSelectorsBySourceId: { [sourceId: string]: Hex[] } = {};
-    //     for (const source of this.sources) {
-    //       sourcesById[source.id] = source;
-    //       const indexingFunctions =
-    //         this.indexingFunctions![source.contractName];
-    //       if (indexingFunctions) {
-    //         registeredSelectorsBySourceId[source.id] = Object.keys(
-    //           indexingFunctions,
-    //         )
-    //           .filter((name) => name !== "setup")
-    //           .map((safeEventName) => {
-    //             const abiItemMeta = source.abiEvents.bySafeName[safeEventName];
-    //             if (!abiItemMeta)
-    //               throw new Error(
-    //                 `Invariant violation: No abiItemMeta found for ${source.contractName}:${safeEventName}`,
-    //               );
-    //             return abiItemMeta.selector;
-    //           });
-    //       } else {
-    //         // It's possible for no indexing functions to be registered for a source.
-    //         registeredSelectorsBySourceId[source.id] = [];
-    //       }
-    //     }
-    //     const iterator = this.syncGatewayService.getEvents({
-    //       fromCheckpoint,
-    //       toCheckpoint,
-    //       includeEventSelectors: registeredSelectorsBySourceId,
-    //     });
-    //     let pageIndex = 0;
-    //     for await (const page of iterator) {
-    //       const { events, metadata } = page;
-    //       // Increment the metrics for the total number of matching & indexed events in this timestamp range.
-    //       // The metadata comes with every page, but is the same for all pages, so do this on the first page.
-    //       if (pageIndex === 0) {
-    //         metadata.counts.forEach(({ sourceId, selector, count }) => {
-    //           const source = sourcesById[sourceId];
-    //           if (!source)
-    //             throw new Error(
-    //               `Invariant violation: Source ID not found ${sourceId}`,
-    //             );
-    //           const abiItemMeta = source.abiEvents.bySelector[selector];
-    //           // This means that the contract has emitted events that are not present in the ABI
-    //           // that the user has provided. Use the raw selector as the event name for the metric.
-    //           if (!abiItemMeta) {
-    //             const labels = {
-    //               network: source.networkName,
-    //               contract: source.contractName,
-    //               event: selector,
-    //             };
-    //             this.common.metrics.ponder_indexing_matched_events.inc(
-    //               labels,
-    //               count,
-    //             );
-    //             return;r
-    //           }
-    //           const labels = {
-    //             network: source.networkName,
-    //             contract: source.contractName,
-    //             event: abiItemMeta.safeName,
-    //           };
-    //           this.common.metrics.ponder_indexing_matched_events.inc(
-    //             labels,
-    //             count,
-    //           );
-    //           const isRegistered =
-    //             registeredSelectorsBySourceId[sourceId].includes(selector);
-    //           if (isRegistered) {
-    //             this.common.metrics.ponder_indexing_handled_events.inc(
-    //               labels,
-    //               count,
-    //             );
-    //           }
-    //         });
-    //       }
-    //       // Decode events and add them to the queue.
-    //       events.forEach((event) => {
-    //         const selector = event.log.topics[0];
-    //         // Should always have a selector because of the includeEventSelectors pattern.
-    //         if (!selector)
-    //           throw new Error(
-    //             `Invariant violation: Log is missing topics ${event.log.id}`,
-    //           );
-    //         const source = sourcesById[event.sourceId];
-    //         if (!source)
-    //           throw new Error(
-    //             `Invariant violation: Source ID not found ${event.sourceId}`,
-    //           );
-    //         const abiItemMeta = source.abiEvents.bySelector[selector];
-    //         if (!abiItemMeta)
-    //           throw new Error(
-    //             `Invariant violation: No abiItemMeta found for ${source.contractName}:${selector}`,
-    //           );
-    //         try {
-    //           const decodedLog = decodeEventLog({
-    //             abi: [abiItemMeta.item],
-    //             data: event.log.data,
-    //             topics: event.log.topics,
-    //           });
-    //           this.queue!.addTask({
-    //             kind: "LOG",
-    //             event: {
-    //               networkName: source.networkName,
-    //               contractName: source.contractName,
-    //               eventName: abiItemMeta.safeName,
-    //               chainId: event.chainId,
-    //               args: decodedLog.args ?? {},
-    //               log: event.log,
-    //               block: event.block,
-    //               transaction: event.transaction,
-    //             },
-    //           });
-    //         } catch (err) {
-    //           // Sometimes, logs match a selector but cannot be decoded using the provided ABI.
-    //           // This happens often when using custom event filters, because the indexed-ness
-    //           // of an event parameter is not taken into account when generating the selector.
-    //           this.common.logger.debug({
-    //             service: "app",
-    //             msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
-    //           });
-    //         }
-    //       });
-    //       // Process new events that were added to the queue.
-    //       this.queue.start();
-    //       await this.queue.onIdle();
-    //       // If the queue is already paused here, it means that reset() was called, interrupting
-    //       // event processing. When this happens, we want to return early.
-    //       if (this.queue.isPaused) return;
-    //       this.queue.pause();
-    //       if (events.length > 0) {
-    //         const { blockTimestamp, chainId, blockNumber, logIndex } =
-    //           metadata.pageEndCheckpoint;
-    //         this.common.logger.info({
-    //           service: "indexing",
-    //           msg: `Indexed ${
-    //             events.length === 1 ? "1 event" : `${events.length} events`
-    //           } up to ${formatShortDate(
-    //             blockTimestamp,
-    //           )} (chainId=${chainId} block=${blockNumber} logIndex=${logIndex})`,
-    //         });
-    //       }
-    //       pageIndex += 1;
-    //     }
-    //     this.emit("eventsProcessed", { toCheckpoint });
-    //     this.eventsProcessedToCheckpoint = toCheckpoint;
-    //     // Note that this happens both here and in the log event indexing function.
-    //     // They must also happen here to handle the case where no events were processed.
-    //     this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-    //       toCheckpoint.blockTimestamp,
-    //     );
+    // this.queue.start();
+    // await this.queue.onIdle();
+    // // If the queue is already paused here, it means that reset() was called, interrupting
+    // // event processing. When this happens, we want to return early.
+    // if (this.queue.isPaused) return;
+    // this.queue.pause();
+    // if (events.length > 0) {
+    //   const { blockTimestamp, chainId, blockNumber, logIndex } =
+    //     metadata.pageEndCheckpoint;
+    //   this.common.logger.info({
+    //     service: "indexing",
+    //     msg: `Indexed ${
+    //       events.length === 1 ? "1 event" : `${events.length} events`
+    //     } up to ${formatShortDate(
+    //       blockTimestamp,
+    //     )} (chainId=${chainId} block=${blockNumber} logIndex=${logIndex})`,
     //   });
-    // } catch (error) {
-    //   // Pending locks get cancelled in reset(). This is expected, so it's safe to
-    //   // ignore the error that is thrown when a pending lock is cancelled.
-    //   if (error !== E_CANCELED) throw error;
     // }
   };
 
