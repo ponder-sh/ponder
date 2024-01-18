@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.1.9
+
+### Patch Changes
+
+- [`7e87372df15723c45b363d52d4b5b21303bb81c8`](https://github.com/ponder-sh/ponder/commit/7e87372df15723c45b363d52d4b5b21303bb81c8) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed an issue where malformed request headers could cause the server to crash.
+
 ## 0.1.8
 
 ### Patch Changes
