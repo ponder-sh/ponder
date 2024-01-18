@@ -23,7 +23,8 @@ import { dedupe } from "@/utils/dedupe.js";
 import { Emittery } from "@/utils/emittery.js";
 import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { E_CANCELED, Mutex } from "async-mutex";
+import { wait } from "@/utils/wait.js";
+import { Mutex } from "async-mutex";
 import {
   type Abi,
   type AbiItem,
@@ -116,7 +117,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private eventProcessingMutex: Mutex;
   private queue?: IndexingFunctionQueue;
 
-  private isPaused = false;
+  // private isPaused = false;
 
   constructor({
     common,
@@ -150,7 +151,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }
 
   kill = async () => {
-    this.isPaused = true;
+    // this.isPaused = true;
     this.queue?.pause();
     this.queue?.clear();
     await this.queue?.onIdle();
@@ -187,6 +188,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
         schema: this.schema,
       });
     }
+
+    this.common.metrics.ponder_indexing_matched_events.reset();
+    this.common.metrics.ponder_indexing_handled_events.reset();
+    this.common.metrics.ponder_indexing_processed_events.reset();
 
     if (newIndexingFunctions && tableAccess) {
       this.indexingFunctionMap = buildIndexingFunctionMap(
@@ -225,10 +230,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     // this.isPaused = false;
     this.common.metrics.ponder_indexing_has_error.set(0);
-
-    this.common.metrics.ponder_indexing_matched_events.reset();
-    this.common.metrics.ponder_indexing_handled_events.reset();
-    this.common.metrics.ponder_indexing_processed_events.reset();
 
     await this.indexingStore.reload({ schema: this.schema });
     this.common.logger.debug({
@@ -276,6 +277,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
               blockNumber: contracts[sourceName].startBlock,
             },
           });
+
+          this.common.metrics.ponder_indexing_handled_events.inc(labels);
         }
       }
     }
@@ -289,7 +292,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
         (p) => {
           if (
             p === key &&
-            this.indexingFunctionMap![key].serialQueued === false
+            this.indexingFunctionMap![key].serialQueued === false &&
+            this.indexingFunctionMap![key].indexingFunctionTasks[0] !==
+              undefined
           ) {
             this.indexingFunctionMap![key].serialQueued = true;
             return getEventCheckpoint(
@@ -514,7 +519,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     //               labels,
     //               count,
     //             );
-    //             return;
+    //             return;r
     //           }
     //           const labels = {
     //             network: source.networkName,
@@ -625,7 +630,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       // This is a hack to ensure that the eventsProcessed method is called and updates
       // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
       // It does, however, slow down event processing a bit. Too frequent waits cause massive performance loses.
-      // if (Math.floor(Math.random() * 100) === 69) await wait(0);
+      if (Math.floor(Math.random() * 100) === 69) await wait(0);
 
       switch (task.kind) {
         case "SETUP": {
@@ -674,6 +679,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 event: "setup",
               };
               this.common.metrics.ponder_indexing_processed_events.inc(labels);
+              this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
+                checkpoint.blockTimestamp,
+              );
 
               break;
             } catch (error_) {
@@ -684,7 +692,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               if (i === 3) {
                 queue.pause();
                 queue.clear();
-                this.isPaused = true;
+                // this.isPaused = true;
 
                 addUserStackTrace(error, this.common.options);
 
@@ -773,7 +781,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               if (i === 3) {
                 queue.pause();
                 queue.clear();
-                this.isPaused = true;
+                // this.isPaused = true;
 
                 addUserStackTrace(error, this.common.options);
                 if (error.meta) {
@@ -864,6 +872,42 @@ export class IndexingService extends Emittery<IndexingEvents> {
     } else {
       this.indexingFunctionMap[indexingFunctionKey].maxTaskCheckpoint =
         events.value.metadata.pageEndCheckpoint;
+
+      events.value.metadata.counts.forEach(({ count }) => {
+        // const source = sourcesById[sourceId];
+        // if (!source)
+        //   throw new Error(
+        //     `Invariant violation: Source ID not found ${sourceId}`,
+        //   );
+        // const abiItemMeta = source.abiEvents.bySelector[selector];
+
+        // // This means that the contract has emitted events that are not present in the ABI
+        // // that the user has provided. Use the raw selector as the event name for the metric.
+        // if (!abiItemMeta) {
+        //   const labels = {
+        //     network: source.networkName,
+        //     contract: source.contractName,
+        //     event: selector,
+        //   };
+        //   this.common.metrics.ponder_indexing_matched_events.inc(
+        //     labels,
+        //     count,
+        //   );
+        //   return;
+        // }
+
+        const labels = {
+          network: "mainnet",
+          contract: this.indexingFunctionMap![indexingFunctionKey].sourceName,
+          event: this.indexingFunctionMap![indexingFunctionKey].eventName,
+        };
+        this.common.metrics.ponder_indexing_matched_events.inc(labels, count);
+        // const isRegistered =
+        //   registeredSelectorsBySourceId[sourceId].includes(selector);
+        // if (isRegistered) {
+        this.common.metrics.ponder_indexing_handled_events.inc(labels, count);
+        // }
+      });
 
       for (const event of events.value.events) {
         const source = this.sources.find((s) => s.id === event.sourceId)!;
