@@ -1,10 +1,6 @@
-import { Emittery } from "@/utils/emittery.js";
-import type { Hex } from "viem";
-
 import type { Common } from "@/Ponder.js";
 import type { Network } from "@/config/networks.js";
-import { sourceIsFactory, sourceIsLogFilter } from "@/config/sources.js";
-import type { Source } from "@/config/sources.js";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import {
   type Checkpoint,
@@ -13,6 +9,8 @@ import {
   isCheckpointGreaterThan,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { Emittery } from "@/utils/emittery.js";
+import type { Hex } from "viem";
 
 type SyncGatewayEvents = {
   /**
@@ -42,7 +40,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   private common: Common;
   private syncStore: SyncStore;
   private networks: Network[];
-  private sources: Source[];
 
   // Minimum timestamp at which events are available (across all networks).
   checkpoint: Checkpoint;
@@ -69,19 +66,16 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     common,
     syncStore,
     networks,
-    sources = [],
   }: {
     common: Common;
     syncStore: SyncStore;
     networks: Network[];
-    sources?: Source[];
   }) {
     super();
 
     this.common = common;
     this.syncStore = syncStore;
     this.networks = networks;
-    this.sources = sources;
     this.metrics = {};
 
     this.checkpoint = zeroCheckpoint;
@@ -110,34 +104,36 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   getEvents({
     fromCheckpoint,
     toCheckpoint,
-    includeEventSelectors,
-    pageSize,
+    limit,
+    logFilters,
+    factories,
   }: {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
-    includeEventSelectors: { [sourceId: string]: Hex[] };
-    pageSize?: number;
+    limit: number;
+    logFilters?: {
+      id: string;
+      chainId: number;
+      criteria: LogFilterCriteria;
+      fromBlock?: number;
+      toBlock?: number;
+      includeEventSelectors?: Hex[];
+    }[];
+    factories?: {
+      id: string; // Note that this is the source ID of the child contract.
+      chainId: number;
+      criteria: FactoryCriteria;
+      fromBlock?: number;
+      toBlock?: number;
+      includeEventSelectors?: Hex[];
+    }[];
   }) {
     return this.syncStore.getLogEvents({
       fromCheckpoint,
       toCheckpoint,
-      logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
-        id: logFilter.id,
-        chainId: logFilter.chainId,
-        criteria: logFilter.criteria,
-        fromBlock: logFilter.startBlock,
-        toBlock: logFilter.endBlock,
-        includeEventSelectors: includeEventSelectors[logFilter.id],
-      })),
-      factories: this.sources.filter(sourceIsFactory).map((factory) => ({
-        id: factory.id,
-        chainId: factory.chainId,
-        criteria: factory.criteria,
-        fromBlock: factory.startBlock,
-        toBlock: factory.endBlock,
-        includeEventSelectors: includeEventSelectors[factory.id],
-      })),
-      pageSize,
+      limit,
+      logFilters,
+      factories,
     });
   }
 
