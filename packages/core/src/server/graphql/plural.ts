@@ -1,15 +1,13 @@
-import type {
-  GraphQLEnumType,
-  GraphQLInputFieldConfigMap,
-  GraphQLObjectType,
-} from "graphql";
 import {
+  type GraphQLEnumType,
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
+  type GraphQLInputFieldConfigMap,
   GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
+  GraphQLObjectType,
   GraphQLString,
 } from "graphql";
 
@@ -17,17 +15,26 @@ import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
 
+import type { Row } from "@/indexing-store/store.js";
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
 
 type PluralArgs = {
   timestamp?: number;
   where?: { [key: string]: number | string };
-  first?: number;
-  skip?: number;
+  after?: string;
+  before?: string;
+  limit?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
 };
+
+type PluralPage = {
+  items: Row[];
+  before: string;
+  after: string;
+};
+
 export type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
 const operators = {
@@ -121,29 +128,95 @@ export const buildPluralField = ({
   const resolver: PluralResolver = async (_, args, context) => {
     const { store } = context;
 
-    const { timestamp, where, skip, first, orderBy, orderDirection } = args;
+    const { timestamp, where, after, before, limit, orderBy, orderDirection } =
+      args;
 
     const checkpoint = timestamp
       ? { ...maxCheckpoint, blockTimestamp: timestamp }
       : undefined; // Latest.
 
-    return await store.findMany({
+    let finalOrderDirection = orderDirection;
+
+    const whereObject = where ? buildWhereObject({ where }) : {};
+
+    if (after && before) {
+      throw Error("Cannot have both 'before' and 'after' cursor search");
+    }
+
+    if (after) {
+      if (!orderDirection) {
+        finalOrderDirection = "asc";
+      }
+      if (finalOrderDirection === "asc") {
+        whereObject.id = { ...whereObject.id, ...{ gt: atob(after) } };
+      }
+      if (finalOrderDirection === "desc") {
+        whereObject.id = { ...whereObject.id, ...{ lt: atob(after) } };
+      }
+    }
+
+    if (before) {
+      if (!orderDirection) {
+        finalOrderDirection = "desc";
+      }
+      finalOrderDirection = orderDirection === "asc" ? "desc" : "asc";
+      if (finalOrderDirection === "asc") {
+        whereObject.id = { ...whereObject.id, ...{ lt: atob(before) } };
+      }
+      if (finalOrderDirection === "desc") {
+        whereObject.id = { ...whereObject.id, ...{ gt: atob(before) } };
+      }
+    }
+
+    const res = await store.findMany({
       tableName: tableName,
       checkpoint,
-      where: where ? buildWhereObject({ where }) : undefined,
-      skip: skip,
-      take: first,
-      orderBy: orderBy ? { [orderBy]: orderDirection || "asc" } : undefined,
+      where: whereObject,
+      //skip: after ? Number(atob(after)) : 0,
+      take: limit || 1000,
+      orderBy: orderBy
+        ? {
+            [orderBy]: finalOrderDirection || "asc",
+            id: finalOrderDirection || "asc",
+          }
+        : { id: finalOrderDirection || "asc" },
     });
+
+    if (before) {
+      res.reverse();
+    }
+
+    const firstId = res.at(0)?.id;
+    const lastId = res.at(-1)?.id;
+
+    return {
+      items: res,
+      after: lastId ? btoa(String(lastId) || "") : "",
+      before: firstId ? btoa(String(firstId) || "") : "",
+    } as PluralPage;
   };
 
+  const pageType = new GraphQLObjectType({
+    name: `${tableName}Page`,
+    fields: () => ({
+      items: {
+        type: new GraphQLList(new GraphQLNonNull(entityGqlType)),
+      },
+      before: {
+        type: GraphQLString,
+      },
+      after: {
+        type: GraphQLString,
+      },
+    }),
+  });
+
   return {
-    type: new GraphQLNonNull(
-      new GraphQLList(new GraphQLNonNull(entityGqlType)),
-    ),
+    type: pageType,
     args: {
-      skip: { type: GraphQLInt, defaultValue: 0 },
-      first: { type: GraphQLInt, defaultValue: 100 },
+      after: { type: GraphQLString, defaultValue: "" },
+      before: { type: GraphQLString, defaultValue: "" },
+      limit: { type: GraphQLInt, defaultValue: 100 },
       orderBy: { type: GraphQLString, defaultValue: "id" },
       orderDirection: { type: GraphQLString, defaultValue: "asc" },
       where: { type: filterType },

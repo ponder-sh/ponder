@@ -18,9 +18,17 @@ import {
 } from "@/schema/utils.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
 
+import type { Row } from "@/indexing-store/store.js";
 import type { PluralResolver } from "./plural.js";
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
+
+type PluralPage = {
+  items: Row[];
+  before: string;
+  after: string;
+  hasNext: boolean;
+};
 
 export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
   const entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
@@ -81,8 +89,18 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
           } else if (isManyColumn(column)) {
             // Column is virtual meant to tell graphQL to make a field
 
-            const resolver: PluralResolver = async (parent, args, context) => {
+            const resolver: PluralResolver = async (_, args, context) => {
               const { store } = context;
+
+              const {
+                timestamp,
+                where,
+                after,
+                before,
+                limit,
+                orderBy,
+                orderDirection,
+              } = args;
 
               // The parent object gets passed in here with relationship fields defined as the
               // string ID of the related entity. Here, we get the ID and query for that entity.
@@ -90,24 +108,84 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
               // @ts-ignore
               const entityId = parent.id;
 
-              const filter = args;
-
-              const checkpoint = filter.timestamp
-                ? { ...maxCheckpoint, blockTimestamp: filter.timestamp }
+              const checkpoint = timestamp
+                ? { ...maxCheckpoint, blockTimestamp: timestamp }
                 : undefined; // Latest.
 
-              return await store.findMany({
+              let finalOrderDirection = orderDirection;
+
+              const whereObject = where ? buildWhereObject({ where }) : {};
+              whereObject[column.referenceColumn] = entityId;
+
+              if (after) {
+                if (!orderDirection) {
+                  finalOrderDirection = "asc";
+                }
+                if (finalOrderDirection === "asc") {
+                  whereObject.id = {
+                    ...whereObject.id,
+                    ...{ gt: atob(after) },
+                  };
+                }
+                if (finalOrderDirection === "desc") {
+                  whereObject.id = {
+                    ...whereObject.id,
+                    ...{ lt: atob(after) },
+                  };
+                }
+              }
+
+              if (before) {
+                if (!orderDirection) {
+                  finalOrderDirection = "desc";
+                }
+                finalOrderDirection = orderDirection === "asc" ? "desc" : "asc";
+                if (finalOrderDirection === "asc") {
+                  whereObject.id = {
+                    ...whereObject.id,
+                    ...{ lt: atob(before) },
+                  };
+                }
+                if (finalOrderDirection === "desc") {
+                  whereObject.id = {
+                    ...whereObject.id,
+                    ...{ gt: atob(before) },
+                  };
+                }
+              }
+
+              if (after && before) {
+                throw Error(
+                  "Cannot have both 'before' and 'after' cursor search",
+                );
+              }
+
+              const res = await store.findMany({
                 tableName: column.referenceTable,
                 checkpoint,
-                where: { [column.referenceColumn]: entityId },
-                skip: filter.skip,
-                take: filter.first,
-                orderBy: filter.orderBy
+                where: whereObject,
+                //skip: after ? Number(atob(after)) : 0,
+                take: limit || 1000,
+                orderBy: orderBy
                   ? {
-                      [filter.orderBy]: filter.orderDirection || "asc",
+                      [orderBy]: finalOrderDirection || "asc",
+                      id: finalOrderDirection || "asc",
                     }
-                  : undefined,
+                  : { id: finalOrderDirection || "asc" },
               });
+
+              if (before) {
+                res.reverse();
+              }
+
+              const lastId = res.at(-1)?.id;
+              const firstId = res.at(0)?.id;
+
+              return {
+                items: res,
+                after: lastId ? btoa(String(lastId) || "") : "",
+                before: firstId ? btoa(String(firstId) || "") : "",
+              } as PluralPage;
             };
 
             fieldConfigMap[columnName] = {
@@ -117,8 +195,8 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
                 ),
               ),
               args: {
-                skip: { type: GraphQLInt, defaultValue: 0 },
-                first: { type: GraphQLInt, defaultValue: 100 },
+                after: { type: GraphQLInt, defaultValue: 0 },
+                limit: { type: GraphQLInt, defaultValue: 100 },
                 orderBy: { type: GraphQLString, defaultValue: "id" },
                 orderDirection: { type: GraphQLString, defaultValue: "asc" },
                 timestamp: { type: GraphQLInt },
@@ -149,3 +227,45 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
 
   return { entityGqlTypes, enumGqlTypes };
 };
+
+const graphqlFilterToStoreCondition = {
+  "": "equals",
+  not: "not",
+  in: "in",
+  not_in: "notIn",
+  has: "has",
+  not_has: "notHas",
+  gt: "gt",
+  lt: "lt",
+  gte: "gte",
+  lte: "lte",
+  contains: "contains",
+  not_contains: "notContains",
+  starts_with: "startsWith",
+  not_starts_with: "notStartsWith",
+  ends_with: "endsWith",
+  not_ends_with: "notEndsWith",
+} as const;
+
+function buildWhereObject({ where }: { where: Record<string, any> }) {
+  const whereObject: Record<string, any> = {};
+
+  Object.entries(where).forEach(([whereKey, rawValue]) => {
+    const [fieldName, condition_] = whereKey.split(/_(.*)/s);
+    // This is a hack to handle the "" operator, which the regex above doesn't handle
+    const condition = (
+      condition_ === undefined ? "" : condition_
+    ) as keyof typeof graphqlFilterToStoreCondition;
+
+    const storeCondition = graphqlFilterToStoreCondition[condition];
+    if (!storeCondition) {
+      throw new Error(
+        `Invalid query: Unknown where condition: ${fieldName}_${condition}`,
+      );
+    }
+
+    whereObject[fieldName] = { [storeCondition]: rawValue };
+  });
+
+  return whereObject;
+}
