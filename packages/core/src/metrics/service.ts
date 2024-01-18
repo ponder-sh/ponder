@@ -15,20 +15,17 @@ const httpRequestSizeInBytes = [
 export class MetricsService {
   private registry: prometheus.Registry;
 
+  ponder_rpc_request_duration: prometheus.Histogram<"network" | "method">;
+  ponder_rpc_request_lag: prometheus.Histogram<"network" | "method">;
+
   ponder_historical_start_timestamp: prometheus.Gauge<"network">;
   ponder_historical_total_blocks: prometheus.Gauge<"network" | "contract">;
   ponder_historical_cached_blocks: prometheus.Gauge<"network" | "contract">;
   ponder_historical_completed_blocks: prometheus.Gauge<"network" | "contract">;
-  ponder_historical_rpc_request_duration: prometheus.Histogram<
-    "network" | "method"
-  >;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_timestamp: prometheus.Gauge<"network">;
-  ponder_realtime_rpc_request_duration: prometheus.Histogram<
-    "network" | "method"
-  >;
 
   ponder_indexing_matched_events: prometheus.Gauge<
     "network" | "contract" | "event"
@@ -73,6 +70,21 @@ export class MetricsService {
       prefix: "ponder_default_",
     });
 
+    this.ponder_rpc_request_duration = new prometheus.Histogram({
+      name: "ponder_rpc_request_duration",
+      help: "Duration of RPC requests",
+      labelNames: ["network", "method"] as const,
+      buckets: httpRequestBucketsInMs,
+      registers: [this.registry],
+    });
+    this.ponder_rpc_request_lag = new prometheus.Histogram({
+      name: "ponder_rpc_request_lag",
+      help: "Time RPC requests spend waiting in the request queue",
+      labelNames: ["network", "method"] as const,
+      buckets: httpRequestBucketsInMs,
+      registers: [this.registry],
+    });
+
     this.ponder_historical_start_timestamp = new prometheus.Gauge({
       name: "ponder_historical_start_timestamp",
       help: "Unix timestamp (ms) when the historical sync service started",
@@ -97,13 +109,6 @@ export class MetricsService {
       labelNames: ["network", "contract"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_rpc_request_duration = new prometheus.Histogram({
-      name: "ponder_historical_rpc_request_duration",
-      help: "Duration of RPC requests completed during the historical sync",
-      labelNames: ["network", "method"] as const,
-      buckets: httpRequestBucketsInMs,
-      registers: [this.registry],
-    });
 
     this.ponder_realtime_is_connected = new prometheus.Gauge({
       name: "ponder_realtime_is_connected",
@@ -121,13 +126,6 @@ export class MetricsService {
       name: "ponder_realtime_latest_block_timestamp",
       help: "Block timestamp of the latest synced block",
       labelNames: ["network"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_realtime_rpc_request_duration = new prometheus.Histogram({
-      name: "ponder_realtime_rpc_request_duration",
-      help: "Duration of RPC requests completed during the realtime sync",
-      labelNames: ["network", "method"] as const,
-      buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
 
@@ -205,6 +203,7 @@ export class MetricsService {
 
   registerDatabaseMetrics(database: DatabaseConfig) {
     if (database.sync.kind === "postgres") {
+      this.registry.removeSingleMetric("ponder_postgres_query_count");
       this.ponder_postgres_query_count = new prometheus.Counter({
         name: "ponder_postgres_query_count",
         help: "Number of queries executed by Postgres",
@@ -213,6 +212,7 @@ export class MetricsService {
       });
 
       const pool = database.sync.pool as unknown as Pool;
+      this.registry.removeSingleMetric("ponder_postgres_idle_connection_count");
       this.ponder_postgres_idle_connection_count = new prometheus.Gauge({
         name: "ponder_postgres_idle_connection_count",
         help: "Number of idle connections in the pool",
@@ -221,6 +221,9 @@ export class MetricsService {
           this.set(pool.idleCount);
         },
       });
+      this.registry.removeSingleMetric(
+        "ponder_postgres_total_connection_count",
+      );
       this.ponder_postgres_total_connection_count = new prometheus.Gauge({
         name: "ponder_postgres_total_connection_count",
         help: "Total number of connections in the pool",
@@ -229,6 +232,7 @@ export class MetricsService {
           this.set(pool.totalCount);
         },
       });
+      this.registry.removeSingleMetric("ponder_postgres_request_queue_count");
       this.ponder_postgres_request_queue_count = new prometheus.Gauge({
         name: "ponder_postgres_request_queue_count",
         help: "Number of transaction or query requests waiting for an available connection",
@@ -238,6 +242,7 @@ export class MetricsService {
         },
       });
     } else {
+      this.registry.removeSingleMetric("ponder_sqlite_query_count");
       this.ponder_sqlite_query_count = new prometheus.Counter({
         name: "ponder_sqlite_query_count",
         help: "Number of queries executed by SQLite",
