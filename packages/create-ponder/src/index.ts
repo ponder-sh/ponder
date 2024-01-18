@@ -250,7 +250,7 @@ export async function run({
 
   if (templateMeta.id === "etherscan") {
     const host = new URL(url!).host;
-    config = await oraPromise(
+    const result = await oraPromise(
       fromEtherscan({
         rootDir: targetPath,
         etherscanLink: url!,
@@ -264,6 +264,8 @@ export async function run({
         successText: `Fetched contract metadata from ${pico.bold(host)}.`,
       },
     );
+    config = result.config;
+    warnings.push(...result.warnings);
   }
 
   if (templateMeta.id === "subgraph") {

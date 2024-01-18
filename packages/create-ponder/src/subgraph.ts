@@ -114,7 +114,7 @@ export const fromSubgraphId = async ({
   const warnings = [];
   if (manifest.templates?.length > 0) {
     warnings.push(
-      "Factory pattern detected. Please reference the documentation on factory contracts (https://ponder.sh/docs/guides/add-contracts#factory-contracts).",
+      "Factory contract detected. Please see the factory contract documentation for more details: https://ponder.sh/docs/guides/add-contracts#factory-contracts",
     );
   }
 
