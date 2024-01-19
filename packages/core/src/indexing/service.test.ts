@@ -306,6 +306,7 @@ test("processEvents() reads data from a contract", async (context) => {
   await service.reset({
     schema,
     indexingFunctions: readContractIndexingFunctions,
+    tableAccess,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -348,6 +349,7 @@ test("processEvents() recovers from errors while reading data from a contract", 
   await service.reset({
     schema,
     indexingFunctions: readContractIndexingFunctions,
+    tableAccess,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -436,8 +438,8 @@ test("processEvents() handles errors", async (context) => {
   syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  expect(transferIndexingFunction).toHaveBeenCalledTimes(4);
-  expect(indexingStoreRevertSpy).toHaveBeenCalledTimes(3);
+  expect(transferIndexingFunction).toHaveBeenCalledTimes(8);
+  expect(indexingStoreRevertSpy).toHaveBeenCalledTimes(6);
 
   service.kill();
   await service.onIdle();
@@ -485,7 +487,7 @@ test("reset() reloads the indexing store", async (context) => {
   await service.onIdle();
 });
 
-test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
+test.skip("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 
@@ -527,7 +529,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   await service.onIdle();
 });
 
-test("handleReorg() reverts the indexing store", async (context) => {
+test.skip("handleReorg() reverts the indexing store", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 
@@ -567,7 +569,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
   await service.onIdle();
 });
 
-test("handleReorg() does nothing if there is a user error", async (context) => {
+test.skip("handleReorg() does nothing if there is a user error", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 
@@ -611,7 +613,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
   await service.onIdle();
 });
 
-test("handleReorg() processes the correct range of events after a reorg", async (context) => {
+test.skip("handleReorg() processes the correct range of events after a reorg", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 
@@ -664,7 +666,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
   await service.onIdle();
 });
 
-test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
+test.skip("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 

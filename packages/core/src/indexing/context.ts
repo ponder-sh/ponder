@@ -1,20 +1,82 @@
 import type { Common } from "@/Ponder.js";
+import type { Network } from "@/config/networks.js";
+import type { Source } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
+import type { SyncStore } from "@/sync-store/store.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
+import {
+  type Abi,
+  type Address,
+  type Client,
+  checksumAddress,
+  createClient,
+} from "viem";
+import { ponderActions } from "./ponderActions.js";
+import { ponderTransport } from "./transport.js";
 
-export const buildDatabaseModels =
+export type Context = {
+  network: { chainId: number; name: string };
+  client: Client;
+  db: Record<string, DatabaseModel<any>>;
+  contracts: Record<
+    string,
+    {
+      abi: Abi;
+      address?: Address | readonly Address[];
+      startBlock: number;
+      endBlock?: number;
+      maxBlockRange?: number;
+    }
+  >;
+};
+
+export const buildNetwork = ({ networks }: { networks: Network[] }) => {
+  const _networks = {} as Record<number, string>;
+
+  for (const network of networks) {
+    _networks[network.chainId] = network.name;
+  }
+
+  return (checkpoint: Checkpoint) => ({
+    chainId: checkpoint.chainId,
+    name: _networks[checkpoint.chainId],
+  });
+};
+
+export const buildClient =
+  ({
+    networks,
+    requestQueues,
+    syncStore,
+  }: {
+    networks: Network[];
+    requestQueues: RequestQueue[];
+    syncStore: SyncStore;
+  }) =>
+  (checkpoint: Checkpoint) => {
+    const index = networks.findIndex((n) => n.chainId === checkpoint.chainId);
+
+    return createClient({
+      transport: ponderTransport({
+        requestQueue: requestQueues[index],
+        syncStore,
+      }),
+      chain: networks[index].chain,
+    }).extend(ponderActions(BigInt(checkpoint.blockNumber)));
+  };
+
+export const buildDB =
   ({
     common,
     indexingStore,
     schema,
-    // getCurrentIndexingCheckpoint,
   }: {
     common: Common;
     indexingStore: IndexingStore;
     schema: Schema;
-    // getCurrentIndexingCheckpoint: () => Checkpoint;
   }) =>
   (checkpoint: Checkpoint) => {
     return Object.keys(schema.tables).reduce<
@@ -121,3 +183,28 @@ export const buildDatabaseModels =
       return acc;
     }, {});
   };
+
+export const buildContracts = ({ sources }: { sources: Source[] }) => {
+  const contracts: Record<number, Context["contracts"]> = {};
+
+  for (const source of sources) {
+    const address =
+      typeof source.criteria.address === "string"
+        ? source.criteria.address
+        : undefined;
+
+    if (contracts[source.chainId] === undefined) {
+      contracts[source.chainId] = {};
+    }
+
+    contracts[source.chainId][source.contractName] = {
+      abi: source.abi,
+      address: address ? checksumAddress(address) : address,
+      startBlock: source.startBlock,
+      endBlock: source.endBlock,
+      maxBlockRange: source.maxBlockRange,
+    };
+  }
+
+  return (checkpoint: Checkpoint) => contracts[checkpoint.chainId]!;
+};

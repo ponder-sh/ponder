@@ -13,9 +13,7 @@ import type { SyncGateway } from "@/sync-gateway/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
-import type { DatabaseModel } from "@/types/model.js";
 import type { Transaction } from "@/types/transaction.js";
-import { chains } from "@/utils/chains.js";
 import {
   type Checkpoint,
   checkpointMin,
@@ -31,18 +29,15 @@ import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
 import type { AbiEvent } from "abitype";
 import { Mutex } from "async-mutex";
+import { type Hex, decodeEventLog } from "viem";
 import {
-  type Abi,
-  type Address,
-  type Client,
-  type Hex,
-  decodeEventLog,
-} from "viem";
-import { checksumAddress, createClient } from "viem";
-import { buildDatabaseModels } from "./model.js";
-import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
+  type Context,
+  buildClient,
+  buildContracts,
+  buildDB,
+  buildNetwork,
+} from "./context.js";
 import { addUserStackTrace } from "./trace.js";
-import { ponderTransport } from "./transport.js";
 
 type IndexingEvents = {
   eventsProcessed: { toCheckpoint: Checkpoint };
@@ -86,35 +81,22 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private indexingStore: IndexingStore;
   private syncGatewayService: SyncGateway;
   private sources: Source[];
+  private networks: Network[];
 
   private indexingFunctions?: IndexingFunctions;
   private schema?: Schema;
 
   private queue?: IndexingFunctionQueue;
 
-  private db: (checkpoint: Checkpoint) => Record<string, DatabaseModel<any>> =
-    undefined!;
-
   private networkNames: { [sourceId: Source["id"]]: Source["networkName"] } =
     {};
 
-  private contexts: Record<
-    number,
-    {
-      client: Client;
-      network: { chainId: number; name: string };
-      contracts: Record<
-        string,
-        {
-          abi: Abi;
-          address?: Address | readonly Address[];
-          startBlock: number;
-          endBlock?: number;
-          maxBlockRange?: number;
-        }
-      >;
-    }
-  > = {};
+  private getNetwork: (checkpoint: Checkpoint) => Context["network"] =
+    undefined!;
+  private getClient: (checkpoint: Checkpoint) => Context["client"] = undefined!;
+  private getDB: (checkpoint: Checkpoint) => Context["db"] = undefined!;
+  private getContracts: (checkpoint: Checkpoint) => Context["contracts"] =
+    undefined!;
 
   private indexingFunctionMap?: Record<
     /* Indexing function key: "{ContractName}:{EventName}" */
@@ -163,16 +145,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.indexingStore = indexingStore;
     this.syncGatewayService = syncGatewayService;
     this.sources = sources;
+    this.networks = networks;
     this.networkNames = buildNetworkNames(sources);
 
-    this.contexts = buildContexts(
-      sources,
+    this.getNetwork = buildNetwork({
+      networks,
+    });
+    this.getClient = buildClient({
       networks,
       requestQueues,
       syncStore,
-      // TODO: fix this 0n problem
-      ponderActions(() => 0n),
-    );
+    });
+    this.getContracts = buildContracts({
+      sources,
+    });
   }
 
   kill = () => {
@@ -207,7 +193,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
   } = {}) => {
     if (newSchema) {
       this.schema = newSchema;
-      this.db = buildDatabaseModels({
+
+      this.getDB = buildDB({
         common: this.common,
         indexingStore: this.indexingStore,
         schema: this.schema,
@@ -265,43 +252,97 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
   };
 
+  /**
+   * Processes all newly available events.
+   *
+   * Acquires a lock on the event processing mutex, then gets the latest checkpoint
+   * from the sync gateway service. Fetches events between previous checkpoint
+   * and the new checkpoint, adds them to the queue, then processes them.
+   */
+  processEvents = async () => {
+    for (const key of Object.keys(this.indexingFunctionMap!)) {
+      await this.loadIndexingFunctionTasks(key);
+    }
+
+    this.enqueueNextTasks();
+
+    this.queue!.start();
+    await this.queue!.onIdle();
+    // // If the queue is already paused here, it means that reset() was called, interrupting
+    // // event processing. When this happens, we want to return early.
+    // if (this.queue.isPaused) return;
+    // this.queue.pause();
+    // if (events.length > 0) {
+    //   const { blockTimestamp, chainId, blockNumber, logIndex } =
+    //     metadata.pageEndCheckpoint;
+    //   this.common.logger.info({
+    //     service: "indexing",
+    //     msg: `Indexed ${
+    //       events.length === 1 ? "1 event" : `${events.length} events`
+    //     } up to ${formatShortDate(
+    //       blockTimestamp,
+    //     )} (chainId=${chainId} block=${blockNumber} logIndex=${logIndex})`,
+    //   });
+    // }
+  };
+
+  /**
+   * This method is triggered by the realtime sync service detecting a reorg,
+   * which can happen at any time. The event queue and the indexing store can be
+   * in one of several different states that we need to keep in mind:
+   *
+   * 1) No events have been added to the queue yet.
+   * 2) No unsafe events have been processed (eventsProcessedToTimestamp <= commonAncestorTimestamp).
+   * 3) Unsafe events may have been processed (eventsProcessedToTimestamp > commonAncestorTimestamp).
+   * 4) The queue has encountered a user error and is waiting for a reload.
+   *
+   * Note: It's crucial that we acquire a mutex lock while handling the reorg.
+   * This will only ever run while the queue is idle, so we can be confident
+   * that eventsProcessedToTimestamp matches the current state of the indexing store,
+   * and that no unsafe events will get processed after handling the reorg.
+   *
+   * Note: Caller should (probably) immediately call processEvents after this method.
+   */
+  handleReorg = async (safeCheckpoint: Checkpoint) => {
+    safeCheckpoint;
+  };
+
   private enqueueSetupTasks = (indexingFunctions: IndexingFunctions) => {
-    for (const sourceName of Object.keys(indexingFunctions)) {
-      for (const eventName of Object.keys(indexingFunctions[sourceName])) {
-        if (eventName !== "setup") continue;
+    for (const contractName of Object.keys(indexingFunctions)) {
+      if (indexingFunctions[contractName].setup === undefined) return;
 
-        const contexts = Object.values(this.contexts).filter(
-          (c) => sourceName in c.contracts,
-        );
+      for (const network of this.networks) {
+        const source = this.sources.find(
+          (s) =>
+            s.contractName === contractName && s.chainId === network.chainId,
+        )!;
 
-        for (const { contracts, network } of contexts) {
-          const labels = {
-            network: network.name,
-            contract: sourceName,
-            event: "setup",
-          };
-          this.common.metrics.ponder_indexing_matched_events.inc(labels);
+        const labels = {
+          network: network.name,
+          contract: contractName,
+          event: "setup",
+        };
+        this.common.metrics.ponder_indexing_matched_events.inc(labels);
 
-          // The "setup" event uses the contract start block number for contract calls.
-          // TODO: Consider implications of this "synthetic" checkpoint on record versioning.
-          const checkpoint = {
-            ...zeroCheckpoint,
+        // The "setup" event uses the contract start block number for contract calls.
+        // TODO: Consider implications of this "synthetic" checkpoint on record versioning.
+        const checkpoint = {
+          ...zeroCheckpoint,
+          chainId: network.chainId,
+          blockNumber: source.startBlock,
+        };
+
+        this.queue!.addTask({
+          kind: "SETUP",
+          event: {
+            networkName: network.name,
             chainId: network.chainId,
-            blockNumber: contracts[sourceName].startBlock,
-          };
+            contractName,
+            checkpoint,
+          },
+        });
 
-          this.queue!.addTask({
-            kind: "SETUP",
-            event: {
-              networkName: network.name,
-              contractName: sourceName,
-              chainId: network.chainId,
-              checkpoint,
-            },
-          });
-
-          this.common.metrics.ponder_indexing_handled_events.inc(labels);
-        }
+        this.common.metrics.ponder_indexing_handled_events.inc(labels);
       }
     }
   };
@@ -361,61 +402,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
   };
 
-  /**
-   * This method is triggered by the realtime sync service detecting a reorg,
-   * which can happen at any time. The event queue and the indexing store can be
-   * in one of several different states that we need to keep in mind:
-   *
-   * 1) No events have been added to the queue yet.
-   * 2) No unsafe events have been processed (eventsProcessedToTimestamp <= commonAncestorTimestamp).
-   * 3) Unsafe events may have been processed (eventsProcessedToTimestamp > commonAncestorTimestamp).
-   * 4) The queue has encountered a user error and is waiting for a reload.
-   *
-   * Note: It's crucial that we acquire a mutex lock while handling the reorg.
-   * This will only ever run while the queue is idle, so we can be confident
-   * that eventsProcessedToTimestamp matches the current state of the indexing store,
-   * and that no unsafe events will get processed after handling the reorg.
-   *
-   * Note: Caller should (probably) immediately call processEvents after this method.
-   */
-  handleReorg = async (safeCheckpoint: Checkpoint) => {
-    safeCheckpoint;
-  };
-
-  /**
-   * Processes all newly available events.
-   *
-   * Acquires a lock on the event processing mutex, then gets the latest checkpoint
-   * from the sync gateway service. Fetches events between previous checkpoint
-   * and the new checkpoint, adds them to the queue, then processes them.
-   */
-  processEvents = async () => {
-    for (const key of Object.keys(this.indexingFunctionMap!)) {
-      await this.loadIndexingFunctionTasks(key);
-    }
-
-    this.enqueueNextTasks();
-
-    this.queue!.start();
-    await this.queue!.onIdle();
-    // // If the queue is already paused here, it means that reset() was called, interrupting
-    // // event processing. When this happens, we want to return early.
-    // if (this.queue.isPaused) return;
-    // this.queue.pause();
-    // if (events.length > 0) {
-    //   const { blockTimestamp, chainId, blockNumber, logIndex } =
-    //     metadata.pageEndCheckpoint;
-    //   this.common.logger.info({
-    //     service: "indexing",
-    //     msg: `Indexed ${
-    //       events.length === 1 ? "1 event" : `${events.length} events`
-    //     } up to ${formatShortDate(
-    //       blockTimestamp,
-    //     )} (chainId=${chainId} block=${blockNumber} logIndex=${logIndex})`,
-    //   });
-    // }
-  };
-
   private executeSetupTask = async (task: SetupTask) => {
     const event = task.event;
 
@@ -432,8 +418,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
         // Running user code here!
         await indexingFunction({
           context: {
-            db: this.db(event.checkpoint),
-            ...this.contexts[event.chainId],
+            network: this.getNetwork(task.event.checkpoint),
+            client: this.getClient(task.event.checkpoint),
+            db: this.getDB(task.event.checkpoint),
+            contracts: this.getContracts(task.event.checkpoint),
           },
         });
 
@@ -507,8 +495,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
             ...event.event,
           },
           context: {
-            db: this.db(event.checkpoint),
-            ...this.contexts[event.chainId],
+            network: this.getNetwork(task.event.checkpoint),
+            client: this.getClient(task.event.checkpoint),
+            db: this.getDB(task.event.checkpoint),
+            contracts: this.getContracts(task.event.checkpoint),
           },
         });
 
@@ -813,76 +803,4 @@ const buildIndexingFunctionMap = (
   }
 
   return indexingFunctionMap;
-};
-
-const buildContexts = (
-  sources: Source[],
-  networks: Network[],
-  requestQueues: RequestQueue[],
-  syncStore: SyncStore,
-  actions: ReturnType<typeof ponderActions>,
-) => {
-  const contexts: Record<
-    number,
-    {
-      client: Client;
-      network: { chainId: number; name: string };
-      contracts: Record<
-        string,
-        {
-          abi: Abi;
-          address?: Address | readonly Address[];
-          startBlock: number;
-          endBlock?: number;
-          maxBlockRange?: number;
-        }
-      >;
-    }
-  > = {};
-
-  networks.forEach((network, i) => {
-    const defaultChain =
-      Object.values(chains).find((c) => c.id === network.chainId) ??
-      chains.mainnet;
-
-    const client = createClient({
-      transport: ponderTransport({
-        requestQueue: requestQueues[i],
-        syncStore,
-      }),
-      chain: { ...defaultChain, name: network.name, id: network.chainId },
-    });
-
-    contexts[network.chainId] = {
-      network: { name: network.name, chainId: network.chainId },
-      // Changing the arguments of readContract is not usually allowed,
-      // because we have such a limited api we should be good
-      client: client.extend(actions as any) as ReadOnlyClient,
-      contracts: {},
-    };
-  });
-
-  sources.forEach((source) => {
-    // Only include the address if it's singular and  static.
-    const address =
-      typeof source.criteria.address === "string"
-        ? source.criteria.address
-        : undefined;
-
-    contexts[source.chainId] = {
-      ...contexts[source.chainId],
-      contracts: {
-        ...contexts[source.chainId].contracts,
-        [source.contractName]: {
-          abi: source.abi,
-          address: address ? checksumAddress(address) : address,
-          startBlock: source.startBlock,
-          endBlock: source.endBlock,
-          maxBlockRange: source.maxBlockRange,
-        },
-      },
-    };
-  });
-
-  return contexts;
 };
