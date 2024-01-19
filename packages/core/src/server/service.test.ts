@@ -164,13 +164,15 @@ test("serves all scalar types correctly", async (context) => {
 
   const response = await gql(`
     testEntitys {
-      id
-      string
-      int
-      float
-      boolean
-      bytes
-      bigInt
+        items {
+          id
+          string
+          int
+          float
+          boolean
+          bytes
+          bigInt
+        }
     }
   `);
 
@@ -178,8 +180,8 @@ test("serves all scalar types correctly", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({
+  expect(testEntitys.items).toHaveLength(3);
+  expect(testEntitys.items[0]).toMatchObject({
     id: "0",
     string: "0",
     int: 0,
@@ -188,7 +190,7 @@ test("serves all scalar types correctly", async (context) => {
     bytes: "0",
     bigInt: "0",
   });
-  expect(testEntitys[1]).toMatchObject({
+  expect(testEntitys.items[1]).toMatchObject({
     id: "1",
     string: "1",
     int: 1,
@@ -197,7 +199,7 @@ test("serves all scalar types correctly", async (context) => {
     bytes: "1",
     bigInt: "1",
   });
-  expect(testEntitys[2]).toMatchObject({
+  expect(testEntitys.items[2]).toMatchObject({
     id: "2",
     string: "2",
     int: 2,
@@ -223,12 +225,14 @@ test("serves all scalar list types correctly", async (context) => {
 
   const response = await gql(`
     testEntitys {
-      id
-      stringList
-      intList
-      floatList
-      booleanList
-      bytesList
+        items {
+          id
+          stringList
+          intList
+          floatList
+          booleanList
+          bytesList
+        }
     }
   `);
 
@@ -236,8 +240,8 @@ test("serves all scalar list types correctly", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({
+  expect(testEntitys.items).toHaveLength(3);
+  expect(testEntitys.items[0]).toMatchObject({
     id: "0",
     stringList: ["0"],
     intList: [0],
@@ -245,7 +249,7 @@ test("serves all scalar list types correctly", async (context) => {
     booleanList: [true],
     bytesList: ["0"],
   });
-  expect(testEntitys[1]).toMatchObject({
+  expect(testEntitys.items[1]).toMatchObject({
     id: "1",
     stringList: ["1"],
     intList: [1],
@@ -253,7 +257,7 @@ test("serves all scalar list types correctly", async (context) => {
     booleanList: [false],
     bytesList: ["1"],
   });
-  expect(testEntitys[2]).toMatchObject({
+  expect(testEntitys.items[2]).toMatchObject({
     id: "2",
     stringList: ["2"],
     intList: [2],
@@ -276,8 +280,10 @@ test("serves all optional types correctly", async (context) => {
 
   const response = await gql(`
     testEntitys {
-      optional
-      optionalList
+      items {
+        optional
+        optionalList
+      }
     }
   `);
 
@@ -285,8 +291,8 @@ test("serves all optional types correctly", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({
     optional: null,
     optionalList: null,
   });
@@ -307,8 +313,10 @@ test("serves enum types correctly", async (context) => {
 
   const response = await gql(`
     testEntitys {
-      id
-      enum
+      items {
+        id
+        enum
+      }
     }
   `);
 
@@ -316,16 +324,16 @@ test("serves enum types correctly", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({
+  expect(testEntitys.items).toHaveLength(3);
+  expect(testEntitys.items[0]).toMatchObject({
     id: "0",
     enum: "ZERO",
   });
-  expect(testEntitys[1]).toMatchObject({
+  expect(testEntitys.items[1]).toMatchObject({
     id: "1",
     enum: "ONE",
   });
-  expect(testEntitys[2]).toMatchObject({
+  expect(testEntitys.items[2]).toMatchObject({
     id: "2",
     enum: "TWO",
   });
@@ -344,9 +352,11 @@ test("serves many column types correctly", async (context) => {
 
   const response = await gql(`
     testEntitys {
-      id
-      derived {
-        id
+      items {
+          id
+          derived {
+            id
+          }
       }
     }
   `);
@@ -355,8 +365,8 @@ test("serves many column types correctly", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({
     id: "0",
     derived: [{ id: "0" }, { id: "1" }],
   });
@@ -404,8 +414,8 @@ test("serves one column types correctly", async (context) => {
   expect(response.statusCode).toBe(200);
   const { entityWithBigIntIds, entityWithNullRefs } = response.body.data;
 
-  expect(entityWithBigIntIds).toHaveLength(1);
-  expect(entityWithBigIntIds[0]).toMatchObject({
+  expect(entityWithBigIntIds.items).toHaveLength(1);
+  expect(entityWithBigIntIds.items[0]).toMatchObject({
     id: "0",
     testEntity: {
       id: "0",
@@ -418,8 +428,8 @@ test("serves one column types correctly", async (context) => {
     },
   });
 
-  expect(entityWithNullRefs).toHaveLength(1);
-  expect(entityWithNullRefs[0]).toMatchObject({
+  expect(entityWithNullRefs.items).toHaveLength(1);
+  expect(entityWithNullRefs.items[0]).toMatchObject({
     id: "0",
     testEntityId: null,
     testEntity: null,
@@ -489,7 +499,9 @@ test("filters on string field equals", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { string: "123" }) {
-      id
+        items {
+          id
+        }
     }
   `);
 
@@ -497,8 +509,8 @@ test("filters on string field equals", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({ id: "123" });
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({ id: "123" });
 
   await service.kill();
 });
@@ -516,7 +528,9 @@ test("filters on string field in", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { string_in: ["123", "125"] }) {
-      id
+        items {
+          id
+        }
     }
   `);
 
@@ -524,9 +538,9 @@ test("filters on string field in", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({ id: "123" });
-  expect(testEntitys[1]).toMatchObject({ id: "125" });
+  expect(testEntitys.items).toHaveLength(2);
+  expect(testEntitys.items[0]).toMatchObject({ id: "123" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "125" });
 
   await service.kill();
 });
@@ -544,7 +558,10 @@ test("filters on string field contains", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { string_contains: "5" }) {
+        items {
+
       id
+        }
     }
   `);
 
@@ -552,8 +569,8 @@ test("filters on string field contains", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({ id: "125" });
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({ id: "125" });
 
   await service.kill();
 });
@@ -571,7 +588,10 @@ test("filters on string field starts with", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { string_starts_with: "12" }) {
+        items {
       id
+
+        }
     }
   `);
 
@@ -579,9 +599,9 @@ test("filters on string field starts with", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({ id: "123" });
-  expect(testEntitys[1]).toMatchObject({ id: "125" });
+  expect(testEntitys.items).toHaveLength(2);
+  expect(testEntitys.items[0]).toMatchObject({ id: "123" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "125" });
 
   await service.kill();
 });
@@ -599,7 +619,10 @@ test("filters on string field not ends with", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { string_not_ends_with: "5" }) {
+        items {
+
       id
+        }
     }
   `);
 
@@ -607,9 +630,9 @@ test("filters on string field not ends with", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({ id: "123" });
-  expect(testEntitys[1]).toMatchObject({ id: "130" });
+  expect(testEntitys.items).toHaveLength(2);
+  expect(testEntitys.items[0]).toMatchObject({ id: "123" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "130" });
 
   await service.kill();
 });
@@ -627,7 +650,10 @@ test("filters on integer field equals", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { int: 0 }) {
+        items {
+
       id
+        }
     }
   `);
 
@@ -635,8 +661,8 @@ test("filters on integer field equals", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({ id: "0" });
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({ id: "0" });
 
   await service.kill();
 });
@@ -654,7 +680,9 @@ test("filters on integer field greater than", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { int_gt: 1 }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -662,8 +690,8 @@ test("filters on integer field greater than", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({ id: "2" });
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -681,7 +709,9 @@ test("filters on integer field less than or equal to", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { int_lte: 1 }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -689,9 +719,9 @@ test("filters on integer field less than or equal to", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({ id: "0" });
-  expect(testEntitys[1]).toMatchObject({ id: "1" });
+  expect(testEntitys.items).toHaveLength(2);
+  expect(testEntitys.items[0]).toMatchObject({ id: "0" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -709,7 +739,9 @@ test("filters on integer field in", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { int_in: [0, 2] }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -717,9 +749,9 @@ test("filters on integer field in", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({ id: "0" });
-  expect(testEntitys[1]).toMatchObject({ id: "2" });
+  expect(testEntitys.items).toHaveLength(2);
+  expect(testEntitys.items[0]).toMatchObject({ id: "0" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -737,7 +769,9 @@ test("filters on float field equals", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { float: 0.1 }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -745,8 +779,8 @@ test("filters on float field equals", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({
     id: "1",
   });
 
@@ -766,7 +800,9 @@ test("filters on float field greater than", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { float_gt: 0.1 }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -774,8 +810,8 @@ test("filters on float field greater than", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({ id: "2" });
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -793,8 +829,10 @@ test("filters on float field less than or equal to", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { float_lte: 0.1 }) {
-      id
-      int
+      items {
+        id
+        int
+      }
     }
   `);
 
@@ -802,9 +840,9 @@ test("filters on float field less than or equal to", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({ id: "0" });
-  expect(testEntitys[1]).toMatchObject({ id: "1" });
+  expect(testEntitys.items).toHaveLength(2);
+  expect(testEntitys.items[0]).toMatchObject({ id: "0" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -822,8 +860,10 @@ test("filters on float field in", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { float_in: [0, 0.2] }) {
-      id
-      int
+      items {
+        id
+        int
+      }
     }
   `);
 
@@ -831,9 +871,9 @@ test("filters on float field in", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({ id: "0" });
-  expect(testEntitys[1]).toMatchObject({ id: "2" });
+  expect(testEntitys.items).toHaveLength(2);
+  expect(testEntitys.items[0]).toMatchObject({ id: "0" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -851,7 +891,9 @@ test("filters on bigInt field equals", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { bigInt: "1" }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -859,8 +901,8 @@ test("filters on bigInt field equals", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({
     id: "1",
   });
 
@@ -880,7 +922,9 @@ test("filters on bigInt field greater than", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { bigInt_gt: "1" }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -888,8 +932,8 @@ test("filters on bigInt field greater than", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({ id: "2" });
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -907,8 +951,10 @@ test("filters on bigInt field less than or equal to", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { bigInt_lte: "1" }) {
-      id
-      int
+      items {
+        id
+        int
+      }
     }
   `);
 
@@ -916,9 +962,9 @@ test("filters on bigInt field less than or equal to", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({ id: "0" });
-  expect(testEntitys[1]).toMatchObject({ id: "1" });
+  expect(testEntitys.items).toHaveLength(2);
+  expect(testEntitys.items[0]).toMatchObject({ id: "0" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -936,8 +982,10 @@ test("filters on bigInt field in", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { bigInt_in: ["0", "2"] }) {
-      id
-      int
+      items {
+        id
+        int
+      }
     }
   `);
 
@@ -945,9 +993,9 @@ test("filters on bigInt field in", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({ id: "0" });
-  expect(testEntitys[1]).toMatchObject({ id: "2" });
+  expect(testEntitys.items).toHaveLength(2);
+  expect(testEntitys.items[0]).toMatchObject({ id: "0" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -965,7 +1013,9 @@ test("filters on string list field equals", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { stringList: ["1"] }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -973,8 +1023,8 @@ test("filters on string list field equals", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({ id: "1" });
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -992,7 +1042,9 @@ test("filters on string list field has", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { stringList_has: "2" }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -1000,8 +1052,8 @@ test("filters on string list field has", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({ id: "2" });
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -1019,7 +1071,9 @@ test("filters on enum field equals", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { enum: ONE }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -1027,8 +1081,8 @@ test("filters on enum field equals", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({ id: "1" });
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1046,7 +1100,10 @@ test("filters on enum field in", async (context) => {
 
   const response = await gql(`
     testEntitys(where: { enum_in: [ONE, ZERO] }) {
-      id
+      items {
+          id
+
+      }
     }
   `);
 
@@ -1054,9 +1111,11 @@ test("filters on enum field in", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({ id: "0" });
-  expect(testEntitys[1]).toMatchObject({ id: "1" });
+  console.log("test entities", testEntitys.items);
+
+  expect(testEntitys.items).toHaveLength(2);
+  expect(testEntitys.items[0]).toMatchObject({ id: "0" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1083,8 +1142,8 @@ test("filters on relationship field equals", async (context) => {
   expect(response.statusCode).toBe(200);
   const { entityWithBigIntIds } = response.body.data;
 
-  expect(entityWithBigIntIds).toHaveLength(1);
-  expect(entityWithBigIntIds[0]).toMatchObject({
+  expect(entityWithBigIntIds.items).toHaveLength(1);
+  expect(entityWithBigIntIds.items[0]).toMatchObject({
     id: "0",
     testEntity: {
       id: "0",
@@ -1114,9 +1173,9 @@ test("filters on relationship field in", async (context) => {
   expect(response.statusCode).toBe(200);
   const { entityWithBigIntIds } = response.body.data;
 
-  expect(entityWithBigIntIds).toHaveLength(2);
-  expect(entityWithBigIntIds[0]).toMatchObject({ id: "0" });
-  expect(entityWithBigIntIds[1]).toMatchObject({ id: "1" });
+  expect(entityWithBigIntIds.items).toHaveLength(2);
+  expect(entityWithBigIntIds.items[0]).toMatchObject({ id: "0" });
+  expect(entityWithBigIntIds.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1141,9 +1200,9 @@ test("filters on relationship field in", async (context) => {
   expect(response.statusCode).toBe(200);
   const { entityWithBigIntIds } = response.body.data;
 
-  expect(entityWithBigIntIds).toHaveLength(2);
-  expect(entityWithBigIntIds[0]).toMatchObject({ id: "0" });
-  expect(entityWithBigIntIds[1]).toMatchObject({ id: "1" });
+  expect(entityWithBigIntIds.items).toHaveLength(2);
+  expect(entityWithBigIntIds.items[0]).toMatchObject({ id: "0" });
+  expect(entityWithBigIntIds.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1161,7 +1220,9 @@ test("orders by on int field ascending", async (context) => {
 
   const response = await gql(`
     testEntitys(orderBy: "int", orderDirection: "asc") {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -1169,10 +1230,10 @@ test("orders by on int field ascending", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({ id: "1" });
-  expect(testEntitys[1]).toMatchObject({ id: "12" });
-  expect(testEntitys[2]).toMatchObject({ id: "123" });
+  expect(testEntitys.items).toHaveLength(3);
+  expect(testEntitys.items[0]).toMatchObject({ id: "1" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "12" });
+  expect(testEntitys.items[2]).toMatchObject({ id: "123" });
 
   await service.kill();
 });
@@ -1190,7 +1251,9 @@ test("orders by on int field descending", async (context) => {
 
   const response = await gql(`
     testEntitys(orderBy: "int", orderDirection: "desc") {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -1198,10 +1261,10 @@ test("orders by on int field descending", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({ id: "123" });
-  expect(testEntitys[1]).toMatchObject({ id: "12" });
-  expect(testEntitys[2]).toMatchObject({ id: "1" });
+  expect(testEntitys.items).toHaveLength(3);
+  expect(testEntitys.items[0]).toMatchObject({ id: "123" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "12" });
+  expect(testEntitys.items[2]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1220,7 +1283,9 @@ test("orders by on bigInt field ascending including negative values", async (con
 
   const response = await gql(`
     testEntitys(orderBy: "bigInt", orderDirection: "asc") {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -1228,11 +1293,11 @@ test("orders by on bigInt field ascending including negative values", async (con
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(4);
-  expect(testEntitys[0]).toMatchObject({ id: "-9999" });
-  expect(testEntitys[1]).toMatchObject({ id: "-12" });
-  expect(testEntitys[2]).toMatchObject({ id: "1" });
-  expect(testEntitys[3]).toMatchObject({ id: "123" });
+  expect(testEntitys.items).toHaveLength(4);
+  expect(testEntitys.items[0]).toMatchObject({ id: "-9999" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "-12" });
+  expect(testEntitys.items[2]).toMatchObject({ id: "1" });
+  expect(testEntitys.items[3]).toMatchObject({ id: "123" });
 
   await service.kill();
 });
@@ -1250,7 +1315,9 @@ test("orders by on bigInt field descending", async (context) => {
 
   const response = await gql(`
     testEntitys(orderBy: "bigInt", orderDirection: "desc") {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -1258,10 +1325,10 @@ test("orders by on bigInt field descending", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({ id: "123" });
-  expect(testEntitys[1]).toMatchObject({ id: "12" });
-  expect(testEntitys[2]).toMatchObject({ id: "1" });
+  expect(testEntitys.items).toHaveLength(3);
+  expect(testEntitys.items[0]).toMatchObject({ id: "123" });
+  expect(testEntitys.items[1]).toMatchObject({ id: "12" });
+  expect(testEntitys.items[2]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1277,7 +1344,9 @@ test("limits to the first 100 by default", async (context) => {
 
   const response = await gql(`
     testEntitys {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -1285,8 +1354,8 @@ test("limits to the first 100 by default", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(100);
-  expect(testEntitys[0]).toMatchObject({ id: "0" });
+  expect(testEntitys.items).toHaveLength(100);
+  expect(testEntitys.items[0]).toMatchObject({ id: "0" });
 
   await service.kill();
 });
@@ -1310,8 +1379,8 @@ test("limits as expected if less than 1000", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(15);
-  expect(testEntitys[0]).toMatchObject({ id: "0" });
+  expect(testEntitys.items).toHaveLength(15);
+  expect(testEntitys.items[0]).toMatchObject({ id: "0" });
 
   await service.kill();
 });
@@ -1360,8 +1429,8 @@ test("skips as expected", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(85);
-  expect(testEntitys[0]).toMatchObject({ id: "20" });
+  expect(testEntitys.items).toHaveLength(85);
+  expect(testEntitys.items[0]).toMatchObject({ id: "20" });
 
   await service.kill();
 });
@@ -1408,9 +1477,9 @@ test("limits and skips together as expected", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(10);
-  expect(testEntitys[0]).toMatchObject({ id: "50" });
-  expect(testEntitys[9]).toMatchObject({ id: "59" });
+  expect(testEntitys.items).toHaveLength(10);
+  expect(testEntitys.items[0]).toMatchObject({ id: "50" });
+  expect(testEntitys.items[9]).toMatchObject({ id: "59" });
 
   await service.kill();
 });
@@ -1486,13 +1555,15 @@ test("serves plural entities versioned at specified timestamp", async (context) 
 
   const responseOld = await gql(`
     testEntitys(timestamp: 12, orderBy: "int") {
-      id
-      string
+      items {
+        id
+        string
+      }
     }
   `);
   expect(responseOld.body.errors).toBe(undefined);
   expect(responseOld.statusCode).toBe(200);
-  const testEntitysOld = responseOld.body.data.testEntitys;
+  const testEntitysOld = responseOld.body.data.testEntitys.items;
   expect(testEntitysOld).toMatchObject([
     { id: "1", string: "updated" },
     { id: "2", string: "2" },
@@ -1500,13 +1571,15 @@ test("serves plural entities versioned at specified timestamp", async (context) 
 
   const response = await gql(`
     testEntitys(orderBy: "int") {
-      id
-      string
+      items {
+        id
+        string
+      }
     }
   `);
   expect(response.body.errors).toBe(undefined);
   expect(response.statusCode).toBe(200);
-  const testEntitys = response.body.data.testEntitys;
+  const testEntitys = response.body.data.testEntitys.items;
   expect(testEntitys).toMatchObject([
     { id: "1", string: "updated" },
     { id: "2", string: "updated" },
@@ -1530,18 +1603,21 @@ test("derived field respects skip argument", async (context) => {
 
   const response = await gql(`
     testEntitys {
-      id
-      derived(skip: 2) {
+      items {
         id
+        derived {
+              id
+        }
       }
     }
   `);
   expect(response.body.errors).toBe(undefined);
   expect(response.statusCode).toBe(200);
-  const testEntitys = response.body.data.testEntitys;
+  const testEntitys = response.body.data.testEntitys.items;
+  console.log(testEntitys);
   expect(testEntitys[0].derived).toHaveLength(1);
   expect(testEntitys[0].derived[0]).toMatchObject({
-    id: "2",
+    id: "0",
   });
 
   await service.kill();
@@ -1562,7 +1638,9 @@ test("responds with appropriate status code pre and post historical sync", async
 
   let response = await gql(`
     testEntitys {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -1577,13 +1655,15 @@ test("responds with appropriate status code pre and post historical sync", async
 
   response = await gql(`
     testEntitys {
-      id
+      items {
+        id
+      }
     }
   `);
 
   expect(response.body.errors).toBe(undefined);
   expect(response.statusCode).toBe(200);
-  const testEntitys = response.body.data.testEntitys;
+  const testEntitys = response.body.data.testEntitys.items;
   expect(testEntitys).toHaveLength(1);
   expect(testEntitys[0]).toMatchObject({
     id: "0",
@@ -1618,15 +1698,17 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
 
   const responseOld = await gql(`
     testEntitys(timestamp: 5) {
-      id
-      derivedTestEntity {
+      items {
         id
+        derivedTestEntity {
+          id
+        }
       }
     }
   `);
   expect(responseOld.body.errors).toBe(undefined);
   expect(responseOld.statusCode).toBe(200);
-  const testEntitysOld = responseOld.body.data.testEntitys;
+  const testEntitysOld = responseOld.body.data.testEntitys.items;
   expect(testEntitysOld).toHaveLength(1);
   expect(testEntitysOld[0]).toMatchObject({
     id: "0",
@@ -1635,17 +1717,19 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
 
   const response = await gql(`
     testEntitys {
-      id
-      derivedTestEntity {
-        id
+      items {
+          id
+          derivedTestEntity {
+            id
+          }
       }
     }
   `);
   expect(response.body.errors).toBe(undefined);
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({
     id: "0",
     derivedTestEntity: [],
   });
