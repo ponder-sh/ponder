@@ -20,15 +20,23 @@ import {
   type RawIndexingFunctions,
   safeBuildIndexingFunctions,
 } from "./functions/functions.js";
-import { parseIndexingAst } from "./parseIndexingAst.js";
+import { type TableAccess, parseIndexingAst } from "./parseIndexingAst.js";
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 type BuildServiceEvents = {
+  // Note: Should new config ever trigger a re-analyze?
   newConfig: { config: Config; sources: Source[]; networks: Network[] };
-  newIndexingFunctions: { indexingFunctions: IndexingFunctions };
-  newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
+  newIndexingFunctions: {
+    indexingFunctions: IndexingFunctions;
+    tableAccess: TableAccess;
+  };
+  newSchema: {
+    schema: Schema;
+    graphqlSchema: GraphQLSchema;
+    tableAccess: TableAccess;
+  };
   error: { kind: "config" | "schema" | "indexingFunctions"; error: Error };
 };
 
@@ -123,7 +131,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       if (invalidated.includes(this.common.options.configFile)) {
         const configResult = await this.loadConfig();
         const validationResult = this.validate();
-        this.analyze();
 
         if (configResult.success && validationResult.success) {
           this.emit("newConfig", configResult);
@@ -137,10 +144,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       if (invalidated.includes(this.common.options.schemaFile)) {
         const schemaResult = await this.loadSchema();
         const validationResult = this.validate();
-        this.analyze();
+        const analyzeResult = this.analyze();
 
         if (schemaResult.success && validationResult.success) {
-          this.emit("newSchema", schemaResult);
+          this.emit("newSchema", {
+            ...schemaResult,
+            tableAccess: analyzeResult,
+          });
         } else {
           const error = schemaResult.error ?? (validationResult.error as Error);
           this.common.logger.error({ service: "build", error });
@@ -163,10 +173,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           files: indexingFunctionFiles,
         });
         const validationResult = this.validate();
-        this.analyze();
+        const analyzeResult = this.analyze();
 
         if (indexingFunctionsResult.success && validationResult.success) {
-          this.emit("newIndexingFunctions", indexingFunctionsResult);
+          this.emit("newIndexingFunctions", {
+            ...indexingFunctionsResult,
+            tableAccess: analyzeResult,
+          });
         } else {
           const error =
             indexingFunctionsResult.error ?? (validationResult.error as Error);

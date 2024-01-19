@@ -85,6 +85,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private sources: Source[];
   private networks: Network[];
 
+  private isPaused = false;
+  private isKilling = false;
+
   private indexingFunctions?: IndexingFunctions;
   private schema?: Schema;
   private tableAccess?: TableAccess;
@@ -169,6 +172,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }
 
   kill = () => {
+    this.isPaused = true;
+    this.isKilling = true;
+
     this.queue?.pause();
     this.queue?.clear();
     for (const key of Object.keys(this.indexingFunctionMap!)) {
@@ -192,7 +198,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   reset = async ({
     indexingFunctions: newIndexingFunctions,
     schema: newSchema,
-    tableAccess,
+    tableAccess: newTableAccess,
   }: {
     indexingFunctions?: IndexingFunctions;
     schema?: Schema;
@@ -208,40 +214,47 @@ export class IndexingService extends Emittery<IndexingEvents> {
       });
     }
 
+    if (newIndexingFunctions) {
+      this.indexingFunctions = newIndexingFunctions;
+    }
+
+    if (newTableAccess) {
+      this.tableAccess = newTableAccess;
+    }
+
+    if (
+      this.indexingFunctions === undefined ||
+      this.sources === undefined ||
+      this.tableAccess === undefined
+    )
+      return;
+
+    if (Object.keys(this.indexingFunctionMap).length !== 0) {
+      await Promise.all(
+        Object.values(this.indexingFunctionMap).map((keyHandler) =>
+          keyHandler.dbMutex.cancel(),
+        ),
+      );
+    }
+
+    this.queue?.clear();
+    this.queue?.pause();
+    await this.queue?.onIdle();
+
+    this.buildIndexingFunctionMap();
+    this.createEventQueue();
+
+    this.common.logger.debug({
+      service: "indexing",
+      msg: "Paused event queue",
+    });
+
+    this.isPaused = false;
+    this.common.metrics.ponder_indexing_has_error.set(0);
+
     this.common.metrics.ponder_indexing_matched_events.reset();
     this.common.metrics.ponder_indexing_handled_events.reset();
     this.common.metrics.ponder_indexing_processed_events.reset();
-
-    if (newIndexingFunctions && tableAccess) {
-      this.indexingFunctions = newIndexingFunctions;
-      this.tableAccess = tableAccess;
-
-      this.buildIndexingFunctionMap();
-
-      this.queue = this.createEventQueue();
-
-      this.enqueueSetupTasks(newIndexingFunctions);
-    }
-
-    // If either the schema or indexing functions have not been provided yet,
-    // we're not ready to process events. Just return early.
-    // if (!this.schema || this.indexingFunctionMap === {}) return;
-
-    // Cancel all pending calls to processEvents and reset the mutex.
-
-    // // Pause the old queue, (maybe) wait for the current indexing function to finish,
-    // // then create a new queue using the new indexing functions.
-    // this.queue?.clear();
-    // this.queue?.pause();
-    // await this.queue?.onIdle();
-
-    // this.common.logger.debug({
-    //   service: "indexing",
-    //   msg: "Paused event queue",
-    // });
-
-    // this.isPaused = false;
-    this.common.metrics.ponder_indexing_has_error.set(0);
 
     await this.indexingStore.reload({ schema: this.schema });
     this.common.logger.debug({
@@ -249,10 +262,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
       msg: "Reset indexing store",
     });
 
-    // // When we call indexingStore.reload() above, the indexing store is dropped.
-    // // Set the latest processed timestamp to zero accordingly.
-    // this.eventsProcessedToCheckpoint = zeroCheckpoint;
-    // this.currentIndexingCheckpoint = zeroCheckpoint;
     this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
   };
 
@@ -264,16 +273,27 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * and the new checkpoint, adds them to the queue, then processes them.
    */
   processEvents = async () => {
-    for (const key of Object.keys(this.indexingFunctionMap!)) {
-      await this.indexingFunctionMap![key].dbMutex.runExclusive(() =>
-        this.loadIndexingFunctionTasks(key),
-      );
-    }
+    if (
+      Object.keys(this.indexingFunctionMap).length === 0 ||
+      this.queue === undefined ||
+      this.isPaused
+    )
+      return;
+
+    // Note: We must ensure that the setup tasks have finished before enqueing the log event tasks
+    this.enqueueSetupTasks();
+
+    await Promise.all(
+      Object.entries(this.indexingFunctionMap).map(([key, keyHandler]) =>
+        keyHandler.dbMutex.runExclusive(() =>
+          this.loadIndexingFunctionTasks(key),
+        ),
+      ),
+    );
 
     this.enqueueLogEventTasks();
 
     this.queue!.start();
-    await this.queue!.onIdle();
   };
 
   /**
@@ -294,6 +314,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
   handleReorg = async (safeCheckpoint: Checkpoint) => {
+    if (this.isPaused) return;
+
     let release: MutexInterface.Releaser[];
     try {
       release = await Promise.all(
@@ -354,9 +376,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
   };
 
-  private enqueueSetupTasks = (indexingFunctions: IndexingFunctions) => {
-    for (const contractName of Object.keys(indexingFunctions)) {
-      if (indexingFunctions[contractName].setup === undefined) return;
+  private enqueueSetupTasks = () => {
+    for (const contractName of Object.keys(this.indexingFunctions!)) {
+      if (this.indexingFunctions![contractName].setup === undefined) return;
 
       for (const network of this.networks) {
         const source = this.sources.find(
@@ -486,6 +508,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         const error = error_ as Error & { meta: string };
 
         if (i === 3) {
+          this.isPaused = true;
           this.queue!.pause();
           this.queue!.clear();
 
@@ -590,6 +613,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         const error = error_ as Error & { meta?: string };
 
         if (i === 3) {
+          this.isPaused = true;
           this.queue!.pause();
           this.queue!.clear();
 
@@ -627,7 +651,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     await this.indexingFunctionMap![fullEventName].dbMutex.runExclusive(() =>
       this.loadIndexingFunctionTasks(fullEventName),
-    ).then(this.enqueueLogEventTasks);
+    ).then(() => {
+      if (this.queue?.isPaused === false) this.enqueueLogEventTasks();
+    });
   };
 
   private createEventQueue = () => {
@@ -651,15 +677,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
       }
     };
 
-    const queue = createQueue({
+    this.queue = createQueue({
       worker: indexingFunctionWorker,
       options: {
         concurrency: 10,
         autoStart: false,
       },
     });
-
-    return queue;
   };
 
   /**
@@ -710,20 +734,23 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     const keyMetadata = metadata.counts.find(
       ({ selector }) => selector === keyHandler.eventSelector,
-    )!;
+    );
 
-    const labels = {
-      network: this.networkNames[keyMetadata.sourceId],
-      contract: keyHandler.contractName,
-      event: keyHandler.eventName,
-    };
+    // keyMetadata can be undefined if no events are found in between the checkpoints
+    if (keyMetadata !== undefined) {
+      const labels = {
+        network: this.networkNames[keyMetadata.sourceId],
+        contract: keyHandler.contractName,
+        event: keyHandler.eventName,
+      };
 
-    const count =
-      keyMetadata.count >= TASK_BATCH_SIZE
-        ? TASK_BATCH_SIZE
-        : keyMetadata.count;
-    this.common.metrics.ponder_indexing_matched_events.inc(labels, count);
-    this.common.metrics.ponder_indexing_handled_events.inc(labels, count);
+      const count =
+        keyMetadata.count >= TASK_BATCH_SIZE
+          ? TASK_BATCH_SIZE
+          : keyMetadata.count;
+      this.common.metrics.ponder_indexing_matched_events.inc(labels, count);
+      this.common.metrics.ponder_indexing_handled_events.inc(labels, count);
+    }
 
     const abi = [keyHandler.abiEvent];
     const contractName = keyHandler.contractName;
@@ -803,6 +830,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.tableAccess === undefined
     )
       return;
+
+    // clear in case of reloads
+    this.indexingFunctionMap = {};
 
     for (const contractName of Object.keys(this.indexingFunctions)) {
       // Note: It's suspicious that this is neccessary.

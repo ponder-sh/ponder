@@ -482,28 +482,30 @@ export class Ponder {
 
     this.buildService.onSerial(
       "newSchema",
-      async ({ schema, graphqlSchema }) => {
+      async ({ schema, graphqlSchema, tableAccess }) => {
         this.uiService.ui.indexingError = false;
 
         this.schema = schema;
         this.graphqlSchema = graphqlSchema;
+        this.tableAccess = tableAccess;
 
         this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
         this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
-        await this.indexingService.reset({ schema });
+        await this.indexingService.reset({ schema, tableAccess });
         await this.indexingService.processEvents();
       },
     );
 
     this.buildService.onSerial(
       "newIndexingFunctions",
-      async ({ indexingFunctions }) => {
+      async ({ indexingFunctions, tableAccess }) => {
         this.uiService.ui.indexingError = false;
 
         this.indexingFunctions = indexingFunctions;
+        this.tableAccess = tableAccess;
 
-        await this.indexingService.reset({ indexingFunctions });
+        await this.indexingService.reset({ indexingFunctions, tableAccess });
         await this.indexingService.processEvents();
       },
     );
