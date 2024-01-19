@@ -417,10 +417,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
     if (this.indexingFunctionMap === undefined) return;
 
     for (const key of Object.keys(this.indexingFunctionMap!)) {
-      if (this.indexingFunctionMap[key].indexingFunctionTasks.length === 0)
-        continue;
+      const keyHandler = this.indexingFunctionMap[key];
+      const tasks = keyHandler.indexingFunctionTasks;
 
-      if (this.indexingFunctionMap[key].parents.length === 0) {
+      if (tasks.length === 0) continue;
+
+      if (keyHandler.parents.length === 0) {
         if (
           this.indexingFunctionMap[key].selfReliance &&
           !this.indexingFunctionMap[key].serialQueue
