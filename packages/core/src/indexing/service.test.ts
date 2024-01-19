@@ -529,7 +529,7 @@ test.skip("handleReorg() updates ponder_handlers_latest_processed_timestamp metr
   await service.onIdle();
 });
 
-test.skip("handleReorg() reverts the indexing store", async (context) => {
+test("handleReorg() reverts the indexing store", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 
@@ -613,7 +613,7 @@ test.skip("handleReorg() does nothing if there is a user error", async (context)
   await service.onIdle();
 });
 
-test.skip("handleReorg() processes the correct range of events after a reorg", async (context) => {
+test("handleReorg() processes the correct range of events after a reorg", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 

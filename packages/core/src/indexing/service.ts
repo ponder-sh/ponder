@@ -28,7 +28,7 @@ import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
 import type { AbiEvent } from "abitype";
-import { Mutex } from "async-mutex";
+import { E_CANCELED, Mutex, type MutexInterface } from "async-mutex";
 import { type Hex, decodeEventLog } from "viem";
 import {
   type Context,
@@ -268,22 +268,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.queue!.start();
     await this.queue!.onIdle();
-    // // If the queue is already paused here, it means that reset() was called, interrupting
-    // // event processing. When this happens, we want to return early.
-    // if (this.queue.isPaused) return;
-    // this.queue.pause();
-    // if (events.length > 0) {
-    //   const { blockTimestamp, chainId, blockNumber, logIndex } =
-    //     metadata.pageEndCheckpoint;
-    //   this.common.logger.info({
-    //     service: "indexing",
-    //     msg: `Indexed ${
-    //       events.length === 1 ? "1 event" : `${events.length} events`
-    //     } up to ${formatShortDate(
-    //       blockTimestamp,
-    //     )} (chainId=${chainId} block=${blockNumber} logIndex=${logIndex})`,
-    //   });
-    // }
   };
 
   /**
@@ -304,7 +288,72 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
   handleReorg = async (safeCheckpoint: Checkpoint) => {
-    safeCheckpoint;
+    let release: MutexInterface.Releaser[];
+    try {
+      release = await Promise.all(
+        Object.values(this.indexingFunctionMap!).map((indexFunc) =>
+          indexFunc.dbMutex.acquire(),
+        ),
+      );
+      const hasProcessedInvalidEvents = Object.values(
+        this.indexingFunctionMap!,
+      ).some((indexFunc) =>
+        isCheckpointGreaterThan(indexFunc.checkpoint, safeCheckpoint),
+      );
+
+      if (!hasProcessedInvalidEvents) {
+        // No unsafe events have been processed, so no need to revert (case 1 & case 2).
+        this.common.logger.debug({
+          service: "indexing",
+          msg: "No unsafe events were detected while reconciling a reorg, no-op",
+        });
+        return;
+      }
+
+      // Unsafe events have been processed, must revert the indexing store and update
+      // eventsProcessedToTimestamp accordingly (case 3).
+      await this.indexingStore.revert({ checkpoint: safeCheckpoint });
+
+      this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
+        safeCheckpoint.blockTimestamp,
+      );
+
+      // Note: There's currently no way to know how many events are "thrown out"
+      // during the reorg reconciliation, so the event count metrics
+      // (e.g. ponder_indexing_processed_events) will be slightly inflated.
+
+      this.common.logger.debug({
+        service: "indexing",
+        msg: `Reverted indexing store to safe timestamp ${safeCheckpoint.blockTimestamp}`,
+      });
+
+      for (const indexFunc of Object.values(this.indexingFunctionMap!)) {
+        if (isCheckpointGreaterThan(indexFunc.checkpoint, safeCheckpoint)) {
+          indexFunc.checkpoint = safeCheckpoint;
+        }
+        if (
+          isCheckpointGreaterThan(indexFunc.maxTaskCheckpoint, safeCheckpoint)
+        ) {
+          indexFunc.maxTaskCheckpoint = safeCheckpoint;
+        }
+        if (
+          isCheckpointGreaterThan(
+            indexFunc.maxEnqueuedCheckpoint,
+            safeCheckpoint,
+          )
+        ) {
+          indexFunc.maxEnqueuedCheckpoint = safeCheckpoint;
+        }
+      }
+    } catch (error) {
+      // Pending locks get cancelled in reset(). This is expected, so it's safe to
+      // ignore the error that is thrown when a pending lock is cancelled.
+      if (error !== E_CANCELED) throw error;
+    } finally {
+      for (const r of release!) {
+        r();
+      }
+    }
   };
 
   private enqueueSetupTasks = (indexingFunctions: IndexingFunctions) => {
