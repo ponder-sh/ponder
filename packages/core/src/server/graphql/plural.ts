@@ -143,45 +143,86 @@ export const buildPluralField = ({
       throw Error("Cannot have both 'before' and 'after' cursor search");
     }
 
-    if (Object.keys(whereObject).length === 0) {
-      if (after) {
-        if (!orderDirection) {
-          finalOrderDirection = "asc";
-        }
-        if (finalOrderDirection === "asc") {
-          whereObject.id = { ...whereObject.id, ...{ gt: atob(after) } };
-        }
-        if (finalOrderDirection === "desc") {
-          whereObject.id = { ...whereObject.id, ...{ lt: atob(after) } };
-        }
-      }
+    /*
+     * To determine correct sorting where rows =
+     * [
+     *    id: 0,
+     *    id: 1,
+     *    id: 2,
+     *    id: 3,
+     * ]
+     *
+     * If no after or before arguments, then sort as is;
+     *
+     * If after argument,
+     *   1) sort in same order as passed in
+     *   2) or if no orderBy argument sort as ascending;
+     *
+     * If before argument, then since our query needs to fetch in reverse
+     * (select * from x where id < before) we need to
+     *   1) make orderBy the opposite of the orderBy the user passed in and
+     *      then reverse() the results
+     *   2) or if no orderBy argument, sort in descending;
+     *
+     * after {id : 1} : (select * from x where id > before order by 'asc')
+     * [
+     *    id: 2,
+     *    id: 3,
+     * ]
+     *
+     * before { id: 2} : (select * from x where id < before order by 'desc')
+     * 1)
+     * [
+     *    id: 1,
+     *    id: 0
+     * ]
+     * 2) reverse()
+     * [
+     *    id: 0,
+     *    id: 1
+     * ]
+     */
 
-      if (before) {
-        if (!orderDirection) {
-          finalOrderDirection = "desc";
-        }
-        finalOrderDirection = orderDirection === "asc" ? "desc" : "asc";
-        if (finalOrderDirection === "asc") {
-          whereObject.id = { ...whereObject.id, ...{ lt: atob(before) } };
-        }
-        if (finalOrderDirection === "desc") {
-          whereObject.id = { ...whereObject.id, ...{ gt: atob(before) } };
-        }
+    if (after) {
+      if (finalOrderDirection === "asc") {
+        whereObject.id = { ...whereObject.id, ...{ gt: atob(after) } };
+      }
+      if (finalOrderDirection === "desc") {
+        whereObject.id = { ...whereObject.id, ...{ lt: atob(after) } };
       }
     }
 
-    const res = await store.findMany({
+    if (before) {
+      finalOrderDirection = orderDirection === "asc" ? "desc" : "asc";
+      if (finalOrderDirection === "asc") {
+        whereObject.id = { ...whereObject.id, ...{ gt: atob(before) } };
+      }
+      if (finalOrderDirection === "desc") {
+        whereObject.id = { ...whereObject.id, ...{ lt: atob(before) } };
+      }
+    }
+
+    let res = await store.findMany({
       tableName: tableName,
       checkpoint,
       where: whereObject,
       //skip: after ? Number(atob(after)) : 0,
-      take: limit || 1000,
+      take: (limit || 1000) + 1,
       orderBy: orderBy
-        ? {
-            [orderBy]: finalOrderDirection || "asc",
-          }
+        ? [
+            {
+              [orderBy]: finalOrderDirection || "asc",
+            },
+            { id: finalOrderDirection || "asc" },
+          ]
         : { id: finalOrderDirection || "asc" },
     });
+
+    const hasNextPage = res.length >= (limit || 1000) + 1;
+
+    if (hasNextPage) {
+      res = res.slice(0, -1);
+    }
 
     if (before) {
       res.reverse();
@@ -192,8 +233,8 @@ export const buildPluralField = ({
 
     return {
       items: res,
-      after: lastId ? btoa(String(lastId) || "") : "",
-      before: firstId ? btoa(String(firstId) || "") : "",
+      after: lastId && hasNextPage ? btoa(String(lastId) || "") : null,
+      before: firstId ? btoa(String(firstId) || "") : null,
     } as PluralPage;
   };
 
