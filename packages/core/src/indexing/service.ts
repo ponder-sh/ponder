@@ -16,11 +16,13 @@ import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
 import {
   type Checkpoint,
+  checkpointMax,
   checkpointMin,
   isCheckpointEqual,
   isCheckpointGreaterThan,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { formatShortDate } from "@/utils/date.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { Emittery } from "@/utils/emittery.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -49,8 +51,6 @@ type SetupTask = {
   event: {
     networkName: string;
     contractName: string;
-    chainId: number;
-
     checkpoint: Checkpoint;
   };
 };
@@ -60,21 +60,22 @@ type LogEventTask = {
     networkName: string;
     contractName: string;
     eventName: string;
-    chainId: number;
-
     event: {
       args: any;
       log: Log;
       block: Block;
       transaction: Transaction;
     };
-
     checkpoint: Checkpoint;
+    endCheckpoint?: Checkpoint;
+    eventsProcessed?: number;
   };
 };
 
 type IndexingFunctionTask = SetupTask | LogEventTask;
 type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
+
+const TASK_BATCH_SIZE = 1_000;
 
 export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
@@ -106,8 +107,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
       eventName: string;
       /* Checkpoint of most recent completed task. */
       checkpoint: Checkpoint;
-      /* Checkpoint of the most recent enqueued task. */
-      maxEnqueuedCheckpoint: Checkpoint;
       /* Checkpoint of the most recent task loaded from db. */
       maxTaskCheckpoint: Checkpoint;
       /* Buffer of in memory tasks that haven't been enqueued yet. */
@@ -119,7 +118,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
       parents: string[];
       /* Is this task a parent of itself. */
       selfReliance: boolean;
+
       dbMutex: Mutex;
+
+      /** True if a task has been enqueued with itself as the most.  */
+      serialQueue: boolean;
     }
   >;
 
@@ -261,10 +264,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
    */
   processEvents = async () => {
     for (const key of Object.keys(this.indexingFunctionMap!)) {
-      await this.loadIndexingFunctionTasks(key);
+      await this.indexingFunctionMap![key].dbMutex.runExclusive(() =>
+        this.loadIndexingFunctionTasks(key),
+      );
     }
 
-    this.enqueueNextTasks();
+    this.enqueueLogEventTasks();
 
     this.queue!.start();
     await this.queue!.onIdle();
@@ -336,14 +341,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         ) {
           indexFunc.maxTaskCheckpoint = safeCheckpoint;
         }
-        if (
-          isCheckpointGreaterThan(
-            indexFunc.maxEnqueuedCheckpoint,
-            safeCheckpoint,
-          )
-        ) {
-          indexFunc.maxEnqueuedCheckpoint = safeCheckpoint;
-        }
       }
     } catch (error) {
       // Pending locks get cancelled in reset(). This is expected, so it's safe to
@@ -385,7 +382,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
           kind: "SETUP",
           event: {
             networkName: network.name,
-            chainId: network.chainId,
             contractName,
             checkpoint,
           },
@@ -396,31 +392,17 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
   };
 
-  private enqueueNextTasks = () => {
+  private enqueueLogEventTasks = () => {
     if (this.indexingFunctionMap === undefined) return;
 
     for (const key of Object.keys(this.indexingFunctionMap!)) {
-      if (this.indexingFunctionMap[key].indexingFunctionTasks.length === 0) {
-        const checkpoint = checkpointMin(
-          ...Object.values(this.indexingFunctionMap!).map((i) => i.checkpoint),
-        );
-
-        console.log(checkpoint);
-
-        this.emit("eventsProcessed", {
-          toCheckpoint: checkpoint,
-        });
-
+      if (this.indexingFunctionMap[key].indexingFunctionTasks.length === 0)
         continue;
-      }
 
       if (this.indexingFunctionMap[key].parents.length === 0) {
         if (
           this.indexingFunctionMap[key].selfReliance &&
-          isCheckpointEqual(
-            this.indexingFunctionMap[key].checkpoint,
-            this.indexingFunctionMap[key].maxEnqueuedCheckpoint,
-          )
+          !this.indexingFunctionMap[key].serialQueue
         ) {
           // enqueue one task
 
@@ -428,9 +410,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
             key
           ].indexingFunctionTasks.splice(0, 1);
 
-          this.indexingFunctionMap[key].maxEnqueuedCheckpoint =
-            tasksEnqueued[0].event.checkpoint;
           this.queue!.addTask(tasksEnqueued[0]!);
+
+          this.indexingFunctionMap[key].serialQueue = true;
         } else if (!this.indexingFunctionMap[key].selfReliance) {
           // enqueue all tasks
 
@@ -438,10 +420,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
             .indexingFunctionTasks) {
             this.queue!.addTask(task);
           }
-          this.indexingFunctionMap[key].maxEnqueuedCheckpoint =
-            this.indexingFunctionMap[key].indexingFunctionTasks[
-              this.indexingFunctionMap[key].indexingFunctionTasks.length - 1
-            ].event.checkpoint;
           this.indexingFunctionMap[key].indexingFunctionTasks = [];
         }
         return;
@@ -555,14 +533,41 @@ export class IndexingService extends Emittery<IndexingEvents> {
             ...event.event,
           },
           context: {
-            network: this.getNetwork(task.event.checkpoint),
-            client: this.getClient(task.event.checkpoint),
-            db: this.getDB(task.event.checkpoint),
-            contracts: this.getContracts(task.event.checkpoint),
+            network: this.getNetwork(event.checkpoint),
+            client: this.getClient(event.checkpoint),
+            db: this.getDB(event.checkpoint),
+            contracts: this.getContracts(event.checkpoint),
           },
         });
 
-        this.indexingFunctionMap![fullEventName].checkpoint = event.checkpoint;
+        if (event.endCheckpoint !== undefined) {
+          this.indexingFunctionMap![fullEventName].checkpoint = checkpointMax(
+            this.indexingFunctionMap![fullEventName].checkpoint,
+            event.endCheckpoint,
+          );
+          this.emitCheckpoint();
+        } else {
+          this.indexingFunctionMap![fullEventName].checkpoint = checkpointMax(
+            this.indexingFunctionMap![fullEventName].checkpoint,
+            event.checkpoint,
+          );
+        }
+
+        if (event.eventsProcessed) {
+          const num = event.eventsProcessed;
+          this.common.logger.info({
+            service: "indexing",
+            msg: `Indexed ${
+              num === 1 ? "1 event" : `${num} events`
+            } up to ${formatShortDate(
+              event.checkpoint.blockTimestamp,
+            )} (event=${fullEventName} chainId=${
+              event.checkpoint.chainId
+            } block=${event.checkpoint.blockNumber} logIndex=${
+              event.checkpoint.logIndex
+            })`,
+          });
+        }
 
         this.common.logger.trace({
           service: "indexing",
@@ -617,11 +622,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
       }
     }
 
+    this.indexingFunctionMap![fullEventName].serialQueue = false;
+
     await this.indexingFunctionMap![fullEventName].dbMutex.runExclusive(() =>
       this.loadIndexingFunctionTasks(fullEventName),
-    ).then(this.enqueueNextTasks);
-
-    this.enqueueNextTasks();
+    ).then(this.enqueueLogEventTasks);
   };
 
   private createEventQueue = () => {
@@ -662,9 +667,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private loadIndexingFunctionTasks = async (indexingFunctionKey: string) => {
     if (
       this.indexingFunctionMap![indexingFunctionKey].indexingFunctionTasks
-        .length > 200
-    )
+        .length > 0
+    ) {
       return;
+    }
 
     if (
       isCheckpointEqual(
@@ -681,7 +687,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const { events, metadata } = await this.syncGatewayService.getEvents({
       fromCheckpoint: maxTaskCheckpoint ?? zeroCheckpoint,
       toCheckpoint: this.syncGatewayService.checkpoint,
-      limit: 1_000,
+      limit: TASK_BATCH_SIZE,
       logFilters: this.indexingFunctionMap![indexingFunctionKey].sources.filter(
         sourceIsLogFilter,
       ).map((logFilter) => ({
@@ -708,8 +714,16 @@ export class IndexingService extends Emittery<IndexingEvents> {
       })),
     });
 
-    this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint =
-      metadata.endCheckpoint;
+    // update maxTaskCheckpoint
+    if (events.length < TASK_BATCH_SIZE) {
+      // all tasks were fetched
+      this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint =
+        this.syncGatewayService.checkpoint;
+    } else {
+      // limit reached
+      this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint =
+        metadata.endCheckpoint;
+    }
 
     const keyMetadata = metadata.counts.find(
       ({ selector }) =>
@@ -724,7 +738,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
         event: this.indexingFunctionMap![indexingFunctionKey].eventName,
       };
 
-      const count = keyMetadata.count > 1_000 ? 1_000 : keyMetadata.count;
+      const count =
+        keyMetadata.count >= TASK_BATCH_SIZE
+          ? TASK_BATCH_SIZE
+          : keyMetadata.count;
       this.common.metrics.ponder_indexing_matched_events.inc(labels, count);
       this.common.metrics.ponder_indexing_handled_events.inc(labels, count);
     }
@@ -733,6 +750,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const contractName =
       this.indexingFunctionMap![indexingFunctionKey].contractName;
     const eventName = this.indexingFunctionMap![indexingFunctionKey].eventName;
+    const tasks =
+      this.indexingFunctionMap![indexingFunctionKey].indexingFunctionTasks;
 
     for (const event of events) {
       try {
@@ -742,15 +761,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
           topics: event.log.topics,
         });
 
-        this.indexingFunctionMap![
-          indexingFunctionKey
-        ].indexingFunctionTasks.push({
+        tasks.push({
           kind: "LOG",
           event: {
             networkName: this.networkNames[event.sourceId],
             contractName,
             eventName,
-            chainId: event.chainId,
             event: {
               args: decodedLog.args ?? {},
               log: event.log,
@@ -775,6 +791,28 @@ export class IndexingService extends Emittery<IndexingEvents> {
         });
       }
     }
+
+    // handle last event
+    if (tasks.length !== 0) {
+      tasks[tasks.length - 1].event.endCheckpoint =
+        this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint;
+
+      tasks[tasks.length - 1].event.eventsProcessed = events.length;
+    } else {
+      this.indexingFunctionMap![indexingFunctionKey].checkpoint =
+        this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint;
+      this.emitCheckpoint();
+    }
+  };
+
+  private emitCheckpoint = () => {
+    const checkpoint = checkpointMin(
+      ...Object.values(this.indexingFunctionMap!).map((i) => i.checkpoint),
+    );
+
+    this.emit("eventsProcessed", {
+      toCheckpoint: checkpoint,
+    });
   };
 }
 
@@ -847,17 +885,19 @@ const buildIndexingFunctionMap = (
         contractName,
 
         checkpoint: zeroCheckpoint,
-        maxEnqueuedCheckpoint: zeroCheckpoint,
         maxTaskCheckpoint: zeroCheckpoint,
 
         sources: keySources,
+
         indexingFunctionTasks: [],
 
-        abiEvent: abiEvent!,
+        abiEvent,
         eventSelector,
 
         parents: dedupe(parents),
         selfReliance,
+        serialQueue: false,
+
         dbMutex: new Mutex(),
       };
     }
