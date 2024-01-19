@@ -21,7 +21,6 @@ import {
   checkpointMin,
   isCheckpointEqual,
   isCheckpointGreaterThan,
-  maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { dedupe } from "@/utils/dedupe.js";
@@ -176,21 +175,19 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
   }
 
-  kill = async () => {
-    // this.isPaused = true;
+  kill = () => {
     this.queue?.pause();
     this.queue?.clear();
-    await this.queue?.onIdle();
-
+    for (const key of Object.keys(this.indexingFunctionMap!)) {
+      this.indexingFunctionMap![key].dbMutex.cancel();
+    }
     this.common.logger.debug({
       service: "indexing",
       msg: "Killed indexing service",
     });
   };
 
-  onIdle = async () => {
-    await this.queue?.onIdle();
-  };
+  onIdle = () => this.queue!.onIdle();
 
   /**
    * Registers a new set of indexing functions and/or a new schema, cancels
@@ -229,10 +226,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         tableAccess,
         this.sources,
       );
-
-      for (const key of Object.keys(this.indexingFunctionMap)) {
-        await this.loadIndexingFunctionTasks(key);
-      }
 
       this.queue = this.createEventQueue();
 
@@ -397,11 +390,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * and the new checkpoint, adds them to the queue, then processes them.
    */
   processEvents = async () => {
-    this.queue!.start();
+    for (const key of Object.keys(this.indexingFunctionMap!)) {
+      await this.loadIndexingFunctionTasks(key);
+    }
+
     this.enqueueNextTasks();
 
-    // this.queue.start();
-    // await this.queue.onIdle();
+    this.queue!.start();
+    await this.queue!.onIdle();
     // // If the queue is already paused here, it means that reset() was called, interrupting
     // // event processing. When this happens, we want to return early.
     // if (this.queue.isPaused) return;
@@ -575,7 +571,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.loadIndexingFunctionTasks(fullEventName),
     ).then(this.enqueueNextTasks);
 
-    // this.enqueueNextTasks();
+    this.enqueueNextTasks();
   };
 
   private createEventQueue = () => {
@@ -620,17 +616,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
     )
       return;
 
+    if (
+      isCheckpointEqual(
+        this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint,
+        this.syncGatewayService.checkpoint,
+      )
+    )
+      return;
+
     const maxTaskCheckpoint =
       this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint;
 
     const { events, metadata } = await this.syncGatewayService.getEvents({
-      fromCheckpoint: {
-        ...maxTaskCheckpoint,
-        logIndex: maxTaskCheckpoint.logIndex
-          ? maxTaskCheckpoint.logIndex + 1
-          : maxCheckpoint.logIndex,
-      },
-      toCheckpoint: maxCheckpoint,
+      fromCheckpoint: maxTaskCheckpoint ?? zeroCheckpoint,
+      toCheckpoint: this.syncGatewayService.checkpoint,
       limit: 1_000,
       logFilters: this.indexingFunctionMap![indexingFunctionKey].sources.filter(
         sourceIsLogFilter,
