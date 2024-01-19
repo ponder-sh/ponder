@@ -86,7 +86,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private networks: Network[];
 
   private isPaused = false;
-  private isKilling = false;
 
   private indexingFunctions?: IndexingFunctions;
   private schema?: Schema;
@@ -173,7 +172,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   kill = () => {
     this.isPaused = true;
-    this.isKilling = true;
 
     this.queue?.pause();
     this.queue?.clear();
@@ -445,21 +443,24 @@ export class IndexingService extends Emittery<IndexingEvents> {
           }
           this.indexingFunctionMap[key].indexingFunctionTasks = [];
         }
-        return;
+
+        continue;
       }
 
-      const parentCheckpoints = this.indexingFunctionMap[key].parents.map(
-        (p) => this.indexingFunctionMap![p].checkpoint,
-      );
+      throw Error("Not implemented");
 
-      const minParentCheckpoint = checkpointMin(...parentCheckpoints);
+      // const parentCheckpoints = this.indexingFunctionMap[key].parents.map(
+      //   (p) => this.indexingFunctionMap![p].checkpoint,
+      // );
 
-      // maximum checkpoint that is less than `minParentCheckpoint`
-      const maxCheckpointIndex = this.indexingFunctionMap[
-        key
-      ].indexingFunctionTasks.findIndex((task) =>
-        isCheckpointGreaterThan(task.event.checkpoint, minParentCheckpoint),
-      );
+      // const minParentCheckpoint = checkpointMin(...parentCheckpoints);
+
+      // // maximum checkpoint that is less than `minParentCheckpoint`
+      // const maxCheckpointIndex = this.indexingFunctionMap[
+      //   key
+      // ].indexingFunctionTasks.findIndex((task) =>
+      //   isCheckpointGreaterThan(task.event.checkpoint, minParentCheckpoint),
+      // );
     }
   };
 
