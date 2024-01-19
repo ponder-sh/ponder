@@ -143,28 +143,30 @@ export const buildPluralField = ({
       throw Error("Cannot have both 'before' and 'after' cursor search");
     }
 
-    if (after) {
-      if (!orderDirection) {
-        finalOrderDirection = "asc";
+    if (Object.keys(whereObject).length === 0) {
+      if (after) {
+        if (!orderDirection) {
+          finalOrderDirection = "asc";
+        }
+        if (finalOrderDirection === "asc") {
+          whereObject.id = { ...whereObject.id, ...{ gt: atob(after) } };
+        }
+        if (finalOrderDirection === "desc") {
+          whereObject.id = { ...whereObject.id, ...{ lt: atob(after) } };
+        }
       }
-      if (finalOrderDirection === "asc") {
-        whereObject.id = { ...whereObject.id, ...{ gt: atob(after) } };
-      }
-      if (finalOrderDirection === "desc") {
-        whereObject.id = { ...whereObject.id, ...{ lt: atob(after) } };
-      }
-    }
 
-    if (before) {
-      if (!orderDirection) {
-        finalOrderDirection = "desc";
-      }
-      finalOrderDirection = orderDirection === "asc" ? "desc" : "asc";
-      if (finalOrderDirection === "asc") {
-        whereObject.id = { ...whereObject.id, ...{ lt: atob(before) } };
-      }
-      if (finalOrderDirection === "desc") {
-        whereObject.id = { ...whereObject.id, ...{ gt: atob(before) } };
+      if (before) {
+        if (!orderDirection) {
+          finalOrderDirection = "desc";
+        }
+        finalOrderDirection = orderDirection === "asc" ? "desc" : "asc";
+        if (finalOrderDirection === "asc") {
+          whereObject.id = { ...whereObject.id, ...{ lt: atob(before) } };
+        }
+        if (finalOrderDirection === "desc") {
+          whereObject.id = { ...whereObject.id, ...{ gt: atob(before) } };
+        }
       }
     }
 
@@ -177,7 +179,6 @@ export const buildPluralField = ({
       orderBy: orderBy
         ? {
             [orderBy]: finalOrderDirection || "asc",
-            id: finalOrderDirection || "asc",
           }
         : { id: finalOrderDirection || "asc" },
     });

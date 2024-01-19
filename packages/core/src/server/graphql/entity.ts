@@ -89,7 +89,7 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
           } else if (isManyColumn(column)) {
             // Column is virtual meant to tell graphQL to make a field
 
-            const resolver: PluralResolver = async (_, args, context) => {
+            const resolver: PluralResolver = async (parent, args, context) => {
               const { store } = context;
 
               const {
@@ -112,47 +112,10 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
                 ? { ...maxCheckpoint, blockTimestamp: timestamp }
                 : undefined; // Latest.
 
-              let finalOrderDirection = orderDirection;
+              const finalOrderDirection = orderDirection;
 
               const whereObject = where ? buildWhereObject({ where }) : {};
               whereObject[column.referenceColumn] = entityId;
-
-              if (after) {
-                if (!orderDirection) {
-                  finalOrderDirection = "asc";
-                }
-                if (finalOrderDirection === "asc") {
-                  whereObject.id = {
-                    ...whereObject.id,
-                    ...{ gt: atob(after) },
-                  };
-                }
-                if (finalOrderDirection === "desc") {
-                  whereObject.id = {
-                    ...whereObject.id,
-                    ...{ lt: atob(after) },
-                  };
-                }
-              }
-
-              if (before) {
-                if (!orderDirection) {
-                  finalOrderDirection = "desc";
-                }
-                finalOrderDirection = orderDirection === "asc" ? "desc" : "asc";
-                if (finalOrderDirection === "asc") {
-                  whereObject.id = {
-                    ...whereObject.id,
-                    ...{ lt: atob(before) },
-                  };
-                }
-                if (finalOrderDirection === "desc") {
-                  whereObject.id = {
-                    ...whereObject.id,
-                    ...{ gt: atob(before) },
-                  };
-                }
-              }
 
               if (after && before) {
                 throw Error(
@@ -169,7 +132,6 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
                 orderBy: orderBy
                   ? {
                       [orderBy]: finalOrderDirection || "asc",
-                      id: finalOrderDirection || "asc",
                     }
                   : { id: finalOrderDirection || "asc" },
               });
@@ -187,13 +149,25 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
                 before: firstId ? btoa(String(firstId) || "") : "",
               } as PluralPage;
             };
+            const pageType = new GraphQLObjectType({
+              name: `${tableName}PageChild`,
+              fields: () => ({
+                items: {
+                  type: new GraphQLList(
+                    new GraphQLNonNull(entityGqlTypes[column.referenceTable]),
+                  ),
+                },
+                before: {
+                  type: GraphQLString,
+                },
+                after: {
+                  type: GraphQLString,
+                },
+              }),
+            });
 
             fieldConfigMap[columnName] = {
-              type: new GraphQLNonNull(
-                new GraphQLList(
-                  new GraphQLNonNull(entityGqlTypes[column.referenceTable]),
-                ),
-              ),
+              type: pageType,
               args: {
                 after: { type: GraphQLInt, defaultValue: 0 },
                 limit: { type: GraphQLInt, defaultValue: 100 },

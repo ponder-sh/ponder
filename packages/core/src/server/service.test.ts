@@ -353,22 +353,28 @@ test("serves many column types correctly", async (context) => {
   const response = await gql(`
     testEntitys {
       items {
-          id
-          derived {
+        id
+        derived {
+          items {
             id
           }
+        }
       }
     }
   `);
+
+  console.log(response.body.data);
 
   expect(response.body.errors).toBe(undefined);
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
+  console.log(testEntitys.items);
+
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({
     id: "0",
-    derived: [{ id: "0" }, { id: "1" }],
+    derived: { items: [{ id: "0" }, { id: "1" }] },
   });
 
   await service.kill();
@@ -390,22 +396,26 @@ test("serves one column types correctly", async (context) => {
 
   const response = await gql(`
     entityWithBigIntIds {
-      id
-      testEntity {
+      items {
         id
-        string
-        int
-        float
-        boolean
-        bytes
-        bigInt
+        testEntity {
+          id
+          string
+          int
+          float
+          boolean
+          bytes
+          bigInt
+        }
       }
     }
     entityWithNullRefs {
-      id
-      testEntityId
-      testEntity {
+      items {
         id
+        testEntityId
+        testEntity {
+          id
+        }
       }
     }
   `);
@@ -1111,8 +1121,6 @@ test("filters on enum field in", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  console.log("test entities", testEntitys.items);
-
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
   expect(testEntitys.items[1]).toMatchObject({ id: "1" });
@@ -1131,9 +1139,11 @@ test("filters on relationship field equals", async (context) => {
 
   const response = await gql(`
     entityWithBigIntIds(where: { testEntityId: "0" }) {
-      id
-      testEntity {
+      items {
         id
+        testEntity {
+          id
+        }
       }
     }
   `);
@@ -1165,7 +1175,9 @@ test("filters on relationship field in", async (context) => {
 
   const response = await gql(`
     entityWithBigIntIds(where: { testEntityId_in: ["0", "1"] }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -1192,7 +1204,9 @@ test("filters on relationship field in", async (context) => {
 
   const response = await gql(`
     entityWithBigIntIds(where: { testEntityId_in: ["0", "1"] }) {
-      id
+      items {
+        id
+      }
     }
   `);
 
@@ -1370,8 +1384,10 @@ test("limits as expected if less than 1000", async (context) => {
   await Promise.all(range(0, 105).map((n) => createTestEntity({ id: n })));
 
   const response = await gql(`
-    testEntitys(first: 15, orderBy: "int", orderDirection: "asc") {
-      id
+    testEntitys(limit: 15, orderBy: "int", orderDirection: "asc") {
+      items {
+        id
+      }
     }
   `);
 
@@ -1397,8 +1413,10 @@ test("throws if limit is greater than 1000", async (context) => {
   await createTestEntity({ id: 2 });
 
   const response = await gql(`
-    testEntitys(first: 1005) {
-      id
+    testEntitys(limit: 1005) {
+      items {
+        id
+      }
     }
   `);
 
@@ -1406,80 +1424,6 @@ test("throws if limit is greater than 1000", async (context) => {
     "Invalid query. Cannot take more than 1000 rows. Received: 1005 rows.",
   );
   expect(response.statusCode).toBe(200);
-
-  await service.kill();
-});
-
-test("skips as expected", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
-
-  await Promise.all(range(0, 105).map((n) => createTestEntity({ id: n })));
-
-  const response = await gql(`
-    testEntitys(skip: 20, orderBy: "int", orderDirection: "asc") {
-      id
-    }
-  `);
-
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
-
-  expect(testEntitys.items).toHaveLength(85);
-  expect(testEntitys.items[0]).toMatchObject({ id: "20" });
-
-  await service.kill();
-});
-
-test("throws if skip is greater than 5000", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
-
-  await Promise.all(range(0, 105).map((n) => createTestEntity({ id: n })));
-
-  const response = await gql(`
-    testEntitys(skip: 5005) {
-      id
-    }
-  `);
-
-  expect(response.body.errors[0].message).toBe(
-    "Invalid query. Cannot skip more than 5000 rows. Received: 5005 rows.",
-  );
-  expect(response.statusCode).toBe(200);
-
-  await service.kill();
-});
-
-test("limits and skips together as expected", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
-
-  await Promise.all(range(0, 105).map((n) => createTestEntity({ id: n })));
-
-  const response = await gql(`
-    testEntitys(skip: 50, first: 10, orderBy: "int", orderDirection: "asc") {
-      id
-    }
-  `);
-
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
-
-  expect(testEntitys.items).toHaveLength(10);
-  expect(testEntitys.items[0]).toMatchObject({ id: "50" });
-  expect(testEntitys.items[9]).toMatchObject({ id: "59" });
 
   await service.kill();
 });
@@ -1584,41 +1528,6 @@ test("serves plural entities versioned at specified timestamp", async (context) 
     { id: "1", string: "updated" },
     { id: "2", string: "updated" },
   ]);
-
-  await service.kill();
-});
-
-test("derived field respects skip argument", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({
-      common,
-      indexingStore,
-    });
-
-  await createTestEntity({ id: 0 });
-  await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
-  await createEntityWithBigIntId({ id: BigInt(1), testEntityId: "0" });
-  await createEntityWithBigIntId({ id: BigInt(2), testEntityId: "0" });
-
-  const response = await gql(`
-    testEntitys {
-      items {
-        id
-        derived {
-              id
-        }
-      }
-    }
-  `);
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const testEntitys = response.body.data.testEntitys.items;
-  console.log(testEntitys);
-  expect(testEntitys[0].derived).toHaveLength(1);
-  expect(testEntitys[0].derived[0]).toMatchObject({
-    id: "0",
-  });
 
   await service.kill();
 });
