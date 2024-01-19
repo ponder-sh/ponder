@@ -400,8 +400,19 @@ export class IndexingService extends Emittery<IndexingEvents> {
     if (this.indexingFunctionMap === undefined) return;
 
     for (const key of Object.keys(this.indexingFunctionMap!)) {
-      if (this.indexingFunctionMap[key].indexingFunctionTasks.length === 0)
+      if (this.indexingFunctionMap[key].indexingFunctionTasks.length === 0) {
+        const checkpoint = checkpointMin(
+          ...Object.values(this.indexingFunctionMap!).map((i) => i.checkpoint),
+        );
+
+        console.log(checkpoint);
+
+        this.emit("eventsProcessed", {
+          toCheckpoint: checkpoint,
+        });
+
         continue;
+      }
 
       if (this.indexingFunctionMap[key].parents.length === 0) {
         if (
@@ -660,8 +671,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
         this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint,
         this.syncGatewayService.checkpoint,
       )
-    )
+    ) {
       return;
+    }
 
     const maxTaskCheckpoint =
       this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint;
