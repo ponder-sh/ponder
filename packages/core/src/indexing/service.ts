@@ -75,6 +75,7 @@ type LogEventTask = {
 type IndexingFunctionTask = SetupTask | LogEventTask;
 type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
 
+// Note: this should move to a dynamic value, based on how many indexing function keys there are.
 const TASK_BATCH_SIZE = 1_000;
 
 export class IndexingService extends Emittery<IndexingEvents> {
@@ -86,11 +87,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   private indexingFunctions?: IndexingFunctions;
   private schema?: Schema;
+  private tableAccess?: TableAccess;
 
   private queue?: IndexingFunctionQueue;
-
-  private networkNames: { [sourceId: Source["id"]]: Source["networkName"] } =
-    {};
 
   private getNetwork: (checkpoint: Checkpoint) => Context["network"] =
     undefined!;
@@ -99,32 +98,36 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private getContracts: (checkpoint: Checkpoint) => Context["contracts"] =
     undefined!;
 
-  private indexingFunctionMap?: Record<
+  private indexingFunctionMap: Record<
     /* Indexing function key: "{ContractName}:{EventName}" */
     string,
     {
       contractName: string;
       eventName: string;
-      /* Checkpoint of most recent completed task. */
+      /* Indexing function keys that write to tables that this indexing function key reads from. */
+      parents: string[];
+      /* True if this key is a parent of itself. */
+      selfReliance: boolean;
+      /* Sources that contribute to this indexing function. */
+      sources: Source[];
+      abiEvent: AbiEvent;
+      eventSelector: Hex;
+
+      /* Checkpoint of max completed task. */
       checkpoint: Checkpoint;
       /* Checkpoint of the most recent task loaded from db. */
       maxTaskCheckpoint: Checkpoint;
       /* Buffer of in memory tasks that haven't been enqueued yet. */
       indexingFunctionTasks: LogEventTask[];
-      abiEvent: AbiEvent;
-      eventSelector: Hex;
-      sources: Source[];
-      /* Indexing function keys that write to tables that this indexing function key reads from. */
-      parents: string[];
-      /* Is this task a parent of itself. */
-      selfReliance: boolean;
-
+      /* Mutex ensuring tasks are loaded one at a time. */
       dbMutex: Mutex;
-
-      /** True if a task has been enqueued with itself as the most.  */
+      /** True if a task has been enqueued with itself as the most. */
       serialQueue: boolean;
     }
-  >;
+  > = {};
+
+  private networkNames: { [sourceId: Source["id"]]: Source["networkName"] } =
+    {};
 
   constructor({
     common,
@@ -149,7 +152,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.syncGatewayService = syncGatewayService;
     this.sources = sources;
     this.networks = networks;
-    this.networkNames = buildNetworkNames(sources);
+
+    this.buildNetworkNames();
 
     this.getNetwork = buildNetwork({
       networks,
@@ -210,12 +214,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     if (newIndexingFunctions && tableAccess) {
       this.indexingFunctions = newIndexingFunctions;
+      this.tableAccess = tableAccess;
 
-      this.indexingFunctionMap = buildIndexingFunctionMap(
-        newIndexingFunctions,
-        tableAccess,
-        this.sources,
-      );
+      this.buildIndexingFunctionMap();
 
       this.queue = this.createEventQueue();
 
@@ -664,94 +665,69 @@ export class IndexingService extends Emittery<IndexingEvents> {
   /**
    * Load a batch of indexing function tasks from the sync store into memory.
    */
-  private loadIndexingFunctionTasks = async (indexingFunctionKey: string) => {
-    if (
-      this.indexingFunctionMap![indexingFunctionKey].indexingFunctionTasks
-        .length > 0
-    ) {
-      return;
-    }
+  private loadIndexingFunctionTasks = async (key: string) => {
+    const keyHandler = this.indexingFunctionMap![key];
+    const tasks = keyHandler.indexingFunctionTasks;
 
     if (
+      tasks.length > 0 ||
       isCheckpointEqual(
-        this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint,
+        keyHandler.maxTaskCheckpoint,
         this.syncGatewayService.checkpoint,
       )
-    ) {
+    )
       return;
-    }
-
-    const maxTaskCheckpoint =
-      this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint;
 
     const { events, metadata } = await this.syncGatewayService.getEvents({
-      fromCheckpoint: maxTaskCheckpoint ?? zeroCheckpoint,
+      fromCheckpoint: keyHandler.maxTaskCheckpoint,
       toCheckpoint: this.syncGatewayService.checkpoint,
       limit: TASK_BATCH_SIZE,
-      logFilters: this.indexingFunctionMap![indexingFunctionKey].sources.filter(
-        sourceIsLogFilter,
-      ).map((logFilter) => ({
-        id: logFilter.id,
-        chainId: logFilter.chainId,
-        criteria: logFilter.criteria,
-        fromBlock: logFilter.startBlock,
-        toBlock: logFilter.endBlock,
-        includeEventSelectors: [
-          this.indexingFunctionMap![indexingFunctionKey].eventSelector,
-        ],
-      })),
-      factories: this.indexingFunctionMap![indexingFunctionKey].sources.filter(
-        sourceIsFactory,
-      ).map((factory) => ({
+      logFilters: keyHandler.sources
+        .filter(sourceIsLogFilter)
+        .map((logFilter) => ({
+          id: logFilter.id,
+          chainId: logFilter.chainId,
+          criteria: logFilter.criteria,
+          fromBlock: logFilter.startBlock,
+          toBlock: logFilter.endBlock,
+          includeEventSelectors: [keyHandler.eventSelector],
+        })),
+      factories: keyHandler.sources.filter(sourceIsFactory).map((factory) => ({
         id: factory.id,
         chainId: factory.chainId,
         criteria: factory.criteria,
         fromBlock: factory.startBlock,
         toBlock: factory.endBlock,
-        includeEventSelectors: [
-          this.indexingFunctionMap![indexingFunctionKey].eventSelector,
-        ],
+        includeEventSelectors: [keyHandler.eventSelector],
       })),
     });
 
-    // update maxTaskCheckpoint
     if (events.length < TASK_BATCH_SIZE) {
-      // all tasks were fetched
-      this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint =
-        this.syncGatewayService.checkpoint;
+      keyHandler.maxTaskCheckpoint = this.syncGatewayService.checkpoint;
     } else {
-      // limit reached
-      this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint =
-        metadata.endCheckpoint;
+      keyHandler.maxTaskCheckpoint = metadata.endCheckpoint;
     }
 
     const keyMetadata = metadata.counts.find(
-      ({ selector }) =>
-        selector ===
-        this.indexingFunctionMap![indexingFunctionKey].eventSelector,
+      ({ selector }) => selector === keyHandler.eventSelector,
     )!;
 
-    if (keyMetadata !== undefined) {
-      const labels = {
-        network: this.networkNames[keyMetadata.sourceId],
-        contract: this.indexingFunctionMap![indexingFunctionKey].contractName,
-        event: this.indexingFunctionMap![indexingFunctionKey].eventName,
-      };
+    const labels = {
+      network: this.networkNames[keyMetadata.sourceId],
+      contract: keyHandler.contractName,
+      event: keyHandler.eventName,
+    };
 
-      const count =
-        keyMetadata.count >= TASK_BATCH_SIZE
-          ? TASK_BATCH_SIZE
-          : keyMetadata.count;
-      this.common.metrics.ponder_indexing_matched_events.inc(labels, count);
-      this.common.metrics.ponder_indexing_handled_events.inc(labels, count);
-    }
+    const count =
+      keyMetadata.count >= TASK_BATCH_SIZE
+        ? TASK_BATCH_SIZE
+        : keyMetadata.count;
+    this.common.metrics.ponder_indexing_matched_events.inc(labels, count);
+    this.common.metrics.ponder_indexing_handled_events.inc(labels, count);
 
-    const abi = [this.indexingFunctionMap![indexingFunctionKey].abiEvent];
-    const contractName =
-      this.indexingFunctionMap![indexingFunctionKey].contractName;
-    const eventName = this.indexingFunctionMap![indexingFunctionKey].eventName;
-    const tasks =
-      this.indexingFunctionMap![indexingFunctionKey].indexingFunctionTasks;
+    const abi = [keyHandler.abiEvent];
+    const contractName = keyHandler.contractName;
+    const eventName = keyHandler.eventName;
 
     for (const event of events) {
       try {
@@ -795,12 +771,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
     // handle last event
     if (tasks.length !== 0) {
       tasks[tasks.length - 1].event.endCheckpoint =
-        this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint;
+        keyHandler.maxTaskCheckpoint;
 
       tasks[tasks.length - 1].event.eventsProcessed = events.length;
     } else {
-      this.indexingFunctionMap![indexingFunctionKey].checkpoint =
-        this.indexingFunctionMap![indexingFunctionKey].maxTaskCheckpoint;
+      keyHandler.checkpoint = keyHandler.maxTaskCheckpoint;
       this.emitCheckpoint();
     }
   };
@@ -814,94 +789,89 @@ export class IndexingService extends Emittery<IndexingEvents> {
       toCheckpoint: checkpoint,
     });
   };
-}
 
-const buildNetworkNames = (sources: Source[]) => {
-  const networkNames = {} as IndexingService["networkNames"];
+  private buildNetworkNames = () => {
+    for (const source of this.sources) {
+      this.networkNames[source.id] = source.networkName;
+    }
+  };
 
-  for (const source of sources) {
-    networkNames[source.id] = source.networkName;
-  }
+  private buildIndexingFunctionMap = () => {
+    if (
+      this.indexingFunctions === undefined ||
+      this.sources === undefined ||
+      this.tableAccess === undefined
+    )
+      return;
 
-  return networkNames;
-};
+    for (const contractName of Object.keys(this.indexingFunctions)) {
+      // Note: It's suspicious that this is neccessary.
+      const events = Object.keys(
+        this.indexingFunctions[contractName],
+      ) as string[];
+      for (const eventName of events) {
+        if (eventName === "setup") continue;
 
-const buildIndexingFunctionMap = (
-  indexingFunctions: IndexingFunctions,
-  tableAccess: TableAccess,
-  sources: Source[],
-) => {
-  const indexingFunctionMap = {} as NonNullable<
-    IndexingService["indexingFunctionMap"]
-  >;
+        const indexingFunctionKey = `${contractName}:${eventName}`;
 
-  for (const contractName of Object.keys(indexingFunctions)) {
-    for (const eventName of Object.keys(indexingFunctions[contractName])) {
-      if (eventName === "setup") continue;
+        // All tables that this indexing function key reads
+        const tableReads = this.tableAccess
+          .filter(
+            (t) =>
+              t.indexingFunctionKey === indexingFunctionKey &&
+              t.access === "read",
+          )
+          .map((t) => t.table);
 
-      const indexingFunctionKey = `${contractName}:${eventName}`;
+        // All indexing function keys that write to a table in `tableReads`
+        // except for itself.
+        const parents = this.tableAccess
+          .filter(
+            (t) =>
+              t.access === "write" &&
+              tableReads.includes(t.table) &&
+              t.indexingFunctionKey !== indexingFunctionKey,
+          )
+          .map((t) => t.indexingFunctionKey);
 
-      // All tables that this indexing function key reads
-      const tableReads = tableAccess
-        .filter(
-          (t) =>
-            t.indexingFunctionKey === indexingFunctionKey &&
-            t.access === "read",
-        )
-        .map((t) => t.table);
-
-      // all indexing function keys that write to a table in `tableReads`
-      // except for itself.
-      const parents = tableAccess
-        .filter(
+        const selfReliance = this.tableAccess.some(
           (t) =>
             t.access === "write" &&
             tableReads.includes(t.table) &&
-            t.indexingFunctionKey !== indexingFunctionKey,
-        )
-        .map((t) => t.indexingFunctionKey);
+            t.indexingFunctionKey === indexingFunctionKey,
+        );
 
-      const selfReliance = tableAccess.some(
-        (t) =>
-          t.access === "write" &&
-          tableReads.includes(t.table) &&
-          t.indexingFunctionKey === indexingFunctionKey,
-      );
+        const keySources = this.sources.filter(
+          (s) => s.contractName === contractName,
+        );
 
-      const keySources = sources.filter((s) => s.contractName === contractName);
+        // Note: Assumption is that all sources with the same contract name have the same abi.
+        const i = this.sources.findIndex(
+          (s) =>
+            s.contractName === contractName &&
+            s.abiEvents.bySafeName[eventName] !== undefined,
+        );
 
-      const i = sources.findIndex(
-        (s) =>
-          s.contractName === contractName &&
-          s.abiEvents.bySafeName[eventName] !== undefined,
-      );
+        const abiEvent = this.sources[i].abiEvents.bySafeName[eventName]!.item;
+        const eventSelector =
+          this.sources[i].abiEvents.bySafeName[eventName]!.selector;
 
-      const abiEvent = sources[i].abiEvents.bySafeName[eventName]!.item;
-      const eventSelector =
-        sources[i].abiEvents.bySafeName[eventName]!.selector;
+        this.indexingFunctionMap[indexingFunctionKey] = {
+          eventName,
+          contractName,
+          parents: dedupe(parents),
+          selfReliance,
+          sources: keySources,
+          abiEvent,
+          eventSelector,
 
-      indexingFunctionMap[indexingFunctionKey] = {
-        eventName,
-        contractName,
-
-        checkpoint: zeroCheckpoint,
-        maxTaskCheckpoint: zeroCheckpoint,
-
-        sources: keySources,
-
-        indexingFunctionTasks: [],
-
-        abiEvent,
-        eventSelector,
-
-        parents: dedupe(parents),
-        selfReliance,
-        serialQueue: false,
-
-        dbMutex: new Mutex(),
-      };
+          checkpoint: zeroCheckpoint,
+          maxTaskCheckpoint: zeroCheckpoint,
+          indexingFunctionTasks: [],
+          dbMutex: new Mutex(),
+          serialQueue: false,
+        };
+      }
     }
-  }
-
-  return indexingFunctionMap;
-};
+  };
+}
