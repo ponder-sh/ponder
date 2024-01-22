@@ -479,8 +479,6 @@ export class SqliteIndexingStore implements IndexingStore {
         deserializedRows.reverse();
       }
 
-      console.log(rows);
-
       const hasAfter = rows.length > (take || 1000);
 
       if (hasAfter && before) {
