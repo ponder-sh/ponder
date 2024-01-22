@@ -99,7 +99,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
    * @param options.toCheckpoint Checkpoint to include events to (inclusive).
    * @param options.includeLogFilterEvents Map of log filter name -> selector -> ABI event
    * item for which to include full event objects.
-   * @returns An async interator of event pages.
    */
   getEvents({
     fromCheckpoint,
