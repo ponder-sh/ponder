@@ -91,7 +91,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private schema?: Schema;
   private tableAccess?: TableAccess;
 
-  private queue?: IndexingFunctionQueue;
+  queue?: IndexingFunctionQueue;
 
   private getNetwork: (checkpoint: Checkpoint) => Context["network"] =
     undefined!;

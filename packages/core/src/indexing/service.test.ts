@@ -62,29 +62,12 @@ const readContractTransferIndexingFunction = vi.fn(
   },
 );
 
-const setupIndexingFunction = vi.fn(async ({ context }) => {
-  await wait(100);
-  await context.db.TransferEvent.create({
-    id: "first",
-    data: {
-      timestamp: 0,
-    },
-  });
-});
-
 const indexingFunctions: IndexingFunctions = {
   Erc20: { Transfer: transferIndexingFunction },
 };
 
 const readContractIndexingFunctions: IndexingFunctions = {
   Erc20: { Transfer: readContractTransferIndexingFunction },
-};
-
-const indexingFunctionsWithSetup: IndexingFunctions = {
-  Erc20: {
-    Transfer: transferIndexingFunction,
-    setup: setupIndexingFunction,
-  },
 };
 
 const tableAccess: TableAccess = [
@@ -223,22 +206,37 @@ test("processEvent() runs setup functions before log event", async (context) => 
     networks,
     requestQueues,
   });
+
+  let setup = false;
+
+  const setupIndexingFunction = vi.fn(async () => {
+    setup = true;
+  });
+
+  const transferIndexingFunction = vi.fn(async () => {
+    expect(setup).toBe(true);
+  });
+
   await service.reset({
     schema,
-    indexingFunctions: indexingFunctionsWithSetup,
+    indexingFunctions: {
+      Erc20: {
+        Transfer: transferIndexingFunction,
+        setup: setupIndexingFunction,
+      },
+    },
     tableAccess,
   });
 
+  service.queue!.concurrency = 1;
+
   const checkpoint10 = createCheckpoint(10);
   syncGatewayService.checkpoint = checkpoint10;
+
   await service.processEvents();
 
   expect(setupIndexingFunction).toHaveBeenCalledTimes(1);
   expect(transferIndexingFunction).toHaveBeenCalledTimes(2);
-
-  const events = await indexingStore.findMany({
-    tableName: "TransferEvent",
-  });
 
   service.kill();
   await service.onIdle();
