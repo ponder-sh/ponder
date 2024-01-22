@@ -584,6 +584,53 @@ test("processEvents() handles errors", async (context) => {
   await service.onIdle();
 });
 
+test("processEvents can be called multiple times", async (context) => {
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
+
+  const getEvents = vi.fn(await getEventsErc20(sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+    requestQueues,
+  });
+
+  const setupIndexingFunction = vi.fn(async () => {});
+
+  await service.reset({
+    schema,
+    indexingFunctions: {
+      Erc20: {
+        Transfer: transferIndexingFunction,
+        setup: setupIndexingFunction,
+      },
+    },
+    tableAccess,
+  });
+
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+
+  await service.processEvents();
+  await service.processEvents();
+
+  expect(setupIndexingFunction).toHaveBeenCalledTimes(1);
+  expect(transferIndexingFunction).toHaveBeenCalledTimes(2);
+
+  service.kill();
+  await service.onIdle();
+});
+
 test("reset() reloads the indexing store", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
@@ -708,7 +755,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
   await service.onIdle();
 });
 
-test.skip("handleReorg() does nothing if there is a user error", async (context) => {
+test("handleReorg() does nothing if there is a user error", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 

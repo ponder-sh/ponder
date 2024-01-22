@@ -123,7 +123,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       indexingFunctionTasks: LogEventTask[];
       /* Mutex ensuring tasks are loaded one at a time. */
       dbMutex: Mutex;
-      /** True if a task has been enqueued with itself as the most. */
+      /** True if a task has been enqueued with itself as the most recent checkpoint. */
       serialQueue: boolean;
     }
   > = {};
@@ -187,9 +187,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
   onIdle = () => this.queue!.onIdle();
 
   /**
-   * Registers a new set of indexing functions and/or a new schema, cancels
-   * the current event processing mutex & event queue, drops and re-creates
-   * all tables from the indexing store, and resets eventsProcessedToTimestamp to zero.
+   * Registers a new set of indexing functions, schema, or table accesss, cancels
+   * the database mutexes & event queue, drops and re-creates
+   * all tables from the indexing store, and rebuilds the indexing function map state.
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
@@ -265,10 +265,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   /**
    * Processes all newly available events.
-   *
-   * Acquires a lock on the event processing mutex, then gets the latest checkpoint
-   * from the sync gateway service. Fetches events between previous checkpoint
-   * and the new checkpoint, adds them to the queue, then processes them.
    */
   processEvents = async () => {
     if (
@@ -278,9 +274,17 @@ export class IndexingService extends Emittery<IndexingEvents> {
     )
       return;
 
-    this.enqueueSetupTasks();
+    // Only enqueue setup tasks if no checkpoints have been advanced.
+    if (
+      Object.values(this.indexingFunctionMap).every(
+        (keyHandler) =>
+          isCheckpointEqual(keyHandler.maxTaskCheckpoint, zeroCheckpoint) &&
+          isCheckpointEqual(keyHandler.checkpoint, zeroCheckpoint),
+      )
+    ) {
+      this.enqueueSetupTasks();
+    }
 
-    // Note: We must ensure that the setup tasks have finished before enqueing the log event tasks
     this.queue!.start();
     await this.queue.onIdle();
 
@@ -303,23 +307,25 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * in one of several different states that we need to keep in mind:
    *
    * 1) No events have been added to the queue yet.
-   * 2) No unsafe events have been processed (eventsProcessedToTimestamp <= commonAncestorTimestamp).
-   * 3) Unsafe events may have been processed (eventsProcessedToTimestamp > commonAncestorTimestamp).
+   * 2) No unsafe events have been processed (checkpoint <= safeCheckpoint).
+   * 3) Unsafe events may have been processed (checkpoint > safeCheckpoint).
    * 4) The queue has encountered a user error and is waiting for a reload.
    *
-   * Note: It's crucial that we acquire a mutex lock while handling the reorg.
+   * Note: It's crucial that we acquire all mutex locks while handling the reorg.
    * This will only ever run while the queue is idle, so we can be confident
-   * that eventsProcessedToTimestamp matches the current state of the indexing store,
+   * that checkpoint matches the current state of the indexing store,
    * and that no unsafe events will get processed after handling the reorg.
+   *
+   * Kevin ^^ Is this still true?
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
   handleReorg = async (safeCheckpoint: Checkpoint) => {
     if (this.isPaused) return;
 
-    let release: MutexInterface.Releaser[];
+    let releases: MutexInterface.Releaser[];
     try {
-      release = await Promise.all(
+      releases = await Promise.all(
         Object.values(this.indexingFunctionMap!).map((indexFunc) =>
           indexFunc.dbMutex.acquire(),
         ),
@@ -371,15 +377,18 @@ export class IndexingService extends Emittery<IndexingEvents> {
       // ignore the error that is thrown when a pending lock is cancelled.
       if (error !== E_CANCELED) throw error;
     } finally {
-      for (const r of release!) {
-        r();
+      for (const release of releases!) {
+        release();
       }
     }
   };
 
+  /**
+   * Adds "setup" tasks to the queue for all chains if the indexing function is defined.
+   */
   enqueueSetupTasks = () => {
     for (const contractName of Object.keys(this.indexingFunctions!)) {
-      if (this.indexingFunctions![contractName].setup === undefined) return;
+      if (this.indexingFunctions![contractName].setup === undefined) continue;
 
       for (const network of this.networks) {
         const source = this.sources.find(
@@ -417,7 +426,18 @@ export class IndexingService extends Emittery<IndexingEvents> {
   };
 
   /**
-   * Implements core concurrency engine.
+   * Implements the core concurrency engine, responsible for ordering tasks.
+   * There are several cases to consider and optimize:
+   *
+   * 1) A task is only dependent on itself, should be run serially.
+   * 2) A task is not dependent, can be run entirely concurrently.
+   * 3) A task is dependent on a combination of parents, and should only
+   *    be run when all previous dependent tasks are complete.
+   *
+   * Note: Tasks that are dependent on themselves must be handled specially, because
+   * it is not possible to keep track of whether a task that depends on itself has been
+   * enqueued otherwise.
+   *
    */
   enqueueLogEventTasks = () => {
     if (this.indexingFunctionMap === undefined) return;
@@ -433,26 +453,25 @@ export class IndexingService extends Emittery<IndexingEvents> {
         keyHandler.selfReliance &&
         !keyHandler.serialQueue
       ) {
-        // Hot loop for an indexing function only relying on itself.
-        // Should enqueue one task.
+        // Case 1
         const tasksEnqueued = tasks.splice(0, 1);
 
         this.queue!.addTask(tasksEnqueued[0]!);
 
         keyHandler.serialQueue = true;
       } else if (keyHandler.parents.length === 0 && !keyHandler.selfReliance) {
-        // Hot loop for an indexing function that does not rely on anything.
-        // Should enqueue all tasks in buffer.
+        // Case 2
         for (const task of tasks) {
           this.queue!.addTask(task);
         }
         keyHandler.indexingFunctionTasks = [];
       } else if (keyHandler.parents.length !== 0) {
+        // Case 3
+
         const parentCheckpoints = keyHandler.parents.map(
           (p) => this.indexingFunctionMap![p].checkpoint,
         );
 
-        // blahahaha
         if (keyHandler.selfReliance && !keyHandler.serialQueue)
           parentCheckpoints.push(keyHandler.checkpoint);
 
@@ -464,12 +483,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
         );
 
         if (maxCheckpointIndex === -1) {
+          // enqueue all tasks
           for (const task of tasks) {
             this.queue!.addTask(task);
           }
 
           keyHandler.indexingFunctionTasks = [];
         } else {
+          // enqueue all tasks less than the index
           const tasksEnqueued = tasks.splice(0, maxCheckpointIndex);
 
           for (const task of tasksEnqueued) {
@@ -859,11 +880,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.indexingFunctionMap = {};
 
     for (const contractName of Object.keys(this.indexingFunctions)) {
-      // Note: It's suspicious that this is neccessary.
-      const events = Object.keys(
+      // Not sure why this is necessary
+      // @ts-ignore
+      for (const eventName of Object.keys(
         this.indexingFunctions[contractName],
-      ) as string[];
-      for (const eventName of events) {
+      )) {
         if (eventName === "setup") continue;
 
         const indexingFunctionKey = `${contractName}:${eventName}`;
