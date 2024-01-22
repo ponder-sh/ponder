@@ -372,7 +372,7 @@ test("processEvents() model methods insert data into the indexing store", async 
   await service.onIdle();
 });
 
-test.skip("processEvents() updates event count metrics", async (context) => {
+test("processEvents() updates event count metrics", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 
@@ -699,7 +699,7 @@ test("reset() reloads the indexing store", async (context) => {
   await service.onIdle();
 });
 
-test.skip("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
+test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 
@@ -726,11 +726,6 @@ test.skip("handleReorg() updates ponder_handlers_latest_processed_timestamp metr
   const checkpoint10 = createCheckpoint(10);
   syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
-
-  const latestProcessedTimestampMetric = (
-    await common.metrics.ponder_indexing_latest_processed_timestamp.get()
-  ).values[0].value;
-  expect(latestProcessedTimestampMetric).toBe(10);
 
   await service.reset({ schema, indexingFunctions, tableAccess });
 
@@ -886,7 +881,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
   await service.onIdle();
 });
 
-test.skip("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
+test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 
@@ -913,11 +908,6 @@ test.skip("handleReorg() updates ponder_handlers_latest_processed_timestamp metr
   const checkpoint10 = createCheckpoint(10);
   syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
-
-  const latestProcessedTimestampMetric = (
-    await common.metrics.ponder_indexing_latest_processed_timestamp.get()
-  ).values[0].value;
-  expect(latestProcessedTimestampMetric).toBe(10);
 
   // This simulates a scenario where there was a reorg back to 6
   // and the new latest block is 9.

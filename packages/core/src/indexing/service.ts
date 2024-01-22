@@ -954,23 +954,31 @@ export class IndexingService extends Emittery<IndexingEvents> {
     });
 
     for (const count of counts) {
-      this.common.metrics.ponder_indexing_matched_events.set(
-        {
-          network: this.sourceById[count.sourceId].networkName,
-          contract: this.sourceById[count.sourceId].contractName,
-          event: count.selector,
-        },
-        count.count,
-      );
-
       const event =
         this.sourceById[count.sourceId].abiEvents.bySelector[count.selector];
+
       if (event !== undefined) {
+        const labels = {
+          network: this.sourceById[count.sourceId].networkName,
+          contract: this.sourceById[count.sourceId].contractName,
+          event: event.safeName,
+        };
+
         this.common.metrics.ponder_indexing_handled_events.set(
+          labels,
+          count.count,
+        );
+
+        this.common.metrics.ponder_indexing_matched_events.set(
+          labels,
+          count.count,
+        );
+      } else {
+        this.common.metrics.ponder_indexing_matched_events.set(
           {
             network: this.sourceById[count.sourceId].networkName,
             contract: this.sourceById[count.sourceId].contractName,
-            event: event.safeName,
+            event: count.selector,
           },
           count.count,
         );
