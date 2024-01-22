@@ -100,6 +100,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private getContracts: (checkpoint: Checkpoint) => Context["contracts"] =
     undefined!;
 
+  private isSetupStarted;
+
   private indexingFunctionMap: Record<
     /* Indexing function key: "{ContractName}:{EventName}" */
     string,
@@ -153,6 +155,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.syncGatewayService = syncGatewayService;
     this.sources = sources;
     this.networks = networks;
+
+    this.isSetupStarted = false;
 
     this.buildSourceById();
 
@@ -239,6 +243,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.queue?.clear();
     await this.queue?.onIdle();
 
+    this.isSetupStarted = false;
+
     this.buildIndexingFunctionMap();
     this.createEventQueue();
 
@@ -275,13 +281,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
       return;
 
     // Only enqueue setup tasks if no checkpoints have been advanced.
-    if (
-      Object.values(this.indexingFunctionMap).every(
-        (keyHandler) =>
-          isCheckpointEqual(keyHandler.maxTaskCheckpoint, zeroCheckpoint) &&
-          isCheckpointEqual(keyHandler.checkpoint, zeroCheckpoint),
-      )
-    ) {
+    if (!this.isSetupStarted) {
+      this.isSetupStarted = true;
       this.enqueueSetupTasks();
     }
 
@@ -477,34 +478,34 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         const minParentCheckpoint = checkpointMin(...parentCheckpoints);
 
-        // maximum checkpoint that is less than `minParentCheckpoint`
-        const maxCheckpointIndex = tasks.findIndex((task) =>
-          isCheckpointGreaterThan(task.event.checkpoint, minParentCheckpoint),
-        );
+        if (isCheckpointEqual(minParentCheckpoint, keyHandler.checkpoint)) {
+          if (keyHandler.serialQueue === true)
+            console.log("fuck", keyHandler.checkpoint);
+          const tasksEnqueued = tasks.splice(0, 1);
 
-        if (maxCheckpointIndex === -1) {
-          // enqueue all tasks
-          for (const task of tasks) {
-            this.queue!.addTask(task);
-          }
+          this.queue!.addTask(tasksEnqueued[0]!);
 
-          keyHandler.indexingFunctionTasks = [];
-        } else {
-          // enqueue all tasks less than the index
-          const tasksEnqueued = tasks.splice(0, maxCheckpointIndex);
-
-          for (const task of tasksEnqueued) {
-            this.queue!.addTask(task);
-          }
-        }
-
-        if (
-          maxCheckpointIndex !== 0 &&
-          keyHandler.selfReliance &&
-          keyHandler.serialQueue &&
-          isCheckpointEqual(keyHandler.checkpoint, minParentCheckpoint)
-        ) {
           keyHandler.serialQueue = true;
+        } else {
+          // maximum checkpoint that is less than `minParentCheckpoint`
+          const maxCheckpointIndex = tasks.findIndex((task) =>
+            isCheckpointGreaterThan(task.event.checkpoint, minParentCheckpoint),
+          );
+          if (maxCheckpointIndex === -1) {
+            // enqueue all tasks
+            for (const task of tasks) {
+              this.queue!.addTask(task);
+            }
+
+            keyHandler.indexingFunctionTasks = [];
+          } else {
+            // enqueue all tasks less than the index
+            const tasksEnqueued = tasks.splice(0, maxCheckpointIndex);
+
+            for (const task of tasksEnqueued) {
+              this.queue!.addTask(task);
+            }
+          }
         }
       }
     }
