@@ -280,6 +280,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     // Note: We must ensure that the setup tasks have finished before enqueing the log event tasks
     this.enqueueSetupTasks();
+    this.queue!.start();
+
+    await this.queue.onIdle();
 
     await Promise.all(
       Object.entries(this.indexingFunctionMap).map(([key, keyHandler]) =>
@@ -290,8 +293,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
 
     this.enqueueLogEventTasks();
-
-    this.queue!.start();
 
     await this.queue.onIdle();
   };
@@ -491,8 +492,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
           },
         });
 
-        this.indexingFunctionMap![fullEventName].checkpoint = event.checkpoint;
-
         this.common.logger.trace({
           service: "indexing",
           msg: `Completed indexing function (event="${fullEventName}", block=${event.checkpoint.blockNumber})`,
@@ -510,6 +509,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         break;
       } catch (error_) {
+        console.log(error_);
         const error = error_ as Error & { meta: string };
 
         if (i === 3) {

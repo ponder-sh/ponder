@@ -14,6 +14,7 @@ import type { SyncGateway } from "@/sync-gateway/service.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 import type { TableAccess } from "@/build/parseIndexingAst.js";
+import { wait } from "@/utils/wait.js";
 import { IndexingService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -61,12 +62,44 @@ const readContractTransferIndexingFunction = vi.fn(
   },
 );
 
+const setupIndexingFunction = vi.fn(async ({ context }) => {
+  await wait(100);
+  await context.db.TransferEvent.create({
+    id: "first",
+    data: {
+      timestamp: 0,
+    },
+  });
+});
+
+const setupTransferIndexingFunction = vi.fn(async ({ event, context }) => {
+  const setup = await context.db.TransferEvent.findUnique({
+    id: "first",
+  });
+
+  if (!setup) throw Error();
+
+  await context.db.TransferEvent.create({
+    id: event.log.id,
+    data: {
+      timestamp: Number(event.block.timestamp),
+    },
+  });
+});
+
 const indexingFunctions: IndexingFunctions = {
   Erc20: { Transfer: transferIndexingFunction },
 };
 
 const readContractIndexingFunctions: IndexingFunctions = {
   Erc20: { Transfer: readContractTransferIndexingFunction },
+};
+
+const indexingFunctionsWithSetup: IndexingFunctions = {
+  Erc20: {
+    Transfer: setupTransferIndexingFunction,
+    setup: setupIndexingFunction,
+  },
 };
 
 const tableAccess: TableAccess = [
@@ -180,6 +213,43 @@ test("processEvents() calls indexing functions with correct arguments", async (c
       }),
     }),
   );
+
+  service.kill();
+  await service.onIdle();
+});
+
+test("processEvent() runs setup functions before log event", async (context) => {
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
+
+  const getEvents = vi.fn(await getEventsErc20(sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+    requestQueues,
+  });
+  await service.reset({
+    schema,
+    indexingFunctions: indexingFunctionsWithSetup,
+    tableAccess,
+  });
+
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+  await service.processEvents();
+
+  expect(setupIndexingFunction).toHaveBeenCalledTimes(1);
+  expect(setupTransferIndexingFunction).toHaveBeenCalledTimes(2);
 
   service.kill();
   await service.onIdle();
