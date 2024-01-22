@@ -377,7 +377,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
   };
 
-  private enqueueSetupTasks = () => {
+  enqueueSetupTasks = () => {
     for (const contractName of Object.keys(this.indexingFunctions!)) {
       if (this.indexingFunctions![contractName].setup === undefined) return;
 
@@ -419,7 +419,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   /**
    * Implements core concurrency engine.
    */
-  private enqueueLogEventTasks = () => {
+  enqueueLogEventTasks = () => {
     if (this.indexingFunctionMap === undefined) return;
 
     for (const key of Object.keys(this.indexingFunctionMap!)) {
@@ -441,7 +441,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         keyHandler.serialQueue = true;
       } else if (keyHandler.parents.length === 0 && !keyHandler.selfReliance) {
-        // Hot loop for an indexing function that does rely on anything.
+        // Hot loop for an indexing function that does not rely on anything.
         // Should enqueue all tasks in buffer.
         for (const task of tasks) {
           this.queue!.addTask(task);
@@ -713,7 +713,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   /**
    * Load a batch of indexing function tasks from the sync store into memory.
    */
-  private loadIndexingFunctionTasks = async (key: string) => {
+  loadIndexingFunctionTasks = async (key: string) => {
     const keyHandler = this.indexingFunctionMap![key];
     const tasks = keyHandler.indexingFunctionTasks;
 

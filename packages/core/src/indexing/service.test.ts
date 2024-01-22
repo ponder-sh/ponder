@@ -1,6 +1,3 @@
-import { decodeEventLog } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
-
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
@@ -9,12 +6,12 @@ import {
 } from "@/_test/setup.js";
 import { getEventsErc20 } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
+import type { TableAccess } from "@/build/parseIndexingAst.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
-
-import type { TableAccess } from "@/build/parseIndexingAst.js";
-import { wait } from "@/utils/wait.js";
+import { decodeEventLog } from "viem";
+import { beforeEach, expect, test, vi } from "vitest";
 import { IndexingService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -237,6 +234,91 @@ test("processEvent() runs setup functions before log event", async (context) => 
 
   expect(setupIndexingFunction).toHaveBeenCalledTimes(1);
   expect(transferIndexingFunction).toHaveBeenCalledTimes(2);
+
+  service.kill();
+  await service.onIdle();
+});
+
+test("processEvents() orders tasks with no parents or self reliance", async (context) => {
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
+
+  const getEvents = vi.fn(await getEventsErc20(sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+    requestQueues,
+  });
+
+  await service.reset({ schema, indexingFunctions, tableAccess });
+
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+
+  await service.loadIndexingFunctionTasks("Erc20:Transfer");
+
+  service.enqueueLogEventTasks();
+
+  expect(service.queue?.size).toBe(2);
+
+  service.kill();
+  await service.onIdle();
+});
+
+test("processEvents() orders tasks with self reliance", async (context) => {
+  const { common, syncStore, indexingStore, sources, networks, requestQueues } =
+    context;
+
+  const getEvents = vi.fn(await getEventsErc20(sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: zeroCheckpoint,
+  } as unknown as SyncGateway;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+    requestQueues,
+  });
+
+  const tableAccess: TableAccess = [
+    {
+      table: "TransferEvent",
+      access: "write",
+      indexingFunctionKey: "Erc20:Transfer",
+    },
+    {
+      table: "TransferEvent",
+      access: "read",
+      indexingFunctionKey: "Erc20:Transfer",
+    },
+  ];
+
+  await service.reset({ schema, indexingFunctions, tableAccess });
+
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+
+  await service.loadIndexingFunctionTasks("Erc20:Transfer");
+
+  service.enqueueLogEventTasks();
+
+  expect(service.queue?.size).toBe(1);
 
   service.kill();
   await service.onIdle();
