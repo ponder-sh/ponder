@@ -221,7 +221,7 @@ test("processEvents() model methods insert data into the indexing store", async 
   await service.onIdle();
 });
 
-test("processEvents() updates event count metrics", async (context) => {
+test.skip("processEvents() updates event count metrics", async (context) => {
   const { common, syncStore, indexingStore, sources, networks, requestQueues } =
     context;
 

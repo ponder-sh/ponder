@@ -292,6 +292,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.enqueueLogEventTasks();
 
     this.queue!.start();
+
+    await this.queue.onIdle();
   };
 
   /**
