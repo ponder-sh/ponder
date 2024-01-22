@@ -140,13 +140,9 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
    * @param options.toCheckpoint Checkpoint to include events to (inclusive).
    */
   getEventCounts({
-    fromCheckpoint,
-    toCheckpoint,
     logFilters,
     factories,
   }: {
-    fromCheckpoint: Checkpoint;
-    toCheckpoint: Checkpoint;
     logFilters?: {
       id: string;
       chainId: number;
@@ -163,8 +159,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     }[];
   }) {
     return this.syncStore.getLogEventCounts({
-      fromCheckpoint,
-      toCheckpoint,
       logFilters,
       factories,
     });

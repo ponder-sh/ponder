@@ -935,8 +935,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   private setEventMetrics = async () => {
     const { counts } = await this.syncGatewayService.getEventCounts({
-      fromCheckpoint: zeroCheckpoint,
-      toCheckpoint: this.syncGatewayService.checkpoint,
       logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
         id: logFilter.id,
         chainId: logFilter.chainId,

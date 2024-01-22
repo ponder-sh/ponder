@@ -183,8 +183,6 @@ export interface SyncStore {
   }>;
 
   getLogEventCounts(arg: {
-    fromCheckpoint: Checkpoint;
-    toCheckpoint: Checkpoint;
     logFilters?: {
       id: string;
       chainId: number;
