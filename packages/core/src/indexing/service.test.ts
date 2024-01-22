@@ -4,7 +4,7 @@ import {
   setupIndexingStore,
   setupSyncStore,
 } from "@/_test/setup.js";
-import { getEventsErc20 } from "@/_test/utils.js";
+import { getEventCountsErc20, getEventsErc20 } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { TableAccess } from "@/build/parseIndexingAst.js";
 import { createSchema } from "@/schema/schema.js";
@@ -84,9 +84,11 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -134,9 +136,11 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -188,9 +192,11 @@ test("processEvent() runs setup functions before log event", async (context) => 
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -244,9 +250,11 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -280,9 +288,11 @@ test("processEvents() orders tasks with self reliance", async (context) => {
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -329,9 +339,11 @@ test("processEvents() model methods insert data into the indexing store", async 
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -365,9 +377,11 @@ test.skip("processEvents() updates event count metrics", async (context) => {
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -426,9 +440,11 @@ test("processEvents() reads data from a contract", async (context) => {
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -466,9 +482,11 @@ test("processEvents() recovers from errors while reading data from a contract", 
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -509,9 +527,11 @@ test("processEvents() retries indexing functions", async (context) => {
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -549,9 +569,11 @@ test("processEvents() handles errors", async (context) => {
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -589,9 +611,11 @@ test("processEvents can be called multiple times", async (context) => {
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -636,9 +660,11 @@ test("reset() reloads the indexing store", async (context) => {
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -678,9 +704,11 @@ test.skip("handleReorg() updates ponder_handlers_latest_processed_timestamp metr
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -720,9 +748,11 @@ test("handleReorg() reverts the indexing store", async (context) => {
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -760,9 +790,11 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -804,9 +836,11 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
@@ -857,9 +891,11 @@ test.skip("handleReorg() updates ponder_handlers_latest_processed_timestamp metr
     context;
 
   const getEvents = vi.fn(await getEventsErc20(sources));
+  const getEventCounts = vi.fn(getEventCountsErc20());
 
   const syncGatewayService = {
     getEvents,
+    getEventCounts,
     checkpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 

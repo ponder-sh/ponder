@@ -252,19 +252,31 @@ export const getEventsErc20 = async (sources: Source[]) => {
         })),
       metadata: {
         endCheckpoint: toCheckpoint,
-        counts: [
-          {
-            sourceId: "Erc20_mainnet",
-            selector: getEventSelector(
-              getAbiItem({
-                abi: erc20ABI,
-                name: "Transfer",
-              }),
-            ),
-            count: 2,
-          },
-        ],
       },
+    };
+  };
+
+  return _getEvents;
+};
+
+/**
+ * Mock function for `getLogEventCounts` that specifically returns the event data for the erc20 source.
+ */
+export const getEventCountsErc20 = () => {
+  const _getEvents = () => {
+    return {
+      counts: [
+        {
+          sourceId: "Erc20_mainnet",
+          selector: getEventSelector(
+            getAbiItem({
+              abi: erc20ABI,
+              name: "Transfer",
+            }),
+          ),
+          count: 2,
+        },
+      ],
     };
   };
 
