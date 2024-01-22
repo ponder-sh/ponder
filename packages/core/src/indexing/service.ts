@@ -278,10 +278,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     )
       return;
 
-    // Note: We must ensure that the setup tasks have finished before enqueing the log event tasks
     this.enqueueSetupTasks();
-    this.queue!.start();
 
+    // Note: We must ensure that the setup tasks have finished before enqueing the log event tasks
+    this.queue!.start();
     await this.queue.onIdle();
 
     await Promise.all(
@@ -416,6 +416,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
   };
 
+  /**
+   * Implements core concurrency engine.
+   */
   private enqueueLogEventTasks = () => {
     if (this.indexingFunctionMap === undefined) return;
 
@@ -425,47 +428,64 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
       if (tasks.length === 0) continue;
 
-      if (keyHandler.parents.length === 0) {
-        if (
-          this.indexingFunctionMap[key].selfReliance &&
-          !this.indexingFunctionMap[key].serialQueue
-        ) {
-          // enqueue one task
+      if (
+        keyHandler.parents.length === 0 &&
+        keyHandler.selfReliance &&
+        !keyHandler.serialQueue
+      ) {
+        // Hot loop for an indexing function only relying on itself.
+        // Should enqueue one task.
+        const tasksEnqueued = tasks.splice(0, 1);
 
-          const tasksEnqueued = this.indexingFunctionMap[
-            key
-          ].indexingFunctionTasks.splice(0, 1);
+        this.queue!.addTask(tasksEnqueued[0]!);
 
-          this.queue!.addTask(tasksEnqueued[0]!);
+        keyHandler.serialQueue = true;
+      } else if (keyHandler.parents.length === 0 && !keyHandler.selfReliance) {
+        // Hot loop for an indexing function that does rely on anything.
+        // Should enqueue all tasks in buffer.
+        for (const task of tasks) {
+          this.queue!.addTask(task);
+        }
+        keyHandler.indexingFunctionTasks = [];
+      } else if (keyHandler.parents.length !== 0) {
+        const parentCheckpoints = keyHandler.parents.map(
+          (p) => this.indexingFunctionMap![p].checkpoint,
+        );
 
-          this.indexingFunctionMap[key].serialQueue = true;
-        } else if (!this.indexingFunctionMap[key].selfReliance) {
-          // enqueue all tasks
+        // blahahaha
+        if (keyHandler.selfReliance && !keyHandler.serialQueue)
+          parentCheckpoints.push(keyHandler.checkpoint);
 
-          for (const task of this.indexingFunctionMap[key]
-            .indexingFunctionTasks) {
+        const minParentCheckpoint = checkpointMin(...parentCheckpoints);
+
+        // maximum checkpoint that is less than `minParentCheckpoint`
+        const maxCheckpointIndex = tasks.findIndex((task) =>
+          isCheckpointGreaterThan(task.event.checkpoint, minParentCheckpoint),
+        );
+
+        if (maxCheckpointIndex === -1) {
+          for (const task of tasks) {
             this.queue!.addTask(task);
           }
-          this.indexingFunctionMap[key].indexingFunctionTasks = [];
+
+          keyHandler.indexingFunctionTasks = [];
+        } else {
+          const tasksEnqueued = tasks.splice(0, maxCheckpointIndex);
+
+          for (const task of tasksEnqueued) {
+            this.queue!.addTask(task);
+          }
         }
 
-        continue;
+        if (
+          maxCheckpointIndex !== 0 &&
+          keyHandler.selfReliance &&
+          keyHandler.serialQueue &&
+          isCheckpointEqual(keyHandler.checkpoint, minParentCheckpoint)
+        ) {
+          keyHandler.serialQueue = true;
+        }
       }
-
-      throw Error("Not implemented");
-
-      // const parentCheckpoints = this.indexingFunctionMap[key].parents.map(
-      //   (p) => this.indexingFunctionMap![p].checkpoint,
-      // );
-
-      // const minParentCheckpoint = checkpointMin(...parentCheckpoints);
-
-      // // maximum checkpoint that is less than `minParentCheckpoint`
-      // const maxCheckpointIndex = this.indexingFunctionMap[
-      //   key
-      // ].indexingFunctionTasks.findIndex((task) =>
-      //   isCheckpointGreaterThan(task.event.checkpoint, minParentCheckpoint),
-      // );
     }
   };
 
@@ -509,7 +529,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         break;
       } catch (error_) {
-        console.log(error_);
         const error = error_ as Error & { meta: string };
 
         if (i === 3) {

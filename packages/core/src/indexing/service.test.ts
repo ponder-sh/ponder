@@ -72,21 +72,6 @@ const setupIndexingFunction = vi.fn(async ({ context }) => {
   });
 });
 
-const setupTransferIndexingFunction = vi.fn(async ({ event, context }) => {
-  const setup = await context.db.TransferEvent.findUnique({
-    id: "first",
-  });
-
-  if (!setup) throw Error();
-
-  await context.db.TransferEvent.create({
-    id: event.log.id,
-    data: {
-      timestamp: Number(event.block.timestamp),
-    },
-  });
-});
-
 const indexingFunctions: IndexingFunctions = {
   Erc20: { Transfer: transferIndexingFunction },
 };
@@ -97,7 +82,7 @@ const readContractIndexingFunctions: IndexingFunctions = {
 
 const indexingFunctionsWithSetup: IndexingFunctions = {
   Erc20: {
-    Transfer: setupTransferIndexingFunction,
+    Transfer: transferIndexingFunction,
     setup: setupIndexingFunction,
   },
 };
@@ -249,7 +234,11 @@ test("processEvent() runs setup functions before log event", async (context) => 
   await service.processEvents();
 
   expect(setupIndexingFunction).toHaveBeenCalledTimes(1);
-  expect(setupTransferIndexingFunction).toHaveBeenCalledTimes(2);
+  expect(transferIndexingFunction).toHaveBeenCalledTimes(2);
+
+  const events = await indexingStore.findMany({
+    tableName: "TransferEvent",
+  });
 
   service.kill();
   await service.onIdle();
