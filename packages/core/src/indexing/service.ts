@@ -777,6 +777,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       keyHandler.maxTaskCheckpoint = metadata.endCheckpoint;
     }
 
+    // Update handled and matched events, unawaited because not in critical path.
     this.setEventMetrics();
 
     const abi = [keyHandler.abiEvent];
@@ -933,17 +934,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
   };
 
   private setEventMetrics = async () => {
-    const { metadata } = await this.syncGatewayService.getEvents({
+    const { counts } = await this.syncGatewayService.getEventCounts({
       fromCheckpoint: zeroCheckpoint,
       toCheckpoint: this.syncGatewayService.checkpoint,
-      limit: TASK_BATCH_SIZE,
       logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
         id: logFilter.id,
         chainId: logFilter.chainId,
         criteria: logFilter.criteria,
         fromBlock: logFilter.startBlock,
         toBlock: logFilter.endBlock,
-        includeEventSelectors: [],
       })),
       factories: this.sources.filter(sourceIsFactory).map((factory) => ({
         id: factory.id,
@@ -951,30 +950,29 @@ export class IndexingService extends Emittery<IndexingEvents> {
         criteria: factory.criteria,
         fromBlock: factory.startBlock,
         toBlock: factory.endBlock,
-        includeEventSelectors: [],
       })),
     });
 
-    for (const data of metadata.counts) {
+    for (const count of counts) {
       this.common.metrics.ponder_indexing_matched_events.set(
         {
-          network: this.sourceById[data.sourceId].networkName,
-          contract: this.sourceById[data.sourceId].contractName,
-          event: data.selector,
+          network: this.sourceById[count.sourceId].networkName,
+          contract: this.sourceById[count.sourceId].contractName,
+          event: count.selector,
         },
-        data.count,
+        count.count,
       );
 
       const event =
-        this.sourceById[data.sourceId].abiEvents.bySelector[data.selector];
+        this.sourceById[count.sourceId].abiEvents.bySelector[count.selector];
       if (event !== undefined) {
         this.common.metrics.ponder_indexing_handled_events.set(
           {
-            network: this.sourceById[data.sourceId].networkName,
-            contract: this.sourceById[data.sourceId].contractName,
+            network: this.sourceById[count.sourceId].networkName,
+            contract: this.sourceById[count.sourceId].contractName,
             event: event.safeName,
           },
-          data.count,
+          count.count,
         );
       }
     }

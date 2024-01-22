@@ -97,8 +97,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
    *
    * @param options.fromCheckpoint Checkpoint to include events from (exclusive).
    * @param options.toCheckpoint Checkpoint to include events to (inclusive).
-   * @param options.includeLogFilterEvents Map of log filter name -> selector -> ABI event
-   * item for which to include full event objects.
    */
   getEvents({
     fromCheckpoint,
@@ -131,6 +129,42 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
       fromCheckpoint,
       toCheckpoint,
       limit,
+      logFilters,
+      factories,
+    });
+  }
+
+  /** Fetches event counts for all registered log filters between the specified checkpoints.
+   *
+   * @param options.fromCheckpoint Checkpoint to include events from (exclusive).
+   * @param options.toCheckpoint Checkpoint to include events to (inclusive).
+   */
+  getEventCounts({
+    fromCheckpoint,
+    toCheckpoint,
+    logFilters,
+    factories,
+  }: {
+    fromCheckpoint: Checkpoint;
+    toCheckpoint: Checkpoint;
+    logFilters?: {
+      id: string;
+      chainId: number;
+      criteria: LogFilterCriteria;
+      fromBlock?: number;
+      toBlock?: number;
+    }[];
+    factories?: {
+      id: string; // Note that this is the source ID of the child contract.
+      chainId: number;
+      criteria: FactoryCriteria;
+      fromBlock?: number;
+      toBlock?: number;
+    }[];
+  }) {
+    return this.syncStore.getLogEventCounts({
+      fromCheckpoint,
+      toCheckpoint,
       logFilters,
       factories,
     });

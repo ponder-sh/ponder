@@ -835,41 +835,16 @@ export class SqliteSyncStore implements SyncStore {
     return result;
   };
 
-  async getLogEvents({
+  private getLogEventsBaseQuery = ({
     fromCheckpoint,
     toCheckpoint,
-    limit,
-    logFilters = [],
-    factories = [],
+    sourceIds,
   }: {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
-    limit: number;
-    logFilters?: {
-      id: string;
-      chainId: number;
-      criteria: LogFilterCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-      includeEventSelectors?: Hex[];
-    }[];
-    factories?: {
-      id: string;
-      chainId: number;
-      criteria: FactoryCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-      includeEventSelectors?: Hex[];
-    }[];
-  }) {
-    const start = performance.now();
-
-    const sourceIds = [
-      ...logFilters.map((f) => f.id),
-      ...factories.map((f) => f.id),
-    ];
-
-    const baseQuery = this.db
+    sourceIds: string[];
+  }) => {
+    return this.db
       .with(
         "sources(source_id)",
         () =>
@@ -939,35 +914,47 @@ export class SqliteSyncStore implements SyncStore {
       ])
       .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
       .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint));
+  };
 
-    // Get total count of matching logs, grouped by log filter and event selector.
-    const eventCountsQuery = baseQuery
-      .clearSelect()
-      .select([
-        "source_id",
-        "logs.topic0",
-        this.db.fn.count("logs.id").as("count"),
-      ])
-      .where((eb) => {
-        // NOTE: Not adding the includeEventSelectors clause here.
-        const logFilterCmprs = logFilters.map((logFilter) =>
-          eb.and(this.buildLogFilterCmprs({ eb, logFilter })),
-        );
+  async getLogEvents({
+    fromCheckpoint,
+    toCheckpoint,
+    limit,
+    logFilters = [],
+    factories = [],
+  }: {
+    fromCheckpoint: Checkpoint;
+    toCheckpoint: Checkpoint;
+    limit: number;
+    logFilters?: {
+      id: string;
+      chainId: number;
+      criteria: LogFilterCriteria;
+      fromBlock?: number;
+      toBlock?: number;
+      includeEventSelectors?: Hex[];
+    }[];
+    factories?: {
+      id: string;
+      chainId: number;
+      criteria: FactoryCriteria;
+      fromBlock?: number;
+      toBlock?: number;
+      includeEventSelectors?: Hex[];
+    }[];
+  }) {
+    const start = performance.now();
 
-        const factoryCmprs = factories.map((factory) =>
-          eb.and(this.buildFactoryCmprs({ eb, factory })),
-        );
+    const sourceIds = [
+      ...logFilters.map((f) => f.id),
+      ...factories.map((f) => f.id),
+    ];
 
-        return eb.or([...logFilterCmprs, ...factoryCmprs]);
-      })
-      .groupBy(["source_id", "logs.topic0"]);
-
-    // Fetch the event counts once and include it in every response.
-    const eventCounts = (await eventCountsQuery.execute()).map((c) => ({
-      sourceId: String(c.source_id),
-      selector: c.topic0 as Hex,
-      count: Number(c.count),
-    }));
+    const baseQuery = this.getLogEventsBaseQuery({
+      fromCheckpoint,
+      toCheckpoint,
+      sourceIds,
+    });
 
     // Get full log objects, including the includeEventSelectors clause.
     const requestedLogs = await baseQuery
@@ -1127,7 +1114,79 @@ export class SqliteSyncStore implements SyncStore {
 
     return {
       events,
-      metadata: { counts: eventCounts, endCheckpoint },
+      metadata: { endCheckpoint },
+    };
+  }
+
+  async getLogEventCounts({
+    fromCheckpoint,
+    toCheckpoint,
+    logFilters = [],
+    factories = [],
+  }: {
+    fromCheckpoint: Checkpoint;
+    toCheckpoint: Checkpoint;
+    logFilters?: {
+      id: string;
+      chainId: number;
+      criteria: LogFilterCriteria;
+      fromBlock?: number;
+      toBlock?: number;
+    }[];
+    factories?: {
+      id: string;
+      chainId: number;
+      criteria: FactoryCriteria;
+      fromBlock?: number;
+      toBlock?: number;
+    }[];
+  }) {
+    const start = performance.now();
+
+    const sourceIds = [
+      ...logFilters.map((f) => f.id),
+      ...factories.map((f) => f.id),
+    ];
+
+    const baseQuery = this.getLogEventsBaseQuery({
+      fromCheckpoint,
+      toCheckpoint,
+      sourceIds,
+    });
+
+    // Get total count of matching logs, grouped by log filter and event selector.
+    const eventCountsQuery = baseQuery
+      .clearSelect()
+      .select([
+        "source_id",
+        "logs.topic0",
+        this.db.fn.count("logs.id").as("count"),
+      ])
+      .where((eb) => {
+        // NOTE: Not adding the includeEventSelectors clause here.
+        const logFilterCmprs = logFilters.map((logFilter) =>
+          eb.and(this.buildLogFilterCmprs({ eb, logFilter })),
+        );
+
+        const factoryCmprs = factories.map((factory) =>
+          eb.and(this.buildFactoryCmprs({ eb, factory })),
+        );
+
+        return eb.or([...logFilterCmprs, ...factoryCmprs]);
+      })
+      .groupBy(["source_id", "logs.topic0"]);
+
+    // Fetch the event counts once and include it in every response.
+    const eventCounts = (await eventCountsQuery.execute()).map((c) => ({
+      sourceId: String(c.source_id),
+      selector: c.topic0 as Hex,
+      count: Number(c.count),
+    }));
+
+    this.record("getLogEventCounts", performance.now() - start);
+
+    return {
+      counts: eventCounts,
     };
   }
 
