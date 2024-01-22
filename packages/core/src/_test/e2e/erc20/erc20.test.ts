@@ -70,11 +70,13 @@ test("erc20", async (context) => {
     ponder,
     `
     accounts {
-      id
-      balance
+      items {
+        id
+        balance
+      }
     }
     `,
-  ).then((g) => g.accounts);
+  ).then((g) => g.accounts.items);
 
   expect(accounts).toHaveLength(3);
   expect(accounts[0]).toMatchObject({
@@ -101,11 +103,13 @@ test("erc20", async (context) => {
     ponder,
     `
     accounts {
-      id
-      balance
+      items {
+        id
+        balance
+      }
     }
     `,
-  ).then((g) => g.accounts);
+  ).then((g) => g.accounts.items);
 
   expect(accounts[0]).toMatchObject({
     id: zeroAddress,
