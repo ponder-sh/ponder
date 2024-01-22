@@ -128,8 +128,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
   > = {};
 
-  private networkNames: { [sourceId: Source["id"]]: Source["networkName"] } =
-    {};
+  private sourceById: { [sourceId: Source["id"]]: Source } = {};
 
   constructor({
     common,
@@ -155,7 +154,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.sources = sources;
     this.networks = networks;
 
-    this.buildNetworkNames();
+    this.buildSourceById();
 
     this.getNetwork = buildNetwork({
       networks,
@@ -227,6 +226,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     )
       return;
 
+    this.queue?.pause();
+
     if (Object.keys(this.indexingFunctionMap).length !== 0) {
       await Promise.all(
         Object.values(this.indexingFunctionMap).map((keyHandler) =>
@@ -236,7 +237,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
 
     this.queue?.clear();
-    this.queue?.pause();
     await this.queue?.onIdle();
 
     this.buildIndexingFunctionMap();
@@ -696,9 +696,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     await this.indexingFunctionMap![fullEventName].dbMutex.runExclusive(() =>
       this.loadIndexingFunctionTasks(fullEventName),
-    ).then(() => {
-      if (this.queue?.isPaused === false) this.enqueueLogEventTasks();
-    });
+    );
+
+    if (this.queue?.isPaused === false) this.enqueueLogEventTasks();
   };
 
   private createEventQueue = () => {
@@ -777,25 +777,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       keyHandler.maxTaskCheckpoint = metadata.endCheckpoint;
     }
 
-    const keyMetadata = metadata.counts.find(
-      ({ selector }) => selector === keyHandler.eventSelector,
-    );
-
-    // keyMetadata can be undefined if no events are found in between the checkpoints
-    if (keyMetadata !== undefined) {
-      const labels = {
-        network: this.networkNames[keyMetadata.sourceId],
-        contract: keyHandler.contractName,
-        event: keyHandler.eventName,
-      };
-
-      const count =
-        keyMetadata.count >= TASK_BATCH_SIZE
-          ? TASK_BATCH_SIZE
-          : keyMetadata.count;
-      this.common.metrics.ponder_indexing_matched_events.inc(labels, count);
-      this.common.metrics.ponder_indexing_handled_events.inc(labels, count);
-    }
+    this.setEventMetrics();
 
     const abi = [keyHandler.abiEvent];
     const contractName = keyHandler.contractName;
@@ -812,7 +794,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         tasks.push({
           kind: "LOG",
           event: {
-            networkName: this.networkNames[event.sourceId],
+            networkName: this.sourceById[event.sourceId].networkName,
             contractName,
             eventName,
             event: {
@@ -862,9 +844,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
     });
   };
 
-  private buildNetworkNames = () => {
+  private buildSourceById = () => {
     for (const source of this.sources) {
-      this.networkNames[source.id] = source.networkName;
+      this.sourceById[source.id] = source;
     }
   };
 
@@ -946,6 +928,54 @@ export class IndexingService extends Emittery<IndexingEvents> {
           dbMutex: new Mutex(),
           serialQueue: false,
         };
+      }
+    }
+  };
+
+  private setEventMetrics = async () => {
+    const { metadata } = await this.syncGatewayService.getEvents({
+      fromCheckpoint: zeroCheckpoint,
+      toCheckpoint: this.syncGatewayService.checkpoint,
+      limit: TASK_BATCH_SIZE,
+      logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
+        id: logFilter.id,
+        chainId: logFilter.chainId,
+        criteria: logFilter.criteria,
+        fromBlock: logFilter.startBlock,
+        toBlock: logFilter.endBlock,
+        includeEventSelectors: [],
+      })),
+      factories: this.sources.filter(sourceIsFactory).map((factory) => ({
+        id: factory.id,
+        chainId: factory.chainId,
+        criteria: factory.criteria,
+        fromBlock: factory.startBlock,
+        toBlock: factory.endBlock,
+        includeEventSelectors: [],
+      })),
+    });
+
+    for (const data of metadata.counts) {
+      this.common.metrics.ponder_indexing_matched_events.set(
+        {
+          network: this.sourceById[data.sourceId].networkName,
+          contract: this.sourceById[data.sourceId].contractName,
+          event: data.selector,
+        },
+        data.count,
+      );
+
+      const event =
+        this.sourceById[data.sourceId].abiEvents.bySelector[data.selector];
+      if (event !== undefined) {
+        this.common.metrics.ponder_indexing_handled_events.set(
+          {
+            network: this.sourceById[data.sourceId].networkName,
+            contract: this.sourceById[data.sourceId].contractName,
+            event: event.safeName,
+          },
+          data.count,
+        );
       }
     }
   };
