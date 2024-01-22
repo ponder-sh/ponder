@@ -16,6 +16,7 @@ import { formatColumnValue, formatRow } from "../utils/format.js";
 import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
+  buildSqlOrderByConditionsReversed,
   buildSqlWhereConditions,
 } from "../utils/where.js";
 
@@ -358,6 +359,133 @@ export class PostgresIndexingStore implements IndexingStore {
 
       const rows = await query.execute();
       return rows.map((row) => this.deserializeRow({ tableName, row }));
+    });
+  };
+
+  findManyPaginated = async ({
+    tableName,
+    checkpoint = "latest",
+    where,
+    before,
+    after,
+    take,
+    orderBy,
+  }: {
+    tableName: string;
+    checkpoint?: Checkpoint | "latest";
+    where?: WhereInput<any>;
+    before?: string;
+    after?: string;
+    take?: number;
+    orderBy?: OrderByInput<any>;
+  }) => {
+    return this.wrap({ method: "findMany", tableName }, async () => {
+      const table = `${tableName}_versioned`;
+
+      let query = this.db.selectFrom(table).selectAll();
+
+      if (checkpoint === "latest") {
+        query = query.where("effectiveToCheckpoint", "=", "latest");
+      } else {
+        const encodedCheckpoint = encodeCheckpoint(checkpoint);
+        query = query
+          .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
+          .where(({ eb, or }) =>
+            or([
+              eb("effectiveToCheckpoint", ">", encodedCheckpoint),
+              eb("effectiveToCheckpoint", "=", "latest"),
+            ]),
+          );
+      }
+
+      if (where) {
+        const whereConditions = buildSqlWhereConditions({
+          where,
+          encodeBigInts: true,
+        });
+        for (const whereCondition of whereConditions) {
+          query = query.where(...whereCondition);
+        }
+      }
+
+      if (take) {
+        const limit = validateTake(take);
+        // Get +1 extra row to determine if has next
+        query = query.limit(limit + 1);
+      }
+
+      let orderDirection = "asc";
+
+      if (orderBy) {
+        // Get reversed order conditions, for finding the -1 row
+        const orderByConditions = !before
+          ? buildSqlOrderByConditions({ orderBy })
+          : buildSqlOrderByConditionsReversed({ orderBy });
+
+        orderDirection = orderByConditions[0][1];
+
+        for (const orderByCondition of orderByConditions) {
+          query = query.orderBy(...orderByCondition);
+        }
+      }
+
+      // Depending on if they're cursoring for before or after, we have to
+      // reverse what order direction we look in. For before, we reverse things.
+      if (after) {
+        query = query.where(
+          "id",
+          orderDirection === "desc" ? ">" : "<",
+          Buffer.from(after, "base64").toString(),
+        );
+      }
+
+      if (before) {
+        query = query.where(
+          "id",
+          orderDirection === "desc" ? "<" : ">",
+          Buffer.from(before, "base64").toString(),
+        );
+      }
+
+      const { rows } = await this.db.transaction().execute(async (tx) => {
+        const selectQuery = await tx.executeQuery(query);
+        return { rows: selectQuery.rows };
+      });
+
+      let deserializedRows = rows.map((row) =>
+        this.deserializeRow({ tableName, row }),
+      );
+      if (before) {
+        deserializedRows.reverse();
+      }
+
+      const hasAfter = rows.length > (take || 1000);
+
+      if (hasAfter && before) {
+        deserializedRows = deserializedRows.slice(1);
+      }
+
+      if (hasAfter && !before) {
+        deserializedRows = deserializedRows.slice(0, -1);
+      }
+
+      return {
+        before: after
+          ? Buffer.from(deserializedRows[0].id.toString()).toString("base64")
+          : hasAfter && before
+            ? Buffer.from(deserializedRows[0].id.toString()).toString("base64")
+            : null,
+        after: before
+          ? Buffer.from(
+              deserializedRows[deserializedRows.length - 1].id.toString(),
+            ).toString("base64")
+          : hasAfter
+            ? Buffer.from(
+                deserializedRows[deserializedRows.length - 1].id.toString(),
+              ).toString("base64")
+            : null,
+        rows: deserializedRows,
+      };
     });
   };
 

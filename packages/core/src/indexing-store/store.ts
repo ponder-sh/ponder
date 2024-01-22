@@ -105,6 +105,16 @@ export interface IndexingStore {
     orderBy?: OrderByInput<any>;
   }): Promise<Row[]>;
 
+  findManyPaginated(options: {
+    tableName: string;
+    checkpoint?: Checkpoint;
+    where?: WhereInput<any>;
+    before?: string;
+    after?: string;
+    take?: number;
+    orderBy?: OrderByInput<any>;
+  }): Promise<{ rows: Row[]; before: string | null; after: string | null }>;
+
   create(options: {
     tableName: string;
     checkpoint: Checkpoint;

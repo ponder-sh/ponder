@@ -112,8 +112,6 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
                 ? { ...maxCheckpoint, blockTimestamp: timestamp }
                 : undefined; // Latest.
 
-              let finalOrderDirection = orderDirection;
-
               const whereObject = where ? buildWhereObject({ where }) : {};
               whereObject[column.referenceColumn] = entityId;
 
@@ -123,99 +121,24 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
                 );
               }
 
-              /*
-               * To determine correct sorting where rows =
-               * [
-               *    id: 0,
-               *    id: 1,
-               *    id: 2,
-               *    id: 3,
-               * ]
-               *
-               * If no after or before arguments, then sort as is;
-               * If after argument, then sort in same order as passed in, or if no argument sort as ascending;
-               * If before argument, then since our query is fetching in reverse (select * from x where id < before) we need to
-               *   1) orderBy the opposite of the orderBy user passed in and then reverse() the results
-               *   2) if no orderBy passed in, orderBy = 'desc'
-               *
-               * after {id : 1} : (select * from x where id > before order by 'asc')
-               * [
-               *    id: 2,
-               *    id: 3,
-               * ]
-               *
-               * before { id: 2} : (select * from x where id < before order by 'desc')
-               * 1)
-               * [
-               *    id: 1,
-               *    id: 0
-               * ]
-               * 2) reverse()
-               * [
-               *    id: 0,
-               *    id: 1
-               * ]
-               *
-               */
-
-              if (after) {
-                if (finalOrderDirection === "asc") {
-                  whereObject.id = {
-                    ...whereObject.id,
-                    ...{ gt: atob(after) },
-                  };
-                }
-                if (finalOrderDirection === "desc") {
-                  whereObject.id = {
-                    ...whereObject.id,
-                    ...{ lt: atob(after) },
-                  };
-                }
-              }
-
-              if (before) {
-                finalOrderDirection = orderDirection === "asc" ? "desc" : "asc";
-                if (finalOrderDirection === "asc") {
-                  whereObject.id = {
-                    ...whereObject.id,
-                    ...{ gt: atob(before) },
-                  };
-                }
-                if (finalOrderDirection === "desc") {
-                  whereObject.id = {
-                    ...whereObject.id,
-                    ...{ lt: atob(before) },
-                  };
-                }
-              }
-
-              const res = await store.findMany({
+              const res = await store.findManyPaginated({
                 tableName: column.referenceTable,
                 checkpoint,
                 where: whereObject,
-                //skip: after ? Number(atob(after)) : 0,
+                before: before,
+                after: after,
                 take: limit || 1000,
                 orderBy: orderBy
-                  ? [
-                      {
-                        [orderBy]: finalOrderDirection || "asc",
-                      },
-                      { id: finalOrderDirection || "asc" },
-                    ]
-                  : { id: finalOrderDirection || "asc" },
+                  ? {
+                      [orderBy]: orderDirection || "asc",
+                    }
+                  : { id: orderDirection || "asc" },
               });
 
-              if (before) {
-                res.reverse();
-              }
-
-              const lastId = res.at(-1)?.id;
-              const firstId = res.at(0)?.id;
-
               return {
-                items: res,
-                after: lastId ? btoa(String(lastId) || "") : "",
-                before: firstId ? btoa(String(firstId) || "") : "",
+                items: res.rows,
+                after: res.after,
+                before: res.before,
               } as PluralPage;
             };
             const pageType = new GraphQLObjectType({

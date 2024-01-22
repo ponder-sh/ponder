@@ -17,6 +17,7 @@ import { formatColumnValue, formatRow } from "../utils/format.js";
 import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
+  buildSqlOrderByConditionsReversed,
   buildSqlWhereConditions,
 } from "../utils/where.js";
 
@@ -42,7 +43,10 @@ export class SqliteIndexingStore implements IndexingStore {
   constructor({
     common,
     database,
-  }: { common: Common; database: SqliteDatabase }) {
+  }: {
+    common: Common;
+    database: SqliteDatabase;
+  }) {
     this.common = common;
     this.db = new Kysely({
       dialect: new SqliteDialect({ database }),
@@ -335,6 +339,173 @@ export class SqliteIndexingStore implements IndexingStore {
 
       const rows = await query.execute();
       return rows.map((row) => this.deserializeRow({ tableName, row }));
+    });
+  };
+
+  /*
+   * To determine correct sorting where rows =
+   * [
+   *    id: 0,
+   *    id: 1,
+   *    id: 2,
+   *    id: 3,
+   * ]
+   *
+   * If no after or before arguments, then sort as is;
+   *
+   * If after argument,
+   *   1) sort in same order as passed in
+   *   2) or if no orderBy argument sort as ascending;
+   *
+   * If before argument, then since our query needs to fetch in reverse
+   * (select * from x where id < before) we need to
+   *   1) make orderBy the opposite of the orderBy the user passed in and
+   *      then reverse() the results
+   *   2) or if no orderBy argument, sort in descending;
+   *
+   * after {id : 1} : (select * from x where id > before order by 'asc')
+   * [
+   *    id: 2,
+   *    id: 3,
+   * ]
+   *
+   * before { id: 2} : (select * from x where id < before order by 'desc')
+   * 1)
+   * [
+   *    id: 1,
+   *    id: 0
+   * ]
+   * 2) reverse()
+   * [
+   *    id: 0,
+   *    id: 1
+   * ]
+   */
+
+  findManyPaginated = async ({
+    tableName,
+    checkpoint = "latest",
+    where,
+    before,
+    after,
+    take,
+    orderBy,
+  }: {
+    tableName: string;
+    checkpoint?: Checkpoint | "latest";
+    where?: WhereInput<any>;
+    before?: string;
+    after?: string;
+    take?: number;
+    orderBy?: OrderByInput<any>;
+  }) => {
+    return this.wrap({ method: "findMany", tableName }, async () => {
+      const table = `${tableName}_versioned`;
+
+      let query = this.db.selectFrom(table).selectAll();
+
+      if (checkpoint === "latest") {
+        query = query.where("effectiveToCheckpoint", "=", "latest");
+      } else {
+        const encodedCheckpoint = encodeCheckpoint(checkpoint);
+        query = query
+          .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
+          .where(({ eb, or }) =>
+            or([
+              eb("effectiveToCheckpoint", ">", encodedCheckpoint),
+              eb("effectiveToCheckpoint", "=", "latest"),
+            ]),
+          );
+      }
+
+      if (where) {
+        const whereConditions = buildSqlWhereConditions({
+          where,
+          encodeBigInts: true,
+        });
+        for (const whereCondition of whereConditions) {
+          query = query.where(...whereCondition);
+        }
+      }
+
+      if (take) {
+        const limit = validateTake(take);
+        // Get +1 extra row to determine if has next
+        query = query.limit(limit + 1);
+      }
+
+      let orderDirection = "asc";
+
+      if (orderBy) {
+        // Get reversed order conditions, for finding the -1 row
+        const orderByConditions = !before
+          ? buildSqlOrderByConditions({ orderBy })
+          : buildSqlOrderByConditionsReversed({ orderBy });
+
+        orderDirection = orderByConditions[0][1];
+
+        for (const orderByCondition of orderByConditions) {
+          query = query.orderBy(...orderByCondition);
+        }
+      }
+
+      // Depending on if they're cursoring for before or after, we have to
+      // reverse what order direction we look in. For before, we reverse things.
+      if (after) {
+        query = query.where(
+          "id",
+          orderDirection === "desc" ? ">" : "<",
+          Buffer.from(after, "base64").toString(),
+        );
+      }
+
+      if (before) {
+        query = query.where(
+          "id",
+          orderDirection === "desc" ? "<" : ">",
+          Buffer.from(before, "base64").toString(),
+        );
+      }
+
+      const { rows } = await this.db.transaction().execute(async (tx) => {
+        const selectQuery = await tx.executeQuery(query);
+        return { rows: selectQuery.rows };
+      });
+
+      let deserializedRows = rows.map((row) =>
+        this.deserializeRow({ tableName, row }),
+      );
+      if (before) {
+        deserializedRows.reverse();
+      }
+
+      const hasAfter = rows.length > (take || 1000);
+
+      if (hasAfter && before) {
+        deserializedRows = deserializedRows.slice(1);
+      }
+
+      if (hasAfter && !before) {
+        deserializedRows = deserializedRows.slice(0, -1);
+      }
+
+      return {
+        before: after
+          ? Buffer.from(deserializedRows[0].id.toString()).toString("base64")
+          : hasAfter && before
+            ? Buffer.from(deserializedRows[0].id.toString()).toString("base64")
+            : null,
+        after: before
+          ? Buffer.from(
+              deserializedRows[deserializedRows.length - 1].id.toString(),
+            ).toString("base64")
+          : hasAfter
+            ? Buffer.from(
+                deserializedRows[deserializedRows.length - 1].id.toString(),
+              ).toString("base64")
+            : null,
+        rows: deserializedRows,
+      };
     });
   };
 

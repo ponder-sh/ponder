@@ -135,106 +135,32 @@ export const buildPluralField = ({
       ? { ...maxCheckpoint, blockTimestamp: timestamp }
       : undefined; // Latest.
 
-    let finalOrderDirection = orderDirection;
-
     const whereObject = where ? buildWhereObject({ where }) : {};
 
     if (after && before) {
       throw Error("Cannot have both 'before' and 'after' cursor search");
     }
 
-    /*
-     * To determine correct sorting where rows =
-     * [
-     *    id: 0,
-     *    id: 1,
-     *    id: 2,
-     *    id: 3,
-     * ]
-     *
-     * If no after or before arguments, then sort as is;
-     *
-     * If after argument,
-     *   1) sort in same order as passed in
-     *   2) or if no orderBy argument sort as ascending;
-     *
-     * If before argument, then since our query needs to fetch in reverse
-     * (select * from x where id < before) we need to
-     *   1) make orderBy the opposite of the orderBy the user passed in and
-     *      then reverse() the results
-     *   2) or if no orderBy argument, sort in descending;
-     *
-     * after {id : 1} : (select * from x where id > before order by 'asc')
-     * [
-     *    id: 2,
-     *    id: 3,
-     * ]
-     *
-     * before { id: 2} : (select * from x where id < before order by 'desc')
-     * 1)
-     * [
-     *    id: 1,
-     *    id: 0
-     * ]
-     * 2) reverse()
-     * [
-     *    id: 0,
-     *    id: 1
-     * ]
-     */
+    const toTake = limit || 1000;
 
-    if (after) {
-      if (finalOrderDirection === "asc") {
-        whereObject.id = { ...whereObject.id, ...{ gt: atob(after) } };
-      }
-      if (finalOrderDirection === "desc") {
-        whereObject.id = { ...whereObject.id, ...{ lt: atob(after) } };
-      }
-    }
-
-    if (before) {
-      finalOrderDirection = orderDirection === "asc" ? "desc" : "asc";
-      if (finalOrderDirection === "asc") {
-        whereObject.id = { ...whereObject.id, ...{ gt: atob(before) } };
-      }
-      if (finalOrderDirection === "desc") {
-        whereObject.id = { ...whereObject.id, ...{ lt: atob(before) } };
-      }
-    }
-
-    let res = await store.findMany({
+    const res = await store.findManyPaginated({
       tableName: tableName,
       checkpoint,
+      before: before,
+      after: after,
       where: whereObject,
-      //skip: after ? Number(atob(after)) : 0,
-      take: (limit || 1000) + 1,
+      take: toTake,
       orderBy: orderBy
-        ? [
-            {
-              [orderBy]: finalOrderDirection || "asc",
-            },
-            { id: finalOrderDirection || "asc" },
-          ]
-        : { id: finalOrderDirection || "asc" },
+        ? {
+            [orderBy]: orderDirection || "asc",
+          }
+        : { id: orderDirection || "asc" },
     });
 
-    const hasNextPage = res.length >= (limit || 1000) + 1;
-
-    if (hasNextPage) {
-      res = res.slice(0, -1);
-    }
-
-    if (before) {
-      res.reverse();
-    }
-
-    const firstId = res.at(0)?.id;
-    const lastId = res.at(-1)?.id;
-
     return {
-      items: res,
-      after: lastId && hasNextPage ? btoa(String(lastId) || "") : null,
-      before: firstId ? btoa(String(firstId) || "") : null,
+      items: res.rows,
+      before: res.before,
+      after: res.after,
     } as PluralPage;
   };
 
@@ -256,8 +182,8 @@ export const buildPluralField = ({
   return {
     type: pageType,
     args: {
-      after: { type: GraphQLString, defaultValue: "" },
-      before: { type: GraphQLString, defaultValue: "" },
+      after: { type: GraphQLString, defaultValue: null },
+      before: { type: GraphQLString, defaultValue: null },
       limit: { type: GraphQLInt, defaultValue: 100 },
       orderBy: { type: GraphQLString, defaultValue: "id" },
       orderDirection: { type: GraphQLString, defaultValue: "asc" },
