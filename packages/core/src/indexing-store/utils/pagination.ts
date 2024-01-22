@@ -14,9 +14,7 @@ const MAX_TAKE = 1000;
 export function validateTake(take: number) {
   if (take > MAX_TAKE) {
     throw new Error(
-      `Invalid query. Cannot take more than 1000 rows. Received: ${
-        take - 1
-      } rows.`,
+      `Invalid query. Cannot take more than 1000 rows. Received: ${take} rows.`,
     );
   }
   return take;

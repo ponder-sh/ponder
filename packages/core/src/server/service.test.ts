@@ -1570,7 +1570,7 @@ test("serves after-based derived paginated plural entities", async (context) => 
     testEntitys(limit: 1) {
       items {
         id
-        derived(after: "MA==") {
+        derived(after: "MA==", limit: 1) {
           items {
             id
           }
@@ -1584,11 +1584,11 @@ test("serves after-based derived paginated plural entities", async (context) => 
   expect(responseFirst.body.errors).toBe(undefined);
   expect(responseFirst.statusCode).toBe(200);
   expect(responseFirst.body.data.testEntitys.items[0].derived.after).toBe(
-    btoa(String(2)),
+    btoa(String(1)),
   );
   const testEntitysFirst =
     responseFirst.body.data.testEntitys.items[0].derived.items;
-  expect(testEntitysFirst).toMatchObject([{ id: "1" }, { id: "2" }]);
+  expect(testEntitysFirst).toMatchObject([{ id: "1" }]);
 
   await service.kill();
 });

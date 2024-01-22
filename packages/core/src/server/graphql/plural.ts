@@ -152,7 +152,7 @@ export const buildPluralField = ({
       take: toTake,
       orderBy: orderBy
         ? {
-            [orderBy]: orderDirection || "asc",
+            [orderBy]: orderDirection || "desc",
           }
         : { id: orderDirection || "asc" },
     });

@@ -434,7 +434,7 @@ export class PostgresIndexingStore implements IndexingStore {
       if (after) {
         query = query.where(
           "id",
-          orderDirection === "desc" ? ">" : "<",
+          orderDirection === "desc" ? "<" : ">",
           Buffer.from(after, "base64").toString(),
         );
       }
@@ -458,6 +458,8 @@ export class PostgresIndexingStore implements IndexingStore {
       if (before) {
         deserializedRows.reverse();
       }
+
+      console.log(rows);
 
       const hasAfter = rows.length > (take || 1000);
 
