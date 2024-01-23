@@ -1,3 +1,9 @@
+import type { Common, Ponder } from "@/Ponder.js";
+import { buildNetworksAndSources } from "@/build/config/config.js";
+import { createConfig } from "@/config/config.js";
+import { type Source } from "@/config/sources.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
+import { createRequestQueue } from "@/utils/requestQueue.js";
 import type {
   BlockTag,
   Chain,
@@ -22,14 +28,6 @@ import {
   toHex,
 } from "viem";
 import { mainnet } from "viem/chains";
-
-import type { Common, Ponder } from "@/Ponder.js";
-import { createConfig } from "@/config/config.js";
-import { type Source } from "@/config/sources.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
-
-import { buildNetworksAndSources } from "@/build/config/config.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import { ALICE } from "./constants.js";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
 import type { deploy } from "./simulate.js";
@@ -216,8 +214,8 @@ export const getRawRPCData = async (sources: Source[]) => {
 export const getEventsErc20 = async (sources: Source[]) => {
   const rpcData = await getRawRPCData(sources);
 
-  async function* _getEvents({ toCheckpoint }: { toCheckpoint: Checkpoint }) {
-    yield {
+  const _getEvents = ({ toCheckpoint }: { toCheckpoint: Checkpoint }) => {
+    return {
       events: [
         {
           log: rpcData.block1.logs[0],
@@ -253,22 +251,34 @@ export const getEventsErc20 = async (sources: Source[]) => {
           },
         })),
       metadata: {
-        pageEndCheckpoint: toCheckpoint,
-        counts: [
-          {
-            sourceId: "Erc20_mainnet",
-            selector: getEventSelector(
-              getAbiItem({
-                abi: erc20ABI,
-                name: "Transfer",
-              }),
-            ),
-            count: 2,
-          },
-        ],
+        endCheckpoint: toCheckpoint,
       },
     };
-  }
+  };
+
+  return _getEvents;
+};
+
+/**
+ * Mock function for `getLogEventCounts` that specifically returns the event data for the erc20 source.
+ */
+export const getEventCountsErc20 = () => {
+  const _getEvents = () => {
+    return {
+      counts: [
+        {
+          sourceId: "Erc20_mainnet",
+          selector: getEventSelector(
+            getAbiItem({
+              abi: erc20ABI,
+              name: "Transfer",
+            }),
+          ),
+          count: 2,
+        },
+      ],
+    };
+  };
 
   return _getEvents;
 };

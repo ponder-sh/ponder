@@ -1,103 +1,138 @@
-import { Emittery } from "@/utils/emittery.js";
-import { E_CANCELED, Mutex } from "async-mutex";
-import type { Abi, Address, Client, Hex } from "viem";
-import { checksumAddress, createClient, decodeEventLog } from "viem";
-
 import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
+import type { TableAccess } from "@/build/parseIndexingAst.js";
 import type { Network } from "@/config/networks.js";
-import type { Source } from "@/config/sources.js";
+import {
+  type Source,
+  sourceIsFactory,
+  sourceIsLogFilter,
+} from "@/config/sources.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
-import type { DatabaseModel } from "@/types/model.js";
 import type { Transaction } from "@/types/transaction.js";
-import { chains } from "@/utils/chains.js";
 import {
   type Checkpoint,
+  checkpointMax,
+  checkpointMin,
   isCheckpointEqual,
   isCheckpointGreaterThan,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatShortDate } from "@/utils/date.js";
+import { dedupe } from "@/utils/dedupe.js";
+import { Emittery } from "@/utils/emittery.js";
 import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { wait } from "@/utils/wait.js";
-
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { buildDatabaseModels } from "./model.js";
-import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
+import { wait } from "@/utils/wait.js";
+import type { AbiEvent } from "abitype";
+import { E_CANCELED, Mutex, type MutexInterface } from "async-mutex";
+import { type Hex, decodeEventLog } from "viem";
+import {
+  type Context,
+  buildClient,
+  buildContracts,
+  buildDb,
+  buildNetwork,
+} from "./context.js";
 import { addUserStackTrace } from "./trace.js";
-import { ponderTransport } from "./transport.js";
 
 type IndexingEvents = {
   eventsProcessed: { toCheckpoint: Checkpoint };
   error: { error: Error };
 };
 
-type LogEvent = {
-  networkName: string;
-  contractName: string;
-  eventName: string;
-  chainId: number;
-  args: any;
-  log: Log;
-  block: Block;
-  transaction: Transaction;
-};
 type SetupTask = {
   kind: "SETUP";
-  event: {
+  data: {
     networkName: string;
     contractName: string;
-    chainId: number;
-    blockNumber: number;
+    checkpoint: Checkpoint;
   };
 };
-type LogEventTask = { kind: "LOG"; event: LogEvent };
+type LogEventTask = {
+  kind: "LOG";
+  data: {
+    networkName: string;
+    contractName: string;
+    eventName: string;
+    event: {
+      args: any;
+      log: Log;
+      block: Block;
+      transaction: Transaction;
+    };
+    checkpoint: Checkpoint;
+    endCheckpoint?: Checkpoint;
+    eventsProcessed?: number;
+  };
+};
+
 type IndexingFunctionTask = SetupTask | LogEventTask;
 type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
+
+// Note: this should move to a dynamic value, based on how many indexing function keys there are.
+const TASK_BATCH_SIZE = 1_000;
 
 export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
   private indexingStore: IndexingStore;
   private syncGatewayService: SyncGateway;
   private sources: Source[];
-  private contexts: Record<
-    number,
+  private networks: Network[];
+
+  private isPaused = false;
+
+  private indexingFunctions?: IndexingFunctions;
+  private schema?: Schema;
+  private tableAccess?: TableAccess;
+
+  queue?: IndexingFunctionQueue;
+
+  private getNetwork: (checkpoint: Checkpoint) => Context["network"] =
+    undefined!;
+  private getClient: (checkpoint: Checkpoint) => Context["client"] = undefined!;
+  private getDB: (checkpoint: Checkpoint) => Context["db"] = undefined!;
+  private getContracts: (checkpoint: Checkpoint) => Context["contracts"] =
+    undefined!;
+
+  private isSetupStarted;
+
+  private indexingFunctionMap: Record<
+    /* Indexing function key: "{ContractName}:{EventName}" */
+    string,
     {
-      client: Client;
-      network: { chainId: number; name: string };
-      contracts: Record<
-        string,
-        {
-          abi: Abi;
-          address?: Address | readonly Address[];
-          startBlock: number;
-          endBlock?: number;
-          maxBlockRange?: number;
-        }
-      >;
+      contractName: string;
+      eventName: string;
+      /* Indexing function keys that write to tables that this indexing function key reads from. */
+      parents: string[];
+      /* True if this key is a parent of itself. */
+      isSelfDependent: boolean;
+      /* Sources that contribute to this indexing function. */
+      sources: Source[];
+      abiEvent: AbiEvent;
+      eventSelector: Hex;
+
+      /* Checkpoint of max completed task. */
+      tasksProcessedToCheckpoint: Checkpoint;
+      /* Checkpoint of the least recent task loaded from db. */
+      tasksLoadedFromCheckpoint: Checkpoint;
+      /* Checkpoint of the most recent task loaded from db. */
+      tasksLoadedToCheckpoint: Checkpoint;
+      /* Buffer of in memory tasks that haven't been enqueued yet. */
+      loadedTasks: LogEventTask[];
+      /* Mutex ensuring tasks are not loaded twice. */
+      loadingMutex: Mutex;
+      /** Lock to prevent tasks from running concurrently. */
+      selfDependentLock: boolean;
     }
   > = {};
 
-  private schema?: Schema;
-  private db: Record<string, DatabaseModel<any>> = {};
-
-  private indexingFunctions?: IndexingFunctions;
-
-  private eventProcessingMutex: Mutex;
-  private queue?: IndexingFunctionQueue;
-
-  private eventsProcessedToCheckpoint: Checkpoint = zeroCheckpoint;
-
-  private currentIndexingCheckpoint: Checkpoint = zeroCheckpoint;
-  private isPaused = false;
-  /** If true, failed tasks should not log errors or be retried. */
-  private isShuttingDown = false;
+  private sourceById: { [sourceId: Source["id"]]: Source } = {};
 
   constructor({
     common,
@@ -121,55 +156,64 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.indexingStore = indexingStore;
     this.syncGatewayService = syncGatewayService;
     this.sources = sources;
+    this.networks = networks;
 
-    this.eventProcessingMutex = new Mutex();
+    this.isSetupStarted = false;
 
-    this.contexts = buildContexts(
-      sources,
+    this.buildSourceById();
+
+    this.getNetwork = buildNetwork({
+      networks,
+    });
+    this.getClient = buildClient({
       networks,
       requestQueues,
       syncStore,
-      ponderActions(() => BigInt(this.currentIndexingCheckpoint.blockNumber)),
-    );
+    });
+    this.getContracts = buildContracts({
+      sources,
+    });
   }
 
   kill = () => {
     this.isPaused = true;
-    this.isShuttingDown = true;
+
     this.queue?.pause();
     this.queue?.clear();
-    this.eventProcessingMutex.cancel();
+    for (const key of Object.keys(this.indexingFunctionMap!)) {
+      this.indexingFunctionMap![key].loadingMutex.cancel();
+    }
     this.common.logger.debug({
       service: "indexing",
       msg: "Killed indexing service",
     });
   };
 
-  onIdle = async () => {
-    await this.queue?.onIdle();
-  };
+  onIdle = () => this.queue!.onIdle();
 
   /**
-   * Registers a new set of indexing functions and/or a new schema, cancels
-   * the current event processing mutex & event queue, drops and re-creates
-   * all tables from the indexing store, and resets eventsProcessedToTimestamp to zero.
+   * Registers a new set of indexing functions, schema, or table accesss, cancels
+   * the database mutexes & event queue, drops and re-creates
+   * all tables from the indexing store, and rebuilds the indexing function map state.
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
   reset = async ({
     indexingFunctions: newIndexingFunctions,
     schema: newSchema,
+    tableAccess: newTableAccess,
   }: {
     indexingFunctions?: IndexingFunctions;
     schema?: Schema;
+    tableAccess?: TableAccess;
   } = {}) => {
     if (newSchema) {
       this.schema = newSchema;
-      this.db = buildDatabaseModels({
+
+      this.getDB = buildDb({
         common: this.common,
         indexingStore: this.indexingStore,
         schema: this.schema,
-        getCurrentIndexingCheckpoint: () => this.currentIndexingCheckpoint,
       });
     }
 
@@ -177,22 +221,35 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.indexingFunctions = newIndexingFunctions;
     }
 
-    // If either the schema or indexing functions have not been provided yet,
-    // we're not ready to process events. Just return early.
-    if (!this.schema || !this.indexingFunctions) return;
+    if (newTableAccess) {
+      this.tableAccess = newTableAccess;
+    }
 
-    // Cancel all pending calls to processEvents and reset the mutex.
-    this.eventProcessingMutex.cancel();
-    this.eventProcessingMutex = new Mutex();
+    if (
+      this.indexingFunctions === undefined ||
+      this.sources === undefined ||
+      this.tableAccess === undefined
+    )
+      return;
 
-    // Pause the old queue, (maybe) wait for the current indexing function to finish,
-    // then create a new queue using the new indexing functions.
-    this.queue?.clear();
     this.queue?.pause();
+
+    if (Object.keys(this.indexingFunctionMap).length !== 0) {
+      await Promise.all(
+        Object.values(this.indexingFunctionMap).map((keyHandler) =>
+          keyHandler.loadingMutex.cancel(),
+        ),
+      );
+    }
+
+    this.queue?.clear();
     await this.queue?.onIdle();
-    this.queue = this.createEventQueue({
-      indexingFunctions: this.indexingFunctions,
-    });
+
+    this.isSetupStarted = false;
+
+    this.buildIndexingFunctionMap();
+    this.createEventQueue();
+
     this.common.logger.debug({
       service: "indexing",
       msg: "Paused event queue",
@@ -205,17 +262,48 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.common.metrics.ponder_indexing_handled_events.reset();
     this.common.metrics.ponder_indexing_processed_events.reset();
 
+    this.setEventMetrics();
+
     await this.indexingStore.reload({ schema: this.schema });
     this.common.logger.debug({
       service: "indexing",
       msg: "Reset indexing store",
     });
 
-    // When we call indexingStore.reload() above, the indexing store is dropped.
-    // Set the latest processed timestamp to zero accordingly.
-    this.eventsProcessedToCheckpoint = zeroCheckpoint;
-    this.currentIndexingCheckpoint = zeroCheckpoint;
     this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
+  };
+
+  /**
+   * Processes all newly available events.
+   */
+  processEvents = async () => {
+    if (
+      Object.keys(this.indexingFunctionMap).length === 0 ||
+      this.queue === undefined ||
+      this.isPaused
+    )
+      return;
+
+    // Only enqueue setup tasks if no checkpoints have been advanced.
+    if (!this.isSetupStarted) {
+      this.isSetupStarted = true;
+      this.enqueueSetupTasks();
+    }
+
+    this.queue!.start();
+    await this.queue.onIdle();
+
+    await Promise.all(
+      Object.entries(this.indexingFunctionMap).map(([key, keyHandler]) =>
+        keyHandler.loadingMutex.runExclusive(() =>
+          this.loadIndexingFunctionTasks(key),
+        ),
+      ),
+    );
+
+    this.enqueueLogEventTasks();
+
+    await this.queue.onIdle();
   };
 
   /**
@@ -224,299 +312,448 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * in one of several different states that we need to keep in mind:
    *
    * 1) No events have been added to the queue yet.
-   * 2) No unsafe events have been processed (eventsProcessedToTimestamp <= commonAncestorTimestamp).
-   * 3) Unsafe events may have been processed (eventsProcessedToTimestamp > commonAncestorTimestamp).
+   * 2) No unsafe events have been processed (checkpoint <= safeCheckpoint).
+   * 3) Unsafe events may have been processed (checkpoint > safeCheckpoint).
    * 4) The queue has encountered a user error and is waiting for a reload.
    *
-   * Note: It's crucial that we acquire a mutex lock while handling the reorg.
+   * Note: It's crucial that we acquire all mutex locks while handling the reorg.
    * This will only ever run while the queue is idle, so we can be confident
-   * that eventsProcessedToTimestamp matches the current state of the indexing store,
+   * that checkpoint matches the current state of the indexing store,
    * and that no unsafe events will get processed after handling the reorg.
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
   handleReorg = async (safeCheckpoint: Checkpoint) => {
+    if (this.isPaused) return;
+
+    let releases: MutexInterface.Releaser[] = [];
     try {
-      await this.eventProcessingMutex.runExclusive(async () => {
-        // If there is a user error, the queue & indexing store will be wiped on reload (case 4).
-        if (this.isPaused) return;
-
-        const hasProcessedInvalidEvents = isCheckpointGreaterThan(
-          this.eventsProcessedToCheckpoint,
+      releases = await Promise.all(
+        Object.values(this.indexingFunctionMap!).map((indexFunc) =>
+          indexFunc.loadingMutex.acquire(),
+        ),
+      );
+      const hasProcessedInvalidEvents = Object.values(
+        this.indexingFunctionMap!,
+      ).some((indexFunc) =>
+        isCheckpointGreaterThan(
+          indexFunc.tasksProcessedToCheckpoint,
           safeCheckpoint,
-        );
-        if (!hasProcessedInvalidEvents) {
-          // No unsafe events have been processed, so no need to revert (case 1 & case 2).
-          this.common.logger.debug({
-            service: "indexing",
-            msg: "No unsafe events were detected while reconciling a reorg, no-op",
-          });
-          return;
-        }
+        ),
+      );
 
-        // Unsafe events have been processed, must revert the indexing store and update
-        // eventsProcessedToTimestamp accordingly (case 3).
-        await this.indexingStore.revert({ checkpoint: safeCheckpoint });
-
-        this.eventsProcessedToCheckpoint = safeCheckpoint;
-        this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-          safeCheckpoint.blockTimestamp,
-        );
-
-        // Note: There's currently no way to know how many events are "thrown out"
-        // during the reorg reconciliation, so the event count metrics
-        // (e.g. ponder_indexing_processed_events) will be slightly inflated.
-
+      if (!hasProcessedInvalidEvents) {
+        // No unsafe events have been processed, so no need to revert (case 1 & case 2).
         this.common.logger.debug({
           service: "indexing",
-          msg: `Reverted indexing store to safe timestamp ${safeCheckpoint.blockTimestamp}`,
+          msg: "No unsafe events were detected while reconciling a reorg, no-op",
         });
+        return;
+      }
+
+      // Unsafe events have been processed, must revert the indexing store and update
+      // eventsProcessedToTimestamp accordingly (case 3).
+      await this.indexingStore.revert({ checkpoint: safeCheckpoint });
+
+      this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
+        safeCheckpoint.blockTimestamp,
+      );
+
+      // Note: There's currently no way to know how many events are "thrown out"
+      // during the reorg reconciliation, so the event count metrics
+      // (e.g. ponder_indexing_processed_events) will be slightly inflated.
+
+      this.common.logger.debug({
+        service: "indexing",
+        msg: `Reverted indexing store to safe timestamp ${safeCheckpoint.blockTimestamp}`,
       });
+
+      for (const indexFunc of Object.values(this.indexingFunctionMap!)) {
+        if (
+          isCheckpointGreaterThan(
+            indexFunc.tasksProcessedToCheckpoint,
+            safeCheckpoint,
+          )
+        ) {
+          indexFunc.tasksProcessedToCheckpoint = safeCheckpoint;
+        }
+        if (
+          isCheckpointGreaterThan(
+            indexFunc.tasksLoadedFromCheckpoint,
+            safeCheckpoint,
+          )
+        ) {
+          indexFunc.tasksLoadedFromCheckpoint = safeCheckpoint;
+        }
+        if (
+          isCheckpointGreaterThan(
+            indexFunc.tasksLoadedToCheckpoint,
+            safeCheckpoint,
+          )
+        ) {
+          indexFunc.tasksLoadedToCheckpoint = safeCheckpoint;
+        }
+      }
     } catch (error) {
       // Pending locks get cancelled in reset(). This is expected, so it's safe to
       // ignore the error that is thrown when a pending lock is cancelled.
       if (error !== E_CANCELED) throw error;
+    } finally {
+      for (const release of releases) {
+        release();
+      }
     }
   };
 
   /**
-   * Processes all newly available events.
-   *
-   * Acquires a lock on the event processing mutex, then gets the latest checkpoint
-   * from the sync gateway service. Fetches events between previous checkpoint
-   * and the new checkpoint, adds them to the queue, then processes them.
+   * Adds "setup" tasks to the queue for all chains if the indexing function is defined.
    */
-  processEvents = async () => {
-    try {
-      await this.eventProcessingMutex.runExclusive(async () => {
-        if (this.isPaused || !this.queue || !this.indexingFunctions) return;
+  enqueueSetupTasks = () => {
+    for (const contractName of Object.keys(this.indexingFunctions!)) {
+      if (this.indexingFunctions![contractName].setup === undefined) continue;
 
-        const fromCheckpoint = this.eventsProcessedToCheckpoint;
-        const toCheckpoint = this.syncGatewayService.checkpoint;
+      for (const network of this.networks) {
+        const source = this.sources.find(
+          (s) =>
+            s.contractName === contractName && s.chainId === network.chainId,
+        )!;
 
-        // If we have already added events to the queue for the current checkpoint,
-        // do nothing and return. This can happen if a number of calls to processEvents
-        // "stack up" while one is being processed, and then they all run sequentially
-        // but the sync gateway service checkpoint has not moved.
-        if (!isCheckpointGreaterThan(toCheckpoint, fromCheckpoint)) return;
+        const labels = {
+          network: network.name,
+          contract: contractName,
+          event: "setup",
+        };
+        this.common.metrics.ponder_indexing_matched_events.inc(labels);
 
-        // If no events have been added yet, add the setup events for each chain & associated metrics.
-        if (isCheckpointEqual(fromCheckpoint, zeroCheckpoint)) {
-          Object.entries(this.indexingFunctions)
-            .filter(([, events]) =>
-              Object.keys(events).some((e) => e === "setup"),
-            )
-            .forEach(([sourceName]) => {
-              Object.values(this.contexts)
-                .filter(({ contracts }) => sourceName in contracts)
-                .forEach(({ contracts, network }) => {
-                  const labels = {
-                    network: network.name,
-                    contract: sourceName,
-                    event: "setup",
-                  };
+        // The "setup" event uses the contract start block number for contract calls.
+        // TODO: Consider implications of this "synthetic" checkpoint on record versioning.
+        const checkpoint = {
+          ...zeroCheckpoint,
+          chainId: network.chainId,
+          blockNumber: source.startBlock,
+        };
 
-                  this.common.metrics.ponder_indexing_matched_events.inc(
-                    labels,
-                  );
-                  this.queue?.addTask({
-                    kind: "SETUP",
-                    event: {
-                      networkName: network.name,
-                      contractName: sourceName,
-                      chainId: network.chainId,
-                      blockNumber: contracts[sourceName].startBlock,
-                    },
-                  });
-                  this.common.metrics.ponder_indexing_handled_events.inc(
-                    labels,
-                  );
-                });
-            });
-        }
-
-        // Build source ID and event selector maps.
-        const sourcesById: { [sourceId: string]: Source } = {};
-        const registeredSelectorsBySourceId: { [sourceId: string]: Hex[] } = {};
-        for (const source of this.sources) {
-          sourcesById[source.id] = source;
-
-          const indexingFunctions =
-            this.indexingFunctions![source.contractName];
-          if (indexingFunctions) {
-            registeredSelectorsBySourceId[source.id] = Object.keys(
-              indexingFunctions,
-            )
-              .filter((name) => name !== "setup")
-              .map((safeEventName) => {
-                const abiItemMeta = source.abiEvents.bySafeName[safeEventName];
-                if (!abiItemMeta)
-                  throw new Error(
-                    `Invariant violation: No abiItemMeta found for ${source.contractName}:${safeEventName}`,
-                  );
-                return abiItemMeta.selector;
-              });
-          } else {
-            // It's possible for no indexing functions to be registered for a source.
-            registeredSelectorsBySourceId[source.id] = [];
-          }
-        }
-
-        const iterator = this.syncGatewayService.getEvents({
-          fromCheckpoint,
-          toCheckpoint,
-          includeEventSelectors: registeredSelectorsBySourceId,
+        this.queue!.addTask({
+          kind: "SETUP",
+          data: {
+            networkName: network.name,
+            contractName,
+            checkpoint,
+          },
         });
 
-        let pageIndex = 0;
-
-        for await (const page of iterator) {
-          const { events, metadata } = page;
-
-          // Increment the metrics for the total number of matching & indexed events in this timestamp range.
-          // The metadata comes with every page, but is the same for all pages, so do this on the first page.
-          if (pageIndex === 0) {
-            metadata.counts.forEach(({ sourceId, selector, count }) => {
-              const source = sourcesById[sourceId];
-              if (!source)
-                throw new Error(
-                  `Invariant violation: Source ID not found ${sourceId}`,
-                );
-              const abiItemMeta = source.abiEvents.bySelector[selector];
-
-              // This means that the contract has emitted events that are not present in the ABI
-              // that the user has provided. Use the raw selector as the event name for the metric.
-              if (!abiItemMeta) {
-                const labels = {
-                  network: source.networkName,
-                  contract: source.contractName,
-                  event: selector,
-                };
-                this.common.metrics.ponder_indexing_matched_events.inc(
-                  labels,
-                  count,
-                );
-                return;
-              }
-
-              const labels = {
-                network: source.networkName,
-                contract: source.contractName,
-                event: abiItemMeta.safeName,
-              };
-              this.common.metrics.ponder_indexing_matched_events.inc(
-                labels,
-                count,
-              );
-              const isRegistered =
-                registeredSelectorsBySourceId[sourceId].includes(selector);
-              if (isRegistered) {
-                this.common.metrics.ponder_indexing_handled_events.inc(
-                  labels,
-                  count,
-                );
-              }
-            });
-          }
-
-          // Decode events and add them to the queue.
-          events.forEach((event) => {
-            const selector = event.log.topics[0];
-            // Should always have a selector because of the includeEventSelectors pattern.
-            if (!selector)
-              throw new Error(
-                `Invariant violation: Log is missing topics ${event.log.id}`,
-              );
-            const source = sourcesById[event.sourceId];
-            if (!source)
-              throw new Error(
-                `Invariant violation: Source ID not found ${event.sourceId}`,
-              );
-            const abiItemMeta = source.abiEvents.bySelector[selector];
-            if (!abiItemMeta)
-              throw new Error(
-                `Invariant violation: No abiItemMeta found for ${source.contractName}:${selector}`,
-              );
-
-            try {
-              const decodedLog = decodeEventLog({
-                abi: [abiItemMeta.item],
-                data: event.log.data,
-                topics: event.log.topics,
-              });
-
-              this.queue!.addTask({
-                kind: "LOG",
-                event: {
-                  networkName: source.networkName,
-                  contractName: source.contractName,
-                  eventName: abiItemMeta.safeName,
-                  chainId: event.chainId,
-                  args: decodedLog.args ?? {},
-                  log: event.log,
-                  block: event.block,
-                  transaction: event.transaction,
-                },
-              });
-            } catch (err) {
-              // Sometimes, logs match a selector but cannot be decoded using the provided ABI.
-              // This happens often when using custom event filters, because the indexed-ness
-              // of an event parameter is not taken into account when generating the selector.
-              this.common.logger.debug({
-                service: "app",
-                msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
-              });
-            }
-          });
-
-          // Process new events that were added to the queue.
-          this.queue.start();
-          await this.queue.onIdle();
-
-          // If the queue is already paused here, it means that reset() was called, interrupting
-          // event processing. When this happens, we want to return early.
-          if (this.queue.isPaused) return;
-
-          this.queue.pause();
-
-          if (events.length > 0) {
-            const { blockTimestamp, chainId, blockNumber, logIndex } =
-              metadata.pageEndCheckpoint;
-
-            this.common.logger.info({
-              service: "indexing",
-              msg: `Indexed ${
-                events.length === 1 ? "1 event" : `${events.length} events`
-              } up to ${formatShortDate(
-                blockTimestamp,
-              )} (chainId=${chainId} block=${blockNumber} logIndex=${logIndex})`,
-            });
-          }
-
-          pageIndex += 1;
-        }
-
-        this.emit("eventsProcessed", { toCheckpoint });
-        this.eventsProcessedToCheckpoint = toCheckpoint;
-
-        // Note that this happens both here and in the log event indexing function.
-        // They must also happen here to handle the case where no events were processed.
-        this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-          toCheckpoint.blockTimestamp,
-        );
-      });
-    } catch (error) {
-      // Pending locks get cancelled in reset(). This is expected, so it's safe to
-      // ignore the error that is thrown when a pending lock is cancelled.
-      if (error !== E_CANCELED) throw error;
+        this.common.metrics.ponder_indexing_handled_events.inc(labels);
+      }
     }
   };
 
-  private createEventQueue = ({
-    indexingFunctions,
-  }: {
-    indexingFunctions: IndexingFunctions;
-  }) => {
+  /**
+   * Implements the core concurrency engine, responsible for ordering tasks.
+   * There are several cases to consider and optimize:
+   *
+   * 1) A task is only dependent on itself, should be run serially.
+   * 2) A task is not dependent, can be run entirely concurrently.
+   * 3) A task is dependent on a combination of parents, and should only
+   *    be run when all previous dependent tasks are complete.
+   *
+   * Note: Tasks that are dependent on themselves must be handled specially, because
+   * it is not possible to keep track of whether a task that depends on itself has been
+   * enqueued otherwise.
+   *
+   */
+  enqueueLogEventTasks = () => {
+    if (this.indexingFunctionMap === undefined) return;
+
+    for (const key of Object.keys(this.indexingFunctionMap!)) {
+      const keyHandler = this.indexingFunctionMap[key];
+      const tasks = keyHandler.loadedTasks;
+
+      if (tasks.length === 0) continue;
+
+      if (
+        keyHandler.parents.length === 0 &&
+        keyHandler.isSelfDependent &&
+        !keyHandler.selfDependentLock
+      ) {
+        // Case 1
+        const tasksEnqueued = tasks.splice(0, 1);
+
+        this.queue!.addTask(tasksEnqueued[0]!);
+
+        keyHandler.selfDependentLock = true;
+      } else if (
+        keyHandler.parents.length === 0 &&
+        !keyHandler.isSelfDependent
+      ) {
+        // Case 2
+        for (const task of tasks) {
+          this.queue!.addTask(task);
+        }
+        keyHandler.loadedTasks = [];
+      } else if (keyHandler.parents.length !== 0) {
+        // Case 3
+
+        const parentCheckpoints = keyHandler.parents.map(
+          (p) => this.indexingFunctionMap![p].tasksProcessedToCheckpoint,
+        );
+
+        const parentLoadedFromCheckpoint = keyHandler.parents.map(
+          (p) => this.indexingFunctionMap![p].tasksLoadedFromCheckpoint,
+        );
+
+        if (
+          keyHandler.isSelfDependent &&
+          !keyHandler.selfDependentLock &&
+          (isCheckpointGreaterThan(
+            checkpointMin(...parentCheckpoints),
+            tasks[0].data.checkpoint,
+          ) ||
+            isCheckpointGreaterThan(
+              checkpointMin(...parentLoadedFromCheckpoint),
+              tasks[0].data.checkpoint,
+            ))
+        ) {
+          keyHandler.selfDependentLock = true;
+
+          // If self dependency is the limiting factor, enqueue one tasks
+          const tasksEnqueued = tasks.splice(0, 1);
+
+          this.queue!.addTask(tasksEnqueued[0]!);
+        } else if (!keyHandler.isSelfDependent) {
+          // determine limiting factory and enqueue tasks up to that limit
+
+          const minParentCheckpoint = checkpointMin(...parentCheckpoints);
+          // maximum checkpoint that is less than `minParentCheckpoint`
+          const maxCheckpointIndex = tasks.findIndex((task) =>
+            isCheckpointGreaterThan(task.data.checkpoint, minParentCheckpoint),
+          );
+
+          if (maxCheckpointIndex === -1) {
+            // enqueue all tasks
+            for (const task of tasks) {
+              this.queue!.addTask(task);
+            }
+
+            keyHandler.loadedTasks = [];
+          } else {
+            // enqueue all tasks less than the index
+            const tasksEnqueued = tasks.splice(0, maxCheckpointIndex);
+
+            for (const task of tasksEnqueued) {
+              this.queue!.addTask(task);
+            }
+          }
+        }
+      }
+    }
+  };
+
+  private executeSetupTask = async (task: SetupTask) => {
+    const data = task.data;
+
+    const fullEventName = `${data.contractName}:setup`;
+    const indexingFunction = this.indexingFunctions![data.contractName].setup;
+
+    for (let i = 0; i < 4; i++) {
+      try {
+        this.common.logger.debug({
+          service: "indexing",
+          msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
+        });
+
+        // Running user code here!
+        await indexingFunction({
+          context: {
+            network: this.getNetwork(data.checkpoint),
+            client: this.getClient(data.checkpoint),
+            db: this.getDB(data.checkpoint),
+            contracts: this.getContracts(data.checkpoint),
+          },
+        });
+
+        this.common.logger.debug({
+          service: "indexing",
+          msg: `Completed indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
+        });
+
+        const labels = {
+          network: data.networkName,
+          contract: data.contractName,
+          event: "setup",
+        };
+        this.common.metrics.ponder_indexing_processed_events.inc(labels);
+        this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
+          data.checkpoint.blockTimestamp,
+        );
+
+        break;
+      } catch (error_) {
+        const error = error_ as Error & { meta: string };
+
+        if (i === 3) {
+          this.isPaused = true;
+          this.queue!.pause();
+          this.queue!.clear();
+
+          addUserStackTrace(error, this.common.options);
+
+          this.common.logger.error({
+            service: "indexing",
+            msg: `Error while processing "setup" event: ${error.message}`,
+            error,
+          });
+
+          this.common.metrics.ponder_indexing_has_error.set(1);
+          this.emit("error", { error });
+        } else {
+          this.common.logger.warn({
+            service: "indexing",
+            msg: `Indexing function failed, retrying... (event=${fullEventName}, error=${error.name}: ${error.message})`,
+          });
+          await this.indexingStore.revert({
+            checkpoint: data.checkpoint,
+          });
+        }
+      }
+    }
+  };
+
+  private executeLogEventTask = async (task: LogEventTask) => {
+    const data = task.data;
+
+    const fullEventName = `${data.contractName}:${data.eventName}`;
+
+    const indexingFunction =
+      this.indexingFunctions![data.contractName][data.eventName];
+
+    for (let i = 0; i < 4; i++) {
+      try {
+        this.common.logger.debug({
+          service: "indexing",
+          msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
+        });
+
+        // Running user code here!
+        await indexingFunction({
+          event: {
+            name: data.eventName,
+            ...data.event,
+          },
+          context: {
+            network: this.getNetwork(data.checkpoint),
+            client: this.getClient(data.checkpoint),
+            db: this.getDB(data.checkpoint),
+            contracts: this.getContracts(data.checkpoint),
+          },
+        });
+
+        if (data.endCheckpoint !== undefined) {
+          this.indexingFunctionMap![fullEventName].tasksProcessedToCheckpoint =
+            checkpointMax(
+              this.indexingFunctionMap![fullEventName]
+                .tasksProcessedToCheckpoint,
+              data.endCheckpoint,
+            );
+          this.emitCheckpoint();
+        } else {
+          this.indexingFunctionMap![fullEventName].tasksProcessedToCheckpoint =
+            checkpointMax(
+              this.indexingFunctionMap![fullEventName]
+                .tasksProcessedToCheckpoint,
+              data.checkpoint,
+            );
+        }
+
+        if (this.indexingFunctionMap![fullEventName].loadedTasks.length > 0) {
+          this.indexingFunctionMap![fullEventName].tasksLoadedFromCheckpoint =
+            this.indexingFunctionMap![
+              fullEventName
+            ].loadedTasks[0].data.checkpoint;
+        } else {
+          this.indexingFunctionMap![fullEventName].tasksLoadedFromCheckpoint =
+            this.indexingFunctionMap![fullEventName].tasksLoadedToCheckpoint;
+        }
+
+        if (data.eventsProcessed) {
+          const num = data.eventsProcessed;
+          this.common.logger.info({
+            service: "indexing",
+            msg: `Indexed ${
+              num === 1 ? "1 event" : `${num} events`
+            } up to ${formatShortDate(
+              data.checkpoint.blockTimestamp,
+            )} (event=${fullEventName} chainId=${
+              data.checkpoint.chainId
+            } block=${data.checkpoint.blockNumber} logIndex=${
+              data.checkpoint.logIndex
+            })`,
+          });
+        }
+
+        this.common.logger.debug({
+          service: "indexing",
+          msg: `Completed indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
+        });
+
+        const labels = {
+          network: data.networkName,
+          contract: data.contractName,
+          event: data.eventName,
+        };
+        this.common.metrics.ponder_indexing_processed_events.inc(labels);
+        this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
+          data.checkpoint.blockTimestamp,
+        );
+
+        break;
+      } catch (error_) {
+        const error = error_ as Error & { meta?: string };
+
+        if (i === 3) {
+          this.isPaused = true;
+          this.queue!.pause();
+          this.queue!.clear();
+
+          addUserStackTrace(error, this.common.options);
+
+          if (error.meta) {
+            error.meta += `\nEvent args:\n${prettyPrint(data.event.args)}`;
+          } else {
+            error.meta = `Event args:\n${prettyPrint(data.event.args)}`;
+          }
+
+          this.common.logger.error({
+            service: "indexing",
+            msg: `Error while processing "${fullEventName}" event at block ${data.checkpoint.blockNumber}:`,
+            error,
+          });
+
+          this.common.metrics.ponder_indexing_has_error.set(1);
+          this.emit("error", { error });
+        } else {
+          this.common.logger.warn({
+            service: "indexing",
+            msg: `Indexing function failed, retrying... (event=${fullEventName}, block=${
+              data.checkpoint.blockNumber
+            }, error=${`${error.name}: ${error.message}`})`,
+          });
+          await this.indexingStore.revert({
+            checkpoint: data.checkpoint,
+          });
+        }
+      }
+    }
+
+    await this.indexingFunctionMap![fullEventName].loadingMutex.runExclusive(
+      () => this.loadIndexingFunctionTasks(fullEventName),
+    );
+
+    this.indexingFunctionMap![fullEventName].selfDependentLock = false;
+
+    if (this.queue?.isPaused === false) this.enqueueLogEventTasks();
+  };
+
+  private createEventQueue = () => {
     const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
       task,
     }) => {
@@ -527,264 +764,294 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
       switch (task.kind) {
         case "SETUP": {
-          const event = task.event;
-
-          const fullEventName = `${event.contractName}:setup`;
-
-          const indexingFunction =
-            indexingFunctions?.[event.contractName]?.setup;
-          if (!indexingFunction)
-            throw new Error(
-              `Internal: Indexing function not found for ${fullEventName}`,
-            );
-
-          // The "setup" event uses the contract start block number for contract calls.
-          // TODO: Consider implications of this "synthetic" checkpoint on record versioning.
-          this.currentIndexingCheckpoint = {
-            ...zeroCheckpoint,
-            chainId: task.event.chainId,
-            blockNumber: task.event.blockNumber,
-          };
-
-          for (let i = 0; i < 4; i++) {
-            try {
-              this.common.logger.trace({
-                service: "indexing",
-                msg: `Started indexing function (event="${fullEventName}", block=${event.blockNumber})`,
-              });
-
-              // Running user code here!
-              await indexingFunction({
-                context: { db: this.db, ...this.contexts[event.chainId] },
-              });
-
-              this.common.logger.trace({
-                service: "indexing",
-                msg: `Completed indexing function (event="${fullEventName}", block=${event.blockNumber})`,
-              });
-
-              const labels = {
-                network: event.networkName,
-                contract: event.contractName,
-                event: "setup",
-              };
-              this.common.metrics.ponder_indexing_processed_events.inc(labels);
-
-              break;
-            } catch (error_) {
-              if (this.isShuttingDown) return;
-
-              const error = error_ as Error & { meta: string };
-
-              if (i === 3) {
-                queue.pause();
-                queue.clear();
-                this.isPaused = true;
-
-                addUserStackTrace(error, this.common.options);
-
-                this.common.logger.error({
-                  service: "indexing",
-                  msg: `Error while processing "setup" event: ${error.message}`,
-                  error,
-                });
-
-                this.common.metrics.ponder_indexing_has_error.set(1);
-                this.emit("error", { error });
-              } else {
-                this.common.logger.warn({
-                  service: "indexing",
-                  msg: `Indexing function failed, retrying... (event=${fullEventName}, error=${error.name}: ${error.message})`,
-                });
-                await this.indexingStore.revert({
-                  checkpoint: this.currentIndexingCheckpoint,
-                });
-              }
-            }
-          }
-
+          await this.executeSetupTask(task);
           break;
         }
         case "LOG": {
-          const event = task.event;
-
-          const fullEventName = `${event.contractName}:${event.eventName}`;
-
-          const indexingFunction =
-            indexingFunctions?.[event.contractName]?.[event.eventName];
-          if (!indexingFunction)
-            throw new Error(
-              `Internal: Indexing function not found for ${fullEventName}`,
-            );
-
-          this.currentIndexingCheckpoint = {
-            blockTimestamp: Number(event.block.timestamp),
-            chainId: event.chainId,
-            blockNumber: Number(event.block.number),
-            logIndex: event.log.logIndex,
-          };
-
-          for (let i = 0; i < 4; i++) {
-            try {
-              this.common.logger.trace({
-                service: "indexing",
-                msg: `Started indexing function (event="${fullEventName}", block=${event.block.number})`,
-              });
-
-              // Running user code here!
-              await indexingFunction({
-                event: {
-                  name: event.eventName,
-                  args: event.args,
-                  log: event.log,
-                  transaction: event.transaction,
-                  block: event.block,
-                },
-                context: { db: this.db, ...this.contexts[event.chainId] },
-              });
-
-              this.common.logger.trace({
-                service: "indexing",
-                msg: `Completed indexing function (event="${fullEventName}", block=${event.block.number})`,
-              });
-
-              const labels = {
-                network: event.networkName,
-                contract: event.contractName,
-                event: event.eventName,
-              };
-              this.common.metrics.ponder_indexing_processed_events.inc(labels);
-              this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-                this.currentIndexingCheckpoint.blockTimestamp,
-              );
-
-              break;
-            } catch (error_) {
-              if (this.isShuttingDown) return;
-
-              const error = error_ as Error & { meta?: string };
-
-              if (i === 3) {
-                queue.pause();
-                queue.clear();
-                this.isPaused = true;
-
-                addUserStackTrace(error, this.common.options);
-                if (error.meta) {
-                  error.meta += `\nEvent args:\n${prettyPrint(event.args)}`;
-                } else {
-                  error.meta = `Event args:\n${prettyPrint(event.args)}`;
-                }
-
-                this.common.logger.error({
-                  service: "indexing",
-                  msg: `Error while processing "${fullEventName}" event at block ${Number(
-                    event.block.number,
-                  )}:`,
-                  error,
-                });
-
-                this.common.metrics.ponder_indexing_has_error.set(1);
-                this.emit("error", { error });
-              } else {
-                this.common.logger.warn({
-                  service: "indexing",
-                  msg: `Indexing function failed, retrying... (event=${fullEventName}, block=${Number(
-                    event.block.number,
-                  )}, error=${`${error.name}: ${error.message}`})`,
-                });
-                await this.indexingStore.revert({
-                  checkpoint: this.currentIndexingCheckpoint,
-                });
-              }
-            }
-          }
-
+          await this.executeLogEventTask(task);
           break;
         }
       }
     };
 
-    const queue = createQueue({
+    this.queue = createQueue({
       worker: indexingFunctionWorker,
       options: {
-        concurrency: 1,
+        concurrency: 10,
         autoStart: false,
       },
     });
-
-    return queue;
   };
-}
 
-const buildContexts = (
-  sources: Source[],
-  networks: Network[],
-  requestQueues: RequestQueue[],
-  syncStore: SyncStore,
-  actions: ReturnType<typeof ponderActions>,
-) => {
-  const contexts: Record<
-    number,
-    {
-      client: Client;
-      network: { chainId: number; name: string };
-      contracts: Record<
-        string,
-        {
-          abi: Abi;
-          address?: Address | readonly Address[];
-          startBlock: number;
-          endBlock?: number;
-          maxBlockRange?: number;
-        }
-      >;
-    }
-  > = {};
+  /**
+   * Load a batch of indexing function tasks from the sync store into memory.
+   */
+  loadIndexingFunctionTasks = async (key: string) => {
+    const keyHandler = this.indexingFunctionMap![key];
+    const tasks = keyHandler.loadedTasks;
 
-  networks.forEach((network, i) => {
-    const defaultChain =
-      Object.values(chains).find((c) => c.id === network.chainId) ??
-      chains.mainnet;
+    if (
+      tasks.length > 0 ||
+      isCheckpointEqual(
+        keyHandler.tasksLoadedToCheckpoint,
+        this.syncGatewayService.checkpoint,
+      )
+    )
+      return;
 
-    const client = createClient({
-      transport: ponderTransport({
-        requestQueue: requestQueues[i],
-        syncStore,
-      }),
-      chain: { ...defaultChain, name: network.name, id: network.chainId },
+    const { events, metadata } = await this.syncGatewayService.getEvents({
+      fromCheckpoint: keyHandler.tasksLoadedToCheckpoint,
+      toCheckpoint: this.syncGatewayService.checkpoint,
+      limit: TASK_BATCH_SIZE,
+      logFilters: keyHandler.sources
+        .filter(sourceIsLogFilter)
+        .map((logFilter) => ({
+          id: logFilter.id,
+          chainId: logFilter.chainId,
+          criteria: logFilter.criteria,
+          fromBlock: logFilter.startBlock,
+          toBlock: logFilter.endBlock,
+          includeEventSelectors: [keyHandler.eventSelector],
+        })),
+      factories: keyHandler.sources.filter(sourceIsFactory).map((factory) => ({
+        id: factory.id,
+        chainId: factory.chainId,
+        criteria: factory.criteria,
+        fromBlock: factory.startBlock,
+        toBlock: factory.endBlock,
+        includeEventSelectors: [keyHandler.eventSelector],
+      })),
     });
 
-    contexts[network.chainId] = {
-      network: { name: network.name, chainId: network.chainId },
-      // Changing the arguments of readContract is not usually allowed,
-      // because we have such a limited api we should be good
-      client: client.extend(actions as any) as ReadOnlyClient,
-      contracts: {},
-    };
-  });
+    if (events.length < TASK_BATCH_SIZE) {
+      keyHandler.tasksLoadedToCheckpoint = this.syncGatewayService.checkpoint;
+    } else {
+      keyHandler.tasksLoadedToCheckpoint = metadata.endCheckpoint;
+    }
 
-  sources.forEach((source) => {
-    // Only include the address if it's singular and  static.
-    const address =
-      typeof source.criteria.address === "string"
-        ? source.criteria.address
-        : undefined;
+    // Update handled and matched events, unawaited because not in critical path.
+    this.setEventMetrics();
 
-    contexts[source.chainId] = {
-      ...contexts[source.chainId],
-      contracts: {
-        ...contexts[source.chainId].contracts,
-        [source.contractName]: {
-          abi: source.abi,
-          address: address ? checksumAddress(address) : address,
-          startBlock: source.startBlock,
-          endBlock: source.endBlock,
-          maxBlockRange: source.maxBlockRange,
-        },
-      },
-    };
-  });
+    const abi = [keyHandler.abiEvent];
+    const contractName = keyHandler.contractName;
+    const eventName = keyHandler.eventName;
 
-  return contexts;
-};
+    for (const event of events) {
+      try {
+        const decodedLog = decodeEventLog({
+          abi,
+          data: event.log.data,
+          topics: event.log.topics,
+        });
+
+        tasks.push({
+          kind: "LOG",
+          data: {
+            networkName: this.sourceById[event.sourceId].networkName,
+            contractName,
+            eventName,
+            event: {
+              args: decodedLog.args ?? {},
+              log: event.log,
+              block: event.block,
+              transaction: event.transaction,
+            },
+            checkpoint: {
+              blockNumber: Number(event.block.number),
+              blockTimestamp: Number(event.block.timestamp),
+              chainId: event.chainId,
+              logIndex: event.log.logIndex,
+            },
+          },
+        });
+      } catch (err) {
+        // Sometimes, logs match a selector but cannot be decoded using the provided ABI.
+        // This happens often when using custom event filters, because the indexed-ness
+        // of an event parameter is not taken into account when generating the selector.
+        this.common.logger.debug({
+          service: "app",
+          msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
+        });
+      }
+    }
+
+    if (
+      isCheckpointEqual(
+        keyHandler.tasksProcessedToCheckpoint,
+        zeroCheckpoint,
+      ) &&
+      tasks.length > 0
+    ) {
+      keyHandler.tasksProcessedToCheckpoint = tasks[0].data.checkpoint;
+    }
+
+    // handle last event
+    if (tasks.length !== 0) {
+      keyHandler.tasksLoadedFromCheckpoint = tasks[0].data.checkpoint;
+
+      tasks[tasks.length - 1].data.endCheckpoint =
+        keyHandler.tasksLoadedToCheckpoint;
+
+      tasks[tasks.length - 1].data.eventsProcessed = events.length;
+    } else {
+      keyHandler.tasksProcessedToCheckpoint =
+        keyHandler.tasksLoadedToCheckpoint;
+      keyHandler.tasksLoadedFromCheckpoint = keyHandler.tasksLoadedToCheckpoint;
+      this.emitCheckpoint();
+    }
+  };
+
+  private emitCheckpoint = () => {
+    const checkpoint = checkpointMin(
+      ...Object.values(this.indexingFunctionMap!).map(
+        (i) => i.tasksProcessedToCheckpoint,
+      ),
+    );
+
+    this.emit("eventsProcessed", {
+      toCheckpoint: checkpoint,
+    });
+  };
+
+  private buildSourceById = () => {
+    for (const source of this.sources) {
+      this.sourceById[source.id] = source;
+    }
+  };
+
+  private buildIndexingFunctionMap = () => {
+    if (
+      this.indexingFunctions === undefined ||
+      this.sources === undefined ||
+      this.tableAccess === undefined
+    )
+      return;
+
+    // clear in case of reloads
+    this.indexingFunctionMap = {};
+
+    for (const contractName of Object.keys(this.indexingFunctions)) {
+      // Not sure why this is necessary
+      // @ts-ignore
+      for (const eventName of Object.keys(
+        this.indexingFunctions[contractName],
+      )) {
+        if (eventName === "setup") continue;
+
+        const indexingFunctionKey = `${contractName}:${eventName}`;
+
+        // All tables that this indexing function key reads
+        const tableReads = this.tableAccess
+          .filter(
+            (t) =>
+              t.indexingFunctionKey === indexingFunctionKey &&
+              t.access === "read",
+          )
+          .map((t) => t.table);
+
+        // All indexing function keys that write to a table in `tableReads`
+        // except for itself.
+        const parents = this.tableAccess
+          .filter(
+            (t) =>
+              !t.indexingFunctionKey.includes(":setup") &&
+              t.access === "write" &&
+              tableReads.includes(t.table) &&
+              t.indexingFunctionKey !== indexingFunctionKey,
+          )
+          .map((t) => t.indexingFunctionKey);
+
+        const selfReliance = this.tableAccess.some(
+          (t) =>
+            t.access === "write" &&
+            tableReads.includes(t.table) &&
+            t.indexingFunctionKey === indexingFunctionKey,
+        );
+
+        const keySources = this.sources.filter(
+          (s) => s.contractName === contractName,
+        );
+
+        // Note: Assumption is that all sources with the same contract name have the same abi.
+        const i = this.sources.findIndex(
+          (s) =>
+            s.contractName === contractName &&
+            s.abiEvents.bySafeName[eventName] !== undefined,
+        );
+
+        const abiEvent = this.sources[i].abiEvents.bySafeName[eventName]!.item;
+        const eventSelector =
+          this.sources[i].abiEvents.bySafeName[eventName]!.selector;
+
+        this.indexingFunctionMap[indexingFunctionKey] = {
+          eventName,
+          contractName,
+          parents: dedupe(parents),
+          isSelfDependent: selfReliance,
+          sources: keySources,
+          abiEvent,
+          eventSelector,
+
+          tasksProcessedToCheckpoint: zeroCheckpoint,
+          tasksLoadedFromCheckpoint: zeroCheckpoint,
+          tasksLoadedToCheckpoint: zeroCheckpoint,
+          loadedTasks: [],
+          loadingMutex: new Mutex(),
+          selfDependentLock: false,
+        };
+      }
+    }
+  };
+
+  private setEventMetrics = async () => {
+    const { counts } = await this.syncGatewayService.getEventCounts({
+      logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
+        id: logFilter.id,
+        chainId: logFilter.chainId,
+        criteria: logFilter.criteria,
+        fromBlock: logFilter.startBlock,
+        toBlock: logFilter.endBlock,
+      })),
+      factories: this.sources.filter(sourceIsFactory).map((factory) => ({
+        id: factory.id,
+        chainId: factory.chainId,
+        criteria: factory.criteria,
+        fromBlock: factory.startBlock,
+        toBlock: factory.endBlock,
+      })),
+    });
+
+    for (const count of counts) {
+      const source = this.sourceById[count.sourceId]!;
+
+      const event = source.abiEvents.bySelector[count.selector];
+
+      if (event !== undefined) {
+        const labels = {
+          network: source.networkName,
+          contract: source.contractName,
+          event: event.safeName,
+        };
+
+        this.common.metrics.ponder_indexing_handled_events.set(
+          labels,
+          count.count,
+        );
+
+        this.common.metrics.ponder_indexing_matched_events.set(
+          labels,
+          count.count,
+        );
+      } else {
+        this.common.metrics.ponder_indexing_matched_events.set(
+          {
+            network: source.networkName,
+            contract: source.contractName,
+            event: count.selector,
+          },
+          count.count,
+        );
+      }
+    }
+  };
+}

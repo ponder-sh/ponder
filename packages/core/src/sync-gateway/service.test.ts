@@ -37,14 +37,13 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): Checkpoint {
 test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
   const { common, syncStore } = context;
 
-  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
     syncStore,
     networks,
-    sources,
   });
   const emitSpy = vi.spyOn(service, "emit");
 
@@ -66,14 +65,13 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
 test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", async (context) => {
   const { common, syncStore } = context;
 
-  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
     syncStore,
     networks,
-    sources,
   });
   const emitSpy = vi.spyOn(service, "emit");
 
@@ -101,13 +99,13 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
 test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final historical sync is complete", async (context) => {
   const { common, syncStore } = context;
 
-  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
     syncStore,
-    sources,
+
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -135,14 +133,13 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
 test("handleNewHistoricalCheckpoint emits new checkpoint when other chain is completed", async (context) => {
   const { common, syncStore } = context;
 
-  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
     syncStore,
     networks,
-    sources,
   });
   const emitSpy = vi.spyOn(service, "emit");
 
@@ -172,13 +169,13 @@ test("handleNewHistoricalCheckpoint emits new checkpoint when other chain is com
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
   const { common, syncStore } = context;
 
-  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
     syncStore,
-    sources,
+
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -207,13 +204,13 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
 test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is complete", async (context) => {
   const { common, syncStore } = context;
 
-  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
     syncStore,
-    sources,
+
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -253,13 +250,13 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
   const { common, syncStore } = context;
 
-  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
     syncStore,
-    sources,
+
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -283,13 +280,13 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) 
 test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequent event is earlier", async (context) => {
   const { common, syncStore } = context;
 
-  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
     syncStore,
-    sources,
+
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -318,13 +315,13 @@ test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequ
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent event is later", async (context) => {
   const { common, syncStore } = context;
 
-  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
     syncStore,
-    sources,
+
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -354,13 +351,12 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent even
 test("resetCheckpoints resets the checkpoint states", async (context) => {
   const { common, syncStore } = context;
 
-  const { networks, sources } = getMultichainNetworksAndSources(context);
+  const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
   const service = new SyncGateway({
     common,
     syncStore,
-    sources,
     networks,
   });
 
