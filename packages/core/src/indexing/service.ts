@@ -481,22 +481,21 @@ export class IndexingService extends Emittery<IndexingEvents> {
             keyHandler.checkpoint,
           )
         ) {
+          keyHandler.serialQueue = true;
+
           // If self dependency is the limiting factor, enqueue one tasks
           const tasksEnqueued = tasks.splice(0, 1);
 
           this.queue!.addTask(tasksEnqueued[0]!);
-
-          keyHandler.serialQueue = true;
-        } else {
+        } else if (!keyHandler.selfReliance) {
           // determine limiting factory and enqueue tasks up to that limit
-          if (keyHandler.selfReliance)
-            parentCheckpoints.push(keyHandler.checkpoint);
 
           const minParentCheckpoint = checkpointMin(...parentCheckpoints);
           // maximum checkpoint that is less than `minParentCheckpoint`
           const maxCheckpointIndex = tasks.findIndex((task) =>
             isCheckpointGreaterThan(task.event.checkpoint, minParentCheckpoint),
           );
+
           if (maxCheckpointIndex === -1) {
             // enqueue all tasks
             for (const task of tasks) {
@@ -525,7 +524,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     for (let i = 0; i < 4; i++) {
       try {
-        this.common.logger.trace({
+        this.common.logger.debug({
           service: "indexing",
           msg: `Started indexing function (event="${fullEventName}", block=${event.checkpoint.blockNumber})`,
         });
@@ -540,7 +539,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           },
         });
 
-        this.common.logger.trace({
+        this.common.logger.debug({
           service: "indexing",
           msg: `Completed indexing function (event="${fullEventName}", block=${event.checkpoint.blockNumber})`,
         });
@@ -597,7 +596,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     for (let i = 0; i < 4; i++) {
       try {
-        this.common.logger.trace({
+        this.common.logger.debug({
           service: "indexing",
           msg: `Started indexing function (event="${fullEventName}", block=${event.checkpoint.blockNumber})`,
         });
@@ -645,7 +644,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           });
         }
 
-        this.common.logger.trace({
+        this.common.logger.debug({
           service: "indexing",
           msg: `Completed indexing function (event="${fullEventName}", block=${event.checkpoint.blockNumber})`,
         });
@@ -686,6 +685,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
           this.common.metrics.ponder_indexing_has_error.set(1);
           this.emit("error", { error });
         } else {
+          console.log(task.event.checkpoint);
+
           this.common.logger.warn({
             service: "indexing",
             msg: `Indexing function failed, retrying... (event=${fullEventName}, block=${
@@ -699,11 +700,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
       }
     }
 
-    this.indexingFunctionMap![fullEventName].serialQueue = false;
-
     await this.indexingFunctionMap![fullEventName].dbMutex.runExclusive(() =>
       this.loadIndexingFunctionTasks(fullEventName),
     );
+
+    this.indexingFunctionMap![fullEventName].serialQueue = false;
 
     if (this.queue?.isPaused === false) this.enqueueLogEventTasks();
   };
@@ -830,6 +831,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
       }
     }
 
+    if (
+      isCheckpointEqual(keyHandler.checkpoint, zeroCheckpoint) &&
+      tasks.length > 0
+    ) {
+      keyHandler.checkpoint = tasks[0].event.checkpoint;
+    }
+
     // handle last event
     if (tasks.length !== 0) {
       tasks[tasks.length - 1].event.endCheckpoint =
@@ -893,6 +901,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         const parents = this.tableAccess
           .filter(
             (t) =>
+              !t.indexingFunctionKey.includes(":setup") &&
               t.access === "write" &&
               tableReads.includes(t.table) &&
               t.indexingFunctionKey !== indexingFunctionKey,
