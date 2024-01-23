@@ -381,6 +381,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
         }
         if (
           isCheckpointGreaterThan(
+            indexFunc.tasksLoadedFromCheckpoint,
+            safeCheckpoint,
+          )
+        ) {
+          indexFunc.tasksLoadedFromCheckpoint = safeCheckpoint;
+        }
+        if (
+          isCheckpointGreaterThan(
             indexFunc.tasksLoadedToCheckpoint,
             safeCheckpoint,
           )
@@ -890,6 +898,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     } else {
       keyHandler.tasksProcessedToCheckpoint =
         keyHandler.tasksLoadedToCheckpoint;
+      keyHandler.tasksLoadedFromCheckpoint = keyHandler.tasksLoadedToCheckpoint;
       this.emitCheckpoint();
     }
   };
