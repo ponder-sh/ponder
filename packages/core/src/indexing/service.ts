@@ -321,14 +321,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * that checkpoint matches the current state of the indexing store,
    * and that no unsafe events will get processed after handling the reorg.
    *
-   * Kevin ^^ Is this still true?
-   *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
   handleReorg = async (safeCheckpoint: Checkpoint) => {
     if (this.isPaused) return;
 
-    let releases: MutexInterface.Releaser[];
+    let releases: MutexInterface.Releaser[] = [];
     try {
       releases = await Promise.all(
         Object.values(this.indexingFunctionMap!).map((indexFunc) =>
@@ -401,7 +399,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       // ignore the error that is thrown when a pending lock is cancelled.
       if (error !== E_CANCELED) throw error;
     } finally {
-      for (const release of releases!) {
+      for (const release of releases) {
         release();
       }
     }
