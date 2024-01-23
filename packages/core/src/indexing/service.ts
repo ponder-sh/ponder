@@ -473,20 +473,26 @@ export class IndexingService extends Emittery<IndexingEvents> {
           (p) => this.indexingFunctionMap![p].checkpoint,
         );
 
-        if (keyHandler.selfReliance && !keyHandler.serialQueue)
-          parentCheckpoints.push(keyHandler.checkpoint);
-
-        const minParentCheckpoint = checkpointMin(...parentCheckpoints);
-
-        if (isCheckpointEqual(minParentCheckpoint, keyHandler.checkpoint)) {
-          if (keyHandler.serialQueue === true)
-            console.log("fuck", keyHandler.checkpoint);
+        if (
+          keyHandler.selfReliance &&
+          !keyHandler.serialQueue &&
+          isCheckpointGreaterThan(
+            checkpointMin(...parentCheckpoints),
+            keyHandler.checkpoint,
+          )
+        ) {
+          // If self dependency is the limiting factor, enqueue one tasks
           const tasksEnqueued = tasks.splice(0, 1);
 
           this.queue!.addTask(tasksEnqueued[0]!);
 
           keyHandler.serialQueue = true;
         } else {
+          // determine limiting factory and enqueue tasks up to that limit
+          if (keyHandler.selfReliance)
+            parentCheckpoints.push(keyHandler.checkpoint);
+
+          const minParentCheckpoint = checkpointMin(...parentCheckpoints);
           // maximum checkpoint that is less than `minParentCheckpoint`
           const maxCheckpointIndex = tasks.findIndex((task) =>
             isCheckpointGreaterThan(task.event.checkpoint, minParentCheckpoint),
