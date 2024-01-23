@@ -119,6 +119,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
       /* Checkpoint of max completed task. */
       tasksProcessedToCheckpoint: Checkpoint;
+      /* Checkpoint of the least recent task loaded from db. */
+      tasksLoadedFromCheckpoint: Checkpoint;
       /* Checkpoint of the most recent task loaded from db. */
       tasksLoadedToCheckpoint: Checkpoint;
       /* Buffer of in memory tasks that haven't been enqueued yet. */
@@ -259,6 +261,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.common.metrics.ponder_indexing_matched_events.reset();
     this.common.metrics.ponder_indexing_handled_events.reset();
     this.common.metrics.ponder_indexing_processed_events.reset();
+
+    this.setEventMetrics();
 
     await this.indexingStore.reload({ schema: this.schema });
     this.common.logger.debug({
@@ -487,13 +491,21 @@ export class IndexingService extends Emittery<IndexingEvents> {
           (p) => this.indexingFunctionMap![p].tasksProcessedToCheckpoint,
         );
 
+        const parentLoadedFromCheckpoint = keyHandler.parents.map(
+          (p) => this.indexingFunctionMap![p].tasksLoadedFromCheckpoint,
+        );
+
         if (
           keyHandler.isSelfDependent &&
           !keyHandler.selfDependentLock &&
-          isCheckpointGreaterThan(
+          (isCheckpointGreaterThan(
             checkpointMin(...parentCheckpoints),
-            keyHandler.tasksProcessedToCheckpoint,
-          )
+            tasks[0].data.checkpoint,
+          ) ||
+            isCheckpointGreaterThan(
+              checkpointMin(...parentLoadedFromCheckpoint),
+              tasks[0].data.checkpoint,
+            ))
         ) {
           keyHandler.selfDependentLock = true;
 
@@ -644,6 +656,16 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 .tasksProcessedToCheckpoint,
               data.checkpoint,
             );
+        }
+
+        if (this.indexingFunctionMap![fullEventName].loadedTasks.length > 0) {
+          this.indexingFunctionMap![fullEventName].tasksLoadedFromCheckpoint =
+            this.indexingFunctionMap![
+              fullEventName
+            ].loadedTasks[0].data.checkpoint;
+        } else {
+          this.indexingFunctionMap![fullEventName].tasksLoadedFromCheckpoint =
+            this.indexingFunctionMap![fullEventName].tasksLoadedToCheckpoint;
         }
 
         if (data.eventsProcessed) {
@@ -859,6 +881,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     // handle last event
     if (tasks.length !== 0) {
+      keyHandler.tasksLoadedFromCheckpoint = tasks[0].data.checkpoint;
+
       tasks[tasks.length - 1].data.endCheckpoint =
         keyHandler.tasksLoadedToCheckpoint;
 
@@ -962,6 +986,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           eventSelector,
 
           tasksProcessedToCheckpoint: zeroCheckpoint,
+          tasksLoadedFromCheckpoint: zeroCheckpoint,
           tasksLoadedToCheckpoint: zeroCheckpoint,
           loadedTasks: [],
           loadingMutex: new Mutex(),
