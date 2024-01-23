@@ -357,7 +357,6 @@ test("resetCheckpoints resets the checkpoint states", async (context) => {
   const service = new SyncGateway({
     common,
     syncStore,
-
     networks,
   });
 

@@ -68,7 +68,7 @@ export const buildClient =
     }).extend(ponderActions(BigInt(checkpoint.blockNumber)));
   };
 
-export const buildDB =
+export const buildDb =
   ({
     common,
     indexingStore,
