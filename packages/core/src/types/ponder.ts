@@ -153,7 +153,7 @@ export type PonderApp<config extends Config, schema extends Schema> = {
     _name: name,
     indexingFunction: (
       args: { event: PonderEvent<config, name> } & {
-        context: PonderContext<config, schema, name>;
+        context: Prettify<PonderContext<config, schema, name>>;
       },
     ) => Promise<void> | void,
   ) => void;
