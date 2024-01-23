@@ -68,9 +68,9 @@ export type PonderEvent<
         },
         ParseAbiEvent<config["contracts"][contractName]["abi"], eventName>
       >;
-      log: Log;
-      block: Block;
-      transaction: Transaction;
+      log: Prettify<Log>;
+      block: Prettify<Block>;
+      transaction: Prettify<Transaction>;
     };
 
 type ContextContractProperty = Exclude<
