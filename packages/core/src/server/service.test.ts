@@ -1580,7 +1580,6 @@ test("serves after-based derived paginated plural entities", async (context) => 
     }
   `);
 
-  console.log(responseFirst.body.data.testEntitys.items[0].derived);
   expect(responseFirst.body.errors).toBe(undefined);
   expect(responseFirst.statusCode).toBe(200);
   expect(responseFirst.body.data.testEntitys.items[0].derived.after).toBe(
