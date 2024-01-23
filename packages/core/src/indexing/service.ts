@@ -556,7 +556,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     for (let i = 0; i < 4; i++) {
       try {
-        this.common.logger.debug({
+        this.common.logger.trace({
           service: "indexing",
           msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
         });
@@ -571,7 +571,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           },
         });
 
-        this.common.logger.debug({
+        this.common.logger.trace({
           service: "indexing",
           msg: `Completed indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
         });
@@ -628,7 +628,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     for (let i = 0; i < 4; i++) {
       try {
-        this.common.logger.debug({
+        this.common.logger.trace({
           service: "indexing",
           msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
         });
@@ -690,7 +690,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           });
         }
 
-        this.common.logger.debug({
+        this.common.logger.trace({
           service: "indexing",
           msg: `Completed indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
         });
