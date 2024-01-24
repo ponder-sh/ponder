@@ -181,23 +181,4 @@ export interface SyncStore {
       endCheckpoint: Checkpoint;
     };
   }>;
-
-  getLogEventCounts(arg: {
-    logFilters?: {
-      id: string;
-      chainId: number;
-      criteria: LogFilterCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    }[];
-    factories?: {
-      id: string; // Note that this is the source ID of the child contract.
-      chainId: number;
-      criteria: FactoryCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    }[];
-  }): Promise<{
-    counts: { sourceId: string; selector: Hex; count: number }[];
-  }>;
 }
