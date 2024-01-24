@@ -127,8 +127,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
       loadedTasks: LogEventTask[];
       /* Mutex ensuring tasks are not loaded twice. */
       loadingMutex: Mutex;
-      /** Lock to prevent tasks from running concurrently. */
-      selfDependentLock: boolean;
     }
   > = {};
 
@@ -473,14 +471,19 @@ export class IndexingService extends Emittery<IndexingEvents> {
       if (
         keyHandler.parents.length === 0 &&
         keyHandler.isSelfDependent &&
-        !keyHandler.selfDependentLock
+        (isCheckpointEqual(
+          keyHandler.tasksLoadedFromCheckpoint,
+          tasks[0].data.checkpoint,
+        ) ||
+          isCheckpointGreaterThan(
+            keyHandler.tasksLoadedFromCheckpoint,
+            tasks[0].data.checkpoint,
+          ))
       ) {
         // Case 1
         const tasksEnqueued = tasks.splice(0, 1);
 
         this.queue!.addTask(tasksEnqueued[0]!);
-
-        keyHandler.selfDependentLock = true;
       } else if (
         keyHandler.parents.length === 0 &&
         !keyHandler.isSelfDependent
@@ -503,18 +506,35 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         if (
           keyHandler.isSelfDependent &&
-          !keyHandler.selfDependentLock &&
           (isCheckpointGreaterThan(
-            checkpointMin(...parentCheckpoints),
+            checkpointMin(
+              ...parentCheckpoints,
+              keyHandler.tasksLoadedFromCheckpoint,
+            ),
             tasks[0].data.checkpoint,
           ) ||
             isCheckpointGreaterThan(
-              checkpointMin(...parentLoadedFromCheckpoint),
+              checkpointMin(
+                ...parentLoadedFromCheckpoint,
+                keyHandler.tasksLoadedFromCheckpoint,
+              ),
+              tasks[0].data.checkpoint,
+            ) ||
+            isCheckpointEqual(
+              checkpointMin(
+                ...parentCheckpoints,
+                keyHandler.tasksLoadedFromCheckpoint,
+              ),
+              tasks[0].data.checkpoint,
+            ) ||
+            isCheckpointEqual(
+              checkpointMin(
+                ...parentLoadedFromCheckpoint,
+                keyHandler.tasksLoadedFromCheckpoint,
+              ),
               tasks[0].data.checkpoint,
             ))
         ) {
-          keyHandler.selfDependentLock = true;
-
           // If self dependency is the limiting factor, enqueue one tasks
           const tasksEnqueued = tasks.splice(0, 1);
 
@@ -747,8 +767,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     await this.indexingFunctionMap![fullEventName].loadingMutex.runExclusive(
       () => this.loadIndexingFunctionTasks(fullEventName),
     );
-
-    this.indexingFunctionMap![fullEventName].selfDependentLock = false;
 
     if (this.queue?.isPaused === false) this.enqueueLogEventTasks();
   };
@@ -997,7 +1015,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
           tasksLoadedToCheckpoint: zeroCheckpoint,
           loadedTasks: [],
           loadingMutex: new Mutex(),
-          selfDependentLock: false,
         };
       }
     }
