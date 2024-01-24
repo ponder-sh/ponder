@@ -451,12 +451,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
    *
    * 1) A task is only dependent on itself, should be run serially.
    * 2) A task is not dependent, can be run entirely concurrently.
-   * 3) A task is dependent on a combination of parents, and should only
-   *    be run when all previous dependent tasks are complete.
-   *
-   * Note: Tasks that are dependent on themselves must be handled specially, because
-   * it is not possible to keep track of whether a task that depends on itself has been
-   * enqueued otherwise.
+   * 3) A task is dependent on a combination of parents and itself,
+   *    should be run serially.
+   * 4) A task is dependent on parents, and should onlybe run when
+   *    all previous dependent tasks are complete.
    *
    */
   enqueueLogEventTasks = () => {
@@ -494,12 +492,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         }
         keyHandler.loadedTasks = [];
       } else if (keyHandler.parents.length !== 0) {
-        // Case 3
-
-        const parentCheckpoints = keyHandler.parents.map(
-          (p) => this.indexingFunctionMap![p].tasksProcessedToCheckpoint,
-        );
-
         const parentLoadedFromCheckpoint = keyHandler.parents.map(
           (p) => this.indexingFunctionMap![p].tasksLoadedFromCheckpoint,
         );
@@ -508,25 +500,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
           keyHandler.isSelfDependent &&
           (isCheckpointGreaterThan(
             checkpointMin(
-              ...parentCheckpoints,
+              ...parentLoadedFromCheckpoint,
               keyHandler.tasksLoadedFromCheckpoint,
             ),
             tasks[0].data.checkpoint,
           ) ||
-            isCheckpointGreaterThan(
-              checkpointMin(
-                ...parentLoadedFromCheckpoint,
-                keyHandler.tasksLoadedFromCheckpoint,
-              ),
-              tasks[0].data.checkpoint,
-            ) ||
-            isCheckpointEqual(
-              checkpointMin(
-                ...parentCheckpoints,
-                keyHandler.tasksLoadedFromCheckpoint,
-              ),
-              tasks[0].data.checkpoint,
-            ) ||
             isCheckpointEqual(
               checkpointMin(
                 ...parentLoadedFromCheckpoint,
@@ -535,28 +513,29 @@ export class IndexingService extends Emittery<IndexingEvents> {
               tasks[0].data.checkpoint,
             ))
         ) {
-          // If self dependency is the limiting factor, enqueue one tasks
+          // Case 3
           const tasksEnqueued = tasks.splice(0, 1);
 
           this.queue!.addTask(tasksEnqueued[0]!);
         } else if (!keyHandler.isSelfDependent) {
-          // determine limiting factory and enqueue tasks up to that limit
+          // Case 4
+          // determine limiting factor and enqueue tasks up to that limit
 
-          const minParentCheckpoint = checkpointMin(...parentCheckpoints);
+          const minParentCheckpoint = checkpointMin(
+            ...parentLoadedFromCheckpoint,
+          );
+
           // maximum checkpoint that is less than `minParentCheckpoint`
           const maxCheckpointIndex = tasks.findIndex((task) =>
             isCheckpointGreaterThan(task.data.checkpoint, minParentCheckpoint),
           );
 
           if (maxCheckpointIndex === -1) {
-            // enqueue all tasks
             for (const task of tasks) {
               this.queue!.addTask(task);
             }
-
             keyHandler.loadedTasks = [];
           } else {
-            // enqueue all tasks less than the index
             const tasksEnqueued = tasks.splice(0, maxCheckpointIndex);
 
             for (const task of tasksEnqueued) {
