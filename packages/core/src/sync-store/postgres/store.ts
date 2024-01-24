@@ -976,7 +976,7 @@ export class PostgresSyncStore implements SyncStore {
       .orderBy("logs.chainId", "asc")
       .orderBy("blocks.number", "asc")
       .orderBy("logs.logIndex", "asc")
-      .limit(limit)
+      .limit(limit + 1)
       .execute();
 
     const events = requestedLogs.map((_row) => {
@@ -1072,8 +1072,14 @@ export class PostgresSyncStore implements SyncStore {
       };
     });
 
+    let hasMoreEvents = false;
+    if (events.length === limit + 1) {
+      events.pop();
+      hasMoreEvents = true;
+    }
+
     const lastEvent = events[events.length - 1];
-    const endCheckpoint = lastEvent
+    const endCheckpoint = hasMoreEvents
       ? {
           blockTimestamp: Number(lastEvent.block.timestamp),
           chainId: lastEvent.chainId,
