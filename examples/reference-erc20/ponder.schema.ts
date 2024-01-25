@@ -2,7 +2,7 @@ import { createSchema } from "@ponder/core";
 
 export default createSchema((p) => ({
   Account: p.createTable({
-    id: p.bytes(),
+    id: p.hex(),
     balance: p.bigint(),
     isOwner: p.boolean(),
 
@@ -13,11 +13,11 @@ export default createSchema((p) => ({
     transferToEvents: p.many("TransferEvent.toId"),
   }),
   Approval: p.createTable({
-    id: p.bytes(),
+    id: p.string(),
     amount: p.bigint(),
 
-    ownerId: p.bytes().references("Account.id"),
-    spenderId: p.bytes().references("Account.id"),
+    ownerId: p.hex().references("Account.id"),
+    spenderId: p.hex().references("Account.id"),
 
     owner: p.one("ownerId"),
     spender: p.one("spenderId"),
@@ -27,8 +27,8 @@ export default createSchema((p) => ({
     amount: p.bigint(),
     timestamp: p.int(),
 
-    fromId: p.bytes().references("Account.id"),
-    toId: p.bytes().references("Account.id"),
+    fromId: p.hex().references("Account.id"),
+    toId: p.hex().references("Account.id"),
 
     from: p.one("fromId"),
     to: p.one("toId"),
@@ -38,8 +38,8 @@ export default createSchema((p) => ({
     amount: p.bigint(),
     timestamp: p.int(),
 
-    ownerId: p.bytes().references("Account.id"),
-    spenderId: p.bytes().references("Account.id"),
+    ownerId: p.hex().references("Account.id"),
+    spenderId: p.hex().references("Account.id"),
 
     owner: p.one("ownerId"),
     spender: p.one("spenderId"),
