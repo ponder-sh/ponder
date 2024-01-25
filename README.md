@@ -2,7 +2,6 @@
 
 [![CI status][ci-badge]][ci-url]
 [![Version][version-badge]][version-url]
-
 [![Telegram chat][tg-badge]][tg-url]
 [![License][license-badge]][license-url]
 
