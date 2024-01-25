@@ -169,16 +169,25 @@ export interface SyncStore {
       toBlock?: number;
       includeEventSelectors?: Hex[];
     }[];
-  }): Promise<{
-    events: {
-      sourceId: string;
-      chainId: number;
-      log: Log;
-      block: Block;
-      transaction: Transaction;
-    }[];
-    metadata: {
-      endCheckpoint: Checkpoint;
-    };
-  }>;
+  }): Promise<
+    {
+      events: {
+        sourceId: string;
+        chainId: number;
+        log: Log;
+        block: Block;
+        transaction: Transaction;
+      }[];
+      lastCheckpoint: Checkpoint | undefined;
+    } & (
+      | {
+          hasNextPage: true;
+          lastCheckpointInPage: Checkpoint;
+        }
+      | {
+          hasNextPage: false;
+          lastCheckpointInPage: undefined;
+        }
+    )
+  >;
 }

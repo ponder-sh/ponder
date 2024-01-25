@@ -823,25 +823,6 @@ export class PostgresSyncStore implements SyncStore {
     return result;
   };
 
-  private getLogEventsBaseQuery = ({
-    sourceIds,
-  }: {
-    sourceIds: string[];
-  }) => {
-    return this.db
-      .with(
-        "sources(source_id)",
-        () =>
-          sql`( values ${sql.join(
-            sourceIds.map((id) => sql`( ${sql.val(id)} )`),
-          )} )`,
-      )
-      .selectFrom("logs")
-      .leftJoin("blocks", "blocks.hash", "logs.blockHash")
-      .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
-      .innerJoin("sources", (join) => join.onTrue());
-  };
-
   async getLogEvents({
     fromCheckpoint,
     toCheckpoint,
@@ -871,18 +852,54 @@ export class PostgresSyncStore implements SyncStore {
   }) {
     const start = performance.now();
 
-    const sourceIds = [
-      ...logFilters.map((f) => f.id),
-      ...factories.map((f) => f.id),
-    ];
+    const baseQuery = this.db
+      .with(
+        "sources(source_id)",
+        () =>
+          sql`( values ${sql.join(
+            [...logFilters.map((f) => f.id), ...factories.map((f) => f.id)].map(
+              (id) => sql`( ${sql.val(id)} )`,
+            ),
+          )} )`,
+      )
+      .selectFrom("logs")
+      .leftJoin("blocks", "blocks.hash", "logs.blockHash")
+      .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
+      .innerJoin("sources", (join) => join.onTrue())
+      .where((eb) => {
+        const logFilterCmprs = logFilters.map((logFilter) => {
+          const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+          if (logFilter.includeEventSelectors) {
+            exprs.push(
+              eb.or(
+                logFilter.includeEventSelectors.map((t) =>
+                  eb("logs.topic0", "=", t),
+                ),
+              ),
+            );
+          }
+          return eb.and(exprs);
+        });
 
-    const baseQuery = this.getLogEventsBaseQuery({
-      sourceIds,
-    });
+        const factoryCmprs = factories.map((factory) => {
+          const exprs = this.buildFactoryCmprs({ eb, factory });
+          if (factory.includeEventSelectors) {
+            exprs.push(
+              eb.or(
+                factory.includeEventSelectors.map((t) =>
+                  eb("logs.topic0", "=", t),
+                ),
+              ),
+            );
+          }
+          return eb.and(exprs);
+        });
+
+        return eb.or([...logFilterCmprs, ...factoryCmprs]);
+      });
 
     // Get full log objects, including the includeEventSelectors clause.
     const requestedLogs = await baseQuery
-
       .select([
         "source_id",
 
@@ -941,37 +958,6 @@ export class PostgresSyncStore implements SyncStore {
       ])
       .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
       .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
-      .where((eb) => {
-        const logFilterCmprs = logFilters.map((logFilter) => {
-          const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-          if (logFilter.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                logFilter.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
-
-        const factoryCmprs = factories.map((factory) => {
-          const exprs = this.buildFactoryCmprs({ eb, factory });
-          if (factory.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                factory.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
-
-        return eb.or([...logFilterCmprs, ...factoryCmprs]);
-      })
       .orderBy("blocks.timestamp", "asc")
       .orderBy("logs.chainId", "asc")
       .orderBy("blocks.number", "asc")
@@ -1072,28 +1058,60 @@ export class PostgresSyncStore implements SyncStore {
       };
     });
 
-    let hasMoreEvents = false;
-    if (events.length === limit + 1) {
-      events.pop();
-      hasMoreEvents = true;
-    }
+    // Query for the checkpoint of the last event in the requested range (ignore the batch limit)
+    const lastCheckpointRows = await baseQuery
+      .select([
+        "blocks.timestamp as block_timestamp",
+        "logs.chainId as log_chainId",
+        "blocks.number as block_number",
+        "logs.logIndex as log_logIndex",
+      ])
+      .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
+      .orderBy("blocks.timestamp", "desc")
+      .orderBy("logs.chainId", "desc")
+      .orderBy("blocks.number", "desc")
+      .orderBy("logs.logIndex", "desc")
+      .limit(1)
+      .execute();
 
-    const lastEvent = events[events.length - 1];
-    const endCheckpoint = hasMoreEvents
-      ? {
-          blockTimestamp: Number(lastEvent.block.timestamp),
-          chainId: lastEvent.chainId,
-          blockNumber: Number(lastEvent.block.number),
-          logIndex: lastEvent.log.logIndex,
-        }
-      : toCheckpoint;
+    const lastCheckpointRow = lastCheckpointRows[0];
+    const lastCheckpoint =
+      lastCheckpointRow !== undefined
+        ? ({
+            blockTimestamp: Number(lastCheckpointRow.block_timestamp!),
+            blockNumber: Number(lastCheckpointRow.block_number!),
+            chainId: lastCheckpointRow.log_chainId,
+            logIndex: lastCheckpointRow.log_logIndex,
+          } satisfies Checkpoint)
+        : undefined;
 
     this.record("getLogEvents", performance.now() - start);
 
-    return {
-      events,
-      metadata: { endCheckpoint },
-    };
+    if (events.length === limit + 1) {
+      events.pop();
+
+      const lastEventInPage = events[events.length - 1];
+      const lastCheckpointInPage = {
+        blockTimestamp: Number(lastEventInPage.block.timestamp),
+        chainId: lastEventInPage.chainId,
+        blockNumber: Number(lastEventInPage.block.number),
+        logIndex: lastEventInPage.log.logIndex,
+      } satisfies Checkpoint;
+
+      return {
+        events,
+        hasNextPage: true,
+        lastCheckpointInPage,
+        lastCheckpoint,
+      } as const;
+    } else {
+      return {
+        events,
+        hasNextPage: false,
+        lastCheckpointInPage: undefined,
+        lastCheckpoint,
+      } as const;
+    }
   }
 
   /**

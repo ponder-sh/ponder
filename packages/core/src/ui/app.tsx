@@ -3,8 +3,8 @@ import React from "react";
 
 import type { Source } from "@/config/sources.js";
 
-import { HistoricalBar } from "./HistoricalBar.js";
-import { IndexingBar } from "./IndexingBar.js";
+import { formatEta, formatPercentage } from "@/utils/format.js";
+import { ProgressBar } from "./ProgressBar.js";
 
 export type UiState = {
   port: number;
@@ -22,11 +22,14 @@ export type UiState = {
     isConnected: boolean;
   }[];
 
+  indexingStats: {
+    event: string;
+    totalSeconds: number;
+    completedSeconds: number;
+    completedEventCount: number;
+  }[];
+  indexingCompletedToTimestamp: number;
   indexingError: boolean;
-  processedEventCount: number;
-  handledEventCount: number;
-  totalMatchedEventCount: number;
-  eventsProcessedToTimestamp: number;
 };
 
 export const buildUiState = ({ sources }: { sources: Source[] }) => {
@@ -37,11 +40,9 @@ export const buildUiState = ({ sources }: { sources: Source[] }) => {
     isHistoricalSyncComplete: false,
     realtimeSyncNetworks: [],
 
+    indexingStats: [],
+    indexingCompletedToTimestamp: 0,
     indexingError: false,
-    processedEventCount: 0,
-    handledEventCount: 0,
-    totalMatchedEventCount: 0,
-    eventsProcessedToTimestamp: 0,
   };
 
   sources.forEach((source) => {
@@ -62,7 +63,7 @@ const App = (ui: UiState) => {
     isHistoricalSyncComplete,
     // TODO: Consider adding realtime back into the UI in some manner.
     // realtimeSyncNetworks,
-    processedEventCount,
+    indexingStats,
     indexingError,
   } = ui;
 
@@ -92,23 +93,53 @@ const App = (ui: UiState) => {
       </Box>
       {!isHistoricalSyncComplete && (
         <Box flexDirection="column">
-          {historicalSyncStats.map(({ contract, network, rate, eta }) => (
-            <Box flexDirection="column" key={`${contract}-${network}`}>
-              <Text>
-                {contract} <Text dimColor>({network})</Text>
-              </Text>
-              <HistoricalBar
-                key={`${contract}-${network}`}
-                rate={rate}
-                eta={eta}
-              />
-            </Box>
-          ))}
+          {historicalSyncStats.map(({ contract, network, rate, eta }) => {
+            const etaText = eta ? `~${formatEta(eta)}` : null;
+            const rateText = formatPercentage(rate);
+
+            return (
+              <Box flexDirection="column" key={`${contract}-${network}`}>
+                <Box flexDirection="row">
+                  <Text>
+                    {contract} <Text dimColor>({network}) </Text>
+                  </Text>
+                  <ProgressBar current={rate} end={1} />
+                  <Text>
+                    {" "}
+                    {rateText}
+                    {" | "}
+                    {etaText}
+                  </Text>
+                </Box>
+              </Box>
+            );
+          })}
         </Box>
       )}
       <Text> </Text>
 
-      <IndexingBar ui={ui} />
+      <Text bold={true}>Indexing </Text>
+      {indexingStats.map(
+        ({ event, totalSeconds, completedSeconds, completedEventCount }) => {
+          const rate = completedSeconds / totalSeconds;
+          const rateText = formatPercentage(rate);
+
+          return (
+            <Box flexDirection="column" key={event}>
+              {completedSeconds > 0 ? (
+                <Box flexDirection="row">
+                  <Text>{event} </Text>
+                  <ProgressBar current={rate} end={1} />
+                  <Text> {rateText}</Text>
+                  <Text> ({completedEventCount} events)</Text>
+                </Box>
+              ) : (
+                <Text>Waiting to start...</Text>
+              )}
+            </Box>
+          );
+        },
+      )}
       <Text> </Text>
 
       {/* {realtimeSyncNetworks.length > 0 && (
@@ -126,7 +157,7 @@ const App = (ui: UiState) => {
         </Box>
       )} */}
 
-      {processedEventCount > 0 && (
+      {true && (
         <Box flexDirection="column">
           <Text bold={true}>GraphQL </Text>
           <Box flexDirection="row">

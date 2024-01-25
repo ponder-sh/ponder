@@ -30,7 +30,7 @@ export class MetricsService {
   ponder_indexing_total_seconds: prometheus.Gauge<"event">;
   ponder_indexing_completed_seconds: prometheus.Gauge<"event">;
   ponder_indexing_completed_events: prometheus.Gauge<"network" | "event">;
-  ponder_indexing_completed_timestamp: prometheus.Gauge<"event">;
+  ponder_indexing_completed_timestamp: prometheus.Gauge;
   ponder_indexing_has_error: prometheus.Gauge;
 
   ponder_server_port: prometheus.Gauge;
@@ -144,8 +144,6 @@ export class MetricsService {
     this.ponder_indexing_completed_timestamp = new prometheus.Gauge({
       name: "ponder_indexing_completed_timestamp",
       help: "Timestamp through which all events have been completed",
-      labelNames: ["event"] as const,
-
       registers: [this.registry],
     });
     this.ponder_indexing_has_error = new prometheus.Gauge({

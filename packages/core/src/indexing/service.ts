@@ -128,10 +128,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
       loadedTasks: LogEventTask[];
       /* Mutex ensuring tasks are not loaded twice. */
       loadingMutex: Mutex;
-      /** Lock to prevent tasks from running concurrently. */
-      selfDependentLock: boolean;
-      /* Timestamp of the first event. */
-      startTimestamp: number;
+
+      /* Checkpoint of the first loaded event (for metrics). */
+      firstEventCheckpoint?: Checkpoint;
+      /* Checkpoint of the last loaded event (for metrics). */
+      lastEventCheckpoint?: Checkpoint;
     }
   > = {};
 
@@ -300,10 +301,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
       ),
     );
 
-    for (const key of Object.keys(this.indexingFunctionStates)) {
-      this.updateTotalSeconds(key);
-    }
-
     this.enqueueLogEventTasks();
 
     await this.queue.onIdle();
@@ -450,8 +447,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
    *    all previous dependent tasks are complete.
    */
   enqueueLogEventTasks = () => {
-    if (this.indexingFunctionStates === undefined) return;
-
     for (const key of Object.keys(this.indexingFunctionStates)) {
       const state = this.indexingFunctionStates[key];
       const tasks = state.loadedTasks;
@@ -669,12 +664,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         };
         this.common.metrics.ponder_indexing_completed_events.inc(labels);
 
-        // Note: this should be strictly increasing, but its not
-        // Should also take the event
-        this.common.metrics.ponder_indexing_completed_timestamp.set(
-          data.checkpoint.blockTimestamp,
-        );
-
         break;
       } catch (error_) {
         const error = error_ as Error & { meta?: string };
@@ -764,12 +753,17 @@ export class IndexingService extends Emittery<IndexingEvents> {
         state.tasksLoadedToCheckpoint,
         this.syncGatewayService.checkpoint,
       )
-    )
+    ) {
       return;
+    }
 
-    const { events, metadata } = await this.syncGatewayService.getEvents({
-      fromCheckpoint: state.tasksLoadedToCheckpoint,
-      toCheckpoint: this.syncGatewayService.checkpoint,
+    // TODO: Deep copy these.
+    const fromCheckpoint = state.tasksLoadedToCheckpoint;
+    const toCheckpoint = this.syncGatewayService.checkpoint;
+
+    const result = await this.syncGatewayService.getEvents({
+      fromCheckpoint,
+      toCheckpoint,
       limit: TASK_BATCH_SIZE,
       logFilters: state.sources.filter(sourceIsLogFilter).map((logFilter) => ({
         id: logFilter.id,
@@ -789,10 +783,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
       })),
     });
 
-    // Set startTimestamp
-    if (state.startTimestamp === 0 && events.length > 0) {
-      state.startTimestamp = Number(events[0].block.timestamp);
-    }
+    const { events, hasNextPage, lastCheckpointInPage, lastCheckpoint } =
+      result;
 
     const abi = [state.abiEvent];
     const contractName = state.contractName;
@@ -838,7 +830,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
 
     // Update checkpoints
-    state.tasksLoadedToCheckpoint = metadata.endCheckpoint;
+    state.tasksLoadedToCheckpoint = hasNextPage
+      ? lastCheckpointInPage
+      : toCheckpoint;
+
     if (tasks.length > 0) {
       state.tasksLoadedFromCheckpoint = tasks[0].data.checkpoint;
 
@@ -853,6 +848,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.emitCheckpoint();
     }
 
+    // Set if this is the first event we have loaded for this indexing function.
+    if (state.firstEventCheckpoint === undefined && tasks.length > 0) {
+      state.firstEventCheckpoint = tasks[0].data.checkpoint;
+    }
+    state.lastEventCheckpoint = lastCheckpoint ?? toCheckpoint;
+
     this.updateTotalSeconds(key);
   };
 
@@ -864,6 +865,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
 
     this.emit("eventsProcessed", { toCheckpoint: checkpoint });
+    this.common.metrics.ponder_indexing_completed_timestamp.set(
+      checkpoint.blockTimestamp,
+    );
   };
 
   private buildSourceById = () => {
@@ -950,28 +954,40 @@ export class IndexingService extends Emittery<IndexingEvents> {
           tasksLoadedToCheckpoint: zeroCheckpoint,
           loadedTasks: [],
           loadingMutex: new Mutex(),
-          selfDependentLock: false,
-          startTimestamp: 0,
         };
       }
     }
   };
 
   private updateCompletedSeconds = (key: string) => {
-    if (this.indexingFunctionStates[key]?.startTimestamp === undefined) return;
+    const state = this.indexingFunctionStates[key];
+    if (
+      state.firstEventCheckpoint === undefined ||
+      state.lastEventCheckpoint === undefined
+    )
+      return;
 
-    this.common.metrics.ponder_indexing_total_seconds.set(
-      this.indexingFunctionStates[key].tasksProcessedToCheckpoint
-        .blockTimestamp - this.indexingFunctionStates[key].startTimestamp,
+    this.common.metrics.ponder_indexing_completed_seconds.set(
+      { event: `${state.contractName}:${state.eventName}` },
+      Math.min(
+        state.tasksProcessedToCheckpoint.blockTimestamp,
+        state.lastEventCheckpoint.blockTimestamp,
+      ) - state.firstEventCheckpoint.blockTimestamp,
     );
   };
 
   private updateTotalSeconds = (key: string) => {
-    if (this.indexingFunctionStates[key]?.startTimestamp === undefined) return;
+    const state = this.indexingFunctionStates[key];
+    if (
+      state.firstEventCheckpoint === undefined ||
+      state.lastEventCheckpoint === undefined
+    )
+      return;
 
     this.common.metrics.ponder_indexing_total_seconds.set(
-      this.syncGatewayService.checkpoint.blockTimestamp -
-        this.indexingFunctionStates[key].startTimestamp,
+      { event: `${state.contractName}:${state.eventName}` },
+      state.lastEventCheckpoint.blockTimestamp -
+        state.firstEventCheckpoint.blockTimestamp,
     );
   };
 }
