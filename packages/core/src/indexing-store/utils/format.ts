@@ -69,7 +69,6 @@ export function formatColumnValue(
       if (typeof value !== "number") throw Error("int");
       return value;
     } else if (column.type === "string") {
-      if (typeof value === "object") console.log(value, column.optional);
       if (typeof value !== "string") throw Error("string");
       return value;
     }

@@ -4,9 +4,6 @@ import { prettyPrint } from "./print.js";
 // Set pg protocol to use BigInt for `numeric` types.
 // See https://github.com/brianc/node-pg-types for details.
 pg.types.setTypeParser(pg.types.builtins.NUMERIC, BigInt);
-pg.types.setTypeParser(pg.types.builtins.BYTEA, (val) => {
-  return `0x${val.slice(2)}`;
-});
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114

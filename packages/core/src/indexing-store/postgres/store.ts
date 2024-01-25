@@ -9,6 +9,7 @@ import {
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
 import type { Pool } from "pg";
+import { bytesToHex } from "viem";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
 import { formatColumnValue, formatRow } from "../utils/format.js";
 import { validateSkip, validateTake } from "../utils/pagination.js";
@@ -840,8 +841,8 @@ export class PostgresIndexingStore implements IndexingStore {
         return;
       }
 
-      if (column.type === "bigint") {
-        deserializedRow[columnName] = value;
+      if (column.type === "hex") {
+        deserializedRow[columnName] = bytesToHex(value as unknown as Buffer);
         return;
       }
 
