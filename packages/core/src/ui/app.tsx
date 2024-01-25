@@ -60,7 +60,7 @@ const App = (ui: UiState) => {
   const {
     port,
     historicalSyncStats,
-    isHistoricalSyncComplete,
+    // isHistoricalSyncComplete,
     // TODO: Consider adding realtime back into the UI in some manner.
     // realtimeSyncNetworks,
     indexingStats,
@@ -79,63 +79,86 @@ const App = (ui: UiState) => {
     );
   }
 
+  const maxWidth = process.stdout.columns || 80;
+
+  const titleWidth = Math.max(
+    ...historicalSyncStats.map((s) => s.contract.length + s.network.length + 4),
+    ...indexingStats.map((s) => s.event.length + 1),
+  );
+
+  const maxEventCount = Math.max(
+    ...indexingStats.map((s) => s.completedEventCount),
+  );
+  const metricsWidth = 15 + maxEventCount.toString().length;
+
+  const barWidth = Math.min(
+    Math.max(maxWidth - titleWidth - metricsWidth - 12, 24),
+    48,
+  );
+
   return (
     <Box flexDirection="column">
       <Text> </Text>
 
       <Box flexDirection="row">
-        <Text bold={true}>Historical sync </Text>
-        {isHistoricalSyncComplete ? (
-          <Text color="green">(complete)</Text>
-        ) : (
-          <Text color="yellow">(in progress)</Text>
-        )}
+        <Text bold={true}>Historical sync</Text>
       </Box>
-      {!isHistoricalSyncComplete && (
-        <Box flexDirection="column">
-          {historicalSyncStats.map(({ contract, network, rate, eta }) => {
-            const etaText = eta ? `~${formatEta(eta)}` : null;
-            const rateText = formatPercentage(rate);
+      <Box flexDirection="column">
+        {historicalSyncStats.map(({ contract, network, rate, eta }) => {
+          const etaText = eta ? ` | ~${formatEta(eta)}` : "";
+          const rateText = formatPercentage(rate);
 
-            return (
-              <Box flexDirection="column" key={`${contract}-${network}`}>
-                <Box flexDirection="row">
-                  <Text>
-                    {contract} <Text dimColor>({network}) </Text>
-                  </Text>
-                  <ProgressBar current={rate} end={1} />
-                  <Text>
-                    {" "}
-                    {rateText}
-                    {" | "}
-                    {etaText}
-                  </Text>
-                </Box>
-              </Box>
+          const titleText = `${contract} (${network})`.padEnd(titleWidth, " ");
+          const metricsText =
+            rate === 1 ? (
+              <Text color="greenBright">done</Text>
+            ) : (
+              `${rateText}${etaText}`
             );
-          })}
-        </Box>
-      )}
+
+          return (
+            <Box flexDirection="column" key={`${contract}-${network}`}>
+              <Box flexDirection="row">
+                <Text>{titleText} </Text>
+                <ProgressBar current={rate} end={1} width={barWidth} />
+                <Text> {metricsText}</Text>
+              </Box>
+            </Box>
+          );
+        })}
+      </Box>
       <Text> </Text>
 
       <Text bold={true}>Indexing </Text>
       {indexingStats.map(
         ({ event, totalSeconds, completedSeconds, completedEventCount }) => {
           const rate = completedSeconds / totalSeconds;
-          const rateText = formatPercentage(rate);
+
+          const titleText = event.padEnd(titleWidth, " ");
+
+          const rateText =
+            rate === 1 ? (
+              <Text color="greenBright">done</Text>
+            ) : (
+              formatPercentage(rate)
+            );
 
           return (
             <Box flexDirection="column" key={event}>
-              {completedSeconds > 0 ? (
-                <Box flexDirection="row">
-                  <Text>{event} </Text>
-                  <ProgressBar current={rate} end={1} />
-                  <Text> {rateText}</Text>
-                  <Text> ({completedEventCount} events)</Text>
-                </Box>
-              ) : (
-                <Text>Waiting to start...</Text>
-              )}
+              <Box flexDirection="row">
+                <Text>{titleText} </Text>
+                {completedSeconds > 0 ? (
+                  <>
+                    <ProgressBar current={rate} end={1} width={barWidth} />
+                    <Text>
+                      {" "}
+                      {rateText} ({completedEventCount} events)
+                    </Text>
+                  </>
+                ) : (
+                  <Text>Waiting to start...</Text>
+                )}
+              </Box>
             </Box>
           );
         },

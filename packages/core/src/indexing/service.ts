@@ -23,7 +23,6 @@ import {
   isCheckpointGreaterThanOrEqualTo,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { formatShortDate } from "@/utils/date.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { Emittery } from "@/utils/emittery.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -639,14 +638,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
           this.common.logger.info({
             service: "indexing",
             msg: `Indexed ${
-              num === 1 ? "1 event" : `${num} events`
-            } up to ${formatShortDate(
-              data.checkpoint.blockTimestamp,
-            )} (event=${fullEventName} chainId=${
-              data.checkpoint.chainId
-            } block=${data.checkpoint.blockNumber} logIndex=${
-              data.checkpoint.logIndex
-            })`,
+              num === 1
+                ? `1 ${fullEventName} event`
+                : `${num} ${fullEventName} events`
+            } (chainId=${data.checkpoint.chainId} block=${
+              data.checkpoint.blockNumber
+            } logIndex=${data.checkpoint.logIndex})`,
           });
         }
 
@@ -785,14 +782,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const { events, hasNextPage, lastCheckpointInPage, lastCheckpoint } =
       result;
 
-    const abi = [state.abiEvent];
-    const contractName = state.contractName;
-    const eventName = state.eventName;
-
     for (const event of events) {
       try {
         const decodedLog = decodeEventLog({
-          abi,
+          abi: [state.abiEvent],
           data: event.log.data,
           topics: event.log.topics,
         });
@@ -801,8 +794,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
           kind: "LOG",
           data: {
             networkName: this.sourceById[event.sourceId].networkName,
-            contractName,
-            eventName,
+            contractName: state.contractName,
+            eventName: state.eventName,
             event: {
               args: decodedLog.args ?? {},
               log: event.log,
