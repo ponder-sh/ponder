@@ -23,7 +23,6 @@ import {
   isCheckpointGreaterThanOrEqualTo,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { formatShortDate } from "@/utils/date.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { Emittery } from "@/utils/emittery.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -128,6 +127,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
       loadedTasks: LogEventTask[];
       /* Mutex ensuring tasks are not loaded twice. */
       loadingMutex: Mutex;
+      /* Checkpoint of the first loaded event (for metrics). */
+      firstEventCheckpoint?: Checkpoint;
+      /* Checkpoint of the last loaded event (for metrics). */
+      lastEventCheckpoint?: Checkpoint;
     }
   > = {};
 
@@ -255,11 +258,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.isPaused = false;
     this.common.metrics.ponder_indexing_has_error.set(0);
 
-    this.common.metrics.ponder_indexing_matched_events.reset();
-    this.common.metrics.ponder_indexing_handled_events.reset();
-    this.common.metrics.ponder_indexing_processed_events.reset();
-
-    this.setEventMetrics();
+    this.common.metrics.ponder_indexing_total_seconds.reset();
+    this.common.metrics.ponder_indexing_completed_seconds.reset();
+    this.common.metrics.ponder_indexing_completed_events.reset();
 
     await this.indexingStore.reload({ schema: this.schema });
     this.common.logger.debug({
@@ -267,7 +268,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       msg: "Reset indexing store",
     });
 
-    this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
+    this.common.metrics.ponder_indexing_completed_timestamp.set(0);
   };
 
   /**
@@ -352,7 +353,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       // eventsProcessedToTimestamp accordingly (case 3).
       await this.indexingStore.revert({ checkpoint: safeCheckpoint });
 
-      this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
+      this.common.metrics.ponder_indexing_completed_timestamp.set(
         safeCheckpoint.blockTimestamp,
       );
 
@@ -412,13 +413,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
             s.contractName === contractName && s.chainId === network.chainId,
         )!;
 
-        const labels = {
-          network: network.name,
-          contract: contractName,
-          event: "setup",
-        };
-        this.common.metrics.ponder_indexing_matched_events.inc(labels);
-
         // The "setup" event uses the contract start block number for contract calls.
         // TODO: Consider implications of this "synthetic" checkpoint on record versioning.
         const checkpoint = {
@@ -435,8 +429,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
             checkpoint,
           },
         });
-
-        this.common.metrics.ponder_indexing_handled_events.inc(labels);
       }
     }
   };
@@ -453,8 +445,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
    *    all previous dependent tasks are complete.
    */
   enqueueLogEventTasks = () => {
-    if (this.indexingFunctionStates === undefined) return;
-
     for (const key of Object.keys(this.indexingFunctionStates)) {
       const state = this.indexingFunctionStates[key];
       const tasks = state.loadedTasks;
@@ -554,13 +544,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         const labels = {
           network: data.networkName,
-          contract: data.contractName,
-          event: "setup",
+          event: `${data.contractName}:setup`,
         };
-        this.common.metrics.ponder_indexing_processed_events.inc(labels);
-        this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-          data.checkpoint.blockTimestamp,
-        );
+        this.common.metrics.ponder_indexing_completed_events.inc(labels);
 
         break;
       } catch (error_) {
@@ -652,14 +638,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
           this.common.logger.info({
             service: "indexing",
             msg: `Indexed ${
-              num === 1 ? "1 event" : `${num} events`
-            } up to ${formatShortDate(
-              data.checkpoint.blockTimestamp,
-            )} (event=${fullEventName} chainId=${
-              data.checkpoint.chainId
-            } block=${data.checkpoint.blockNumber} logIndex=${
-              data.checkpoint.logIndex
-            })`,
+              num === 1
+                ? `1 ${fullEventName} event`
+                : `${num} ${fullEventName} events`
+            } (chainId=${data.checkpoint.chainId} block=${
+              data.checkpoint.blockNumber
+            } logIndex=${data.checkpoint.logIndex})`,
           });
         }
 
@@ -668,15 +652,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
           msg: `Completed indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
         });
 
+        this.updateCompletedSeconds(fullEventName);
+
         const labels = {
           network: data.networkName,
-          contract: data.contractName,
-          event: data.eventName,
+          event: `${data.contractName}:${data.eventName}`,
         };
-        this.common.metrics.ponder_indexing_processed_events.inc(labels);
-        this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-          data.checkpoint.blockTimestamp,
-        );
+        this.common.metrics.ponder_indexing_completed_events.inc(labels);
 
         break;
       } catch (error_) {
@@ -767,12 +749,17 @@ export class IndexingService extends Emittery<IndexingEvents> {
         state.tasksLoadedToCheckpoint,
         this.syncGatewayService.checkpoint,
       )
-    )
+    ) {
       return;
+    }
 
-    const { events, metadata } = await this.syncGatewayService.getEvents({
-      fromCheckpoint: state.tasksLoadedToCheckpoint,
-      toCheckpoint: this.syncGatewayService.checkpoint,
+    // TODO: Deep copy these.
+    const fromCheckpoint = state.tasksLoadedToCheckpoint;
+    const toCheckpoint = this.syncGatewayService.checkpoint;
+
+    const result = await this.syncGatewayService.getEvents({
+      fromCheckpoint,
+      toCheckpoint,
       limit: TASK_BATCH_SIZE,
       logFilters: state.sources.filter(sourceIsLogFilter).map((logFilter) => ({
         id: logFilter.id,
@@ -792,17 +779,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
       })),
     });
 
-    // Update handled and matched events, unawaited because not in critical path.
-    this.setEventMetrics();
-
-    const abi = [state.abiEvent];
-    const contractName = state.contractName;
-    const eventName = state.eventName;
+    const { events, hasNextPage, lastCheckpointInPage, lastCheckpoint } =
+      result;
 
     for (const event of events) {
       try {
         const decodedLog = decodeEventLog({
-          abi,
+          abi: [state.abiEvent],
           data: event.log.data,
           topics: event.log.topics,
         });
@@ -811,8 +794,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
           kind: "LOG",
           data: {
             networkName: this.sourceById[event.sourceId].networkName,
-            contractName,
-            eventName,
+            contractName: state.contractName,
+            eventName: state.eventName,
             event: {
               args: decodedLog.args ?? {},
               log: event.log,
@@ -839,7 +822,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
 
     // Update checkpoints
-    state.tasksLoadedToCheckpoint = metadata.endCheckpoint;
+    state.tasksLoadedToCheckpoint = hasNextPage
+      ? lastCheckpointInPage
+      : toCheckpoint;
+
     if (tasks.length > 0) {
       state.tasksLoadedFromCheckpoint = tasks[0].data.checkpoint;
 
@@ -853,6 +839,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
       state.tasksLoadedFromCheckpoint = state.tasksLoadedToCheckpoint;
       this.emitCheckpoint();
     }
+
+    // Set if this is the first event we have loaded for this indexing function.
+    if (state.firstEventCheckpoint === undefined && tasks.length > 0) {
+      state.firstEventCheckpoint = tasks[0].data.checkpoint;
+    }
+    state.lastEventCheckpoint = lastCheckpoint ?? toCheckpoint;
+
+    this.updateTotalSeconds(key);
   };
 
   private emitCheckpoint = () => {
@@ -863,6 +857,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
 
     this.emit("eventsProcessed", { toCheckpoint: checkpoint });
+    this.common.metrics.ponder_indexing_completed_timestamp.set(
+      checkpoint.blockTimestamp,
+    );
   };
 
   private buildSourceById = () => {
@@ -954,55 +951,35 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
   };
 
-  private setEventMetrics = async () => {
-    const { counts } = await this.syncGatewayService.getEventCounts({
-      logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
-        id: logFilter.id,
-        chainId: logFilter.chainId,
-        criteria: logFilter.criteria,
-        fromBlock: logFilter.startBlock,
-        toBlock: logFilter.endBlock,
-      })),
-      factories: this.sources.filter(sourceIsFactory).map((factory) => ({
-        id: factory.id,
-        chainId: factory.chainId,
-        criteria: factory.criteria,
-        fromBlock: factory.startBlock,
-        toBlock: factory.endBlock,
-      })),
-    });
+  private updateCompletedSeconds = (key: string) => {
+    const state = this.indexingFunctionStates[key];
+    if (
+      state.firstEventCheckpoint === undefined ||
+      state.lastEventCheckpoint === undefined
+    )
+      return;
 
-    for (const count of counts) {
-      const source = this.sourceById[count.sourceId]!;
+    this.common.metrics.ponder_indexing_completed_seconds.set(
+      { event: `${state.contractName}:${state.eventName}` },
+      Math.min(
+        state.tasksProcessedToCheckpoint.blockTimestamp,
+        state.lastEventCheckpoint.blockTimestamp,
+      ) - state.firstEventCheckpoint.blockTimestamp,
+    );
+  };
 
-      const event = source.abiEvents.bySelector[count.selector];
+  private updateTotalSeconds = (key: string) => {
+    const state = this.indexingFunctionStates[key];
+    if (
+      state.firstEventCheckpoint === undefined ||
+      state.lastEventCheckpoint === undefined
+    )
+      return;
 
-      if (event !== undefined) {
-        const labels = {
-          network: source.networkName,
-          contract: source.contractName,
-          event: event.safeName,
-        };
-
-        this.common.metrics.ponder_indexing_handled_events.set(
-          labels,
-          count.count,
-        );
-
-        this.common.metrics.ponder_indexing_matched_events.set(
-          labels,
-          count.count,
-        );
-      } else {
-        this.common.metrics.ponder_indexing_matched_events.set(
-          {
-            network: source.networkName,
-            contract: source.contractName,
-            event: count.selector,
-          },
-          count.count,
-        );
-      }
-    }
+    this.common.metrics.ponder_indexing_total_seconds.set(
+      { event: `${state.contractName}:${state.eventName}` },
+      state.lastEventCheckpoint.blockTimestamp -
+        state.firstEventCheckpoint.blockTimestamp,
+    );
   };
 }

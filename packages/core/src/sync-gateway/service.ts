@@ -134,36 +134,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     });
   }
 
-  /** Fetches event counts for all registered log filters between the specified checkpoints.
-   *
-   * @param options.fromCheckpoint Checkpoint to include events from (exclusive).
-   * @param options.toCheckpoint Checkpoint to include events to (inclusive).
-   */
-  getEventCounts({
-    logFilters,
-    factories,
-  }: {
-    logFilters?: {
-      id: string;
-      chainId: number;
-      criteria: LogFilterCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    }[];
-    factories?: {
-      id: string; // Note that this is the source ID of the child contract.
-      chainId: number;
-      criteria: FactoryCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    }[];
-  }) {
-    return this.syncStore.getLogEventCounts({
-      logFilters,
-      factories,
-    });
-  }
-
   handleNewHistoricalCheckpoint = (checkpoint: Checkpoint) => {
     const { blockTimestamp, chainId, blockNumber } = checkpoint;
 
