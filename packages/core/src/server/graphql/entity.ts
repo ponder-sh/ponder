@@ -66,6 +66,9 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
               // @ts-ignore
               const relatedRecordId = parent[column.referenceColumn];
 
+              // Note:
+              if (relatedRecordId === null) return null;
+
               return await store.findUnique({
                 tableName: referencedTable,
                 id: relatedRecordId,

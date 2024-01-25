@@ -1,9 +1,4 @@
 import { rmSync } from "node:fs";
-
-import request from "supertest";
-import { zeroAddress } from "viem";
-import { afterEach, beforeEach, expect, test } from "vitest";
-
 import { Ponder } from "@/Ponder.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
@@ -15,6 +10,9 @@ import { simulate } from "@/_test/simulate.js";
 import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
 import { range } from "@/utils/range.js";
+import request from "supertest";
+import { zeroAddress } from "viem";
+import { afterEach, beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupSyncStore(context));
@@ -82,11 +80,11 @@ test("erc20", async (context) => {
     balance: (-4 * 10 ** 18).toString(),
   });
   expect(accounts[1]).toMatchObject({
-    id: BOB,
+    id: BOB.toLowerCase(),
     balance: (4 * 10 ** 18).toString(),
   });
   expect(accounts[2]).toMatchObject({
-    id: ALICE,
+    id: ALICE.toLowerCase(),
     balance: "0",
   });
 
@@ -112,11 +110,11 @@ test("erc20", async (context) => {
     balance: (-5 * 10 ** 18).toString(),
   });
   expect(accounts[1]).toMatchObject({
-    id: BOB,
+    id: BOB.toLowerCase(),
     balance: (5 * 10 ** 18).toString(),
   });
   expect(accounts[2]).toMatchObject({
-    id: ALICE,
+    id: ALICE.toLowerCase(),
     balance: "0",
   });
 

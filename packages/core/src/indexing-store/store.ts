@@ -1,8 +1,7 @@
-import type { Kysely } from "kysely";
-
 import type { Schema } from "@/schema/types.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
+import type { Kysely } from "kysely";
 
 export type Table = {
   [key: string]:

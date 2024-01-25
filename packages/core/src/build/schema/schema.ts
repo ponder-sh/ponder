@@ -53,7 +53,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
     if (
       columns.id.type !== "bigint" &&
       columns.id.type !== "string" &&
-      columns.id.type !== "bytes" &&
+      columns.id.type !== "hex" &&
       columns.id.type !== "int"
     )
       throw Error(

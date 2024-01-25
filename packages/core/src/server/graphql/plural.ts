@@ -103,7 +103,7 @@ export const buildPluralField = ({
         });
       }
 
-      if (["string", "bytes"].includes(column.type)) {
+      if (["string", "hex"].includes(column.type)) {
         operators.string.forEach((suffix) => {
           filterFields[`${columnName}${suffix}`] = {
             type: type,
