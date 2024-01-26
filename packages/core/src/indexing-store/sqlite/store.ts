@@ -1,18 +1,11 @@
 import type { Common } from "@/Ponder.js";
-import type { Scalar, Schema } from "@/schema/types.js";
-import {
-  isEnumColumn,
-  isManyColumn,
-  isOneColumn,
-  isReferenceColumn,
-} from "@/schema/utils.js";
+import type { Schema } from "@/schema/types.js";
+import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { decodeToBigInt } from "@/utils/encoding.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { Kysely, SqliteDialect, sql } from "kysely";
-import { bytesToHex } from "viem";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
-import { encodeColumn, encodeRow } from "../utils/format.js";
+import { decodeRow, encodeColumn, encodeRow } from "../utils/format.js";
 import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
@@ -268,7 +261,7 @@ export class SqliteIndexingStore implements IndexingStore {
       const row = await query.executeTakeFirst();
       if (row === undefined) return null;
 
-      return this.deserializeRow({ tableName, row });
+      return decodeRow(row, this.schema!.tables[tableName], "sqlite");
     });
   };
 
@@ -334,7 +327,9 @@ export class SqliteIndexingStore implements IndexingStore {
       }
 
       const rows = await query.execute();
-      return rows.map((row) => this.deserializeRow({ tableName, row }));
+      return rows.map((row) =>
+        decodeRow(row, this.schema!.tables[tableName], "sqlite"),
+      );
     });
   };
 
@@ -368,7 +363,7 @@ export class SqliteIndexingStore implements IndexingStore {
         .returningAll()
         .executeTakeFirstOrThrow();
 
-      return this.deserializeRow({ tableName, row });
+      return decodeRow(row, this.schema!.tables[tableName], "sqlite");
     });
   };
 
@@ -400,7 +395,9 @@ export class SqliteIndexingStore implements IndexingStore {
         ),
       );
 
-      return rows.flat().map((row) => this.deserializeRow({ tableName, row }));
+      return rows
+        .flat()
+        .map((row) => decodeRow(row, this.schema!.tables[tableName], "sqlite"));
     });
   };
 
@@ -438,7 +435,11 @@ export class SqliteIndexingStore implements IndexingStore {
         // If the user passed an update function, call it with the current instance.
         let updateRow: ReturnType<typeof encodeRow>;
         if (typeof data === "function") {
-          const current = this.deserializeRow({ tableName, row: latestRow });
+          const current = decodeRow(
+            latestRow,
+            this.schema!.tables[tableName],
+            "sqlite",
+          );
           const updateObject = data({ current });
           updateRow = encodeRow(
             { id, ...updateObject },
@@ -493,7 +494,7 @@ export class SqliteIndexingStore implements IndexingStore {
         return row;
       });
 
-      const result = this.deserializeRow({ tableName, row });
+      const result = decodeRow(row, this.schema!.tables[tableName], "sqlite");
 
       return result;
     });
@@ -543,10 +544,11 @@ export class SqliteIndexingStore implements IndexingStore {
             // If the user passed an update function, call it with the current instance.
             let updateRow: ReturnType<typeof encodeRow>;
             if (typeof data === "function") {
-              const current = this.deserializeRow({
-                tableName,
-                row: latestRow,
-              });
+              const current = decodeRow(
+                latestRow,
+                this.schema!.tables[tableName],
+                "sqlite",
+              );
               const updateObject = data({ current });
               updateRow = encodeRow(
                 updateObject,
@@ -603,7 +605,9 @@ export class SqliteIndexingStore implements IndexingStore {
         );
       });
 
-      return rows.map((row) => this.deserializeRow({ tableName, row }));
+      return rows.map((row) =>
+        decodeRow(row, this.schema!.tables[tableName], "sqlite"),
+      );
     });
   };
 
@@ -661,7 +665,11 @@ export class SqliteIndexingStore implements IndexingStore {
         // If the user passed an update function, call it with the current instance.
         let updateRow: ReturnType<typeof encodeRow>;
         if (typeof update === "function") {
-          const current = this.deserializeRow({ tableName, row: latestRow });
+          const current = decodeRow(
+            latestRow,
+            this.schema!.tables[tableName],
+            "sqlite",
+          );
           const updateObject = update({ current });
           updateRow = encodeRow(
             { id, ...updateObject },
@@ -716,7 +724,7 @@ export class SqliteIndexingStore implements IndexingStore {
         return row;
       });
 
-      return this.deserializeRow({ tableName, row });
+      return decodeRow(row, this.schema!.tables[tableName], "sqlite");
     });
   };
 
@@ -766,59 +774,6 @@ export class SqliteIndexingStore implements IndexingStore {
 
       return isDeleted;
     });
-  };
-
-  private deserializeRow = ({
-    tableName,
-    row,
-  }: {
-    tableName: string;
-    row: Record<string, unknown>;
-  }) => {
-    const columns = Object.entries(this.schema!.tables).find(
-      ([name]) => name === tableName,
-    )![1];
-
-    const deserializedRow = {} as Row;
-
-    Object.entries(columns).forEach(([columnName, column]) => {
-      const value = row[columnName] as string | number | null | undefined;
-
-      if (value === null || value === undefined) {
-        deserializedRow[columnName] = null;
-        return;
-      }
-
-      if (isOneColumn(column)) return;
-      if (isManyColumn(column)) return;
-      if (!isEnumColumn(column) && !isReferenceColumn(column) && column.list) {
-        let parsedValue = JSON.parse(value as string);
-        if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
-        deserializedRow[columnName] = parsedValue;
-        return;
-      }
-
-      if ((column.type as Scalar) === "boolean") {
-        deserializedRow[columnName] = value === 1 ? true : false;
-        return;
-      }
-
-      if (column.type === "hex") {
-        deserializedRow[columnName] = bytesToHex(value as unknown as Buffer);
-        return;
-      }
-
-      if (column.type === "bigint") {
-        deserializedRow[columnName] = decodeToBigInt(
-          value as unknown as string,
-        );
-        return;
-      }
-
-      deserializedRow[columnName] = value;
-    });
-
-    return deserializedRow;
   };
 
   private wrap = async <T>(

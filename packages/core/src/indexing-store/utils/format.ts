@@ -1,7 +1,13 @@
-import type { Scalar, Schema } from "@/schema/types.js";
+import type {
+  EnumColumn,
+  NonReferenceColumn,
+  ReferenceColumn,
+  Scalar,
+  Schema,
+} from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
-import { encodeAsText } from "@/utils/encoding.js";
-import { hexToBytes, isHex } from "viem";
+import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
+import { bytesToHex, hexToBytes, isHex } from "viem";
 import type { Row } from "../store.js";
 
 const scalarToTsType = {
@@ -52,7 +58,7 @@ export function encodeColumn(
   if (isEnumColumn(column)) {
     if (typeof value !== "string") {
       throw Error(
-        `Column encoding failed: Unable to encode ${value} into an enum column. Got type ${typeof value} but expected type 'string'.`,
+        `Column encoding failed: Unable to encode ${value} into an enum column. Got type '${typeof value}' but expected type 'string'.`,
       );
     }
     return value;
@@ -65,7 +71,7 @@ export function encodeColumn(
       // Note: We are not checking the types of the list elements.
       if (!Array.isArray(value)) {
         throw Error(
-          `Column encoding failed: Unable to encode ${value} into a list column. Got type ${typeof value} but expected type '${
+          `Column encoding failed: Unable to encode ${value} into a list column. Got type '${typeof value}' but expected type '${
             scalarToTsType[column.type]
           }[]'.`,
         );
@@ -81,42 +87,42 @@ export function encodeColumn(
     if (column.type === "string") {
       if (typeof value !== "string") {
         throw Error(
-          `Column encoding failed: Unable to encode ${value} into a string column. Got type ${typeof value} but expected type 'string'.`,
+          `Column encoding failed: Unable to encode ${value} into a string column. Got type '${typeof value}' but expected type 'string'.`,
         );
       }
       return value;
     } else if (column.type === "hex") {
       if (typeof value !== "string" || !isHex(value)) {
         throw Error(
-          `Column encoding failed: Unable to encode ${value} into a hex column. Got type ${typeof value} but expected type '\`0x\${string}\`'.`,
+          `Column encoding failed: Unable to encode ${value} into a hex column. Got type '${typeof value}' but expected type '\`0x\${string}\`'.`,
         );
       }
       return Buffer.from(hexToBytes(value));
     } else if (column.type === "int") {
       if (typeof value !== "number") {
         throw Error(
-          `Column encoding failed: Unable to encode ${value} into an int column. Got type ${typeof value} but expected type 'number'.`,
+          `Column encoding failed: Unable to encode ${value} into an int column. Got type '${typeof value}' but expected type 'number'.`,
         );
       }
       return value;
     } else if (column.type === "float") {
       if (typeof value !== "number") {
         throw Error(
-          `Column encoding failed: Unable to encode ${value} into a float column. Got type ${typeof value} but expected type 'number'.`,
+          `Column encoding failed: Unable to encode ${value} into a float column. Got type '${typeof value}' but expected type 'number'.`,
         );
       }
       return value;
     } else if (column.type === "bigint") {
       if (typeof value !== "bigint") {
         throw Error(
-          `Column encoding failed: Unable to encode ${value} into a bigint column. Got type ${typeof value} but expected type 'bigint'.`,
+          `Column encoding failed: Unable to encode ${value} into a bigint column. Got type '${typeof value}' but expected type 'bigint'.`,
         );
       }
       return encoding === "sqlite" ? encodeAsText(value) : value;
     } else if (column.type === "boolean") {
       if (typeof value !== "boolean") {
         throw Error(
-          `Column encoding failed: Unable to encode ${value} into a boolean column. Got type ${typeof value} but expected type 'boolean'.`,
+          `Column encoding failed: Unable to encode ${value} into a boolean column. Got type '${typeof value}' but expected type 'boolean'.`,
         );
       }
       return value ? 1 : 0;
@@ -136,4 +142,41 @@ export function encodeColumn(
       column._type === "m" ? "many" : "one"
     }" columns are virtual and therefore should not be given a value.`,
   );
+}
+
+export function decodeRow(
+  data: Partial<Row>,
+  table: Schema["tables"][keyof Schema["tables"]],
+  encoding: "sqlite" | "postgres",
+): Row {
+  const instance: { [key: string]: string | number | null | bigint | Buffer } =
+    {};
+
+  for (const [columnName, column] of Object.entries(table)) {
+    if (isBaseColumn(column) || isEnumColumn(column)) {
+      instance[columnName] = decodeColumn(data[columnName], column, encoding);
+    }
+  }
+
+  return instance as Row;
+}
+
+function decodeColumn(
+  value: unknown,
+  column: NonReferenceColumn | ReferenceColumn | EnumColumn,
+  encoding: "sqlite" | "postgres",
+) {
+  if (column.list) {
+    return column.type === "bigint"
+      ? JSON.parse(value as string).map(BigInt)
+      : JSON.parse(value as string);
+  } else if (column.type === "boolean") {
+    return value === 1 ? true : false;
+  } else if (column.type === "hex") {
+    return bytesToHex(value as Buffer);
+  } else if (column.type === "bigint" && encoding === "sqlite") {
+    return decodeToBigInt(value as string);
+  } else {
+    return value;
+  }
 }
