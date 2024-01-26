@@ -72,3 +72,32 @@ test("helper function", () => {
     access: "write",
   });
 });
+
+test("basic", () => {
+  const tableAccess = parseAst({
+    tableNames,
+    indexingFunctionKeys,
+    filePaths: [
+      path.join(
+        url.fileURLToPath(import.meta.url),
+        "..",
+        "test",
+        "renameVar.ts",
+      ),
+    ],
+  });
+
+  expect(tableAccess).toHaveLength(2);
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event2",
+    access: "read",
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event2",
+    access: "write",
+  });
+});

@@ -23,9 +23,11 @@ const parseTableReference = (
   node: SgNode,
   tableNames: string[],
 ): string | undefined => {
-  const table = node.getMatch("TABLE")?.text();
+  const table = node.getMatch("TABLE")?.text()!;
 
-  return table && tableNames.includes(table) ? table : undefined;
+  // Note: An invalid table name should probably throw some sort of warning
+  // Could also set a flag to say: "mark this function as fully dependent"
+  return tableNames.includes(table) ? table : undefined;
 };
 
 const findAllORMCalls = (root: SgNode) => {

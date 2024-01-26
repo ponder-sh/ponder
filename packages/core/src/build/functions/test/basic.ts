@@ -7,7 +7,9 @@ ponder.on("C:Event1", async ({ event, context }) => {
 });
 
 ponder.on("C:Event2", async ({ event, context }) => {
-  await context.db.Table1.upsert({
+  const { Table1 } = context.db;
+
+  await Table1.upsert({
     id: event.args.arg,
   });
 });
