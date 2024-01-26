@@ -5,7 +5,7 @@ import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
 import type { Pool } from "pg";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
-import { decodeRow, encodeColumn, encodeRow } from "../utils/encoding.js";
+import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
@@ -259,7 +259,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
+      const formattedId = encodeValue(
         id,
         this.schema!.tables[tableName].id,
         "postgres",
@@ -449,7 +449,7 @@ export class PostgresIndexingStore implements IndexingStore {
     return this.wrap({ method: "update", tableName }, async () => {
       const table = `${tableName}_versioned`;
       const tableSchema = this.schema!.tables[tableName];
-      const formattedId = encodeColumn(id, tableSchema.id, "postgres");
+      const formattedId = encodeValue(id, tableSchema.id, "postgres");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
@@ -637,7 +637,7 @@ export class PostgresIndexingStore implements IndexingStore {
     return this.wrap({ method: "upsert", tableName }, async () => {
       const table = `${tableName}_versioned`;
       const tableSchema = this.schema!.tables[tableName];
-      const formattedId = encodeColumn(id, tableSchema.id, "postgres");
+      const formattedId = encodeValue(id, tableSchema.id, "postgres");
       const createRow = encodeRow({ id, ...create }, tableSchema, "postgres");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -732,7 +732,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "delete", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
+      const formattedId = encodeValue(
         id,
         this.schema!.tables[tableName].id,
         "postgres",

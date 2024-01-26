@@ -41,7 +41,7 @@ export function encodeRow(
       );
     }
 
-    instance[key] = encodeColumn(value, table[key], encoding);
+    instance[key] = encodeValue(value, table[key], encoding);
   }
 
   return instance;
@@ -50,7 +50,7 @@ export function encodeRow(
 /**
  * Convert a user-land value into a database-ready value.
  */
-export function encodeColumn(
+export function encodeValue(
   value: unknown,
   column: Schema["tables"][keyof Schema["tables"]][string],
   encoding: "sqlite" | "postgres",
@@ -154,14 +154,14 @@ export function decodeRow(
 
   for (const [columnName, column] of Object.entries(table)) {
     if (isBaseColumn(column) || isEnumColumn(column)) {
-      instance[columnName] = decodeColumn(data[columnName], column, encoding);
+      instance[columnName] = decodeValue(data[columnName], column, encoding);
     }
   }
 
   return instance as Row;
 }
 
-function decodeColumn(
+function decodeValue(
   value: unknown,
   column: NonReferenceColumn | ReferenceColumn | EnumColumn,
   encoding: "sqlite" | "postgres",

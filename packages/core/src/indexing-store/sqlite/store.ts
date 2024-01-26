@@ -5,7 +5,7 @@ import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { Kysely, SqliteDialect, sql } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
-import { decodeRow, encodeColumn, encodeRow } from "../utils/encoding.js";
+import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
@@ -233,7 +233,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
+      const formattedId = encodeValue(
         id,
         this.schema!.tables[tableName].id,
         "sqlite",
@@ -417,7 +417,7 @@ export class SqliteIndexingStore implements IndexingStore {
     return this.wrap({ method: "update", tableName }, async () => {
       const table = `${tableName}_versioned`;
       const tableSchema = this.schema!.tables[tableName];
-      const formattedId = encodeColumn(id, tableSchema.id, "sqlite");
+      const formattedId = encodeValue(id, tableSchema.id, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
@@ -601,7 +601,7 @@ export class SqliteIndexingStore implements IndexingStore {
     return this.wrap({ method: "upsert", tableName }, async () => {
       const table = `${tableName}_versioned`;
       const tableSchema = this.schema!.tables[tableName];
-      const formattedId = encodeColumn(id, tableSchema.id, "sqlite");
+      const formattedId = encodeValue(id, tableSchema.id, "sqlite");
       const createRow = encodeRow({ id, ...create }, tableSchema, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -692,7 +692,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "delete", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
+      const formattedId = encodeValue(
         id,
         this.schema!.tables[tableName].id,
         "sqlite",
