@@ -166,7 +166,8 @@ function decodeColumn(
   column: NonReferenceColumn | ReferenceColumn | EnumColumn,
   encoding: "sqlite" | "postgres",
 ) {
-  if (column.list) {
+  if (value === null) return null;
+  else if (column.list) {
     return column.type === "bigint"
       ? JSON.parse(value as string).map(BigInt)
       : JSON.parse(value as string);
