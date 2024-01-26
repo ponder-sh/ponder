@@ -43,7 +43,7 @@ test("basic", () => {
   });
 });
 
-test("basic", () => {
+test("helper function", () => {
   const tableAccess = parseAst({
     tableNames,
     indexingFunctionKeys,
@@ -54,6 +54,7 @@ test("basic", () => {
         "test",
         "helperFunc.ts",
       ),
+      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
     ],
   });
 

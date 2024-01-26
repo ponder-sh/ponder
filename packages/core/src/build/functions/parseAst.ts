@@ -19,25 +19,57 @@ const getEventSignature = (node: SgNode) => {
   return node.getMatch("NAME")?.text()!;
 };
 
-/**
- * Return all nodes that call an ORM function on a table.
- */
-const getTableReferences = (node: SgNode, table: string) => {
-  return [
-    ...(node.getMatch("FUNC")?.findAll(`${table}.$METHOD`) ?? []),
-    ...(node.getMatch("FUNC")?.findAll(`$$$.${table}.$METHOD`) ?? []),
-  ];
-};
-
 const parseTableReference = (
   node: SgNode,
-): keyof typeof ormFunctions | undefined => {
-  const method = node.getMatch("METHOD")?.text();
+  tableNames: string[],
+): string | undefined => {
+  const table = node.getMatch("TABLE")?.text();
 
-  if (method && Object.keys(ormFunctions).includes(method))
-    return method as keyof typeof ormFunctions;
+  return table && tableNames.includes(table) ? table : undefined;
+};
 
-  return undefined;
+const findAllORMCalls = (root: SgNode) => {
+  return Object.keys(ormFunctions).map((ormf) => ({
+    method: ormf as keyof typeof ormFunctions,
+    nodes: [
+      ...root.findAll(`$_.$TABLE.${ormf}`),
+      ...root.findAll(`$TABLE.${ormf}`),
+    ],
+  }));
+};
+
+// const printNodes = (nodes: SgNode[]) => {
+//   for (const node of nodes) {
+//     console.log(node.text());
+//   }
+// };
+
+const helperFunctionName = (node: SgNode) => {
+  const arrowFuncAncestor = node
+    .ancestors()
+    .filter((n) => n.kind() === "arrow_function");
+
+  const arrowFuncName = arrowFuncAncestor.map((f) =>
+    f
+      .prevAll()
+      .find((a) => a.kind() === "identifier")
+      ?.text(),
+  );
+
+  const funcDeclarAncestor = node
+    .ancestors()
+    .filter((n) => n.kind() === "function_declaration");
+
+  const funcDeclarName = funcDeclarAncestor.map((f) =>
+    f
+      .children()
+      .find((c) => c.kind() === "identifier")
+      ?.text(),
+  );
+
+  return [...arrowFuncName, ...funcDeclarName].filter(
+    (name) => !!name,
+  ) as string[];
 };
 
 export type TableAccess = {
@@ -48,7 +80,6 @@ export type TableAccess = {
 
 export const parseAst = ({
   tableNames,
-  indexingFunctionKeys,
   filePaths,
 }: {
   tableNames: string[];
@@ -57,8 +88,43 @@ export const parseAst = ({
 }) => {
   const tableAccessMap = [] as TableAccess;
 
-  for (const key of indexingFunctionKeys) {
-    Object.defineProperty(tableAccessMap, key, {});
+  const helperFunctionAccess: Record<
+    string,
+    {
+      table: string;
+      method: keyof typeof ormFunctions;
+      filePath: string;
+    }[]
+  > = {};
+
+  // Register all helper functions
+  for (const filePath of filePaths) {
+    const file = fs.readFileSync(filePath).toString();
+
+    const ast = js.parse(file);
+    const root = ast.root();
+
+    const ormCalls = findAllORMCalls(root);
+
+    for (const call of ormCalls) {
+      for (const node of call.nodes) {
+        const helperNames = helperFunctionName(node);
+        const table = parseTableReference(node, tableNames);
+
+        if (table !== undefined) {
+          for (const helperName of helperNames) {
+            if (helperFunctionAccess[helperName] === undefined) {
+              helperFunctionAccess[helperName] = [];
+            }
+            helperFunctionAccess[helperName].push({
+              table,
+              method: call.method,
+              filePath,
+            });
+          }
+        }
+      }
+    }
   }
 
   for (const filePath of filePaths) {
@@ -66,17 +132,40 @@ export const parseAst = ({
 
     const ast = js.parse(file);
     const root = ast.root();
+
     const nodes = root.findAll('ponder.on("$NAME", $FUNC)');
 
     for (const node of nodes) {
       const indexingFunctionKey = getEventSignature(node);
-      for (const table of tableNames) {
-        const tableReferences = getTableReferences(node, table);
-        for (const tableRef of tableReferences) {
-          const method = parseTableReference(tableRef);
 
-          if (method) {
-            for (const access of ormFunctions[method]) {
+      const funcNode = node.getMatch("FUNC")!;
+
+      const ormCalls = findAllORMCalls(funcNode);
+
+      // Search for calls to helper function
+      for (const [name, helperFunctionState] of Object.entries(
+        helperFunctionAccess,
+      )) {
+        if (funcNode.find(`${name}($$$)`) !== null) {
+          for (const state of helperFunctionState) {
+            for (const access of ormFunctions[state.method]) {
+              tableAccessMap.push({
+                table: state.table,
+                indexingFunctionKey,
+                access,
+              });
+            }
+          }
+        }
+      }
+
+      // Search for table access in indexing function
+      for (const call of ormCalls) {
+        for (const n of call.nodes) {
+          const table = parseTableReference(n, tableNames);
+
+          if (table) {
+            for (const access of ormFunctions[call.method]) {
               tableAccessMap.push({
                 table,
                 indexingFunctionKey,

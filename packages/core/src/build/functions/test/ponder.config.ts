@@ -1,6 +1,11 @@
-import { http, zeroAddress } from "viem";
+import { http, parseAbi, zeroAddress } from "viem";
 import { createConfig } from "../../../config/config.js";
-import { abi } from "./abi.js";
+
+const abi = parseAbi([
+  "event Event1(bytes32 arg)",
+  "event Event2(bytes32 arg)",
+  "event Event3(bytes32 arg)",
+]);
 
 export default createConfig({
   networks: {
