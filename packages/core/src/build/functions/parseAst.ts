@@ -46,7 +46,7 @@ export type TableAccess = {
   access: "read" | "write";
 }[];
 
-export const parseIndexingAst = ({
+export const parseAst = ({
   tableNames,
   indexingFunctionKeys,
   filePaths,
