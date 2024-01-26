@@ -35,15 +35,15 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
 
     if (isEnumColumn(columns.id))
       throw Error(
-        `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'enum', expected one of ['string', 'bytes', 'bigint', 'int'].`,
+        `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'enum', expected one of ['string', 'hex', 'bigint', 'int'].`,
       );
     if (isOneColumn(columns.id))
       throw Error(
-        `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'one', expected one of ['string', 'bytes', 'bigint', 'int'].`,
+        `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'one', expected one of ['string', 'hex', 'bigint', 'int'].`,
       );
     if (isManyColumn(columns.id))
       throw Error(
-        `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'many', expected one of ['string', 'bytes', 'bigint', 'int'].`,
+        `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'many', expected one of ['string', 'hex', 'bigint', 'int'].`,
       );
     if (isReferenceColumn(columns.id))
       throw Error(
@@ -57,7 +57,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
       columns.id.type !== "int"
     )
       throw Error(
-        `Validation failed: Invalid type for ID column '${tableName}.id'. Got '${columns.id.type}', expected one of ['string', 'bytes', 'bigint', 'int'].`,
+        `Validation failed: Invalid type for ID column '${tableName}.id'. Got '${columns.id.type}', expected one of ['string', 'hex', 'bigint', 'int'].`,
       );
 
     // @ts-expect-error
@@ -211,10 +211,10 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
       //     column.type !== "boolean" &&
       //     column.type !== "int" &&
       //     column.type !== "float" &&
-      //     column.type !== "bytes"
+      //     column.type !== "hex"
       //   ) {
       //     throw Error(
-      //       `Validation failed: Primitive column '${tableName}.${columnName}' type is invalid. Got '${column.type}', expected one of ['bigint', 'string', 'boolean', 'int', 'float', 'bytes'].`,
+      //       `Validation failed: Primitive column '${tableName}.${columnName}' type is invalid. Got '${column.type}', expected one of ['bigint', 'string', 'boolean', 'int', 'float', 'hex'].`,
       //     );
       //   }
       // }
