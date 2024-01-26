@@ -38,7 +38,7 @@ export const tsTypeToGqlScalar: { [type in Scalar]: GraphQLScalarType } = {
   string: GraphQLString,
   boolean: GraphQLBoolean,
   bigint: GraphQLBigInt,
-  bytes: GraphQLString,
+  hex: GraphQLString,
 };
 
 export type Source = { request: unknown };

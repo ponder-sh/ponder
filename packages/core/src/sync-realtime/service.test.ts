@@ -22,7 +22,7 @@ const getBlockNumbers = () =>
   }));
 
 test("setup() returns block numbers", async (context) => {
-  const { common, syncStore, sources, networks } = context;
+  const { common, syncStore, sources, networks, requestQueues } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -31,6 +31,7 @@ test("setup() returns block numbers", async (context) => {
     syncStore,
     network: networks[0],
     sources: [sources[0]],
+    requestQueue: requestQueues[0],
   });
 
   const { latestBlockNumber, finalizedBlockNumber } = await service.setup();
@@ -38,11 +39,12 @@ test("setup() returns block numbers", async (context) => {
   expect(latestBlockNumber).toBe(blockNumbers.latestBlockNumber);
   expect(finalizedBlockNumber).toBe(blockNumbers.finalizedBlockNumber);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() adds blocks to the store from finalized to latest", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, sources, networks, requestQueues } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -50,6 +52,7 @@ test("start() adds blocks to the store from finalized to latest", async (context
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -64,16 +67,18 @@ test("start() adds blocks to the store from finalized to latest", async (context
     BigInt(blockNumbers.latestBlockNumber - 2),
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() adds all required transactions to the store", async (context) => {
-  const { common, syncStore, networks, sources } = context;
+  const { common, syncStore, sources, networks, requestQueues } = context;
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -94,16 +99,19 @@ test("start() adds all required transactions to the store", async (context) => {
     expect(requiredTransactionHashes.has(transaction.hash)).toEqual(true);
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() adds all matched logs to the store", async (context) => {
-  const { common, syncStore, networks, sources, erc20 } = context;
+  const { common, syncStore, networks, requestQueues, sources, erc20 } =
+    context;
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -117,11 +125,20 @@ test("start() adds all matched logs to the store", async (context) => {
     expect(log.address).toEqual(erc20.address);
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() handles new blocks", async (context) => {
-  const { common, syncStore, sources, networks, erc20, factory } = context;
+  const {
+    common,
+    syncStore,
+    sources,
+    networks,
+    requestQueues,
+    erc20,
+    factory,
+  } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -129,6 +146,7 @@ test("start() handles new blocks", async (context) => {
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -153,20 +171,30 @@ test("start() handles new blocks", async (context) => {
     BigInt(blockNumbers.latestBlockNumber + 1),
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() handles error while fetching new latest block gracefully", async (context) => {
-  const { common, syncStore, sources, networks, erc20, factory } = context;
+  const {
+    common,
+    syncStore,
+    sources,
+    networks,
+    requestQueues,
+    erc20,
+    factory,
+  } = context;
 
   const blockNumbers = await getBlockNumbers();
 
-  const rpcRequestSpy = vi.spyOn(networks[0], "request");
+  const rpcRequestSpy = vi.spyOn(requestQueues[0], "request");
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -179,7 +207,6 @@ test("start() handles error while fetching new latest block gracefully", async (
   });
 
   // Mock a failed new block request.
-  // @ts-ignore
   rpcRequestSpy.mockRejectedValueOnce(
     new HttpRequestError({ url: "http://ponder.sh/rpc" }),
   );
@@ -197,11 +224,12 @@ test("start() handles error while fetching new latest block gracefully", async (
     BigInt(blockNumbers.latestBlockNumber + 1),
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() emits realtimeCheckpoint events", async (context) => {
-  const { common, syncStore, sources, networks } = context;
+  const { common, syncStore, sources, networks, requestQueues } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -209,6 +237,7 @@ test("start() emits realtimeCheckpoint events", async (context) => {
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -245,11 +274,20 @@ test("start() emits realtimeCheckpoint events", async (context) => {
     chainId: 1,
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() inserts log filter interval records for finalized blocks", async (context) => {
-  const { common, syncStore, sources, networks, erc20, factory } = context;
+  const {
+    common,
+    syncStore,
+    sources,
+    networks,
+    requestQueues,
+    erc20,
+    factory,
+  } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -257,6 +295,7 @@ test("start() inserts log filter interval records for finalized blocks", async (
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -289,11 +328,20 @@ test("start() inserts log filter interval records for finalized blocks", async (
     chainId: 1,
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
-  const { common, syncStore, sources, networks, erc20, factory } = context;
+  const {
+    common,
+    syncStore,
+    sources,
+    networks,
+    requestQueues,
+    erc20,
+    factory,
+  } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -301,6 +349,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -352,11 +401,20 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     BigInt(blockNumbers.latestBlockNumber + 1),
   ]);
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
-  const { common, syncStore, sources, networks, erc20, factory } = context;
+  const {
+    common,
+    syncStore,
+    sources,
+    networks,
+    requestQueues,
+    erc20,
+    factory,
+  } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -364,6 +422,7 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -398,11 +457,20 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
     chainId: 1,
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("emits deepReorg event after deep reorg", async (context) => {
-  const { common, syncStore, sources, networks, erc20, factory } = context;
+  const {
+    common,
+    syncStore,
+    sources,
+    networks,
+    requestQueues,
+    erc20,
+    factory,
+  } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -410,6 +478,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
 
@@ -455,11 +524,20 @@ test("emits deepReorg event after deep reorg", async (context) => {
     minimumDepth: 5,
   });
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });
 
 test("start() with factory contract inserts new child contracts records and child contract events", async (context) => {
-  const { common, syncStore, sources, networks, erc20, factory } = context;
+  const {
+    common,
+    syncStore,
+    sources,
+    networks,
+    requestQueues,
+    erc20,
+    factory,
+  } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -467,6 +545,7 @@ test("start() with factory contract inserts new child contracts records and chil
     common,
     syncStore,
     network: networks[0],
+    requestQueue: requestQueues[0],
     sources: [sources[1]],
   });
 
@@ -516,5 +595,6 @@ test("start() with factory contract inserts new child contracts records and chil
     }),
   );
 
-  await service.kill();
+  service.kill();
+  await service.onIdle();
 });

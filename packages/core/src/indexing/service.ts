@@ -27,6 +27,7 @@ import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import { wait } from "@/utils/wait.js";
 
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { buildDatabaseModels } from "./model.js";
 import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
 import { addUserStackTrace } from "./trace.js";
@@ -95,6 +96,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   private currentIndexingCheckpoint: Checkpoint = zeroCheckpoint;
   private isPaused = false;
+  /** If true, failed tasks should not log errors or be retried. */
+  private isShuttingDown = false;
 
   constructor({
     common,
@@ -102,6 +105,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingStore,
     syncGatewayService,
     networks,
+    requestQueues,
     sources,
   }: {
     common: Common;
@@ -109,6 +113,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingStore: IndexingStore;
     syncGatewayService: SyncGateway;
     networks: Network[];
+    requestQueues: RequestQueue[];
     sources: Source[];
   }) {
     super();
@@ -122,23 +127,26 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.contexts = buildContexts(
       sources,
       networks,
+      requestQueues,
       syncStore,
       ponderActions(() => BigInt(this.currentIndexingCheckpoint.blockNumber)),
     );
   }
 
-  kill = async () => {
+  kill = () => {
     this.isPaused = true;
+    this.isShuttingDown = true;
     this.queue?.pause();
     this.queue?.clear();
-    await this.queue?.onIdle();
-
     this.eventProcessingMutex.cancel();
-
     this.common.logger.debug({
       service: "indexing",
       msg: "Killed indexing service",
     });
+  };
+
+  onIdle = async () => {
+    await this.queue?.onIdle();
   };
 
   /**
@@ -564,7 +572,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
               break;
             } catch (error_) {
-              // Remove all remaining tasks from the queue.
+              if (this.isShuttingDown) return;
 
               const error = error_ as Error & { meta: string };
 
@@ -652,6 +660,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
               break;
             } catch (error_) {
+              if (this.isShuttingDown) return;
+
               const error = error_ as Error & { meta?: string };
 
               if (i === 3) {
@@ -710,6 +720,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 const buildContexts = (
   sources: Source[],
   networks: Network[],
+  requestQueues: RequestQueue[],
   syncStore: SyncStore,
   actions: ReturnType<typeof ponderActions>,
 ) => {
@@ -731,13 +742,16 @@ const buildContexts = (
     }
   > = {};
 
-  networks.forEach((network) => {
+  networks.forEach((network, i) => {
     const defaultChain =
       Object.values(chains).find((c) => c.id === network.chainId) ??
       chains.mainnet;
 
     const client = createClient({
-      transport: ponderTransport({ network, syncStore }),
+      transport: ponderTransport({
+        requestQueue: requestQueues[i],
+        syncStore,
+      }),
       chain: { ...defaultChain, name: network.name, id: network.chainId },
     });
 

@@ -14,6 +14,7 @@ import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { createPool } from "@/utils/pg.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { createSqliteDatabase } from "@/utils/sqlite.js";
 import pg from "pg";
 import type { Address } from "viem";
@@ -36,6 +37,7 @@ declare module "vitest" {
     indexingStore: IndexingStore;
     sources: [LogFilter, Factory];
     networks: Network[];
+    requestQueues: RequestQueue[];
     config: Config;
     erc20: { address: Address };
     factory: { address: Address; pair: Address };
@@ -43,8 +45,14 @@ declare module "vitest" {
 }
 
 beforeEach((context) => {
+  setupContext(context);
+});
+
+export const setupContext = (context: TestContext) => {
   const options = {
-    ...buildOptions({ cliOptions: { config: "", root: "" } }),
+    ...buildOptions({
+      cliOptions: { config: "", root: "" },
+    }),
     telemetryDisabled: true,
   };
   context.common = {
@@ -53,7 +61,7 @@ beforeEach((context) => {
     metrics: new MetricsService(),
     telemetry: new TelemetryService({ options }),
   };
-});
+};
 
 /**
  * Sets up an isolated SyncStore on the test context.
@@ -185,8 +193,12 @@ export async function setupAnvil(context: TestContext) {
 
   context.config = getConfig(addresses);
 
-  const { networks, sources } = await getNetworkAndSources(addresses);
+  const { networks, sources, requestQueues } = await getNetworkAndSources(
+    addresses,
+    context.common,
+  );
   context.networks = networks;
+  context.requestQueues = requestQueues;
   context.sources = sources as [LogFilter, Factory];
   context.erc20 = { address: addresses.erc20Address };
   context.factory = { address: addresses.factoryAddress, pair };

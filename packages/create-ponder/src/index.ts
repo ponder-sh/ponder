@@ -68,7 +68,7 @@ const templates = [
   {
     id: "subgraph",
     title: "Subgraph ID",
-    description: "Create from a deployed subgraph ID",
+    description: "Create from a deployed subgraph",
   },
   {
     id: "feature-factory",
@@ -182,8 +182,9 @@ export async function run({
   });
   if (!nameValidation.valid) throw new ValidationError(nameValidation);
 
-  // Automatically use etherscan as a template when appropriate.
-  if (options.etherscanContractLink && !templateId) templateId = "etherscan";
+  // Automatically set template if using shortcut.
+  if (options.etherscan && !templateId) templateId = "etherscan";
+  if (options.subgraph && !templateId) templateId = "subgraph";
 
   // Extract template ID from CLI or prompt
   if (!templateId) {
@@ -215,31 +216,31 @@ export async function run({
 
   const targetPath = path.join(process.cwd(), projectPath);
 
-  let link: string | undefined = options.etherscanContractLink;
+  let url: string | undefined = options.etherscan;
   if (templateMeta.id === "etherscan") {
-    if (!link) {
+    if (!url) {
       const result = await prompts({
         type: "text",
-        name: "link",
-        message: "Enter a block explorer contract link",
+        name: "url",
+        message: "Enter a block explorer contract url",
         initial: "https://etherscan.io/address/0x97...",
       });
-      link = result.link;
+      url = result.url;
     }
   }
 
-  let subgraphId: string | undefined = options.subgraphId;
+  let subgraph: string | undefined = options.subgraph;
   if (templateMeta.id === "subgraph") {
-    if (!subgraphId) {
+    if (!subgraph) {
       const result = await prompts({
         type: "text",
         name: "id",
         message: "Enter a subgraph ID",
         initial: "Qmb3hd2hYd2nWFgcmRswykF1dUBSrDUrinYCgN1dmE1tNy",
       });
-      subgraphId = result.id;
+      subgraph = result.id;
     }
-    if (!subgraphId) {
+    if (!subgraph) {
       log(pico.red("No subgraph ID provided."));
       process.exit(0);
     }
@@ -248,11 +249,11 @@ export async function run({
   log();
 
   if (templateMeta.id === "etherscan") {
-    const host = new URL(link!).host;
-    config = await oraPromise(
+    const host = new URL(url!).host;
+    const result = await oraPromise(
       fromEtherscan({
         rootDir: targetPath,
-        etherscanLink: link!,
+        etherscanLink: url!,
         etherscanApiKey: options.etherscanApiKey,
       }),
       {
@@ -263,15 +264,17 @@ export async function run({
         successText: `Fetched contract metadata from ${pico.bold(host)}.`,
       },
     );
+    config = result.config;
+    warnings.push(...result.warnings);
   }
 
   if (templateMeta.id === "subgraph") {
     const result = await oraPromise(
-      fromSubgraphId({ rootDir: targetPath, subgraphId: subgraphId! }),
+      fromSubgraphId({ rootDir: targetPath, subgraphId: subgraph! }),
       {
         text: "Fetching subgraph metadata. This may take a few seconds.",
         failText: "Failed to fetch subgraph metadata.",
-        successText: `Fetched subgraph metadata for ${pico.bold(subgraphId)}.`,
+        successText: `Fetched subgraph metadata for ${pico.bold(subgraph)}.`,
       },
     );
     config = result.config;
@@ -473,20 +476,21 @@ export async function run({
 (async () => {
   const cli = cac(rootPackageJson.name)
     .version(rootPackageJson.version)
-    .usage(`${pico.green("<project-directory>")} [options]`)
+    .usage(`${pico.green("<directory>")} [options]`)
     .option(
-      "-t, --template [name]",
-      `A template to bootstrap with. Available: ${templates
-        .map(({ id }) => id)
-        .join(", ")}`,
+      "-t, --template [id]",
+      `Use a template. Options: ${templates.map(({ id }) => id).join(", ")}`,
     )
-    .option("--etherscan-contract-link [link]", "Etherscan contract link")
-    .option("--etherscan-api-key [key]", "Etherscan API key")
-    .option("--subgraph-id [key]", "Subgraph ID")
+    .option("--etherscan [url]", "Use the Etherscan template")
+    .option("--subgraph [id]", "Use the subgraph template")
     .option("--npm", "Use npm as your package manager")
     .option("--pnpm", "Use pnpm as your package manager")
     .option("--yarn", "Use yarn as your package manager")
-    .option("--skip-git", "Skips initializing the project as a git repository")
+    .option("--skip-git", "Skip initializing a git repository")
+    .option(
+      "--etherscan-api-key [key]",
+      "Etherscan API key for Etherscan template",
+    )
     .help();
 
   // Check Nodejs version

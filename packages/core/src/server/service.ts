@@ -12,7 +12,6 @@ import { createHttpTerminator } from "http-terminator";
 import type { Common } from "@/Ponder.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
-import { startClock } from "@/utils/timer.js";
 
 type ServerEvents = {
   "admin:reload": { chainId: number };
@@ -50,7 +49,6 @@ export class ServerService extends Emittery<ServerEvents> {
   setup({ registerDevRoutes }: { registerDevRoutes: boolean }) {
     // Middleware.
     this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
-    this.app.use(this.middlewareMetrics());
 
     // Observability routes.
     this.app.all("/metrics", this.handleMetrics());
@@ -130,44 +128,6 @@ export class ServerService extends Emittery<ServerEvents> {
       service: "server",
       msg: "Started responding as healthy",
     });
-  }
-
-  // Middleware handlers.
-  private middlewareMetrics(): Handler {
-    return (req, res, next) => {
-      const endClock = startClock();
-      res.on("finish", () => {
-        const responseDuration = endClock();
-        const method = req.method;
-        const path = new URL(req.url, `http://${req.get("host")}`).pathname;
-        const status =
-          res.statusCode >= 200 && res.statusCode < 300
-            ? "2XX"
-            : res.statusCode >= 300 && res.statusCode < 400
-              ? "3XX"
-              : res.statusCode >= 400 && res.statusCode < 500
-                ? "4XX"
-                : "5XX";
-
-        const requestSize = Number(req.get("Content-Length") ?? 0);
-        this.common.metrics.ponder_server_request_size.observe(
-          { method, path, status },
-          Number(requestSize),
-        );
-
-        const responseSize = Number(res.get("Content-Length") ?? 0);
-        this.common.metrics.ponder_server_response_size.observe(
-          { method, path, status },
-          Number(responseSize),
-        );
-
-        this.common.metrics.ponder_server_response_duration.observe(
-          { method, path, status },
-          responseDuration,
-        );
-      });
-      next();
-    };
   }
 
   // Route handlers.

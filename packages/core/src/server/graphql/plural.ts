@@ -102,7 +102,7 @@ export const buildPluralField = ({
         };
       });
 
-      if (["int", "bigint", "float"].includes(column.type)) {
+      if (["int", "bigint", "float", "hex"].includes(column.type)) {
         operators.numeric.forEach((suffix) => {
           filterFields[`${columnName}${suffix}`] = {
             type: type,
@@ -110,7 +110,7 @@ export const buildPluralField = ({
         });
       }
 
-      if (["string", "bytes"].includes(column.type)) {
+      if ("string" === column.type) {
         operators.string.forEach((suffix) => {
           filterFields[`${columnName}${suffix}`] = {
             type: type,

@@ -21,6 +21,15 @@ export const isOneColumn = (
     | OneColumn,
 ): column is OneColumn => column._type === "o";
 
+export const isBaseColumn = (
+  column:
+    | EnumColumn
+    | NonReferenceColumn
+    | ReferenceColumn
+    | ManyColumn
+    | OneColumn,
+): column is NonReferenceColumn | ReferenceColumn => column._type === "b";
+
 export const isManyColumn = (
   column:
     | EnumColumn

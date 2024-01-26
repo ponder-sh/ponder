@@ -2,15 +2,9 @@ import type { Hex } from "viem";
 
 import type { Prettify } from "@/types/utils.js";
 
-export type Scalar =
-  | "string"
-  | "int"
-  | "float"
-  | "boolean"
-  | "bytes"
-  | "bigint";
+export type Scalar = "string" | "int" | "float" | "boolean" | "hex" | "bigint";
 
-export type ID = "string" | "int" | "bytes" | "bigint";
+export type ID = "string" | "int" | "bigint" | "hex";
 
 export type BaseColumn<
   TType extends Scalar = Scalar,
@@ -216,7 +210,7 @@ export type RecoverScalarType<TScalar extends Scalar> = TScalar extends "string"
       ? number
       : TScalar extends "boolean"
         ? boolean
-        : TScalar extends "bytes"
+        : TScalar extends "hex"
           ? Hex
           : TScalar extends "bigint"
             ? bigint

@@ -40,7 +40,7 @@ test("safeBuildSchema() returns error for ID column typed as an enum", () => {
   const result = safeBuildSchema({ schema });
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'enum', expected one of ['string', 'bytes', 'bigint', 'int'].",
+    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'enum', expected one of ['string', 'hex', 'bigint', 'int'].",
   );
 });
 
@@ -59,7 +59,7 @@ test("safeBuildSchema() returns error for ID column typed as a 'one' relationshi
   const result = safeBuildSchema({ schema });
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'one', expected one of ['string', 'bytes', 'bigint', 'int'].",
+    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'one', expected one of ['string', 'hex', 'bigint', 'int'].",
   );
 });
 
@@ -78,7 +78,7 @@ test("safeBuildSchema() returns error for ID column typed as a 'many' relationsh
   const result = safeBuildSchema({ schema });
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'many', expected one of ['string', 'bytes', 'bigint', 'int'].",
+    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'many', expected one of ['string', 'hex', 'bigint', 'int'].",
   );
 });
 
@@ -111,7 +111,7 @@ test("safeBuildSchema() returns error for invalid ID column type boolean", () =>
   const result = safeBuildSchema({ schema });
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'boolean', expected one of ['string', 'bytes', 'bigint', 'int'].",
+    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'boolean', expected one of ['string', 'hex', 'bigint', 'int'].",
   );
 });
 
@@ -126,7 +126,7 @@ test("safeBuildSchema() returns error for invalid ID column type float", () => {
   const result = safeBuildSchema({ schema });
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'float', expected one of ['string', 'bytes', 'bigint', 'int'].",
+    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'float', expected one of ['string', 'hex', 'bigint', 'int'].",
   );
 });
 

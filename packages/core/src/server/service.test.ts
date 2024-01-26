@@ -21,13 +21,13 @@ const s = createSchema((p) => ({
     int: p.int(),
     float: p.float(),
     boolean: p.boolean(),
-    bytes: p.bytes(),
+    hex: p.hex(),
     bigInt: p.bigint(),
     stringList: p.string().list(),
     intList: p.int().list(),
     floatList: p.float().list(),
     booleanList: p.boolean().list(),
-    bytesList: p.bytes().list(),
+    hexList: p.hex().list(),
     optional: p.string().optional(),
     optionalList: p.string().list().optional(),
     enum: p.enum("TestEnum"),
@@ -91,17 +91,17 @@ const setup = async ({
       checkpoint: zeroCheckpoint,
       id: String(id),
       data: {
-        string: String(id),
+        string: id.toString(),
         int: id,
         float: id / 10 ** 1,
         boolean: id % 2 === 0,
-        bytes: String(id),
+        hex: `0x${Math.abs(id).toString(16)}`,
         bigInt: BigInt(id),
-        stringList: [String(id)],
+        stringList: [id.toString()],
         intList: [id],
         floatList: [id / 10 ** 1],
         booleanList: [id % 2 === 0],
-        bytesList: [String(id)],
+        hexList: [`0x${Math.abs(id).toString(16)}`],
         enum: ["ZERO", "ONE", "TWO"][id % 3],
       },
     });
@@ -186,15 +186,15 @@ test("serves all scalar types correctly", async (context) => {
 
   const response = await gql(`
     testEntitys {
-        items {
-          id
-          string
-          int
-          float
-          boolean
-          bytes
-          bigInt
-        }
+      items {
+        id
+        string
+        int
+        float
+        boolean
+        hex
+        bigInt
+      }
     }
   `);
 
@@ -209,7 +209,7 @@ test("serves all scalar types correctly", async (context) => {
     int: 0,
     float: 0,
     boolean: true,
-    bytes: "0",
+    hex: "0x00",
     bigInt: "0",
   });
   expect(testEntitys.items[1]).toMatchObject({
@@ -218,7 +218,7 @@ test("serves all scalar types correctly", async (context) => {
     int: 1,
     float: 0.1,
     boolean: false,
-    bytes: "1",
+    hex: "0x01",
     bigInt: "1",
   });
   expect(testEntitys.items[2]).toMatchObject({
@@ -227,7 +227,7 @@ test("serves all scalar types correctly", async (context) => {
     int: 2,
     float: 0.2,
     boolean: true,
-    bytes: "2",
+    hex: "0x02",
     bigInt: "2",
   });
 
@@ -247,14 +247,14 @@ test("serves all scalar list types correctly", async (context) => {
 
   const response = await gql(`
     testEntitys {
-        items {
-          id
-          stringList
-          intList
-          floatList
-          booleanList
-          bytesList
-        }
+      items {
+        id
+        stringList
+        intList
+        floatList
+        booleanList
+        hexList
+      }
     }
   `);
 
@@ -269,7 +269,7 @@ test("serves all scalar list types correctly", async (context) => {
     intList: [0],
     floatList: [0],
     booleanList: [true],
-    bytesList: ["0"],
+    hexList: ["0x0"],
   });
   expect(testEntitys.items[1]).toMatchObject({
     id: "1",
@@ -277,7 +277,7 @@ test("serves all scalar list types correctly", async (context) => {
     intList: [1],
     floatList: [0.1],
     booleanList: [false],
-    bytesList: ["1"],
+    hexList: ["0x1"],
   });
   expect(testEntitys.items[2]).toMatchObject({
     id: "2",
@@ -285,7 +285,7 @@ test("serves all scalar list types correctly", async (context) => {
     intList: [2],
     floatList: [0.2],
     booleanList: [true],
-    bytesList: ["2"],
+    hexList: ["0x2"],
   });
 
   await service.kill();
@@ -410,6 +410,7 @@ test("serves one column types correctly", async (context) => {
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
+
   await createEntityWithNullRef({ id: "0" });
 
   const response = await gql(`
@@ -451,7 +452,7 @@ test("serves one column types correctly", async (context) => {
       int: 0,
       float: 0,
       boolean: true,
-      bytes: "0",
+      hex: "0x00",
       bigInt: "0",
     },
   });
