@@ -895,7 +895,7 @@ test("filters on bigInt field greater than", async (context) => {
   await service.kill();
 });
 
-test.only("filters on hex field equals", async (context) => {
+test("filters on hex field equals", async (context) => {
   const { common, indexingStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
