@@ -1,13 +1,22 @@
-import type { Schema } from "@/schema/types.js";
-import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
+import type { Scalar, Schema } from "@/schema/types.js";
+import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
 import { encodeAsText } from "@/utils/encoding.js";
 import { hexToBytes, isHex } from "viem";
 import type { Row } from "../store.js";
 
+const scalarToTsType = {
+  int: "number",
+  float: "number",
+  bigint: "bigint",
+  boolean: "boolean",
+  string: "string",
+  hex: "`0x${string}`",
+} as const satisfies { [key in Scalar]: string };
+
 /**
  * Convert a user-land row into a database-ready object.
  */
-export function formatRow(
+export function encodeRow(
   data: Partial<Row>,
   table: Schema["tables"][keyof Schema["tables"]],
   encoding: "sqlite" | "postgres",
@@ -16,7 +25,17 @@ export function formatRow(
     {};
 
   for (const [key, value] of Object.entries(data)) {
-    instance[key] = formatColumnValue(value, table[key], encoding);
+    if (table[key] === undefined) {
+      throw Error(
+        `Column encoding failed: column ${key} is not an exisitng column. Expected one of [${Object.keys(
+          table,
+        )
+          .filter((key) => isBaseColumn(table[key]) || isEnumColumn(table[key]))
+          .join(", ")}]`,
+      );
+    }
+
+    instance[key] = encodeColumn(value, table[key], encoding);
   }
 
   return instance;
@@ -25,26 +44,32 @@ export function formatRow(
 /**
  * Convert a user-land column value into a database-ready column value.
  */
-export function formatColumnValue(
+export function encodeColumn(
   value: unknown,
   column: Schema["tables"][keyof Schema["tables"]][string],
   encoding: "sqlite" | "postgres",
 ): string | number | null | bigint | Buffer {
   if (isEnumColumn(column)) {
-    if (typeof value !== "string") throw Error();
+    if (typeof value !== "string") {
+      throw Error(
+        `Column encoding failed: Unable to encode ${value} into an enum column. Got type ${typeof value} but expected type 'string'.`,
+      );
+    }
     return value;
-  } else if (isOneColumn(column)) {
-    throw Error("one");
-  } else if (isManyColumn(column)) {
-    throw Error("many");
-  } else {
+  } else if (isBaseColumn(column)) {
     if (column.optional && (value === undefined || value === null)) {
       return null;
     }
 
     if (column.list) {
-      // Note: much more validation could be done on list.
-      if (!Array.isArray(value)) throw Error("List");
+      // Note: We are not checking the types of the list elements.
+      if (!Array.isArray(value)) {
+        throw Error(
+          `Column encoding failed: Unable to encode ${value} into a list column. Got type ${typeof value} but expected type '${
+            scalarToTsType[column.type]
+          }[]'.`,
+        );
+      }
 
       if (column.type === "bigint") {
         return JSON.stringify(value.map(String));
@@ -53,27 +78,62 @@ export function formatColumnValue(
       }
     }
 
-    if (column.type === "bigint") {
-      if (typeof value !== "bigint") throw Error("bigint");
-      return encoding === "sqlite" ? encodeAsText(value) : value;
-    } else if (column.type === "boolean") {
-      if (typeof value !== "boolean") throw Error("boolean");
-      return value ? 1 : 0;
-    } else if (column.type === "float") {
-      if (typeof value !== "number") throw Error("float");
+    if (column.type === "string") {
+      if (typeof value !== "string") {
+        throw Error(
+          `Column encoding failed: Unable to encode ${value} into a string column. Got type ${typeof value} but expected type 'string'.`,
+        );
+      }
       return value;
     } else if (column.type === "hex") {
-      if (typeof value !== "string" || !isHex(value)) throw Error("hex");
+      if (typeof value !== "string" || !isHex(value)) {
+        throw Error(
+          `Column encoding failed: Unable to encode ${value} into a hex column. Got type ${typeof value} but expected type '\`0x\${string}\`'.`,
+        );
+      }
       return Buffer.from(hexToBytes(value));
     } else if (column.type === "int") {
-      if (typeof value !== "number") throw Error("int");
+      if (typeof value !== "number") {
+        throw Error(
+          `Column encoding failed: Unable to encode ${value} into an int column. Got type ${typeof value} but expected type 'number'.`,
+        );
+      }
       return value;
-    } else if (column.type === "string") {
-      if (typeof value !== "string") throw Error("string");
+    } else if (column.type === "float") {
+      if (typeof value !== "number") {
+        throw Error(
+          `Column encoding failed: Unable to encode ${value} into a float column. Got type ${typeof value} but expected type 'number'.`,
+        );
+      }
       return value;
+    } else if (column.type === "bigint") {
+      if (typeof value !== "bigint") {
+        throw Error(
+          `Column encoding failed: Unable to encode ${value} into a bigint column. Got type ${typeof value} but expected type 'bigint'.`,
+        );
+      }
+      return encoding === "sqlite" ? encodeAsText(value) : value;
+    } else if (column.type === "boolean") {
+      if (typeof value !== "boolean") {
+        throw Error(
+          `Column encoding failed: Unable to encode ${value} into a boolean column. Got type ${typeof value} but expected type 'boolean'.`,
+        );
+      }
+      return value ? 1 : 0;
     }
 
     // Note: it should be impossible to get to this line
-    throw Error("Unable to encode column data");
+    throw Error(
+      `Column encoding failed: Unable to encode ${value} into column of type ${column.type}. Please report this issue (https://github.com/ponder-sh/ponder/issues/new)`,
+    );
   }
+
+  // Column is either "many" or "one"
+  throw Error(
+    `Column encoding failed: Unable to encode ${value} into a "${
+      column._type === "m" ? "many" : "one"
+    }" column. "${
+      column._type === "m" ? "many" : "one"
+    }" columns are virtual and therefore should not be given a value.`,
+  );
 }

@@ -11,7 +11,7 @@ import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
 import type { Pool } from "pg";
 import { bytesToHex } from "viem";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
-import { formatColumnValue, formatRow } from "../utils/format.js";
+import { encodeColumn, encodeRow } from "../utils/format.js";
 import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
@@ -265,7 +265,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = formatColumnValue(
+      const formattedId = encodeColumn(
         id,
         this.schema!.tables[tableName].id,
         "postgres",
@@ -380,7 +380,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "create", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const createRow = formatRow(
+      const createRow = encodeRow(
         { id, ...data },
         this.schema!.tables[tableName],
         "postgres",
@@ -414,7 +414,7 @@ export class PostgresIndexingStore implements IndexingStore {
       const table = `${tableName}_versioned`;
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const createRows = data.map((d) => ({
-        ...formatRow({ ...d }, this.schema!.tables[tableName], "postgres"),
+        ...encodeRow({ ...d }, this.schema!.tables[tableName], "postgres"),
         effectiveFromCheckpoint: encodedCheckpoint,
         effectiveToCheckpoint: "latest",
       }));
@@ -448,7 +448,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "update", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = formatColumnValue(
+      const formattedId = encodeColumn(
         id,
         this.schema!.tables[tableName].id,
         "postgres",
@@ -465,20 +465,20 @@ export class PostgresIndexingStore implements IndexingStore {
           .executeTakeFirstOrThrow();
 
         // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof formatRow>;
+        let updateRow: ReturnType<typeof encodeRow>;
         if (typeof data === "function") {
           const current = this.deserializeRow({
             tableName,
             row: latestRow,
           });
           const updateObject = data({ current });
-          updateRow = formatRow(
+          updateRow = encodeRow(
             { id, ...updateObject },
             this.schema!.tables[tableName],
             "postgres",
           );
         } else {
-          updateRow = formatRow(
+          updateRow = encodeRow(
             { id, ...data },
             this.schema!.tables[tableName],
             "postgres",
@@ -573,20 +573,20 @@ export class PostgresIndexingStore implements IndexingStore {
             const formattedId = latestRow.id;
 
             // If the user passed an update function, call it with the current instance.
-            let updateRow: ReturnType<typeof formatRow>;
+            let updateRow: ReturnType<typeof encodeRow>;
             if (typeof data === "function") {
               const current = this.deserializeRow({
                 tableName,
                 row: latestRow,
               });
               const updateObject = data({ current });
-              updateRow = formatRow(
+              updateRow = encodeRow(
                 updateObject,
                 this.schema!.tables[tableName],
                 "postgres",
               );
             } else {
-              updateRow = formatRow(
+              updateRow = encodeRow(
                 data,
                 this.schema!.tables[tableName],
                 "postgres",
@@ -656,12 +656,12 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "upsert", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = formatColumnValue(
+      const formattedId = encodeColumn(
         id,
         this.schema!.tables[tableName].id,
         "postgres",
       );
-      const createRow = formatRow(
+      const createRow = encodeRow(
         { id, ...create },
         this.schema!.tables[tableName],
         "postgres",
@@ -691,20 +691,20 @@ export class PostgresIndexingStore implements IndexingStore {
         }
 
         // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof formatRow>;
+        let updateRow: ReturnType<typeof encodeRow>;
         if (typeof update === "function") {
           const current = this.deserializeRow({
             tableName,
             row: latestRow,
           });
           const updateObject = update({ current });
-          updateRow = formatRow(
+          updateRow = encodeRow(
             { id, ...updateObject },
             this.schema!.tables[tableName],
             "postgres",
           );
         } else {
-          updateRow = formatRow(
+          updateRow = encodeRow(
             { id, ...update },
             this.schema!.tables[tableName],
             "postgres",
@@ -766,7 +766,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "delete", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = formatColumnValue(
+      const formattedId = encodeColumn(
         id,
         this.schema!.tables[tableName].id,
         "postgres",

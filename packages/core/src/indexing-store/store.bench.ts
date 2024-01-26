@@ -293,7 +293,7 @@ describe("StringTable", () => {
     async () => {
       await context.indexingStore.findUnique({
         tableName: "StringTable",
-        id: 500,
+        id: "500",
       });
     },
     {
