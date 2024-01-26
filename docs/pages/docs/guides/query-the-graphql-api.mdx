@@ -63,24 +63,24 @@ type Query {
 
 The GraphQL API supports filtering through the `where` argument. The `where` argument type contains filter options for every column defined on your table. Here are the filter options available for each field type.
 
-| Filter option              | Available for column types                    | _Include records where \{column\}..._     |
-| :------------------------- | :-------------------------------------------- | :---------------------------------------- |
-| `{column}`                 | All                                           | **equals** the value                      |
-| `{column}_not`             | All                                           | **does not equal** the value              |
-| `{column}_in`              | All primitives and enums                      | **is one of** the values                  |
-| `{column}_not_in`          | All primitives and enums                      | **is not one of** the values              |
-| `{column}_gt`              | Numeric primitives (`int`, `float`, `bigint`) | is **greater than** the value             |
-| `{column}_lt`              | Numeric primitives                            | is **less than** the value                |
-| `{column}_gte`             | Numeric primitives                            | is **greater than or equal to** the value |
-| `{column}_lte`             | Numeric primitives                            | is **less than or equal to** the value    |
-| `{column}_contains`        | String primitives (`string`, `bytes`)         | **contains** the substring                |
-| `{column}_not_contains`    | String primitives                             | **does not contain** the substring        |
-| `{column}_starts_with`     | String primitives                             | **starts with** the substring             |
-| `{column}_not_starts_with` | String primitives                             | **does not start with** the substring     |
-| `{column}_ends_with`       | String primitives                             | **ends with** the substring               |
-| `{column}_not_ends_with`   | String primitives                             | **does not end with** the substring       |
-| `{column}_has`             | Lists of primitives and enums                 | **has** the value as an element           |
-| `{column}_not_has`         | Lists of primitives and enums                 | **does not have** the value as an element |
+| Filter option              | Available for column types                           | _Include records where \{column\}..._     |
+| :------------------------- | :--------------------------------------------------- | :---------------------------------------- |
+| `{column}`                 | All                                                  | **equals** the value                      |
+| `{column}_not`             | All                                                  | **does not equal** the value              |
+| `{column}_in`              | All primitives and enums                             | **is one of** the values                  |
+| `{column}_not_in`          | All primitives and enums                             | **is not one of** the values              |
+| `{column}_gt`              | Numeric primitives (`int`, `float`, `bigint`, `hex`) | is **greater than** the value             |
+| `{column}_lt`              | Numeric primitives                                   | is **less than** the value                |
+| `{column}_gte`             | Numeric primitives                                   | is **greater than or equal to** the value |
+| `{column}_lte`             | Numeric primitives                                   | is **less than or equal to** the value    |
+| `{column}_contains`        | String primitives (`string`)                         | **contains** the substring                |
+| `{column}_not_contains`    | String primitives                                    | **does not contain** the substring        |
+| `{column}_starts_with`     | String primitives                                    | **starts with** the substring             |
+| `{column}_not_starts_with` | String primitives                                    | **does not start with** the substring     |
+| `{column}_ends_with`       | String primitives                                    | **ends with** the substring               |
+| `{column}_not_ends_with`   | String primitives                                    | **does not end with** the substring       |
+| `{column}_has`             | Lists of primitives and enums                        | **has** the value as an element           |
+| `{column}_not_has`         | Lists of primitives and enums                        | **does not have** the value as an element |
 
 For all following examples, assume these records exist in your database.
 
