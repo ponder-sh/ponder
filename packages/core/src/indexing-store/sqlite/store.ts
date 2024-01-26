@@ -5,7 +5,7 @@ import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { Kysely, SqliteDialect, sql } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
-import { decodeRow, encodeColumn, encodeRow } from "../utils/format.js";
+import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
@@ -237,7 +237,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
+      const formattedId = encodeValue(
         id,
         this.schema!.tables[tableName].id,
         "sqlite",
@@ -610,11 +610,8 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "update", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
-        id,
-        this.schema!.tables[tableName].id,
-        "sqlite",
-      );
+      const tableSchema = this.schema!.tables[tableName];
+      const formattedId = encodeValue(id, tableSchema.id, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
@@ -629,23 +626,11 @@ export class SqliteIndexingStore implements IndexingStore {
         // If the user passed an update function, call it with the current instance.
         let updateRow: ReturnType<typeof encodeRow>;
         if (typeof data === "function") {
-          const current = decodeRow(
-            latestRow,
-            this.schema!.tables[tableName],
-            "sqlite",
-          );
+          const current = decodeRow(latestRow, tableSchema, "sqlite");
           const updateObject = data({ current });
-          updateRow = encodeRow(
-            { id, ...updateObject },
-            this.schema!.tables[tableName],
-            "sqlite",
-          );
+          updateRow = encodeRow({ id, ...updateObject }, tableSchema, "sqlite");
         } else {
-          updateRow = encodeRow(
-            { id, ...data },
-            this.schema!.tables[tableName],
-            "sqlite",
-          );
+          updateRow = encodeRow({ id, ...data }, tableSchema, "sqlite");
         }
 
         // If the update would be applied to a record other than the latest
@@ -688,7 +673,7 @@ export class SqliteIndexingStore implements IndexingStore {
         return row;
       });
 
-      const result = decodeRow(row, this.schema!.tables[tableName], "sqlite");
+      const result = decodeRow(row, tableSchema, "sqlite");
 
       return result;
     });
@@ -709,6 +694,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "updateMany", tableName }, async () => {
       const table = `${tableName}_versioned`;
+      const tableSchema = this.schema!.tables[tableName];
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const rows = await this.db.transaction().execute(async (tx) => {
@@ -738,23 +724,11 @@ export class SqliteIndexingStore implements IndexingStore {
             // If the user passed an update function, call it with the current instance.
             let updateRow: ReturnType<typeof encodeRow>;
             if (typeof data === "function") {
-              const current = decodeRow(
-                latestRow,
-                this.schema!.tables[tableName],
-                "sqlite",
-              );
+              const current = decodeRow(latestRow, tableSchema, "sqlite");
               const updateObject = data({ current });
-              updateRow = encodeRow(
-                updateObject,
-                this.schema!.tables[tableName],
-                "sqlite",
-              );
+              updateRow = encodeRow(updateObject, tableSchema, "sqlite");
             } else {
-              updateRow = encodeRow(
-                data,
-                this.schema!.tables[tableName],
-                "sqlite",
-              );
+              updateRow = encodeRow(data, tableSchema, "sqlite");
             }
 
             // If the update would be applied to a record other than the latest
@@ -799,9 +773,7 @@ export class SqliteIndexingStore implements IndexingStore {
         );
       });
 
-      return rows.map((row) =>
-        decodeRow(row, this.schema!.tables[tableName], "sqlite"),
-      );
+      return rows.map((row) => decodeRow(row, tableSchema, "sqlite"));
     });
   };
 
@@ -822,16 +794,9 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "upsert", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
-        id,
-        this.schema!.tables[tableName].id,
-        "sqlite",
-      );
-      const createRow = encodeRow(
-        { id, ...create },
-        this.schema!.tables[tableName],
-        "sqlite",
-      );
+      const tableSchema = this.schema!.tables[tableName];
+      const formattedId = encodeValue(id, tableSchema.id, "sqlite");
+      const createRow = encodeRow({ id, ...create }, tableSchema, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
@@ -859,23 +824,11 @@ export class SqliteIndexingStore implements IndexingStore {
         // If the user passed an update function, call it with the current instance.
         let updateRow: ReturnType<typeof encodeRow>;
         if (typeof update === "function") {
-          const current = decodeRow(
-            latestRow,
-            this.schema!.tables[tableName],
-            "sqlite",
-          );
+          const current = decodeRow(latestRow, tableSchema, "sqlite");
           const updateObject = update({ current });
-          updateRow = encodeRow(
-            { id, ...updateObject },
-            this.schema!.tables[tableName],
-            "sqlite",
-          );
+          updateRow = encodeRow({ id, ...updateObject }, tableSchema, "sqlite");
         } else {
-          updateRow = encodeRow(
-            { id, ...update },
-            this.schema!.tables[tableName],
-            "sqlite",
-          );
+          updateRow = encodeRow({ id, ...update }, tableSchema, "sqlite");
         }
 
         // If the update would be applied to a record other than the latest
@@ -918,7 +871,7 @@ export class SqliteIndexingStore implements IndexingStore {
         return row;
       });
 
-      return decodeRow(row, this.schema!.tables[tableName], "sqlite");
+      return decodeRow(row, tableSchema, "sqlite");
     });
   };
 
@@ -933,7 +886,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "delete", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
+      const formattedId = encodeValue(
         id,
         this.schema!.tables[tableName].id,
         "sqlite",

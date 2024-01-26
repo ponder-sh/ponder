@@ -5,7 +5,7 @@ import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
 import type { Pool } from "pg";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
-import { decodeRow, encodeColumn, encodeRow } from "../utils/format.js";
+import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
@@ -260,7 +260,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
+      const formattedId = encodeValue(
         id,
         this.schema!.tables[tableName].id,
         "postgres",
@@ -599,11 +599,8 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "update", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
-        id,
-        this.schema!.tables[tableName].id,
-        "postgres",
-      );
+      const tableSchema = this.schema!.tables[tableName];
+      const formattedId = encodeValue(id, tableSchema.id, "postgres");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
@@ -618,23 +615,15 @@ export class PostgresIndexingStore implements IndexingStore {
         // If the user passed an update function, call it with the current instance.
         let updateRow: ReturnType<typeof encodeRow>;
         if (typeof data === "function") {
-          const current = decodeRow(
-            latestRow,
-            this.schema!.tables[tableName],
-            "postgres",
-          );
+          const current = decodeRow(latestRow, tableSchema, "postgres");
           const updateObject = data({ current });
           updateRow = encodeRow(
             { id, ...updateObject },
-            this.schema!.tables[tableName],
+            tableSchema,
             "postgres",
           );
         } else {
-          updateRow = encodeRow(
-            { id, ...data },
-            this.schema!.tables[tableName],
-            "postgres",
-          );
+          updateRow = encodeRow({ id, ...data }, tableSchema, "postgres");
         }
 
         // If the update would be applied to a record other than the latest
@@ -677,7 +666,7 @@ export class PostgresIndexingStore implements IndexingStore {
         return row;
       });
 
-      const result = decodeRow(row, this.schema!.tables[tableName], "postgres");
+      const result = decodeRow(row, tableSchema, "postgres");
 
       return result;
     });
@@ -698,6 +687,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "updateMany", tableName }, async () => {
       const table = `${tableName}_versioned`;
+      const tableSchema = this.schema!.tables[tableName];
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const rows = await this.db.transaction().execute(async (tx) => {
@@ -727,23 +717,11 @@ export class PostgresIndexingStore implements IndexingStore {
             // If the user passed an update function, call it with the current instance.
             let updateRow: ReturnType<typeof encodeRow>;
             if (typeof data === "function") {
-              const current = decodeRow(
-                latestRow,
-                this.schema!.tables[tableName],
-                "postgres",
-              );
+              const current = decodeRow(latestRow, tableSchema, "postgres");
               const updateObject = data({ current });
-              updateRow = encodeRow(
-                updateObject,
-                this.schema!.tables[tableName],
-                "postgres",
-              );
+              updateRow = encodeRow(updateObject, tableSchema, "postgres");
             } else {
-              updateRow = encodeRow(
-                data,
-                this.schema!.tables[tableName],
-                "postgres",
-              );
+              updateRow = encodeRow(data, tableSchema, "postgres");
             }
 
             // If the update would be applied to a record other than the latest
@@ -788,9 +766,7 @@ export class PostgresIndexingStore implements IndexingStore {
         );
       });
 
-      return rows.map((row) =>
-        decodeRow(row, this.schema!.tables[tableName], "postgres"),
-      );
+      return rows.map((row) => decodeRow(row, tableSchema, "postgres"));
     });
   };
 
@@ -811,16 +787,9 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "upsert", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
-        id,
-        this.schema!.tables[tableName].id,
-        "postgres",
-      );
-      const createRow = encodeRow(
-        { id, ...create },
-        this.schema!.tables[tableName],
-        "postgres",
-      );
+      const tableSchema = this.schema!.tables[tableName];
+      const formattedId = encodeValue(id, tableSchema.id, "postgres");
+      const createRow = encodeRow({ id, ...create }, tableSchema, "postgres");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
@@ -848,23 +817,15 @@ export class PostgresIndexingStore implements IndexingStore {
         // If the user passed an update function, call it with the current instance.
         let updateRow: ReturnType<typeof encodeRow>;
         if (typeof update === "function") {
-          const current = decodeRow(
-            latestRow,
-            this.schema!.tables[tableName],
-            "postgres",
-          );
+          const current = decodeRow(latestRow, tableSchema, "postgres");
           const updateObject = update({ current });
           updateRow = encodeRow(
             { id, ...updateObject },
-            this.schema!.tables[tableName],
+            tableSchema,
             "postgres",
           );
         } else {
-          updateRow = encodeRow(
-            { id, ...update },
-            this.schema!.tables[tableName],
-            "postgres",
-          );
+          updateRow = encodeRow({ id, ...update }, tableSchema, "postgres");
         }
 
         // If the update would be applied to a record other than the latest
@@ -907,7 +868,7 @@ export class PostgresIndexingStore implements IndexingStore {
         return row;
       });
 
-      return decodeRow(row, this.schema!.tables[tableName], "postgres");
+      return decodeRow(row, tableSchema, "postgres");
     });
   };
 
@@ -922,7 +883,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "delete", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      const formattedId = encodeColumn(
+      const formattedId = encodeValue(
         id,
         this.schema!.tables[tableName].id,
         "postgres",
