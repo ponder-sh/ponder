@@ -932,6 +932,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
         const eventSelector =
           this.sources[i].abiEvents.bySafeName[eventName]!.selector;
 
+        this.common.logger.debug({
+          service: "indexing",
+          msg: `Registered indexing function ${indexingFunctionKey} (selfDependent=${isSelfDependent}, parents=[${dedupe(
+            parents,
+          ).join(", ")}])`,
+        });
+
         this.indexingFunctionStates[indexingFunctionKey] = {
           eventName,
           contractName,
