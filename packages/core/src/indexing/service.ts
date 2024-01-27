@@ -236,11 +236,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.queue?.pause();
 
-    await Promise.all(
-      Object.values(this.indexingFunctionStates).map((state) =>
-        state.loadingMutex.cancel(),
-      ),
-    );
+    for (const state of Object.values(this.indexingFunctionStates)) {
+      state.loadingMutex.cancel();
+    }
 
     this.queue?.clear();
     await this.queue?.onIdle();
