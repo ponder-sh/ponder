@@ -16,7 +16,7 @@ test("basic", () => {
     ],
   });
 
-  expect(tableAccess).toHaveLength(6);
+  expect(tableAccess).toHaveLength(4);
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
@@ -58,7 +58,7 @@ test("helper function", () => {
     ],
   });
 
-  expect(tableAccess).toHaveLength(4);
+  expect(tableAccess).toHaveLength(2);
 
   expect(tableAccess).toContainEqual({
     table: "Table1",

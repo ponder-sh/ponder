@@ -36,10 +36,7 @@ const parseTableReference = (
 const findAllORMCalls = (root: SgNode) => {
   return Object.keys(ormFunctions).map((ormf) => ({
     method: ormf as keyof typeof ormFunctions,
-    nodes: [
-      ...root.findAll(`$_.$TABLE.${ormf}($$$)`),
-      ...root.findAll(`$TABLE.${ormf}($$$)`),
-    ],
+    nodes: root.findAll(`$TABLE.${ormf}($$$)`),
   }));
 };
 
