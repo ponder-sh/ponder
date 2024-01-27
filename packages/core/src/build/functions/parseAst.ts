@@ -22,20 +22,23 @@ const getEventSignature = (node: SgNode) => {
 const parseTableReference = (
   node: SgNode,
   tableNames: string[],
-): string | undefined => {
-  const table = node.getMatch("TABLE")?.text()!;
+): string | null => {
+  // _table can often be "context.db.TABLE"
+  const _table = node.getMatch("TABLE")!.text()!.split(".")!;
+  const table = _table.length === 1 ? _table[0] : _table[_table.length - 1];
 
-  // Note: An invalid table name should probably throw some sort of warning
-  // Could also set a flag to say: "mark this function as fully dependent"
-  return tableNames.includes(table) ? table : undefined;
+  const isIncluded = tableNames.includes(table);
+
+  // Note: Null represents flag to say: "mark this function as fully dependent"
+  return isIncluded ? table : null;
 };
 
 const findAllORMCalls = (root: SgNode) => {
   return Object.keys(ormFunctions).map((ormf) => ({
     method: ormf as keyof typeof ormFunctions,
     nodes: [
-      ...root.findAll(`$_.$TABLE.${ormf}`),
-      ...root.findAll(`$TABLE.${ormf}`),
+      ...root.findAll(`$_.$TABLE.${ormf}($$$)`),
+      ...root.findAll(`$TABLE.${ormf}($$$)`),
     ],
   }));
 };
@@ -93,11 +96,37 @@ export const parseAst = ({
   const helperFunctionAccess: Record<
     string,
     {
-      table: string;
+      table: string | null;
       method: keyof typeof ormFunctions;
       filePath: string;
     }[]
   > = {};
+
+  const addToTableAccess = (
+    table: string | null,
+    indexingFunctionKey: string,
+    method: keyof typeof ormFunctions,
+  ) => {
+    if (table) {
+      for (const access of ormFunctions[method]) {
+        tableAccessMap.push({
+          table: table,
+          indexingFunctionKey,
+          access,
+        });
+      }
+    } else {
+      for (const table of tableNames) {
+        for (const access of ormFunctions[method]) {
+          tableAccessMap.push({
+            table: table,
+            indexingFunctionKey,
+            access,
+          });
+        }
+      }
+    }
+  };
 
   // Register all helper functions
   for (const filePath of filePaths) {
@@ -113,17 +142,15 @@ export const parseAst = ({
         const helperNames = helperFunctionName(node);
         const table = parseTableReference(node, tableNames);
 
-        if (table !== undefined) {
-          for (const helperName of helperNames) {
-            if (helperFunctionAccess[helperName] === undefined) {
-              helperFunctionAccess[helperName] = [];
-            }
-            helperFunctionAccess[helperName].push({
-              table,
-              method: call.method,
-              filePath,
-            });
+        for (const helperName of helperNames) {
+          if (helperFunctionAccess[helperName] === undefined) {
+            helperFunctionAccess[helperName] = [];
           }
+          helperFunctionAccess[helperName].push({
+            table,
+            method: call.method,
+            filePath,
+          });
         }
       }
     }
@@ -150,13 +177,7 @@ export const parseAst = ({
       )) {
         if (funcNode.find(`${name}($$$)`) !== null) {
           for (const state of helperFunctionState) {
-            for (const access of ormFunctions[state.method]) {
-              tableAccessMap.push({
-                table: state.table,
-                indexingFunctionKey,
-                access,
-              });
-            }
+            addToTableAccess(state.table, indexingFunctionKey, state.method);
           }
         }
       }
@@ -165,16 +186,7 @@ export const parseAst = ({
       for (const call of ormCalls) {
         for (const n of call.nodes) {
           const table = parseTableReference(n, tableNames);
-
-          if (table) {
-            for (const access of ormFunctions[call.method]) {
-              tableAccessMap.push({
-                table,
-                indexingFunctionKey,
-                access,
-              });
-            }
-          }
+          addToTableAccess(table, indexingFunctionKey, call.method);
         }
       }
     }
