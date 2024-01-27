@@ -73,6 +73,36 @@ test("helper function", () => {
   });
 });
 
+test.skip("helper rename", () => {
+  const tableAccess = parseAst({
+    tableNames,
+    indexingFunctionKeys,
+    filePaths: [
+      path.join(
+        url.fileURLToPath(import.meta.url),
+        "..",
+        "test",
+        "helperFuncRename.ts",
+      ),
+      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+    ],
+  });
+
+  expect(tableAccess).toHaveLength(4);
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event1",
+    access: "read",
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event1",
+    access: "write",
+  });
+});
+
 test("renamed variable", () => {
   const tableAccess = parseAst({
     tableNames,
