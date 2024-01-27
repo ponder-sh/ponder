@@ -20,7 +20,7 @@ runs:
       uses: foundry-rs/foundry-toolchain@v1
       with:
         # pick a nightly release from: https://github.com/foundry-rs/foundry/releases
-        version: 'nightly-3344e2ceeb68fd77d6be001ce7990742debc2e9a'
+        version: 'nightly-09fe3e041369a816365a020f715ad6f94dbce9f2'
 
     - name: Install dependencies
       shell: bash
