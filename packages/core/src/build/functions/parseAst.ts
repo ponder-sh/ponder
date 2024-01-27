@@ -153,6 +153,7 @@ export const parseAst = ({
     }
   }
 
+  // Build tableAccess
   for (const filePath of filePaths) {
     const file = fs.readFileSync(filePath).toString();
 
