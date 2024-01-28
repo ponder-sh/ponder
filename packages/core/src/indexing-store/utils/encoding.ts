@@ -56,7 +56,19 @@ export function encodeValue(
   encoding: "sqlite" | "postgres",
 ): string | number | null | bigint | Buffer {
   if (isEnumColumn(column)) {
-    if (typeof value !== "string") {
+    if (column.optional && (value === undefined || value === null)) {
+      return null;
+    }
+
+    if (column.list) {
+      if (!Array.isArray(value)) {
+        throw Error(
+          `Unable to encode ${value} as a list. Got type '${typeof value}' but expected type 'string[]'.`,
+        );
+      }
+
+      return JSON.stringify(value);
+    } else if (typeof value !== "string") {
       throw Error(
         `Unable to encode ${value} as an enum. Got type '${typeof value}' but expected type 'string'.`,
       );

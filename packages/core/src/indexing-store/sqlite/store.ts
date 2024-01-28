@@ -110,11 +110,13 @@ export class SqliteIndexingStore implements IndexingStore {
                     "text",
                     (col) => {
                       if (!column.optional) col = col.notNull();
-                      col = col.check(
-                        sql`${sql.ref(columnName)} in (${sql.join(
-                          schema!.enums[column.type].map((v) => sql.lit(v)),
-                        )})`,
-                      );
+                      if (!column.list) {
+                        col = col.check(
+                          sql`${sql.ref(columnName)} in (${sql.join(
+                            schema!.enums[column.type].map((v) => sql.lit(v)),
+                          )})`,
+                        );
+                      }
                       return col;
                     },
                   );
