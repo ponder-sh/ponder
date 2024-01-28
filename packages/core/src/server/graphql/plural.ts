@@ -135,21 +135,13 @@ export const buildPluralField = ({
       ? { ...maxCheckpoint, blockTimestamp: timestamp }
       : undefined; // Latest.
 
-    const whereObject = where ? buildWhereObject({ where }) : {};
-
-    if (after && before) {
-      throw Error("Cannot have both 'before' and 'after' cursor search");
-    }
-
-    const toTake = limit || 1000;
-
-    const res = await store.findManyPaginated({
+    const res = await store.findMany({
       tableName: tableName,
       checkpoint,
       before: before,
       after: after,
-      where: whereObject,
-      take: toTake,
+      where: where ? buildWhereObject({ where }) : undefined,
+      limit,
       orderBy: orderBy
         ? {
             [orderBy]: orderDirection || "desc",
@@ -158,7 +150,7 @@ export const buildPluralField = ({
     });
 
     return {
-      items: res.rows,
+      items: res.items,
       before: res.before,
       after: res.after,
     } as PluralPage;

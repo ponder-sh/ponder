@@ -30,10 +30,12 @@ export function encodeRow(
   const instance: { [key: string]: string | number | null | bigint | Buffer } =
     {};
 
-  for (const [key, value] of Object.entries(data)) {
-    if (table[key] === undefined) {
+  for (const [columnName, value] of Object.entries(data)) {
+    const column = table[columnName];
+
+    if (!column) {
       throw Error(
-        `Invalid record: Column does not exist. Got ${key}, expected one of [${Object.keys(
+        `Invalid record: Column does not exist. Got ${columnName}, expected one of [${Object.keys(
           table,
         )
           .filter((key) => isBaseColumn(table[key]) || isEnumColumn(table[key]))
@@ -41,7 +43,7 @@ export function encodeRow(
       );
     }
 
-    instance[key] = encodeValue(value, table[key], encoding);
+    instance[columnName] = encodeValue(value, column, encoding);
   }
 
   return instance;
