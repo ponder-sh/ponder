@@ -10,6 +10,7 @@ const schema = createSchema((p) => ({
     names: p.string().list(),
     age: p.int().optional(),
     bigAge: p.bigint().optional(),
+    bigAges: p.bigint().list(),
     kind: p.enum("PetKind").optional(),
     personId: p.bigint().references("Person.id"),
     person: p.one("personId"),
@@ -19,15 +20,94 @@ const schema = createSchema((p) => ({
   }),
 }));
 
-const orderByConditions = buildOrderByConditions({
-  orderBy: { id: "asc" },
-  table: schema.tables.Pet,
-});
+test("cursor encoding handles default order by condition", () => {
+  const orderByConditions = buildOrderByConditions({
+    orderBy: { id: "asc" },
+    table: schema.tables.Pet,
+  });
 
-test("encodeCursor ...", () => {
   const record = { id: "abc" };
 
-  const cursor = encodeCursor(record, orderByConditions);
+  const decoded = decodeCursor(
+    encodeCursor(record, orderByConditions),
+    orderByConditions,
+  );
 
-  expect(cursor).toEqual("blah");
+  expect(decoded).toEqual([["id", "abc"]]);
+});
+
+test("cursor encoding handles custom order by condition", () => {
+  const orderByConditions = buildOrderByConditions({
+    orderBy: { age: "desc" },
+    table: schema.tables.Pet,
+  });
+
+  const record = { id: "abc", age: 10 };
+
+  const decoded = decodeCursor(
+    encodeCursor(record, orderByConditions),
+    orderByConditions,
+  );
+
+  expect(decoded).toEqual([
+    ["age", 10],
+    ["id", "abc"],
+  ]);
+});
+
+test("cursor encoding handles null values", () => {
+  const orderByConditions = buildOrderByConditions({
+    orderBy: { age: "desc" },
+    table: schema.tables.Pet,
+  });
+
+  const record = { id: "abc", age: null };
+
+  const decoded = decodeCursor(
+    encodeCursor(record, orderByConditions),
+    orderByConditions,
+  );
+
+  expect(decoded).toEqual([
+    ["age", null],
+    ["id", "abc"],
+  ]);
+});
+
+test("cursor encoding handles bigint values", () => {
+  const orderByConditions = buildOrderByConditions({
+    orderBy: { bigAge: "desc" },
+    table: schema.tables.Pet,
+  });
+
+  const record = { id: "abc", bigAge: 20n };
+
+  const decoded = decodeCursor(
+    encodeCursor(record, orderByConditions),
+    orderByConditions,
+  );
+
+  expect(decoded).toEqual([
+    ["bigAge", 20n],
+    ["id", "abc"],
+  ]);
+});
+
+test("cursor encoding handles bigint list values", () => {
+  const orderByConditions = buildOrderByConditions({
+    orderBy: { bigAges: "desc" },
+    table: schema.tables.Pet,
+  });
+
+  const record = { id: "abc", bigAges: [20n, -12n] };
+
+  const decoded = decodeCursor(
+    encodeCursor(record, orderByConditions),
+    orderByConditions,
+  );
+
+  expect(decoded).toEqual([
+    ["bigAges", [20n, -12n]],
+    ["id", "abc"],
+  ]);
 });

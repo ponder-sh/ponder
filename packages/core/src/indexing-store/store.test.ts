@@ -815,10 +815,12 @@ test("findMany() errors on invalid filter condition", async (context) => {
       tableName: "Pet",
       where: { name: { invalidWhereCondition: "ar" } },
     }),
-  ).rejects.toThrow("Invalid filter condition name: invalidWhereCondition");
+  ).rejects.toThrow(
+    "Invalid filter condition for column 'name'. Got 'invalidWhereCondition', expected one of ['equals', 'not', 'in', 'notIn', 'contains', 'notContains', 'startsWith', 'notStartsWith', 'endsWith', 'notEndsWith']",
+  );
 });
 
-test.only("findMany() returns before and after cursors", async (context) => {
+test("findMany() returns before and after cursors", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -876,7 +878,7 @@ test.only("findMany() returns before and after cursors", async (context) => {
     resultThree.items.map((i) => ({ id: i.id, name: i.name })),
   ).toMatchObject([{ id: "id2", name: "Foo" }]);
   expect(resultThree.before).toBeTypeOf("string");
-  expect(resultThree.after).toBeNull();
+  expect(resultThree.after).toBeTypeOf("string");
 });
 
 test("findMany() errors on orderBy object with multiple keys", async (context) => {
@@ -888,7 +890,7 @@ test("findMany() errors on orderBy object with multiple keys", async (context) =
       tableName: "Pet",
       orderBy: { name: "asc", bigAge: "desc" },
     }),
-  ).rejects.toThrow("Invalid sort condition: Must have exactly one property");
+  ).rejects.toThrow("Invalid sort. Cannot sort by multiple columns.");
 });
 
 test("createMany() inserts multiple entities", async (context) => {
@@ -914,21 +916,29 @@ test("createMany() inserts a large number of entities", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
-  const ENTITY_COUNT = 100_000;
+  const RECORD_COUNT = 100_000;
 
   const createdItems = await indexingStore.createMany({
     tableName: "Pet",
     checkpoint: createCheckpoint(10),
-    data: [...Array(ENTITY_COUNT).keys()].map((i) => ({
+    data: [...Array(RECORD_COUNT).keys()].map((i) => ({
       id: `id${i}`,
       name: "Alice",
       bigAge: BigInt(i),
     })),
   });
-  expect(createdItems.length).toBe(ENTITY_COUNT);
+  expect(createdItems.length).toBe(RECORD_COUNT);
 
-  const { items } = await indexingStore.findMany({ tableName: "Pet" });
-  expect(items.length).toBe(ENTITY_COUNT);
+  const { after } = await indexingStore.findMany({
+    tableName: "Pet",
+    limit: 1_000,
+  });
+  const { items } = await indexingStore.findMany({
+    tableName: "Pet",
+    after,
+    limit: 1_000,
+  });
+  expect(items.length).toBe(1_000);
 });
 
 test("updateMany() updates multiple entities", async (context) => {
@@ -956,7 +966,7 @@ test("updateMany() updates multiple entities", async (context) => {
 
   const { items } = await indexingStore.findMany({ tableName: "Pet" });
 
-  expect(items.map((i) => i.bigAge)).toMatchObject([10n, 300n, 300n]);
+  expect(items.map((i) => i.bigAge)).toMatchObject([300n, 10n, 300n]);
 });
 
 test("revert() deletes versions newer than the safe timestamp", async (context) => {

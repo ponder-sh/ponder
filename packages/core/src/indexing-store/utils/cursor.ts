@@ -1,3 +1,5 @@
+import { deserialize, serialize } from "@/utils/serialize.js";
+import type { ExpressionBuilder } from "kysely";
 import type { Row } from "../store.js";
 import type { OrderByConditions } from "./sort.js";
 
@@ -5,54 +7,65 @@ export function encodeCursor(
   record: Row,
   orderByConditions: OrderByConditions,
 ) {
-  const cursor = orderByConditions
-    .map(([column]) => {
-      // TODO: Properly convert value to an escaped string.
-      const value = record[column]?.toString().replaceAll("|", "\\|");
-      return `${column}:${value}`;
-    })
-    .join("|");
+  const cursorValues = orderByConditions.map(([columnName]) => [
+    columnName,
+    record[columnName],
+  ]);
 
-  return Buffer.from(cursor).toString("base64");
+  return Buffer.from(serialize(cursorValues)).toString("base64");
 }
 
 export function decodeCursor(
   cursor: string,
   orderByConditions: OrderByConditions,
 ) {
-  const whereConditions = Buffer.from(cursor, "base64")
-    .toString()
-    .split("|")
-    .map((condition, index) => {
-      const delimIndex = condition.indexOf(":");
-      if (delimIndex === -1) {
-        throw new Error(
-          "Invalid cursor. Expected a delimiter ':' between column name and value.",
-        );
-      }
-      const column = condition.slice(0, delimIndex);
-      const value = condition.slice(delimIndex + 1);
-      if (column !== orderByConditions[index][0]) {
-        throw new Error(
-          `Invalid cursor. Expected column '${orderByConditions[index][0]}', received '${column}'.`,
-        );
-      }
+  const cursorValues = deserialize<[string, any][]>(
+    Buffer.from(cursor, "base64").toString(),
+  );
 
-      // TODO: Validate and convert value to the correct type.
-      const decodedValue = value as string | number | bigint;
-
-      return [column, decodedValue] as const;
-    });
-
-  if (whereConditions.length > 2) {
-    throw new Error("Invalid cursor. Expected 1 or 2 conditions.");
-  }
-
-  if (whereConditions.length !== orderByConditions.length) {
+  // Validate cursor values against order by conditions.
+  if (cursorValues.length !== orderByConditions.length) {
     throw new Error(
-      `Invalid cursor. Expected ${orderByConditions.length} conditions, received ${whereConditions.length}`,
+      `Invalid cursor. Got ${cursorValues.length}, ${orderByConditions.length} conditions`,
     );
   }
 
-  return whereConditions;
+  for (const [index, [columnName]] of orderByConditions.entries()) {
+    if (cursorValues[index][0] !== columnName) {
+      throw new Error(
+        `Invalid cursor. Got column '${cursorValues[index][0]}' at index ${index}, expected '${columnName}'.`,
+      );
+    }
+  }
+
+  return cursorValues;
+}
+
+export function buildCursorConditions(
+  cursorValues: [string, any][],
+  kind: "before" | "after",
+  eb: ExpressionBuilder<any, any>,
+) {
+  const comparator = kind === "before" ? "<" : ">";
+  const comparatorOrEquals = kind === "before" ? "<=" : ">=";
+
+  if (cursorValues.length === 1) {
+    const [columnName, value] = cursorValues[0];
+    return eb.eb(columnName, comparatorOrEquals, value);
+  } else if (cursorValues.length === 2) {
+    const [columnName1, value1] = cursorValues[0];
+    const [columnName2, value2] = cursorValues[0];
+
+    return eb.or([
+      eb.eb(columnName1, comparator, value1),
+      eb.and([
+        eb.eb(columnName1, "=", value1),
+        eb.eb(columnName2, comparatorOrEquals, value2),
+      ]),
+    ]);
+  } else {
+    throw new Error(
+      `Invalid cursor. Got ${cursorValues.length} value pairs, expected 1 or 2.`,
+    );
+  }
 }

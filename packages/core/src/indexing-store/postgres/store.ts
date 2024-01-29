@@ -5,7 +5,11 @@ import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
 import type { Pool } from "pg";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
-import { decodeCursor, encodeCursor } from "../utils/cursor.js";
+import {
+  buildCursorConditions,
+  decodeCursor,
+  encodeCursor,
+} from "../utils/cursor.js";
 import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { buildWhereConditions } from "../utils/filter.js";
 import { buildOrderByConditions } from "../utils/sort.js";
@@ -340,7 +344,12 @@ export class PostgresIndexingStore implements IndexingStore {
 
       const orderByConditions = buildOrderByConditions({ orderBy, table });
       for (const [column, direction] of orderByConditions) {
-        query = query.orderBy(column, direction);
+        query = query.orderBy(
+          column,
+          direction === "asc" || direction === undefined
+            ? sql`asc nulls first`
+            : sql`desc nulls last`,
+        );
       }
 
       if (limit > MAX_LIMIT) {
@@ -348,15 +357,10 @@ export class PostgresIndexingStore implements IndexingStore {
           `Record limit is greater than the maximum allowed limit. Expected <=${MAX_LIMIT}, received ${limit}.`,
         );
       }
-      // Fetch 1 additional row to determine the `after` cursor.
-      query = query.limit(limit + 1);
 
-      if (after !== null && before !== null) {
-        throw new Error("Cannot specify both before and after cursors.");
-      }
-
-      // If neither cursors are specified, apply the order conditions and execute.
+      // Neither cursors are specified, apply the order conditions and execute.
       if (after === null && before === null) {
+        query = query.limit(limit + 1);
         const rows = await query.execute();
         const records = rows.map((row) => decodeRow(row, table, "postgres"));
 
@@ -371,79 +375,112 @@ export class PostgresIndexingStore implements IndexingStore {
       }
 
       if (after !== null) {
-        // User provided an 'after' cursor.
+        // User specified an 'after' cursor.
+        const cursorValues = decodeCursor(after, orderByConditions);
+        query = query.where((eb) =>
+          buildCursorConditions(cursorValues, "after", eb),
+        );
 
-        // Apply the 'after' cursor WHERE clauses.
-        const cursorConditions = decodeCursor(after, orderByConditions);
-        if (cursorConditions.length === 1) {
-          // One cursor condition.
-          const [column, value] = cursorConditions[0];
-          query = query.where(column, ">", value);
-        } else {
-          // Two cursor conditions (validated in decodeCursor).
-          const [column1, value1] = cursorConditions[0];
-          const [column2, value2] = cursorConditions[1];
-          query = query.where(({ eb, or, and }) =>
-            or([
-              eb(column1, ">", value1),
-              and([eb(column1, "=", value1), eb(column2, ">", value2)]),
-            ]),
-          );
-        }
-
+        query = query.limit(limit + 2);
         const rows = await query.execute();
         const records = rows.map((row) => decodeRow(row, table, "postgres"));
 
-        const nextBefore =
-          records.length > 0
-            ? encodeCursor(records[0], orderByConditions)
-            : null;
+        let hasPreviousPage = false;
+        let hasNextPage = false;
 
+        if (records.length === 0) {
+          return {
+            items: records,
+            before: null,
+            after: null,
+            hasPreviousPage,
+            hasNextPage,
+          };
+        }
+
+        // If the cursor of the first returned record equals the `after` cursor,
+        // `hasNextPage` is true, and we can remove that record.
+        if (encodeCursor(records[0], orderByConditions) === after) {
+          records.shift();
+          hasPreviousPage = true;
+        } else {
+          // Otherwise, we can remove the last record.
+          records.pop();
+        }
+
+        // Now if the length of the records is equal to limit + 1, we know
+        // there is a next page.
         if (records.length === limit + 1) {
           records.pop();
-          const lastRecord = records[records.length - 1];
-          const nextAfter = encodeCursor(lastRecord, orderByConditions);
-          return { items: records, before: nextBefore, after: nextAfter };
-        } else {
-          return { items: records, before: nextBefore, after: null };
-        }
-      } else {
-        // User provided a 'before' cursor.
-
-        // Apply the 'before' cursor WHERE clauses.
-        const cursorConditions = decodeCursor(before!, orderByConditions);
-        if (cursorConditions.length === 1) {
-          // One cursor condition.
-          const [column, value] = cursorConditions[0];
-          query = query.where(column, "<", value);
-        } else {
-          // Two cursor conditions (validated in decodeCursor).
-          const [column1, value1] = cursorConditions[0];
-          const [column2, value2] = cursorConditions[1];
-          query = query.where(({ eb, or, and }) =>
-            or([
-              eb(column1, "<", value1),
-              and([eb(column1, "=", value1), eb(column2, "<", value2)]),
-            ]),
-          );
+          hasNextPage = true;
         }
 
-        const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, "postgres"));
-
-        const nextAfter =
-          records.length > 0
+        // Now calculate the cursors.
+        const newBefore =
+          records.length > 0 && hasPreviousPage
+            ? encodeCursor(records[0], orderByConditions)
+            : null;
+        const newAfter =
+          records.length > 0 && hasNextPage
             ? encodeCursor(records[records.length - 1], orderByConditions)
             : null;
 
+        return { items: records, before: newBefore, after: newAfter };
+      } else {
+        // User specified a 'before' cursor.
+        const cursorValues = decodeCursor(before!, orderByConditions);
+        query = query.where((eb) =>
+          buildCursorConditions(cursorValues, "before", eb),
+        );
+
+        query = query.limit(limit + 2);
+        const rows = await query.execute();
+        const records = rows.map((row) => decodeRow(row, table, "postgres"));
+
+        let hasPreviousPage = false;
+        let hasNextPage = false;
+
+        if (records.length === 0) {
+          return {
+            items: records,
+            before: null,
+            after: null,
+            hasPreviousPage,
+            hasNextPage,
+          };
+        }
+
+        // If the cursor of the last returned record equals the `before` cursor,
+        // `hasNextPage` is true, and we can remove that record.
+        if (
+          encodeCursor(records[records.length - 1], orderByConditions) ===
+          before
+        ) {
+          records.pop();
+          hasNextPage = true;
+        } else {
+          // Otherwise, we can remove the first record.
+          records.shift();
+        }
+
+        // Now if the length of the records is equal to limit + 1, we know
+        // there is a previous page.
         if (records.length === limit + 1) {
           records.shift();
-          const firstRecord = records[0];
-          const nextBefore = encodeCursor(firstRecord, orderByConditions);
-          return { items: records, before: nextBefore, after: nextAfter };
-        } else {
-          return { items: records, before: null, after: nextAfter };
+          hasPreviousPage = true;
         }
+
+        // Now calculate the cursors.
+        const newBefore =
+          records.length > 0 && hasPreviousPage
+            ? encodeCursor(records[0], orderByConditions)
+            : null;
+        const newAfter =
+          records.length > 0 && hasNextPage
+            ? encodeCursor(records[records.length - 1], orderByConditions)
+            : null;
+
+        return { items: records, before: newBefore, after: newAfter };
       }
     });
   };

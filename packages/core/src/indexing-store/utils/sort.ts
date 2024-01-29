@@ -19,9 +19,9 @@ export function buildOrderByConditions({
   }
 
   const conditions = Object.entries(orderBy);
-
   if (conditions.length > 1)
-    throw new Error("Cannot sort by multiple columns.");
+    throw new Error("Invalid sort. Cannot sort by multiple columns.");
+
   const [columnName, orderDirection] = conditions[0];
 
   // Validate column name.
