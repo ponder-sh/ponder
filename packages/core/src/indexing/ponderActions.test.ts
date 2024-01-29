@@ -49,7 +49,7 @@ test("getStorageAt()", async (context) => {
   expect(BigInt(storage!)).toBe(parseEther("1"));
 });
 
-// Note:Kyle the local chain doesn't have a deployed instance of "multicall3"
+// Note: Kyle the local chain doesn't have a deployed instance of "multicall3"
 test.todo("multicall()", async (context) => {
   const totalSupply = await getClient().then((client) =>
     client.multicall({

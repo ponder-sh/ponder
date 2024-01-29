@@ -347,7 +347,7 @@ export const string = emptyColumn("string");
 export const int = emptyColumn("int");
 export const float = emptyColumn("float");
 export const boolean = emptyColumn("boolean");
-export const bytes = emptyColumn("bytes");
+export const hex = emptyColumn("hex");
 export const bigint = emptyColumn("bigint");
 
 export const one = <T extends string>(derivedColumn: T): OneColumn<T> =>

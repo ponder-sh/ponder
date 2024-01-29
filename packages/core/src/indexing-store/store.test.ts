@@ -1,9 +1,8 @@
-import { CompiledQuery } from "kysely";
-import { beforeEach, expect, test } from "vitest";
-
 import { setupIndexingStore } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { CompiledQuery } from "kysely";
+import { beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupIndexingStore(context));
 
@@ -22,9 +21,9 @@ const schema = createSchema((p) => ({
   }),
 }));
 
-const bytesSchema = createSchema((p) => ({
+const hexSchema = createSchema((p) => ({
   table: p.createTable({
-    id: p.bytes(),
+    id: p.hex(),
     n: p.int(),
   }),
 }));
@@ -978,59 +977,59 @@ test("revert() updates versions that only existed during the safe timestamp to l
   expect(pets[0].name).toBe("Skip");
 });
 
-test("findUnique() works with bytes case sensitivity", async (context) => {
+test("findUnique() works with hex case sensitivity", async (context) => {
   const { indexingStore } = context;
-  await indexingStore.reload({ schema: bytesSchema });
+  await indexingStore.reload({ schema: hexSchema });
 
   await indexingStore.create({
     tableName: "table",
     checkpoint: createCheckpoint(10),
-    id: "0xa",
+    id: "0x0a",
     data: { n: 1 },
   });
 
   const instance = await indexingStore.findUnique({
     tableName: "table",
     checkpoint: createCheckpoint(25),
-    id: "0xA",
+    id: "0x0A",
   });
-  expect(instance).toMatchObject({ id: "0xa", n: 1 });
+  expect(instance).toMatchObject({ id: "0x0a", n: 1 });
 });
 
-test("update() works with bytes case sensitivity", async (context) => {
+test("update() works with hex case sensitivity", async (context) => {
   const { indexingStore } = context;
-  await indexingStore.reload({ schema: bytesSchema });
+  await indexingStore.reload({ schema: hexSchema });
 
   await indexingStore.create({
     tableName: "table",
     checkpoint: createCheckpoint(10),
-    id: "0xa",
+    id: "0x0a",
     data: { n: 1 },
   });
 
   await indexingStore.update({
     tableName: "table",
     checkpoint: createCheckpoint(10),
-    id: "0xA",
+    id: "0x0A",
     data: { n: 2 },
   });
 
   const instance = await indexingStore.findUnique({
     tableName: "table",
     checkpoint: createCheckpoint(25),
-    id: "0xA",
+    id: "0x0A",
   });
-  expect(instance).toMatchObject({ id: "0xA", n: 2 });
+  expect(instance).toMatchObject({ id: "0x0a", n: 2 });
 });
 
-test("updateMany() works with bytes case sensitivity", async (context) => {
+test("updateMany() works with hex case sensitivity", async (context) => {
   const { indexingStore } = context;
-  await indexingStore.reload({ schema: bytesSchema });
+  await indexingStore.reload({ schema: hexSchema });
 
   await indexingStore.create({
     tableName: "table",
     checkpoint: createCheckpoint(10),
-    id: "0xa",
+    id: "0x0a",
     data: { n: 1 },
   });
 
@@ -1044,19 +1043,19 @@ test("updateMany() works with bytes case sensitivity", async (context) => {
   const instance = await indexingStore.findUnique({
     tableName: "table",
     checkpoint: createCheckpoint(25),
-    id: "0xa",
+    id: "0x0a",
   });
-  expect(instance).toMatchObject({ id: "0xa", n: 2 });
+  expect(instance).toMatchObject({ id: "0x0a", n: 2 });
 });
 
-test("upsert() works with bytes case sensitivity", async (context) => {
+test("upsert() works with hex case sensitivity", async (context) => {
   const { indexingStore } = context;
-  await indexingStore.reload({ schema: bytesSchema });
+  await indexingStore.reload({ schema: hexSchema });
 
   await indexingStore.create({
     tableName: "table",
     checkpoint: createCheckpoint(10),
-    id: "0xa",
+    id: "0x0a",
     data: { n: 1 },
   });
 
@@ -1072,12 +1071,12 @@ test("upsert() works with bytes case sensitivity", async (context) => {
     checkpoint: createCheckpoint(25),
     id: "0xA",
   });
-  expect(instance).toMatchObject({ id: "0xA", n: 2 });
+  expect(instance).toMatchObject({ id: "0x0a", n: 2 });
 });
 
-test("delete() works with bytes case sensitivity", async (context) => {
+test("delete() works with hex case sensitivity", async (context) => {
   const { indexingStore } = context;
-  await indexingStore.reload({ schema: bytesSchema });
+  await indexingStore.reload({ schema: hexSchema });
 
   await indexingStore.create({
     tableName: "table",

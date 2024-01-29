@@ -1,12 +1,11 @@
 import type { Hex } from "viem";
 import { assertType, test } from "vitest";
-
 import {
   _enum,
   bigint,
   boolean,
-  bytes,
   float,
+  hex,
   int,
   many,
   one,
@@ -68,11 +67,11 @@ test("boolean", () => {
   assertType<t>({} as boolean);
 });
 
-test("bytes", () => {
-  const c = bytes();
+test("hex", () => {
+  const c = hex();
   //    ^?
 
-  assertType<BaseColumn<"bytes", undefined, false, false>>(c[" column"]);
+  assertType<BaseColumn<"hex", undefined, false, false>>(c[" column"]);
 
   type t = RecoverColumnType<(typeof c)[" column"]>;
   //   ^?
