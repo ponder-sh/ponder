@@ -552,6 +552,19 @@ test("processEvents() handles errors", async (context) => {
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
+  const tableAccess: TableAccess = [
+    {
+      table: "TransferEvent",
+      access: "write",
+      indexingFunctionKey: "Erc20:Transfer",
+    },
+    {
+      table: "TransferEvent",
+      access: "read",
+      indexingFunctionKey: "Erc20:Transfer",
+    },
+  ];
+
   await service.reset({ schema, indexingFunctions, tableAccess });
 
   transferIndexingFunction.mockImplementation(() => {
@@ -562,8 +575,8 @@ test("processEvents() handles errors", async (context) => {
   syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  expect(transferIndexingFunction).toHaveBeenCalledTimes(8);
-  expect(indexingStoreRevertSpy).toHaveBeenCalledTimes(6);
+  expect(transferIndexingFunction).toHaveBeenCalledTimes(4);
+  expect(indexingStoreRevertSpy).toHaveBeenCalledTimes(3);
 
   service.kill();
   await service.onIdle();
