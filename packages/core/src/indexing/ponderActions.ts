@@ -75,7 +75,7 @@ export type ReadOnlyClient<
 >;
 
 export const ponderActions =
-  (getCurrentBlockNumber: () => bigint) =>
+  (blockNumber: bigint) =>
   <
     TTransport extends Transport = Transport,
     TChain extends Chain | undefined = Chain | undefined,
@@ -91,9 +91,7 @@ export const ponderActions =
     }): Promise<GetBalanceReturnType> =>
       viemGetBalance(client, {
         ...args,
-        ...(cache === "immutable"
-          ? { blockTag: "latest" }
-          : { blockNumber: getCurrentBlockNumber() }),
+        ...(cache === "immutable" ? { blockTag: "latest" } : { blockNumber }),
       }),
     getBytecode: ({
       cache,
@@ -103,9 +101,7 @@ export const ponderActions =
     }): Promise<GetBytecodeReturnType> =>
       viemGetBytecode(client, {
         ...args,
-        ...(cache === "immutable"
-          ? { blockTag: "latest" }
-          : { blockNumber: getCurrentBlockNumber() }),
+        ...(cache === "immutable" ? { blockTag: "latest" } : { blockNumber }),
       }),
     getStorageAt: ({
       cache,
@@ -115,9 +111,7 @@ export const ponderActions =
     }): Promise<GetStorageAtReturnType> =>
       viemGetStorageAt(client, {
         ...args,
-        ...(cache === "immutable"
-          ? { blockTag: "latest" }
-          : { blockNumber: getCurrentBlockNumber() }),
+        ...(cache === "immutable" ? { blockTag: "latest" } : { blockNumber }),
       }),
     multicall: <
       TContracts extends ContractFunctionConfig[],
@@ -133,9 +127,7 @@ export const ponderActions =
     }): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
       viemMulticall(client, {
         ...args,
-        ...(cache === "immutable"
-          ? { blockTag: "latest" }
-          : { blockNumber: getCurrentBlockNumber() }),
+        ...(cache === "immutable" ? { blockTag: "latest" } : { blockNumber }),
       }),
     // @ts-ignore
     readContract: <
@@ -152,8 +144,6 @@ export const ponderActions =
     }): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
       viemReadContract(client, {
         ...args,
-        ...(cache === "immutable"
-          ? { blockTag: "latest" }
-          : { blockNumber: getCurrentBlockNumber() }),
+        ...(cache === "immutable" ? { blockTag: "latest" } : { blockNumber }),
       } as ReadContractParameters<TAbi, TFunctionName>),
   });

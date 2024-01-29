@@ -3,8 +3,8 @@ import React from "react";
 
 import type { Source } from "@/config/sources.js";
 
-import { HistoricalBar } from "./HistoricalBar.js";
-import { IndexingBar } from "./IndexingBar.js";
+import { formatEta, formatPercentage } from "@/utils/format.js";
+import { ProgressBar } from "./ProgressBar.js";
 
 export type UiState = {
   port: number;
@@ -22,11 +22,14 @@ export type UiState = {
     isConnected: boolean;
   }[];
 
+  indexingStats: {
+    event: string;
+    totalSeconds: number;
+    completedSeconds: number;
+    completedEventCount: number;
+  }[];
+  indexingCompletedToTimestamp: number;
   indexingError: boolean;
-  processedEventCount: number;
-  handledEventCount: number;
-  totalMatchedEventCount: number;
-  eventsProcessedToTimestamp: number;
 };
 
 export const buildUiState = ({ sources }: { sources: Source[] }) => {
@@ -37,11 +40,9 @@ export const buildUiState = ({ sources }: { sources: Source[] }) => {
     isHistoricalSyncComplete: false,
     realtimeSyncNetworks: [],
 
+    indexingStats: [],
+    indexingCompletedToTimestamp: 0,
     indexingError: false,
-    processedEventCount: 0,
-    handledEventCount: 0,
-    totalMatchedEventCount: 0,
-    eventsProcessedToTimestamp: 0,
   };
 
   sources.forEach((source) => {
@@ -59,10 +60,10 @@ const App = (ui: UiState) => {
   const {
     port,
     historicalSyncStats,
-    isHistoricalSyncComplete,
+    // isHistoricalSyncComplete,
     // TODO: Consider adding realtime back into the UI in some manner.
     // realtimeSyncNetworks,
-    processedEventCount,
+    indexingStats,
     indexingError,
   } = ui;
 
@@ -78,37 +79,90 @@ const App = (ui: UiState) => {
     );
   }
 
+  const maxWidth = process.stdout.columns || 80;
+
+  const titleWidth = Math.max(
+    ...historicalSyncStats.map((s) => s.contract.length + s.network.length + 4),
+    ...indexingStats.map((s) => s.event.length + 1),
+  );
+
+  const maxEventCount = Math.max(
+    ...indexingStats.map((s) => s.completedEventCount),
+  );
+  const metricsWidth = 15 + maxEventCount.toString().length;
+
+  const barWidth = Math.min(
+    Math.max(maxWidth - titleWidth - metricsWidth - 12, 24),
+    48,
+  );
+
   return (
     <Box flexDirection="column">
       <Text> </Text>
 
       <Box flexDirection="row">
-        <Text bold={true}>Historical sync </Text>
-        {isHistoricalSyncComplete ? (
-          <Text color="green">(complete)</Text>
-        ) : (
-          <Text color="yellow">(in progress)</Text>
-        )}
+        <Text bold={true}>Historical sync</Text>
       </Box>
-      {!isHistoricalSyncComplete && (
-        <Box flexDirection="column">
-          {historicalSyncStats.map(({ contract, network, rate, eta }) => (
+      <Box flexDirection="column">
+        {historicalSyncStats.map(({ contract, network, rate, eta }) => {
+          const etaText = eta ? ` | ~${formatEta(eta)}` : "";
+          const rateText = formatPercentage(rate);
+
+          const titleText = `${contract} (${network})`.padEnd(titleWidth, " ");
+          const metricsText =
+            rate === 1 ? (
+              <Text color="greenBright">done</Text>
+            ) : (
+              `${rateText}${etaText}`
+            );
+
+          return (
             <Box flexDirection="column" key={`${contract}-${network}`}>
-              <Text>
-                {contract} <Text dimColor>({network})</Text>
-              </Text>
-              <HistoricalBar
-                key={`${contract}-${network}`}
-                rate={rate}
-                eta={eta}
-              />
+              <Box flexDirection="row">
+                <Text>{titleText} </Text>
+                <ProgressBar current={rate} end={1} width={barWidth} />
+                <Text> {metricsText}</Text>
+              </Box>
             </Box>
-          ))}
-        </Box>
-      )}
+          );
+        })}
+      </Box>
       <Text> </Text>
 
-      <IndexingBar ui={ui} />
+      <Text bold={true}>Indexing </Text>
+      {indexingStats.map(
+        ({ event, totalSeconds, completedSeconds, completedEventCount }) => {
+          const rate = completedSeconds / totalSeconds;
+
+          const titleText = event.padEnd(titleWidth, " ");
+
+          const rateText =
+            rate === 1 ? (
+              <Text color="greenBright">done</Text>
+            ) : (
+              formatPercentage(rate)
+            );
+
+          return (
+            <Box flexDirection="column" key={event}>
+              <Box flexDirection="row">
+                <Text>{titleText} </Text>
+                {completedSeconds > 0 ? (
+                  <>
+                    <ProgressBar current={rate} end={1} width={barWidth} />
+                    <Text>
+                      {" "}
+                      {rateText} ({completedEventCount} events)
+                    </Text>
+                  </>
+                ) : (
+                  <Text>Waiting to start...</Text>
+                )}
+              </Box>
+            </Box>
+          );
+        },
+      )}
       <Text> </Text>
 
       {/* {realtimeSyncNetworks.length > 0 && (
@@ -126,7 +180,7 @@ const App = (ui: UiState) => {
         </Box>
       )} */}
 
-      {processedEventCount > 0 && (
+      {true && (
         <Box flexDirection="column">
           <Text bold={true}>GraphQL </Text>
           <Box flexDirection="row">

@@ -117,11 +117,13 @@ export class PostgresIndexingStore implements IndexingStore {
                     "text",
                     (col) => {
                       if (!column.optional) col = col.notNull();
-                      col = col.check(
-                        sql`${sql.ref(columnName)} in (${sql.join(
-                          schema!.enums[column.type].map((v) => sql.lit(v)),
-                        )})`,
-                      );
+                      if (!column.list) {
+                        col = col.check(
+                          sql`${sql.ref(columnName)} in (${sql.join(
+                            schema!.enums[column.type].map((v) => sql.lit(v)),
+                          )})`,
+                        );
+                      }
                       return col;
                     },
                   );
@@ -361,156 +363,6 @@ export class PostgresIndexingStore implements IndexingStore {
       return rows.map((row) =>
         decodeRow(row, this.schema!.tables[tableName], "postgres"),
       );
-    });
-  };
-
-  findManyPaginated = async ({
-    tableName,
-    checkpoint = "latest",
-    where,
-    before,
-    after,
-    take,
-    orderBy,
-  }: {
-    tableName: string;
-    checkpoint?: Checkpoint | "latest";
-    where?: WhereInput<any>;
-    before?: string;
-    after?: string;
-    take?: number;
-    orderBy?: OrderByInput<any>;
-  }) => {
-    return this.wrap({ method: "findMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
-
-      let query = this.db.selectFrom(table).selectAll();
-
-      if (checkpoint === "latest") {
-        query = query.where("effectiveToCheckpoint", "=", "latest");
-      } else {
-        const encodedCheckpoint = encodeCheckpoint(checkpoint);
-        query = query
-          .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
-          .where(({ eb, or }) =>
-            or([
-              eb("effectiveToCheckpoint", ">", encodedCheckpoint),
-              eb("effectiveToCheckpoint", "=", "latest"),
-            ]),
-          );
-      }
-
-      if (where) {
-        const whereConditions = buildSqlWhereConditions({
-          where,
-          encodeBigInts: true,
-        });
-        for (const whereCondition of whereConditions) {
-          query = query.where(...whereCondition);
-        }
-      }
-
-      if (take) {
-        const limit = validateTake(take);
-        // Get +1 extra row to determine if has next
-        query = query.limit(limit + 1);
-      }
-
-      let orderDirection = "asc";
-
-      if (orderBy) {
-        // Get reversed order conditions, for finding the -1 row
-        const orderByConditions = !before
-          ? buildSqlOrderByConditions({ orderBy })
-          : buildSqlOrderByConditionsReversed({ orderBy });
-
-        orderDirection = orderByConditions[0][1];
-
-        for (const orderByCondition of orderByConditions) {
-          query = query.orderBy(...orderByCondition);
-        }
-        //query = query.orderBy(`id ${orderDirection}`);
-      }
-
-      const { rows } = await this.db.transaction().execute(async (tx) => {
-        if (!!before || !!after) {
-          const currentRowQuery = this.db
-            .selectFrom(table)
-            .selectAll()
-            .limit(1)
-            .where(
-              "id",
-              "=",
-              Buffer.from(after || before || "", "base64").toString(),
-            );
-          const res = await tx.executeQuery(currentRowQuery);
-
-          const dir = orderDirection === "desc" ? "<" : ">";
-
-          if (orderBy && !!res?.rows?.length) {
-            const orderByKey = Object.keys(orderBy)[0];
-            if (orderByKey !== "id") {
-              const resAny = res as any;
-              const orderByValue = resAny.rows[0][orderByKey];
-
-              // Account for ordering by another column besides ID by adding a secondary where -
-              // "where orderByKey > orderByValue or (orderByKey = orderByValue and id > currentId)"
-              query = query.where((eb) =>
-                eb(orderByKey, dir, resAny.rows[0][orderByKey]).or(
-                  eb.and([
-                    eb(orderByKey, "=", orderByValue),
-                    eb("id", dir, resAny.rows[0].id),
-                  ]),
-                ),
-              );
-              // Account for only id ordering - don't need any secondary ordering
-            } else {
-              const resAny = res as any;
-              query = query.where((eb) =>
-                eb(orderByKey, dir, resAny.rows[0][orderByKey]),
-              );
-            }
-          }
-        }
-
-        const selectQuery = await tx.executeQuery(query);
-        return { rows: selectQuery.rows };
-      });
-
-      let deserializedRows = rows.map((row) =>
-        this.deserializeRow({ tableName, row }),
-      );
-      if (before) {
-        deserializedRows.reverse();
-      }
-
-      const hasAfter = rows.length > (take || 1000);
-
-      if (hasAfter && before) {
-        deserializedRows = deserializedRows.slice(1);
-      }
-
-      if (hasAfter && !before) {
-        deserializedRows = deserializedRows.slice(0, -1);
-      }
-
-      return {
-        before: after
-          ? Buffer.from(deserializedRows[0].id.toString()).toString("base64")
-          : hasAfter && before
-            ? Buffer.from(deserializedRows[0].id.toString()).toString("base64")
-            : null,
-        after: before
-          ? Buffer.from(
-              deserializedRows[deserializedRows.length - 1].id.toString(),
-            ).toString("base64")
-          : hasAfter
-            ? Buffer.from(
-                deserializedRows[deserializedRows.length - 1].id.toString(),
-              ).toString("base64")
-            : null,
-        rows: deserializedRows,
-      };
     });
   };
 

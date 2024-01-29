@@ -65,24 +65,37 @@ export class UiService {
       }));
 
       // Indexing
-      const matchedEventCount = (
-        await this.common.metrics.ponder_indexing_matched_events.get()
-      ).values.reduce((a, v) => a + v.value, 0);
-      const handledEventCount = (
-        await this.common.metrics.ponder_indexing_handled_events.get()
-      ).values.reduce((a, v) => a + v.value, 0);
-      const processedEventCount = (
-        await this.common.metrics.ponder_indexing_processed_events.get()
-      ).values.reduce((a, v) => a + v.value, 0);
-      const latestProcessedTimestamp =
-        (
-          await this.common.metrics.ponder_indexing_latest_processed_timestamp.get()
-        ).values[0].value ?? 0;
+      const totalSecondsMetric = (
+        await this.common.metrics.ponder_indexing_total_seconds.get()
+      ).values;
+      const completedSecondsMetric = (
+        await this.common.metrics.ponder_indexing_completed_seconds.get()
+      ).values;
+      const completedEventsMetric = (
+        await this.common.metrics.ponder_indexing_completed_events.get()
+      ).values;
 
-      this.ui.totalMatchedEventCount = matchedEventCount;
-      this.ui.handledEventCount = handledEventCount;
-      this.ui.processedEventCount = processedEventCount;
-      this.ui.eventsProcessedToTimestamp = latestProcessedTimestamp;
+      const eventNames = totalSecondsMetric.map(
+        (m) => m.labels.event as string,
+      );
+
+      this.ui.indexingStats = eventNames.map((event) => {
+        const totalSeconds =
+          totalSecondsMetric.find((m) => m.labels.event === event)?.value ?? 0;
+        const completedSeconds =
+          completedSecondsMetric.find((m) => m.labels.event === event)?.value ??
+          0;
+        const completedEventCount = completedEventsMetric
+          .filter((m) => m.labels.event === event)
+          .reduce((a, v) => a + v.value, 0);
+
+        return { event, totalSeconds, completedSeconds, completedEventCount };
+      });
+
+      const indexingCompletedToTimestamp =
+        (await this.common.metrics.ponder_indexing_completed_timestamp.get())
+          .values[0].value ?? 0;
+      this.ui.indexingCompletedToTimestamp = indexingCompletedToTimestamp;
 
       // Server
       const port = (await this.common.metrics.ponder_server_port.get())

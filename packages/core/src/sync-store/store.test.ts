@@ -1080,13 +1080,12 @@ test("getLogEvents returns log events", async ({
     ...rpcData.block1,
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events).toHaveLength(2);
 
@@ -1113,9 +1112,10 @@ test("getLogEvents filters on log filter with one address", async ({
     ...rpcData.block1,
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [
       {
         id: "singleAddress",
@@ -1124,8 +1124,6 @@ test("getLogEvents filters on log filter with one address", async ({
       },
     ],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events).toHaveLength(2);
   expect(events[0].log.address).toBe(checksumAddress(erc20.address));
@@ -1150,9 +1148,10 @@ test("getLogEvents filters on log filter with multiple addresses", async ({
     ...rpcData.block2,
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [
       {
         id: "multipleAddress",
@@ -1163,8 +1162,6 @@ test("getLogEvents filters on log filter with multiple addresses", async ({
       },
     ],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events).toHaveLength(3);
   expect(events[0]).toMatchObject({
@@ -1203,9 +1200,10 @@ test("getLogEvents filters on log filter with single topic", async ({
     ...rpcData.block2,
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [
       {
         id: "singleTopic",
@@ -1216,8 +1214,6 @@ test("getLogEvents filters on log filter with single topic", async ({
       },
     ],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events).toHaveLength(2);
   expect(events[0]).toMatchObject({
@@ -1250,9 +1246,10 @@ test("getLogEvents filters on log filter with multiple topics", async ({
     ...rpcData.block2,
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [
       {
         id: "multipleTopics",
@@ -1268,8 +1265,6 @@ test("getLogEvents filters on log filter with multiple topics", async ({
       },
     ],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events[0]).toMatchObject({
     sourceId: "multipleTopics",
@@ -1313,9 +1308,10 @@ test("getLogEvents filters on simple factory", async ({
     ],
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     factories: [
       {
         id: "simple",
@@ -1329,8 +1325,6 @@ test("getLogEvents filters on simple factory", async ({
       },
     ],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events).toHaveLength(1);
   expect(events[0]).toMatchObject({
@@ -1352,9 +1346,10 @@ test("getLogEvents filters on fromBlock", async ({ syncStore, sources }) => {
     ...rpcData.block2,
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [
       {
         id: "fromBlock",
@@ -1364,8 +1359,6 @@ test("getLogEvents filters on fromBlock", async ({ syncStore, sources }) => {
       },
     ],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events[0]).toMatchObject({
     sourceId: "fromBlock",
@@ -1393,9 +1386,10 @@ test("getLogEvents filters on multiple filters", async ({
     ...rpcData.block2,
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [
       {
         id: "singleAddress",
@@ -1411,8 +1405,6 @@ test("getLogEvents filters on multiple filters", async ({
       },
     ],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events).toHaveLength(4);
   expect(events[0]).toMatchObject({
@@ -1457,7 +1449,7 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async ({
     ...rpcData.block2,
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: {
       chainId: 1,
       blockTimestamp: Number(rpcData.block1.block.timestamp!),
@@ -1466,10 +1458,9 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async ({
       logIndex: Number(rpcData.block1.logs[1].logIndex),
     },
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events).toHaveLength(1);
   expect(events[0].block.hash).toBe(rpcData.block2.block.hash);
@@ -1491,17 +1482,16 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async ({
     ...rpcData.block2,
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: {
       ...maxCheckpoint,
       blockTimestamp: Number(rpcData.block1.block.timestamp!),
       blockNumber: Number(rpcData.block1.block.number!),
     },
+    limit: 100,
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events).toHaveLength(2);
   expect(events.map((e) => e.block.hash)).toMatchObject([
@@ -1526,15 +1516,14 @@ test("getLogEvents returns no events if includeEventSelectors is an empty array"
     ...rpcData.block2,
   });
 
-  const iterator = syncStore.getLogEvents({
+  const { events } = await syncStore.getLogEvents({
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
+    limit: 100,
     logFilters: [
       { id: "noFilter", chainId: 1, criteria: {}, includeEventSelectors: [] },
     ],
   });
-  const events = [];
-  for await (const page of iterator) events.push(...page.events);
 
   expect(events).toHaveLength(0);
 });

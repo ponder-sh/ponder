@@ -13,7 +13,7 @@ beforeEach((context) => setupAnvil(context));
 const getClient = async () => {
   const blockNumber = await publicClient.getBlockNumber();
   return publicClient.extend(
-    ponderActions(() => blockNumber) as any,
+    ponderActions(blockNumber) as any,
   ) as ReadOnlyClient;
 };
 
