@@ -1079,62 +1079,6 @@ test.skip("filters on hex field greater than", async (context) => {
   await service.kill();
 });
 
-test.skip("filters on hex field equals", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
-
-  await createTestEntity({ id: 0 });
-  await createTestEntity({ id: 1 });
-  await createTestEntity({ id: 2 });
-
-  const response = await gql(`
-    testEntitys(where: { hex: "0x01" }) {
-      id
-    }
-  `);
-
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
-
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "1",
-  });
-
-  await service.kill();
-});
-
-test.skip("filters on hex field greater than", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
-
-  await createTestEntity({ id: 0 });
-  await createTestEntity({ id: 1 });
-  await createTestEntity({ id: 2 });
-
-  const response = await gql(`
-    testEntitys(where: { hex_gt: "0x01" }) {
-      id
-    }
-  `);
-
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
-
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({ id: "2" });
-
-  await service.kill();
-});
-
 test("filters on bigInt field less than or equal to", async (context) => {
   const { common, indexingStore } = context;
   const { service, gql, createTestEntity } = await setup({

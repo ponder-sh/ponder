@@ -1,11 +1,8 @@
 import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
-import type { Schema } from "@/schema/types.js";
-import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
-import { Kysely, SqliteDialect, sql } from "kysely";
 import { Kysely, SqliteDialect, sql } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
 import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
@@ -560,7 +557,6 @@ export class SqliteIndexingStore implements IndexingStore {
 
         // If the user passed an update function, call it with the current instance.
         let updateRow: ReturnType<typeof encodeRow>;
-        let updateRow: ReturnType<typeof encodeRow>;
         if (typeof data === "function") {
           const current = decodeRow(latestRow, table, "sqlite");
           const updateObject = data({ current });
@@ -660,7 +656,6 @@ export class SqliteIndexingStore implements IndexingStore {
             const encodedId = latestRow.id;
 
             // If the user passed an update function, call it with the current instance.
-            let updateRow: ReturnType<typeof encodeRow>;
             let updateRow: ReturnType<typeof encodeRow>;
             if (typeof data === "function") {
               const current = decodeRow(latestRow, table, "sqlite");
@@ -762,7 +757,6 @@ export class SqliteIndexingStore implements IndexingStore {
         }
 
         // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof encodeRow>;
         let updateRow: ReturnType<typeof encodeRow>;
         if (typeof update === "function") {
           const current = decodeRow(latestRow, table, "sqlite");
