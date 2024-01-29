@@ -8,7 +8,7 @@ import type {
   PonderContext,
   PonderEvent,
   PonderEventNames,
-} from "@ponder/core";
+} from "../../../types/ponder.js";
 
 type Config = typeof import("./ponder.config.ts").default;
 type Schema = typeof import("./ponder.schema.ts").default;
