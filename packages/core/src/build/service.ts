@@ -20,7 +20,7 @@ import {
   type RawIndexingFunctions,
   safeBuildIndexingFunctions,
 } from "./functions/functions.js";
-import { type TableAccess, parseIndexingAst } from "./parseIndexingAst.js";
+import { type TableAccess, parseAst } from "./functions/parseAst.js";
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
@@ -394,7 +394,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.rawIndexingFunctions,
     ).flatMap((indexingFunctions) => indexingFunctions.map((x) => x.name));
 
-    const tableAccessMap = parseIndexingAst({
+    const tableAccessMap = parseAst({
       tableNames,
       filePaths,
       indexingFunctionKeys,
