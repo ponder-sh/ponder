@@ -18,8 +18,8 @@ const filterValidityMap = {
       "contains",
       "notContains",
       "startsWith",
-      "endsWith",
       "notStartsWith",
+      "endsWith",
       "notEndsWith",
     ],
     list: ["equals", "not", "has", "notHas"],
@@ -55,7 +55,7 @@ const filterEncodingMap: {
   },
   not: (value, encode) => {
     const encoded = encode(value);
-    return value === null ? ["is", null] : ["=", encoded];
+    return value === null ? ["is not", null] : ["=", encoded];
   },
   // Singular
   in: (value, encode) => ["in", value.map(encode)],
@@ -72,8 +72,8 @@ const filterEncodingMap: {
   contains: (value, encode) => ["like", `%${encode(value)}%`],
   notContains: (value, encode) => ["not like", `%${encode(value)}%`],
   startsWith: (value, encode) => ["like", `${encode(value)}%`],
-  endsWith: (value, encode) => ["like", `%${encode(value)}`],
   notStartsWith: (value, encode) => ["not like", `${encode(value)}%`],
+  endsWith: (value, encode) => ["like", `%${encode(value)}`],
   notEndsWith: (value, encode) => ["not like", `%${encode(value)}`],
 } as const;
 
@@ -82,10 +82,12 @@ export function buildWhereConditions({
   table,
   encoding,
 }: {
-  where: WhereInput<Table>;
+  where: WhereInput<Table> | undefined;
   table: Schema["tables"][keyof Schema["tables"]];
   encoding: "sqlite" | "postgres";
 }) {
+  if (where === undefined) return [];
+
   const conditions: [
     columnName: string,
     comparator: ComparisonOperatorExpression,
@@ -130,8 +132,6 @@ export function buildWhereConditions({
       }
 
       const filterEncodingFn = filterEncodingMap[condition];
-
-      console.log(typeof value);
 
       // Handle special case for list column types `has` and `notHas`.
       // We need to use the singular encoding function for the arguments.

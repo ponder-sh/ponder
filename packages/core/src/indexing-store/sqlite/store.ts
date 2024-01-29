@@ -5,8 +5,10 @@ import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { Kysely, SqliteDialect, sql } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
+import { decodeCursor, encodeCursor } from "../utils/cursor.js";
 import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { buildWhereConditions } from "../utils/filter.js";
+import { buildOrderByConditions } from "../utils/sort.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
@@ -304,58 +306,25 @@ export class SqliteIndexingStore implements IndexingStore {
           );
       }
 
-      if (where) {
-        const whereConditions = buildWhereConditions({
-          where,
-          table,
-          encoding: "sqlite",
-        });
-        for (const [columnName, comparator, value] of whereConditions) {
-          query = query.where(columnName, comparator, value);
-        }
+      const whereConditions = buildWhereConditions({
+        where,
+        table,
+        encoding: "sqlite",
+      });
+      for (const [columnName, comparator, value] of whereConditions) {
+        query = query.where(columnName, comparator, value);
       }
 
-      const orderByConditions: [column: string, direction: "asc" | "desc"][] =
-        [];
-
-      // Build the order by conditions.
-      if (orderBy) {
-        const conditions = Object.entries(orderBy);
-        if (conditions.length > 1)
-          throw new Error("Cannot order by multiple columns.");
-        const [columnName, orderDirection] = conditions[0];
-        // TODO: Validate column name. Should be a valid non-list column in the table.
-        if (
-          orderDirection === undefined ||
-          !["asc", "desc"].includes(orderDirection)
-        )
-          throw new Error(
-            `Invalid order direction. Received ${orderDirection}, expected 'asc' or 'desc'.`,
-          );
-
-        // If the specified order by column is not the ID column, add the
-        // ID column as a secondary to enforce a consistent sort order.
-        orderByConditions.push([columnName, orderDirection]);
-        if (columnName !== "id") {
-          orderByConditions.push(["id", "asc"]);
-        }
-      } else {
-        // Default to ID ascending.
-        orderByConditions.push(["id", "asc"]);
-      }
-
-      // Apply the ORDER BY conditions.
+      const orderByConditions = buildOrderByConditions({ orderBy, table });
       for (const [column, direction] of orderByConditions) {
         query = query.orderBy(column, direction);
       }
 
       if (limit > MAX_LIMIT) {
         throw new Error(
-          `Record limit is greater than the maximum allowed limit. Expected <=${MAX_LIMIT}, received ${limit}.`,
+          `Invalid limit. Expected <=${MAX_LIMIT}, received ${limit}.`,
         );
       }
-      // Fetch 1 additional row to determine the `after` cursor.
-      query = query.limit(limit + 1);
 
       if (after !== null && before !== null) {
         throw new Error("Cannot specify both before and after cursors.");
@@ -363,6 +332,7 @@ export class SqliteIndexingStore implements IndexingStore {
 
       // If neither cursors are specified, apply the order conditions and execute.
       if (after === null && before === null) {
+        query = query.limit(limit + 1);
         const rows = await query.execute();
         const records = rows.map((row) => decodeRow(row, table, "sqlite"));
 
@@ -637,15 +607,13 @@ export class SqliteIndexingStore implements IndexingStore {
           .selectAll()
           .where("effectiveToCheckpoint", "=", "latest");
 
-        if (where) {
-          const whereConditions = buildWhereConditions({
-            where,
-            table,
-            encoding: "sqlite",
-          });
-          for (const [columnName, comparator, value] of whereConditions) {
-            query = query.where(columnName, comparator, value);
-          }
+        const whereConditions = buildWhereConditions({
+          where,
+          table,
+          encoding: "sqlite",
+        });
+        for (const [columnName, comparator, value] of whereConditions) {
+          query = query.where(columnName, comparator, value);
         }
 
         const latestRows = await query.execute();
@@ -868,56 +836,4 @@ export class SqliteIndexingStore implements IndexingStore {
     );
     return result;
   };
-}
-
-type OrderByConditions = [column: string, direction: "asc" | "desc"][];
-
-function encodeCursor(record: Row, orderByConditions: OrderByConditions) {
-  const cursor = orderByConditions
-    .map(([column]) => {
-      // TODO: Properly convert value to an escaped string.
-      const value = record[column]?.toString().replaceAll("|", "\\|");
-      return `${column}:${value}`;
-    })
-    .join("|");
-
-  return Buffer.from(cursor).toString("base64");
-}
-
-function decodeCursor(cursor: string, orderByConditions: OrderByConditions) {
-  const whereConditions = Buffer.from(cursor, "base64")
-    .toString()
-    .split("|")
-    .map((condition, index) => {
-      const delimIndex = condition.indexOf(":");
-      if (delimIndex === -1) {
-        throw new Error(
-          "Invalid cursor. Expected a delimiter ':' between column name and value.",
-        );
-      }
-      const column = condition.slice(0, delimIndex);
-      const value = condition.slice(delimIndex + 1);
-      if (column !== orderByConditions[index][0]) {
-        throw new Error(
-          `Invalid cursor. Expected column '${orderByConditions[index][0]}', received '${column}'.`,
-        );
-      }
-
-      // TODO: Validate and convert value to the correct type.
-      const decodedValue = value as string | number | bigint;
-
-      return [column, decodedValue] as const;
-    });
-
-  if (whereConditions.length > 2) {
-    throw new Error("Invalid cursor. Expected 1 or 2 conditions.");
-  }
-
-  if (whereConditions.length !== orderByConditions.length) {
-    throw new Error(
-      `Invalid cursor. Expected ${orderByConditions.length} conditions, received ${whereConditions.length}`,
-    );
-  }
-
-  return whereConditions;
 }

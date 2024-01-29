@@ -84,6 +84,16 @@ test("buildWhereConditions handles list filters with encoding", () => {
   ]);
 });
 
+test("buildWhereConditions filters on reference column", () => {
+  const conditions = buildWhereConditions({
+    where: { personId: 5n },
+    table: schema.tables.Pet,
+    encoding: "postgres",
+  });
+
+  expect(conditions).toEqual([["personId", "=", 5n]]);
+});
+
 test("buildWhereConditions handles list column 'has' and 'notHas' special case", () => {
   const conditions = buildWhereConditions({
     where: { names: { has: "Marty" } },
@@ -104,16 +114,6 @@ test("buildWhereConditions throws for unknown column", () => {
   ).toThrow(
     "Invalid filter. Column does not exist. Got 'someFakeColumn', expected one of ['id', 'names', 'age', 'bigAge', 'kind', 'personId']",
   );
-});
-
-test("buildWhereConditions filters on reference column", () => {
-  const conditions = buildWhereConditions({
-    where: { personId: 5n },
-    table: schema.tables.Pet,
-    encoding: "postgres",
-  });
-
-  expect(conditions).toEqual([["personId", "=", 5n]]);
 });
 
 test("buildWhereConditions throws for virtual column", () => {
