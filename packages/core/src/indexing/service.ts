@@ -75,8 +75,7 @@ type LogEventTask = {
 type IndexingFunctionTask = SetupTask | LogEventTask;
 type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
 
-// Note: this should move to a dynamic value, based on how many indexing function keys there are.
-const TASK_BATCH_SIZE = 1_000;
+const MAX_BATCH_SIZE = 10_000;
 
 export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
@@ -133,6 +132,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       lastEventCheckpoint?: Checkpoint;
     }
   > = {};
+  private taskBatchSize: number = MAX_BATCH_SIZE;
 
   private sourceById: { [sourceId: Source["id"]]: Source } = {};
 
@@ -760,7 +760,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const result = await this.syncGatewayService.getEvents({
       fromCheckpoint,
       toCheckpoint,
-      limit: TASK_BATCH_SIZE,
+      limit: this.taskBatchSize,
       logFilters: state.sources.filter(sourceIsLogFilter).map((logFilter) => ({
         id: logFilter.id,
         chainId: logFilter.chainId,
@@ -932,6 +932,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
         const eventSelector =
           this.sources[i].abiEvents.bySafeName[eventName]!.selector;
 
+        this.common.logger.debug({
+          service: "indexing",
+          msg: `Registered indexing function ${indexingFunctionKey} (selfDependent=${isSelfDependent}, parents=[${dedupe(
+            parents,
+          ).join(", ")}])`,
+        });
+
         this.indexingFunctionStates[indexingFunctionKey] = {
           eventName,
           contractName,
@@ -949,6 +956,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
         };
       }
     }
+
+    this.taskBatchSize = Math.floor(
+      MAX_BATCH_SIZE / Object.keys(this.indexingFunctionStates).length,
+    );
   };
 
   private updateCompletedSeconds = (key: string) => {
