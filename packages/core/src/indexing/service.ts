@@ -234,13 +234,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
     )
       return;
 
+    this.isPaused = true;
     this.queue?.pause();
 
-    await Promise.all(
-      Object.values(this.indexingFunctionStates).map((state) =>
-        state.loadingMutex.cancel(),
-      ),
-    );
+    for (const state of Object.values(this.indexingFunctionStates)) {
+      state.loadingMutex.cancel();
+    }
 
     this.queue?.clear();
     await this.queue?.onIdle();
@@ -527,6 +526,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
           msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
         });
 
+        if (this.isPaused) return;
+
         // Running user code here!
         await indexingFunction({
           context: {
@@ -590,6 +591,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     for (let i = 0; i < 4; i++) {
       try {
+        if (this.isPaused) return;
+
         this.common.logger.trace({
           service: "indexing",
           msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
@@ -699,11 +702,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
       }
     }
 
+    if (this.isPaused) return;
+
     await this.indexingFunctionStates[fullEventName].loadingMutex.runExclusive(
       () => this.loadIndexingFunctionTasks(fullEventName),
     );
 
-    if (this.queue?.isPaused === false) this.enqueueLogEventTasks();
+    if (this.isPaused) return;
+
+    this.enqueueLogEventTasks();
   };
 
   private createEventQueue = () => {

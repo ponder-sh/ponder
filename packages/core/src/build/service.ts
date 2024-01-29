@@ -203,7 +203,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         ignoreRegex.test(file) ||
         path.join(this.common.options.generatedDir, "schema.graphql") ===
           file ||
-        path.join(this.common.options.generatedDir, "ponder-env.d.ts") === file
+        path.join(this.common.options.rootDir, "ponder-env.d.ts") === file
       )
         return;
 
