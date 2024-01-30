@@ -1,3 +1,6 @@
+import type { Schema } from "@/schema/types.js";
+import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
+import { maxCheckpoint } from "@/utils/checkpoint.js";
 import {
   type GraphQLEnumType,
   type GraphQLFieldConfig,
@@ -10,12 +13,6 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-
-import type { Schema } from "@/schema/types.js";
-import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import { maxCheckpoint } from "@/utils/checkpoint.js";
-
-import type { Row } from "@/indexing-store/store.js";
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
 
@@ -27,12 +24,6 @@ type PluralArgs = {
   limit?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
-};
-
-type PluralPage = {
-  items: Row[];
-  before: string;
-  after: string;
 };
 
 export type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
@@ -128,32 +119,28 @@ export const buildPluralField = ({
   const resolver: PluralResolver = async (_, args, context) => {
     const { store } = context;
 
-    const { timestamp, where, after, before, limit, orderBy, orderDirection } =
+    const { timestamp, where, orderBy, orderDirection, before, limit, after } =
       args;
 
     const checkpoint = timestamp
       ? { ...maxCheckpoint, blockTimestamp: timestamp }
       : undefined; // Latest.
 
-    const res = await store.findMany({
-      tableName: tableName,
-      checkpoint,
-      before: before,
-      after: after,
-      where: where ? buildWhereObject({ where }) : undefined,
-      limit,
-      orderBy: orderBy
-        ? {
-            [orderBy]: orderDirection || "desc",
-          }
-        : { id: orderDirection || "asc" },
-    });
+    const whereObject = where ? buildWhereObject({ where }) : {};
 
-    return {
-      items: res.items,
-      before: res.before,
-      after: res.after,
-    } as PluralPage;
+    const orderByObject = orderBy
+      ? { [orderBy]: orderDirection || "asc" }
+      : undefined;
+
+    return await store.findMany({
+      tableName,
+      checkpoint,
+      where: whereObject,
+      orderBy: orderByObject,
+      limit,
+      before,
+      after,
+    });
   };
 
   const pageType = new GraphQLObjectType({

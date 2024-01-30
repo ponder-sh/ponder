@@ -119,10 +119,10 @@ export function buildWhereConditions({
       Array.isArray(rhs) || typeof rhs !== "object" ? { equals: rhs } : rhs;
 
     for (const [condition, value] of Object.entries(conditionsForColumn)) {
+      const filterType = column._type === "e" ? "string" : column.type;
+
       const allowedConditions =
-        filterValidityMap[column.type as keyof typeof filterValidityMap]?.[
-          column.list ? "list" : "singular"
-        ];
+        filterValidityMap[filterType]?.[column.list ? "list" : "singular"];
       if (!allowedConditions.includes(condition)) {
         throw new Error(
           `Invalid filter condition for column '${columnName}'. Got '${condition}', expected one of [${allowedConditions

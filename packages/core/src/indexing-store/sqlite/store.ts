@@ -326,7 +326,7 @@ export class SqliteIndexingStore implements IndexingStore {
 
       if (limit > MAX_LIMIT) {
         throw new Error(
-          `Invalid limit. Expected <=${MAX_LIMIT}, received ${limit}.`,
+          `Invalid limit. Got <=${MAX_LIMIT}, received ${limit}.`,
         );
       }
 

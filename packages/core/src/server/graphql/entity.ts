@@ -1,3 +1,11 @@
+import type { ReferenceColumn, Schema } from "@/schema/types.js";
+import {
+  isEnumColumn,
+  isManyColumn,
+  isOneColumn,
+  referencedTableName,
+} from "@/schema/utils.js";
+import { maxCheckpoint } from "@/utils/checkpoint.js";
 import type { GraphQLFieldResolver } from "graphql";
 import {
   GraphQLEnumType,
@@ -8,27 +16,9 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-
-import type { ReferenceColumn, Schema } from "@/schema/types.js";
-import {
-  isEnumColumn,
-  isManyColumn,
-  isOneColumn,
-  referencedTableName,
-} from "@/schema/utils.js";
-import { maxCheckpoint } from "@/utils/checkpoint.js";
-
-import type { Row } from "@/indexing-store/store.js";
 import type { PluralResolver } from "./plural.js";
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
-
-type PluralPage = {
-  items: Row[];
-  before: string;
-  after: string;
-  hasNext: boolean;
-};
 
 export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
   const entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
@@ -99,11 +89,11 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
               const {
                 timestamp,
                 where,
-                after,
-                before,
-                limit,
                 orderBy,
                 orderDirection,
+                limit,
+                after,
+                before,
               } = args;
 
               // The parent object gets passed in here with relationship fields defined as the
@@ -119,31 +109,19 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
               const whereObject = where ? buildWhereObject({ where }) : {};
               whereObject[column.referenceColumn] = entityId;
 
-              if (after && before) {
-                throw Error(
-                  "Cannot have both 'before' and 'after' cursor search",
-                );
-              }
+              const orderByObject = orderBy
+                ? { [orderBy]: orderDirection || "asc" }
+                : undefined;
 
-              const res = await store.findManyPaginated({
+              return await store.findMany({
                 tableName: column.referenceTable,
                 checkpoint,
                 where: whereObject,
-                before: before,
-                after: after,
-                take: limit || 1000,
-                orderBy: orderBy
-                  ? {
-                      [orderBy]: orderDirection || "asc",
-                    }
-                  : { id: orderDirection || "asc" },
+                orderBy: orderByObject,
+                limit,
+                before,
+                after,
               });
-
-              return {
-                items: res.rows,
-                after: res.after,
-                before: res.before,
-              } as PluralPage;
             };
             const pageType = new GraphQLObjectType({
               name: `${tableName}PageChild`,
@@ -165,8 +143,8 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
             fieldConfigMap[columnName] = {
               type: pageType,
               args: {
-                before: { type: GraphQLString, defaultValue: "" },
-                after: { type: GraphQLString, defaultValue: "" },
+                before: { type: GraphQLString },
+                after: { type: GraphQLString },
                 limit: { type: GraphQLInt, defaultValue: 100 },
                 orderBy: { type: GraphQLString, defaultValue: "id" },
                 orderDirection: { type: GraphQLString, defaultValue: "asc" },

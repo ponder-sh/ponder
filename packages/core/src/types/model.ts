@@ -84,10 +84,16 @@ export type DatabaseModel<T extends { id: string | number | bigint }> = {
 
   findMany: (options?: {
     where?: Prettify<WhereInput<T>>;
-    skip?: number;
-    take?: number;
-    orderBy?: OrderByInput<T>; // TODO: Prettify/flatten this type. Couldn't get it working.
-  }) => Promise<Prettify<T>[]>;
+    // TODO: Prettify/flatten this type. Couldn't get it working.
+    orderBy?: OrderByInput<T>;
+    limit?: number;
+    before?: string;
+    after?: string;
+  }) => Promise<{
+    items: Prettify<T>[];
+    before: string | null;
+    after: string | null;
+  }>;
 
   delete: (options: { id: T["id"] }) => Promise<boolean>;
 };
