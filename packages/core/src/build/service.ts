@@ -20,10 +20,11 @@ import {
   type RawIndexingFunctions,
   safeBuildIndexingFunctions,
 } from "./functions/functions.js";
-import { type TableAccess, parseAst } from "./functions/parseAst.js";
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
+import { type TableAccess, parseAst } from "./static/parseAst.js";
+import { type TableIds, getTableIds } from "./static/tableIds.js";
 
 type BuildServiceEvents = {
   // Note: Should new config ever trigger a re-analyze?
@@ -31,11 +32,13 @@ type BuildServiceEvents = {
   newIndexingFunctions: {
     indexingFunctions: IndexingFunctions;
     tableAccess: TableAccess;
+    tableIds: TableIds;
   };
   newSchema: {
     schema: Schema;
     graphqlSchema: GraphQLSchema;
     tableAccess: TableAccess;
+    tableIds: TableIds;
   };
   error: { kind: "config" | "schema" | "indexingFunctions"; error: Error };
 };
@@ -149,7 +152,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         if (schemaResult.success && validationResult.success) {
           this.emit("newSchema", {
             ...schemaResult,
-            tableAccess: analyzeResult,
+            tableAccess: analyzeResult.tableAccess!,
+            tableIds: analyzeResult.tableIds!,
           });
         } else {
           const error = schemaResult.error ?? (validationResult.error as Error);
@@ -178,7 +182,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         if (indexingFunctionsResult.success && validationResult.success) {
           this.emit("newIndexingFunctions", {
             ...indexingFunctionsResult,
-            tableAccess: analyzeResult,
+            tableAccess: analyzeResult.tableAccess!,
+            tableIds: analyzeResult.tableIds!,
           });
         } else {
           const error =
@@ -236,6 +241,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
     const validationResult = this.validate();
     const analyzeResult = this.analyze();
+
     if (!validationResult.success)
       return { error: validationResult.error } as const;
 
@@ -250,7 +256,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       schema,
       graphqlSchema,
       indexingFunctions,
-      tableAccess: analyzeResult,
+      tableAccess: analyzeResult.tableAccess!,
+      tableIds: analyzeResult.tableIds!,
     };
   }
 
@@ -386,7 +393,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   private analyze() {
-    if (!this.rawIndexingFunctions || !this.schema) return [];
+    if (!this.rawIndexingFunctions || !this.schema || !this.sources) return {};
 
     const tableNames = Object.keys(this.schema.tables);
     const filePaths = Object.keys(this.rawIndexingFunctions);
@@ -394,13 +401,19 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.rawIndexingFunctions,
     ).flatMap((indexingFunctions) => indexingFunctions.map((x) => x.name));
 
-    const tableAccessMap = parseAst({
+    const tableAccess = parseAst({
       tableNames,
       filePaths,
       indexingFunctionKeys,
     });
 
-    return tableAccessMap;
+    const tableIds = getTableIds({
+      sources: this.sources,
+      tableAccess,
+      schema: this.schema,
+    });
+
+    return { tableAccess, tableIds };
   }
 
   private async executeFile(file: string) {
