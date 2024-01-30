@@ -73,8 +73,8 @@ export type WhereInput<TTable extends Table> = {
     | TTable[ColumnName];
 };
 
-export type OrderByInput<TTable extends Table> = {
-  [ColumnName in keyof TTable]?: "asc" | "desc";
+export type OrderByInput<table, columns extends keyof table = keyof table> = {
+  [ColumnName in columns]?: "asc" | "desc";
 };
 
 export interface IndexingStore {

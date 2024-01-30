@@ -84,8 +84,7 @@ export type DatabaseModel<T extends { id: string | number | bigint | Hex }> = {
 
   findMany: (options?: {
     where?: Prettify<WhereInput<T>>;
-    // TODO: Prettify/flatten this type. Couldn't get it working.
-    orderBy?: OrderByInput<T>;
+    orderBy?: Prettify<OrderByInput<T>>;
     limit?: number;
     before?: string;
     after?: string;
