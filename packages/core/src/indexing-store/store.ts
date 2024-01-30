@@ -2,6 +2,7 @@ import type { Schema } from "@/schema/types.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import type { Kysely } from "kysely";
+import type { Hex } from "viem";
 
 export type Table = {
   [key: string]:
@@ -9,7 +10,8 @@ export type Table = {
     | bigint
     | number
     | boolean
-    | (string | bigint | number | boolean)[];
+    | Hex
+    | (string | bigint | number | boolean | Hex)[];
 };
 
 export type Row = {
@@ -19,7 +21,8 @@ export type Row = {
     | bigint
     | number
     | boolean
-    | (string | bigint | number | boolean)[]
+    | Hex
+    | (string | bigint | number | boolean | Hex)[]
     | null;
 };
 
@@ -29,7 +32,8 @@ type OperatorMap<
     | bigint
     | number
     | boolean
-    | (string | bigint | number | boolean)[],
+    | Hex
+    | (string | bigint | number | boolean | Hex)[],
 > = {
   equals?: TField;
   not?: TField;
@@ -43,16 +47,18 @@ type OperatorMap<
       notIn?: TField[];
     }) &
   (TField extends string
-    ? {
-        contains?: TField;
-        notContains?: TField;
-        startsWith?: TField;
-        notStartsWith?: TField;
-        endsWith?: TField;
-        notEndsWith?: TField;
-      }
+    ? TField extends Hex
+      ? {}
+      : {
+          contains?: TField;
+          notContains?: TField;
+          startsWith?: TField;
+          notStartsWith?: TField;
+          endsWith?: TField;
+          notEndsWith?: TField;
+        }
     : {}) &
-  (TField extends number | bigint
+  (TField extends number | bigint | Hex
     ? {
         gt?: TField;
         gte?: TField;
