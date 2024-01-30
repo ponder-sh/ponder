@@ -15,7 +15,7 @@ export type Table = {
 };
 
 export type Row = {
-  id: string | number | bigint;
+  id: string | number | bigint | Hex;
   [key: string]:
     | string
     | bigint
