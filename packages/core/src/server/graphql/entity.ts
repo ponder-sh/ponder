@@ -6,7 +6,7 @@ import {
   referencedTableName,
 } from "@/schema/utils.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
-import type { GraphQLFieldResolver } from "graphql";
+import { GraphQLBoolean, type GraphQLFieldResolver } from "graphql";
 import {
   GraphQLEnumType,
   type GraphQLFieldConfigMap,
@@ -17,16 +17,26 @@ import {
   GraphQLString,
 } from "graphql";
 import type { PluralResolver } from "./plural.js";
-import type { Context, Source } from "./schema.js";
+import { type Context, type Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
 
-export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
-  const entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
+const GraphQLPageInfo = new GraphQLObjectType({
+  name: "PageInfo",
+  fields: {
+    hasNextPage: { type: new GraphQLNonNull(GraphQLBoolean) },
+    hasPreviousPage: { type: new GraphQLNonNull(GraphQLBoolean) },
+    startCursor: { type: GraphQLString },
+    endCursor: { type: GraphQLString },
+  },
+});
 
-  const enumGqlTypes: Record<string, GraphQLEnumType> = {};
+export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
+  const enumTypes: Record<string, GraphQLEnumType> = {};
+  const entityTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
+  const entityPageTypes: Record<string, GraphQLObjectType> = {};
 
   for (const [enumName, _enum] of Object.entries(schema.enums)) {
-    enumGqlTypes[enumName] = new GraphQLEnumType({
+    enumTypes[enumName] = new GraphQLEnumType({
       name: enumName,
       values: _enum.reduce(
         (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
@@ -36,7 +46,7 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
   }
 
   for (const [tableName, table] of Object.entries(schema.tables)) {
-    entityGqlTypes[tableName] = new GraphQLObjectType({
+    entityTypes[tableName] = new GraphQLObjectType({
       name: tableName,
       fields: () => {
         const fieldConfigMap: GraphQLFieldConfigMap<Source, Context> = {};
@@ -76,13 +86,11 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
 
             fieldConfigMap[columnName] = {
               type: referenceColumn.optional
-                ? entityGqlTypes[referencedTable]
-                : new GraphQLNonNull(entityGqlTypes[referencedTable]),
+                ? entityTypes[referencedTable]
+                : new GraphQLNonNull(entityTypes[referencedTable]),
               resolve: resolver,
             };
           } else if (isManyColumn(column)) {
-            // Column is virtual meant to tell graphQL to make a field
-
             const resolver: PluralResolver = async (parent, args, context) => {
               const { store } = context;
 
@@ -123,38 +131,22 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
                 after,
               });
             };
-            const pageType = new GraphQLObjectType({
-              name: `${tableName}${column.referenceTable}Page`,
-              fields: {
-                items: {
-                  type: new GraphQLList(
-                    new GraphQLNonNull(entityGqlTypes[column.referenceTable]),
-                  ),
-                },
-                before: {
-                  type: GraphQLString,
-                },
-                after: {
-                  type: GraphQLString,
-                },
-              },
-            });
 
             fieldConfigMap[columnName] = {
-              type: pageType,
+              type: entityPageTypes[column.referenceTable],
               args: {
+                timestamp: { type: GraphQLInt },
+                orderBy: { type: GraphQLString },
+                orderDirection: { type: GraphQLString },
                 before: { type: GraphQLString },
                 after: { type: GraphQLString },
-                limit: { type: GraphQLInt, defaultValue: 100 },
-                orderBy: { type: GraphQLString, defaultValue: "id" },
-                orderDirection: { type: GraphQLString, defaultValue: "asc" },
-                timestamp: { type: GraphQLInt },
+                limit: { type: GraphQLInt },
               },
               resolve: resolver,
             };
           } else {
             const type = isEnumColumn(column)
-              ? enumGqlTypes[column.type]
+              ? enumTypes[column.type]
               : tsTypeToGqlScalar[column.type];
             if (column.list) {
               const listType = new GraphQLList(new GraphQLNonNull(type));
@@ -172,9 +164,19 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
         return fieldConfigMap;
       },
     });
+
+    entityPageTypes[tableName] = new GraphQLObjectType({
+      name: `${tableName}Page`,
+      fields: () => ({
+        items: {
+          type: new GraphQLList(new GraphQLNonNull(entityTypes[tableName])),
+        },
+        pageInfo: { type: GraphQLPageInfo },
+      }),
+    });
   }
 
-  return { entityGqlTypes, enumGqlTypes };
+  return { entityTypes, entityPageTypes, enumTypes };
 };
 
 const graphqlFilterToStoreCondition = {

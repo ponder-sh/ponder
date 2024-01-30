@@ -1426,7 +1426,7 @@ test("orders by on bigInt field descending", async (context) => {
   await service.kill();
 });
 
-test("limits to the first 100 by default", async (context) => {
+test("limits to the first 50 by default", async (context) => {
   const { common, indexingStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
@@ -1447,7 +1447,7 @@ test("limits to the first 100 by default", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys.items).toHaveLength(100);
+  expect(testEntitys.items).toHaveLength(50);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
 
   await service.kill();

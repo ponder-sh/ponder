@@ -98,10 +98,18 @@ export interface IndexingStore {
     checkpoint?: Checkpoint;
     where?: WhereInput<any>;
     orderBy?: OrderByInput<any>;
-    limit?: number;
     before?: string | null;
     after?: string | null;
-  }): Promise<{ items: Row[]; before: string | null; after: string | null }>;
+    limit?: number;
+  }): Promise<{
+    items: Row[];
+    pageInfo: {
+      startCursor: string | null;
+      endCursor: string | null;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }>;
 
   create(options: {
     tableName: string;

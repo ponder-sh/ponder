@@ -820,7 +820,7 @@ test("findMany() errors on invalid filter condition", async (context) => {
   );
 });
 
-test("findMany() returns before and after cursors", async (context) => {
+test("findMany() cursor pagination", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -848,13 +848,17 @@ test("findMany() returns before and after cursors", async (context) => {
     { id: "id3", name: "Bar" },
     { id: "id2", name: "Foo" },
   ]);
-  expect(resultOne.before).toBeNull();
-  expect(resultOne.after).toBeTypeOf("string");
+  expect(resultOne.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: false,
+    hasNextPage: true,
+  });
 
   const resultTwo = await indexingStore.findMany({
     tableName: "Pet",
     orderBy: { name: "asc" },
-    after: resultOne.after,
+    after: resultOne.pageInfo.endCursor,
   });
 
   expect(
@@ -864,21 +868,103 @@ test("findMany() returns before and after cursors", async (context) => {
     { id: "id5", name: "Winston" },
     { id: "id4", name: "Zarbar" },
   ]);
-  expect(resultTwo.before).toBeTypeOf("string");
-  expect(resultTwo.after).toBeNull();
+  expect(resultTwo.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: true,
+    hasNextPage: false,
+  });
 
   const resultThree = await indexingStore.findMany({
     tableName: "Pet",
     orderBy: { name: "asc" },
-    before: resultTwo.before,
+    before: resultTwo.pageInfo.startCursor,
     limit: 1,
   });
 
   expect(
     resultThree.items.map((i) => ({ id: i.id, name: i.name })),
   ).toMatchObject([{ id: "id2", name: "Foo" }]);
-  expect(resultThree.before).toBeTypeOf("string");
-  expect(resultThree.after).toBeTypeOf("string");
+  expect(resultThree.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: true,
+    hasNextPage: true,
+  });
+});
+
+test("findMany() returns start and end cursor if limited", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+      { id: "id4", name: "Zarbar" },
+      { id: "id5", name: "Winston", age: 12 },
+    ],
+  });
+
+  const resultOne = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "asc" },
+  });
+
+  expect(
+    resultOne.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
+    { id: "id3", name: "Bar" },
+    { id: "id2", name: "Foo" },
+    { id: "id1", name: "Skip" },
+    { id: "id5", name: "Winston" },
+    { id: "id4", name: "Zarbar" },
+  ]);
+  expect(resultOne.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: false,
+    hasNextPage: false,
+  });
+});
+
+test("findMany() returns hasPreviousPage if no results", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+      { id: "id4", name: "Zarbar" },
+      { id: "id5", name: "Winston", age: 12 },
+    ],
+  });
+
+  const resultOne = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "asc" },
+  });
+
+  const resultTwo = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "asc" },
+    after: resultOne.pageInfo.endCursor,
+  });
+
+  expect(resultTwo.items).toHaveLength(0);
+  expect(resultTwo.pageInfo).toMatchObject({
+    startCursor: null,
+    endCursor: null,
+    hasPreviousPage: true,
+    hasNextPage: false,
+  });
 });
 
 test("findMany() errors on orderBy object with multiple keys", async (context) => {
@@ -929,13 +1015,13 @@ test("createMany() inserts a large number of entities", async (context) => {
   });
   expect(createdItems.length).toBe(RECORD_COUNT);
 
-  const { after } = await indexingStore.findMany({
+  const { pageInfo } = await indexingStore.findMany({
     tableName: "Pet",
     limit: 1_000,
   });
   const { items } = await indexingStore.findMany({
     tableName: "Pet",
-    after,
+    after: pageInfo.endCursor,
     limit: 1_000,
   });
   expect(items.length).toBe(1_000);

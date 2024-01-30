@@ -54,7 +54,7 @@ export function buildCursorConditions(
     return eb.eb(columnName, comparatorOrEquals, value);
   } else if (cursorValues.length === 2) {
     const [columnName1, value1] = cursorValues[0];
-    const [columnName2, value2] = cursorValues[0];
+    const [columnName2, value2] = cursorValues[1];
 
     return eb.or([
       eb.eb(columnName1, comparator, value1),

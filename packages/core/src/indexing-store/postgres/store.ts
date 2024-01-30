@@ -301,17 +301,17 @@ export class PostgresIndexingStore implements IndexingStore {
     checkpoint = "latest",
     where,
     orderBy,
-    limit = DEFAULT_LIMIT,
     before = null,
     after = null,
+    limit = DEFAULT_LIMIT,
   }: {
     tableName: string;
     checkpoint?: Checkpoint | "latest";
     where?: WhereInput<any>;
     orderBy?: OrderByInput<any>;
-    limit?: number;
     before?: string | null;
     after?: string | null;
+    limit?: number;
   }) => {
     const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
@@ -358,57 +358,69 @@ export class PostgresIndexingStore implements IndexingStore {
         );
       }
 
+      let startCursor = null;
+      let endCursor = null;
+      let hasPreviousPage = false;
+      let hasNextPage = false;
+
       // Neither cursors are specified, apply the order conditions and execute.
       if (after === null && before === null) {
         query = query.limit(limit + 1);
         const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, "postgres"));
+        const records = rows.map((row) => decodeRow(row, table, "sqlite"));
 
         if (records.length === limit + 1) {
           records.pop();
-          const lastRecord = records[records.length - 1];
-          const nextAfter = encodeCursor(lastRecord, orderByConditions);
-          return { items: records, before: null, after: nextAfter };
-        } else {
-          return { items: records, before: null, after: null };
+          hasNextPage = true;
         }
+
+        startCursor =
+          records.length > 0
+            ? encodeCursor(records[0], orderByConditions)
+            : null;
+        endCursor =
+          records.length > 0
+            ? encodeCursor(records[records.length - 1], orderByConditions)
+            : null;
+
+        return {
+          items: records,
+          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+        };
       }
 
       if (after !== null) {
         // User specified an 'after' cursor.
-        const cursorValues = decodeCursor(after, orderByConditions);
-        query = query.where((eb) =>
-          buildCursorConditions(cursorValues, "after", eb),
-        );
+        const rawCursorValues = decodeCursor(after, orderByConditions);
+        const cursorValues = rawCursorValues.map(([columnName, value]) => [
+          columnName,
+          encodeValue(value, table[columnName], "postgres"),
+        ]) satisfies [string, any][];
+        query = query
+          .where((eb) => buildCursorConditions(cursorValues, "after", eb))
+          .limit(limit + 2);
 
-        query = query.limit(limit + 2);
         const rows = await query.execute();
         const records = rows.map((row) => decodeRow(row, table, "postgres"));
-
-        let hasPreviousPage = false;
-        let hasNextPage = false;
 
         if (records.length === 0) {
           return {
             items: records,
-            before: null,
-            after: null,
-            hasPreviousPage,
-            hasNextPage,
+            pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
           };
         }
 
         // If the cursor of the first returned record equals the `after` cursor,
-        // `hasNextPage` is true, and we can remove that record.
+        // `hasPreviousPage` is true. Remove that record.
         if (encodeCursor(records[0], orderByConditions) === after) {
           records.shift();
           hasPreviousPage = true;
         } else {
-          // Otherwise, we can remove the last record.
+          // Otherwise, remove the last record.
           records.pop();
         }
 
-        // Now if the length of the records is equal to limit + 1, we know
+        // Now if the length of the records is still equal to limit + 1,
         // there is a next page.
         if (records.length === limit + 1) {
           records.pop();
@@ -416,42 +428,42 @@ export class PostgresIndexingStore implements IndexingStore {
         }
 
         // Now calculate the cursors.
-        const newBefore =
-          records.length > 0 && hasPreviousPage
+        startCursor =
+          records.length > 0
             ? encodeCursor(records[0], orderByConditions)
             : null;
-        const newAfter =
-          records.length > 0 && hasNextPage
+        endCursor =
+          records.length > 0
             ? encodeCursor(records[records.length - 1], orderByConditions)
             : null;
 
-        return { items: records, before: newBefore, after: newAfter };
+        return {
+          items: records,
+          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+        };
       } else {
         // User specified a 'before' cursor.
-        const cursorValues = decodeCursor(before!, orderByConditions);
-        query = query.where((eb) =>
-          buildCursorConditions(cursorValues, "before", eb),
-        );
+        const rawCursorValues = decodeCursor(before!, orderByConditions);
+        const cursorValues = rawCursorValues.map(([columnName, value]) => [
+          columnName,
+          encodeValue(value, table[columnName], "postgres"),
+        ]) satisfies [string, any][];
+        query = query
+          .where((eb) => buildCursorConditions(cursorValues, "before", eb))
+          .limit(limit + 2);
 
-        query = query.limit(limit + 2);
         const rows = await query.execute();
         const records = rows.map((row) => decodeRow(row, table, "postgres"));
-
-        let hasPreviousPage = false;
-        let hasNextPage = false;
 
         if (records.length === 0) {
           return {
             items: records,
-            before: null,
-            after: null,
-            hasPreviousPage,
-            hasNextPage,
+            pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
           };
         }
 
         // If the cursor of the last returned record equals the `before` cursor,
-        // `hasNextPage` is true, and we can remove that record.
+        // `hasNextPage` is true. Remove that record.
         if (
           encodeCursor(records[records.length - 1], orderByConditions) ===
           before
@@ -459,7 +471,7 @@ export class PostgresIndexingStore implements IndexingStore {
           records.pop();
           hasNextPage = true;
         } else {
-          // Otherwise, we can remove the first record.
+          // Otherwise, remove the first record.
           records.shift();
         }
 
@@ -471,16 +483,19 @@ export class PostgresIndexingStore implements IndexingStore {
         }
 
         // Now calculate the cursors.
-        const newBefore =
-          records.length > 0 && hasPreviousPage
+        startCursor =
+          records.length > 0
             ? encodeCursor(records[0], orderByConditions)
             : null;
-        const newAfter =
-          records.length > 0 && hasNextPage
+        endCursor =
+          records.length > 0
             ? encodeCursor(records[records.length - 1], orderByConditions)
             : null;
 
-        return { items: records, before: newBefore, after: newAfter };
+        return {
+          items: records,
+          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+        };
       }
     });
   };

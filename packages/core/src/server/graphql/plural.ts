@@ -9,11 +9,10 @@ import {
   GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
-  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-import type { Context, Source } from "./schema.js";
+import { type Context, type Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
 
 type PluralArgs = {
@@ -46,13 +45,13 @@ const operators = {
 export const buildPluralField = ({
   tableName,
   table,
-  entityGqlType,
-  enumGqlTypes,
+  entityPageType,
+  enumTypes,
 }: {
   tableName: string;
   table: Schema["tables"][string];
-  entityGqlType: GraphQLObjectType<Source, Context>;
-  enumGqlTypes: Record<string, GraphQLEnumType>;
+  entityPageType: GraphQLObjectType;
+  enumTypes: Record<string, GraphQLEnumType>;
 }): GraphQLFieldConfig<Source, Context> => {
   const filterFields: GraphQLInputFieldConfigMap = {};
 
@@ -62,7 +61,7 @@ export const buildPluralField = ({
     if (isManyColumn(column)) return;
 
     const type = isEnumColumn(column)
-      ? enumGqlTypes[column.type]
+      ? enumTypes[column.type]
       : tsTypeToGqlScalar[column.type];
 
     if (column.list) {
@@ -143,31 +142,16 @@ export const buildPluralField = ({
     });
   };
 
-  const pageType = new GraphQLObjectType({
-    name: `${tableName}Page`,
-    fields: () => ({
-      items: {
-        type: new GraphQLList(new GraphQLNonNull(entityGqlType)),
-      },
-      before: {
-        type: GraphQLString,
-      },
-      after: {
-        type: GraphQLString,
-      },
-    }),
-  });
-
   return {
-    type: pageType,
+    type: entityPageType,
     args: {
-      after: { type: GraphQLString, defaultValue: null },
-      before: { type: GraphQLString, defaultValue: null },
-      limit: { type: GraphQLInt, defaultValue: 100 },
-      orderBy: { type: GraphQLString, defaultValue: "id" },
-      orderDirection: { type: GraphQLString, defaultValue: "asc" },
-      where: { type: filterType },
       timestamp: { type: GraphQLInt },
+      where: { type: filterType },
+      orderBy: { type: GraphQLString },
+      orderDirection: { type: GraphQLString },
+      before: { type: GraphQLString },
+      after: { type: GraphQLString },
+      limit: { type: GraphQLInt },
     },
     resolve: resolver,
   };
