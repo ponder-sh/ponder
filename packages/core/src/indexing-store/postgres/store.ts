@@ -1,8 +1,19 @@
 import type { Common } from "@/Ponder.js";
+import type { FunctionIds, TableIds } from "@/build/static/ids.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
+import {
+  type Checkpoint,
+  decodeCheckpoint,
+  encodeCheckpoint,
+} from "@/utils/checkpoint.js";
+import {
+  Kysely,
+  Migrator,
+  PostgresDialect,
+  WithSchemaPlugin,
+  sql,
+} from "kysely";
 import type { Pool } from "pg";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
 import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
@@ -11,6 +22,7 @@ import {
   buildSqlOrderByConditions,
   buildSqlWhereConditions,
 } from "../utils/where.js";
+import { migrationProvider } from "./migrations.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
@@ -28,7 +40,10 @@ export class PostgresIndexingStore implements IndexingStore {
   private common: Common;
 
   db: Kysely<any>;
+  migrator: Migrator;
+
   schema?: Schema;
+  tableIds?: TableIds;
 
   private databaseSchemaName: string;
 
@@ -48,6 +63,11 @@ export class PostgresIndexingStore implements IndexingStore {
           common.metrics.ponder_postgres_query_count?.inc({ kind: "indexing" });
       },
     }).withPlugin(new WithSchemaPlugin(this.databaseSchemaName));
+
+    this.migrator = new Migrator({
+      db: this.db,
+      provider: migrationProvider,
+    });
   }
 
   async teardown() {
@@ -73,19 +93,67 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   };
 
+  migrateUp = async () => {
+    const { error } = await this.migrator.migrateToLatest();
+    if (error) throw error;
+  };
+
+  getInitialCheckpoints = (
+    functionIds: FunctionIds,
+  ): Promise<{ [functionIds: string]: Checkpoint }> => {
+    return this.wrap({ method: "getInitialCheckpoints" }, async () => {
+      const _functionIds = Object.values(functionIds);
+
+      const checkpoints = (await this.db
+        .selectFrom("indexingCheckpoints")
+        .selectAll()
+        .where("functionId", "in", _functionIds)
+        .execute()) as { functionId: string; checkpoint: string }[];
+
+      return checkpoints.reduce<{ [functionIds: string]: Checkpoint }>(
+        (acc, cur) => ({
+          ...acc,
+          [cur.functionId]: decodeCheckpoint(cur.checkpoint),
+        }),
+        {},
+      );
+    });
+  };
+
+  setCheckpoints = (checkpoints: { [functionIds: string]: Checkpoint }) => {
+    return this.wrap({ method: "getInitialCheckpoints" }, async () => {
+      this.db.transaction().execute((tx) =>
+        Promise.all(
+          Object.entries(checkpoints).map(([functionId, checkpoint]) =>
+            tx
+              .updateTable("indexingCheckpoints")
+              .set({ checkpoint: encodeCheckpoint(checkpoint) })
+              .where("functionId", "=", functionId)
+              .executeTakeFirstOrThrow(),
+          ),
+        ),
+      );
+    });
+  };
+
   /**
    * Resets the database by dropping existing tables and creating new tables.
    * If no new schema is provided, the existing schema is used.
    *
    * @param options.schema New schema to be used.
    */
-  reload = async ({ schema }: { schema?: Schema } = {}) => {
+  reload = async ({
+    schema,
+    tableIds,
+  }: { schema?: Schema; tableIds?: TableIds } = {}) => {
     return this.wrap({ method: "reload" }, async () => {
       // If there is no existing schema and no new schema was provided, do nothing.
-      if (!this.schema && !schema) return;
+      if (!this.schema && !schema && !this.tableIds && !tableIds) return;
 
       // Set the new schema.
       if (schema) this.schema = schema;
+
+      if (tableIds) this.tableIds = tableIds;
 
       await this.db.transaction().execute(async (tx) => {
         await tx.schema
@@ -97,7 +165,7 @@ export class PostgresIndexingStore implements IndexingStore {
         await Promise.all(
           Object.entries(this.schema!.tables).map(
             async ([tableName, columns]) => {
-              const table = `${tableName}_versioned`;
+              const table = this.tableIds![tableName];
 
               let tableBuilder = tx.schema.createTable(table);
 
@@ -223,7 +291,7 @@ export class PostgresIndexingStore implements IndexingStore {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
           Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
-            const table = `${tableName}_versioned`;
+            const table = this.tableIds![tableName];
             const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
             // Delete any versions that are newer than the safe checkpoint.
@@ -255,7 +323,7 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
-      const table = `${tableName}_versioned`;
+      const table = this.tableIds![tableName];
       const formattedId = encodeValue(
         id,
         this.schema!.tables[tableName].id,
@@ -304,7 +372,7 @@ export class PostgresIndexingStore implements IndexingStore {
     orderBy?: OrderByInput<any>;
   }) => {
     return this.wrap({ method: "findMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
+      const table = this.tableIds![tableName];
       let query = this.db.selectFrom(table).selectAll();
 
       if (checkpoint === "latest") {
@@ -372,7 +440,7 @@ export class PostgresIndexingStore implements IndexingStore {
     data?: Omit<Row, "id">;
   }) => {
     return this.wrap({ method: "create", tableName }, async () => {
-      const table = `${tableName}_versioned`;
+      const table = this.tableIds![tableName];
       const createRow = encodeRow(
         { id, ...data },
         this.schema!.tables[tableName],
@@ -404,7 +472,7 @@ export class PostgresIndexingStore implements IndexingStore {
     data: Row[];
   }) => {
     return this.wrap({ method: "createMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
+      const table = this.tableIds![tableName];
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const createRows = data.map((d) => ({
         ...encodeRow({ ...d }, this.schema!.tables[tableName], "postgres"),
@@ -444,7 +512,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
     return this.wrap({ method: "update", tableName }, async () => {
-      const table = `${tableName}_versioned`;
+      const table = this.tableIds![tableName];
       const tableSchema = this.schema!.tables[tableName];
       const formattedId = encodeValue(id, tableSchema.id, "postgres");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
@@ -532,7 +600,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
     return this.wrap({ method: "updateMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
+      const table = this.tableIds![tableName];
       const tableSchema = this.schema!.tables[tableName];
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -632,7 +700,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
     return this.wrap({ method: "upsert", tableName }, async () => {
-      const table = `${tableName}_versioned`;
+      const table = this.tableIds![tableName];
       const tableSchema = this.schema!.tables[tableName];
       const formattedId = encodeValue(id, tableSchema.id, "postgres");
       const createRow = encodeRow({ id, ...create }, tableSchema, "postgres");
@@ -728,7 +796,7 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "delete", tableName }, async () => {
-      const table = `${tableName}_versioned`;
+      const table = this.tableIds![tableName];
       const formattedId = encodeValue(
         id,
         this.schema!.tables[tableName].id,

@@ -1,5 +1,6 @@
 import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
+import type { FunctionIds, TableIds } from "@/build/static/ids.js";
 import type { TableAccess } from "@/build/static/parseAst.js";
 import type { Network } from "@/config/networks.js";
 import {
@@ -89,6 +90,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private indexingFunctions?: IndexingFunctions;
   private schema?: Schema;
   private tableAccess?: TableAccess;
+  private tableIds?: TableIds;
+  private functionIds?: FunctionIds;
 
   queue?: IndexingFunctionQueue;
 
@@ -204,10 +207,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingFunctions: newIndexingFunctions,
     schema: newSchema,
     tableAccess: newTableAccess,
+    tableIds: newTableIds,
+    functionIds: newFunctionIds,
   }: {
     indexingFunctions?: IndexingFunctions;
     schema?: Schema;
     tableAccess?: TableAccess;
+    tableIds?: TableIds;
+    functionIds?: FunctionIds;
   } = {}) => {
     if (newSchema) {
       this.schema = newSchema;
@@ -227,10 +234,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.tableAccess = newTableAccess;
     }
 
+    if (newTableIds) {
+      this.tableIds = newTableIds;
+    }
+
+    if (newFunctionIds) {
+      this.functionIds = newFunctionIds;
+    }
+
     if (
       this.indexingFunctions === undefined ||
       this.sources === undefined ||
-      this.tableAccess === undefined
+      this.tableAccess === undefined ||
+      this.tableIds === undefined ||
+      this.functionIds === undefined
     )
       return;
 
@@ -246,7 +263,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.isSetupStarted = false;
 
-    this.buildIndexingFunctionStates();
+    await this.buildIndexingFunctionStates();
     this.createEventQueue();
 
     this.common.logger.debug({
@@ -261,7 +278,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.common.metrics.ponder_indexing_completed_seconds.reset();
     this.common.metrics.ponder_indexing_completed_events.reset();
 
-    await this.indexingStore.reload({ schema: this.schema });
+    await this.indexingStore.reload({
+      schema: this.schema,
+      tableIds: this.tableIds,
+    });
     this.common.logger.debug({
       service: "indexing",
       msg: "Reset indexing store",
@@ -875,16 +895,22 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
   };
 
-  private buildIndexingFunctionStates = () => {
+  private buildIndexingFunctionStates = async () => {
     if (
       this.indexingFunctions === undefined ||
       this.sources === undefined ||
-      this.tableAccess === undefined
+      this.tableAccess === undefined ||
+      this.tableIds === undefined ||
+      this.functionIds === undefined
     )
       return;
 
     // clear in case of reloads
     this.indexingFunctionStates = {};
+
+    const checkpoints = await this.indexingStore.getInitialCheckpoints(
+      this.functionIds,
+    );
 
     for (const contractName of Object.keys(this.indexingFunctions)) {
       // Not sure why this is necessary
@@ -946,6 +972,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
           ).join(", ")}])`,
         });
 
+        const checkpoint = checkpoints[this.functionIds[indexingFunctionKey]];
+
         this.indexingFunctionStates[indexingFunctionKey] = {
           eventName,
           contractName,
@@ -955,9 +983,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
           abiEvent,
           eventSelector,
 
-          tasksProcessedToCheckpoint: zeroCheckpoint,
-          tasksLoadedFromCheckpoint: zeroCheckpoint,
-          tasksLoadedToCheckpoint: zeroCheckpoint,
+          tasksProcessedToCheckpoint: checkpoint ?? zeroCheckpoint,
+          tasksLoadedFromCheckpoint: checkpoint ?? zeroCheckpoint,
+          tasksLoadedToCheckpoint: checkpoint ?? zeroCheckpoint,
           loadedTasks: [],
           loadingMutex: new Mutex(),
         };

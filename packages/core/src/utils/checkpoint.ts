@@ -39,6 +39,26 @@ export const encodeCheckpoint = (checkpoint: Checkpoint) => {
   return result;
 };
 
+export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
+  let offset = 0;
+
+  const blockTimestamp = +checkpoint.slice(
+    offset,
+    offset + BLOCK_TIMESTAMP_DIGITS,
+  );
+  offset += BLOCK_TIMESTAMP_DIGITS;
+
+  const chainId = +checkpoint.slice(offset, offset + CHAIN_ID_DIGITS);
+  offset += CHAIN_ID_DIGITS;
+
+  const blockNumber = +checkpoint.slice(offset, offset + BLOCK_NUMBER_DIGITS);
+  offset += BLOCK_NUMBER_DIGITS;
+
+  const logIndex = +checkpoint.slice(offset, offset + EXECUTION_INDEX_DIGITS);
+
+  return { blockTimestamp, chainId, blockNumber, logIndex };
+};
+
 export const zeroCheckpoint: Checkpoint = {
   blockTimestamp: 0,
   chainId: 0,

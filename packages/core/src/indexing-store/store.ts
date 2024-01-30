@@ -1,7 +1,8 @@
+import type { FunctionIds, TableIds } from "@/build/static/ids.js";
 import type { Schema } from "@/schema/types.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import type { Kysely } from "kysely";
+import type { Kysely, Migrator } from "kysely";
 
 export type Table = {
   [key: string]:
@@ -78,14 +79,25 @@ export type OrderByInput<TTable extends Table> =
 export interface IndexingStore {
   kind: "sqlite" | "postgres";
   db: Kysely<any>;
+  migrator: Migrator;
 
   schema?: Schema;
 
-  reload(options?: { schema?: Schema }): Promise<void>;
+  reload(options?: { schema?: Schema; tableIds?: TableIds }): Promise<void>;
 
   teardown(): Promise<void>;
 
   kill(): Promise<void>;
+
+  migrateUp(): Promise<void>;
+
+  getInitialCheckpoints(
+    functionIds: FunctionIds,
+  ): Promise<{ [functionIds: string]: Checkpoint }>;
+
+  setCheckpoints(checkpoints: {
+    [functionIds: string]: Checkpoint;
+  }): Promise<void>;
 
   publish(): Promise<void>;
 

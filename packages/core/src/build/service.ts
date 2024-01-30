@@ -23,8 +23,8 @@ import {
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
+import { type FunctionIds, type TableIds, getIds } from "./static/ids.js";
 import { type TableAccess, parseAst } from "./static/parseAst.js";
-import { type TableIds, getTableIds } from "./static/tableIds.js";
 
 type BuildServiceEvents = {
   // Note: Should new config ever trigger a re-analyze?
@@ -33,12 +33,14 @@ type BuildServiceEvents = {
     indexingFunctions: IndexingFunctions;
     tableAccess: TableAccess;
     tableIds: TableIds;
+    functionIds: FunctionIds;
   };
   newSchema: {
     schema: Schema;
     graphqlSchema: GraphQLSchema;
     tableAccess: TableAccess;
     tableIds: TableIds;
+    functionIds: FunctionIds;
   };
   error: { kind: "config" | "schema" | "indexingFunctions"; error: Error };
 };
@@ -154,6 +156,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
             ...schemaResult,
             tableAccess: analyzeResult.tableAccess!,
             tableIds: analyzeResult.tableIds!,
+            functionIds: analyzeResult.functionIds!,
           });
         } else {
           const error = schemaResult.error ?? (validationResult.error as Error);
@@ -184,6 +187,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
             ...indexingFunctionsResult,
             tableAccess: analyzeResult.tableAccess!,
             tableIds: analyzeResult.tableIds!,
+            functionIds: analyzeResult.functionIds!,
           });
         } else {
           const error =
@@ -258,6 +262,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       indexingFunctions,
       tableAccess: analyzeResult.tableAccess!,
       tableIds: analyzeResult.tableIds!,
+      functionIds: analyzeResult.functionIds!,
     };
   }
 
@@ -407,13 +412,17 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       indexingFunctionKeys,
     });
 
-    const tableIds = getTableIds({
+    const ids = getIds({
       sources: this.sources,
       tableAccess,
       schema: this.schema,
     });
 
-    return { tableAccess, tableIds };
+    return {
+      tableAccess,
+      tableIds: ids.tableIds,
+      functionIds: ids.functionIds,
+    };
   }
 
   private async executeFile(file: string) {
