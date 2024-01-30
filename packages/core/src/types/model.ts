@@ -1,12 +1,12 @@
 import type { OrderByInput, WhereInput } from "@/indexing-store/store.js";
-
+import type { Hex } from "viem";
 import type {
   HasOnlyIdProperty,
   HasRequiredPropertiesOtherThanId,
   Prettify,
 } from "./utils.js";
 
-export type DatabaseModel<T extends { id: string | number | bigint }> = {
+export type DatabaseModel<T extends { id: string | number | bigint | Hex }> = {
   create: (
     options: Prettify<
       {
@@ -84,15 +84,18 @@ export type DatabaseModel<T extends { id: string | number | bigint }> = {
 
   findMany: (options?: {
     where?: Prettify<WhereInput<T>>;
-    // TODO: Prettify/flatten this type. Couldn't get it working.
-    orderBy?: OrderByInput<T>;
+    orderBy?: Prettify<OrderByInput<T>>;
     limit?: number;
     before?: string;
     after?: string;
   }) => Promise<{
     items: Prettify<T>[];
-    before: string | null;
-    after: string | null;
+    pageInfo: {
+      startCursor: string | null;
+      endCursor: string | null;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
   }>;
 
   delete: (options: { id: T["id"] }) => Promise<boolean>;
