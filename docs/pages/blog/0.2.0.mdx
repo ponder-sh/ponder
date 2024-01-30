@@ -1,0 +1,112 @@
+---
+title: "0.2.0 - Concurrent indexing and cursor pagination"
+description: "A blog post for the 0.2.0 release which introduces concurrent indexing and cursor pagination."
+---
+
+import { Callout, Tabs } from 'nextra/components'
+
+# 0.2.0
+
+Ponder 0.2.0 adds concurrent indexing, cursor pagination in GraphQL, and a new column type for hexadecimal strings.
+
+## Concurrent indexing
+
+Starting with 0.2.0, Ponder runs indexing functions concurrently whenever possible.
+
+### Performance
+
+In many cases, an indexing function does not depend on the results of other indexing functions. Consider a simple Ponder app that indexes ERC20 Transfer events:
+
+<div className="code-columns">
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  TransferEvent: p.createTable({
+    id: p.string(),
+    from: p.hex(),
+    to: p.hex(),
+    amount: p.bigint(),
+    timestamp: p.int(),
+  }),
+}));
+
+```
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated"
+
+ponder.on("ERC20:Transfer", async ({ event, context }) => {
+  const { TransferEvent } = context.db;
+
+  await TransferEvent.create({
+    id: event.log.id,
+    data: { 
+      from: event.args.from,
+      to: event.args.to,
+      amount: event.args.value,
+      timestamp: event.block.timestamp,
+    }
+  });
+});
+```
+</div>
+
+In this example, the indexing funtion only writes to the `TransferEvent` table. It doesn't read from any tables.
+
+Let's say the app has 10,000 `ERC20:Transfer` events to index. Before 0.2.0, the indexing engine would process these events one-by-one. Now, the indexing engine can process all 10,000 events concurrently. For Ponder apps with mostly isolated indexing functions, concurrent indexing offers a significant speedup.
+
+### Static analysis
+
+Ponder's build step uses static analysis to determine which tables an indexing function reads from and writes to, and uses that to construct an indexing function dependency graph. Armed with the dependency graph, the indexing engine enqueues events to be processed as soon as their dependencies are met. The static analysis step handles most common code organization patterns, but it's not perfect. If static analysis fails for any reason, it falls back to sequential indexing.
+
+To check the indexing function dependency graph, enable debug logging (either run `ponder dev -v` or set the `PONDER_LOG_LEVEL` env var to `"debug"`) and you'll see a log like this for each of your indexing functions.
+
+```bash filename="shell"
+
+```
+
+## Cursor pagination
+
+Before this release, the GraphQL API and the `findMany` database method only supported offset pagination. Offset pagination is simple, but has a number of well-documented downsides.
+
+Ponder 0.2.0 adds cursor pagination with support for arbitrary sort orders. This notably eliminates the maximum offset of 5,000 records, which makes it possible to efficiently paginate through all records in a table.
+
+Take a look at the new [pagination docs](/docs/pagination) for more details.
+
+## `p.hex()`
+
+Over the past month, we became convinced that the `p.bytes()` column type was confusing and poorly named. In most TypeScript programming environments, it's common to use a hexadecimal string representation for byte arrays like Ethereum addresses.
+
+This new column type is optimized for storing hexadecimal strings. Under the hood, `p.hex()` uses the `bytea` column type in Postgres and `blob` in SQLite. Database operations using `p.hex()` have similar performance to those using `p.string()`, but `p.hex()` values take up less space in the database.
+
+<Callout type="warning">
+  The `p.bytes()` column type had a serious performance issue when used with `id` columns. This has been fixed with the migration to `p.hex()`.
+</Callout>
+
+## Get started
+
+To create a new Ponder app using `0.2.0`, follow the [Getting started](/docs/getting-started) guide.
+
+To upgrade an existing app, run:
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tabs.Tab>
+```bash filename="shell"
+pnpm upgrade @ponder/core
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+yarn upgrade @ponder/core
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+npm upgrade @ponder/core
+```
+</Tabs.Tab>
+</Tabs>
+
+

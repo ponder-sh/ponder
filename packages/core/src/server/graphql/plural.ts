@@ -1,33 +1,31 @@
-import type {
-  GraphQLEnumType,
-  GraphQLInputFieldConfigMap,
-  GraphQLObjectType,
-} from "graphql";
+import type { Schema } from "@/schema/types.js";
+import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
+import { maxCheckpoint } from "@/utils/checkpoint.js";
 import {
+  type GraphQLEnumType,
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
+  type GraphQLInputFieldConfigMap,
   GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
+  GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-
-import type { Schema } from "@/schema/types.js";
-import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import { maxCheckpoint } from "@/utils/checkpoint.js";
-
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
 
 type PluralArgs = {
   timestamp?: number;
   where?: { [key: string]: number | string };
-  first?: number;
-  skip?: number;
+  after?: string;
+  before?: string;
+  limit?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
 };
+
 export type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
 const operators = {
@@ -121,29 +119,51 @@ export const buildPluralField = ({
   const resolver: PluralResolver = async (_, args, context) => {
     const { store } = context;
 
-    const { timestamp, where, skip, first, orderBy, orderDirection } = args;
+    const { timestamp, where, orderBy, orderDirection, before, limit, after } =
+      args;
 
     const checkpoint = timestamp
       ? { ...maxCheckpoint, blockTimestamp: timestamp }
       : undefined; // Latest.
 
+    const whereObject = where ? buildWhereObject({ where }) : {};
+
+    const orderByObject = orderBy
+      ? { [orderBy]: orderDirection || "asc" }
+      : undefined;
+
     return await store.findMany({
-      tableName: tableName,
+      tableName,
       checkpoint,
-      where: where ? buildWhereObject({ where }) : undefined,
-      skip: skip,
-      take: first,
-      orderBy: orderBy ? { [orderBy]: orderDirection || "asc" } : undefined,
+      where: whereObject,
+      orderBy: orderByObject,
+      limit,
+      before,
+      after,
     });
   };
 
+  const pageType = new GraphQLObjectType({
+    name: `${tableName}Page`,
+    fields: () => ({
+      items: {
+        type: new GraphQLList(new GraphQLNonNull(entityGqlType)),
+      },
+      before: {
+        type: GraphQLString,
+      },
+      after: {
+        type: GraphQLString,
+      },
+    }),
+  });
+
   return {
-    type: new GraphQLNonNull(
-      new GraphQLList(new GraphQLNonNull(entityGqlType)),
-    ),
+    type: pageType,
     args: {
-      skip: { type: GraphQLInt, defaultValue: 0 },
-      first: { type: GraphQLInt, defaultValue: 100 },
+      after: { type: GraphQLString, defaultValue: null },
+      before: { type: GraphQLString, defaultValue: null },
+      limit: { type: GraphQLInt, defaultValue: 100 },
       orderBy: { type: GraphQLString, defaultValue: "id" },
       orderDirection: { type: GraphQLString, defaultValue: "asc" },
       where: { type: filterType },

@@ -67,13 +67,9 @@ export type WhereInput<TTable extends Table> = {
     | TTable[ColumnName];
 };
 
-export type OrderByInput<TTable extends Table> =
-  | {
-      [ColumnName in keyof TTable]?: "asc" | "desc";
-    }
-  | {
-      [ColumnName in keyof TTable]?: "asc" | "desc";
-    }[];
+export type OrderByInput<TTable extends Table> = {
+  [ColumnName in keyof TTable]?: "asc" | "desc";
+};
 
 export interface IndexingStore {
   kind: "sqlite" | "postgres";
@@ -101,10 +97,11 @@ export interface IndexingStore {
     tableName: string;
     checkpoint?: Checkpoint;
     where?: WhereInput<any>;
-    skip?: number;
-    take?: number;
     orderBy?: OrderByInput<any>;
-  }): Promise<Row[]>;
+    limit?: number;
+    before?: string | null;
+    after?: string | null;
+  }): Promise<{ items: Row[]; before: string | null; after: string | null }>;
 
   create(options: {
     tableName: string;

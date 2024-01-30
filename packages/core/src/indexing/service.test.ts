@@ -351,7 +351,7 @@ test("processEvents() model methods insert data into the indexing store", async 
   syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  const transferEvents = await indexingStore.findMany({
+  const { items: transferEvents } = await indexingStore.findMany({
     tableName: "TransferEvent",
   });
   expect(transferEvents.length).toBe(2);
@@ -437,7 +437,7 @@ test("processEvents() reads data from a contract", async (context) => {
   syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  const supplyEvents = await indexingStore.findMany({
+  const { items: supplyEvents } = await indexingStore.findMany({
     tableName: "Supply",
   });
   expect(supplyEvents.length).toBe(2);
@@ -480,7 +480,7 @@ test("processEvents() recovers from errors while reading data from a contract", 
   syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  const supplyEvents = await indexingStore.findMany({
+  const { items: supplyEvents } = await indexingStore.findMany({
     tableName: "Supply",
   });
   expect(supplyEvents.length).toBe(2);
@@ -655,14 +655,14 @@ test("reset() reloads the indexing store", async (context) => {
   syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  const transferEvents = await indexingStore.findMany({
+  const { items: transferEvents } = await indexingStore.findMany({
     tableName: "TransferEvent",
   });
   expect(transferEvents.length).toBe(2);
 
   await service.reset({ schema, indexingFunctions, tableAccess });
 
-  const transferEventsAfterReset = await indexingStore.findMany({
+  const { items: transferEventsAfterReset } = await indexingStore.findMany({
     tableName: "TransferEvent",
   });
   expect(transferEventsAfterReset.length).toBe(0);

@@ -94,7 +94,7 @@ export const buildDb =
             id,
           });
         },
-        findMany: async ({ where, skip, take, orderBy } = {}) => {
+        findMany: async ({ where, orderBy, limit, before, after } = {}) => {
           common.logger.trace({
             service: "store",
             msg: `${tableName}.findMany`,
@@ -103,9 +103,10 @@ export const buildDb =
             tableName,
             checkpoint,
             where,
-            skip,
-            take,
             orderBy,
+            limit,
+            before,
+            after,
           });
         },
         create: async ({ id, data }) => {

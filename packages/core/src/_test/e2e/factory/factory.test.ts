@@ -66,13 +66,15 @@ test("factory", async (context) => {
     ponder,
     `
     swapEvents {
-      id
-      pair
-      from
-      to
+      items {
+        id
+        pair
+        from
+        to
+      }
     }
     `,
-  ).then((g) => g.swapEvents);
+  ).then((g) => g.swapEvents.items);
 
   expect(swapEvents).toHaveLength(4);
 
@@ -87,13 +89,15 @@ test("factory", async (context) => {
     ponder,
     `
     swapEvents {
-      id
-      pair
-      from
-      to
+      items {
+        id
+        pair
+        from
+        to
+      }
     }
     `,
-  ).then((g) => g.swapEvents);
+  ).then((g) => g.swapEvents.items);
 
   expect(swapEvents).toHaveLength(5);
 
