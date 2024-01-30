@@ -12,7 +12,7 @@ export const getTableIds = ({
 }: { sources: Source[]; schema: Schema; tableAccess: TableAccess }) => {
   const tableIds: TableIds = {};
 
-  for (const tableName of Object.keys(schema)) {
+  for (const tableName of Object.keys(schema.tables)) {
     const seenKeys: Set<string> = new Set();
 
     const tableWrites = tableAccess

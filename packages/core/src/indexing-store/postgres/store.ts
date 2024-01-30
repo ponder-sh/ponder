@@ -99,11 +99,6 @@ export class PostgresIndexingStore implements IndexingStore {
             async ([tableName, columns]) => {
               const table = `${tableName}_versioned`;
 
-              // Drop existing table with the same name if it exists.
-              // Note that "cascade" here will drop the views in the public schema
-              // if the current schema has been published.
-              await tx.schema.dropTable(table).ifExists().cascade().execute();
-
               let tableBuilder = tx.schema.createTable(table);
 
               Object.entries(columns).forEach(([columnName, column]) => {

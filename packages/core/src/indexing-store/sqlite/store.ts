@@ -95,9 +95,6 @@ export class SqliteIndexingStore implements IndexingStore {
             async ([tableName, columns]) => {
               const table = `${tableName}_versioned`;
 
-              // Drop existing table with the same name if it exists.
-              await tx.schema.dropTable(table).ifExists().execute();
-
               let tableBuilder = tx.schema.createTable(table);
 
               Object.entries(columns).forEach(([columnName, column]) => {
