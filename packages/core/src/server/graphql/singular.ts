@@ -21,11 +21,11 @@ type SingularResolver = GraphQLFieldResolver<Source, Context, SingularArgs>;
 const buildSingularField = ({
   tableName,
   table,
-  entityGqlType,
+  entityType,
 }: {
   tableName: string;
   table: Schema["tables"][string];
-  entityGqlType: GraphQLObjectType<Source, Context>;
+  entityType: GraphQLObjectType<Source, Context>;
 }): GraphQLFieldConfig<Source, Context> => {
   const resolver: SingularResolver = async (_, args, context) => {
     const { store } = context;
@@ -47,7 +47,7 @@ const buildSingularField = ({
   };
 
   return {
-    type: entityGqlType,
+    type: entityType,
     args: {
       id: {
         type: new GraphQLNonNull(

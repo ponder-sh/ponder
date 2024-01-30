@@ -117,7 +117,7 @@ export function Footer() {
           </div>
         </div>
 
-        <span className="mt-8">© 2023 Cantrip, Inc.</span>
+        <span className="mt-8">© 2024 Cantrip, Inc.</span>
       </div>
     </div>
   );

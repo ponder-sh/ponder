@@ -1,4 +1,12 @@
-import type { GraphQLFieldResolver } from "graphql";
+import type { ReferenceColumn, Schema } from "@/schema/types.js";
+import {
+  isEnumColumn,
+  isManyColumn,
+  isOneColumn,
+  referencedTableName,
+} from "@/schema/utils.js";
+import { maxCheckpoint } from "@/utils/checkpoint.js";
+import { GraphQLBoolean, type GraphQLFieldResolver } from "graphql";
 import {
   GraphQLEnumType,
   type GraphQLFieldConfigMap,
@@ -8,27 +16,27 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-
-import type { ReferenceColumn, Schema } from "@/schema/types.js";
-import {
-  isEnumColumn,
-  isManyColumn,
-  isOneColumn,
-  referencedTableName,
-} from "@/schema/utils.js";
-import { maxCheckpoint } from "@/utils/checkpoint.js";
-
 import type { PluralResolver } from "./plural.js";
-import type { Context, Source } from "./schema.js";
+import { type Context, type Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
 
-export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
-  const entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
+const GraphQLPageInfo = new GraphQLObjectType({
+  name: "PageInfo",
+  fields: {
+    hasNextPage: { type: new GraphQLNonNull(GraphQLBoolean) },
+    hasPreviousPage: { type: new GraphQLNonNull(GraphQLBoolean) },
+    startCursor: { type: GraphQLString },
+    endCursor: { type: GraphQLString },
+  },
+});
 
-  const enumGqlTypes: Record<string, GraphQLEnumType> = {};
+export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
+  const enumTypes: Record<string, GraphQLEnumType> = {};
+  const entityTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
+  const entityPageTypes: Record<string, GraphQLObjectType> = {};
 
   for (const [enumName, _enum] of Object.entries(schema.enums)) {
-    enumGqlTypes[enumName] = new GraphQLEnumType({
+    enumTypes[enumName] = new GraphQLEnumType({
       name: enumName,
       values: _enum.reduce(
         (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
@@ -38,7 +46,7 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
   }
 
   for (const [tableName, table] of Object.entries(schema.tables)) {
-    entityGqlTypes[tableName] = new GraphQLObjectType({
+    entityTypes[tableName] = new GraphQLObjectType({
       name: tableName,
       fields: () => {
         const fieldConfigMap: GraphQLFieldConfigMap<Source, Context> = {};
@@ -78,15 +86,23 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
 
             fieldConfigMap[columnName] = {
               type: referenceColumn.optional
-                ? entityGqlTypes[referencedTable]
-                : new GraphQLNonNull(entityGqlTypes[referencedTable]),
+                ? entityTypes[referencedTable]
+                : new GraphQLNonNull(entityTypes[referencedTable]),
               resolve: resolver,
             };
           } else if (isManyColumn(column)) {
-            // Column is virtual meant to tell graphQL to make a field
-
             const resolver: PluralResolver = async (parent, args, context) => {
               const { store } = context;
+
+              const {
+                timestamp,
+                where,
+                orderBy,
+                orderDirection,
+                limit,
+                after,
+                before,
+              } = args;
 
               // The parent object gets passed in here with relationship fields defined as the
               // string ID of the related entity. Here, we get the ID and query for that entity.
@@ -94,44 +110,43 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
               // @ts-ignore
               const entityId = parent.id;
 
-              const filter = args;
-
-              const checkpoint = filter.timestamp
-                ? { ...maxCheckpoint, blockTimestamp: filter.timestamp }
+              const checkpoint = timestamp
+                ? { ...maxCheckpoint, blockTimestamp: timestamp }
                 : undefined; // Latest.
+
+              const whereObject = where ? buildWhereObject({ where }) : {};
+              whereObject[column.referenceColumn] = entityId;
+
+              const orderByObject = orderBy
+                ? { [orderBy]: orderDirection || "asc" }
+                : undefined;
 
               return await store.findMany({
                 tableName: column.referenceTable,
                 checkpoint,
-                where: { [column.referenceColumn]: entityId },
-                skip: filter.skip,
-                take: filter.first,
-                orderBy: filter.orderBy
-                  ? {
-                      [filter.orderBy]: filter.orderDirection || "asc",
-                    }
-                  : undefined,
+                where: whereObject,
+                orderBy: orderByObject,
+                limit,
+                before,
+                after,
               });
             };
 
             fieldConfigMap[columnName] = {
-              type: new GraphQLNonNull(
-                new GraphQLList(
-                  new GraphQLNonNull(entityGqlTypes[column.referenceTable]),
-                ),
-              ),
+              type: entityPageTypes[column.referenceTable],
               args: {
-                skip: { type: GraphQLInt, defaultValue: 0 },
-                first: { type: GraphQLInt, defaultValue: 100 },
-                orderBy: { type: GraphQLString, defaultValue: "id" },
-                orderDirection: { type: GraphQLString, defaultValue: "asc" },
                 timestamp: { type: GraphQLInt },
+                orderBy: { type: GraphQLString },
+                orderDirection: { type: GraphQLString },
+                before: { type: GraphQLString },
+                after: { type: GraphQLString },
+                limit: { type: GraphQLInt },
               },
               resolve: resolver,
             };
           } else {
             const type = isEnumColumn(column)
-              ? enumGqlTypes[column.type]
+              ? enumTypes[column.type]
               : tsTypeToGqlScalar[column.type];
             if (column.list) {
               const listType = new GraphQLList(new GraphQLNonNull(type));
@@ -149,7 +164,59 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
         return fieldConfigMap;
       },
     });
+
+    entityPageTypes[tableName] = new GraphQLObjectType({
+      name: `${tableName}Page`,
+      fields: () => ({
+        items: {
+          type: new GraphQLList(new GraphQLNonNull(entityTypes[tableName])),
+        },
+        pageInfo: { type: GraphQLPageInfo },
+      }),
+    });
   }
 
-  return { entityGqlTypes, enumGqlTypes };
+  return { entityTypes, entityPageTypes, enumTypes };
 };
+
+const graphqlFilterToStoreCondition = {
+  "": "equals",
+  not: "not",
+  in: "in",
+  not_in: "notIn",
+  has: "has",
+  not_has: "notHas",
+  gt: "gt",
+  lt: "lt",
+  gte: "gte",
+  lte: "lte",
+  contains: "contains",
+  not_contains: "notContains",
+  starts_with: "startsWith",
+  not_starts_with: "notStartsWith",
+  ends_with: "endsWith",
+  not_ends_with: "notEndsWith",
+} as const;
+
+function buildWhereObject({ where }: { where: Record<string, any> }) {
+  const whereObject: Record<string, any> = {};
+
+  Object.entries(where).forEach(([whereKey, rawValue]) => {
+    const [fieldName, condition_] = whereKey.split(/_(.*)/s);
+    // This is a hack to handle the "" operator, which the regex above doesn't handle
+    const condition = (
+      condition_ === undefined ? "" : condition_
+    ) as keyof typeof graphqlFilterToStoreCondition;
+
+    const storeCondition = graphqlFilterToStoreCondition[condition];
+    if (!storeCondition) {
+      throw new Error(
+        `Invalid query: Unknown where condition: ${fieldName}_${condition}`,
+      );
+    }
+
+    whereObject[fieldName] = { [storeCondition]: rawValue };
+  });
+
+  return whereObject;
+}

@@ -690,13 +690,9 @@ test("findMany() returns current versions of all records", async (context) => {
     data: { name: "Bar", bigAge: 100n },
   });
 
-  const instances = await indexingStore.findMany({ tableName: "Pet" });
-  expect(instances).toHaveLength(3);
-  expect(instances.map((i) => i.name)).toMatchObject([
-    "SkipUpdated",
-    "Foo",
-    "Bar",
-  ]);
+  const { items } = await indexingStore.findMany({ tableName: "Pet" });
+  expect(items).toHaveLength(3);
+  expect(items.map((i) => i.name)).toMatchObject(["SkipUpdated", "Foo", "Bar"]);
 });
 
 test("findMany() sorts on bigint field", async (context) => {
@@ -728,11 +724,11 @@ test("findMany() sorts on bigint field", async (context) => {
     data: { name: "Patch" },
   });
 
-  const instances = await indexingStore.findMany({
+  const { items } = await indexingStore.findMany({
     tableName: "Pet",
     orderBy: { bigAge: "asc" },
   });
-  expect(instances.map((i) => i.bigAge)).toMatchObject([null, 10n, 105n, 190n]);
+  expect(items.map((i) => i.bigAge)).toMatchObject([null, 10n, 105n, 190n]);
 });
 
 test("findMany() filters on bigint gt", async (context) => {
@@ -764,12 +760,12 @@ test("findMany() filters on bigint gt", async (context) => {
     data: { name: "Patch" },
   });
 
-  const instances = await indexingStore.findMany({
+  const { items } = await indexingStore.findMany({
     tableName: "Pet",
     where: { bigAge: { gt: 50n } },
   });
 
-  expect(instances.map((i) => i.bigAge)).toMatchObject([105n, 190n]);
+  expect(items.map((i) => i.bigAge)).toMatchObject([105n, 190n]);
 });
 
 test("findMany() sorts and filters together", async (context) => {
@@ -801,13 +797,13 @@ test("findMany() sorts and filters together", async (context) => {
     data: { name: "Zarbar" },
   });
 
-  const instances = await indexingStore.findMany({
+  const { items } = await indexingStore.findMany({
     tableName: "Pet",
     where: { name: { endsWith: "ar" } },
     orderBy: { name: "asc" },
   });
 
-  expect(instances.map((i) => i.name)).toMatchObject(["Bar", "Zarbar"]);
+  expect(items.map((i) => i.name)).toMatchObject(["Bar", "Zarbar"]);
 });
 
 test("findMany() errors on invalid filter condition", async (context) => {
@@ -819,7 +815,156 @@ test("findMany() errors on invalid filter condition", async (context) => {
       tableName: "Pet",
       where: { name: { invalidWhereCondition: "ar" } },
     }),
-  ).rejects.toThrow("Invalid filter condition name: invalidWhereCondition");
+  ).rejects.toThrow(
+    "Invalid filter condition for column 'name'. Got 'invalidWhereCondition', expected one of ['equals', 'not', 'in', 'notIn', 'contains', 'notContains', 'startsWith', 'notStartsWith', 'endsWith', 'notEndsWith']",
+  );
+});
+
+test("findMany() cursor pagination", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+      { id: "id4", name: "Zarbar" },
+      { id: "id5", name: "Winston", age: 12 },
+    ],
+  });
+
+  const resultOne = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "asc" },
+    limit: 2,
+  });
+
+  expect(
+    resultOne.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
+    { id: "id3", name: "Bar" },
+    { id: "id2", name: "Foo" },
+  ]);
+  expect(resultOne.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: false,
+    hasNextPage: true,
+  });
+
+  const resultTwo = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "asc" },
+    after: resultOne.pageInfo.endCursor,
+  });
+
+  expect(
+    resultTwo.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
+    { id: "id1", name: "Skip" },
+    { id: "id5", name: "Winston" },
+    { id: "id4", name: "Zarbar" },
+  ]);
+  expect(resultTwo.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: true,
+    hasNextPage: false,
+  });
+
+  const resultThree = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "asc" },
+    before: resultTwo.pageInfo.startCursor,
+    limit: 1,
+  });
+
+  expect(
+    resultThree.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([{ id: "id2", name: "Foo" }]);
+  expect(resultThree.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: true,
+    hasNextPage: true,
+  });
+});
+
+test("findMany() returns start and end cursor if limited", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+      { id: "id4", name: "Zarbar" },
+      { id: "id5", name: "Winston", age: 12 },
+    ],
+  });
+
+  const resultOne = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "asc" },
+  });
+
+  expect(
+    resultOne.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
+    { id: "id3", name: "Bar" },
+    { id: "id2", name: "Foo" },
+    { id: "id1", name: "Skip" },
+    { id: "id5", name: "Winston" },
+    { id: "id4", name: "Zarbar" },
+  ]);
+  expect(resultOne.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: false,
+    hasNextPage: false,
+  });
+});
+
+test("findMany() returns hasPreviousPage if no results", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+      { id: "id4", name: "Zarbar" },
+      { id: "id5", name: "Winston", age: 12 },
+    ],
+  });
+
+  const resultOne = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "asc" },
+  });
+
+  const resultTwo = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "asc" },
+    after: resultOne.pageInfo.endCursor,
+  });
+
+  expect(resultTwo.items).toHaveLength(0);
+  expect(resultTwo.pageInfo).toMatchObject({
+    startCursor: null,
+    endCursor: null,
+    hasPreviousPage: true,
+    hasNextPage: false,
+  });
 });
 
 test("findMany() errors on orderBy object with multiple keys", async (context) => {
@@ -831,14 +976,14 @@ test("findMany() errors on orderBy object with multiple keys", async (context) =
       tableName: "Pet",
       orderBy: { name: "asc", bigAge: "desc" },
     }),
-  ).rejects.toThrow("Invalid sort condition: Must have exactly one property");
+  ).rejects.toThrow("Invalid sort. Cannot sort by multiple columns.");
 });
 
 test("createMany() inserts multiple entities", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
-  const createdInstances = await indexingStore.createMany({
+  const createdItems = await indexingStore.createMany({
     tableName: "Pet",
     checkpoint: createCheckpoint(10),
     data: [
@@ -847,31 +992,39 @@ test("createMany() inserts multiple entities", async (context) => {
       { id: "id3", name: "Bar", bigAge: 190n },
     ],
   });
-  expect(createdInstances.length).toBe(3);
+  expect(createdItems.length).toBe(3);
 
-  const instances = await indexingStore.findMany({ tableName: "Pet" });
-  expect(instances.length).toBe(3);
+  const { items } = await indexingStore.findMany({ tableName: "Pet" });
+  expect(items.length).toBe(3);
 });
 
 test("createMany() inserts a large number of entities", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
-  const ENTITY_COUNT = 100_000;
+  const RECORD_COUNT = 100_000;
 
-  const createdInstances = await indexingStore.createMany({
+  const createdItems = await indexingStore.createMany({
     tableName: "Pet",
     checkpoint: createCheckpoint(10),
-    data: [...Array(ENTITY_COUNT).keys()].map((i) => ({
+    data: [...Array(RECORD_COUNT).keys()].map((i) => ({
       id: `id${i}`,
       name: "Alice",
       bigAge: BigInt(i),
     })),
   });
-  expect(createdInstances.length).toBe(ENTITY_COUNT);
+  expect(createdItems.length).toBe(RECORD_COUNT);
 
-  const instances = await indexingStore.findMany({ tableName: "Pet" });
-  expect(instances.length).toBe(ENTITY_COUNT);
+  const { pageInfo } = await indexingStore.findMany({
+    tableName: "Pet",
+    limit: 1_000,
+  });
+  const { items } = await indexingStore.findMany({
+    tableName: "Pet",
+    after: pageInfo.endCursor,
+    limit: 1_000,
+  });
+  expect(items.length).toBe(1_000);
 });
 
 test("updateMany() updates multiple entities", async (context) => {
@@ -888,18 +1041,18 @@ test("updateMany() updates multiple entities", async (context) => {
     ],
   });
 
-  const updatedInstances = await indexingStore.updateMany({
+  const updateditems = await indexingStore.updateMany({
     tableName: "Pet",
     checkpoint: createCheckpoint(11),
     where: { bigAge: { gt: 50n } },
     data: { bigAge: 300n },
   });
 
-  expect(updatedInstances.length).toBe(2);
+  expect(updateditems.length).toBe(2);
 
-  const instances = await indexingStore.findMany({ tableName: "Pet" });
+  const { items } = await indexingStore.findMany({ tableName: "Pet" });
 
-  expect(instances.map((i) => i.bigAge)).toMatchObject([10n, 300n, 300n]);
+  expect(items.map((i) => i.bigAge)).toMatchObject([300n, 10n, 300n]);
 });
 
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
@@ -945,11 +1098,13 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 
   await indexingStore.revert({ checkpoint: createCheckpoint(12) });
 
-  const pets = await indexingStore.findMany({ tableName: "Pet" });
+  const { items: pets } = await indexingStore.findMany({ tableName: "Pet" });
   expect(pets.length).toBe(1);
   expect(pets[0].name).toBe("Skip");
 
-  const persons = await indexingStore.findMany({ tableName: "Person" });
+  const { items: persons } = await indexingStore.findMany({
+    tableName: "Person",
+  });
   expect(persons.length).toBe(1);
   expect(persons[0].name).toBe("Bobby");
 });
@@ -972,7 +1127,7 @@ test("revert() updates versions that only existed during the safe timestamp to l
 
   await indexingStore.revert({ checkpoint: createCheckpoint(10) });
 
-  const pets = await indexingStore.findMany({ tableName: "Pet" });
+  const { items: pets } = await indexingStore.findMany({ tableName: "Pet" });
   expect(pets.length).toBe(1);
   expect(pets[0].name).toBe("Skip");
 });
