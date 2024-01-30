@@ -124,8 +124,8 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
               });
             };
             const pageType = new GraphQLObjectType({
-              name: `${tableName}PageChild`,
-              fields: () => ({
+              name: `${tableName}${column.referenceTable}Page`,
+              fields: {
                 items: {
                   type: new GraphQLList(
                     new GraphQLNonNull(entityGqlTypes[column.referenceTable]),
@@ -137,7 +137,7 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
                 after: {
                   type: GraphQLString,
                 },
-              }),
+              },
             });
 
             fieldConfigMap[columnName] = {

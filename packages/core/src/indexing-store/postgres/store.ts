@@ -354,7 +354,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
       if (limit > MAX_LIMIT) {
         throw new Error(
-          `Invalid limit. Got <=${MAX_LIMIT}, received ${limit}.`,
+          `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
         );
       }
 

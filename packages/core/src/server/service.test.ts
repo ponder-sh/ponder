@@ -1500,7 +1500,7 @@ test("throws if limit is greater than 1000", async (context) => {
   `);
 
   expect(response.body.errors[0].message).toBe(
-    "Invalid limit. Got <=1000, received 1005.",
+    "Invalid limit. Got 1005, expected <=1000.",
   );
   expect(response.statusCode).toBe(200);
 
