@@ -42,12 +42,11 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 ponder.on("ERC20:Approval", async ({ event, context }) => {
   const { Allowance, ApprovalEvent } = context.db;
 
-  const approvalId =
-    `${event.args.owner}-${event.args.spender}` as `0x${string}`;
+  const allowanceId = `${event.args.owner}-${event.args.spender}`;
 
-  // Create or update the Approval.
+  // Create or update the Allowance.
   await Allowance.upsert({
-    id: approvalId,
+    id: allowanceId,
     create: {
       ownerId: event.args.owner,
       spenderId: event.args.spender,

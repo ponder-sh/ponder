@@ -6,7 +6,7 @@ export default createSchema((p) => ({
     balance: p.bigint(),
     isOwner: p.boolean(),
 
-    approvals: p.many("Allowance.ownerId"),
+    allowances: p.many("Allowance.ownerId"),
     approvalOwnerEvents: p.many("ApprovalEvent.ownerId"),
     approvalSpenderEvents: p.many("ApprovalEvent.spenderId"),
     transferFromEvents: p.many("TransferEvent.fromId"),

@@ -50,11 +50,11 @@ ponder.on("RocketTokenRETH:Transfer", async ({ event, context }) => {
 ponder.on("RocketTokenRETH:Approval", async ({ event, context }) => {
   const { Allowance, ApprovalEvent } = context.db;
 
-  const approvalId = `${event.args.owner}-${event.args.spender}`;
+  const allowanceId = `${event.args.owner}-${event.args.spender}`;
 
   await Promise.all([
     Allowance.upsert({
-      id: approvalId,
+      id: allowanceId,
       create: {
         ownerId: event.args.owner,
         spenderId: event.args.spender,
