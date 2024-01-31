@@ -126,16 +126,23 @@ export class PostgresIndexingStore implements IndexingStore {
   };
 
   setCheckpoints = (checkpoints: { [functionIds: string]: Checkpoint }) => {
-    return this.wrap({ method: "getInitialCheckpoints" }, async () => {
+    return this.wrap({ method: "setCheckpoints" }, async () => {
       this.db.transaction().execute((tx) =>
         Promise.all(
-          Object.entries(checkpoints).map(([functionId, checkpoint]) =>
-            tx
-              .updateTable("indexingCheckpoints")
-              .set({ checkpoint: encodeCheckpoint(checkpoint) })
-              .where("functionId", "=", functionId)
-              .executeTakeFirstOrThrow(),
-          ),
+          Object.entries(checkpoints).map(async ([functionId, checkpoint]) => {
+            await tx
+              .insertInto("indexingCheckpoints")
+              .values({
+                functionId,
+                checkpoint: encodeCheckpoint(checkpoint),
+              })
+              .onConflict((oc) =>
+                oc
+                  .column("functionId")
+                  .doUpdateSet({ checkpoint: encodeCheckpoint(checkpoint) }),
+              )
+              .execute();
+          }),
         ),
       );
     });
