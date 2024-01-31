@@ -1,5 +1,40 @@
 # @ponder/core
 
+## 0.2.0
+
+### Minor Changes
+
+- [#596](https://github.com/ponder-sh/ponder/pull/596) [`ed7b8c7f881386f718e0f61ae863190c7f160953`](https://github.com/ponder-sh/ponder/commit/ed7b8c7f881386f718e0f61ae863190c7f160953) Thanks [@kyscott18](https://github.com/kyscott18)! - (BREAKING) Removed `p.bytes()` in favor of a new `p.hex()` primitive column type. `p.hex()` is suitable for Ethereum addresses and other hex-encoded data, including EVM `bytes` types. `p.hex()` values are stored as `bytea` (Postgres) or `blob` (SQLite). To migrate, replace each occurence of `p.bytes()` in `ponder.schema.ts` with `p.hex()`, and ensure that any values you pass into hex columns are valid hexadecimal strings. The GraphQL API returns `p.hex()` values as hexadecimal strings, and allows sorting/filtering on `p.hex()` columns using the numeric comparison operators (`gt`, `gte`, `le`, `lte`).
+
+- [#596](https://github.com/ponder-sh/ponder/pull/596) [`ed7b8c7f881386f718e0f61ae863190c7f160953`](https://github.com/ponder-sh/ponder/commit/ed7b8c7f881386f718e0f61ae863190c7f160953) Thanks [@kyscott18](https://github.com/kyscott18)! - Released 0.2.0, please see the [migration guide](https://ponder.sh/docs/migration-guide) for details.
+
+- [#596](https://github.com/ponder-sh/ponder/pull/596) [`ed7b8c7f881386f718e0f61ae863190c7f160953`](https://github.com/ponder-sh/ponder/commit/ed7b8c7f881386f718e0f61ae863190c7f160953) Thanks [@kyscott18](https://github.com/kyscott18)! - (BREAKING) Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method. See the [GraphQL pagination docs](https://ponder.sh/docs/guides/query-the-graphql-api#pagination) for more details.
+
+  ```graphql
+  # Before
+  query {
+    users(offset: 10, limit: 10) {
+      id
+      name
+    }
+  }
+  # After
+  query {
+    users(after: "MTA=", limit: 10) {
+      items {
+        id
+        name
+      }
+      pageInfo {
+        hasPreviousPage
+        hasNextPage
+        starCursor
+        endCursor
+      }
+    }
+  }
+  ```
+
 ## 0.1.9
 
 ### Patch Changes
