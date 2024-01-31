@@ -11,9 +11,9 @@ Ponder 0.2.0 adds concurrent indexing, cursor pagination in GraphQL, and a new c
 
 ## Concurrent indexing
 
-Starting with 0.2.0, Ponder runs indexing functions concurrently whenever possible.
+Before this release, Ponder's indexing engine processed events indexing sequentially (one event at a time). But in theory, depending on which tables they access, indexing functions can often run in parallel. This release introduces concurrent indexing, which allows the indexing engine to process multiple events at the same time.
 
-### Performance
+For a simple ERC20 app, concurrent indexing was 22% faster than sequential in our benchmark. It varies from app to app, but most Ponder apps have a theoretical speedup of 20-50% with concurrent indexing.
 
 In many cases, indexing functions do not depend on the results of other indexing functions. Consider a simple Ponder app that indexes ERC20 Transfer events.
 
@@ -54,35 +54,100 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 
 In this example, the indexing funtion only writes to the `TransferEvent` table. It doesn't read from any tables.
 
-Let's say the app has 10,000 `ERC20:Transfer` events to index. Before 0.2.0, the indexing engine would process these events one-by-one. Now, the indexing engine can process all 10,000 events concurrently. For Ponder apps with mostly isolated indexing functions, concurrent indexing offers a significant speedup.
-
 <Callout type="info">
-  Technically, the indexing engine still uses a finite concurrency factor that's often less than the theoretical concurrency. In these cases, indexing throughput is bottlenecked by the database, so the internal queue concurrency matters less.
+  Technically, the indexing engine still uses a finite concurrency factor that's often less than the theoretical concurrency. In these cases, indexing throughput is bottlenecked by the database, so the internal queue concurrency starts to matter less.
 </Callout>
 
-### Static analysis
+Concurrent indexing is backwards compatible and requires no changes to your indexing function code.
+
+### How it works
 
 Ponder's build step uses static analysis to determine which tables an indexing function reads from and writes to, and uses that to construct an indexing function dependency graph. Armed with the dependency graph, the indexing engine enqueues events to be processed as soon as their dependencies are met. The static analysis step handles most common code organization patterns, but it's not perfect. If static analysis fails for any reason, it falls back to sequential indexing.
 
-To check the indexing function dependency graph, enable debug logging (either run `ponder dev -v` or set the `PONDER_LOG_LEVEL` env var to `"debug"`) and you'll see a log like this for each of your indexing functions.
+To check the indexing function dependency graph, enable debug logging (either run `ponder dev -v` or set the `PONDER_LOG_LEVEL` env var to `"debug"`) and you'll see logs like this for each of your indexing functions.
 
 ```bash filename="shell"
-
+DEBUG  Registered indexing function BasePaintBrush:Transfer (selfDependent=true, parents=[BasePaint:Painted])
+DEBUG  Registered indexing function BasePaint:Started (selfDependent=true, parents=[])
+DEBUG  Registered indexing function BasePaint:Painted (selfDependent=true, parents=[BasePaintBrush:Transfer, BasePaint:ArtistsEarned, BasePaint:TransferSingle, BasePaint:TransferBatch])
+DEBUG  Registered indexing function BasePaint:ArtistsEarned (selfDependent=true, parents=[BasePaint:Painted, BasePaint:TransferSingle, BasePaint:TransferBatch])
+DEBUG  Registered indexing function BasePaint:ArtistWithdraw (selfDependent=false, parents=[])
+DEBUG  Registered indexing function BasePaint:TransferSingle (selfDependent=true, parents=[BasePaint:Painted, BasePaint:ArtistsEarned, BasePaint:TransferBatch])
+DEBUG  Registered indexing function BasePaint:TransferBatch (selfDependent=true, parents=[BasePaint:Painted, BasePaint:ArtistsEarned, BasePaint:TransferSingle])
 ```
 
 ## Cursor pagination
 
-Before this release, the GraphQL API and the `findMany` database method only supported offset pagination. Offset pagination is simple, but has a number of well-documented downsides.
+Before this release, the GraphQL API and the `findMany` database method only supported offset pagination. Offset pagination is simple, but has a number of [well-documented downsides](https://akashrajpurohit.com/blog/navigating-your-database-efficiently-cursor-based-pagination-vs-offset-based). This release adds cursor pagination with support for arbitrary sort orders. Notably, this eliminates the maximum offset of 5,000 records, which makes it possible to efficiently paginate through all records in a table regardless of size.
 
-Ponder 0.2.0 adds cursor pagination with support for arbitrary sort orders. This notably eliminates the maximum offset of 5,000 records, which makes it possible to efficiently paginate through all records in a table.
+<div className="code-columns">
+```graphql filename="Query"
+query {
+  persons(orderBy: "age", orderDirection: "asc", limit: 2) {
+    items {
+      name
+      age
+    }
+    pageInfo {
+      startCursor
+      endCursor
+      hasPreviousPage
+      hasNextPage
+    }
+  }
+}
+```
 
-Take a look at the new [pagination docs](/docs/pagination) for more details.
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons" {
+    "items": [
+      { "name": "Sally", "age": 22 },
+      { "name": "Lucile", "age": 32 },
+    ],
+    "pageInfo": {
+      "startCursor": "MfgBzeDkjs44",
+      "endCursor": "Mxhc3NDb3JlLTA=",
+      "hasPreviousPage": false,
+      "hasNextPage": true,
+    }
+  }
+}
+```
+
+</div>
+
+
+Take a look at the new [pagination docs](/docs/guides/query-the-graphql-api#pagination) for more details.
 
 ## `p.hex()`
 
-Over the past month, we became convinced that the `p.bytes()` column type was confusing and poorly named. In most TypeScript programming environments, it's common to use a hexadecimal string representation for byte arrays like Ethereum addresses.
+In most TypeScript programming environments, it's common to use a hexadecimal string representation for byte arrays like Ethereum addresses. This release adds a new column type, `p.hex()`, which is a more efficient way to store hexadecimal strings in the database.
 
-This new column type is optimized for storing hexadecimal strings. Under the hood, `p.hex()` uses the `bytea` column type in Postgres and `blob` in SQLite. Database operations using `p.hex()` have similar performance to those using `p.string()`, but `p.hex()` values take up less space in the database.
+```ts filename="ponder.schema.ts" {5,9,10,15}
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Account: p.createTable({
+    id: p.hex(), // Address
+    balance: p.bigint(),
+  }),
+  Transaction: p.createTable({
+    id: p.hex(), // Transaction hash
+    blockHash: p.hex(), // Block hash
+    // ...
+  }),
+  Log: p.createTable({
+    id: p.string(), 
+    topic0: p.hex(), // Log topic
+    // ...
+  }),
+}));
+```
+
+Under the hood, `p.hex()` uses the `bytea` column type in Postgres and `blob` in SQLite. Database operations using `p.hex()` have similar performance to those using `p.string()`, but `p.hex()` values take up less space in the database.
+
 
 <Callout type="warning">
   The `p.bytes()` column type had a serious performance issue when used with `id` columns. This has been fixed with the migration to `p.hex()`.
