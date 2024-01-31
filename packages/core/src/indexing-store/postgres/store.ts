@@ -172,7 +172,7 @@ export class PostgresIndexingStore implements IndexingStore {
             async ([tableName, columns]) => {
               const table = this.tableIds![tableName];
 
-              let tableBuilder = tx.schema.createTable(table);
+              let tableBuilder = tx.schema.createTable(table).ifNotExists();
 
               Object.entries(columns).forEach(([columnName, column]) => {
                 if (isOneColumn(column)) return;
@@ -240,6 +240,7 @@ export class PostgresIndexingStore implements IndexingStore {
   };
 
   publish = async () => {
+    console.log("publish");
     return this.wrap({ method: "publish" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         // Create views in the public schema pointing at tables in the private schema.

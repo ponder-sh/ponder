@@ -25,7 +25,7 @@ import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
 import type { GraphQLSchema } from "graphql";
-import type { TableIds } from "./build/static/ids.js";
+import type { FunctionIds, TableIds } from "./build/static/ids.js";
 import type { TableAccess } from "./build/static/parseAst.js";
 import { type RequestQueue, createRequestQueue } from "./utils/requestQueue.js";
 
@@ -49,6 +49,7 @@ export class Ponder {
   indexingFunctions: IndexingFunctions = undefined!;
   tableAccess: TableAccess = undefined!;
   tableIds: TableIds = undefined!;
+  functionIds: FunctionIds = undefined!;
 
   // Sync services
   syncStore: SyncStore = undefined!;
@@ -237,6 +238,7 @@ export class Ponder {
     this.indexingFunctions = result.indexingFunctions;
     this.tableAccess = result.tableAccess;
     this.tableIds = result.tableIds;
+    this.functionIds = result.functionIds;
 
     return true;
   }
@@ -366,6 +368,7 @@ export class Ponder {
       schema: this.schema,
       tableAccess: this.tableAccess,
       tableIds: this.tableIds,
+      functionIds: this.functionIds,
     });
     await this.indexingService.processEvents();
 
@@ -487,35 +490,43 @@ export class Ponder {
 
     this.buildService.onSerial(
       "newSchema",
-      async ({ schema, graphqlSchema, tableAccess, tableIds }) => {
+      async ({ schema, graphqlSchema, tableAccess, tableIds, functionIds }) => {
         this.uiService.ui.indexingError = false;
 
         this.schema = schema;
         this.graphqlSchema = graphqlSchema;
         this.tableAccess = tableAccess;
         this.tableIds = tableIds;
+        this.functionIds = functionIds;
 
         this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
         this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
-        await this.indexingService.reset({ schema, tableAccess, tableIds });
+        await this.indexingService.reset({
+          schema,
+          tableAccess,
+          tableIds,
+          functionIds,
+        });
         await this.indexingService.processEvents();
       },
     );
 
     this.buildService.onSerial(
       "newIndexingFunctions",
-      async ({ indexingFunctions, tableAccess, tableIds }) => {
+      async ({ indexingFunctions, tableAccess, tableIds, functionIds }) => {
         this.uiService.ui.indexingError = false;
 
         this.indexingFunctions = indexingFunctions;
         this.tableAccess = tableAccess;
         this.tableIds = tableIds;
+        this.functionIds = functionIds;
 
         await this.indexingService.reset({
           indexingFunctions,
           tableAccess,
           tableIds,
+          functionIds,
         });
         await this.indexingService.processEvents();
       },

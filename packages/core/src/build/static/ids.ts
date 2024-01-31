@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
+import { dedupe } from "@/utils/dedupe.js";
 import type { TableAccess } from "./parseAst.js";
 
 export type FunctionIds = { [func: string]: string };
@@ -44,16 +45,19 @@ export const getIds = ({
   }
 
   for (const tableName of Object.keys(schema.tables)) {
-    const eventSources = tableWrites
-      .filter((t) => t.access === tableName)
+    const eventSources = tableAccess
+      .filter((t) => t.table === tableName)
       .map((t) => functionIds[t.indexingFunctionKey]!);
 
     const hash = crypto
       .createHash("sha256")
-      .update(JSON.stringify(eventSources))
+      .update(JSON.stringify(dedupe(eventSources)))
       .digest("hex");
 
     tableIds[tableName] = `${tableName}_${hash}`;
   }
+
+  console.log({ tableIds, functionIds });
+
   return { tableIds, functionIds };
 };

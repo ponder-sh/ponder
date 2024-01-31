@@ -644,6 +644,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             state.tasksProcessedToCheckpoint,
             data.endCheckpoint,
           );
+          await this.setIndexingFunctionCheckpoint(fullEventName);
           this.emitCheckpoint();
         }
 
@@ -775,14 +776,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
       isCheckpointEqual(
         state.tasksLoadedToCheckpoint,
         this.syncGatewayService.checkpoint,
-      )
+      ) ||
+      isCheckpointEqual(this.syncGatewayService.checkpoint, zeroCheckpoint)
     ) {
       return;
     }
 
-    // TODO: Deep copy these.
-    const fromCheckpoint = state.tasksLoadedToCheckpoint;
-    const toCheckpoint = this.syncGatewayService.checkpoint;
+    const fromCheckpoint = copyCheckpoint(state.tasksLoadedToCheckpoint);
+    const toCheckpoint = copyCheckpoint(this.syncGatewayService.checkpoint);
 
     const result = await this.syncGatewayService.getEvents({
       fromCheckpoint,
@@ -864,6 +865,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     } else {
       state.tasksProcessedToCheckpoint = state.tasksLoadedToCheckpoint;
       state.tasksLoadedFromCheckpoint = state.tasksLoadedToCheckpoint;
+      await this.setIndexingFunctionCheckpoint(key);
       this.emitCheckpoint();
     }
 
@@ -887,6 +889,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.common.metrics.ponder_indexing_completed_timestamp.set(
       checkpoint.blockTimestamp,
     );
+  };
+
+  private setIndexingFunctionCheckpoint = async (
+    indexingFunctionKey: string,
+  ) => {
+    const checkpoint =
+      this.indexingFunctionStates[indexingFunctionKey]
+        .tasksProcessedToCheckpoint;
+
+    if (isCheckpointEqual(checkpoint, zeroCheckpoint)) return;
+
+    await this.indexingStore.setCheckpoints({
+      [this.functionIds![indexingFunctionKey]]: checkpoint,
+    });
   };
 
   private buildSourceById = () => {
@@ -972,7 +988,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           ).join(", ")}])`,
         });
 
-        const checkpoint = checkpoints[this.functionIds[indexingFunctionKey]];
+        const checkpoint = checkpoints[this.functionIds[indexingFunctionKey]]!;
 
         this.indexingFunctionStates[indexingFunctionKey] = {
           eventName,
@@ -983,9 +999,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
           abiEvent,
           eventSelector,
 
-          tasksProcessedToCheckpoint: checkpoint ?? zeroCheckpoint,
-          tasksLoadedFromCheckpoint: checkpoint ?? zeroCheckpoint,
-          tasksLoadedToCheckpoint: checkpoint ?? zeroCheckpoint,
+          tasksProcessedToCheckpoint: checkpoint
+            ? copyCheckpoint(checkpoint)
+            : zeroCheckpoint,
+          tasksLoadedFromCheckpoint: checkpoint
+            ? copyCheckpoint(checkpoint)
+            : zeroCheckpoint,
+          tasksLoadedToCheckpoint: checkpoint
+            ? copyCheckpoint(checkpoint)
+            : zeroCheckpoint,
           loadedTasks: [],
           loadingMutex: new Mutex(),
         };
@@ -1029,3 +1051,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
   };
 }
+
+const copyCheckpoint = (checkpoint: Checkpoint): Checkpoint => {
+  return JSON.parse(JSON.stringify(checkpoint)) as Checkpoint;
+};
