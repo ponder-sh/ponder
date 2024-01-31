@@ -6,13 +6,13 @@ export default createSchema((p) => ({
     balance: p.bigint(),
     isOwner: p.boolean(),
 
-    approvals: p.many("Approval.ownerId"),
+    allowances: p.many("Allowance.ownerId"),
     approvalOwnerEvents: p.many("ApprovalEvent.ownerId"),
     approvalSpenderEvents: p.many("ApprovalEvent.spenderId"),
     transferFromEvents: p.many("TransferEvent.fromId"),
     transferToEvents: p.many("TransferEvent.toId"),
   }),
-  Approval: p.createTable({
+  Allowance: p.createTable({
     id: p.string(),
     amount: p.bigint(),
 

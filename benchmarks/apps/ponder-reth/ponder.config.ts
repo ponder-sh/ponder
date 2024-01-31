@@ -8,6 +8,7 @@ export default createConfig({
     mainnet: {
       chainId: 1,
       transport: http(process.env.PONDER_RPC_URL_1),
+      maxRequestsPerSecond: 200,
     },
   },
   contracts: {
@@ -16,7 +17,8 @@ export default createConfig({
       abi: RocketTokenRETHAbi,
       address: "0xae78736cd615f374d3085123a210448e74fc6393",
       // startBlock: 13325304,
-      startBlock: 18600000,
+      startBlock: 18900000,
+      endBlock: 19000000,
     },
   },
 });
