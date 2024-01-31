@@ -185,6 +185,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.queue?.pause();
     this.queue?.clear();
+
+    // Note: Beneficial to write to indexing-store checkpoint cache here.
+
     for (const key of Object.keys(this.indexingFunctionStates)) {
       this.indexingFunctionStates[key].loadingMutex.cancel();
     }
@@ -310,13 +313,21 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.queue!.start();
     await this.queue.onIdle();
 
+    if (isCheckpointEqual(this.syncGatewayService.checkpoint, zeroCheckpoint)) {
+      return;
+    }
+
     await Promise.all(
-      Object.entries(this.indexingFunctionStates).map(([key, state]) =>
-        state.loadingMutex.runExclusive(() =>
+      Object.entries(this.indexingFunctionStates).map(async ([key, state]) => {
+        await state.loadingMutex.runExclusive(() =>
           this.loadIndexingFunctionTasks(key),
-        ),
-      ),
+        );
+        this.updateCompletedSeconds(key);
+        this.setIndexingFunctionCheckpoint(key);
+      }),
     );
+
+    this.emitCheckpoint();
 
     this.enqueueLogEventTasks();
 
@@ -634,19 +645,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         // Update tasksProcessedToCheckpoint
         const state = this.indexingFunctionStates[fullEventName];
-        if (data.endCheckpoint === undefined) {
-          state.tasksProcessedToCheckpoint = checkpointMax(
-            state.tasksProcessedToCheckpoint,
-            data.checkpoint,
-          );
-        } else {
-          state.tasksProcessedToCheckpoint = checkpointMax(
-            state.tasksProcessedToCheckpoint,
-            data.endCheckpoint,
-          );
-          await this.setIndexingFunctionCheckpoint(fullEventName);
-          this.emitCheckpoint();
-        }
+
+        state.tasksProcessedToCheckpoint = checkpointMax(
+          state.tasksProcessedToCheckpoint,
+          data.checkpoint,
+        );
 
         // Update tasksLoadedFromCheckpoint
         if (state.loadedTasks.length > 0) {
@@ -658,6 +661,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         // Emit log if this is the end of a batch of logs
         if (data.eventsProcessed) {
+          this.emitCheckpoint();
+          this.setIndexingFunctionCheckpoint(fullEventName);
+
           const num = data.eventsProcessed;
           this.common.logger.info({
             service: "indexing",
@@ -771,19 +777,30 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const state = this.indexingFunctionStates[key];
     const tasks = state.loadedTasks;
 
+    // TODO: Consider deep copying these.
+    const fromCheckpoint = state.tasksLoadedToCheckpoint;
+    const toCheckpoint = this.syncGatewayService.checkpoint;
+
     if (
       tasks.length > 0 ||
-      isCheckpointEqual(
-        state.tasksLoadedToCheckpoint,
-        this.syncGatewayService.checkpoint,
-      ) ||
-      isCheckpointEqual(this.syncGatewayService.checkpoint, zeroCheckpoint)
+      isCheckpointGreaterThanOrEqualTo(fromCheckpoint, toCheckpoint)
     ) {
+      if (
+        state.firstEventCheckpoint === undefined &&
+        state.lastEventCheckpoint === undefined
+      ) {
+        state.firstEventCheckpoint = zeroCheckpoint;
+        state.lastEventCheckpoint = this.syncGatewayService.checkpoint;
+
+        this.updateTotalSeconds(key);
+        this.updateCompletedSeconds(key);
+
+        this.emitCheckpoint();
+        this.setIndexingFunctionCheckpoint(key);
+      }
+
       return;
     }
-
-    const fromCheckpoint = copyCheckpoint(state.tasksLoadedToCheckpoint);
-    const toCheckpoint = copyCheckpoint(this.syncGatewayService.checkpoint);
 
     const result = await this.syncGatewayService.getEvents({
       fromCheckpoint,
@@ -856,32 +873,34 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     if (tasks.length > 0) {
       state.tasksLoadedFromCheckpoint = tasks[0].data.checkpoint;
-
-      // Set special tasks properties necessary for advancing tasksProcessedToCheckpoint
-      // as far into the future as possible, mostly for emitting events.
-      tasks[tasks.length - 1].data.endCheckpoint =
-        state.tasksLoadedToCheckpoint;
+      // For logs
       tasks[tasks.length - 1].data.eventsProcessed = events.length;
     } else {
-      state.tasksProcessedToCheckpoint = state.tasksLoadedToCheckpoint;
       state.tasksLoadedFromCheckpoint = state.tasksLoadedToCheckpoint;
-      await this.setIndexingFunctionCheckpoint(key);
-      this.emitCheckpoint();
     }
 
     // Set if this is the first event we have loaded for this indexing function.
     if (state.firstEventCheckpoint === undefined && tasks.length > 0) {
       state.firstEventCheckpoint = tasks[0].data.checkpoint;
     }
-    state.lastEventCheckpoint = lastCheckpoint ?? toCheckpoint;
+    state.lastEventCheckpoint = checkpointMax(
+      lastCheckpoint ?? toCheckpoint,
+      state.lastEventCheckpoint ?? zeroCheckpoint,
+    );
 
     this.updateTotalSeconds(key);
   };
 
   private emitCheckpoint = () => {
     const checkpoint = checkpointMin(
-      ...Object.values(this.indexingFunctionStates).map(
-        (state) => state.tasksProcessedToCheckpoint,
+      ...Object.values(this.indexingFunctionStates).map((state) =>
+        state.lastEventCheckpoint !== undefined &&
+        isCheckpointEqual(
+          state.lastEventCheckpoint,
+          state.tasksProcessedToCheckpoint,
+        )
+          ? this.syncGatewayService.checkpoint
+          : state.tasksProcessedToCheckpoint,
       ),
     );
 
@@ -894,11 +913,16 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private setIndexingFunctionCheckpoint = async (
     indexingFunctionKey: string,
   ) => {
-    const checkpoint =
-      this.indexingFunctionStates[indexingFunctionKey]
-        .tasksProcessedToCheckpoint;
+    const state = this.indexingFunctionStates[indexingFunctionKey];
 
-    if (isCheckpointEqual(checkpoint, zeroCheckpoint)) return;
+    const checkpoint =
+      state.lastEventCheckpoint &&
+      isCheckpointEqual(
+        state.lastEventCheckpoint,
+        state.tasksProcessedToCheckpoint,
+      )
+        ? this.syncGatewayService.checkpoint
+        : state.tasksProcessedToCheckpoint;
 
     await this.indexingStore.setCheckpoints({
       [this.functionIds![indexingFunctionKey]]: checkpoint,
@@ -999,15 +1023,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
           abiEvent,
           eventSelector,
 
-          tasksProcessedToCheckpoint: checkpoint
-            ? copyCheckpoint(checkpoint)
-            : zeroCheckpoint,
-          tasksLoadedFromCheckpoint: checkpoint
-            ? copyCheckpoint(checkpoint)
-            : zeroCheckpoint,
-          tasksLoadedToCheckpoint: checkpoint
-            ? copyCheckpoint(checkpoint)
-            : zeroCheckpoint,
+          tasksProcessedToCheckpoint: checkpoint ?? zeroCheckpoint,
+          tasksLoadedFromCheckpoint: checkpoint ?? zeroCheckpoint,
+          tasksLoadedToCheckpoint: checkpoint ?? zeroCheckpoint,
           loadedTasks: [],
           loadingMutex: new Mutex(),
         };
@@ -1051,7 +1069,3 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
   };
 }
-
-const copyCheckpoint = (checkpoint: Checkpoint): Checkpoint => {
-  return JSON.parse(JSON.stringify(checkpoint)) as Checkpoint;
-};

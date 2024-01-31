@@ -57,7 +57,5 @@ export const getIds = ({
     tableIds[tableName] = `${tableName}_${hash}`;
   }
 
-  console.log({ tableIds, functionIds });
-
   return { tableIds, functionIds };
 };
