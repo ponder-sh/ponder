@@ -376,10 +376,6 @@ export class SqliteIndexingStore implements IndexingStore {
           .where((eb) => buildCursorConditions(cursorValues, "after", eb))
           .limit(limit + 2);
 
-        console.log(query.compile());
-
-        console.log({ cursorValues });
-
         const rows = await query.execute();
         const records = rows.map((row) => decodeRow(row, table, "sqlite"));
 
