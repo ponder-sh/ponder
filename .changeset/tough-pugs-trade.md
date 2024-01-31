@@ -2,7 +2,7 @@
 "@ponder/core": minor
 ---
 
-(BREAKING) Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method.
+(BREAKING) Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method. See the [GraphQL pagination docs](https://ponder.sh/docs/guides/query-the-graphql-api#pagination) for more details.
 
 ```graphql
 # Before
@@ -19,8 +19,12 @@ query {
       id
       name
     }
-    before
-    after
+    pageInfo {
+      hasPreviousPage
+      hasNextPage
+      starCursor
+      endCursor
+    }
   }
 }
 
