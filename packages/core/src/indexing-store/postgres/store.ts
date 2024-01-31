@@ -75,16 +75,6 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   }
 
-  async teardown() {
-    return this.wrap({ method: "teardown" }, async () => {
-      await this.db.schema
-        .dropSchema(this.databaseSchemaName)
-        .ifExists()
-        .cascade()
-        .execute();
-    });
-  }
-
   kill = async () => {
     return this.wrap({ method: "kill" }, async () => {
       try {
@@ -125,25 +115,21 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   };
 
-  setCheckpoints = (checkpoints: { [functionIds: string]: Checkpoint }) => {
+  setCheckpoints = (functionId: string, checkpoint: Checkpoint) => {
     return this.wrap({ method: "setCheckpoints" }, async () => {
       this.db.transaction().execute((tx) =>
-        Promise.all(
-          Object.entries(checkpoints).map(async ([functionId, checkpoint]) => {
-            await tx
-              .insertInto("indexingCheckpoints")
-              .values({
-                functionId,
-                checkpoint: encodeCheckpoint(checkpoint),
-              })
-              .onConflict((oc) =>
-                oc
-                  .column("functionId")
-                  .doUpdateSet({ checkpoint: encodeCheckpoint(checkpoint) }),
-              )
-              .execute();
-          }),
-        ),
+        tx
+          .insertInto("indexingCheckpoints")
+          .values({
+            functionId,
+            checkpoint: encodeCheckpoint(checkpoint),
+          })
+          .onConflict((oc) =>
+            oc
+              .column("functionId")
+              .doUpdateSet({ checkpoint: encodeCheckpoint(checkpoint) }),
+          )
+          .execute(),
       );
     });
   };
@@ -256,16 +242,16 @@ export class PostgresIndexingStore implements IndexingStore {
             async ([tableName, columns]) => {
               await tx.schema
                 .withSchema("public")
-                .dropView(`${tableName}_versioned`)
+                .dropView(this.tableIds![tableName])
                 .ifExists()
                 .execute();
               await tx.schema
                 .withSchema("public")
-                .createView(`${tableName}_versioned`)
+                .createView(this.tableIds![tableName])
                 .as(
                   tx
                     .withSchema(this.databaseSchemaName)
-                    .selectFrom(`${tableName}_versioned`)
+                    .selectFrom(this.tableIds![tableName])
                     .selectAll(),
                 )
                 .execute();
@@ -284,7 +270,7 @@ export class PostgresIndexingStore implements IndexingStore {
                 .as(
                   tx
                     .withSchema(this.databaseSchemaName)
-                    .selectFrom(`${tableName}_versioned`)
+                    .selectFrom(this.tableIds![tableName])
                     .select(columnNames)
                     .where("effectiveToCheckpoint", "=", "latest"),
                 )

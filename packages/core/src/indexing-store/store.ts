@@ -87,8 +87,6 @@ export interface IndexingStore {
 
   reload(options?: { schema?: Schema; tableIds?: TableIds }): Promise<void>;
 
-  teardown(): Promise<void>;
-
   kill(): Promise<void>;
 
   migrateUp(): Promise<void>;
@@ -97,9 +95,7 @@ export interface IndexingStore {
     functionIds: FunctionIds,
   ): Promise<{ [functionIds: string]: Checkpoint }>;
 
-  setCheckpoints(checkpoints: {
-    [functionIds: string]: Checkpoint;
-  }): Promise<void>;
+  setCheckpoints(functionId: string, checkpoint: Checkpoint): Promise<void>;
 
   publish(): Promise<void>;
 

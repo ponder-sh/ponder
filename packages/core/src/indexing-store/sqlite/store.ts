@@ -65,24 +65,6 @@ export class SqliteIndexingStore implements IndexingStore {
     });
   }
 
-  // Maybe don't need?
-  async teardown() {
-    console.log("teardown");
-    // return this.wrap({ method: "teardown" }, async () => {
-    //   const tableNames = Object.keys(this.schema?.tables ?? {});
-    //   if (tableNames.length > 0) {
-    //     await this.db.transaction().execute(async (tx) => {
-    //       await Promise.all(
-    //         tableNames.map(async (tableName) => {
-    //           const table = `${tableName}_versioned`;
-    //           await tx.schema.dropTable(table).ifExists().execute();
-    //         }),
-    //       );
-    //     });
-    //   }
-    // });
-  }
-
   async kill() {
     return this.wrap({ method: "kill" }, async () => {
       try {
@@ -123,25 +105,21 @@ export class SqliteIndexingStore implements IndexingStore {
     });
   };
 
-  setCheckpoints = (checkpoints: { [functionIds: string]: Checkpoint }) => {
+  setCheckpoints = (functionId: string, checkpoint: Checkpoint) => {
     return this.wrap({ method: "setCheckpoints" }, async () => {
       this.db.transaction().execute((tx) =>
-        Promise.all(
-          Object.entries(checkpoints).map(async ([functionId, checkpoint]) => {
-            await tx
-              .insertInto("indexingCheckpoints")
-              .values({
-                functionId,
-                checkpoint: encodeCheckpoint(checkpoint),
-              })
-              .onConflict((oc) =>
-                oc
-                  .column("functionId")
-                  .doUpdateSet({ checkpoint: encodeCheckpoint(checkpoint) }),
-              )
-              .execute();
-          }),
-        ),
+        tx
+          .insertInto("indexingCheckpoints")
+          .values({
+            functionId,
+            checkpoint: encodeCheckpoint(checkpoint),
+          })
+          .onConflict((oc) =>
+            oc
+              .column("functionId")
+              .doUpdateSet({ checkpoint: encodeCheckpoint(checkpoint) }),
+          )
+          .execute(),
       );
     });
   };
@@ -241,32 +219,31 @@ export class SqliteIndexingStore implements IndexingStore {
   };
 
   publish = async () => {
-    console.log("publish");
-    // return this.wrap({ method: "publish" }, async () => {
-    //   await this.db.transaction().execute(async (tx) => {
-    //     // Create views for the latest version of each table.
-    //     await Promise.all(
-    //       Object.entries(this.schema!.tables).map(
-    //         async ([tableName, columns]) => {
-    //           await tx.schema.dropView(tableName).ifExists().execute();
+    return this.wrap({ method: "publish" }, async () => {
+      await this.db.transaction().execute(async (tx) => {
+        // Create views for the latest version of each table.
+        await Promise.all(
+          Object.entries(this.schema!.tables).map(
+            async ([tableName, columns]) => {
+              await tx.schema.dropView(tableName).ifExists().execute();
 
-    //           const columnNames = Object.entries(columns)
-    //             .filter(([, c]) => !isOneColumn(c) && !isManyColumn(c))
-    //             .map(([name]) => name);
-    //           await tx.schema
-    //             .createView(tableName)
-    //             .as(
-    //               tx
-    //                 .selectFrom(`${tableName}_versioned`)
-    //                 .select(columnNames)
-    //                 .where("effectiveToCheckpoint", "=", "latest"),
-    //             )
-    //             .execute();
-    //         },
-    //       ),
-    //     );
-    //   });
-    // });
+              const columnNames = Object.entries(columns)
+                .filter(([, c]) => !isOneColumn(c) && !isManyColumn(c))
+                .map(([name]) => name);
+              await tx.schema
+                .createView(tableName)
+                .as(
+                  tx
+                    .selectFrom(this.tableIds![tableName])
+                    .select(columnNames)
+                    .where("effectiveToCheckpoint", "=", "latest"),
+                )
+                .execute();
+            },
+          ),
+        );
+      });
+    });
   };
 
   /**
