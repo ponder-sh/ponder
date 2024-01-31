@@ -7,7 +7,9 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("indexingCheckpoints")
         .addColumn("functionId", "text", (col) => col.notNull().primaryKey())
-        .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
+        .addColumn("fromCheckpoint", "varchar(58)", (col) => col.notNull())
+        .addColumn("toCheckpoint", "varchar(58)", (col) => col.notNull())
+        .addColumn("eventCount", "integer", (col) => col.notNull())
         .execute();
     },
   },

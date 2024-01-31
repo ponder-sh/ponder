@@ -72,6 +72,7 @@ export class PostgresIndexingStore implements IndexingStore {
     this.migrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
+      migrationTableSchema: "public",
     });
   }
 
@@ -95,7 +96,13 @@ export class PostgresIndexingStore implements IndexingStore {
 
   getInitialCheckpoints = (
     functionIds: FunctionIds,
-  ): Promise<{ [functionIds: string]: Checkpoint }> => {
+  ): Promise<{
+    [functionIds: string]: {
+      fromCheckpoint: Checkpoint;
+      toCheckpoint: Checkpoint;
+      eventCount: number;
+    };
+  }> => {
     return this.wrap({ method: "getInitialCheckpoints" }, async () => {
       const _functionIds = Object.values(functionIds);
 
@@ -103,31 +110,55 @@ export class PostgresIndexingStore implements IndexingStore {
         .selectFrom("indexingCheckpoints")
         .selectAll()
         .where("functionId", "in", _functionIds)
-        .execute()) as { functionId: string; checkpoint: string }[];
+        .execute()) as {
+        functionId: string;
+        fromCheckpoint: string;
+        toCheckpoint: string;
+        eventCount: number;
+      }[];
 
-      return checkpoints.reduce<{ [functionIds: string]: Checkpoint }>(
+      return checkpoints.reduce<{
+        [functionIds: string]: {
+          fromCheckpoint: Checkpoint;
+          toCheckpoint: Checkpoint;
+          eventCount: number;
+        };
+      }>(
         (acc, cur) => ({
           ...acc,
-          [cur.functionId]: decodeCheckpoint(cur.checkpoint),
+          [cur.functionId]: {
+            fromCheckpoint: decodeCheckpoint(cur.fromCheckpoint),
+            toCheckpoint: decodeCheckpoint(cur.toCheckpoint),
+            eventCount: cur.eventCount,
+          },
         }),
         {},
       );
     });
   };
 
-  setCheckpoints = (functionId: string, checkpoint: Checkpoint) => {
+  setCheckpoints = (
+    functionId: string,
+    fromCheckpoint: Checkpoint,
+    toCheckpoint: Checkpoint,
+    eventCount: number,
+  ) => {
     return this.wrap({ method: "setCheckpoints" }, async () => {
-      this.db.transaction().execute((tx) =>
+      await this.db.transaction().execute((tx) =>
         tx
           .insertInto("indexingCheckpoints")
           .values({
             functionId,
-            checkpoint: encodeCheckpoint(checkpoint),
+            fromCheckpoint: encodeCheckpoint(fromCheckpoint),
+            toCheckpoint: encodeCheckpoint(toCheckpoint),
+            eventCount,
           })
           .onConflict((oc) =>
-            oc
-              .column("functionId")
-              .doUpdateSet({ checkpoint: encodeCheckpoint(checkpoint) }),
+            oc.column("functionId").doUpdateSet({
+              fromCheckpoint: encodeCheckpoint(fromCheckpoint),
+              toCheckpoint: encodeCheckpoint(toCheckpoint),
+              eventCount,
+            }),
           )
           .execute(),
       );
@@ -233,7 +264,6 @@ export class PostgresIndexingStore implements IndexingStore {
   };
 
   publish = async () => {
-    console.log("publish");
     return this.wrap({ method: "publish" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         // Create views in the public schema pointing at tables in the private schema.

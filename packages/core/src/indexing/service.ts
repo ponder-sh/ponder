@@ -134,6 +134,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
       firstEventCheckpoint?: Checkpoint;
       /* Checkpoint of the last loaded event (for metrics). */
       lastEventCheckpoint?: Checkpoint;
+
+      eventCount: number;
     }
   > = {};
   private taskBatchSize: number = MAX_BATCH_SIZE;
@@ -271,6 +273,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.isSetupStarted = false;
 
+    this.common.metrics.ponder_indexing_completed_events.reset();
+
     await this.buildIndexingFunctionStates();
     this.createEventQueue();
 
@@ -284,7 +288,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.common.metrics.ponder_indexing_total_seconds.reset();
     this.common.metrics.ponder_indexing_completed_seconds.reset();
-    this.common.metrics.ponder_indexing_completed_events.reset();
 
     await this.indexingStore.reload({
       schema: this.schema,
@@ -584,6 +587,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
         };
         this.common.metrics.ponder_indexing_completed_events.inc(labels);
 
+        this.indexingFunctionStates[fullEventName].eventCount++;
+
         break;
       } catch (error_) {
         const error = error_ as Error & { meta: string };
@@ -694,6 +699,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
         };
         this.common.metrics.ponder_indexing_completed_events.inc(labels);
 
+        state.eventCount++;
+
         break;
       } catch (error_) {
         const error = error_ as Error & { meta?: string };
@@ -789,11 +796,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       tasks.length > 0 ||
       isCheckpointGreaterThanOrEqualTo(fromCheckpoint, toCheckpoint)
     ) {
-      if (
-        state.firstEventCheckpoint === undefined &&
-        state.lastEventCheckpoint === undefined
-      ) {
-        state.firstEventCheckpoint = zeroCheckpoint;
+      if (state.lastEventCheckpoint === undefined) {
         state.lastEventCheckpoint = this.syncGatewayService.checkpoint;
 
         this.updateTotalSeconds(key);
@@ -884,15 +887,19 @@ export class IndexingService extends Emittery<IndexingEvents> {
       state.tasksLoadedFromCheckpoint = state.tasksLoadedToCheckpoint;
     }
 
-    state.lastEventCheckpoint = checkpointMax(
-      lastCheckpoint ?? toCheckpoint,
-      state.lastEventCheckpoint ?? zeroCheckpoint,
-    );
-
     // Set if this is the first event we have loaded for this indexing function.
     if (state.firstEventCheckpoint === undefined && tasks.length > 0) {
       state.firstEventCheckpoint = tasks[0].data.checkpoint;
+    }
+
+    if (state.lastEventCheckpoint === undefined) {
+      state.lastEventCheckpoint = lastCheckpoint ?? toCheckpoint;
       this.logCachedProgress(key);
+    } else {
+      state.lastEventCheckpoint = checkpointMax(
+        lastCheckpoint ?? toCheckpoint,
+        state.lastEventCheckpoint,
+      );
     }
 
     this.updateTotalSeconds(key);
@@ -922,7 +929,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
   ) => {
     const state = this.indexingFunctionStates[indexingFunctionKey];
 
-    const checkpoint =
+    // Note: use finality checkpoint
+
+    const toCheckpoint =
       state.lastEventCheckpoint &&
       isCheckpointEqual(
         state.lastEventCheckpoint,
@@ -933,7 +942,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     await this.indexingStore.setCheckpoints(
       this.functionIds![indexingFunctionKey],
-      checkpoint,
+      state.firstEventCheckpoint!,
+      toCheckpoint,
+      state.eventCount,
     );
   };
 
@@ -1031,12 +1042,26 @@ export class IndexingService extends Emittery<IndexingEvents> {
           abiEvent,
           eventSelector,
 
-          tasksProcessedToCheckpoint: checkpoint ?? zeroCheckpoint,
-          tasksLoadedFromCheckpoint: checkpoint ?? zeroCheckpoint,
-          tasksLoadedToCheckpoint: checkpoint ?? zeroCheckpoint,
+          tasksProcessedToCheckpoint:
+            checkpoint?.toCheckpoint ?? zeroCheckpoint,
+          tasksLoadedFromCheckpoint: checkpoint?.toCheckpoint ?? zeroCheckpoint,
+          tasksLoadedToCheckpoint: checkpoint?.toCheckpoint ?? zeroCheckpoint,
+          firstEventCheckpoint: checkpoint?.fromCheckpoint ?? undefined,
           loadedTasks: [],
           loadingMutex: new Mutex(),
+          eventCount: checkpoint?.eventCount ?? 0,
         };
+
+        if (checkpoint?.eventCount) {
+          const labels = {
+            network: "",
+            event: indexingFunctionKey,
+          };
+          this.common.metrics.ponder_indexing_completed_events.set(
+            labels,
+            checkpoint.eventCount,
+          );
+        }
       }
     }
 
@@ -1093,7 +1118,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const cache = formatPercentage(Math.max(numerator / denominator, 0));
     this.common.logger.info({
       service: "indexing",
-      msg: `Started indexing ${state.contractName}:${state.eventName} with ${cache}% cached.`,
+      msg: `Started indexing ${state.contractName}:${state.eventName} with ${cache} cached.`,
     });
   };
 }

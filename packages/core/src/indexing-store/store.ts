@@ -91,11 +91,20 @@ export interface IndexingStore {
 
   migrateUp(): Promise<void>;
 
-  getInitialCheckpoints(
-    functionIds: FunctionIds,
-  ): Promise<{ [functionIds: string]: Checkpoint }>;
+  getInitialCheckpoints(functionIds: FunctionIds): Promise<{
+    [functionIds: string]: {
+      fromCheckpoint: Checkpoint;
+      toCheckpoint: Checkpoint;
+      eventCount: number;
+    };
+  }>;
 
-  setCheckpoints(functionId: string, checkpoint: Checkpoint): Promise<void>;
+  setCheckpoints(
+    functionId: string,
+    fromCheckpoint: Checkpoint,
+    toCheckpoint: Checkpoint,
+    eventCount: number,
+  ): Promise<void>;
 
   publish(): Promise<void>;
 
