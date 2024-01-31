@@ -4,8 +4,8 @@ import {
   _enum,
   bigint,
   boolean,
-  bytes,
   float,
+  hex,
   int,
   many,
   one,
@@ -106,7 +106,7 @@ const P = {
   bigint,
   int,
   float,
-  bytes,
+  hex,
   boolean,
   one,
   many,
@@ -161,7 +161,7 @@ type P = {
    */
   float: () => EmptyModifier<"float">;
   /**
-   * Primitive `bytes` column type.
+   * Primitive `hex` column type.
    *
    * - Docs: https://ponder.sh/docs/guides/design-your-schema#primitives
    *
@@ -170,11 +170,11 @@ type P = {
    *
    * export default createSchema({
    *   t: p.createTable({
-   *     id: p.bytes(),
+   *     id: p.hex(),
    *   })
    * })
    */
-  bytes: () => EmptyModifier<"bytes">;
+  hex: () => EmptyModifier<"hex">;
   /**
    * Primitive `boolean` column type.
    *

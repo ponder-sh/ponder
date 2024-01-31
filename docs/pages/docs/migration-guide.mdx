@@ -11,6 +11,16 @@ import Architecture from "../../public/architecture.svg";
 
 This page is under construction.
 
+## 0.2.0
+
+### Replaced `p.bytes()` with `p.hex()`
+
+Removed `p.bytes()` in favor of a new `p.hex()` primitive column type. `p.hex()` is suitable for Ethereum addresses and other hex-encoded data, including EVM `bytes` types. `p.hex()` values are stored as `bytea` (Postgres) or `blob` (SQLite). To migrate, replace each occurence of `p.bytes()` in `ponder.schema.ts` with `p.hex()`, and ensure that any values you pass into hex columns are valid hexadecimal strings. The GraphQL API returns `p.hex()` values as hexadecimal strings, and allows sorting/filtering on `p.hex()` columns using the numeric comparison operators (`gt`, `gte`, `le`, `lte`).
+
+### Cursor pagination
+
+Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method. See the [GraphQL pagination docs](/docs/guides/query-the-graphql-api#pagination) for more details.
+
 ## 0.1.0
 
 Config

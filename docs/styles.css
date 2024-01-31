@@ -16,6 +16,7 @@
 @media (max-width: 768px) {
   .code-columns {
     flex-direction: column;
+    gap: 1.5rem 0rem;
   }
   .code-columns > div {
     width: unset;
