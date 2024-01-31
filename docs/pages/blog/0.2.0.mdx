@@ -15,7 +15,7 @@ Starting with 0.2.0, Ponder runs indexing functions concurrently whenever possib
 
 ### Performance
 
-In many cases, an indexing function does not depend on the results of other indexing functions. Consider a simple Ponder app that indexes ERC20 Transfer events:
+In many cases, indexing functions do not depend on the results of other indexing functions. Consider a simple Ponder app that indexes ERC20 Transfer events.
 
 <div className="code-columns">
 ```ts filename="ponder.schema.ts"
@@ -55,6 +55,10 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 In this example, the indexing funtion only writes to the `TransferEvent` table. It doesn't read from any tables.
 
 Let's say the app has 10,000 `ERC20:Transfer` events to index. Before 0.2.0, the indexing engine would process these events one-by-one. Now, the indexing engine can process all 10,000 events concurrently. For Ponder apps with mostly isolated indexing functions, concurrent indexing offers a significant speedup.
+
+<Callout type="info">
+  Technically, the indexing engine still uses a finite concurrency factor that's often less than the theoretical concurrency. In these cases, indexing throughput is bottlenecked by the database, so the internal queue concurrency matters less.
+</Callout>
 
 ### Static analysis
 
