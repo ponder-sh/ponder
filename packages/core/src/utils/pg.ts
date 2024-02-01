@@ -1,9 +1,11 @@
 import pg, { type PoolConfig } from "pg";
 import { prettyPrint } from "./print.js";
 
-// Set pg protocol to use BigInt for `numeric` types.
 // See https://github.com/brianc/node-pg-types for details.
+// Use BigInt for `numeric` types.
 pg.types.setTypeParser(pg.types.builtins.NUMERIC, BigInt);
+// Use Number for `bigint`/`int8` types. We use these for chain IDs.
+pg.types.setTypeParser(pg.types.builtins.INT8, Number);
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114

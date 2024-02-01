@@ -380,32 +380,32 @@ const migrations: Record<string, Migration> = {
     async up(db: Kysely<any>) {
       await db.schema
         .alterTable("blocks")
-        .alterColumn("chainId", (col) => col.setDataType("numeric(16, 0)"))
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
         .execute();
 
       await db.schema
         .alterTable("transactions")
-        .alterColumn("chainId", (col) => col.setDataType("numeric(16, 0)"))
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
         .execute();
 
       await db.schema
         .alterTable("logs")
-        .alterColumn("chainId", (col) => col.setDataType("numeric(16, 0)"))
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
         .execute();
 
       await db.schema
         .alterTable("logFilters")
-        .alterColumn("chainId", (col) => col.setDataType("numeric(16, 0)"))
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
         .execute();
 
       await db.schema
         .alterTable("factories")
-        .alterColumn("chainId", (col) => col.setDataType("numeric(16, 0)"))
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
         .execute();
 
       await db.schema
         .alterTable("rpcRequestResults")
-        .alterColumn("chainId", (col) => col.setDataType("numeric(16, 0)"))
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
         .execute();
     },
   },
