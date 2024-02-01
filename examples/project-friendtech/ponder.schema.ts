@@ -5,8 +5,8 @@ export default createSchema((p) => ({
   Share: p.createTable({
     id: p.string(),
 
-    subjectId: p.bytes().references("Subject.id"),
-    traderId: p.bytes().references("Trader.id"),
+    subjectId: p.hex().references("Subject.id"),
+    traderId: p.hex().references("Trader.id"),
 
     subject: p.one("subjectId"),
     trader: p.one("traderId"),
@@ -16,8 +16,8 @@ export default createSchema((p) => ({
   TradeEvent: p.createTable({
     id: p.string(),
 
-    subjectId: p.bytes().references("Subject.id"),
-    traderId: p.bytes().references("Trader.id"),
+    subjectId: p.hex().references("Subject.id"),
+    traderId: p.hex().references("Trader.id"),
 
     subject: p.one("subjectId"),
     trader: p.one("traderId"),
@@ -32,7 +32,7 @@ export default createSchema((p) => ({
     timestamp: p.int(),
   }),
   Subject: p.createTable({
-    id: p.bytes(),
+    id: p.hex(),
     totalShares: p.bigint(),
     totalTrades: p.bigint(),
     lastPrice: p.bigint(),
@@ -44,7 +44,7 @@ export default createSchema((p) => ({
     trades: p.many("TradeEvent.subjectId"),
   }),
   Trader: p.createTable({
-    id: p.bytes(),
+    id: p.hex(),
     totalTrades: p.bigint(),
     spend: p.bigint(),
     earnings: p.bigint(),

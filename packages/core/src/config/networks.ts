@@ -4,6 +4,7 @@ import type { Chain, Client, Transport } from "viem";
 export type Network = {
   name: string;
   chainId: number;
+  chain: Chain;
   transport: ReturnType<Transport>;
   pollingInterval: number;
   maxRequestsPerSecond: number;

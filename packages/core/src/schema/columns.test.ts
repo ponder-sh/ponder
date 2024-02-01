@@ -4,8 +4,8 @@ import {
   _enum,
   bigint,
   boolean,
-  bytes,
   float,
+  hex,
   int,
   many,
   one,
@@ -48,10 +48,10 @@ test("boolean", () => {
   expect(c[" column"].list).toBe(false);
 });
 
-test("bytes", () => {
-  const c = bytes();
+test("hex", () => {
+  const c = hex();
 
-  expect(c[" column"].type).toBe("bytes");
+  expect(c[" column"].type).toBe("hex");
   expect(c[" column"].references).toBe(undefined);
   expect(c[" column"].optional).toBe(false);
   expect(c[" column"].list).toBe(false);

@@ -80,7 +80,7 @@ const ponder = async () => {
 
   const subprocess = execa(
     "../packages/core/dist/bin/ponder.js",
-    ["start", `--root-dir=${process.argv[2]}`],
+    ["start", `--root=${process.argv[2]}`],
     {
       stdio: "inherit",
       detached: true,
@@ -112,8 +112,6 @@ const bench = async () => {
   const ponderHot = await ponder();
 
   console.log({ ponderHot, ponderCold });
-
-  console.log(os.cpus(), os.platform(), os.machine());
 };
 
 await bench();

@@ -1,9 +1,4 @@
 import { rmSync } from "node:fs";
-
-import request from "supertest";
-import { zeroAddress } from "viem";
-import { afterEach, beforeEach, expect, test } from "vitest";
-
 import { Ponder } from "@/Ponder.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
@@ -15,6 +10,9 @@ import { simulate } from "@/_test/simulate.js";
 import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
 import { range } from "@/utils/range.js";
+import request from "supertest";
+import { zeroAddress } from "viem";
+import { afterEach, beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupSyncStore(context));
@@ -70,11 +68,13 @@ test("erc20", async (context) => {
     ponder,
     `
     accounts {
-      id
-      balance
+      items {
+        id
+        balance
+      }
     }
     `,
-  ).then((g) => g.accounts);
+  ).then((g) => g.accounts.items);
 
   expect(accounts).toHaveLength(3);
   expect(accounts[0]).toMatchObject({
@@ -82,11 +82,11 @@ test("erc20", async (context) => {
     balance: (-4 * 10 ** 18).toString(),
   });
   expect(accounts[1]).toMatchObject({
-    id: BOB,
+    id: BOB.toLowerCase(),
     balance: (4 * 10 ** 18).toString(),
   });
   expect(accounts[2]).toMatchObject({
-    id: ALICE,
+    id: ALICE.toLowerCase(),
     balance: "0",
   });
 
@@ -101,22 +101,24 @@ test("erc20", async (context) => {
     ponder,
     `
     accounts {
-      id
-      balance
+      items {
+        id
+        balance
+      }
     }
     `,
-  ).then((g) => g.accounts);
+  ).then((g) => g.accounts.items);
 
   expect(accounts[0]).toMatchObject({
     id: zeroAddress,
     balance: (-5 * 10 ** 18).toString(),
   });
   expect(accounts[1]).toMatchObject({
-    id: BOB,
+    id: BOB.toLowerCase(),
     balance: (5 * 10 ** 18).toString(),
   });
   expect(accounts[2]).toMatchObject({
-    id: ALICE,
+    id: ALICE.toLowerCase(),
     balance: "0",
   });
 
