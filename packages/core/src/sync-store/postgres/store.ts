@@ -1200,7 +1200,7 @@ export class PostgresSyncStore implements SyncStore {
       eb(
         "logs.chainId",
         "=",
-        sql`cast (${sql.val(logFilter.chainId)} as integer)`,
+        sql`cast (${sql.val(logFilter.chainId)} as numeric(16, 0))`,
       ),
     );
 
@@ -1261,7 +1261,7 @@ export class PostgresSyncStore implements SyncStore {
       eb(
         "logs.chainId",
         "=",
-        sql`cast (${sql.val(factory.chainId)} as integer)`,
+        sql`cast (${sql.val(factory.chainId)} as numeric(16, 0))`,
       ),
     );
 

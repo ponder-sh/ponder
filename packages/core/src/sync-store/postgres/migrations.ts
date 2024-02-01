@@ -376,6 +376,39 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_01_30_0_change_chain_id_type": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
+        .execute();
+
+      await db.schema
+        .alterTable("transactions")
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
+        .execute();
+
+      await db.schema
+        .alterTable("logs")
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
+        .execute();
+
+      await db.schema
+        .alterTable("logFilters")
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
+        .execute();
+
+      await db.schema
+        .alterTable("factories")
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
+        .execute();
+
+      await db.schema
+        .alterTable("rpcRequestResults")
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
