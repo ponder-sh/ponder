@@ -25,7 +25,8 @@ import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
 import type { GraphQLSchema } from "graphql";
-import type { TableAccess } from "./build/functions/parseAst.js";
+import type { FunctionIds, TableIds } from "./build/static/ids.js";
+import type { TableAccess } from "./build/static/parseAst.js";
 import { type RequestQueue, createRequestQueue } from "./utils/requestQueue.js";
 
 export type Common = {
@@ -47,6 +48,8 @@ export class Ponder {
   graphqlSchema: GraphQLSchema = undefined!;
   indexingFunctions: IndexingFunctions = undefined!;
   tableAccess: TableAccess = undefined!;
+  tableIds: TableIds = undefined!;
+  functionIds: FunctionIds = undefined!;
 
   // Sync services
   syncStore: SyncStore = undefined!;
@@ -234,6 +237,8 @@ export class Ponder {
     this.graphqlSchema = result.graphqlSchema;
     this.indexingFunctions = result.indexingFunctions;
     this.tableAccess = result.tableAccess;
+    this.tableIds = result.tableIds;
+    this.functionIds = result.functionIds;
 
     return true;
   }
@@ -349,6 +354,7 @@ export class Ponder {
 
     // One-time setup for some services.
     await this.syncStore.migrateUp();
+    await this.indexingStore.migrateUp();
 
     this.serverService.setup({ registerDevRoutes: isDev });
     await this.serverService.start();
@@ -361,6 +367,8 @@ export class Ponder {
       indexingFunctions: this.indexingFunctions,
       schema: this.schema,
       tableAccess: this.tableAccess,
+      tableIds: this.tableIds,
+      functionIds: this.functionIds,
     });
     await this.indexingService.processEvents();
 
@@ -425,28 +433,20 @@ export class Ponder {
    * Kill sync and indexing services and stores.
    */
   private async killCoreServices() {
-    // 1) Kick off indexing store teardown. This is the longest-running operation
-    // in the shutdown sequence and we really want to make sure it completes.
-    const indexingStoreTeardownPromise = this.indexingStore.teardown();
-
-    // 2) Kill misc services.
+    // 1) Kill misc services.
     await this.serverService.kill();
     this.uiService.kill();
 
-    // 3) Kill core services. Note that these methods pause and clear the queues
+    // 2) Kill core services. Note that these methods pause and clear the queues
     // and set a boolean flag that allows tasks to fail silently with no retries.
-    this.indexingService.kill();
+    await this.indexingService.kill();
     this.syncServices.forEach(({ realtime, historical, requestQueue }) => {
       realtime.kill();
       historical.kill();
       requestQueue.clear(); // TODO: Remove this once viem supports canceling requests.
     });
 
-    // 4) Indexing store cleanup. This is the longest-running operation,
-    // and we really want to make sure it completes.
-    await indexingStoreTeardownPromise;
-
-    // 5) Cancel pending RPC requests and database queries.
+    // 3) Cancel pending RPC requests and database queries.
     // TODO: Once supported by viem, cancel in-progress requests too. This will
     // cause errors in the sync and indexing services, but they will be silent
     // and the failed tasks will not be retried.
@@ -461,7 +461,7 @@ export class Ponder {
   private registerBuildServiceEventListeners() {
     this.buildService.onSerial(
       "newConfig",
-      async ({ config, sources, networks }) => {
+      async ({ config, sources, networks, functionIds, tableIds }) => {
         this.uiService.ui.indexingError = false;
 
         this.clearCoreServiceEventListeners();
@@ -473,6 +473,9 @@ export class Ponder {
         this.sources = sources;
         this.networks = networks;
 
+        this.tableIds = tableIds;
+        this.functionIds = functionIds;
+
         await this.setupCoreServices({ isDev: true });
         this.registerCoreServiceEventListeners();
 
@@ -482,30 +485,44 @@ export class Ponder {
 
     this.buildService.onSerial(
       "newSchema",
-      async ({ schema, graphqlSchema, tableAccess }) => {
+      async ({ schema, graphqlSchema, tableIds, functionIds }) => {
         this.uiService.ui.indexingError = false;
 
         this.schema = schema;
         this.graphqlSchema = graphqlSchema;
-        this.tableAccess = tableAccess;
+
+        this.tableIds = tableIds;
+        this.functionIds = functionIds;
 
         this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
         this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
-        await this.indexingService.reset({ schema, tableAccess });
+        await this.indexingService.reset({
+          schema,
+          tableAccess: this.tableAccess,
+          tableIds,
+          functionIds,
+        });
         await this.indexingService.processEvents();
       },
     );
 
     this.buildService.onSerial(
       "newIndexingFunctions",
-      async ({ indexingFunctions, tableAccess }) => {
+      async ({ indexingFunctions, tableAccess, tableIds, functionIds }) => {
         this.uiService.ui.indexingError = false;
 
         this.indexingFunctions = indexingFunctions;
         this.tableAccess = tableAccess;
+        this.tableIds = tableIds;
+        this.functionIds = functionIds;
 
-        await this.indexingService.reset({ indexingFunctions, tableAccess });
+        await this.indexingService.reset({
+          indexingFunctions,
+          tableAccess,
+          tableIds,
+          functionIds,
+        });
         await this.indexingService.processEvents();
       },
     );

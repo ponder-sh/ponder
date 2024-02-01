@@ -1,8 +1,19 @@
 import type { Common } from "@/Ponder.js";
+import type { FunctionIds, TableIds } from "@/build/static/ids.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
+import {
+  type Checkpoint,
+  decodeCheckpoint,
+  encodeCheckpoint,
+} from "@/utils/checkpoint.js";
+import {
+  Kysely,
+  Migrator,
+  PostgresDialect,
+  WithSchemaPlugin,
+  sql,
+} from "kysely";
 import type { Pool } from "pg";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
 import {
@@ -13,6 +24,7 @@ import {
 import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { buildWhereConditions } from "../utils/filter.js";
 import { buildOrderByConditions } from "../utils/sort.js";
+import { migrationProvider } from "./migrations.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
@@ -33,7 +45,10 @@ export class PostgresIndexingStore implements IndexingStore {
   private common: Common;
 
   db: Kysely<any>;
+  migrator: Migrator;
+
   schema?: Schema;
+  tableIds?: TableIds;
 
   private databaseSchemaName: string;
 
@@ -53,15 +68,11 @@ export class PostgresIndexingStore implements IndexingStore {
           common.metrics.ponder_postgres_query_count?.inc({ kind: "indexing" });
       },
     }).withPlugin(new WithSchemaPlugin(this.databaseSchemaName));
-  }
 
-  async teardown() {
-    return this.wrap({ method: "teardown" }, async () => {
-      await this.db.schema
-        .dropSchema(this.databaseSchemaName)
-        .ifExists()
-        .cascade()
-        .execute();
+    this.migrator = new Migrator({
+      db: this.db,
+      provider: migrationProvider,
+      migrationTableSchema: "public",
     });
   }
 
@@ -78,19 +89,100 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   };
 
+  migrateUp = async () => {
+    const { error } = await this.migrator.migrateToLatest();
+    if (error) throw error;
+  };
+
+  getInitialCheckpoints = (
+    functionIds: FunctionIds,
+  ): Promise<{
+    [functionIds: string]: {
+      fromCheckpoint: Checkpoint;
+      toCheckpoint: Checkpoint;
+      eventCount: number;
+    };
+  }> => {
+    return this.wrap({ method: "getInitialCheckpoints" }, async () => {
+      const _functionIds = Object.values(functionIds);
+
+      const checkpoints = (await this.db
+        .selectFrom("indexingCheckpoints")
+        .selectAll()
+        .where("functionId", "in", _functionIds)
+        .execute()) as {
+        functionId: string;
+        fromCheckpoint: string;
+        toCheckpoint: string;
+        eventCount: number;
+      }[];
+
+      return checkpoints.reduce<{
+        [functionIds: string]: {
+          fromCheckpoint: Checkpoint;
+          toCheckpoint: Checkpoint;
+          eventCount: number;
+        };
+      }>(
+        (acc, cur) => ({
+          ...acc,
+          [cur.functionId]: {
+            fromCheckpoint: decodeCheckpoint(cur.fromCheckpoint),
+            toCheckpoint: decodeCheckpoint(cur.toCheckpoint),
+            eventCount: cur.eventCount,
+          },
+        }),
+        {},
+      );
+    });
+  };
+
+  setCheckpoints = (
+    functionId: string,
+    fromCheckpoint: Checkpoint,
+    toCheckpoint: Checkpoint,
+    eventCount: number,
+  ) => {
+    return this.wrap({ method: "setCheckpoints" }, async () => {
+      await this.db.transaction().execute((tx) =>
+        tx
+          .insertInto("indexingCheckpoints")
+          .values({
+            functionId,
+            fromCheckpoint: encodeCheckpoint(fromCheckpoint),
+            toCheckpoint: encodeCheckpoint(toCheckpoint),
+            eventCount,
+          })
+          .onConflict((oc) =>
+            oc.column("functionId").doUpdateSet({
+              fromCheckpoint: encodeCheckpoint(fromCheckpoint),
+              toCheckpoint: encodeCheckpoint(toCheckpoint),
+              eventCount,
+            }),
+          )
+          .execute(),
+      );
+    });
+  };
+
   /**
    * Resets the database by dropping existing tables and creating new tables.
    * If no new schema is provided, the existing schema is used.
    *
    * @param options.schema New schema to be used.
    */
-  reload = async ({ schema }: { schema?: Schema } = {}) => {
+  reload = async ({
+    schema,
+    tableIds,
+  }: { schema?: Schema; tableIds?: TableIds } = {}) => {
     return this.wrap({ method: "reload" }, async () => {
       // If there is no existing schema and no new schema was provided, do nothing.
-      if (!this.schema && !schema) return;
+      if (!this.schema && !schema && !this.tableIds && !tableIds) return;
 
       // Set the new schema.
       if (schema) this.schema = schema;
+
+      if (tableIds) this.tableIds = tableIds;
 
       await this.db.transaction().execute(async (tx) => {
         await tx.schema
@@ -102,14 +194,9 @@ export class PostgresIndexingStore implements IndexingStore {
         await Promise.all(
           Object.entries(this.schema!.tables).map(
             async ([tableName, columns]) => {
-              const table = `${tableName}_versioned`;
+              const table = this.tableIds![tableName];
 
-              // Drop existing table with the same name if it exists.
-              // Note that "cascade" here will drop the views in the public schema
-              // if the current schema has been published.
-              await tx.schema.dropTable(table).ifExists().cascade().execute();
-
-              let tableBuilder = tx.schema.createTable(table);
+              let tableBuilder = tx.schema.createTable(table).ifNotExists();
 
               Object.entries(columns).forEach(([columnName, column]) => {
                 if (isOneColumn(column)) return;
@@ -185,16 +272,16 @@ export class PostgresIndexingStore implements IndexingStore {
             async ([tableName, columns]) => {
               await tx.schema
                 .withSchema("public")
-                .dropView(`${tableName}_versioned`)
+                .dropView(this.tableIds![tableName])
                 .ifExists()
                 .execute();
               await tx.schema
                 .withSchema("public")
-                .createView(`${tableName}_versioned`)
+                .createView(this.tableIds![tableName])
                 .as(
                   tx
                     .withSchema(this.databaseSchemaName)
-                    .selectFrom(`${tableName}_versioned`)
+                    .selectFrom(this.tableIds![tableName])
                     .selectAll(),
                 )
                 .execute();
@@ -213,7 +300,7 @@ export class PostgresIndexingStore implements IndexingStore {
                 .as(
                   tx
                     .withSchema(this.databaseSchemaName)
-                    .selectFrom(`${tableName}_versioned`)
+                    .selectFrom(this.tableIds![tableName])
                     .select(columnNames)
                     .where("effectiveToCheckpoint", "=", "latest"),
                 )
@@ -233,7 +320,7 @@ export class PostgresIndexingStore implements IndexingStore {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
           Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
-            const table = `${tableName}_versioned`;
+            const table = this.tableIds![tableName];
             const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
             // Delete any versions that are newer than the safe checkpoint.
@@ -264,7 +351,7 @@ export class PostgresIndexingStore implements IndexingStore {
     checkpoint?: Checkpoint | "latest";
     id: string | number | bigint;
   }) => {
-    const versionedTableName = `${tableName}_versioned`;
+    const versionedTableName = this.tableIds![tableName];
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "findUnique", tableName }, async () => {
@@ -313,7 +400,7 @@ export class PostgresIndexingStore implements IndexingStore {
     after?: string | null;
     limit?: number;
   }) => {
-    const versionedTableName = `${tableName}_versioned`;
+    const versionedTableName = this.tableIds![tableName];
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "findMany", tableName }, async () => {
@@ -511,7 +598,7 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
-    const versionedTableName = `${tableName}_versioned`;
+    const versionedTableName = this.tableIds![tableName];
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "create", tableName }, async () => {
@@ -541,7 +628,7 @@ export class PostgresIndexingStore implements IndexingStore {
     checkpoint: Checkpoint;
     data: Row[];
   }) => {
-    const versionedTableName = `${tableName}_versioned`;
+    const versionedTableName = this.tableIds![tableName];
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "createMany", tableName }, async () => {
@@ -583,7 +670,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const versionedTableName = `${tableName}_versioned`;
+    const versionedTableName = this.tableIds![tableName];
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "update", tableName }, async () => {
@@ -668,7 +755,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const versionedTableName = `${tableName}_versioned`;
+    const versionedTableName = this.tableIds![tableName];
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "updateMany", tableName }, async () => {
@@ -768,7 +855,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const versionedTableName = `${tableName}_versioned`;
+    const versionedTableName = this.tableIds![tableName];
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "upsert", tableName }, async () => {
@@ -861,7 +948,7 @@ export class PostgresIndexingStore implements IndexingStore {
     checkpoint: Checkpoint;
     id: string | number | bigint;
   }) => {
-    const versionedTableName = `${tableName}_versioned`;
+    const versionedTableName = this.tableIds![tableName];
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "delete", tableName }, async () => {

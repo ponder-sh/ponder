@@ -1,6 +1,7 @@
 import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
-import type { TableAccess } from "@/build/functions/parseAst.js";
+import type { FunctionIds, TableIds } from "@/build/static/ids.js";
+import type { TableAccess } from "@/build/static/parseAst.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Source,
@@ -25,6 +26,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { Emittery } from "@/utils/emittery.js";
+import { formatPercentage } from "@/utils/format.js";
 import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -89,6 +91,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private indexingFunctions?: IndexingFunctions;
   private schema?: Schema;
   private tableAccess?: TableAccess;
+  private tableIds?: TableIds;
+  private functionIds?: FunctionIds;
 
   queue?: IndexingFunctionQueue;
 
@@ -130,6 +134,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
       firstEventCheckpoint?: Checkpoint;
       /* Checkpoint of the last loaded event (for metrics). */
       lastEventCheckpoint?: Checkpoint;
+
+      eventCount: number;
     }
   > = {};
   private taskBatchSize: number = MAX_BATCH_SIZE;
@@ -177,11 +183,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
     });
   }
 
-  kill = () => {
+  kill = async () => {
     this.isPaused = true;
 
     this.queue?.pause();
     this.queue?.clear();
+
     for (const key of Object.keys(this.indexingFunctionStates)) {
       this.indexingFunctionStates[key].loadingMutex.cancel();
     }
@@ -189,6 +196,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
       service: "indexing",
       msg: "Killed indexing service",
     });
+
+    await Promise.all(
+      Object.keys(this.indexingFunctionStates).map((key) =>
+        this.setIndexingFunctionCheckpoint(key),
+      ),
+    );
   };
 
   onIdle = () => this.queue!.onIdle();
@@ -204,10 +217,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingFunctions: newIndexingFunctions,
     schema: newSchema,
     tableAccess: newTableAccess,
+    tableIds: newTableIds,
+    functionIds: newFunctionIds,
   }: {
     indexingFunctions?: IndexingFunctions;
     schema?: Schema;
     tableAccess?: TableAccess;
+    tableIds?: TableIds;
+    functionIds?: FunctionIds;
   } = {}) => {
     if (newSchema) {
       this.schema = newSchema;
@@ -227,10 +244,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.tableAccess = newTableAccess;
     }
 
+    if (newTableIds) {
+      this.tableIds = newTableIds;
+    }
+
+    if (newFunctionIds) {
+      this.functionIds = newFunctionIds;
+    }
+
     if (
       this.indexingFunctions === undefined ||
       this.sources === undefined ||
-      this.tableAccess === undefined
+      this.tableAccess === undefined ||
+      this.tableIds === undefined ||
+      this.functionIds === undefined
     )
       return;
 
@@ -246,7 +273,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.isSetupStarted = false;
 
-    this.buildIndexingFunctionStates();
+    this.common.metrics.ponder_indexing_completed_events.reset();
+
+    await this.buildIndexingFunctionStates();
     this.createEventQueue();
 
     this.common.logger.debug({
@@ -259,9 +288,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.common.metrics.ponder_indexing_total_seconds.reset();
     this.common.metrics.ponder_indexing_completed_seconds.reset();
-    this.common.metrics.ponder_indexing_completed_events.reset();
 
-    await this.indexingStore.reload({ schema: this.schema });
+    await this.indexingStore.reload({
+      schema: this.schema,
+      tableIds: this.tableIds,
+    });
     this.common.logger.debug({
       service: "indexing",
       msg: "Reset indexing store",
@@ -290,13 +321,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.queue!.start();
     await this.queue.onIdle();
 
+    if (isCheckpointEqual(this.syncGatewayService.checkpoint, zeroCheckpoint)) {
+      return;
+    }
+
     await Promise.all(
-      Object.entries(this.indexingFunctionStates).map(([key, state]) =>
-        state.loadingMutex.runExclusive(() =>
+      Object.entries(this.indexingFunctionStates).map(async ([key, state]) => {
+        await state.loadingMutex.runExclusive(() =>
           this.loadIndexingFunctionTasks(key),
-        ),
-      ),
+        );
+        this.updateCompletedSeconds(key);
+      }),
     );
+
+    this.emitCheckpoint();
 
     this.enqueueLogEventTasks();
 
@@ -549,6 +587,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
         };
         this.common.metrics.ponder_indexing_completed_events.inc(labels);
 
+        this.indexingFunctionStates[fullEventName].eventCount++;
+
         break;
       } catch (error_) {
         const error = error_ as Error & { meta: string };
@@ -614,18 +654,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         // Update tasksProcessedToCheckpoint
         const state = this.indexingFunctionStates[fullEventName];
-        if (data.endCheckpoint === undefined) {
-          state.tasksProcessedToCheckpoint = checkpointMax(
-            state.tasksProcessedToCheckpoint,
-            data.checkpoint,
-          );
-        } else {
-          state.tasksProcessedToCheckpoint = checkpointMax(
-            state.tasksProcessedToCheckpoint,
-            data.endCheckpoint,
-          );
-          this.emitCheckpoint();
-        }
+
+        state.tasksProcessedToCheckpoint = checkpointMax(
+          state.tasksProcessedToCheckpoint,
+          data.checkpoint,
+        );
 
         // Update tasksLoadedFromCheckpoint
         if (state.loadedTasks.length > 0) {
@@ -637,6 +670,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         // Emit log if this is the end of a batch of logs
         if (data.eventsProcessed) {
+          this.emitCheckpoint();
+          this.setIndexingFunctionCheckpoint(fullEventName);
+
           const num = data.eventsProcessed;
           this.common.logger.info({
             service: "indexing",
@@ -662,6 +698,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
           event: `${data.contractName}:${data.eventName}`,
         };
         this.common.metrics.ponder_indexing_completed_events.inc(labels);
+
+        state.eventCount++;
 
         break;
       } catch (error_) {
@@ -750,19 +788,27 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const state = this.indexingFunctionStates[key];
     const tasks = state.loadedTasks;
 
-    if (
-      tasks.length > 0 ||
-      isCheckpointEqual(
-        state.tasksLoadedToCheckpoint,
-        this.syncGatewayService.checkpoint,
-      )
-    ) {
-      return;
-    }
-
-    // TODO: Deep copy these.
+    // TODO: Consider deep copying these.
     const fromCheckpoint = state.tasksLoadedToCheckpoint;
     const toCheckpoint = this.syncGatewayService.checkpoint;
+
+    if (
+      tasks.length > 0 ||
+      isCheckpointGreaterThanOrEqualTo(fromCheckpoint, toCheckpoint)
+    ) {
+      if (state.lastEventCheckpoint === undefined) {
+        state.lastEventCheckpoint = this.syncGatewayService.checkpoint;
+
+        this.updateTotalSeconds(key);
+        this.updateCompletedSeconds(key);
+
+        this.emitCheckpoint();
+        this.setIndexingFunctionCheckpoint(key);
+        this.logCachedProgress(key);
+      }
+
+      return;
+    }
 
     const result = await this.syncGatewayService.getEvents({
       fromCheckpoint,
@@ -835,31 +881,40 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     if (tasks.length > 0) {
       state.tasksLoadedFromCheckpoint = tasks[0].data.checkpoint;
-
-      // Set special tasks properties necessary for advancing tasksProcessedToCheckpoint
-      // as far into the future as possible, mostly for emitting events.
-      tasks[tasks.length - 1].data.endCheckpoint =
-        state.tasksLoadedToCheckpoint;
+      // For logs
       tasks[tasks.length - 1].data.eventsProcessed = events.length;
     } else {
-      state.tasksProcessedToCheckpoint = state.tasksLoadedToCheckpoint;
       state.tasksLoadedFromCheckpoint = state.tasksLoadedToCheckpoint;
-      this.emitCheckpoint();
     }
 
     // Set if this is the first event we have loaded for this indexing function.
     if (state.firstEventCheckpoint === undefined && tasks.length > 0) {
       state.firstEventCheckpoint = tasks[0].data.checkpoint;
     }
-    state.lastEventCheckpoint = lastCheckpoint ?? toCheckpoint;
+
+    if (state.lastEventCheckpoint === undefined) {
+      state.lastEventCheckpoint = lastCheckpoint ?? toCheckpoint;
+      this.logCachedProgress(key);
+    } else {
+      state.lastEventCheckpoint = checkpointMax(
+        lastCheckpoint ?? toCheckpoint,
+        state.lastEventCheckpoint,
+      );
+    }
 
     this.updateTotalSeconds(key);
   };
 
   private emitCheckpoint = () => {
     const checkpoint = checkpointMin(
-      ...Object.values(this.indexingFunctionStates).map(
-        (state) => state.tasksProcessedToCheckpoint,
+      ...Object.values(this.indexingFunctionStates).map((state) =>
+        state.lastEventCheckpoint !== undefined &&
+        isCheckpointEqual(
+          state.lastEventCheckpoint,
+          state.tasksProcessedToCheckpoint,
+        )
+          ? this.syncGatewayService.checkpoint
+          : state.tasksProcessedToCheckpoint,
       ),
     );
 
@@ -869,22 +924,52 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
   };
 
+  private setIndexingFunctionCheckpoint = async (
+    indexingFunctionKey: string,
+  ) => {
+    const state = this.indexingFunctionStates[indexingFunctionKey];
+
+    // Note: use finality checkpoint
+
+    const toCheckpoint =
+      state.lastEventCheckpoint &&
+      isCheckpointEqual(
+        state.lastEventCheckpoint,
+        state.tasksProcessedToCheckpoint,
+      )
+        ? this.syncGatewayService.checkpoint
+        : state.tasksProcessedToCheckpoint;
+
+    await this.indexingStore.setCheckpoints(
+      this.functionIds![indexingFunctionKey],
+      state.firstEventCheckpoint!,
+      toCheckpoint,
+      state.eventCount,
+    );
+  };
+
   private buildSourceById = () => {
     for (const source of this.sources) {
       this.sourceById[source.id] = source;
     }
   };
 
-  private buildIndexingFunctionStates = () => {
+  private buildIndexingFunctionStates = async () => {
     if (
       this.indexingFunctions === undefined ||
       this.sources === undefined ||
-      this.tableAccess === undefined
+      this.tableAccess === undefined ||
+      this.tableIds === undefined ||
+      this.functionIds === undefined
     )
       return;
 
     // clear in case of reloads
     this.indexingFunctionStates = {};
+
+    const checkpoints = await this.indexingStore.getInitialCheckpoints(
+      this.functionIds,
+    );
 
     for (const contractName of Object.keys(this.indexingFunctions)) {
       // Not sure why this is necessary
@@ -946,6 +1031,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
           ).join(", ")}])`,
         });
 
+        const checkpoint = checkpoints[this.functionIds[indexingFunctionKey]]!;
+
         this.indexingFunctionStates[indexingFunctionKey] = {
           eventName,
           contractName,
@@ -955,12 +1042,26 @@ export class IndexingService extends Emittery<IndexingEvents> {
           abiEvent,
           eventSelector,
 
-          tasksProcessedToCheckpoint: zeroCheckpoint,
-          tasksLoadedFromCheckpoint: zeroCheckpoint,
-          tasksLoadedToCheckpoint: zeroCheckpoint,
+          tasksProcessedToCheckpoint:
+            checkpoint?.toCheckpoint ?? zeroCheckpoint,
+          tasksLoadedFromCheckpoint: checkpoint?.toCheckpoint ?? zeroCheckpoint,
+          tasksLoadedToCheckpoint: checkpoint?.toCheckpoint ?? zeroCheckpoint,
+          firstEventCheckpoint: checkpoint?.fromCheckpoint ?? undefined,
           loadedTasks: [],
           loadingMutex: new Mutex(),
+          eventCount: checkpoint?.eventCount ?? 0,
         };
+
+        if (checkpoint?.eventCount) {
+          const labels = {
+            network: "",
+            event: indexingFunctionKey,
+          };
+          this.common.metrics.ponder_indexing_completed_events.set(
+            labels,
+            checkpoint.eventCount,
+          );
+        }
       }
     }
 
@@ -999,5 +1100,25 @@ export class IndexingService extends Emittery<IndexingEvents> {
       state.lastEventCheckpoint.blockTimestamp -
         state.firstEventCheckpoint.blockTimestamp,
     );
+  };
+
+  private logCachedProgress = (key: string) => {
+    const state = this.indexingFunctionStates[key];
+
+    const numerator =
+      Math.min(
+        state.tasksProcessedToCheckpoint.blockTimestamp,
+        state.lastEventCheckpoint!.blockTimestamp,
+      ) - state.firstEventCheckpoint!.blockTimestamp;
+
+    const denominator =
+      state.lastEventCheckpoint!.blockTimestamp -
+      state.firstEventCheckpoint!.blockTimestamp;
+
+    const cache = formatPercentage(Math.max(numerator / denominator, 0));
+    this.common.logger.info({
+      service: "indexing",
+      msg: `Started indexing ${state.contractName}:${state.eventName} with ${cache} cached.`,
+    });
   };
 }

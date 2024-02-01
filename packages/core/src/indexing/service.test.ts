@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { getEventsErc20 } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
-import type { TableAccess } from "@/build/functions/parseAst.js";
+import type { TableAccess } from "@/build/static/parseAst.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -72,6 +72,7 @@ const tableAccess: TableAccess = [
     table: "TransferEvent",
     access: "write",
     indexingFunctionKey: "Erc20:Transfer",
+    hash: "",
   },
 ];
 
@@ -301,11 +302,13 @@ test("processEvents() orders tasks with self reliance", async (context) => {
       table: "TransferEvent",
       access: "write",
       indexingFunctionKey: "Erc20:Transfer",
+      hash: "",
     },
     {
       table: "TransferEvent",
       access: "read",
       indexingFunctionKey: "Erc20:Transfer",
+      hash: "",
     },
   ];
 
@@ -557,11 +560,13 @@ test("processEvents() handles errors", async (context) => {
       table: "TransferEvent",
       access: "write",
       indexingFunctionKey: "Erc20:Transfer",
+      hash: "",
     },
     {
       table: "TransferEvent",
       access: "read",
       indexingFunctionKey: "Erc20:Transfer",
+      hash: "",
     },
   ];
 

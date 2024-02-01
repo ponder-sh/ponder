@@ -1081,6 +1081,9 @@ export class SqliteSyncStore implements SyncStore {
       };
     });
 
+    // Note: do the same for first checkpoint
+    // Note: should make once off functions for special queries
+
     // Query for the checkpoint of the last event in the requested range (ignore the batch limit)
     const lastCheckpointRows = await baseQuery
       .select([
