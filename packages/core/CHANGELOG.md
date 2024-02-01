@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.2.2
+
+### Patch Changes
+
+- [#615](https://github.com/ponder-sh/ponder/pull/615) [`f158a66555bb69710267b43bfaafe499c2f123cd`](https://github.com/ponder-sh/ponder/commit/f158a66555bb69710267b43bfaafe499c2f123cd) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for `tsconfig.json` path aliases using `vite-tsconfig-paths`.
+
 ## 0.2.1
 
 ### Patch Changes
