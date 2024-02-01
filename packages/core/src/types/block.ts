@@ -23,9 +23,9 @@ export type Block = {
   /** Address that received this block’s mining rewards */
   miner: Address;
   /** Unique identifier for the block. */
-  mixHash: Hash;
+  mixHash: Hash | null;
   /** Proof-of-work hash */
-  nonce: Hex;
+  nonce: Hex | null;
   /** Block number */
   number: bigint;
   /** Parent block hash */
