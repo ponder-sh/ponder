@@ -18,8 +18,8 @@ type BlocksTable = {
   hash: Hash;
   logsBloom: Hex;
   miner: Address;
-  mixHash: Hash;
-  nonce: Hex;
+  mixHash: Hash | null;
+  nonce: Hex | null;
   number: bigint;
   parentHash: Hash;
   receiptsRoot: Hex;
@@ -47,8 +47,8 @@ export function rpcToPostgresBlock(
     hash: block.hash!,
     logsBloom: block.logsBloom!,
     miner: toLowerCase(block.miner),
-    mixHash: block.mixHash,
-    nonce: block.nonce!,
+    mixHash: block.mixHash ?? null,
+    nonce: block.nonce ?? null,
     number: BigInt(block.number!),
     parentHash: block.parentHash,
     receiptsRoot: block.receiptsRoot,

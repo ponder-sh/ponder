@@ -409,6 +409,18 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_02_1_0_nullable_block_columns": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("mixHash", (col) => col.dropNotNull())
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("nonce", (col) => col.dropNotNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
