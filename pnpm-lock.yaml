@@ -544,6 +544,9 @@ importers:
       vite-node:
         specifier: ^1.0.2
         version: 1.1.1(@types/node@20.10.6)
+      vite-tsconfig-paths:
+        specifier: ^4.3.1
+        version: 4.3.1(typescript@5.0.4)(vite@5.0.10)
     devDependencies:
       '@types/babel__code-frame':
         specifier: ^7.0.6
@@ -9280,6 +9283,10 @@ packages:
       merge2: 1.4.1
       slash: 4.0.0
 
+  /globrex@0.1.2:
+    resolution: {integrity: sha512-uHJgbwAMwNFf5mLst7IWLNg14x1CkeqglJb/K3doi4dw6q2IvAAmM/Y81kevy83wP+Sst+nutFTYOGg3d1lsxg==}
+    dev: false
+
   /gluegun@5.1.2(debug@4.3.4):
     resolution: {integrity: sha512-Cwx/8S8Z4YQg07a6AFsaGnnnmd8mN17414NcPS3OoDtZRwxgsvwRNJNg69niD6fDa8oNwslCG0xH7rEpRNNE/g==}
     hasBin: true
@@ -15388,6 +15395,19 @@ packages:
       yn: 3.1.1
     dev: true
 
+  /tsconfck@3.0.1(typescript@5.0.4):
+    resolution: {integrity: sha512-7ppiBlF3UEddCLeI1JRx5m2Ryq+xk4JrZuq4EuYXykipebaq1dV0Fhgr1hb7CkmHt32QSgOZlcqVLEtHBG4/mg==}
+    engines: {node: ^18 || >=20}
+    hasBin: true
+    peerDependencies:
+      typescript: ^5.0.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+    dependencies:
+      typescript: 5.0.4
+    dev: false
+
   /tsconfig-paths@3.15.0:
     resolution: {integrity: sha512-2Ac2RgzDe/cn48GvOe3M+o82pEFewD3UPbyoUHHdKasHwJKjds4fLXWf/Ux5kATBKN20oaFGu+jbElp1pos0mg==}
     dependencies:
@@ -16252,6 +16272,23 @@ packages:
       - sugarss
       - supports-color
       - terser
+
+  /vite-tsconfig-paths@4.3.1(typescript@5.0.4)(vite@5.0.10):
+    resolution: {integrity: sha512-cfgJwcGOsIxXOLU/nELPny2/LUD/lcf1IbfyeKTv2bsupVbTH/xpFtdQlBmIP1GEK2CjjLxYhFfB+QODFAx5aw==}
+    peerDependencies:
+      vite: '*'
+    peerDependenciesMeta:
+      vite:
+        optional: true
+    dependencies:
+      debug: 4.3.4(supports-color@8.1.1)
+      globrex: 0.1.2
+      tsconfck: 3.0.1(typescript@5.0.4)
+      vite: 5.0.10(@types/node@20.10.6)
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
+    dev: false
 
   /vite@5.0.10(@types/node@20.10.6):
     resolution: {integrity: sha512-2P8J7WWgmc355HUMlFrwofacvr98DAjoE52BfdbwQtyLH06XKwaL/FMnmKM2crF0iX4MpmMKoDlNCB1ok7zHCw==}
