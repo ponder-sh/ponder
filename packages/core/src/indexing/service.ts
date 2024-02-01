@@ -652,9 +652,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
           },
         });
 
-        // Update tasksProcessedToCheckpoint
         const state = this.indexingFunctionStates[fullEventName];
 
+        // Update tasksProcessedToCheckpoint
         state.tasksProcessedToCheckpoint = checkpointMax(
           state.tasksProcessedToCheckpoint,
           data.checkpoint,
@@ -797,6 +797,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
       isCheckpointGreaterThanOrEqualTo(fromCheckpoint, toCheckpoint)
     ) {
       if (state.lastEventCheckpoint === undefined) {
+        // Note: This is the path for a fully cached indexing function.
+
         state.lastEventCheckpoint = this.syncGatewayService.checkpoint;
 
         this.updateTotalSeconds(key);
@@ -874,26 +876,30 @@ export class IndexingService extends Emittery<IndexingEvents> {
       }
     }
 
-    // Update checkpoints
+    // Update tasksLoadedToCheckpoint
     state.tasksLoadedToCheckpoint = hasNextPage
       ? lastCheckpointInPage
       : toCheckpoint;
 
+    // Update tasksLoadedFromCheckpoint
     if (tasks.length > 0) {
       state.tasksLoadedFromCheckpoint = tasks[0].data.checkpoint;
-      // For logs
+
+      // Add a flag to emit logs and checkpoints
       tasks[tasks.length - 1].data.eventsProcessed = events.length;
+
+      // Update firstEventCheckpoint
+      if (state.firstEventCheckpoint === undefined) {
+        state.firstEventCheckpoint = tasks[0].data.checkpoint;
+      }
     } else {
       state.tasksLoadedFromCheckpoint = state.tasksLoadedToCheckpoint;
     }
 
-    // Set if this is the first event we have loaded for this indexing function.
-    if (state.firstEventCheckpoint === undefined && tasks.length > 0) {
-      state.firstEventCheckpoint = tasks[0].data.checkpoint;
-    }
-
+    // Update lastEventCheckpoint
     if (state.lastEventCheckpoint === undefined) {
       state.lastEventCheckpoint = lastCheckpoint ?? toCheckpoint;
+
       this.logCachedProgress(key);
     } else {
       state.lastEventCheckpoint = checkpointMax(
@@ -928,8 +934,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingFunctionKey: string,
   ) => {
     const state = this.indexingFunctionStates[indexingFunctionKey];
-
-    // Note: use finality checkpoint
 
     const toCheckpoint =
       state.lastEventCheckpoint &&
