@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.2.1
+
+### Patch Changes
+
+- [#611](https://github.com/ponder-sh/ponder/pull/611) [`b1f87f5b18004d971693c0a3e38c8a2c36562811`](https://github.com/ponder-sh/ponder/commit/b1f87f5b18004d971693c0a3e38c8a2c36562811) Thanks [@0xOlias](https://github.com/0xOlias)! - Migrated Postgres chain ID columns to use `int8` rather than `int4`. Now, Postgres should behave the same as SQLite and can safely store chain IDs <= `Number.MAX_SAFE_INTEGER`.
+
+- [#613](https://github.com/ponder-sh/ponder/pull/613) [`b9f5db585ee60572c2286833200564d542981abd`](https://github.com/ponder-sh/ponder/commit/b9f5db585ee60572c2286833200564d542981abd) Thanks [@0xOlias](https://github.com/0xOlias)! - Migrated `"blocks.mixHash"` and `"blocks.nonce"` columns to be nullable in both Postgres and SQLite.
+
 ## 0.2.0
 
 ### Minor Changes
