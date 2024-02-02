@@ -25,7 +25,7 @@ import {
 } from "viem";
 import { isMatchedLogInBloomFilter } from "./bloom.js";
 import { filterLogs } from "./filter.js";
-import { type LightBlock, type RealtimeBlock } from "./format.js";
+import { type RealtimeBlock } from "./format.js";
 
 type RealtimeSyncEvents = {
   realtimeCheckpoint: Checkpoint;
@@ -53,12 +53,18 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private mostRecentBlock: RealtimeBlock = undefined!;
 
   private isProcessingBlock = false;
-  private isQueued = false;
+  private isProcessBlockQueued = false;
+
+  private lastLogsPerBlock = 0;
 
   /** Block number of the current finalized block. */
   private finalizedBlockNumber = 0;
   /** Local representation of the unfinalized portion of the chain. */
-  private blocks: LightBlock[] = [];
+  // TODO: use light blocks
+  private blocks: RealtimeBlock[] = [];
+  private logs: RpcLog[] = [];
+  /** True if blocks is a complete valid chain */
+  private isBlocksComplete = false;
   /** Function to stop polling for new blocks. */
   private unpoll?: () => boolean;
   /** If true, failed tasks should not log errors or be retried. */
@@ -216,47 +222,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
   };
 
-  /**
-   * Helper function for "eth_getBlockByNumber" request.
-   */
-  private _eth_getBlockByNumber = (
-    block: "latest" | "finalized" | Hex | number,
-  ): Promise<RealtimeBlock> =>
-    this.requestQueue
-      .request({
-        method: "eth_getBlockByNumber",
-        params: [typeof block === "number" ? numberToHex(block) : block, true],
-      })
-      .then((block) => {
-        if (!block) throw new BlockNotFoundError({});
-        return block as RealtimeBlock;
-      });
-
-  /**
-   * Helper function for "eth_getLogs" rpc request.
-   *
-   * Note: Consider handline different error types and retry the request if applicable.
-   */
-  private _eth_getLogs = (params: {
-    fromBlock: Hex;
-    toBlock: Hex;
-  }): Promise<RpcLog[]> => {
-    return this.requestQueue.request({
-      method: "eth_getLogs",
-      params: [
-        {
-          fromBlock: params.fromBlock,
-          toBlock: params.toBlock,
-          address: this.address,
-          topics: this.topics,
-        },
-      ],
-    });
-  };
-
   processBlock = async () => {
     if (this.isProcessingBlock) {
-      this.isQueued = true;
+      this.isProcessBlockQueued = true;
       return;
     }
 
@@ -274,11 +242,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         }, error=${`${error.name}: ${error.message}`})`,
         network: this.network.name,
       });
+      // Note: Good spot to throw a fatal error.
     } finally {
       this.isProcessingBlock = false;
 
-      if (this.isQueued) {
-        this.isQueued = false;
+      if (this.isProcessBlockQueued) {
+        this.isProcessBlockQueued = false;
         await this.processBlock();
       }
     }
@@ -303,167 +272,88 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (sync === "traverse") await this.syncTraverse(newBlock);
     else await this.syncBatch(newBlock);
 
-    // 2) This is the new head block (happy path). Yay!
+    // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
+    // and mark data as cached in the store.
     if (
-      newBlock.number === previousHeadBlock.number + 1 &&
-      newBlock.parentHash === previousHeadBlock.hash
+      hexToNumber(newBlock.number) >
+      this.finalizedBlockNumber + 2 * this.network.finalityBlockCount
     ) {
-      // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
-      // and mark data as cached in the store.
-      if (
-        newBlock.number >
-        this.finalizedBlockNumber + 2 * this.network.finalityBlockCount
-      ) {
-        const newFinalizedBlock = this.blocks.find(
-          (block) =>
-            block.number ===
-            this.finalizedBlockNumber + this.network.finalityBlockCount,
-        )!;
+      // if (!blocksReorgSafe)
+      await this.reorgBatch();
 
-        // Remove now-finalized blocks from the local chain (except for the block at newFinalizedBlockNumber).
-        this.blocks = this.blocks.filter(
-          (block) => block.number >= newFinalizedBlock.number,
-        );
+      const newFinalizedBlock = this.blocks.find(
+        (block) =>
+          hexToNumber(block.number) ===
+          this.finalizedBlockNumber + this.network.finalityBlockCount,
+      )!;
 
-        // TODO: Update this to insert:
-        // 1) Log filter intervals
-        // 2) Factory contract intervals
-        // 3) Child filter intervals
-        await this.syncStore.insertRealtimeInterval({
-          chainId: this.network.chainId,
-          logFilters: this.logFilterSources.map((l) => l.criteria),
-          factories: this.factorySources.map((f) => f.criteria),
-          interval: {
-            startBlock: BigInt(this.finalizedBlockNumber + 1),
-            endBlock: BigInt(newFinalizedBlock.number),
-          },
-        });
+      this.blocks = this.blocks.filter(
+        (block) =>
+          hexToNumber(block.number) >= hexToNumber(newFinalizedBlock.number),
+      );
+      this.logs = this.logs.filter(
+        (log) =>
+          hexToNumber(log.blockNumber!) >=
+          hexToNumber(newFinalizedBlock.number),
+      );
 
-        this.finalizedBlockNumber = newFinalizedBlock.number;
+      // TODO: Update this to insert:
+      // 1) Log filter intervals
+      // 2) Factory contract intervals
+      // 3) Child filter intervals
+      await this.syncStore.insertRealtimeInterval({
+        chainId: this.network.chainId,
+        logFilters: this.logFilterSources.map((l) => l.criteria),
+        factories: this.factorySources.map((f) => f.criteria),
+        interval: {
+          startBlock: BigInt(this.finalizedBlockNumber + 1),
+          endBlock: hexToBigInt(newFinalizedBlock.number),
+        },
+      });
 
-        this.emit("finalityCheckpoint", {
-          blockTimestamp: newFinalizedBlock.timestamp,
-          chainId: this.network.chainId,
-          blockNumber: newFinalizedBlock.number,
-        });
+      this.finalizedBlockNumber = hexToNumber(newFinalizedBlock.number);
 
-        this.common.logger.debug({
-          service: "realtime",
-          msg: `Updated finality checkpoint to ${newFinalizedBlock.number} (network=${this.network.name})`,
-        });
-      }
+      this.emit("finalityCheckpoint", {
+        blockTimestamp: hexToNumber(newFinalizedBlock.timestamp),
+        chainId: this.network.chainId,
+        blockNumber: hexToNumber(newFinalizedBlock.number),
+      });
 
       this.common.logger.debug({
         service: "realtime",
-        msg: `Finished syncing new head block ${newBlock.number} (network=${this.network.name})`,
-      });
-
-      return;
-    }
-
-    // 4) There has been a reorg, because:
-    //   a) newBlock.number <= headBlock + 1.
-    //   b) newBlock.hash is not found in our local chain.
-    // which means newBlock is on a fork of our local chain.
-    //
-    // To reconcile, traverse up the remote (canonical) chain until we find the first
-    // block that is present in both chains (the common ancestor block).
-
-    // Store the block objects as we fetch them.
-    // Once we find the common ancestor, we will add these blocks to the queue.
-    const canonicalBlocksWithTransactions = [newBlockWithTransactions];
-
-    // Keep track of the current canonical block
-    let canonicalBlock = newBlock;
-    let depth = 0;
-
-    this.common.logger.warn({
-      service: "realtime",
-      msg: `Detected reorg with forked block (${canonicalBlock.number}, ${canonicalBlock.hash}) (network=${this.network.name})`,
-    });
-
-    while (canonicalBlock.number > this.finalizedBlockNumber) {
-      const commonAncestorBlock = this.blocks.find(
-        (b) => b.hash === canonicalBlock.parentHash,
-      );
-
-      // If the common ancestor block is present in our local chain, this is a short reorg.
-      if (commonAncestorBlock) {
-        this.common.logger.warn({
-          service: "realtime",
-          msg: `Found common ancestor block on local chain at height ${commonAncestorBlock.number} (network=${this.network.name})`,
-        });
-
-        // Remove all non-canonical blocks from the local chain.
-        this.blocks = this.blocks.filter(
-          (block) => block.number <= commonAncestorBlock.number,
-        );
-
-        await this.syncStore.deleteRealtimeData({
-          chainId: this.network.chainId,
-          fromBlock: BigInt(commonAncestorBlock.number),
-        });
-
-        // Clear the queue of all blocks (some might be from the non-canonical chain).
-        // TODO: Figure out if this is indeed required by some edge case.
-        this.queue.clear();
-
-        // Add blocks from the canonical chain (they've already been fetched).
-        for (const block of canonicalBlocksWithTransactions) {
-          const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
-          this.queue.addTask({ block }, { priority });
-        }
-
-        // Also add a new latest block, so we don't have to wait for the next poll to
-        // start fetching any newer blocks on the canonical chain.
-        await this.addNewLatestBlock();
-        this.emit("shallowReorg", {
-          blockTimestamp: commonAncestorBlock.timestamp,
-          chainId: this.network.chainId,
-          blockNumber: commonAncestorBlock.number,
-        });
-
-        this.common.logger.info({
-          service: "realtime",
-          msg: `Reconciled ${depth}-block reorg with common ancestor block ${commonAncestorBlock.number} (network=${this.network.name})`,
-        });
-
-        return;
-      }
-
-      // If the parent block is not present in our local chain, keep traversing up the canonical chain.
-      const parentBlock_ = await this.requestQueue.request({
-        method: "eth_getBlockByHash",
-        params: [canonicalBlock.parentHash, true],
-      });
-
-      if (!parentBlock_)
-        throw new Error(
-          `Failed to fetch parent block with hash: ${canonicalBlock.parentHash}`,
-        );
-
-      canonicalBlocksWithTransactions.unshift(
-        parentBlock_ as BlockWithTransactions,
-      );
-      depth += 1;
-      canonicalBlock = rpcBlockToLightBlock(parentBlock_);
-
-      this.common.logger.warn({
-        service: "realtime",
-        msg: `Fetched canonical block at height ${canonicalBlock.number} while reconciling reorg (network=${this.network.name})`,
+        msg: `Updated finality checkpoint to ${hexToNumber(
+          newFinalizedBlock.number,
+        )} (network=${this.network.name})`,
       });
     }
 
-    // 5) If the common ancestor was not found in our local chain, this is a deep reorg.
-    this.emit("deepReorg", {
-      detectedAtBlockNumber: newBlock.number,
-      minimumDepth: depth,
+    this.common.logger.debug({
+      service: "realtime",
+      msg: `Finished syncing new head block ${newBlock.number} (network=${this.network.name})`,
     });
 
-    this.common.logger.warn({
-      service: "realtime",
-      msg: `Unable to reconcile >${depth}-block reorg (network=${this.network.name})`,
-    });
+    return;
+  };
+
+  /**
+   * Determine whether to sync missing block ranges with individual traversal or batch "eth_getLogs".
+   *
+   * Algorithm depends on:
+   *   number of blocks to sync
+   *   expected event density
+   *   number of sources
+   *   if sources include factories
+   */
+  private determineSyncPath = (
+    newBlock: RealtimeBlock,
+  ): "traverse" | "batch" => {
+    if (this.hasFactorySource) return "batch";
+
+    const numBlocks =
+      hexToNumber(newBlock.number) - hexToNumber(this.mostRecentBlock.number);
+
+    if (numBlocks > 5) return "batch";
+    return "traverse";
   };
 
   private syncTraverse = async (newBlock: RealtimeBlock) => {
@@ -481,10 +371,25 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       );
       newBlocks.push(newBlock);
 
-      // TODO: Check for re-org by checking linked block.parentHash -> block.hash
+      if (newBlocks[0].parentHash !== this.mostRecentBlock.hash) {
+        this.reorgTraverse(newBlocks[0]);
+        // attempt to find parent in local store
+        // if found
+        // shallow re-org
+        // mostRecentBlock = commonAncestor
+        // deleteRealtimeData
+        // re-run this algorithm
+        // ---
+        // if store is complete and not found
+        // deep re-org
+        // continue
+        // if store is not complete and not found
+        // run fallback re-org detection
+      }
 
       const criteria = this.sources.map((s) => s.criteria);
       // Don't attempt to skip "eth_getLogs" if a factory source is present.
+      // Note: this may not be a possible path depending on the implementation of "determineSyncPath".
       const requestLogs = this.hasFactorySource
         ? true
         : newBlocks.some((block) =>
@@ -501,30 +406,34 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           toBlock: numberToHex(newBlockNumber),
         });
 
-        const matchedLogs = await this.getMatchedLogs(logs, newBlock);
+        const matchedLogs = await this.getMatchedLogs(
+          logs,
+          BigInt(newBlockNumber),
+          true,
+        );
 
         // Insert logs + blocks + transactions
         await this.insertRealtimeBlocks(matchedLogs, newBlocks);
-
-        this.emit("realtimeCheckpoint", {
-          blockTimestamp: newBlockTimestamp,
-          chainId: this.network.chainId,
-          blockNumber: newBlockNumber,
-        });
-
-        this.common.metrics.ponder_realtime_latest_block_number.set(
-          { network: this.network.name },
-          newBlockNumber,
-        );
-        this.common.metrics.ponder_realtime_latest_block_timestamp.set(
-          { network: this.network.name },
-          newBlockTimestamp,
-        );
-
-        this.mostRecentBlock = newBlock;
       }
+
+      this.emit("realtimeCheckpoint", {
+        blockTimestamp: newBlockTimestamp,
+        chainId: this.network.chainId,
+        blockNumber: newBlockNumber,
+      });
+
+      this.common.metrics.ponder_realtime_latest_block_number.set(
+        { network: this.network.name },
+        newBlockNumber,
+      );
+      this.common.metrics.ponder_realtime_latest_block_timestamp.set(
+        { network: this.network.name },
+        newBlockTimestamp,
+      );
+
+      this.mostRecentBlock = newBlock;
     } else {
-      // re-org detected
+      this.reorgTraverse(newBlock);
     }
   };
 
@@ -539,7 +448,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       toBlock: numberToHex(newBlockNumber),
     });
 
-    const matchedLogs = await this.getMatchedLogs(logs, newBlock);
+    const matchedLogs = await this.getMatchedLogs(
+      logs,
+      BigInt(newBlockNumber),
+      true,
+    );
 
     // Get blocks
     const missingBlockNumbers = dedupe(
@@ -572,24 +485,105 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.mostRecentBlock = newBlock;
   };
 
-  /**
-   * Determine whether to sync missing block ranges with individual traversal or batch "eth_getLogs".
-   *
-   * Algorithm depends on:
-   *   number of blocks to sync
-   *   expected event density
-   *   number of sources
-   *   if sources include factories
-   */
-  private determineSyncPath = (
-    newBlock: RealtimeBlock,
-  ): "traverse" | "batch" => {
-    const numBlocks =
-      hexToNumber(newBlock.number) - hexToNumber(this.mostRecentBlock.number);
+  private reorgTraverse = async (newBlock: RealtimeBlock) => {
+    const commonAncestor = this.blocks.findLast(
+      (parent) => parent.hash === newBlock.parentHash,
+    );
 
-    if (numBlocks > 5) return "batch";
-    return "traverse";
+    if (commonAncestor !== undefined) {
+      this.emit("shallowReorg", {
+        blockTimestamp: hexToNumber(commonAncestor.timestamp),
+        chainId: this.network.chainId,
+        blockNumber: hexToNumber(commonAncestor.number),
+      });
+
+      this.mostRecentBlock = commonAncestor;
+      // TODO: get rid of blocks and logs in front of this?
+
+      await this.syncStore.deleteRealtimeData({
+        chainId: this.network.chainId,
+        fromBlock: hexToBigInt(commonAncestor.number),
+      });
+
+      // re-run syncTraversal algorithm
+    } else if (this.isBlocksComplete) {
+      // deep re-org
+      this.emit("deepReorg", {
+        // TODO: fix
+        detectedAtBlockNumber: hexToNumber(newBlock.number),
+        minimumDepth: hexToNumber(newBlock.number),
+      });
+    } else {
+      this.reorgBatch();
+    }
+
+    // ---
+    // if store is complete and not found
+    // deep re-org
+    // continue
+    // if store is not complete and not found
+    // run fallback re-org detection
   };
+
+  private reorgBatch = async () => {
+    // fallback re-org detection
+    // call eth_getLogs from finalized - finalizedCount to mostRecentBlock
+    // if divergent, re-org is detected, find common ancestor
+    // keep extra last log to determine shallow re-org or deep re-org
+
+    // Note: toBlock could be mostRecentBlock
+    const logs = await this._eth_getLogs({
+      fromBlock: numberToHex(
+        this.finalizedBlockNumber - this.network.finalityBlockCount,
+      ),
+      toBlock: numberToHex(this.finalizedBlockNumber),
+    });
+
+    const matchedLogs = await this.getMatchedLogs(
+      logs,
+      BigInt(this.finalizedBlockNumber),
+      false,
+    );
+
+    // TODO: determine if local logs are equal to matched logs
+  };
+
+  /**
+   * Helper function for "eth_getBlockByNumber" request.
+   */
+  private _eth_getBlockByNumber = (
+    block: "latest" | "finalized" | Hex | number,
+  ): Promise<RealtimeBlock> =>
+    this.requestQueue
+      .request({
+        method: "eth_getBlockByNumber",
+        params: [typeof block === "number" ? numberToHex(block) : block, true],
+      })
+      .then((block) => {
+        if (!block) throw new BlockNotFoundError({});
+        return block as RealtimeBlock;
+      });
+
+  /**
+   * Helper function for "eth_getLogs" rpc request.
+   *
+   * Note: Consider handline different error types and retry the request if applicable.
+   */
+  private _eth_getLogs = (params: {
+    fromBlock: Hex;
+    toBlock: Hex;
+  }): Promise<RpcLog[]> =>
+    this.requestQueue.request({
+      method: "eth_getLogs",
+      params: [
+        {
+          fromBlock: params.fromBlock,
+          toBlock: params.toBlock,
+          address: this.address,
+          topics: [this.topics],
+        },
+      ],
+    });
 
   private insertRealtimeBlocks = async (
     logs: RpcLog[],
@@ -623,11 +617,15 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         )} (network=${this.network.name})`,
       });
     }
+
+    this.logs.push(...logs);
+    this.blocks.push(...blocks);
   };
 
   private getMatchedLogs = async (
     logs: RpcLog[],
-    newBlock: RealtimeBlock,
+    toBlockNumber: bigint,
+    insertChildAddress: boolean,
   ): Promise<RpcLog[]> => {
     if (this.hasFactorySource) {
       // Find and insert any new child contracts.
@@ -638,10 +636,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           topics: [fs.criteria.eventSelector],
         })),
       });
-      await this.syncStore.insertFactoryChildAddressLogs({
-        chainId: this.network.chainId,
-        logs: matchedFactoryLogs,
-      });
+
+      if (insertChildAddress) {
+        await this.syncStore.insertFactoryChildAddressLogs({
+          chainId: this.network.chainId,
+          logs: matchedFactoryLogs,
+        });
+      }
 
       // Find any logs matching log filters or child contract filters.
       // NOTE: It might make sense to just insert all logs rather than introduce
@@ -654,7 +655,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           const iterator = this.syncStore.getFactoryChildAddresses({
             chainId: this.network.chainId,
             factory: factory.criteria,
-            upToBlockNumber: hexToBigInt(newBlock.number),
+            upToBlockNumber: toBlockNumber,
           });
           const childContractAddresses: Address[] = [];
           for await (const batch of iterator) {
