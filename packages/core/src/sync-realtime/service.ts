@@ -255,7 +255,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   private blockHandler = async (newBlock: RealtimeBlock) => {
     // We already saw and handled this block. No-op.
-    // Note: Need to handle blocks getting removed from chain tip.
     if (this.mostRecentBlock.hash === newBlock.hash) {
       this.common.logger.trace({
         service: "realtime",
@@ -329,20 +328,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.common.logger.debug({
       service: "realtime",
-      msg: `Finished syncing new head block ${newBlock.number} (network=${this.network.name})`,
+      msg: `Finished syncing new head block ${hexToNumber(
+        newBlock.number,
+      )} (network=${this.network.name})`,
     });
-
-    return;
   };
 
   /**
    * Determine whether to sync missing block ranges with individual traversal or batch "eth_getLogs".
    *
    * Algorithm depends on:
-   *   number of blocks to sync
-   *   expected event density
-   *   number of sources
    *   if sources include factories
+   *   number of blocks to sync
+   *   expected logs per block
    */
   private determineSyncPath = (
     newBlock: RealtimeBlock,
@@ -352,8 +350,17 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const numBlocks =
       hexToNumber(newBlock.number) - hexToNumber(this.mostRecentBlock.number);
 
-    if (numBlocks > 5) return "batch";
-    return "traverse";
+    // Probability of a log in a block
+    const pLog = Math.min(this.lastLogsPerBlock, 1);
+
+    const costBatch = 2 * 75 + 16 * numBlocks * pLog;
+
+    // Probability of no logs in the range of blocks
+    const pNoLogs = (1 - pLog) ** numBlocks;
+    const costTraverse = 16 * numBlocks + 75 * (1 - pNoLogs);
+
+    if (costBatch > costTraverse) return "traverse";
+    else return "batch";
   };
 
   private syncTraverse = async (newBlock: RealtimeBlock) => {
@@ -509,7 +516,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     } else if (this.isBlocksComplete) {
       // deep re-org
       this.emit("deepReorg", {
-        // TODO: fix
+        // TODO: use real values
         detectedAtBlockNumber: hexToNumber(newBlock.number),
         minimumDepth: hexToNumber(newBlock.number),
       });
@@ -620,6 +627,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.logs.push(...logs);
     this.blocks.push(...blocks);
+
+    this.lastLogsPerBlock = this.logs.length / this.blocks.length;
   };
 
   private getMatchedLogs = async (
