@@ -334,6 +334,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   /**
    * Determine which sync algorithm to use.
+   *
+   * https://www.desmos.com/calculator/y5307ombh8.
    */
   private determineSyncPath = (
     newBlock: RealtimeBlock,
