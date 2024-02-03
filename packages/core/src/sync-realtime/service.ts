@@ -68,8 +68,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   /** Local representation of the unfinalized portion of the chain. */
   private blocks: LightBlock[] = [];
   private logs: LightLog[] = [];
-  /** True if blocks is a complete valid chain */
-  private isBlocksComplete = false;
   /** Function to stop polling for new blocks. */
   private unpoll?: () => boolean;
   /** If true, failed tasks should not log errors or be retried. */
@@ -272,7 +270,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     const sync = this.determineSyncPath(newBlock);
-
     if (sync === "traverse") await this.syncTraverse(newBlock);
     else await this.syncBatch(newBlock);
 
@@ -282,8 +279,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       hexToNumber(newBlock.number) >
       this.finalizedBlockNumber + 2 * this.network.finalityBlockCount
     ) {
-      // if (!blocksReorgSafe)
-      await this.reorgBatch();
+      if (!this.isBlocksComplete()) {
+        await this.reorgBatch(hexToNumber(newBlock.number));
+      }
 
       const newFinalizedBlock = this.blocks.find(
         (block) =>
@@ -295,7 +293,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         (block) => block.number >= newFinalizedBlock.number,
       );
       this.logs = this.logs.filter(
-        (log) => log.blockNumber! >= newFinalizedBlock.number,
+        (log) => log.blockNumber >= newFinalizedBlock.number,
       );
 
       // TODO: Update this to insert:
@@ -335,12 +333,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   /**
-   * Determine whether to sync missing block ranges with individual traversal or batch "eth_getLogs".
-   *
-   * Algorithm depends on:
-   *   if sources include factories
-   *   number of blocks to sync
-   *   expected logs per block
+   * Determine which sync algorithm to use.
    */
   private determineSyncPath = (
     newBlock: RealtimeBlock,
@@ -378,19 +371,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       newBlocks.push(newBlock);
 
       if (newBlocks[0].parentHash !== this.mostRecentBlock.hash) {
-        this.reorgTraverse(newBlocks[0]);
-        // attempt to find parent in local store
-        // if found
-        // shallow re-org
-        // mostRecentBlock = commonAncestor
-        // deleteRealtimeData
-        // re-run this algorithm
-        // ---
-        // if store is complete and not found
-        // deep re-org
-        // continue
-        // if store is not complete and not found
-        // run fallback re-org detection
+        await this.reorgTraverse(newBlocks[0], hexToNumber(newBlock.number));
       }
 
       const criteria = this.sources.map((s) => s.criteria);
@@ -439,7 +420,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       this.mostRecentBlock = realtimeBlockToLightBlock(newBlock);
     } else {
-      this.reorgTraverse(newBlock);
+      await this.reorgTraverse(newBlock, hexToNumber(newBlock.number));
     }
   };
 
@@ -493,7 +474,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   /**
    * Attempt to reconcile re-org using only local blocks.
    */
-  private reorgTraverse = async (newBlock: RealtimeBlock) => {
+  private reorgTraverse = async (
+    newBlock: RealtimeBlock,
+    latestBlockNumber: number,
+  ) => {
     const commonAncestor = this.blocks.findLast(
       (parent) => parent.hash === newBlock.parentHash,
     );
@@ -519,36 +503,21 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         chainId: this.network.chainId,
         fromBlock: BigInt(commonAncestor.number),
       });
-
-      // re-run syncTraversal algorithm
-    } else if (this.isBlocksComplete) {
-      // deep re-org
+    } else if (this.isBlocksComplete()) {
       this.emit("deepReorg", {
-        // TODO: use real values
-        detectedAtBlockNumber: hexToNumber(newBlock.number),
-        minimumDepth: hexToNumber(newBlock.number),
+        detectedAtBlockNumber: latestBlockNumber,
+        minimumDepth: latestBlockNumber - this.blocks[0].number,
       });
+      // TODO: what to do with local logs and blocks
     } else {
-      this.reorgBatch();
+      await this.reorgBatch(latestBlockNumber);
     }
-
-    // ---
-    // if store is complete and not found
-    // deep re-org
-    // continue
-    // if store is not complete and not found
-    // run fallback re-org detection
   };
 
   /**
    * Reconcile re-org by comparing "eth_getLogs" to local logs.
    */
-  private reorgBatch = async () => {
-    // fallback re-org detection
-    // call eth_getLogs from finalized - finalizedCount to mostRecentBlock
-    // if divergent, re-org is detected, find common ancestor
-    // keep extra last log to determine shallow re-org or deep re-org
-
+  private reorgBatch = async (latestBlockNumber: number) => {
     // Note: toBlock could be mostRecentBlock
     const logs = await this._eth_getLogs({
       fromBlock: numberToHex(
@@ -563,7 +532,46 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       false,
     );
 
-    // TODO: determine if local logs are equal to matched logs
+    const localLogs = this.logs.filter(
+      (log) => log.blockNumber <= this.finalizedBlockNumber,
+    );
+
+    for (let i = 0; i < matchedLogs.length; i++) {
+      const lightMatchedLog = realtimeLogToLightLog(matchedLogs[i]);
+      if (lightMatchedLog.blockHash !== localLogs[i].blockHash) {
+        if (i === 0) {
+          this.emit("deepReorg", {
+            detectedAtBlockNumber: latestBlockNumber,
+            minimumDepth: latestBlockNumber - this.blocks[0].number,
+          });
+          // TODO: what to do with local logs and blocks
+        } else {
+          const ancestorBlockHash = localLogs[i - 1].blockHash;
+          const commonAncestor = this.blocks.find(
+            (block) => block.hash === ancestorBlockHash,
+          )!;
+          this.emit("shallowReorg", {
+            blockTimestamp: commonAncestor.timestamp,
+            chainId: this.network.chainId,
+            blockNumber: commonAncestor.number,
+          });
+
+          this.mostRecentBlock = commonAncestor;
+
+          this.blocks = this.blocks.filter(
+            (block) => block.number <= commonAncestor.number,
+          );
+          this.logs = this.logs.filter(
+            (log) => log.blockNumber <= commonAncestor.number,
+          );
+
+          await this.syncStore.deleteRealtimeData({
+            chainId: this.network.chainId,
+            fromBlock: BigInt(commonAncestor.number),
+          });
+        }
+      }
+    }
   };
 
   /**
@@ -701,5 +709,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         logFilters: this.sources.map((s) => s.criteria),
       });
     }
+  };
+
+  /** Returns true if "blocks" is not missing any blocks from tip to "finalizedBlockNumber". */
+  private isBlocksComplete = (): boolean => {
+    for (let i = this.blocks.length - 1; i > 1; i--) {
+      if (this.blocks[i].parentHash !== this.blocks[i - 1].hash) return false;
+      if (this.blocks[i - 1].number === this.finalizedBlockNumber) break;
+    }
+    return true;
   };
 }
