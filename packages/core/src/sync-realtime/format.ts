@@ -1,10 +1,22 @@
-import type { BlockTag, RpcBlock } from "viem";
+import {
+  type Block,
+  type BlockTag,
+  type Hex,
+  type Log,
+  type RpcBlock,
+  hexToNumber,
+} from "viem";
 
 export type RealtimeBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
+export type RealtimeLog = Log<Hex, Hex, false>;
 
 export type LightBlock = Pick<
-  RealtimeBlock,
+  Block<number, boolean, Exclude<BlockTag, "pending">>,
   "hash" | "parentHash" | "number" | "timestamp"
+>;
+export type LightLog = Pick<
+  Log<number, Hex, false>,
+  "blockHash" | "blockNumber"
 >;
 
 export const realtimeBlockToLightBlock = ({
@@ -15,6 +27,14 @@ export const realtimeBlockToLightBlock = ({
 }: RealtimeBlock): LightBlock => ({
   hash,
   parentHash,
-  number,
-  timestamp,
+  number: hexToNumber(number),
+  timestamp: hexToNumber(timestamp),
+});
+
+export const realtimeLogToLightLog = ({
+  blockHash,
+  blockNumber,
+}: RealtimeLog): LightLog => ({
+  blockHash,
+  blockNumber: hexToNumber(blockNumber),
 });
