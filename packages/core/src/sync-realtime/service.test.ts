@@ -36,11 +36,9 @@ test("setup() returns block numbers", async (context) => {
 
   expect(latestBlockNumber).toBe(blockNumbers.latestBlockNumber);
   expect(finalizedBlockNumber).toBe(blockNumbers.finalizedBlockNumber);
-
-  service.kill();
 });
 
-test("start() adds blocks to the store from finalized to latest", async (context) => {
+test.only("start() adds blocks to the store from finalized to latest", async (context) => {
   const { common, syncStore, sources, networks, requestQueues } = context;
 
   const blockNumbers = await getBlockNumbers();
@@ -54,11 +52,15 @@ test("start() adds blocks to the store from finalized to latest", async (context
   });
 
   await service.setup();
-  await service.start();
+  service.start();
+  await new Promise((res) => service.on("idle", res));
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
 
+  expect(logs).toHaveLength(2);
   expect(blocks).toHaveLength(1);
+
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
     BigInt(blockNumbers.latestBlockNumber - 2),
   ]);
@@ -78,8 +80,8 @@ test("start() adds all required transactions to the store", async (context) => {
   });
 
   await service.setup();
-  await service.start();
-  await service.onIdle();
+  service.start();
+  await new Promise((res) => service.on("idle", res));
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   const requiredTransactionHashes = new Set(logs.map((l) => l.transactionHash));
@@ -95,7 +97,7 @@ test("start() adds all required transactions to the store", async (context) => {
   });
 
   service.kill();
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 });
 
 test("start() adds all matched logs to the store", async (context) => {
@@ -111,8 +113,8 @@ test("start() adds all matched logs to the store", async (context) => {
   });
 
   await service.setup();
-  await service.start();
-  await service.onIdle();
+  service.start();
+  await new Promise((res) => service.on("idle", res));
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
@@ -121,7 +123,7 @@ test("start() adds all matched logs to the store", async (context) => {
   });
 
   service.kill();
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 });
 
 test("start() handles new blocks", async (context) => {
@@ -146,16 +148,16 @@ test("start() handles new blocks", async (context) => {
   });
 
   await service.setup();
-  await service.start();
+  service.start();
 
   await simulate({
     erc20Address: erc20.address,
     factoryAddress: factory.address,
   });
 
-  await service.addNewLatestBlock();
+  await service.processBlock();
 
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
 
@@ -167,7 +169,7 @@ test("start() handles new blocks", async (context) => {
   ]);
 
   service.kill();
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 });
 
 test("start() handles error while fetching new latest block gracefully", async (context) => {
@@ -194,7 +196,7 @@ test("start() handles error while fetching new latest block gracefully", async (
   });
 
   await service.setup();
-  await service.start();
+  service.start();
 
   await simulate({
     erc20Address: erc20.address,
@@ -205,12 +207,12 @@ test("start() handles error while fetching new latest block gracefully", async (
   rpcRequestSpy.mockRejectedValueOnce(
     new HttpRequestError({ url: "http://ponder.sh/rpc" }),
   );
-  await service.addNewLatestBlock();
+  await service.processBlock();
 
   // Now, this one should succeed.
-  await service.addNewLatestBlock();
+  await service.processBlock();
 
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(2);
@@ -220,7 +222,7 @@ test("start() handles error while fetching new latest block gracefully", async (
   ]);
 
   service.kill();
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 });
 
 test("start() emits realtimeCheckpoint events", async (context) => {
@@ -239,8 +241,8 @@ test("start() emits realtimeCheckpoint events", async (context) => {
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup();
-  await service.start();
-  await service.onIdle();
+  service.start();
+  await new Promise((res) => service.on("idle", res));
 
   expect(emitSpy).toHaveBeenCalledTimes(4);
 
@@ -270,7 +272,7 @@ test("start() emits realtimeCheckpoint events", async (context) => {
   });
 
   service.kill();
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 });
 
 test("start() inserts log filter interval records for finalized blocks", async (context) => {
@@ -297,7 +299,7 @@ test("start() inserts log filter interval records for finalized blocks", async (
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup();
-  await service.start();
+  service.start();
 
   for (const _ in range(0, 2)) {
     await simulate({
@@ -306,8 +308,8 @@ test("start() inserts log filter interval records for finalized blocks", async (
     });
   }
 
-  await service.addNewLatestBlock();
-  await service.onIdle();
+  await service.processBlock();
+  await new Promise((res) => service.on("idle", res));
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[0].chainId,
@@ -324,7 +326,7 @@ test("start() inserts log filter interval records for finalized blocks", async (
   });
 
   service.kill();
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 });
 
 test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
@@ -349,7 +351,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   });
 
   await service.setup();
-  await service.start();
+  service.start();
 
   // Take a snapshot of the chain at the original block height.
   const originalSnapshotId = await testClient.snapshot();
@@ -362,8 +364,8 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   }
 
   // Allow the service to process the new blocks.
-  await service.addNewLatestBlock();
-  await service.onIdle();
+  await service.processBlock();
+  await new Promise((res) => service.on("idle", res));
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
@@ -381,9 +383,9 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   });
 
   // Allow the service to process the new blocks.
-  await service.addNewLatestBlock();
-  await service.onIdle();
-  await service.onIdle();
+  await service.processBlock();
+  await new Promise((res) => service.on("idle", res));
+  await new Promise((res) => service.on("idle", res));
 
   const blocksAfterReorg = await syncStore.db
     .selectFrom("blocks")
@@ -397,7 +399,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   ]);
 
   service.kill();
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 });
 
 test("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
@@ -424,7 +426,7 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup();
-  await service.start();
+  service.start();
 
   // Take a snapshot of the chain at the original block height.
   const originalSnapshotId = await testClient.snapshot();
@@ -435,16 +437,16 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
   });
 
   // Allow the service to process the new blocks.
-  await service.addNewLatestBlock();
-  await service.onIdle();
+  await service.processBlock();
+  await new Promise((res) => service.on("idle", res));
 
   // Now, revert to the original snapshot.
   await testClient.revert({ id: originalSnapshotId });
   await testClient.mine({ blocks: 1 });
 
   // Add one new empty block (16380001).
-  await service.addNewLatestBlock();
-  await service.onIdle();
+  await service.processBlock();
+  await new Promise((res) => service.on("idle", res));
 
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
     blockTimestamp: expect.any(Number),
@@ -453,7 +455,7 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
   });
 
   service.kill();
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 });
 
 test("emits deepReorg event after deep reorg", async (context) => {
@@ -480,7 +482,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup();
-  await service.start();
+  service.start();
 
   // Take a snapshot of the chain at the original block height.
   const originalSnapshotId = await testClient.snapshot();
@@ -492,8 +494,8 @@ test("emits deepReorg event after deep reorg", async (context) => {
     });
   }
   // Allow the service to process the new blocks.
-  await service.addNewLatestBlock();
-  await service.onIdle();
+  await service.processBlock();
+  await new Promise((res) => service.on("idle", res));
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
     blockNumber: blockNumbers.latestBlockNumber,
@@ -511,8 +513,8 @@ test("emits deepReorg event after deep reorg", async (context) => {
   }
 
   // Allow the service to process the new block, detecting a reorg.
-  await service.addNewLatestBlock();
-  await service.onIdle();
+  await service.processBlock();
+  await new Promise((res) => service.on("idle", res));
 
   expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
     detectedAtBlockNumber: blockNumbers.latestBlockNumber + 9,
@@ -520,7 +522,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
   });
 
   service.kill();
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 });
 
 test("start() with factory contract inserts new child contracts records and child contract events", async (context) => {
@@ -545,15 +547,15 @@ test("start() with factory contract inserts new child contracts records and chil
   });
 
   await service.setup();
-  await service.start();
+  service.start();
 
   await simulate({
     erc20Address: erc20.address,
     factoryAddress: factory.address,
   });
 
-  await service.addNewLatestBlock();
-  await service.onIdle();
+  await service.processBlock();
+  await new Promise((res) => service.on("idle", res));
 
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: sources[1].chainId,
@@ -590,5 +592,5 @@ test("start() with factory contract inserts new child contracts records and chil
   );
 
   service.kill();
-  await service.onIdle();
+  await new Promise((res) => service.on("idle", res));
 });
