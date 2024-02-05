@@ -38,8 +38,9 @@ test("setup() returns block numbers", async (context) => {
   expect(finalizedBlockNumber).toBe(blockNumbers.finalizedBlockNumber);
 });
 
-test("start() adds blocks to the store from finalized to latest", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues } = context;
+test("start() sync realtime data with traversal method", async (context) => {
+  const { common, syncStore, sources, networks, requestQueues, erc20 } =
+    context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -51,46 +52,34 @@ test("start() adds blocks to the store from finalized to latest", async (context
     sources: [sources[0]],
   });
 
+  const spy = vi.spyOn(service, "determineSyncPath");
+
   await service.setup();
   service.start();
   service.processBlock();
   await service.onIdle();
+
+  expect(spy).toHaveReturnedWith("traverse");
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
-
-  expect(blocks).toHaveLength(1);
-  expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
-    BigInt(blockNumbers.latestBlockNumber - 2),
-  ]);
-
-  service.kill();
-});
-
-test("start() adds all required transactions to the store", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues } = context;
-
-  const service = new RealtimeSyncService({
-    common,
-    syncStore,
-    network: networks[0],
-    requestQueue: requestQueues[0],
-    sources: [sources[0]],
-  });
-
-  await service.setup();
-  service.start();
-  service.processBlock();
-  await service.onIdle();
-
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
-  const requiredTransactionHashes = new Set(logs.map((l) => l.transactionHash));
-
   const transactions = await syncStore.db
     .selectFrom("transactions")
     .selectAll()
     .execute();
 
+  const requiredTransactionHashes = new Set(logs.map((l) => l.transactionHash));
+
+  expect(blocks).toHaveLength(1);
   expect(transactions.length).toEqual(requiredTransactionHashes.size);
+  expect(logs).toHaveLength(2);
+
+  expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
+    BigInt(blockNumbers.latestBlockNumber - 2),
+  ]);
+  logs.forEach((log) => {
+    expect(log.address).toEqual(erc20.address);
+  });
   transactions.forEach((transaction) => {
     expect(requiredTransactionHashes.has(transaction.hash)).toEqual(true);
   });
@@ -98,42 +87,9 @@ test("start() adds all required transactions to the store", async (context) => {
   service.kill();
 });
 
-test("start() adds all matched logs to the store", async (context) => {
-  const { common, syncStore, networks, requestQueues, sources, erc20 } =
+test("start() sync realtime data with batch method", async (context) => {
+  const { common, syncStore, sources, networks, requestQueues, erc20 } =
     context;
-
-  const service = new RealtimeSyncService({
-    common,
-    syncStore,
-    network: networks[0],
-    requestQueue: requestQueues[0],
-    sources: [sources[0]],
-  });
-
-  await service.setup();
-  service.start();
-  service.processBlock();
-  await service.onIdle();
-
-  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
-  expect(logs).toHaveLength(2);
-  logs.forEach((log) => {
-    expect(log.address).toEqual(erc20.address);
-  });
-
-  service.kill();
-});
-
-test("start() handles new blocks", async (context) => {
-  const {
-    common,
-    syncStore,
-    sources,
-    networks,
-    requestQueues,
-    erc20,
-    factory,
-  } = context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -145,25 +101,40 @@ test("start() handles new blocks", async (context) => {
     sources: [sources[0]],
   });
 
+  const spy = vi.spyOn(service, "determineSyncPath");
+
   await service.setup();
   service.start();
 
-  await simulate({
-    erc20Address: erc20.address,
-    factoryAddress: factory.address,
-  });
+  await testClient.mine({ blocks: 8 });
 
   service.processBlock();
   await service.onIdle();
 
-  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+  expect(spy).toHaveReturnedWith("batch");
 
-  expect(blocks).toHaveLength(2);
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
+  const transactions = await syncStore.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+
+  const requiredTransactionHashes = new Set(logs.map((l) => l.transactionHash));
+
+  expect(blocks).toHaveLength(1);
+  expect(transactions.length).toEqual(requiredTransactionHashes.size);
+  expect(logs).toHaveLength(2);
 
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
     BigInt(blockNumbers.latestBlockNumber - 2),
-    BigInt(blockNumbers.latestBlockNumber + 1),
   ]);
+  logs.forEach((log) => {
+    expect(log.address).toEqual(erc20.address);
+  });
+  transactions.forEach((transaction) => {
+    expect(requiredTransactionHashes.has(transaction.hash)).toEqual(true);
+  });
 
   service.kill();
 });
@@ -305,7 +276,7 @@ test("start() inserts log filter interval records for finalized blocks", async (
   service.kill();
 });
 
-test.skip("start() deletes data from the store after 3 block shallow reorg", async (context) => {
+test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
   const {
     common,
     syncStore,
@@ -341,7 +312,7 @@ test.skip("start() deletes data from the store after 3 block shallow reorg", asy
 
   // Allow the service to process the new blocks.
   await service.processBlock();
-  await new Promise((res) => service.on("idle", res));
+  await service.onIdle();
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
@@ -360,8 +331,7 @@ test.skip("start() deletes data from the store after 3 block shallow reorg", asy
 
   // Allow the service to process the new blocks.
   await service.processBlock();
-  await new Promise((res) => service.on("idle", res));
-  await new Promise((res) => service.on("idle", res));
+  await service.onIdle();
 
   const blocksAfterReorg = await syncStore.db
     .selectFrom("blocks")
@@ -375,63 +345,6 @@ test.skip("start() deletes data from the store after 3 block shallow reorg", asy
   ]);
 
   service.kill();
-  await new Promise((res) => service.on("idle", res));
-});
-
-test.skip("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
-  const {
-    common,
-    syncStore,
-    sources,
-    networks,
-    requestQueues,
-    erc20,
-    factory,
-  } = context;
-
-  const blockNumbers = await getBlockNumbers();
-
-  const service = new RealtimeSyncService({
-    common,
-    syncStore,
-    network: networks[0],
-    requestQueue: requestQueues[0],
-    sources: [sources[0]],
-  });
-
-  const emitSpy = vi.spyOn(service, "emit");
-
-  await service.setup();
-  service.start();
-
-  // Take a snapshot of the chain at the original block height.
-  const originalSnapshotId = await testClient.snapshot();
-
-  await simulate({
-    erc20Address: erc20.address,
-    factoryAddress: factory.address,
-  });
-
-  // Allow the service to process the new blocks.
-  await service.processBlock();
-  await new Promise((res) => service.on("idle", res));
-
-  // Now, revert to the original snapshot.
-  await testClient.revert({ id: originalSnapshotId });
-  await testClient.mine({ blocks: 1 });
-
-  // Add one new empty block (16380001).
-  await service.processBlock();
-  await new Promise((res) => service.on("idle", res));
-
-  expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
-    blockTimestamp: expect.any(Number),
-    blockNumber: blockNumbers.latestBlockNumber,
-    chainId: 1,
-  });
-
-  service.kill();
-  await new Promise((res) => service.on("idle", res));
 });
 
 test.skip("emits deepReorg event after deep reorg", async (context) => {

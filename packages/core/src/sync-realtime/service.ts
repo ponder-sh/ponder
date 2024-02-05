@@ -125,6 +125,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   setup = async () => {
     // Initialize state variables. Required when restarting the service.
     this.blocks = [];
+    this.logs = [];
 
     // Fetch the latest block, and remote chain Id for the network.
     let latestBlock: RealtimeBlock;
@@ -170,6 +171,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     );
 
     this.finalizedBlockNumber = finalizedBlockNumber;
+
+    const finalizedBlock =
+      await this._eth_getBlockByNumber(finalizedBlockNumber);
+
+    this.blocks.push(realtimeBlockToLightBlock(finalizedBlock));
 
     return { latestBlockNumber, finalizedBlockNumber };
   };
@@ -224,8 +230,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   onIdle = () => {
+    if (!this.isProcessingBlock) return Promise.resolve();
+
     return new Promise<void>((res) => {
-      if (this.isProcessingBlock === false) res();
       this.on("idle", res);
     });
   };
@@ -346,9 +353,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   /**
    * Determine which sync algorithm to use.
    */
-  private determineSyncPath = (
-    newBlock: RealtimeBlock,
-  ): "traverse" | "batch" => {
+  determineSyncPath = (newBlock: RealtimeBlock): "traverse" | "batch" => {
     const latestBlock = this.getLatestLocalBlock();
 
     if (this.hasFactorySource) return "batch";
@@ -362,7 +367,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const batchCost =
       75 +
       16 * numBlocks * pLog +
-      75 * Math.max(numBlocks, numBlocks / this.network.finalityBlockCount);
+      75 * Math.min(1, numBlocks / this.network.finalityBlockCount);
 
     // Probability of no logs in the range of blocks
     const pNoLogs = (1 - pLog) ** numBlocks;
@@ -433,6 +438,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       );
     } else {
       await this.reorgTraverse(newBlock, hexToNumber(newBlock.number));
+      // await this.processBlock();
     }
   };
 
@@ -560,6 +566,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             minimumDepth: latestBlockNumber - this.blocks[0].number,
           });
           // TODO: what to do with local logs and blocks
+
+          return;
         } else {
           const ancestorBlockHash = localLogs[i - 1].blockHash;
           const commonAncestor = this.blocks.find(
@@ -583,6 +591,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             chainId: this.network.chainId,
             blockNumber: commonAncestor.number,
           });
+
+          return;
         }
       }
     }
