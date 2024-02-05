@@ -37,7 +37,6 @@ type RealtimeSyncEvents = {
   finalityCheckpoint: Checkpoint;
   shallowReorg: Checkpoint;
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
-  // TODO: Might be a mistake to have this
   idle: undefined;
 };
 
@@ -204,6 +203,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return;
     }
 
+    // TODO: fetch finalized block?
+
     // TODO: Subscriptions
     this.unpoll = poll(
       async () => {
@@ -222,11 +223,20 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
   };
 
+  onIdle = () => {
+    return new Promise<void>((res) => {
+      if (this.isProcessingBlock === false) res();
+      this.on("idle", res);
+    });
+  };
+
   processBlock = async () => {
     if (this.isProcessingBlock) {
       this.isProcessBlockQueued = true;
       return;
     }
+
+    this.isProcessingBlock = true;
 
     try {
       const block = await this._eth_getBlockByNumber("latest");
@@ -284,9 +294,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         await this.reorgBatch(hexToNumber(newBlock.number));
       }
 
-      const newFinalizedBlock = this.blocks.find(
+      const newFinalizedBlock = this.blocks.findLast(
         (block) =>
-          block.number ===
+          block.number <
           this.finalizedBlockNumber + this.network.finalityBlockCount,
       )!;
 
@@ -521,12 +531,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    * Reconcile re-org by comparing "eth_getLogs" to local logs.
    */
   private reorgBatch = async (latestBlockNumber: number) => {
-    // Note: toBlock could be mostRecentBlock
+    // Note: toBlock could be latestBlock
     const logs = await this._eth_getLogs({
-      fromBlock: numberToHex(
-        this.finalizedBlockNumber - this.network.finalityBlockCount,
+      fromBlock: numberToHex(this.finalizedBlockNumber),
+      toBlock: numberToHex(
+        this.finalizedBlockNumber + this.network.finalityBlockCount,
       ),
-      toBlock: numberToHex(this.finalizedBlockNumber),
     });
 
     const matchedLogs = await this.getMatchedLogs(
@@ -536,7 +546,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     );
 
     const localLogs = this.logs.filter(
-      (log) => log.blockNumber <= this.finalizedBlockNumber,
+      (log) =>
+        log.blockNumber <=
+        this.finalizedBlockNumber + this.network.finalityBlockCount,
     );
 
     for (let i = 0; i < matchedLogs.length; i++) {
@@ -716,12 +728,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
   };
 
-  /** Returns true if "blocks" is not missing any blocks from tip to "finalizedBlockNumber". */
-  // Note: I don't think this is testing the correct range.
+  /** Returns true if "blocks" has a valid chain of block.parentHash to block.hash. */
   private isLocalChainConsistent = (): boolean => {
     for (let i = this.blocks.length - 1; i > 1; i--) {
       if (this.blocks[i].parentHash !== this.blocks[i - 1].hash) return false;
-      if (this.blocks[i - 1].number === this.finalizedBlockNumber) break;
     }
     return true;
   };
