@@ -245,6 +245,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       if (this.isShuttingDown) return;
       const error = error_ as Error;
 
+      console.log(error);
+
       this.common.logger.warn({
         service: "realtime",
         msg: `Realtime sync task failed (network=${
@@ -306,41 +308,43 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       const newFinalizedBlock = this.blocks.findLast(
         (block) =>
           block.number <= latestBlockNumber - this.network.finalityBlockCount,
-      )!;
-
-      this.blocks = this.blocks.filter(
-        (block) => block.number > newFinalizedBlock.number,
-      );
-      this.logs = this.logs.filter(
-        (log) => log.blockNumber > newFinalizedBlock.number,
       );
 
-      // TODO: Update this to insert:
-      // 1) Log filter intervals
-      // 2) Factory contract intervals
-      // 3) Child filter intervals
-      await this.syncStore.insertRealtimeInterval({
-        chainId: this.network.chainId,
-        logFilters: this.logFilterSources.map((l) => l.criteria),
-        factories: this.factorySources.map((f) => f.criteria),
-        interval: {
-          startBlock: BigInt(this.finalizedBlockNumber + 1),
-          endBlock: BigInt(newFinalizedBlock.number),
-        },
-      });
+      if (newFinalizedBlock) {
+        this.blocks = this.blocks.filter(
+          (block) => block.number > newFinalizedBlock.number,
+        );
+        this.logs = this.logs.filter(
+          (log) => log.blockNumber > newFinalizedBlock.number,
+        );
 
-      this.finalizedBlockNumber = newFinalizedBlock.number;
+        // TODO: Update this to insert:
+        // 1) Log filter intervals
+        // 2) Factory contract intervals
+        // 3) Child filter intervals
+        await this.syncStore.insertRealtimeInterval({
+          chainId: this.network.chainId,
+          logFilters: this.logFilterSources.map((l) => l.criteria),
+          factories: this.factorySources.map((f) => f.criteria),
+          interval: {
+            startBlock: BigInt(this.finalizedBlockNumber + 1),
+            endBlock: BigInt(newFinalizedBlock.number),
+          },
+        });
 
-      this.emit("finalityCheckpoint", {
-        blockTimestamp: newFinalizedBlock.timestamp,
-        chainId: this.network.chainId,
-        blockNumber: newFinalizedBlock.number,
-      });
+        this.finalizedBlockNumber = newFinalizedBlock.number;
 
-      this.common.logger.debug({
-        service: "realtime",
-        msg: `Updated finality checkpoint to ${newFinalizedBlock.number} (network=${this.network.name})`,
-      });
+        this.emit("finalityCheckpoint", {
+          blockTimestamp: newFinalizedBlock.timestamp,
+          chainId: this.network.chainId,
+          blockNumber: newFinalizedBlock.number,
+        });
+
+        this.common.logger.debug({
+          service: "realtime",
+          msg: `Updated finality checkpoint to ${newFinalizedBlock.number} (network=${this.network.name})`,
+        });
+      }
     }
 
     if (syncedData)
