@@ -54,7 +54,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private logFilterSources: LogFilter[];
   private factorySources: Factory[];
   private address: Address[] | undefined;
-  private topics: Hex[];
+  private eventSelectors: Hex[];
 
   private isProcessingBlock = false;
   private isProcessBlockQueued = false;
@@ -67,7 +67,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private blocks: LightBlock[] = [];
   private logs: LightLog[] = [];
   /** Function to stop polling for new blocks. */
-  private unpoll: () => boolean = undefined!;
+  private unpoll = () => {};
   /** If true, failed tasks should not log errors or be retried. */
   private isShuttingDown = false;
 
@@ -99,12 +99,17 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const isAddressDefined = this.logFilterSources.every(
       (source) => !!source.criteria.address,
     );
+
+    // If all sources are log filters that define an address, we can pass an address
+    // param to our realtime eth_getLogs requests. But, if any of our sources are
+    // factories OR any of our log filter sources DON'T specify address, we can't narrow
+    // the address field and must pass undefined.
     this.address =
       !this.hasFactorySource && isAddressDefined
         ? (sources.flatMap((source) => source.criteria.address) as Address[])
         : undefined;
 
-    this.topics = sources.flatMap((source) => {
+    this.eventSelectors = sources.flatMap((source) => {
       const topics: Hex[] = [];
 
       if (sourceIsFactory(source)) {
@@ -207,7 +212,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // TODO: Subscriptions
     this.unpoll = poll(
       async () => {
-        await this.processBlock();
+        await this.process();
       },
       { emitOnBegin: false, interval: this.network.pollingInterval },
     );
@@ -230,7 +235,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
   };
 
-  processBlock = async () => {
+  process = async () => {
     if (this.isProcessingBlock) {
       this.isProcessBlockQueued = true;
       return;
@@ -240,7 +245,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     try {
       const block = await this._eth_getBlockByNumber("latest");
-      await this.blockHandler(block);
+      await this.handleNewBlock(block);
     } catch (error_) {
       if (this.isShuttingDown) return;
       const error = error_ as Error;
@@ -260,18 +265,18 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       if (this.isProcessBlockQueued) {
         this.isProcessBlockQueued = false;
-        await this.processBlock();
+        await this.process();
       } else {
         this.emit("idle");
       }
     }
   };
 
-  private blockHandler = async (newBlock: RealtimeBlock) => {
-    const latestBlock = this.getLatestLocalBlock();
+  private handleNewBlock = async (newBlock: RealtimeBlock) => {
+    const latestLocalBlock = this.getLatestLocalBlock();
 
     // We already saw and handled this block. No-op.
-    if (latestBlock?.hash === newBlock.hash) {
+    if (latestLocalBlock?.hash === newBlock.hash) {
       this.common.logger.trace({
         service: "realtime",
         msg: `Already processed block at ${hexToNumber(
@@ -347,8 +352,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       }
     }
 
-    if (syncedData)
-      await this.insertRealtimeBlocks(syncedData.logs, syncedData.blocks);
+    if (syncedData) await this.insertRealtimeBlocks(syncedData);
 
     const newBlockNumber = hexToNumber(newBlock.number);
     const newBlockTimestamp = hexToNumber(newBlock.timestamp);
@@ -380,13 +384,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    * Determine which sync algorithm to use.
    */
   determineSyncPath = (newBlock: RealtimeBlock): "traverse" | "batch" => {
-    const latestBlock = this.getLatestLocalBlock();
-
     if (this.hasFactorySource) return "batch";
+
+    const latestLocalBlock = this.getLatestLocalBlock();
 
     const numBlocks =
       hexToNumber(newBlock.number) -
-      (latestBlock?.number ?? this.finalizedBlockNumber);
+      (latestLocalBlock?.number ?? this.finalizedBlockNumber);
 
     // Probability of a log in a block
     const pLog = Math.min(this.lastLogsPerBlock, 1);
@@ -406,14 +410,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private syncTraverse = async (
     newBlock: RealtimeBlock,
   ): Promise<{ blocks: RealtimeBlock[]; logs: RealtimeLog[] } | undefined> => {
-    const latestBlock = this.getLatestLocalBlock();
-    const latestBlockNumber = latestBlock
-      ? latestBlock.number
+    const latestLocalBlock = this.getLatestLocalBlock();
+    const latestLocalBlockNumber = latestLocalBlock
+      ? latestLocalBlock.number
       : this.finalizedBlockNumber;
 
     const newBlockNumber = hexToNumber(newBlock.number);
 
-    const missingBlockRange = range(latestBlockNumber + 1, newBlockNumber);
+    const missingBlockRange = range(latestLocalBlockNumber + 1, newBlockNumber);
     const newBlocks = await Promise.all(
       missingBlockRange.map(this._eth_getBlockByNumber),
     );
@@ -422,46 +426,46 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const criteria = this.sources.map((s) => s.criteria);
     // Don't attempt to skip "eth_getLogs" if a factory source is present.
     // Note: this may not be a possible path depending on the implementation of "determineSyncPath".
-    const requestLogs = this.hasFactorySource
-      ? true
-      : newBlocks.some((block) =>
-          isMatchedLogInBloomFilter({
+    const canSkipGetLogs =
+      !this.hasFactorySource &&
+      newBlocks.every(
+        (block) =>
+          !isMatchedLogInBloomFilter({
             bloom: block.logsBloom,
             logFilters: criteria,
           }),
-        );
-
-    if (requestLogs) {
-      // Get logs
-      const logs = await this._eth_getLogs({
-        fromBlock: numberToHex(latestBlockNumber + 1),
-        toBlock: numberToHex(newBlockNumber),
-      });
-
-      const matchedLogs = await this.getMatchedLogs(
-        logs,
-        BigInt(newBlockNumber),
-        true,
       );
 
-      return { blocks: newBlocks, logs: matchedLogs };
-    } else return undefined;
+    if (canSkipGetLogs) return undefined;
+
+    const logs = await this._eth_getLogs({
+      fromBlock: numberToHex(latestLocalBlockNumber + 1),
+      toBlock: numberToHex(newBlockNumber),
+    });
+
+    const matchedLogs = await this.getMatchedLogs(
+      logs,
+      BigInt(newBlockNumber),
+      true,
+    );
+
+    return { blocks: newBlocks, logs: matchedLogs };
   };
 
   private syncBatch = async (
     newBlock: RealtimeBlock,
   ): Promise<{ blocks: RealtimeBlock[]; logs: RealtimeLog[] }> => {
-    const latestBlock = this.getLatestLocalBlock();
-    const latestBlockNumber = latestBlock
-      ? latestBlock.number
+    const latestLocalBlock = this.getLatestLocalBlock();
+    const latestLocalBlockNumber = latestLocalBlock
+      ? latestLocalBlock.number
       : this.finalizedBlockNumber;
 
     const newBlockNumber = hexToNumber(newBlock.number);
 
     // Get logs
     const logs = await this._eth_getLogs({
-      fromBlock: numberToHex(latestBlockNumber + 1),
-      toBlock: numberToHex(newBlockNumber),
+      fromBlock: numberToHex(latestLocalBlockNumber + 1),
+      toBlock: newBlock.number,
     });
 
     const matchedLogs = await this.getMatchedLogs(
@@ -583,15 +587,15 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           fromBlock: params.fromBlock,
           toBlock: params.toBlock,
           address: this.address,
-          topics: [this.topics],
+          topics: [this.eventSelectors],
         },
       ],
     }) as Promise<RealtimeLog[]>;
 
-  private insertRealtimeBlocks = async (
-    logs: RealtimeLog[],
-    blocks: RealtimeBlock[],
-  ) => {
+  private insertRealtimeBlocks = async ({
+    logs,
+    blocks,
+  }: { logs: RealtimeLog[]; blocks: RealtimeBlock[] }) => {
     for (const block of blocks) {
       const blockLogs = logs.filter((l) => l.blockNumber === block.number);
 
@@ -632,7 +636,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     toBlockNumber: bigint,
     insertChildAddress: boolean,
   ): Promise<RealtimeLog[]> => {
-    if (this.hasFactorySource) {
+    if (!this.hasFactorySource) {
+      return filterLogs({
+        logs,
+        logFilters: this.sources.map((s) => s.criteria),
+      });
+    } else {
       // Find and insert any new child contracts.
       const matchedFactoryLogs = filterLogs({
         logs,
@@ -679,11 +688,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           ...this.logFilterSources.map((l) => l.criteria),
           ...factoryLogFilters,
         ],
-      });
-    } else {
-      return filterLogs({
-        logs,
-        logFilters: this.sources.map((s) => s.criteria),
       });
     }
   };

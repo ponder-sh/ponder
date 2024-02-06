@@ -54,7 +54,7 @@ test("start() sync realtime data with traversal method", async (context) => {
 
   await service.setup();
   service.start();
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   expect(determineSpy).toHaveReturnedWith("traverse");
@@ -84,7 +84,7 @@ test("start() sync realtime data with traversal method", async (context) => {
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
     blockNumber: blockNumbers.latestBlockNumber,
-    // Anvil messes with the block number for blocks mined locally.
+    // Anvil messes with the block timestamp for blocks mined locally.
     blockTimestamp: expect.any(Number),
     chainId: 1,
   });
@@ -114,7 +114,7 @@ test("start() sync realtime data with batch method", async (context) => {
 
   await testClient.mine({ blocks: 8 });
 
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   expect(determineSpy).toHaveReturnedWith("batch");
@@ -144,7 +144,7 @@ test("start() sync realtime data with batch method", async (context) => {
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
     blockNumber: blockNumbers.latestBlockNumber + 8,
-    // Anvil messes with the block number for blocks mined locally.
+    // Anvil messes with the block timestamp for blocks mined locally.
     blockTimestamp: expect.any(Number),
     chainId: 1,
   });
@@ -180,7 +180,7 @@ test("start() insert logFilterInterval records with traversal method", async (co
   await service.setup();
   service.start();
 
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   expect(determineSpy).toHaveReturnedWith("traverse");
@@ -190,7 +190,7 @@ test("start() insert logFilterInterval records with traversal method", async (co
     factoryAddress: factory.address,
   });
 
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   expect(determineSpy).toHaveReturnedWith("traverse");
@@ -200,7 +200,7 @@ test("start() insert logFilterInterval records with traversal method", async (co
     factoryAddress: factory.address,
   });
 
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   expect(determineSpy).toHaveReturnedWith("traverse");
@@ -245,7 +245,7 @@ test("start() insert logFilterInterval records with batch method", async (contex
 
   await testClient.mine({ blocks: 8 });
 
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   expect(determineSpy).toHaveReturnedWith("batch");
@@ -296,7 +296,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   await service.setup();
   service.start();
 
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   await simulate({
@@ -304,7 +304,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     factoryAddress: factory.address,
   });
 
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
@@ -324,7 +324,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   });
 
   // Allow the service to process the new blocks.
-  await service.processBlock();
+  await service.process();
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
@@ -376,7 +376,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
   await service.setup();
   service.start();
 
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   await simulate({
@@ -384,7 +384,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
     factoryAddress: factory.address,
   });
 
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   // Now, revert to the original snapshot.
@@ -393,7 +393,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
   await testClient.mine({ blocks: 8 });
 
   // Allow the service to process the new blocks.
-  await service.processBlock();
+  await service.process();
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
@@ -420,7 +420,7 @@ test("start() sync realtime data with factory sources", async (context) => {
 
   await service.setup();
   service.start();
-  service.processBlock();
+  service.process();
   await service.onIdle();
 
   const iterator = syncStore.getFactoryChildAddresses({
