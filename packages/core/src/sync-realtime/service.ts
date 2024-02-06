@@ -272,6 +272,15 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
   };
 
+  /**
+   * 1) Determine sync algorithm to use.
+   * 2) Fetch new blocks and logs.
+   * 3) Check for re-org, if occurred evict forked blocks and logs, and re-run.
+   *    If not re-org, continue.
+   * 4) Add blocks, logs, and tx data to store.
+   * 5) Move finalized block forward if applicable, insert interval.
+   *
+   */
   private handleNewBlock = async (newBlock: RealtimeBlock) => {
     const latestLocalBlock = this.getLatestLocalBlock();
 
@@ -491,7 +500,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   /**
-   * Detect re-org by comparing "eth_getLogs" to local logs.
+   * Check if a re-org occurred by comparing remote logs to local.
    *
    * @returns True if a re-org has occurred.
    */
@@ -515,12 +524,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       (log) => log.blockNumber <= newFinalizedBlockNumber,
     );
 
+    /**
+     * Common ancestor is the block directly before the logs diverge.
+     * If the divergence occurred at index 0, check for deep re-org.
+     */
     const handleReorg = async (nonMatchingIndex: number) => {
       if (nonMatchingIndex === 0) {
-        // If no common ancestor can be found, a deep re-org may have occurred.
-        // Fetch the finalized block to check for a deep re-org. If not, a max
-        // length shallow re-org has occurred.
-
         this.blocks = [];
         this.logs = [];
 
@@ -578,11 +587,15 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return true;
     }
 
+    // If there are no logs to compare, must make sure a deep re-org didn't occur.
     if (localLogs.length === 0) {
       return await this.detectDeepReorg(latestBlockNumber);
     } else return false;
   };
 
+  /**
+   * Check if deep re-org occured by comparing remote "finalized" block to local.
+   */
   private detectDeepReorg = async (latestBlockNumber: number) => {
     const remoteFinalizedBlock = await this._eth_getBlockByNumber(
       this.finalizedBlock.number,
