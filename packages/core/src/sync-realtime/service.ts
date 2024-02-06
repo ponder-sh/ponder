@@ -276,7 +276,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const latestBlock = this.getLatestLocalBlock();
 
     // We already saw and handled this block. No-op.
-    if (latestBlock?.hash === newBlock.hash) {
+    if (latestBlock.hash === newBlock.hash) {
       this.common.logger.trace({
         service: "realtime",
         msg: `Already processed block at ${hexToNumber(
@@ -363,7 +363,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const latestBlock = this.getLatestLocalBlock();
 
     if (this.hasFactorySource) return "batch";
-    if (latestBlock === undefined) return "batch";
 
     const numBlocks = hexToNumber(newBlock.number) - latestBlock.number;
 
@@ -383,7 +382,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   private syncTraverse = async (newBlock: RealtimeBlock) => {
-    const latestBlock = this.getLatestLocalBlock()!;
+    const latestBlock = this.getLatestLocalBlock();
 
     const newBlockNumber = hexToNumber(newBlock.number);
     const newBlockTimestamp = hexToNumber(newBlock.timestamp);
@@ -447,9 +446,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // Get logs
     const logs = await this._eth_getLogs({
-      fromBlock: numberToHex(
-        latestBlock ? latestBlock.number + 1 : this.finalizedBlockNumber,
-      ),
+      fromBlock: numberToHex(latestBlock.number + 1),
       toBlock: numberToHex(newBlockNumber),
     });
 
@@ -703,9 +700,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     return true;
   };
 
-  private getLatestLocalBlock = (): LightBlock | undefined => {
-    return this.blocks.length === 0
-      ? undefined
-      : this.blocks[this.blocks.length - 1];
-  };
+  private getLatestLocalBlock = (): LightBlock =>
+    this.blocks[this.blocks.length - 1];
 }
