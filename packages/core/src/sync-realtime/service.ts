@@ -252,8 +252,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       if (this.isShuttingDown) return;
       const error = error_ as Error;
 
-      console.log(error);
-
       this.common.logger.warn({
         service: "realtime",
         msg: `Realtime sync task failed (network=${
@@ -295,9 +293,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         ? await this.syncTraverse(newBlock)
         : await this.syncBatch(newBlock);
 
-    // In case of re-org detected, add back in
-    const pendingLogs = syncedData.logs.map(realtimeLogToLightLog);
-    const pendingBlocks = syncedData.blocks.map(realtimeBlockToLightBlock);
+    this.logs.push(...syncedData.logs.map(realtimeLogToLightLog));
+    this.blocks.push(...syncedData.blocks.map(realtimeBlockToLightBlock));
 
     // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
     // and mark data as cached in the store.
@@ -307,14 +304,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       latestBlockNumber >=
       this.finalizedBlock.number + 2 * this.network.finalityBlockCount;
 
+    let hasReorg = false;
+
     if (blockMovesFinality) {
-      if (!this.isLocalChainConsistent(pendingBlocks)) {
-        await this.detectReorg(pendingLogs, latestBlockNumber);
+      if (!this.isLocalChainConsistent()) {
+        hasReorg = await this.detectReorg(latestBlockNumber);
       }
     }
 
-    this.logs.push(...pendingLogs);
-    this.blocks.push(...pendingBlocks);
+    if (hasReorg) {
+      this.isProcessBlockQueued = true;
+      return;
+    }
+
     await this.insertRealtimeBlocks(syncedData);
 
     if (blockMovesFinality) {
@@ -490,8 +492,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   /**
    * Detect re-org by comparing "eth_getLogs" to local logs.
+   *
+   * @returns True if a re-org has occurred.
    */
-  detectReorg = async (pendingLogs: LightLog[], latestBlockNumber: number) => {
+  detectReorg = async (latestBlockNumber: number) => {
     const newFinalizedBlockNumber =
       latestBlockNumber - this.network.finalityBlockCount;
 
@@ -507,19 +511,33 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       false,
     );
 
-    const localLogs = this.logs
-      .concat(pendingLogs)
-      .filter((log) => log.blockNumber <= newFinalizedBlockNumber);
+    const localLogs = this.logs.filter(
+      (log) => log.blockNumber <= newFinalizedBlockNumber,
+    );
 
     const handleReorg = async (nonMatchingIndex: number) => {
       if (nonMatchingIndex === 0) {
-        this.emit("deepReorg", {
-          detectedAtBlockNumber: latestBlockNumber,
-          minimumDepth: latestBlockNumber - this.blocks[0].number,
-        });
+        // If no common ancestor can be found, a deep re-org may have occurred.
+        // Fetch the finalized block to check for a deep re-org. If not, a max
+        // length shallow re-org has occurred.
 
         this.blocks = [];
         this.logs = [];
+
+        const hasDeepReorg = await this.detectDeepReorg(latestBlockNumber);
+
+        if (hasDeepReorg) return;
+
+        await this.syncStore.deleteRealtimeData({
+          chainId: this.network.chainId,
+          fromBlock: BigInt(this.finalizedBlock.number),
+        });
+
+        this.emit("shallowReorg", {
+          blockTimestamp: this.finalizedBlock.timestamp,
+          chainId: this.network.chainId,
+          blockNumber: this.finalizedBlock.number,
+        });
       } else {
         const ancestorBlockHash = localLogs[nonMatchingIndex - 1].blockHash;
         const commonAncestor = this.blocks.find(
@@ -551,10 +569,33 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       const lightMatchedLog = realtimeLogToLightLog(matchedLogs[i]);
       if (lightMatchedLog.blockHash !== localLogs[i].blockHash) {
         handleReorg(i);
+        return true;
       }
     }
 
-    if (localLogs.length !== matchedLogs.length) handleReorg(i);
+    if (localLogs.length !== matchedLogs.length) {
+      handleReorg(i);
+      return true;
+    }
+
+    if (localLogs.length === 0) {
+      return await this.detectDeepReorg(latestBlockNumber);
+    } else return false;
+  };
+
+  private detectDeepReorg = async (latestBlockNumber: number) => {
+    const remoteFinalizedBlock = await this._eth_getBlockByNumber(
+      this.finalizedBlock.number,
+    );
+
+    if (remoteFinalizedBlock.hash !== this.finalizedBlock.hash) {
+      this.emit("deepReorg", {
+        detectedAtBlockNumber: latestBlockNumber,
+        minimumDepth: latestBlockNumber - this.blocks[0].number,
+      });
+      return true;
+    }
+    return false;
   };
 
   /**
@@ -695,13 +736,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   /** Returns true if "blocks" has a valid chain of block.parentHash to block.hash. */
-  private isLocalChainConsistent = (pendingBlocks: LightBlock[]): boolean => {
-    const blocks = this.blocks.concat(pendingBlocks);
-    for (let i = blocks.length - 1; i > 1; i--) {
-      if (blocks[i].parentHash !== blocks[i - 1].hash) return false;
+  private isLocalChainConsistent = (): boolean => {
+    for (let i = this.blocks.length - 1; i > 1; i--) {
+      if (this.blocks[i].parentHash !== this.blocks[i - 1].hash) return false;
     }
 
-    return blocks[0].parentHash === this.finalizedBlock.hash;
+    return this.blocks[0].parentHash === this.finalizedBlock.hash;
   };
 
   private getLatestLocalBlock = (): LightBlock =>

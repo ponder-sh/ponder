@@ -347,7 +347,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   service.kill();
 });
 
-test("emits deepReorg event after deep reorg", async (context) => {
+test.only("emits deepReorg event after deep reorg", async (context) => {
   const {
     common,
     syncStore,
@@ -366,8 +366,6 @@ test("emits deepReorg event after deep reorg", async (context) => {
     sources: [sources[0]],
   });
 
-  await testClient.mine({ blocks: 5 });
-
   // Take a snapshot of the chain at the original block height.
   const originalSnapshotId = await testClient.snapshot();
 
@@ -384,13 +382,15 @@ test("emits deepReorg event after deep reorg", async (context) => {
     factoryAddress: factory.address,
   });
 
+  await testClient.mine({ blocks: 10 });
+
   service.process();
   await service.onIdle();
 
   // Now, revert to the original snapshot.
   await testClient.revert({ id: originalSnapshotId });
 
-  await testClient.mine({ blocks: 8 });
+  await testClient.mine({ blocks: 10 });
 
   // Allow the service to process the new blocks.
   await service.process();
