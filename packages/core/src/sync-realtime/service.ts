@@ -61,8 +61,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   private lastLogsPerBlock = 0;
 
-  /** Block number of the current finalized block. */
-  private finalizedBlockNumber = 0;
+  /** Current finalized block. */
+  private finalizedBlock: LightBlock = undefined!;
   /** Local representation of the unfinalized portion of the chain. */
   private blocks: LightBlock[] = [];
   private logs: LightLog[] = [];
@@ -175,7 +175,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       latestBlockNumber - this.network.finalityBlockCount,
     );
 
-    this.finalizedBlockNumber = finalizedBlockNumber;
+    this.finalizedBlock = await this._eth_getBlockByNumber(
+      finalizedBlockNumber,
+    ).then(realtimeBlockToLightBlock);
 
     return { latestBlockNumber, finalizedBlockNumber };
   };
@@ -188,7 +190,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (
       endBlocks.every(
         (endBlock) =>
-          endBlock !== undefined && endBlock < this.finalizedBlockNumber,
+          endBlock !== undefined && endBlock < this.finalizedBlock.number,
       )
     ) {
       this.common.logger.warn({
@@ -276,7 +278,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const latestLocalBlock = this.getLatestLocalBlock();
 
     // We already saw and handled this block. No-op.
-    if (latestLocalBlock?.hash === newBlock.hash) {
+    if (latestLocalBlock.hash === newBlock.hash) {
       this.common.logger.trace({
         service: "realtime",
         msg: `Already processed block at ${hexToNumber(
@@ -303,7 +305,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const latestBlockNumber = hexToNumber(newBlock.number);
     const blockMovesFinality =
       latestBlockNumber >=
-      this.finalizedBlockNumber + 2 * this.network.finalityBlockCount;
+      this.finalizedBlock.number + 2 * this.network.finalityBlockCount;
 
     if (blockMovesFinality) {
       if (!this.isLocalChainConsistent(pendingBlocks)) {
@@ -321,6 +323,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           block.number <= latestBlockNumber - this.network.finalityBlockCount,
       );
 
+      // Note: double check this
       if (newFinalizedBlock) {
         this.blocks = this.blocks.filter(
           (block) => block.number > newFinalizedBlock.number,
@@ -338,12 +341,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           logFilters: this.logFilterSources.map((l) => l.criteria),
           factories: this.factorySources.map((f) => f.criteria),
           interval: {
-            startBlock: BigInt(this.finalizedBlockNumber + 1),
+            startBlock: BigInt(this.finalizedBlock.number + 1),
             endBlock: BigInt(newFinalizedBlock.number),
           },
         });
 
-        this.finalizedBlockNumber = newFinalizedBlock.number;
+        this.finalizedBlock = newFinalizedBlock;
 
         this.emit("finalityCheckpoint", {
           blockTimestamp: newFinalizedBlock.timestamp,
@@ -392,9 +395,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     const latestLocalBlock = this.getLatestLocalBlock();
 
-    const numBlocks =
-      hexToNumber(newBlock.number) -
-      (latestLocalBlock?.number ?? this.finalizedBlockNumber);
+    const numBlocks = hexToNumber(newBlock.number) - latestLocalBlock.number;
 
     // Probability of a log in a block
     const pLog = Math.min(this.lastLogsPerBlock, 1);
@@ -415,9 +416,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     newBlock: RealtimeBlock,
   ): Promise<{ blocks: RealtimeBlock[]; logs: RealtimeLog[] }> => {
     const latestLocalBlock = this.getLatestLocalBlock();
-    const latestLocalBlockNumber = latestLocalBlock
-      ? latestLocalBlock.number
-      : this.finalizedBlockNumber;
+    const latestLocalBlockNumber = latestLocalBlock.number;
 
     const newBlockNumber = hexToNumber(newBlock.number);
 
@@ -460,9 +459,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     newBlock: RealtimeBlock,
   ): Promise<{ blocks: RealtimeBlock[]; logs: RealtimeLog[] }> => {
     const latestLocalBlock = this.getLatestLocalBlock();
-    const latestLocalBlockNumber = latestLocalBlock
-      ? latestLocalBlock.number
-      : this.finalizedBlockNumber;
+    const latestLocalBlockNumber = latestLocalBlock.number;
 
     const newBlockNumber = hexToNumber(newBlock.number);
 
@@ -500,7 +497,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // Note: toBlock could be latestBlock
     const logs = await this._eth_getLogs({
-      fromBlock: numberToHex(this.finalizedBlockNumber + 1),
+      fromBlock: numberToHex(this.finalizedBlock.number + 1),
       toBlock: numberToHex(newFinalizedBlockNumber),
     });
 
@@ -703,9 +700,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     for (let i = blocks.length - 1; i > 1; i--) {
       if (blocks[i].parentHash !== blocks[i - 1].hash) return false;
     }
-    return true;
+
+    return blocks[0].parentHash === this.finalizedBlock.hash;
   };
 
-  private getLatestLocalBlock = (): LightBlock | undefined =>
-    this.blocks[this.blocks.length - 1];
+  private getLatestLocalBlock = (): LightBlock =>
+    this.blocks[this.blocks.length - 1] ?? this.finalizedBlock;
 }
