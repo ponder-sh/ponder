@@ -294,7 +294,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       this.finalizedBlockNumber + 2 * this.network.finalityBlockCount
     ) {
       if (!this.isLocalChainConsistent(latestBlockNumber)) {
-        await this.reorgBatch(latestBlockNumber);
+        await this.detectReorg(latestBlockNumber);
       }
 
       const newFinalizedBlock = this.blocks.findLast(
@@ -483,9 +483,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   /**
-   * Reconcile re-org by comparing "eth_getLogs" to local logs.
+   * Detect re-org by comparing "eth_getLogs" to local logs.
    */
-  reorgBatch = async (latestBlockNumber: number) => {
+  detectReorg = async (latestBlockNumber: number) => {
     const newFinalizedBlockNumber =
       latestBlockNumber - this.network.finalityBlockCount;
 
