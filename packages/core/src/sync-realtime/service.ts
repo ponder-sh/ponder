@@ -322,7 +322,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     if (hasReorg) {
-      this.common.metrics.ponder_realtime_reorg_count.inc({
+      this.common.metrics.ponder_realtime_reorg_total.inc({
         network: this.network.name,
       });
 
