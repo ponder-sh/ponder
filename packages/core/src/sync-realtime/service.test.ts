@@ -347,7 +347,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   service.kill();
 });
 
-test.only("emits deepReorg event after deep reorg", async (context) => {
+test("emits deepReorg event after deep reorg", async (context) => {
   const {
     common,
     syncStore,
