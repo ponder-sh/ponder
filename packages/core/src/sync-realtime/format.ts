@@ -1,32 +1,40 @@
 import {
-  type Hash,
+  type Block,
+  type BlockTag,
+  type Hex,
+  type Log,
   type RpcBlock,
-  type RpcTransaction,
   hexToNumber,
 } from "viem";
 
-import type { Prettify } from "@/types/utils.js";
+export type RealtimeBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
+export type RealtimeLog = Log<Hex, Hex, false>;
 
-export type LightBlock = {
-  hash: Hash;
-  parentHash: Hash;
-  number: number;
-  timestamp: number;
-};
-
-export function rpcBlockToLightBlock(block: RpcBlock): LightBlock {
-  return {
-    hash: block.hash!,
-    parentHash: block.parentHash,
-    number: hexToNumber(block.number!),
-    timestamp: hexToNumber(block.timestamp),
-  };
-}
-
-export type BlockWithTransactions = Prettify<
-  Omit<RpcBlock, "hash" | "transactions"> & {
-    hash: Hash;
-    number: Hash;
-    transactions: RpcTransaction[];
-  }
+export type LightBlock = Pick<
+  Block<number, boolean, Exclude<BlockTag, "pending">>,
+  "hash" | "parentHash" | "number" | "timestamp"
 >;
+export type LightLog = Pick<
+  Log<number, Hex, false>,
+  "blockHash" | "blockNumber"
+>;
+
+export const realtimeBlockToLightBlock = ({
+  hash,
+  parentHash,
+  number,
+  timestamp,
+}: RealtimeBlock): LightBlock => ({
+  hash,
+  parentHash,
+  number: hexToNumber(number),
+  timestamp: hexToNumber(timestamp),
+});
+
+export const realtimeLogToLightLog = ({
+  blockHash,
+  blockNumber,
+}: RealtimeLog): LightLog => ({
+  blockHash,
+  blockNumber: hexToNumber(blockNumber),
+});

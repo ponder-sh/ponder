@@ -1,13 +1,13 @@
-import { type Address, type Hex, type RpcLog } from "viem";
-
 import type { Topics } from "@/config/sources.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { type Address, type Hex } from "viem";
+import type { RealtimeLog } from "./format.js";
 
 export function filterLogs({
   logs,
   logFilters,
 }: {
-  logs: RpcLog[];
+  logs: RealtimeLog[];
   logFilters: {
     address?: Address | Address[];
     topics?: Topics;
