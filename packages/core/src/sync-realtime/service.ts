@@ -204,8 +204,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return;
     }
 
-    // TODO: fetch finalized block?
-
     // TODO: Subscriptions
     this.unpoll = poll(
       async () => {

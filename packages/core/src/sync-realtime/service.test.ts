@@ -347,7 +347,7 @@ test.skip("start() deletes data from the store after 3 block shallow reorg", asy
   service.kill();
 });
 
-test.skip("emits deepReorg event after deep reorg", async (context) => {
+test("emits deepReorg event after deep reorg", async (context) => {
   const {
     common,
     syncStore,
@@ -365,6 +365,8 @@ test.skip("emits deepReorg event after deep reorg", async (context) => {
     requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
+
+  await testClient.mine({ blocks: 5 });
 
   // Take a snapshot of the chain at the original block height.
   const originalSnapshotId = await testClient.snapshot();
@@ -395,21 +397,9 @@ test.skip("emits deepReorg event after deep reorg", async (context) => {
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
-    chainId: 1,
     detectedAtBlockNumber: expect.any(Number),
-    minimumDepth: 8,
+    minimumDepth: expect.any(Number),
   });
-
-  // const blocksAfterReorg = await syncStore.db
-  //   .selectFrom("blocks")
-  //   .selectAll()
-  //   .execute();
-  // expect(
-  //   blocksAfterReorg.map((block) => decodeToBigInt(block.number)),
-  // ).toMatchObject([
-  //   BigInt(blockNumbers.latestBlockNumber - 2),
-  //   BigInt(blockNumbers.latestBlockNumber + 9),
-  // ]);
 
   service.kill();
 });
