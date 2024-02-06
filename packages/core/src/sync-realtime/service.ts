@@ -280,19 +280,25 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return;
     }
 
-    // Note: should this be after the re-org
     const sync = this.determineSyncPath(newBlock);
-    if (sync === "traverse") await this.syncTraverse(newBlock);
-    else await this.syncBatch(newBlock);
+    const syncedData =
+      sync === "traverse"
+        ? await this.syncTraverse(newBlock)
+        : await this.syncBatch(newBlock);
 
-    const latestBlockNumber = hexToNumber(newBlock.number);
+    if (syncedData) {
+      this.logs.push(...syncedData.logs.map(realtimeLogToLightLog));
+      this.blocks.push(...syncedData.blocks.map(realtimeBlockToLightBlock));
+    }
 
     // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
     // and mark data as cached in the store.
-    if (
+
+    const latestBlockNumber = hexToNumber(newBlock.number);
+    const blockMovesFinality =
       latestBlockNumber >=
-      this.finalizedBlockNumber + 2 * this.network.finalityBlockCount
-    ) {
+      this.finalizedBlockNumber + 2 * this.network.finalityBlockCount;
+    if (blockMovesFinality) {
       if (!this.isLocalChainConsistent(latestBlockNumber)) {
         await this.detectReorg(latestBlockNumber);
       }
@@ -337,6 +343,27 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       });
     }
 
+    if (syncedData)
+      await this.insertRealtimeBlocks(syncedData.logs, syncedData.blocks);
+
+    const newBlockNumber = hexToNumber(newBlock.number);
+    const newBlockTimestamp = hexToNumber(newBlock.timestamp);
+
+    this.emit("realtimeCheckpoint", {
+      blockTimestamp: newBlockTimestamp,
+      chainId: this.network.chainId,
+      blockNumber: newBlockNumber,
+    });
+
+    this.common.metrics.ponder_realtime_latest_block_number.set(
+      { network: this.network.name },
+      newBlockNumber,
+    );
+    this.common.metrics.ponder_realtime_latest_block_timestamp.set(
+      { network: this.network.name },
+      newBlockTimestamp,
+    );
+
     this.common.logger.debug({
       service: "realtime",
       msg: `Finished syncing new head block ${hexToNumber(
@@ -372,14 +399,15 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     return batchCost > traverseCost ? "traverse" : "batch";
   };
 
-  private syncTraverse = async (newBlock: RealtimeBlock) => {
+  private syncTraverse = async (
+    newBlock: RealtimeBlock,
+  ): Promise<{ blocks: RealtimeBlock[]; logs: RealtimeLog[] } | undefined> => {
     const latestBlock = this.getLatestLocalBlock();
     const latestBlockNumber = latestBlock
       ? latestBlock.number
       : this.finalizedBlockNumber;
 
     const newBlockNumber = hexToNumber(newBlock.number);
-    const newBlockTimestamp = hexToNumber(newBlock.timestamp);
 
     const missingBlockRange = range(latestBlockNumber + 1, newBlockNumber);
     const newBlocks = await Promise.all(
@@ -412,34 +440,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         true,
       );
 
-      // Insert logs + blocks + transactions
-      await this.insertRealtimeBlocks(matchedLogs, newBlocks);
-    }
-
-    this.emit("realtimeCheckpoint", {
-      blockTimestamp: newBlockTimestamp,
-      chainId: this.network.chainId,
-      blockNumber: newBlockNumber,
-    });
-
-    this.common.metrics.ponder_realtime_latest_block_number.set(
-      { network: this.network.name },
-      newBlockNumber,
-    );
-    this.common.metrics.ponder_realtime_latest_block_timestamp.set(
-      { network: this.network.name },
-      newBlockTimestamp,
-    );
+      return { blocks: newBlocks, logs: matchedLogs };
+    } else return undefined;
   };
 
-  private syncBatch = async (newBlock: RealtimeBlock) => {
+  private syncBatch = async (
+    newBlock: RealtimeBlock,
+  ): Promise<{ blocks: RealtimeBlock[]; logs: RealtimeLog[] }> => {
     const latestBlock = this.getLatestLocalBlock();
     const latestBlockNumber = latestBlock
       ? latestBlock.number
       : this.finalizedBlockNumber;
 
     const newBlockNumber = hexToNumber(newBlock.number);
-    const newBlockTimestamp = hexToNumber(newBlock.timestamp);
 
     // Get logs
     const logs = await this._eth_getLogs({
@@ -463,23 +476,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     );
     blocks.push(newBlock);
 
-    // Insert logs + blocks + transactions
-    await this.insertRealtimeBlocks(matchedLogs, blocks);
-
-    this.emit("realtimeCheckpoint", {
-      blockTimestamp: newBlockTimestamp,
-      chainId: this.network.chainId,
-      blockNumber: newBlockNumber,
-    });
-
-    this.common.metrics.ponder_realtime_latest_block_number.set(
-      { network: this.network.name },
-      newBlockNumber,
-    );
-    this.common.metrics.ponder_realtime_latest_block_timestamp.set(
-      { network: this.network.name },
-      newBlockTimestamp,
-    );
+    return { blocks: blocks, logs: matchedLogs };
   };
 
   /**
@@ -623,9 +620,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       });
     }
 
-    this.logs.push(...logs.map(realtimeLogToLightLog));
-    this.blocks.push(...blocks.map(realtimeBlockToLightBlock));
-
     this.lastLogsPerBlock = this.logs.length / this.blocks.length;
   };
 
@@ -692,7 +686,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   /** Returns true if "blocks" has a valid chain of block.parentHash to block.hash. */
   private isLocalChainConsistent = (latestBlockNumber: number): boolean => {
-    if (this.blocks.length === 0) return false;
     if (this.blocks[this.blocks.length - 1].number !== latestBlockNumber)
       return false;
 

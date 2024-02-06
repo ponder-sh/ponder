@@ -267,7 +267,7 @@ test("start() insert logFilterInterval records with batch method", async (contex
   service.kill();
 });
 
-test.skip("start() deletes data from the store after 3 block shallow reorg", async (context) => {
+test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
   const {
     common,
     syncStore,
