@@ -322,6 +322,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     if (hasReorg) {
+      this.common.metrics.ponder_realtime_reorg_count.inc({
+        network: this.network.name,
+      });
+
       this.isProcessBlockQueued = true;
       return;
     }

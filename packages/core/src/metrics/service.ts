@@ -26,6 +26,7 @@ export class MetricsService {
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_timestamp: prometheus.Gauge<"network">;
+  ponder_realtime_reorg_count: prometheus.Counter<"network">;
 
   ponder_indexing_total_seconds: prometheus.Gauge<"event">;
   ponder_indexing_completed_seconds: prometheus.Gauge<"event">;
@@ -119,6 +120,12 @@ export class MetricsService {
     this.ponder_realtime_latest_block_timestamp = new prometheus.Gauge({
       name: "ponder_realtime_latest_block_timestamp",
       help: "Block timestamp of the latest synced block",
+      labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_realtime_reorg_count = new prometheus.Counter({
+      name: "ponder_realtime_reorg_count",
+      help: "Count of how many re-orgs have occurred.",
       labelNames: ["network"] as const,
       registers: [this.registry],
     });
