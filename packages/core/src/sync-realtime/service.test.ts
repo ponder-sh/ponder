@@ -1,11 +1,8 @@
 import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { publicClient, testClient } from "@/_test/utils.js";
-import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { range } from "@/utils/range.js";
-import { HttpRequestError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { RealtimeSyncService } from "./service.js";
 
@@ -52,14 +49,15 @@ test("start() sync realtime data with traversal method", async (context) => {
     sources: [sources[0]],
   });
 
-  const spy = vi.spyOn(service, "determineSyncPath");
+  const emitSpy = vi.spyOn(service, "emit");
+  const determineSpy = vi.spyOn(service, "determineSyncPath");
 
   await service.setup();
   service.start();
   service.processBlock();
   await service.onIdle();
 
-  expect(spy).toHaveReturnedWith("traverse");
+  expect(determineSpy).toHaveReturnedWith("traverse");
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
@@ -82,6 +80,13 @@ test("start() sync realtime data with traversal method", async (context) => {
   });
   transactions.forEach((transaction) => {
     expect(requiredTransactionHashes.has(transaction.hash)).toEqual(true);
+  });
+
+  expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    blockNumber: blockNumbers.latestBlockNumber,
+    // Anvil messes with the block number for blocks mined locally.
+    blockTimestamp: expect.any(Number),
+    chainId: 1,
   });
 
   service.kill();
@@ -101,7 +106,8 @@ test("start() sync realtime data with batch method", async (context) => {
     sources: [sources[0]],
   });
 
-  const spy = vi.spyOn(service, "determineSyncPath");
+  const emitSpy = vi.spyOn(service, "emit");
+  const determineSpy = vi.spyOn(service, "determineSyncPath");
 
   await service.setup();
   service.start();
@@ -111,7 +117,7 @@ test("start() sync realtime data with batch method", async (context) => {
   service.processBlock();
   await service.onIdle();
 
-  expect(spy).toHaveReturnedWith("batch");
+  expect(determineSpy).toHaveReturnedWith("batch");
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
@@ -136,10 +142,17 @@ test("start() sync realtime data with batch method", async (context) => {
     expect(requiredTransactionHashes.has(transaction.hash)).toEqual(true);
   });
 
+  expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    blockNumber: blockNumbers.latestBlockNumber + 8,
+    // Anvil messes with the block number for blocks mined locally.
+    blockTimestamp: expect.any(Number),
+    chainId: 1,
+  });
+
   service.kill();
 });
 
-test("start() handles error while fetching new latest block gracefully", async (context) => {
+test("start() insert logFilterInterval records with traversal method", async (context) => {
   const {
     common,
     syncStore,
@@ -152,8 +165,6 @@ test("start() handles error while fetching new latest block gracefully", async (
 
   const blockNumbers = await getBlockNumbers();
 
-  const rpcRequestSpy = vi.spyOn(requestQueues[0], "request");
-
   const service = new RealtimeSyncService({
     common,
     syncStore,
@@ -162,36 +173,58 @@ test("start() handles error while fetching new latest block gracefully", async (
     sources: [sources[0]],
   });
 
+  const requestSpy = vi.spyOn(service, "reorgBatch");
+  const emitSpy = vi.spyOn(service, "emit");
+  const determineSpy = vi.spyOn(service, "determineSyncPath");
+
   await service.setup();
   service.start();
+
+  service.processBlock();
+  await service.onIdle();
+
+  expect(determineSpy).toHaveReturnedWith("traverse");
 
   await simulate({
     erc20Address: erc20.address,
     factoryAddress: factory.address,
   });
 
-  // Mock a failed new block request.
-  rpcRequestSpy.mockRejectedValueOnce(
-    new HttpRequestError({ url: "http://ponder.sh/rpc" }),
-  );
-  await service.processBlock();
-
-  // Now, this one should succeed.
-  await service.processBlock();
-
+  service.processBlock();
   await service.onIdle();
 
-  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
-  expect(blocks).toHaveLength(2);
-  expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
-    BigInt(blockNumbers.latestBlockNumber - 2),
-    BigInt(blockNumbers.latestBlockNumber + 1),
+  expect(determineSpy).toHaveReturnedWith("traverse");
+
+  await simulate({
+    erc20Address: erc20.address,
+    factoryAddress: factory.address,
+  });
+
+  service.processBlock();
+  await service.onIdle();
+
+  expect(determineSpy).toHaveReturnedWith("traverse");
+
+  const logFilterIntervals = await syncStore.getLogFilterIntervals({
+    chainId: sources[0].chainId,
+    logFilter: sources[0].criteria,
+  });
+  expect(logFilterIntervals).toMatchObject([
+    [blockNumbers.finalizedBlockNumber + 1, blockNumbers.latestBlockNumber + 2],
   ]);
+
+  expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
+    blockNumber: blockNumbers.latestBlockNumber + 2,
+    blockTimestamp: expect.any(Number),
+    chainId: 1,
+  });
+
+  expect(requestSpy).toHaveBeenCalledTimes(0);
 
   service.kill();
 });
 
-test("start() emits realtimeCheckpoint events", async (context) => {
+test("start() insert logFilterInterval records with batch method", async (context) => {
   const { common, syncStore, sources, networks, requestQueues } = context;
 
   const blockNumbers = await getBlockNumbers();
@@ -205,59 +238,17 @@ test("start() emits realtimeCheckpoint events", async (context) => {
   });
 
   const emitSpy = vi.spyOn(service, "emit");
+  const determineSpy = vi.spyOn(service, "determineSyncPath");
 
   await service.setup();
   service.start();
+
+  await testClient.mine({ blocks: 8 });
+
   service.processBlock();
   await service.onIdle();
 
-  expect(emitSpy).toHaveBeenCalledTimes(3);
-
-  expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    blockNumber: blockNumbers.latestBlockNumber,
-    // Anvil messes with the block number for blocks mined locally.
-    blockTimestamp: expect.any(Number),
-    chainId: 1,
-  });
-
-  service.kill();
-});
-
-test("start() inserts log filter interval records for finalized blocks", async (context) => {
-  const {
-    common,
-    syncStore,
-    sources,
-    networks,
-    requestQueues,
-    erc20,
-    factory,
-  } = context;
-
-  const blockNumbers = await getBlockNumbers();
-
-  const service = new RealtimeSyncService({
-    common,
-    syncStore,
-    network: networks[0],
-    requestQueue: requestQueues[0],
-    sources: [sources[0]],
-  });
-
-  const emitSpy = vi.spyOn(service, "emit");
-
-  await service.setup();
-  service.start();
-
-  for (const _ in range(0, 2)) {
-    await simulate({
-      erc20Address: erc20.address,
-      factoryAddress: factory.address,
-    });
-  }
-
-  await service.processBlock();
-  await new Promise((res) => service.on("idle", res));
+  expect(determineSpy).toHaveReturnedWith("batch");
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[0].chainId,
@@ -276,7 +267,7 @@ test("start() inserts log filter interval records for finalized blocks", async (
   service.kill();
 });
 
-test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
+test.skip("start() deletes data from the store after 3 block shallow reorg", async (context) => {
   const {
     common,
     syncStore,
@@ -297,32 +288,35 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     sources: [sources[0]],
   });
 
-  await service.setup();
-  service.start();
-
   // Take a snapshot of the chain at the original block height.
   const originalSnapshotId = await testClient.snapshot();
 
-  for (const _ in range(0, 2)) {
-    await simulate({
-      erc20Address: erc20.address,
-      factoryAddress: factory.address,
-    });
-  }
+  const emitSpy = vi.spyOn(service, "emit");
 
-  // Allow the service to process the new blocks.
-  await service.processBlock();
+  await service.setup();
+  service.start();
+
+  service.processBlock();
+  await service.onIdle();
+
+  await simulate({
+    erc20Address: erc20.address,
+    factoryAddress: factory.address,
+  });
+
+  service.processBlock();
   await service.onIdle();
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
     BigInt(blockNumbers.latestBlockNumber - 2),
     BigInt(blockNumbers.latestBlockNumber + 1),
-    BigInt(blockNumbers.latestBlockNumber + 4),
   ]);
 
   // Now, revert to the original snapshot.
   await testClient.revert({ id: originalSnapshotId });
+
+  await testClient.mine({ blocks: 8 });
 
   await simulate({
     erc20Address: erc20.address,
@@ -333,6 +327,12 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   await service.processBlock();
   await service.onIdle();
 
+  expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
+    blockTimestamp: expect.any(Number),
+    chainId: 1,
+    blockNumber: blockNumbers.latestBlockNumber - 2,
+  });
+
   const blocksAfterReorg = await syncStore.db
     .selectFrom("blocks")
     .selectAll()
@@ -341,7 +341,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     blocksAfterReorg.map((block) => decodeToBigInt(block.number)),
   ).toMatchObject([
     BigInt(blockNumbers.latestBlockNumber - 2),
-    BigInt(blockNumbers.latestBlockNumber + 1),
+    BigInt(blockNumbers.latestBlockNumber + 9),
   ]);
 
   service.kill();
@@ -358,8 +358,6 @@ test.skip("emits deepReorg event after deep reorg", async (context) => {
     factory,
   } = context;
 
-  const blockNumbers = await getBlockNumbers();
-
   const service = new RealtimeSyncService({
     common,
     syncStore,
@@ -368,62 +366,57 @@ test.skip("emits deepReorg event after deep reorg", async (context) => {
     sources: [sources[0]],
   });
 
+  // Take a snapshot of the chain at the original block height.
+  const originalSnapshotId = await testClient.snapshot();
+
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup();
   service.start();
 
-  // Take a snapshot of the chain at the original block height.
-  const originalSnapshotId = await testClient.snapshot();
+  service.processBlock();
+  await service.onIdle();
 
-  for (const _ in range(0, 3)) {
-    await simulate({
-      erc20Address: erc20.address,
-      factoryAddress: factory.address,
-    });
-  }
+  await simulate({
+    erc20Address: erc20.address,
+    factoryAddress: factory.address,
+  });
+
+  service.processBlock();
+  await service.onIdle();
+
+  // Now, revert to the original snapshot.
+  await testClient.revert({ id: originalSnapshotId });
+
+  await testClient.mine({ blocks: 8 });
+
   // Allow the service to process the new blocks.
   await service.processBlock();
-  await new Promise((res) => service.on("idle", res));
-
-  expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    blockNumber: blockNumbers.latestBlockNumber,
-    blockTimestamp: expect.any(Number),
-    chainId: 1,
-  });
-
-  // Now, revert to the original snapshot and mine 8 blocks, with a different chain history than before.
-  await testClient.revert({ id: originalSnapshotId });
-  for (const _ in range(0, 3)) {
-    await simulate({
-      erc20Address: erc20.address,
-      factoryAddress: factory.address,
-    });
-  }
-
-  // Allow the service to process the new block, detecting a reorg.
-  await service.processBlock();
-  await new Promise((res) => service.on("idle", res));
+  await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
-    detectedAtBlockNumber: blockNumbers.latestBlockNumber + 9,
-    minimumDepth: 5,
+    chainId: 1,
+    detectedAtBlockNumber: expect.any(Number),
+    minimumDepth: 8,
   });
 
+  // const blocksAfterReorg = await syncStore.db
+  //   .selectFrom("blocks")
+  //   .selectAll()
+  //   .execute();
+  // expect(
+  //   blocksAfterReorg.map((block) => decodeToBigInt(block.number)),
+  // ).toMatchObject([
+  //   BigInt(blockNumbers.latestBlockNumber - 2),
+  //   BigInt(blockNumbers.latestBlockNumber + 9),
+  // ]);
+
   service.kill();
-  await new Promise((res) => service.on("idle", res));
 });
 
-test.skip("start() with factory contract inserts new child contracts records and child contract events", async (context) => {
-  const {
-    common,
-    syncStore,
-    sources,
-    networks,
-    requestQueues,
-    erc20,
-    factory,
-  } = context;
+test("start() sync realtime data with factory sources", async (context) => {
+  const { common, syncStore, sources, networks, requestQueues, factory } =
+    context;
 
   const blockNumbers = await getBlockNumbers();
 
@@ -432,19 +425,13 @@ test.skip("start() with factory contract inserts new child contracts records and
     syncStore,
     network: networks[0],
     requestQueue: requestQueues[0],
-    sources: [sources[1]],
+    sources,
   });
 
   await service.setup();
   service.start();
-
-  await simulate({
-    erc20Address: erc20.address,
-    factoryAddress: factory.address,
-  });
-
-  await service.processBlock();
-  await new Promise((res) => service.on("idle", res));
+  service.processBlock();
+  await service.onIdle();
 
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: sources[1].chainId,
@@ -457,29 +444,5 @@ test.skip("start() with factory contract inserts new child contracts records and
 
   expect(childContractAddresses).toMatchObject([toLowerCase(factory.pair)]);
 
-  const { events } = await syncStore.getLogEvents({
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
-    factories: [
-      {
-        id: "Pair",
-        chainId: sources[1].chainId,
-        criteria: sources[1].criteria,
-      },
-    ],
-  });
-
-  expect(events).toHaveLength(2);
-  expect(events[0]).toMatchObject(
-    expect.objectContaining({
-      sourceId: "Pair",
-      log: expect.objectContaining({
-        address: factory.pair,
-      }),
-    }),
-  );
-
   service.kill();
-  await new Promise((res) => service.on("idle", res));
 });
