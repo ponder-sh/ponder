@@ -317,7 +317,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     if (blockMovesFinality) {
       if (!this.isLocalChainConsistent()) {
-        hasReorg = await this.detectReorg(latestBlockNumber);
+        hasReorg = await this.reconcileReorg(latestBlockNumber);
       }
     }
 
@@ -508,7 +508,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    *
    * @returns True if a re-org has occurred.
    */
-  detectReorg = async (latestBlockNumber: number) => {
+  reconcileReorg = async (latestBlockNumber: number) => {
     const newFinalizedBlockNumber =
       latestBlockNumber - this.network.finalityBlockCount;
 
@@ -537,7 +537,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.blocks = [];
         this.logs = [];
 
-        const hasDeepReorg = await this.detectDeepReorg(latestBlockNumber);
+        const hasDeepReorg = await this.reconcileDeepReorg(latestBlockNumber);
 
         if (hasDeepReorg) return;
 
@@ -593,14 +593,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // If there are no logs to compare, must make sure a deep re-org didn't occur.
     if (localLogs.length === 0) {
-      return await this.detectDeepReorg(latestBlockNumber);
+      return await this.reconcileDeepReorg(latestBlockNumber);
     } else return false;
   };
 
   /**
    * Check if deep re-org occured by comparing remote "finalized" block to local.
    */
-  private detectDeepReorg = async (latestBlockNumber: number) => {
+  private reconcileDeepReorg = async (latestBlockNumber: number) => {
     const remoteFinalizedBlock = await this._eth_getBlockByNumber(
       this.finalizedBlock.number,
     );

@@ -173,7 +173,7 @@ test("start() insert logFilterInterval records with traversal method", async (co
     sources: [sources[0]],
   });
 
-  const requestSpy = vi.spyOn(service, "detectReorg");
+  const requestSpy = vi.spyOn(service, "reconcileReorg");
   const emitSpy = vi.spyOn(service, "emit");
   const determineSpy = vi.spyOn(service, "determineSyncPath");
 
