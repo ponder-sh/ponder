@@ -1,19 +1,3 @@
-import {
-  type ExpressionBuilder,
-  Kysely,
-  Migrator,
-  PostgresDialect,
-  type Transaction as KyselyTransaction,
-  sql,
-} from "kysely";
-import {
-  type Hex,
-  type RpcBlock,
-  type RpcLog,
-  type RpcTransaction,
-  checksumAddress,
-} from "viem";
-
 import type { Common } from "@/Ponder.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { Block } from "@/types/block.js";
@@ -27,7 +11,23 @@ import {
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
+import {
+  type ExpressionBuilder,
+  Kysely,
+  Migrator,
+  PostgresDialect,
+  type Transaction as KyselyTransaction,
+  WithSchemaPlugin,
+  sql,
+} from "kysely";
 import type { Pool } from "pg";
+import {
+  type Hex,
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+  checksumAddress,
+} from "viem";
 import type { SyncStore } from "../store.js";
 import {
   type SyncStoreTables,
@@ -35,13 +35,14 @@ import {
   rpcToPostgresLog,
   rpcToPostgresTransaction,
 } from "./format.js";
-import { migrationProvider } from "./migrations.js";
+import { migrationProvider, moveLegacyTables } from "./migrations.js";
+
+export const SCHEMA_NAME = "ponder_sync" as const;
 
 export class PostgresSyncStore implements SyncStore {
   common: Common;
   kind = "postgres" as const;
   db: Kysely<SyncStoreTables>;
-  migrator: Migrator;
 
   constructor({ common, pool }: { common: Common; pool: Pool }) {
     this.common = common;
@@ -52,13 +53,7 @@ export class PostgresSyncStore implements SyncStore {
           common.metrics.ponder_postgres_query_count?.inc({ kind: "sync" });
         }
       },
-    });
-
-    this.migrator = new Migrator({
-      db: this.db,
-      provider: migrationProvider,
-      migrationTableSchema: "public",
-    });
+    }).withPlugin(new WithSchemaPlugin(SCHEMA_NAME));
   }
 
   async kill() {
@@ -75,7 +70,18 @@ export class PostgresSyncStore implements SyncStore {
   migrateUp = async () => {
     const start = performance.now();
 
-    const { error } = await this.migrator.migrateToLatest();
+    await this.db.schema.createSchema(SCHEMA_NAME).ifNotExists().execute();
+
+    // TODO: Probably remove this at 1.0 to speed up startup time.
+    await moveLegacyTables(this.db);
+
+    const migrator = new Migrator({
+      db: this.db,
+      provider: migrationProvider,
+      migrationTableSchema: SCHEMA_NAME,
+    });
+
+    const { error } = await migrator.migrateToLatest();
     if (error) throw error;
 
     this.record("migrateUp", start);

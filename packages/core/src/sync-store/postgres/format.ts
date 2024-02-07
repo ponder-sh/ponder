@@ -203,7 +203,6 @@ export type SyncStoreTables = {
   transactions: TransactionsTable;
   logs: LogsTable;
   rpcRequestResults: RpcRequestResultsTable;
-
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;
   factories: FactoriesTable;

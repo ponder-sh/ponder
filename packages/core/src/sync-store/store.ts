@@ -1,4 +1,4 @@
-import type { Kysely, Migrator } from "kysely";
+import type { Kysely } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
@@ -10,7 +10,6 @@ import type { Checkpoint } from "@/utils/checkpoint.js";
 export interface SyncStore {
   kind: "sqlite" | "postgres";
   db: Kysely<any>;
-  migrator: Migrator;
 
   migrateUp(): Promise<void>;
 
