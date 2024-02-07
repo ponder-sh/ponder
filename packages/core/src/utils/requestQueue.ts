@@ -96,9 +96,7 @@ export const createRequestQueue = ({
 
         network.transport
           .request(params)
-          .then((a) => {
-            resolve(a);
-          })
+          .then(resolve)
           .catch(reject)
           .finally(async () => {
             pending -= 1;
@@ -107,19 +105,12 @@ export const createRequestQueue = ({
               stopClock(),
             );
 
-            await Promise.all([
-              new Promise<number>((res) =>
-                setImmediate(() => res(queue.length)),
-              ),
-              new Promise<number>((res) => setImmediate(() => res(pending))),
-            ]).then(([size, pending]) => {
-              if (size === 0 && pending === 0) {
-                idleResolve();
-                idlePromise = new Promise<void>(
-                  (resolve) => (idleResolve = resolve),
-                );
-              }
-            });
+            if (queue.length === 0 && pending === 0) {
+              idleResolve();
+              idlePromise = new Promise<void>(
+                (resolve) => (idleResolve = resolve),
+              );
+            }
           });
 
         if (queue.length === 0) break;
@@ -143,7 +134,6 @@ export const createRequestQueue = ({
     ): RequestReturnType<TParameters["method"]> => {
       const stopClockLag = startClock();
 
-      // Add element to the very end
       const p = new Promise((resolve, reject) => {
         queue.push({
           params,
@@ -154,6 +144,7 @@ export const createRequestQueue = ({
       });
 
       processQueue();
+
       return p as RequestReturnType<TParameters["method"]>;
     },
     size: () =>
