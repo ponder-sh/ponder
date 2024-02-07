@@ -148,6 +148,8 @@ export type PonderContext<
   };
 };
 
+export type PonderSchema<schema extends Schema> = Infer<schema>;
+
 export type PonderApp<config extends Config, schema extends Schema> = {
   on: <name extends PonderEventNames<config>>(
     _name: name,
