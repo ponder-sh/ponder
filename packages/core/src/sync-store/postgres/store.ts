@@ -34,13 +34,13 @@ import {
   rpcToPostgresBlock,
   rpcToPostgresLog,
   rpcToPostgresTransaction,
-} from "./format.js";
+} from "./encoding.js";
 import { migrationProvider, moveLegacyTables } from "./migrations.js";
 
 export const SCHEMA_NAME = "ponder_sync" as const;
 
 export class PostgresSyncStore implements SyncStore {
-  common: Common;
+  private common: Common;
   kind = "postgres" as const;
   db: Kysely<SyncStoreTables>;
 

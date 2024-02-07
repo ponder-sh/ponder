@@ -30,23 +30,20 @@ import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
 import { type SqliteDatabase } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
-
 import type { SyncStore } from "../store.js";
-import type { BigIntText } from "./format.js";
+import type { BigIntText } from "./encoding.js";
 import {
   type SyncStoreTables,
   rpcToSqliteBlock,
   rpcToSqliteLog,
   rpcToSqliteTransaction,
-} from "./format.js";
+} from "./encoding.js";
 import { migrationProvider } from "./migrations.js";
 
 export class SqliteSyncStore implements SyncStore {
-  kind = "sqlite" as const;
   private common: Common;
-
+  kind = "sqlite" as const;
   db: Kysely<SyncStoreTables>;
-  migrator: Migrator;
 
   constructor({
     common,
@@ -59,11 +56,6 @@ export class SqliteSyncStore implements SyncStore {
         if (event.level === "query")
           common.metrics.ponder_sqlite_query_count?.inc({ kind: "sync" });
       },
-    });
-
-    this.migrator = new Migrator({
-      db: this.db,
-      provider: migrationProvider,
     });
   }
 
@@ -81,7 +73,12 @@ export class SqliteSyncStore implements SyncStore {
   migrateUp = async () => {
     const start = performance.now();
 
-    const { error } = await this.migrator.migrateToLatest();
+    const migrator = new Migrator({
+      db: this.db,
+      provider: migrationProvider,
+    });
+
+    const { error } = await migrator.migrateToLatest();
     if (error) throw error;
 
     this.record("migrateUp", performance.now() - start);
