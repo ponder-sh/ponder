@@ -1,24 +1,6 @@
-import {
-  type ExpressionBuilder,
-  Kysely,
-  Migrator,
-  PostgresDialect,
-  type Transaction as KyselyTransaction,
-  sql,
-} from "kysely";
-import {
-  type Hex,
-  type RpcBlock,
-  type RpcLog,
-  type RpcTransaction,
-  checksumAddress,
-} from "viem";
-
 import type { Common } from "@/Ponder.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import type { Block } from "@/types/block.js";
-import type { Log } from "@/types/log.js";
-import type { Transaction } from "@/types/transaction.js";
+import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import {
@@ -27,7 +9,22 @@ import {
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
+import {
+  type ExpressionBuilder,
+  Kysely,
+  Migrator,
+  PostgresDialect,
+  type Transaction as KyselyTransaction,
+  sql,
+} from "kysely";
 import type { Pool } from "pg";
+import {
+  type Hex,
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+  checksumAddress,
+} from "viem";
 import type { SyncStore } from "../store.js";
 import {
   type SyncStoreTables,

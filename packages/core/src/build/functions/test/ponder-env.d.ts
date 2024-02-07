@@ -3,28 +3,23 @@
 // If this happens, please commit the changes. Do not manually edit this file.
 // See https://ponder.sh/docs/guides/typescript for more information.
 
-import type {
-  PonderApp,
-  PonderContext,
-  PonderEvent,
-  PonderEventNames,
-} from "../../../types/ponder.js";
+import type { Virtual } from "@ponder/core";
 
-type Config = typeof import("./ponder.config.ts").default;
-type Schema = typeof import("./ponder.schema.ts").default;
+type config = typeof import("./ponder.config.ts").default;
+type schema = typeof import("./ponder.schema.ts").default;
 
-export const ponder: PonderApp<Config, Schema>;
-export type EventNames = PonderEventNames<Config>;
-export type Event<name extends EventNames = EventNames> = PonderEvent<
-  Config,
+export const ponder: Virtual.Registry<config, schema>;
+
+export type EventNames = Virtual.EventNames<config>;
+export type Event<name extends EventNames = EventNames> = Virtual.Event<
+  config,
   name
 >;
-export type Context<name extends EventNames = EventNames> = PonderContext<
-  Config,
-  Schema,
+export type Context<name extends EventNames = EventNames> = Virtual.Context<
+  config,
+  schema,
   name
 >;
-export type IndexingFunctionArgs<name extends EventNames = EventNames> = {
-  event: Event<name>;
-  context: Context<name>;
-};
+export type IndexingFunctionArgs<name extends EventNames = EventNames> =
+  Virtual.IndexingFunctionArgs<config, schema, name>;
+export type Schema = Virtual.Schema<schema>;
