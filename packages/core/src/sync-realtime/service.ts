@@ -297,7 +297,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     const sync = this.determineSyncPath(newBlock);
-
     const syncedData =
       sync === "traverse"
         ? await this.syncTraverse(newBlock)
