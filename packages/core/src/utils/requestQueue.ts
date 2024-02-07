@@ -62,18 +62,16 @@ export const createRequestQueue = ({
       : Math.floor(network.maxRequestsPerSecond / 20);
 
   let lastRequestTime = 0;
-  let pending = 0;
   let timeout: NodeJS.Timeout | undefined = undefined;
-  let timing = false;
-  let on = true;
 
-  let idleResolve: () => void;
-  let idlePromise: Promise<void> = new Promise<void>(
-    (resolve) => (idleResolve = resolve),
-  );
+  let incrementingId = 0;
+  const pendingRequests: Record<number, Promise<unknown>> = {};
+
+  let isTimerOn = false;
+  let isStarted = true;
 
   const processQueue = () => {
-    if (!on) return;
+    if (!isStarted) return;
 
     if (queue.length === 0) return;
     const now = Date.now();
@@ -85,7 +83,7 @@ export const createRequestQueue = ({
       for (let i = 0; i < requestBatchSize; i++) {
         const { params, resolve, reject, stopClockLag } = queue.shift()!;
 
-        pending += 1;
+        const id = incrementingId++;
 
         metrics.ponder_rpc_request_lag.observe(
           { method: params.method, network: network.name },
@@ -94,24 +92,20 @@ export const createRequestQueue = ({
 
         const stopClock = startClock();
 
-        network.transport
+        const p = network.transport
           .request(params)
           .then(resolve)
           .catch(reject)
           .finally(async () => {
-            pending -= 1;
+            delete pendingRequests[id];
+
             metrics.ponder_rpc_request_duration.observe(
               { method: params.method, network: network.name },
               stopClock(),
             );
-
-            if (queue.length === 0 && pending === 0) {
-              idleResolve();
-              idlePromise = new Promise<void>(
-                (resolve) => (idleResolve = resolve),
-              );
-            }
           });
+
+        pendingRequests[id] = p;
 
         if (queue.length === 0) break;
       }
@@ -119,10 +113,10 @@ export const createRequestQueue = ({
       timeSinceLastRequest = 0;
     }
 
-    if (!timing) {
-      timing = true;
+    if (!isTimerOn) {
+      isTimerOn = true;
       timeout = setTimeout(() => {
-        timing = false;
+        isTimerOn = false;
         processQueue();
       }, interval - timeSinceLastRequest);
     }
@@ -150,17 +144,18 @@ export const createRequestQueue = ({
     size: () =>
       new Promise<number>((res) => setImmediate(() => res(queue.length))),
     pending: () =>
-      new Promise<number>((res) => setImmediate(() => res(pending))),
+      new Promise<number>((res) =>
+        setImmediate(() => res(Object.keys(pendingRequests).length)),
+      ),
     start: () => {
-      on = true;
+      isStarted = true;
       processQueue();
     },
     pause: () => {
-      on = false;
+      isStarted = false;
     },
     onIdle: async () => {
-      if (queue.length === 0 && pending === 0) return;
-      await idlePromise;
+      await Promise.all(Object.values(pendingRequests));
     },
     clear: () => {
       clearTimeout(timeout);
