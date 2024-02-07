@@ -3,4 +3,4 @@
 "@ponder/core": patch
 ---
 
-Added `Schema` utility type to `ponder-env.d.ts`.
+Added `Schema` utility type to `ponder-env.d.ts`. Removed outdated `Infer` and `DatabaseModel` types.
