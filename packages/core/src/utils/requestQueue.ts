@@ -64,8 +64,7 @@ export const createRequestQueue = ({
   let lastRequestTime = 0;
   let timeout: NodeJS.Timeout | undefined = undefined;
 
-  let incrementingId = 0;
-  const pendingRequests: Record<number, Promise<unknown>> = {};
+  const pendingRequests: Map<Task, Promise<unknown>> = new Map();
 
   let isTimerOn = false;
   let isStarted = true;
@@ -81,31 +80,29 @@ export const createRequestQueue = ({
       lastRequestTime = now;
 
       for (let i = 0; i < requestBatchSize; i++) {
-        const { params, resolve, reject, stopClockLag } = queue.shift()!;
-
-        const id = incrementingId++;
+        const task = queue.shift()!;
 
         metrics.ponder_rpc_request_lag.observe(
-          { method: params.method, network: network.name },
-          stopClockLag(),
+          { method: task.params.method, network: network.name },
+          task.stopClockLag(),
         );
 
         const stopClock = startClock();
 
         const p = network.transport
-          .request(params)
-          .then(resolve)
-          .catch(reject)
-          .finally(async () => {
-            delete pendingRequests[id];
+          .request(task.params)
+          .then(task.resolve)
+          .catch(task.reject)
+          .finally(() => {
+            pendingRequests.delete(task);
 
             metrics.ponder_rpc_request_duration.observe(
-              { method: params.method, network: network.name },
+              { method: task.params.method, network: network.name },
               stopClock(),
             );
           });
 
-        pendingRequests[id] = p;
+        pendingRequests.set(task, p);
 
         if (queue.length === 0) break;
       }
@@ -154,9 +151,7 @@ export const createRequestQueue = ({
     pause: () => {
       isStarted = false;
     },
-    onIdle: async () => {
-      await Promise.all(Object.values(pendingRequests));
-    },
+    onIdle: () => Promise.all(Object.values(pendingRequests)).then(() => {}),
     clear: () => {
       clearTimeout(timeout);
       queue = new Array();
