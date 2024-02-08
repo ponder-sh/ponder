@@ -14,6 +14,7 @@ import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
+import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
 import { safeBuildNetworksAndSources } from "./config/config.js";
 import {
   type IndexingFunctions,
@@ -103,7 +104,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       publicDir: false,
       customLogger: viteLogger,
       server: { hmr: false },
-      plugins: [vitePluginPonder()],
+      plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
     });
 
     // This is Vite boilerplate (initializes the Rollup container).

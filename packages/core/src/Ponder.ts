@@ -386,7 +386,7 @@ export class Ponder {
           await historical.setup(blockNumbers);
 
           historical.start();
-          await realtime.start();
+          realtime.start();
         }),
       );
     } catch (error_) {
@@ -530,14 +530,12 @@ export class Ponder {
     this.buildService.onSerial("error", async () => {
       this.uiService.ui.indexingError = true;
 
-      await this.indexingService.kill();
+      this.indexingService.kill();
 
-      await Promise.all(
-        this.syncServices.map(async ({ realtime, historical }) => {
-          await realtime.kill();
-          await historical.kill();
-        }),
-      );
+      for (const { realtime, historical } of this.syncServices) {
+        realtime.kill();
+        historical.kill();
+      }
     });
   }
 
@@ -636,8 +634,8 @@ export class Ponder {
       );
 
       // Reload the sync services for the specific chain by killing, setting up, and then starting again.
-      await syncServiceForChainId.realtime.kill();
-      await syncServiceForChainId.historical.kill();
+      syncServiceForChainId.realtime.kill();
+      syncServiceForChainId.historical.kill();
 
       try {
         const blockNumbers = await syncServiceForChainId.realtime.setup();
@@ -653,7 +651,7 @@ export class Ponder {
         this.kill();
       }
 
-      await syncServiceForChainId.realtime.start();
+      syncServiceForChainId.realtime.start();
       syncServiceForChainId.historical.start();
 
       // NOTE: We have to reset the historical state after restarting the sync services
