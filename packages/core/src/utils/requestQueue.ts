@@ -62,18 +62,15 @@ export const createRequestQueue = ({
       : Math.floor(network.maxRequestsPerSecond / 20);
 
   let lastRequestTime = 0;
-  let pending = 0;
   let timeout: NodeJS.Timeout | undefined = undefined;
-  let timing = false;
-  let on = true;
 
-  let idleResolve: () => void;
-  let idlePromise: Promise<void> = new Promise<void>(
-    (resolve) => (idleResolve = resolve),
-  );
+  const pendingRequests: Map<Task, Promise<unknown>> = new Map();
+
+  let isTimerOn = false;
+  let isStarted = true;
 
   const processQueue = () => {
-    if (!on) return;
+    if (!isStarted) return;
 
     if (queue.length === 0) return;
     const now = Date.now();
@@ -83,44 +80,29 @@ export const createRequestQueue = ({
       lastRequestTime = now;
 
       for (let i = 0; i < requestBatchSize; i++) {
-        const { params, resolve, reject, stopClockLag } = queue.shift()!;
-
-        pending += 1;
+        const task = queue.shift()!;
 
         metrics.ponder_rpc_request_lag.observe(
-          { method: params.method, network: network.name },
-          stopClockLag(),
+          { method: task.params.method, network: network.name },
+          task.stopClockLag(),
         );
 
         const stopClock = startClock();
 
-        network.transport
-          .request(params)
-          .then((a) => {
-            resolve(a);
-          })
-          .catch(reject)
-          .finally(async () => {
-            pending -= 1;
+        const p = network.transport
+          .request(task.params)
+          .then(task.resolve)
+          .catch(task.reject)
+          .finally(() => {
+            pendingRequests.delete(task);
+
             metrics.ponder_rpc_request_duration.observe(
-              { method: params.method, network: network.name },
+              { method: task.params.method, network: network.name },
               stopClock(),
             );
-
-            await Promise.all([
-              new Promise<number>((res) =>
-                setImmediate(() => res(queue.length)),
-              ),
-              new Promise<number>((res) => setImmediate(() => res(pending))),
-            ]).then(([size, pending]) => {
-              if (size === 0 && pending === 0) {
-                idleResolve();
-                idlePromise = new Promise<void>(
-                  (resolve) => (idleResolve = resolve),
-                );
-              }
-            });
           });
+
+        pendingRequests.set(task, p);
 
         if (queue.length === 0) break;
       }
@@ -128,10 +110,10 @@ export const createRequestQueue = ({
       timeSinceLastRequest = 0;
     }
 
-    if (!timing) {
-      timing = true;
+    if (!isTimerOn) {
+      isTimerOn = true;
       timeout = setTimeout(() => {
-        timing = false;
+        isTimerOn = false;
         processQueue();
       }, interval - timeSinceLastRequest);
     }
@@ -143,7 +125,6 @@ export const createRequestQueue = ({
     ): RequestReturnType<TParameters["method"]> => {
       const stopClockLag = startClock();
 
-      // Add element to the very end
       const p = new Promise((resolve, reject) => {
         queue.push({
           params,
@@ -154,23 +135,23 @@ export const createRequestQueue = ({
       });
 
       processQueue();
+
       return p as RequestReturnType<TParameters["method"]>;
     },
     size: () =>
       new Promise<number>((res) => setImmediate(() => res(queue.length))),
     pending: () =>
-      new Promise<number>((res) => setImmediate(() => res(pending))),
+      new Promise<number>((res) =>
+        setImmediate(() => res(Object.keys(pendingRequests).length)),
+      ),
     start: () => {
-      on = true;
+      isStarted = true;
       processQueue();
     },
     pause: () => {
-      on = false;
+      isStarted = false;
     },
-    onIdle: async () => {
-      if (queue.length === 0 && pending === 0) return;
-      await idlePromise;
-    },
+    onIdle: () => Promise.all(Object.values(pendingRequests)).then(() => {}),
     clear: () => {
       clearTimeout(timeout);
       queue = new Array();

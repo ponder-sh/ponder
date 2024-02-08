@@ -119,6 +119,7 @@ test("onIdle() resolves once idle", async ({ networks, common }) => {
   queue.request({ method: "eth_chainId" });
   queue.request({ method: "eth_chainId" });
 
+  queue.clear();
   await queue.onIdle();
 
   expect(await queue.size()).toBe(0);
@@ -131,6 +132,7 @@ test("onIdle() resolves immediately if idle", async ({ networks, common }) => {
   queue.request({ method: "eth_chainId" });
   queue.request({ method: "eth_chainId" });
 
+  queue.clear();
   await queue.onIdle();
 
   const endClock = startClock();
