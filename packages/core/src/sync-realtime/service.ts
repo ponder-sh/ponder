@@ -297,14 +297,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     const sync = this.determineSyncPath(newBlock);
-    const syncedData =
+    const syncResult =
       sync === "traverse"
         ? await this.syncTraverse(newBlock)
         : await this.syncBatch(newBlock);
 
-    if (!syncedData.reorg) {
-      this.logs.push(...syncedData.logs.map(realtimeLogToLightLog));
-      this.blocks.push(...syncedData.blocks.map(realtimeBlockToLightBlock));
+    if (!syncResult.reorg) {
+      this.logs.push(...syncResult.logs.map(realtimeLogToLightLog));
+      this.blocks.push(...syncResult.blocks.map(realtimeBlockToLightBlock));
     }
 
     // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
@@ -318,13 +318,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     let hasReorg = false;
 
     if (
-      (blockMovesFinality && !this.isLocalChainConsistent()) ||
-      syncedData.reorg
+      (blockMovesFinality &&
+        !this.isChainConsistent([this.finalizedBlock, ...this.blocks])) ||
+      syncResult.reorg
     ) {
       hasReorg = await this.reconcileReorg(latestBlockNumber);
     }
 
-    if (hasReorg || syncedData.reorg) {
+    if (hasReorg || syncResult.reorg) {
       this.common.metrics.ponder_realtime_reorg_total.inc({
         network: this.network.name,
       });
@@ -334,7 +335,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return;
     }
 
-    await this.insertRealtimeBlocks(syncedData);
+    await this.insertRealtimeBlocks(syncResult);
 
     if (blockMovesFinality) {
       const newFinalizedBlock = this.blocks.findLast(
@@ -449,7 +450,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     newBlocks.push(newBlock);
 
     // Detect re-org
-    if (newBlocks[0].parentHash !== latestLocalBlock.hash) {
+
+    if (!this.isChainConsistent([latestLocalBlock, ...newBlocks])) {
       return { reorg: true };
     }
 
@@ -525,10 +527,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    * @returns True if a re-org has occurred.
    */
   reconcileReorg = async (latestBlockNumber: number) => {
-    // const newFinalizedBlockNumber =
-    //   latestBlockNumber - this.network.finalityBlockCount;
-
-    // Note: toBlock could be latestBlock
     const logs = await this._eth_getLogs({
       fromBlock: numberToHex(this.finalizedBlock.number + 1),
       toBlock: numberToHex(latestBlockNumber),
@@ -775,12 +773,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   /** Returns true if "blocks" has a valid chain of block.parentHash to block.hash. */
-  private isLocalChainConsistent = (): boolean => {
-    for (let i = this.blocks.length - 1; i > 1; i--) {
-      if (this.blocks[i].parentHash !== this.blocks[i - 1].hash) return false;
+  private isChainConsistent = (
+    blocks: (LightBlock | RealtimeBlock)[],
+  ): boolean => {
+    for (let i = blocks.length - 1; i > 1; i--) {
+      if (blocks[i].parentHash !== blocks[i - 1].hash) return false;
     }
-
-    return this.blocks[0].parentHash === this.finalizedBlock.hash;
+    return true;
   };
 
   private getLatestLocalBlock = (): LightBlock =>
