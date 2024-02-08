@@ -585,8 +585,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         };
         this.common.metrics.ponder_indexing_completed_events.inc(labels);
 
-        this.indexingFunctionStates[fullEventName].eventCount++;
-
         break;
       } catch (error_) {
         const error = error_ as Error & { meta: string };
@@ -669,7 +667,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         // Emit log if this is the end of a batch of logs
         if (data.eventsProcessed) {
           this.emitCheckpoint();
-          this.setIndexingFunctionCheckpoint(fullEventName);
+          await this.setIndexingFunctionCheckpoint(fullEventName);
 
           const num = data.eventsProcessed;
           this.common.logger.info({
@@ -803,7 +801,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         this.updateCompletedSeconds(key);
 
         this.emitCheckpoint();
-        this.setIndexingFunctionCheckpoint(key);
+        await this.setIndexingFunctionCheckpoint(key);
         this.logCachedProgress(key);
       }
 

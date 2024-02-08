@@ -127,7 +127,10 @@ export async function setupSyncStore(
  * beforeEach((context) => setupIndexingStore(context))
  * ```
  */
-export async function setupIndexingStore(context: TestContext) {
+export async function setupIndexingStore(
+  context: TestContext,
+  options = { migrateUp: true },
+) {
   if (process.env.DATABASE_URL) {
     const testClient = new pg.Client({
       connectionString: process.env.DATABASE_URL,
@@ -148,6 +151,8 @@ export async function setupIndexingStore(context: TestContext) {
       pool,
     });
 
+    if (options.migrateUp) await context.indexingStore.migrateUp();
+
     return async () => {
       try {
         await context.indexingStore.kill();
@@ -164,6 +169,8 @@ export async function setupIndexingStore(context: TestContext) {
       common: context.common,
       database: createSqliteDatabase(":memory:"),
     });
+    if (options.migrateUp) await context.indexingStore.migrateUp();
+
     return async () => {
       try {
         await context.indexingStore.kill();
