@@ -38,6 +38,7 @@ type RealtimeSyncEvents = {
   shallowReorg: Checkpoint;
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
   idle: undefined;
+  fatal: Error;
 };
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
@@ -251,15 +252,16 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     } catch (error_) {
       if (this.isShuttingDown) return;
       const error = error_ as Error;
+      error.stack = undefined;
 
-      this.common.logger.warn({
+      this.common.logger.error({
         service: "realtime",
-        msg: `Realtime sync task failed (network=${
-          this.network.name
-        }, error=${`${error.name}: ${error.message}`})`,
+        error,
+        msg: `Realtime sync task failed (network=${this.network.name})`,
         network: this.network.name,
       });
-      // Note: Good spot to throw a fatal error.
+
+      this.emit("fatal", error);
     } finally {
       this.isProcessingBlock = false;
 

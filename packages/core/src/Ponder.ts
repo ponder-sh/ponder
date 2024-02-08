@@ -549,6 +549,16 @@ export class Ponder {
       realtime.on("shallowReorg", (checkpoint) => {
         this.syncGatewayService.handleReorg(checkpoint);
       });
+
+      realtime.on("fatal", async (error) => {
+        error.stack = undefined;
+        this.common.logger.fatal({
+          service: "app",
+          msg: "Failed to fetch initial realtime data",
+          error,
+        });
+        await this.kill();
+      });
     });
 
     this.syncGatewayService.on("newCheckpoint", async () => {
@@ -631,7 +641,7 @@ export class Ponder {
           msg: "Failed to fetch initial realtime data",
           error,
         });
-        this.kill();
+        await this.kill();
       }
 
       syncServiceForChainId.realtime.start();
