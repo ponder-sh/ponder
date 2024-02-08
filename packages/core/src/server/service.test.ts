@@ -8,6 +8,7 @@ import { createSchema } from "@/schema/schema.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 
+import { getTableIds } from "@/_test/utils.js";
 import { buildGqlSchema } from "./graphql/schema.js";
 import { ServerService } from "./service.js";
 
@@ -69,7 +70,7 @@ const setup = async ({
     registerDevRoutes: boolean;
   };
 }) => {
-  await indexingStore.reload({ schema: s });
+  await indexingStore.reload({ schema: s, tableIds: getTableIds(s) });
 
   const service = new ServerService({ common, indexingStore });
   service.setup({ registerDevRoutes: options.registerDevRoutes });

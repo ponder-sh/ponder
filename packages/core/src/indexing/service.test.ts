@@ -4,12 +4,10 @@ import {
   setupIndexingStore,
   setupSyncStore,
 } from "@/_test/setup.js";
-import { getEventsErc20 } from "@/_test/utils.js";
+import { getEventsErc20, getFunctionIds, getTableIds } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
-import type { FunctionIds, TableIds } from "@/build/static/ids.js";
 import type { TableAccess } from "@/build/static/parseAst.js";
 import { createSchema } from "@/schema/schema.js";
-import type { Schema } from "@/schema/types.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { decodeEventLog } from "viem";
@@ -23,29 +21,6 @@ beforeEach(() => {
   // Restore getEvents to the initial implementation.
   vi.restoreAllMocks();
 });
-
-const getFunctionIds = (indexingFunctions: IndexingFunctions): FunctionIds => {
-  const functionIds: FunctionIds = {};
-
-  for (const contractName of Object.keys(indexingFunctions)) {
-    for (const eventName of Object.keys(indexingFunctions[contractName])) {
-      const key = `${contractName}:${eventName}`;
-      functionIds[key] = key;
-    }
-  }
-
-  return functionIds;
-};
-
-const getTableIds = (schema: Schema): TableIds => {
-  const tableIds: TableIds = {};
-
-  for (const tableName of Object.keys(schema.tables)) {
-    tableIds[tableName] = tableName;
-  }
-
-  return tableIds;
-};
 
 const schema = createSchema((p) => ({
   TransferEvent: p.createTable({

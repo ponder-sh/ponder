@@ -1,22 +1,11 @@
 import { setupIndexingStore } from "@/_test/setup.js";
-import type { TableIds } from "@/build/static/ids.js";
+import { getTableIds } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
-import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { CompiledQuery } from "kysely";
 import { beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupIndexingStore(context));
-
-const getTableIds = (schema: Schema): TableIds => {
-  const tableIds: TableIds = {};
-
-  for (const tableName of Object.keys(schema.tables)) {
-    tableIds[tableName] = tableName;
-  }
-
-  return tableIds;
-};
 
 const schema = createSchema((p) => ({
   PetKind: p.createEnum(["CAT", "DOG"]),
