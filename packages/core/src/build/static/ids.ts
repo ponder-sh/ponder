@@ -108,11 +108,6 @@ export const getIds = ({
       .digest("hex");
   }
 
-  console.log({
-    tableIds,
-    functionIds,
-  });
-
   return { tableIds, functionIds };
 };
 
