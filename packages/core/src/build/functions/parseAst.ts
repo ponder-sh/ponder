@@ -1,5 +1,6 @@
 import fs from "node:fs";
-import { SgNode, js } from "@ast-grep/napi";
+import path from "node:path";
+import { SgNode, js, ts } from "@ast-grep/napi";
 
 const ormFunctions = {
   create: ["write"],
@@ -129,7 +130,8 @@ export const parseAst = ({
   for (const filePath of filePaths) {
     const file = fs.readFileSync(filePath).toString();
 
-    const ast = js.parse(file);
+    const isJs = path.extname(filePath) === ".js";
+    const ast = isJs ? js.parse(file) : ts.parse(file);
     const root = ast.root();
 
     const ormCalls = findAllORMCalls(root);
@@ -157,7 +159,8 @@ export const parseAst = ({
   for (const filePath of filePaths) {
     const file = fs.readFileSync(filePath).toString();
 
-    const ast = js.parse(file);
+    const isJs = path.extname(filePath) === ".js";
+    const ast = isJs ? js.parse(file) : ts.parse(file);
     const root = ast.root();
 
     const nodes = root.findAll('ponder.on("$NAME", $FUNC)');
