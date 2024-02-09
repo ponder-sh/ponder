@@ -554,7 +554,7 @@ export class Ponder {
         error.stack = undefined;
         this.common.logger.fatal({
           service: "app",
-          msg: "Failed to fetch initial realtime data",
+          msg: "Realtime sync service failed",
           error,
         });
         await this.kill();
