@@ -565,6 +565,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           chainId: this.network.chainId,
           blockNumber: this.finalizedBlock.number,
         });
+
+        this.common.logger.warn({
+          service: "realtime",
+          msg: `Detected reorg at block (${hexToNumber(
+            matchedLogs[nonMatchingIndex].blockNumber,
+          )}) (network=${this.network.name})`,
+        });
       } else {
         const ancestorBlockHash = localLogs[nonMatchingIndex - 1].blockHash;
         const commonAncestor = this.blocks.find(
@@ -587,6 +594,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           blockTimestamp: commonAncestor.timestamp,
           chainId: this.network.chainId,
           blockNumber: commonAncestor.number,
+        });
+
+        this.common.logger.warn({
+          service: "realtime",
+          msg: `Detected reorg at block (${hexToNumber(
+            matchedLogs[nonMatchingIndex].blockNumber,
+          )}) (network=${this.network.name})`,
         });
       }
     };
@@ -623,6 +637,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       this.emit("deepReorg", {
         detectedAtBlockNumber: latestBlockNumber,
         minimumDepth: latestBlockNumber - this.blocks[0].number,
+      });
+
+      this.common.logger.warn({
+        service: "realtime",
+        msg: `Unable to reconcile >${
+          latestBlockNumber - this.blocks[0].number
+        }-block reorg (network=${this.network.name})`,
       });
 
       this.blocks = [];
