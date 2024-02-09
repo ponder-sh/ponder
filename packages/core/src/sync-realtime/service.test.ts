@@ -1,3 +1,4 @@
+import { emit } from "node:process";
 import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { publicClient, testClient } from "@/_test/utils.js";
@@ -321,7 +322,7 @@ test("start() emits fatal error", async (context) => {
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
 
   expect(blocks).toHaveLength(0);
-  expect(emitSpy).toHaveBeenCalledWith("fatal", expect.any(Error));
+  expect(emitSpy).toHaveBeenCalledWith("fatal");
 
   service.kill();
 });
@@ -459,6 +460,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
     detectedAtBlockNumber: expect.any(Number),
     minimumDepth: expect.any(Number),
   });
+  expect(emitSpy).toHaveBeenCalledWith("fatal");
 
   service.kill();
 });

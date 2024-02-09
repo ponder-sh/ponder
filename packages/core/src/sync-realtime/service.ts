@@ -38,7 +38,7 @@ type RealtimeSyncEvents = {
   shallowReorg: Checkpoint;
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
   idle: undefined;
-  fatal: Error;
+  fatal: undefined;
 };
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
@@ -263,7 +263,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           network: this.network.name,
         });
 
-        if (i === 3) this.emit("fatal", error);
+        if (i === 3) this.emit("fatal");
       }
     }
 
@@ -650,6 +650,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           latestBlockNumber - this.blocks[0].number
         }-block reorg (network=${this.network.name})`,
       });
+
+      this.emit("fatal");
 
       this.blocks = [];
       this.logs = [];

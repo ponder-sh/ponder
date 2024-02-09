@@ -550,12 +550,10 @@ export class Ponder {
         this.syncGatewayService.handleReorg(checkpoint);
       });
 
-      realtime.on("fatal", async (error) => {
-        error.stack = undefined;
+      realtime.on("fatal", async () => {
         this.common.logger.fatal({
           service: "app",
           msg: "Realtime sync service failed",
-          error,
         });
         await this.kill();
       });
