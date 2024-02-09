@@ -571,11 +571,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           blockNumber: this.finalizedBlock.number,
         });
 
+        const depth = latestBlockNumber - this.finalizedBlock.number;
         this.common.logger.warn({
           service: "realtime",
-          msg: `Detected reorg at block (${hexToNumber(
-            matchedLogs[nonMatchingIndex].blockNumber,
-          )}) (network=${this.network.name})`,
+          msg: `Detected ${depth}-block reorg with common ancestor ${this.finalizedBlock.number} (network=${this.network.name})`,
         });
       } else {
         const ancestorBlockHash = localLogs[nonMatchingIndex - 1].blockHash;
@@ -601,11 +600,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           blockNumber: commonAncestor.number,
         });
 
+        const depth = latestBlockNumber - commonAncestor.number;
         this.common.logger.warn({
           service: "realtime",
-          msg: `Detected reorg at block (${hexToNumber(
-            matchedLogs[nonMatchingIndex].blockNumber,
-          )}) (network=${this.network.name})`,
+          msg: `Detected ${depth}-block reorg with common ancestor ${this.finalizedBlock.number} (network=${this.network.name})`,
         });
       }
     };
