@@ -267,6 +267,65 @@ test("start() insert logFilterInterval records with batch method", async (contex
   service.kill();
 });
 
+test("start() retries on error", async (context) => {
+  const { common, syncStore, sources, networks, requestQueues } = context;
+
+  const service = new RealtimeSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: [sources[0]],
+  });
+
+  const insertBlockSpy = vi.spyOn(syncStore, "insertRealtimeBlock");
+
+  insertBlockSpy.mockRejectedValueOnce(new Error());
+
+  await service.setup();
+  service.start();
+
+  service.process();
+  await service.onIdle();
+
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+
+  expect(blocks).toHaveLength(1);
+  expect(insertBlockSpy).toHaveBeenCalledTimes(2);
+
+  service.kill();
+});
+
+test("start() emits fatal error", async (context) => {
+  const { common, syncStore, sources, networks, requestQueues } = context;
+
+  const service = new RealtimeSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: [sources[0]],
+  });
+
+  const emitSpy = vi.spyOn(service, "emit");
+  const insertBlockSpy = vi.spyOn(syncStore, "insertRealtimeBlock");
+
+  insertBlockSpy.mockRejectedValue(new Error());
+
+  await service.setup();
+  service.start();
+
+  service.process();
+  await service.onIdle();
+
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+
+  expect(blocks).toHaveLength(0);
+  expect(emitSpy).toHaveBeenCalledWith("fatal", expect.any(Error));
+
+  service.kill();
+});
+
 test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
   const {
     common,

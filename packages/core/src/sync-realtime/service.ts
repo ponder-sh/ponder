@@ -246,31 +246,34 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.isProcessingBlock = true;
 
-    try {
-      const block = await this._eth_getBlockByNumber("latest");
-      await this.handleNewBlock(block);
-    } catch (error_) {
-      if (this.isShuttingDown) return;
-      const error = error_ as Error;
-      error.stack = undefined;
+    for (let i = 0; i < 4; i++) {
+      try {
+        const block = await this._eth_getBlockByNumber("latest");
+        await this.handleNewBlock(block);
+        break;
+      } catch (error_) {
+        const error = error_ as Error;
+        if (this.isShuttingDown) return;
 
-      this.common.logger.error({
-        service: "realtime",
-        error,
-        msg: `Realtime sync task failed (network=${this.network.name})`,
-        network: this.network.name,
-      });
+        this.common.logger.warn({
+          service: "realtime",
+          msg: `Realtime sync task failed (network=${
+            this.network.name
+          }, error=${`${error.name}: ${error.message}`})`,
+          network: this.network.name,
+        });
 
-      this.emit("fatal", error);
-    } finally {
-      this.isProcessingBlock = false;
-
-      if (this.isProcessBlockQueued) {
-        this.isProcessBlockQueued = false;
-        await this.process();
-      } else {
-        this.emit("idle");
+        if (i === 3) this.emit("fatal", error);
       }
+    }
+
+    this.isProcessingBlock = false;
+
+    if (this.isProcessBlockQueued) {
+      this.isProcessBlockQueued = false;
+      await this.process();
+    } else {
+      this.emit("idle");
     }
   };
 
@@ -304,6 +307,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         ? await this.syncTraverse(newBlock)
         : await this.syncBatch(newBlock);
 
+    await this.insertRealtimeBlocks(syncedData);
+
     this.logs.push(...syncedData.logs.map(realtimeLogToLightLog));
     this.blocks.push(...syncedData.blocks.map(realtimeBlockToLightBlock));
 
@@ -331,8 +336,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       this.isProcessBlockQueued = true;
       return;
     }
-
-    await this.insertRealtimeBlocks(syncedData);
 
     if (blockMovesFinality) {
       const newFinalizedBlock = this.blocks.findLast(
@@ -690,7 +693,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       });
     }
 
-    this.lastLogsPerBlock = this.logs.length / this.blocks.length;
+    this.lastLogsPerBlock = logs.length / blocks.length;
   };
 
   private getMatchedLogs = async (
