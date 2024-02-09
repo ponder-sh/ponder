@@ -1,4 +1,3 @@
-import { emit } from "node:process";
 import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { publicClient, testClient } from "@/_test/utils.js";
