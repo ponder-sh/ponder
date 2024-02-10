@@ -603,7 +603,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         const depth = latestBlockNumber - commonAncestor.number;
         this.common.logger.warn({
           service: "realtime",
-          msg: `Detected ${depth}-block reorg with common ancestor ${this.finalizedBlock.number} (network=${this.network.name})`,
+          msg: `Detected ${depth}-block reorg with common ancestor ${commonAncestor.number} (network=${this.network.name})`,
         });
       }
     };
