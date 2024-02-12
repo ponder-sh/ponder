@@ -695,7 +695,7 @@ test("findMany() returns current versions of all records", async (context) => {
   expect(items.map((i) => i.name)).toMatchObject(["SkipUpdated", "Foo", "Bar"]);
 });
 
-test("findMany() sorts on bigint field", async (context) => {
+test("findMany() orders by bigint field", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -820,7 +820,7 @@ test("findMany() errors on invalid filter condition", async (context) => {
   );
 });
 
-test("findMany() cursor pagination", async (context) => {
+test("findMany() cursor pagination ascending", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -885,6 +885,79 @@ test("findMany() cursor pagination", async (context) => {
   expect(
     resultThree.items.map((i) => ({ id: i.id, name: i.name })),
   ).toMatchObject([{ id: "id2", name: "Foo" }]);
+  expect(resultThree.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: true,
+    hasNextPage: true,
+  });
+});
+
+test("findMany() cursor pagination descending", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+      { id: "id4", name: "Zarbar" },
+      { id: "id5", name: "Winston", age: 12 },
+    ],
+  });
+
+  const resultOne = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "desc" },
+    limit: 2,
+  });
+
+  expect(
+    resultOne.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
+    { id: "id4", name: "Zarbar" },
+    { id: "id5", name: "Winston" },
+  ]);
+  expect(resultOne.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: false,
+    hasNextPage: true,
+  });
+
+  const resultTwo = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "desc" },
+    after: resultOne.pageInfo.endCursor,
+  });
+
+  expect(
+    resultTwo.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
+    { id: "id1", name: "Skip" },
+    { id: "id2", name: "Foo" },
+    { id: "id3", name: "Bar" },
+  ]);
+  expect(resultTwo.pageInfo).toMatchObject({
+    startCursor: expect.any(String),
+    endCursor: expect.any(String),
+    hasPreviousPage: true,
+    hasNextPage: false,
+  });
+
+  const resultThree = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { name: "desc" },
+    before: resultTwo.pageInfo.startCursor,
+    limit: 1,
+  });
+
+  expect(
+    resultThree.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([{ id: "id5", name: "Winston" }]);
   expect(resultThree.pageInfo).toMatchObject({
     startCursor: expect.any(String),
     endCursor: expect.any(String),
@@ -977,6 +1050,46 @@ test("findMany() errors on orderBy object with multiple keys", async (context) =
       orderBy: { name: "asc", bigAge: "desc" },
     }),
   ).rejects.toThrow("Invalid sort. Cannot sort by multiple columns.");
+});
+
+test("findMany() ordering secondary sort inherits primary", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+      { id: "id4", name: "Zarbar", bigAge: 10n },
+    ],
+  });
+
+  const resultOne = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { bigAge: "desc" },
+  });
+
+  expect(resultOne.items).toMatchObject([
+    { id: "id3", name: "Bar", bigAge: 190n },
+    { id: "id1", name: "Skip", bigAge: 105n },
+    { id: "id4", name: "Zarbar", bigAge: 10n }, // secondary sort by ID is descending
+    { id: "id2", name: "Foo", bigAge: 10n },
+  ]);
+
+  const resultTwo = await indexingStore.findMany({
+    tableName: "Pet",
+    orderBy: { bigAge: "asc" },
+  });
+
+  expect(resultTwo.items).toMatchObject([
+    { id: "id2", name: "Foo", bigAge: 10n },
+    { id: "id4", name: "Zarbar", bigAge: 10n }, // secondary sort by ID is ascending
+    { id: "id1", name: "Skip", bigAge: 105n },
+    { id: "id3", name: "Bar", bigAge: 190n },
+  ]);
 });
 
 test("createMany() inserts multiple entities", async (context) => {

@@ -49,10 +49,10 @@ export function buildOrderByConditions({
 
   const orderByConditions: OrderByConditions = [[columnName, orderDirection]];
 
-  // If the specified order by column is not the ID column, add the
-  // ID column as a secondary to enforce a consistent sort order.
+  // If the specified order by column is not the ID column, add the ID column
+  // as a secondary using the same order to enforce a consistent sort.
   if (columnName !== "id") {
-    orderByConditions.push(["id", "asc"]);
+    orderByConditions.push(["id", orderDirection]);
   }
 
   return orderByConditions;
