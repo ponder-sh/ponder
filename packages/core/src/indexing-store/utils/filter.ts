@@ -49,14 +49,10 @@ const filterEncodingMap: {
   ) => [comparator: string, value: any];
 } = {
   // Universal
-  equals: (value, encode) => {
-    const encoded = encode(value);
-    return value === null ? ["is", null] : ["=", encoded];
-  },
-  not: (value, encode) => {
-    const encoded = encode(value);
-    return value === null ? ["is not", null] : ["!=", encoded];
-  },
+  equals: (value, encode) =>
+    value === null ? ["is", null] : ["=", encode(value)],
+  not: (value, encode) =>
+    value === null ? ["is not", null] : ["!=", encode(value)],
   // Singular
   in: (value, encode) => ["in", value.map(encode)],
   notIn: (value, encode) => ["not in", value.map(encode)],
