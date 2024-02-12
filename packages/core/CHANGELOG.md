@@ -1,5 +1,17 @@
 # @ponder/core
 
+## 0.2.3
+
+### Patch Changes
+
+- [#628](https://github.com/ponder-sh/ponder/pull/628) [`44137430aa2eb28aedc294350775f22460bee9a1`](https://github.com/ponder-sh/ponder/commit/44137430aa2eb28aedc294350775f22460bee9a1) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where indexing functions were improperly parsed causing them to be run out of order.
+
+- [#619](https://github.com/ponder-sh/ponder/pull/619) [`506206b0151414cb7e6fc9586b0408a2f5a8ddb3`](https://github.com/ponder-sh/ponder/commit/506206b0151414cb7e6fc9586b0408a2f5a8ddb3) Thanks [@kyscott18](https://github.com/kyscott18)! - Changed realtime sync algorithm to be more efficient in terms of RPC requests/credits. Most notable for networks with fast block times or long polling intervals.
+
+- [#630](https://github.com/ponder-sh/ponder/pull/630) [`cab9167476a11cf1ee4b9ea9d977531d216cf051`](https://github.com/ponder-sh/ponder/commit/cab9167476a11cf1ee4b9ea9d977531d216cf051) Thanks [@0xOlias](https://github.com/0xOlias)! - Hotfixed `ponder serve`.
+
+- [#622](https://github.com/ponder-sh/ponder/pull/622) [`72adc7aca8cb9938ce5344f1a613b653ae072b1b`](https://github.com/ponder-sh/ponder/commit/72adc7aca8cb9938ce5344f1a613b653ae072b1b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `Schema` utility type to `ponder-env.d.ts`. Removed outdated `Infer` and `DatabaseModel` types.
+
 ## 0.2.2
 
 ### Patch Changes
