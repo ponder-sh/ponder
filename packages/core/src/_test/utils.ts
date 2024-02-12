@@ -2,7 +2,10 @@ import type { Common, Ponder } from "@/Ponder.js";
 import { buildNetworksAndSources } from "@/build/config/config.js";
 import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  isCheckpointGreaterThanOrEqualTo,
+} from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import type {
   BlockTag,
@@ -265,7 +268,10 @@ export const onAllEventsIndexed = (ponder: Ponder) => {
   return new Promise<void>((resolve) => {
     ponder.indexingService.on("eventsProcessed", async ({ toCheckpoint }) => {
       if (
-        toCheckpoint.blockNumber === Number(await publicClient.getBlockNumber())
+        isCheckpointGreaterThanOrEqualTo(
+          toCheckpoint,
+          ponder.syncGatewayService.checkpoint,
+        )
       ) {
         resolve();
       }
