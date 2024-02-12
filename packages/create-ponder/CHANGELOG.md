@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.2.3
+
+### Patch Changes
+
+- [#622](https://github.com/ponder-sh/ponder/pull/622) [`72adc7aca8cb9938ce5344f1a613b653ae072b1b`](https://github.com/ponder-sh/ponder/commit/72adc7aca8cb9938ce5344f1a613b653ae072b1b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `Schema` utility type to `ponder-env.d.ts`. Removed outdated `Infer` and `DatabaseModel` types.
+
 ## 0.2.2
 
 ## 0.2.1
