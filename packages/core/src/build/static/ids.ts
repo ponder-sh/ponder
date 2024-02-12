@@ -9,13 +9,13 @@ export type FunctionIds = { [func: string]: string };
 export type TableIds = { [table: string]: string };
 
 type FunctionInputs = {
-  [key: string]: {
+  [indexingFunctionKey: string]: {
     astHash: string;
     sources: object[];
   };
 };
 type TableInputs = {
-  [key: string]: {
+  [tableName: string]: {
     schema: object;
   };
 };
