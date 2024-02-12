@@ -176,7 +176,7 @@ export const parseAst = ({
       for (const [name, helperFunctionState] of Object.entries(
         helperFunctionAccess,
       )) {
-        if (funcNode.find(`${name}($$$)`) !== null) {
+        if (funcNode.find(`${name}`) !== null) {
           for (const state of helperFunctionState) {
             addToTableAccess(state.table, indexingFunctionKey, state.method);
           }
