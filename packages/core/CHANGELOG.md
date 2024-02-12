@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.2.4
+
+### Patch Changes
+
+- [#632](https://github.com/ponder-sh/ponder/pull/632) [`d0c50c2c494c944d80804edc4b40388a86a81a7c`](https://github.com/ponder-sh/ponder/commit/d0c50c2c494c944d80804edc4b40388a86a81a7c) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug with cursor pagination when using a `"desc"` sort order.
+
+- [#632](https://github.com/ponder-sh/ponder/pull/632) [`d0c50c2c494c944d80804edc4b40388a86a81a7c`](https://github.com/ponder-sh/ponder/commit/d0c50c2c494c944d80804edc4b40388a86a81a7c) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where `not` filter conditions were interpreted as `equals`.
+
 ## 0.2.3
 
 ### Patch Changes
