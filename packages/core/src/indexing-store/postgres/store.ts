@@ -37,8 +37,14 @@ export class PostgresIndexingStore implements IndexingStore {
 
   private databaseSchemaName: string;
 
-  constructor({ common, pool }: { common: Common; pool: Pool }) {
-    this.databaseSchemaName = `ponder_${new Date().getTime()}`;
+  constructor({
+    common,
+    pool,
+    usePublic = false,
+  }: { common: Common; pool: Pool; usePublic?: boolean }) {
+    this.databaseSchemaName = usePublic
+      ? "public"
+      : `ponder_${new Date().getTime()}`;
     this.common = common;
 
     this.common.logger.debug({
@@ -56,6 +62,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }
 
   async teardown() {
+    if (this.databaseSchemaName === "public") return;
     return this.wrap({ method: "teardown" }, async () => {
       await this.db.schema
         .dropSchema(this.databaseSchemaName)

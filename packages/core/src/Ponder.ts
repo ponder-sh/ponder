@@ -152,17 +152,17 @@ export class Ponder {
       common: this.common,
       config: this.config,
     });
+
+    if (database.indexing.kind === "sqlite") {
+      throw new Error(`The 'ponder serve' command only works with Postgres.`);
+    }
+
     this.common.metrics.registerDatabaseMetrics(database);
-    this.indexingStore =
-      database.indexing.kind === "sqlite"
-        ? new SqliteIndexingStore({
-            common: this.common,
-            database: database.indexing.database,
-          })
-        : new PostgresIndexingStore({
-            common: this.common,
-            pool: database.indexing.pool,
-          });
+    this.indexingStore = new PostgresIndexingStore({
+      common: this.common,
+      pool: database.indexing.pool,
+      usePublic: true,
+    });
 
     this.serverService = new ServerService({
       common: this.common,
