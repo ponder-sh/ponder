@@ -410,8 +410,6 @@ export class PostgresIndexingStore implements IndexingStore {
           )
           .limit(limit + 2);
 
-        console.log({ query: query.compile(), rawCursorValues, cursorValues });
-
         const rows = await query.execute();
         const records = rows.map((row) => decodeRow(row, table, "postgres"));
 
