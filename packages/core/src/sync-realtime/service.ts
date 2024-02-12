@@ -38,6 +38,7 @@ type RealtimeSyncEvents = {
   shallowReorg: Checkpoint;
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
   idle: undefined;
+  fatal: undefined;
 };
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
@@ -245,30 +246,34 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.isProcessingBlock = true;
 
-    try {
-      const block = await this._eth_getBlockByNumber("latest");
-      await this.handleNewBlock(block);
-    } catch (error_) {
-      if (this.isShuttingDown) return;
-      const error = error_ as Error;
+    for (let i = 0; i < 4; i++) {
+      try {
+        const block = await this._eth_getBlockByNumber("latest");
+        await this.handleNewBlock(block);
+        break;
+      } catch (error_) {
+        const error = error_ as Error;
+        if (this.isShuttingDown) return;
 
-      this.common.logger.warn({
-        service: "realtime",
-        msg: `Realtime sync task failed (network=${
-          this.network.name
-        }, error=${`${error.name}: ${error.message}`})`,
-        network: this.network.name,
-      });
-      // Note: Good spot to throw a fatal error.
-    } finally {
-      this.isProcessingBlock = false;
+        this.common.logger.warn({
+          service: "realtime",
+          msg: `Realtime sync task failed (network=${
+            this.network.name
+          }, error=${`${error.name}: ${error.message}`})`,
+          network: this.network.name,
+        });
 
-      if (this.isProcessBlockQueued) {
-        this.isProcessBlockQueued = false;
-        await this.process();
-      } else {
-        this.emit("idle");
+        if (i === 3) this.emit("fatal");
       }
+    }
+
+    this.isProcessingBlock = false;
+
+    if (this.isProcessBlockQueued) {
+      this.isProcessBlockQueued = false;
+      await this.process();
+    } else {
+      this.emit("idle");
     }
   };
 
@@ -303,6 +308,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         : await this.syncBatch(newBlock);
 
     if (!syncResult.reorg) {
+      await this.insertRealtimeBlocks(syncResult);
+
       this.logs.push(...syncResult.logs.map(realtimeLogToLightLog));
       this.blocks.push(...syncResult.blocks.map(realtimeBlockToLightBlock));
     }
@@ -334,8 +341,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       return;
     }
-
-    await this.insertRealtimeBlocks(syncResult);
 
     if (blockMovesFinality) {
       const newFinalizedBlock = this.blocks.findLast(
@@ -566,11 +571,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           blockNumber: this.finalizedBlock.number,
         });
 
+        const depth = latestBlockNumber - this.finalizedBlock.number;
         this.common.logger.warn({
           service: "realtime",
-          msg: `Detected reorg at block (${hexToNumber(
-            matchedLogs[nonMatchingIndex].blockNumber,
-          )}) (network=${this.network.name})`,
+          msg: `Detected ${depth}-block reorg with common ancestor ${this.finalizedBlock.number} (network=${this.network.name})`,
         });
       } else {
         const ancestorBlockHash = localLogs[nonMatchingIndex - 1].blockHash;
@@ -596,11 +600,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           blockNumber: commonAncestor.number,
         });
 
+        const depth = latestBlockNumber - commonAncestor.number;
         this.common.logger.warn({
           service: "realtime",
-          msg: `Detected reorg at block (${hexToNumber(
-            matchedLogs[nonMatchingIndex].blockNumber,
-          )}) (network=${this.network.name})`,
+          msg: `Detected ${depth}-block reorg with common ancestor ${commonAncestor.number} (network=${this.network.name})`,
         });
       }
     };
@@ -645,6 +648,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           latestBlockNumber - this.blocks[0].number
         }-block reorg (network=${this.network.name})`,
       });
+
+      this.emit("fatal");
 
       this.blocks = [];
       this.logs = [];
@@ -729,7 +734,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       });
     }
 
-    this.lastLogsPerBlock = this.logs.length / this.blocks.length;
+    this.lastLogsPerBlock = logs.length / blocks.length;
   };
 
   private getMatchedLogs = async (
