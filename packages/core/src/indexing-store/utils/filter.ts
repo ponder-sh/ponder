@@ -55,7 +55,7 @@ const filterEncodingMap: {
   },
   not: (value, encode) => {
     const encoded = encode(value);
-    return value === null ? ["is not", null] : ["=", encoded];
+    return value === null ? ["is not", null] : ["!=", encoded];
   },
   // Singular
   in: (value, encode) => ["in", value.map(encode)],
