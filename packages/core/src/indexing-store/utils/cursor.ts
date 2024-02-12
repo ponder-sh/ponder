@@ -43,11 +43,19 @@ export function decodeCursor(
 
 export function buildCursorConditions(
   cursorValues: [string, any][],
-  kind: "before" | "after",
+  kind: "after" | "before",
+  direction: "asc" | "desc",
   eb: ExpressionBuilder<any, any>,
 ) {
-  const comparator = kind === "before" ? "<" : ">";
-  const comparatorOrEquals = kind === "before" ? "<=" : ">=";
+  const comparator =
+    kind === "after"
+      ? direction === "asc"
+        ? ">" // after, asc
+        : "<" // after, desc
+      : direction === "asc"
+        ? "<" // before, asc
+        : ">"; // before, desc
+  const comparatorOrEquals = `${comparator}=` as const;
 
   if (cursorValues.length === 1) {
     const [columnName, value] = cursorValues[0];
