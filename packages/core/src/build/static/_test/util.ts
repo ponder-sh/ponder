@@ -1,6 +1,11 @@
 import { type Context } from "./ponder-env.js";
 
-export const helper1 = async (context: Context) => {
+export const helper1 = async ({
+  context,
+}: {
+  context: Context;
+  junk?: string;
+}) => {
   await context.db.Table1.upsert({
     id: "kyle",
   });
