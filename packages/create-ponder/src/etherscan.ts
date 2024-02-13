@@ -1,12 +1,31 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-
-import type { Abi } from "abitype";
-import prettier from "prettier";
-
-import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId.js";
 import { wait } from "@/helpers/wait.js";
 import type { SerializableConfig, SerializableContract } from "@/index.js";
+import type { Abi } from "abitype";
+import pico from "picocolors";
+import prettier from "prettier";
+import type { Chain } from "viem";
+import * as chains from "viem/chains";
+
+type ChainExplorer = {
+  name: string;
+  id: number;
+  explorer: NonNullable<Chain["blockExplorers"]>[string];
+};
+
+const chainExplorerByHostname: Record<string, ChainExplorer> = {};
+
+for (const [name, chain] of Object.entries(chains)) {
+  for (const explorer of Object.values((chain as Chain).blockExplorers ?? {})) {
+    const hostname = new URL(explorer.url).hostname;
+    chainExplorerByHostname[hostname] = {
+      name,
+      id: (chain as Chain).id,
+      explorer,
+    };
+  }
+}
 
 export const fromEtherscan = async ({
   rootDir,
@@ -17,30 +36,77 @@ export const fromEtherscan = async ({
   etherscanLink: string;
   etherscanApiKey?: string;
 }) => {
-  const apiKey = etherscanApiKey || process.env.ETHERSCAN_API_KEY;
+  const warnings: string[] = [];
 
-  const url = new URL(etherscanLink);
-  const network = getNetworkByEtherscanHostname(url.hostname);
-  if (!network) {
-    throw new Error(`Unrecognized etherscan hostname: ${url.hostname}`);
+  const apiKey = etherscanApiKey || process.env.ETHERSCAN_API_KEY;
+  const explorerUrl = new URL(etherscanLink);
+
+  const chainExplorer = chainExplorerByHostname[explorerUrl.hostname];
+  if (!chainExplorer)
+    throw new Error(
+      `Block explorer (${explorerUrl.hostname}) is not present in viem/chains.`,
+    );
+
+  const name = chainExplorer.name;
+  const chainId = chainExplorer.id;
+  const apiUrl = chainExplorer.explorer.apiUrl;
+  if (!apiUrl)
+    throw new Error(
+      `${pico.red("✗")} Block explorer (${
+        explorerUrl.hostname
+      }) does not have a API URL registered in viem/chains.`,
+    );
+
+  const pathComponents = explorerUrl.pathname.slice(1).split("/");
+  const contractAddress = pathComponents[1];
+
+  if (
+    pathComponents[0] !== "address" ||
+    !(typeof contractAddress === "string") ||
+    !contractAddress.startsWith("0x")
+  ) {
+    throw new Error(
+      `${pico.red("✗")} Invalid block explorer URL (${
+        explorerUrl.href
+      }). Expected path "/address/<contract-address>".`,
+    );
   }
 
-  const { name, chainId, apiUrl } = network;
-  const contractAddress = url.pathname.slice(1).split("/")[1];
+  let abiResult: { abi: string; contractName: string } | undefined = undefined;
+  try {
+    abiResult = await getContractAbiAndName(contractAddress, apiUrl, apiKey);
+  } catch (e) {
+    const error = e as Error;
+    throw new Error(
+      `${pico.red("✗")} Failed to fetch contract ABI from block explorer API: ${
+        error.message
+      }`,
+    );
+  }
+
+  if (typeof abiResult.abi !== "string")
+    throw new Error(
+      `${pico.red(
+        "✗",
+      )} Invalid ABI returned from block explorer API. Is the contract verified?`,
+    );
+  const baseAbi = JSON.parse(abiResult.abi) as Abi;
+  let contractName = abiResult.contractName;
+
+  const abis: { abi: Abi; contractName: string }[] = [
+    { abi: baseAbi, contractName },
+  ];
 
   let blockNumber: number | undefined = undefined;
-
   try {
+    if (!apiKey) await wait(5000);
     const txHash = await getContractCreationTxn(
       contractAddress,
       apiUrl,
       apiKey,
     );
 
-    if (!apiKey) {
-      console.log("\n(1/n) Waiting 5 seconds for Etherscan API rate limit");
-      await wait(5000);
-    }
+    if (!apiKey) await wait(5000);
     const contractCreationBlockNumber = await getTxBlockNumber(
       txHash,
       apiUrl,
@@ -52,37 +118,16 @@ export const fromEtherscan = async ({
     // Do nothing, blockNumber won't be set.
   }
 
-  if (!apiKey) {
-    console.log("(2/n) Waiting 5 seconds for Etherscan API rate limit");
-    await wait(5000);
-  }
-  const abis: { abi: Abi; contractName: string }[] = [];
-  const abiAndName = await getContractAbiAndName(
-    contractAddress,
-    apiUrl,
-    apiKey,
-  );
-  const { abi } = abiAndName;
-  let contractName = abiAndName.contractName;
-
-  abis.push({ abi: JSON.parse(abi), contractName });
-
   // If the contract is an EIP-1967 proxy, get the implementation contract ABIs.
   if (
-    (JSON.parse(abi) as any[]).find(
+    baseAbi.find(
       (item) =>
         item.type === "event" &&
         item.name === "Upgraded" &&
         item.inputs[0].name === "implementation",
     )
   ) {
-    console.log(
-      "Detected EIP-1967 proxy, fetching implementation contract ABIs",
-    );
-    if (!apiKey) {
-      console.log("(3/n) Waiting 5 seconds for Etherscan API rate limit");
-      await wait(5000);
-    }
+    if (!apiKey) await wait(5000);
     const { implAddresses } = await getProxyImplementationAddresses({
       contractAddress,
       apiUrl,
@@ -90,21 +135,20 @@ export const fromEtherscan = async ({
       apiKey,
     });
 
-    for (const [index, implAddress] of implAddresses.entries()) {
-      console.log(`Fetching ABI for implementation contract: ${implAddress}`);
-      if (!apiKey) {
-        console.log(
-          `(${4 + index}/${
-            4 + implAddresses.length - 1
-          }) Waiting 5 seconds for Etherscan API rate limit`,
-        );
-        await wait(5000);
-      }
+    for (const implAddress of implAddresses) {
+      if (!apiKey) await wait(5000);
       const { abi, contractName: implContractName } =
         await getContractAbiAndName(implAddress, apiUrl, apiKey);
+
+      if (typeof abi !== "string") {
+        warnings.push(
+          `Unable to fetch ABI for implementation contract ${implAddress}. Please see the proxy contract documentation for more details: https://ponder.sh/docs/guides/add-contracts#multiple-abis`,
+        );
+        continue;
+      }
+
       // Update the top-level contract name to the impl contract name.
       contractName = implContractName;
-
       abis.push({
         abi: JSON.parse(abi) as Abi,
         contractName: `${contractName}_${implAddress.slice(0, 6)}`,
@@ -128,9 +172,7 @@ export const fromEtherscan = async ({
       abiAbsolutePath,
       await prettier.format(
         `export const ${contractName}Abi = ${JSON.stringify(abi)} as const`,
-        {
-          parser: "typescript",
-        },
+        { parser: "typescript" },
       ),
     );
 
@@ -170,7 +212,7 @@ export const fromEtherscan = async ({
     },
   };
 
-  return config;
+  return { config, warnings };
 };
 
 const fetchEtherscan = async (url: string) => {
@@ -180,10 +222,7 @@ const fetchEtherscan = async (url: string) => {
   while (retryCount <= maxRetries) {
     try {
       const response = await fetch(url);
-      const data: any = await response.json();
-      if (data.status === "0") {
-        throw new Error(`Etherscan API error: ${data.result}`);
-      }
+      const data = (await response.json()) as any;
       return data;
     } catch (error) {
       retryCount++;

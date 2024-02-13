@@ -3,8 +3,6 @@ title: "Create and Update Records"
 description: "Learn how to create and update records in the Ponder database."
 ---
 
-import { Callout } from "nextra/components";
-
 # Create & update records
 
 Ponder's store API is inspired by the [Prisma Client API](https://www.prisma.io/docs/reference/api-reference/prisma-client-reference#model-queries). The store currently supports the following methods:
@@ -24,14 +22,14 @@ Insert a new records into the store.
 
 ### Options
 
-| name     | type                              |                                |
-| :------- | :-------------------------------- | :----------------------------- |
-| **id**   | `string \| number \| bigint{:ts}` | ID of the new record           |
-| **data** | `TRecord{:ts}`                    | Data required for a new record |
+| name     | type                                     |                                |
+| :------- | :--------------------------------------- | :----------------------------- |
+| **id**   | `string \| Hex \| number \| bigint{:ts}` | ID of the new record           |
+| **data** | `Record{:ts}`                            | Data required for a new record |
 
 ### Returns
 
-`Promise<TRecord>{:ts}`
+`Promise<Record>{:ts}`
 
 ### Examples
 
@@ -49,7 +47,7 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
+```ts filename="src/index.ts" {4-10}
 ponder.on("Blitmap:Mint", async ({ event, context }) => {
   const { Token } = context.db;
 
@@ -72,15 +70,15 @@ Update an record that already exists.
 
 ### Options
 
-| name                | type                                                    |                                   |
-| :------------------ | :------------------------------------------------------ | :-------------------------------- |
-| **id**              | `string \| number \| bigint{:ts}`                       | ID of the updated record          |
-| **data**            | `Partial<TRecord>{:ts}`                                 | Data to update                    |
-| **data** (function) | `(args: { current: TRecord }) => Partial<TRecord>{:ts}` | Function returning data to update |
+| name                | type                                                  |                                   |
+| :------------------ | :---------------------------------------------------- | :-------------------------------- |
+| **id**              | `string \| Hex \| number \| bigint{:ts}`              | ID of the updated record          |
+| **data**            | `Partial<Record>{:ts}`                                | Data to update                    |
+| **data** (function) | `(args: { current: Record }) => Partial<Record>{:ts}` | Function returning data to update |
 
 ### Returns
 
-`Promise<TRecord>{:ts}`
+`Promise<Record>{:ts}`
 
 ### Examples
 
@@ -98,7 +96,7 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
+```ts filename="src/index.ts" {4-9}
 ponder.on("Blitmap:MetadataUpdate", async ({ event, context }) => {
   const { Token } = context.db;
 
@@ -131,7 +129,7 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
+```ts filename="src/index.ts" {6-8}
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
   const { Account } = context.db;
 
@@ -153,16 +151,16 @@ Update a record if one already exists with the specified `id`, or create a new r
 
 ### Options
 
-| name                  | type                                                    |                                      |
-| :-------------------- | :------------------------------------------------------ | :----------------------------------- |
-| **id**                | `string \| number \| bigint{:ts}`                       | ID of the record to create or update |
-| **create**            | `TRecord{:ts}`                                          | Data required for a new record       |
-| **update**            | `Partial<TRecord>{:ts}`                                 | Data to update                       |
-| **update** (function) | `(args: { current: TRecord }) => Partial<TRecord>{:ts}` | Function returning data to update    |
+| name                  | type                                                  |                                      |
+| :-------------------- | :---------------------------------------------------- | :----------------------------------- |
+| **id**                | `string \| Hex \| number \| bigint{:ts}`              | ID of the record to create or update |
+| **create**            | `Record{:ts}`                                         | Data required for a new record       |
+| **update**            | `Partial<Record>{:ts}`                                | Data to update                       |
+| **update** (function) | `(args: { current: Record }) => Partial<Record>{:ts}` | Function returning data to update    |
 
 ### Returns
 
-`Promise<TRecord>{:ts}`
+`Promise<Record>{:ts}`
 
 ### Examples
 
@@ -182,7 +180,7 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
+```ts filename="src/index.ts" {4-13}
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
   const { Token } = context.db;
 
@@ -220,7 +218,7 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
+```ts filename="src/index.ts" {10-13}
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
   const { Token } = context.db;
 
@@ -247,9 +245,9 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
 
 ### Options
 
-| name   | type                              |                            |
-| :----- | :-------------------------------- | :------------------------- |
-| **id** | `string \| number \| bigint{:ts}` | ID of the record to delete |
+| name   | type                                     |                            |
+| :----- | :--------------------------------------- | :------------------------- |
+| **id** | `string \| Hex \| number \| bigint{:ts}` | ID of the record to delete |
 
 ### Returns
 
@@ -270,13 +268,20 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
-await Player.create({ id: "Jim", age: 34 });
+```ts filename="src/index.ts" {6-8}
+await Player.create({
+  id: "Jim",
+  data: { age: 34 },
+});
 
-const isDeleted = await Player.delete({ id: "Jim" });
+const isDeleted = await Player.delete({
+  id: "Jim",
+});
 // true
 
-const jim = await Player.findUnique({ id: "Jim" });
+const jim = await Player.findUnique({
+  id: "Jim",
+});
 // null
 ```
 
@@ -288,13 +293,13 @@ const jim = await Player.findUnique({ id: "Jim" });
 
 ### Options
 
-| name   | type                              |                                     |
-| :----- | :-------------------------------- | :---------------------------------- |
-| **id** | `string \| number \| bigint{:ts}` | ID of the record to find and return |
+| name   | type                                     |                                     |
+| :----- | :--------------------------------------- | :---------------------------------- |
+| **id** | `string \| Hex \| number \| bigint{:ts}` | ID of the record to find and return |
 
 ### Returns
 
-`Promise<TRecord | null>{:ts}`
+`Promise<Record | null>{:ts}`
 
 ### Examples
 
@@ -311,13 +316,20 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
-await Player.create({ id: "Jim", age: 34 });
+```ts filename="src/index.ts" {6-8,11-13}
+await Player.create({
+  id: "Jim",
+  data: { age: 34 },
+});
 
-const jim = await Player.findUnique({ id: "Jim" });
+const jim = await Player.findUnique({
+  id: "Jim",
+});
 // { id: "Jim", age: 34 }
 
-const sara = await Player.findUnique({ id: "Sara" });
+const sara = await Player.findUnique({
+  id: "Sara",
+});
 // null
 ```
 
@@ -329,16 +341,17 @@ const sara = await Player.findUnique({ id: "Sara" });
 
 ### Options
 
-| name        | type                                      |                                          |
-| :---------- | :---------------------------------------- | :--------------------------------------- |
-| **where**   | `WhereInput<TRecord> \| undefined{:ts}`   | Filter matching records to return        |
-| **orderBy** | `OrderByInput<TRecord> \| undefined{:ts}` | Sort applied to the list                 |
-| **skip**    | `number \| undefined{:ts}`                | Number of records to skip (SQL `OFFSET`) |
-| **take**    | `number \| undefined{:ts}`                | Number of records to take (SQL `LIMIT`)  |
+| name        | type                             |                                                                    |
+| :---------- | :------------------------------- | :----------------------------------------------------------------- |
+| **where**   | `WhereInput \| undefined{:ts}`   | Filter for records matching a set of criteria                      |
+| **orderBy** | `OrderByInput \| undefined{:ts}` | Sort records by a column (default: `{ id: "asc" }{:ts}`)           |
+| **before**  | `string \| undefined{:ts}`       | Return records before this cursor                                  |
+| **after**   | `string \| undefined{:ts}`       | Return records after this cursor                                   |
+| **limit**   | `number \| undefined{:ts}`       | Number of records to return (default: `50{:ts}`, max: `1000{:ts}`) |
 
 ### Returns
 
-`Promise<TRecord[]>{:ts}`
+`Promise<{ items: Record[], pageInfo: PageInfo }>{:ts}`
 
 ### Examples
 
@@ -359,19 +372,23 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
-await Player.create({ id: "Jim", age: 34 });
-await Player.create({ id: "Andrew", age: 19 });
-await Player.create({ id: "Janet", age: 56 });
+```ts filename="src/index.ts" {17-21}
+await Player.createMany({
+  data: [
+    { id: "Jim", age: 34 },
+    { id: "Andrew", age: 19 },
+    { id: "Janet", age: 56 },
+  ],
+});
 
-const players = await Player.findMany();
+const { items } = await Player.findMany();
 // [
 //   { id: "Jim", age: 34 },
 //   { id: "Andrew", age: 19 },
 //   { id: "Janet", age: 56 }
 // ]
 
-const players = await Player.findMany({
+const { items } = await Player.findMany({
   where: {
     id: {
       startsWith: "J",
@@ -401,12 +418,16 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
-await Player.create({ id: "Jim", age: 34 });
-await Player.create({ id: "Andrew", age: 19 });
-await Player.create({ id: "Janet", age: 56 });
+```ts filename="src/index.ts" {10-13}
+await Player.createMany({
+  data: [
+    { id: "Jim", age: 34 },
+    { id: "Andrew", age: 19 },
+    { id: "Janet", age: 56 },
+  ],
+});
 
-const players = await Player.findMany({
+const { items } = await Player.findMany({
   where: {
     id: { contains: "e" }
     age: { gt: 30 }
@@ -424,7 +445,6 @@ const players = await Player.findMany({
 Sort the result list by passing an `orderBy` option containing a field name and sort direction (`"asc"{:ts}` or `"desc"{:ts}`).
 
 <div className="code-columns">
-
 ```ts filename="ponder.schema.ts"
 import { createSchema } from "@ponder/core";
 
@@ -436,12 +456,16 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
-await Player.create({ id: "Jim", age: 34 });
-await Player.create({ id: "Andrew", age: 19 });
-await Player.create({ id: "Janet", age: 56 });
+```ts filename="src/index.ts" {10-12}
+await Player.createMany({
+  data: [
+    { id: "Jim", age: 34 },
+    { id: "Andrew", age: 19 },
+    { id: "Janet", age: 56 },
+  ],
+});
 
-const players = await Player.findMany({
+const { items } = await Player.findMany({
   orderBy: {
     age: "asc",
   },
@@ -457,15 +481,24 @@ const players = await Player.findMany({
 
 #### Pagination
 
-Paginate through the result list using the `skip` and `take` options.
+The `findMany` cursor pagination API is inspired by the [Relay GraphQL Cursor Connection](https://relay.dev/graphql/connections.htm#sec-undefined.PageInfo) specification.
 
-<Callout type="warning">
-  Avoid using `findMany` to return result lists that require pagination. (If you
-  need this, please reach out so we can better support your use case.)
-</Callout>
+- Cursor values are opaque strings that encode the position of a record in the result set. They should not be decoded or manipulated by the client.
+- Cursors are exclusive, meaning that the record at the specified cursor is not included in the result.
+- Cursor pagination works with any valid filter and sort criteria. However, do not change the filter or sort criteria between paginated requests. This will cause validation errors or incorrect results.
+
+**PageInfo** type.
+
+| name                | type                  |                                                 |
+| :------------------ | :-------------------- | :---------------------------------------------- |
+| **startCursor**     | `string \| null{:ts}` | Cursor of the first record in `items`           |
+| **endCursor**       | `string \| null{:ts}` | Cursor of the last record in `items`            |
+| **hasPreviousPage** | `boolean{:ts}`        | Whether there are more records before this page |
+| **hasNextPage**     | `boolean{:ts}`        | Whether there are more records after this page  |
+
+Consider this setup for the following pagination examples:
 
 <div className="code-columns">
-
 ```ts filename="ponder.schema.ts"
 import { createSchema } from "@ponder/core";
 
@@ -478,23 +511,68 @@ export default createSchema((p) => ({
 ```
 
 ```ts filename="src/index.ts"
-await Player.create({ id: "Jim", age: 34 });
-await Player.create({ id: "Andrew", age: 19 });
-await Player.create({ id: "Janet", age: 56 });
-await Player.create({ id: "Polly", age: 29 });
-
-const players = await Player.findMany({
-  orderBy: { age: "desc" },
-  skip: 1,
-  take: 2,
+await Player.createMany({
+  data: [
+    { id: "Jim", age: 34 },
+    { id: "Andrew", age: 19 },
+    { id: "Janet", age: 56 },
+    { id: "Polly", age: 29 },
+  ],
 });
-// [
-//   { id: "Jim", age: 34 },
-//   { id: "Polly", age: 29 }
-// ]
 ```
 
 </div>
+
+To paginate forwards, pass `pageInfo.endCursor` from the previous request as the `after` option in the next request.
+
+```ts filename="src/index.ts" {17}
+const pageOne = await Player.findMany({
+  orderBy: { age: "asc" },
+  limit: 2,
+});
+// {
+//   items: [ { id: "Andrew", age: 19 }, { id: "Polly", age: 29 } ],
+//   pageInfo: {
+//     startCursor: "MfgBzeDkjs44",
+//     endCursor: "Mxhc3NDb3JlLTA=",
+//     hasPreviousPage: false,
+//     hasNextPage: true,
+//   }
+// }
+
+const pageTwo = await Player.findMany({
+  orderBy: { age: "desc" },
+  after: pageOne.pageInfo.endCursor,
+});
+// {
+//   items: [ { id: "Jim", age: 34 }, { id: "Janet", age: 56 } ],
+//   pageInfo: {
+//     startCursor: "MxhcdoP9CVBhY",
+//     endCursor: "McSDfVIiLka==",
+//     hasPreviousPage: true,
+//     hasNextPage: false,
+//   }
+// }
+```
+
+To paginate backwards, pass `pageInfo.startCursor` from the previous request as the `before` option in the next request. Picking up where the previous example left off:
+
+```ts filename="src/index.ts" {3}
+const pageThree = await Player.findMany({
+  orderBy: { age: "asc" },
+  before: pageTwo.pageInfo.startCursor,
+  limit: 1,
+});
+// {
+//   items: [ { id: "Polly", age: 29 } ],
+//   pageInfo: {
+//     startCursor: "Mxhc3NDb3JlLTA=",
+//     endCursor: "Mxhc3NDb3JlLTA=",
+//     hasPreviousPage: true,
+//     hasNextPage: true,
+//   }
+// }
+```
 
 ## `createMany`
 
@@ -502,13 +580,13 @@ const players = await Player.findMany({
 
 ### Options
 
-| name     | type             |                           |
-| :------- | :--------------- | :------------------------ |
-| **data** | `TRecord[]{:ts}` | List of records to create |
+| name     | type            |                           |
+| :------- | :-------------- | :------------------------ |
+| **data** | `Record[]{:ts}` | List of records to create |
 
 ### Returns
 
-`Promise<TRecord[]>{:ts}`
+`Promise<Record[]>{:ts}`
 
 ### Examples
 
@@ -525,7 +603,7 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
+```ts filename="src/index.ts" {1-7}
 await Player.createMany({
   data: [
     { id: "Jim", age: 34 },
@@ -550,15 +628,15 @@ const players = await Player.findMany();
 
 ### Options
 
-| name                | type                                                    |                                       |
-| :------------------ | :------------------------------------------------------ | :------------------------------------ |
-| **where**           | `WhereInput<TRecord>{:ts}`                              | Filter matching records to be updated |
-| **data**            | `Partial<TRecord>{:ts}`                                 | Data to update                        |
-| **data** (function) | `(args: { current: TRecord }) => Partial<TRecord>{:ts}` | Function returning data to update     |
+| name                | type                                                  |                                       |
+| :------------------ | :---------------------------------------------------- | :------------------------------------ |
+| **where**           | `WhereInput<Record>{:ts}`                             | Filter matching records to be updated |
+| **data**            | `Partial<Record>{:ts}`                                | Data to update                        |
+| **data** (function) | `(args: { current: Record }) => Partial<Record>{:ts}` | Function returning data to update     |
 
 ### Returns
 
-`Promise<TRecord[]>{:ts}`
+`Promise<Record[]>{:ts}`
 
 ### Examples
 
@@ -575,10 +653,14 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
-await Player.create({ id: "Jim", age: 34 });
-await Player.create({ id: "Andrew", age: 19 });
-await Player.create({ id: "Janet", age: 56 });
+```ts filename="src/index.ts" {9-18}
+await Player.createMany({
+  data: [
+    { id: "Jim", age: 34 },
+    { id: "Andrew", age: 19 },
+    { id: "Janet", age: 56 },
+  ],
+});
 
 await Player.updateMany({
   where: {

@@ -105,4 +105,15 @@ test("event filter with event and args", () => {
   });
 });
 
-test("event filter with weak abi");
+test("event filter with weak abi", () => {
+  eventFilter({
+    abi: [] as Abi,
+
+    filter: {
+      event: "Event0",
+      args: {
+        arg: "0x",
+      },
+    },
+  });
+});

@@ -1,27 +1,23 @@
-import { Kysely, SqliteDialect, sql } from "kysely";
-
 import type { Common } from "@/Ponder.js";
-import type { Scalar, Schema } from "@/schema/types.js";
-import {
-  isEnumColumn,
-  isManyColumn,
-  isOneColumn,
-  isReferenceColumn,
-} from "@/schema/utils.js";
+import type { Schema } from "@/schema/types.js";
+import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { decodeToBigInt } from "@/utils/encoding.js";
-import { ensureDirExists } from "@/utils/exists.js";
-import { BetterSqlite3, improveSqliteErrors } from "@/utils/sqlite.js";
-
+import type { SqliteDatabase } from "@/utils/sqlite.js";
+import { Kysely, SqliteDialect, sql } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
-import { formatColumnValue, formatRow } from "../utils/format.js";
-import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
-  buildSqlOrderByConditions,
-  buildSqlWhereConditions,
-} from "../utils/where.js";
+  buildCursorConditions,
+  decodeCursor,
+  encodeCursor,
+} from "../utils/cursor.js";
+import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
+import { buildWhereConditions } from "../utils/filter.js";
+import { buildOrderByConditions } from "../utils/sort.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
+
+const DEFAULT_LIMIT = 50 as const;
+const MAX_LIMIT = 1_000 as const;
 
 const scalarToSqlType = {
   boolean: "integer",
@@ -29,7 +25,7 @@ const scalarToSqlType = {
   float: "text",
   string: "text",
   bigint: "varchar(79)",
-  bytes: "text",
+  hex: "blob",
 } as const;
 
 export class SqliteIndexingStore implements IndexingStore {
@@ -40,19 +36,25 @@ export class SqliteIndexingStore implements IndexingStore {
 
   schema?: Schema;
 
-  constructor({ common, file }: { common: Common; file: string }) {
+  constructor({
+    common,
+    database,
+  }: {
+    common: Common;
+    database: SqliteDatabase;
+  }) {
     this.common = common;
-    ensureDirExists(file);
-    const database = new BetterSqlite3(file);
-    improveSqliteErrors(database);
-    database.pragma("journal_mode = WAL");
     this.db = new Kysely({
       dialect: new SqliteDialect({ database }),
+      log(event) {
+        if (event.level === "query")
+          common.metrics.ponder_sqlite_query_count?.inc({ kind: "indexing" });
+      },
     });
   }
 
-  async kill() {
-    return this.wrap({ method: "kill" }, async () => {
+  async teardown() {
+    return this.wrap({ method: "teardown" }, async () => {
       const tableNames = Object.keys(this.schema?.tables ?? {});
       if (tableNames.length > 0) {
         await this.db.transaction().execute(async (tx) => {
@@ -64,7 +66,11 @@ export class SqliteIndexingStore implements IndexingStore {
           );
         });
       }
+    });
+  }
 
+  async kill() {
+    return this.wrap({ method: "kill" }, async () => {
       try {
         await this.db.destroy();
       } catch (e) {
@@ -112,11 +118,13 @@ export class SqliteIndexingStore implements IndexingStore {
                     "text",
                     (col) => {
                       if (!column.optional) col = col.notNull();
-                      col = col.check(
-                        sql`${sql.ref(columnName)} in (${sql.join(
-                          schema!.enums[column.type].map((v) => sql.lit(v)),
-                        )})`,
-                      );
+                      if (!column.list) {
+                        col = col.check(
+                          sql`${sql.ref(columnName)} in (${sql.join(
+                            schema!.enums[column.type].map((v) => sql.lit(v)),
+                          )})`,
+                        );
+                      }
                       return col;
                     },
                   );
@@ -233,21 +241,16 @@ export class SqliteIndexingStore implements IndexingStore {
     checkpoint?: Checkpoint | "latest";
     id: string | number | bigint;
   }) => {
+    const versionedTableName = `${tableName}_versioned`;
+    const table = this.schema!.tables[tableName];
+
     return this.wrap({ method: "findUnique", tableName }, async () => {
-      const table = `${tableName}_versioned`;
-      const formattedId = formatColumnValue({
-        value: id,
-        encodeBigInts: true,
-      });
+      const encodedId = encodeValue(id, table.id, "sqlite");
 
       let query = this.db
-        .selectFrom(table)
+        .selectFrom(versionedTableName)
         .selectAll()
-        .where(
-          "id",
-          this.idColumnComparator({ tableName, schema: this.schema }),
-          formattedId,
-        );
+        .where("id", "=", encodedId);
 
       if (checkpoint === "latest") {
         query = query.where("effectiveToCheckpoint", "=", "latest");
@@ -266,7 +269,7 @@ export class SqliteIndexingStore implements IndexingStore {
       const row = await query.executeTakeFirst();
       if (row === undefined) return null;
 
-      return this.deserializeRow({ tableName, row });
+      return decodeRow(row, table, "sqlite");
     });
   };
 
@@ -274,21 +277,24 @@ export class SqliteIndexingStore implements IndexingStore {
     tableName,
     checkpoint = "latest",
     where,
-    skip,
-    take,
     orderBy,
+    before = null,
+    after = null,
+    limit = DEFAULT_LIMIT,
   }: {
     tableName: string;
     checkpoint?: Checkpoint | "latest";
     where?: WhereInput<any>;
-    skip?: number;
-    take?: number;
     orderBy?: OrderByInput<any>;
+    before?: string | null;
+    after?: string | null;
+    limit?: number;
   }) => {
-    return this.wrap({ method: "findMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
+    const versionedTableName = `${tableName}_versioned`;
+    const table = this.schema!.tables[tableName];
 
-      let query = this.db.selectFrom(table).selectAll();
+    return this.wrap({ method: "findMany", tableName }, async () => {
+      let query = this.db.selectFrom(versionedTableName).selectAll();
 
       if (checkpoint === "latest") {
         query = query.where("effectiveToCheckpoint", "=", "latest");
@@ -304,35 +310,174 @@ export class SqliteIndexingStore implements IndexingStore {
           );
       }
 
-      if (where) {
-        const whereConditions = buildSqlWhereConditions({
-          where,
-          encodeBigInts: true,
-        });
-        for (const whereCondition of whereConditions) {
-          query = query.where(...whereCondition);
+      const whereConditions = buildWhereConditions({
+        where,
+        table,
+        encoding: "sqlite",
+      });
+      for (const [columnName, comparator, value] of whereConditions) {
+        query = query.where(columnName, comparator, value);
+      }
+
+      const orderByConditions = buildOrderByConditions({ orderBy, table });
+      for (const [column, direction] of orderByConditions) {
+        query = query.orderBy(column, direction);
+      }
+      const orderDirection = orderByConditions[0][1];
+
+      if (limit > MAX_LIMIT) {
+        throw new Error(
+          `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
+        );
+      }
+
+      if (after !== null && before !== null) {
+        throw new Error("Cannot specify both before and after cursors.");
+      }
+
+      let startCursor = null;
+      let endCursor = null;
+      let hasPreviousPage = false;
+      let hasNextPage = false;
+
+      // Neither cursors are specified, apply the order conditions and execute.
+      if (after === null && before === null) {
+        query = query.limit(limit + 1);
+        const rows = await query.execute();
+        const records = rows.map((row) => decodeRow(row, table, "sqlite"));
+
+        if (records.length === limit + 1) {
+          records.pop();
+          hasNextPage = true;
         }
+
+        startCursor =
+          records.length > 0
+            ? encodeCursor(records[0], orderByConditions)
+            : null;
+        endCursor =
+          records.length > 0
+            ? encodeCursor(records[records.length - 1], orderByConditions)
+            : null;
+
+        return {
+          items: records,
+          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+        };
       }
 
-      if (skip) {
-        const offset = validateSkip(skip);
-        query = query.offset(offset);
-      }
+      if (after !== null) {
+        // User specified an 'after' cursor.
+        const rawCursorValues = decodeCursor(after, orderByConditions);
+        const cursorValues = rawCursorValues.map(([columnName, value]) => [
+          columnName,
+          encodeValue(value, table[columnName], "sqlite"),
+        ]) satisfies [string, any][];
+        query = query
+          .where((eb) =>
+            buildCursorConditions(cursorValues, "after", orderDirection, eb),
+          )
+          .limit(limit + 2);
 
-      if (take) {
-        const limit = validateTake(take);
-        query = query.limit(limit);
-      }
+        const rows = await query.execute();
+        const records = rows.map((row) => decodeRow(row, table, "sqlite"));
 
-      if (orderBy) {
-        const orderByConditions = buildSqlOrderByConditions({ orderBy });
-        for (const orderByCondition of orderByConditions) {
-          query = query.orderBy(...orderByCondition);
+        if (records.length === 0) {
+          return {
+            items: records,
+            pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+          };
         }
-      }
 
-      const rows = await query.execute();
-      return rows.map((row) => this.deserializeRow({ tableName, row }));
+        // If the cursor of the first returned record equals the `after` cursor,
+        // `hasPreviousPage` is true. Remove that record.
+        if (encodeCursor(records[0], orderByConditions) === after) {
+          records.shift();
+          hasPreviousPage = true;
+        } else {
+          // Otherwise, remove the last record.
+          records.pop();
+        }
+
+        // Now if the length of the records is still equal to limit + 1,
+        // there is a next page.
+        if (records.length === limit + 1) {
+          records.pop();
+          hasNextPage = true;
+        }
+
+        // Now calculate the cursors.
+        startCursor =
+          records.length > 0
+            ? encodeCursor(records[0], orderByConditions)
+            : null;
+        endCursor =
+          records.length > 0
+            ? encodeCursor(records[records.length - 1], orderByConditions)
+            : null;
+
+        return {
+          items: records,
+          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+        };
+      } else {
+        // User specified a 'before' cursor.
+        const rawCursorValues = decodeCursor(before!, orderByConditions);
+        const cursorValues = rawCursorValues.map(([columnName, value]) => [
+          columnName,
+          encodeValue(value, table[columnName], "sqlite"),
+        ]) satisfies [string, any][];
+        query = query
+          .where((eb) =>
+            buildCursorConditions(cursorValues, "before", orderDirection, eb),
+          )
+          .limit(limit + 2);
+
+        const rows = await query.execute();
+        const records = rows.map((row) => decodeRow(row, table, "sqlite"));
+
+        if (records.length === 0) {
+          return {
+            items: records,
+            pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+          };
+        }
+
+        // If the cursor of the last returned record equals the `before` cursor,
+        // `hasNextPage` is true. Remove that record.
+        if (
+          encodeCursor(records[records.length - 1], orderByConditions) ===
+          before
+        ) {
+          records.pop();
+          hasNextPage = true;
+        } else {
+          // Otherwise, remove the first record.
+          records.shift();
+        }
+
+        // Now if the length of the records is equal to limit + 1, we know
+        // there is a previous page.
+        if (records.length === limit + 1) {
+          records.shift();
+          hasPreviousPage = true;
+        }
+
+        // Now calculate the cursors.
+        startCursor =
+          records.length > 0
+            ? encodeCursor(records[0], orderByConditions)
+            : null;
+        endCursor =
+          records.length > 0
+            ? encodeCursor(records[records.length - 1], orderByConditions)
+            : null;
+
+        return {
+          items: records,
+          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+        };
+      }
     });
   };
 
@@ -347,13 +492,15 @@ export class SqliteIndexingStore implements IndexingStore {
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
+    const versionedTableName = `${tableName}_versioned`;
+    const table = this.schema!.tables[tableName];
+
     return this.wrap({ method: "create", tableName }, async () => {
-      const table = `${tableName}_versioned`;
-      const createRow = formatRow({ id, ...data }, true);
+      const createRow = encodeRow({ id, ...data }, table, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db
-        .insertInto(table)
+        .insertInto(versionedTableName)
         .values({
           ...createRow,
           effectiveFromCheckpoint: encodedCheckpoint,
@@ -362,7 +509,7 @@ export class SqliteIndexingStore implements IndexingStore {
         .returningAll()
         .executeTakeFirstOrThrow();
 
-      return this.deserializeRow({ tableName, row });
+      return decodeRow(row, this.schema!.tables[tableName], "sqlite");
     });
   };
 
@@ -373,14 +520,15 @@ export class SqliteIndexingStore implements IndexingStore {
   }: {
     tableName: string;
     checkpoint: Checkpoint;
-    id: string | number | bigint;
     data: Row[];
   }) => {
+    const versionedTableName = `${tableName}_versioned`;
+    const table = this.schema!.tables[tableName];
+
     return this.wrap({ method: "createMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const createRows = data.map((d) => ({
-        ...formatRow({ ...d }, true),
+        ...encodeRow({ ...d }, table, "sqlite"),
         effectiveFromCheckpoint: encodedCheckpoint,
         effectiveToCheckpoint: "latest",
       }));
@@ -391,11 +539,17 @@ export class SqliteIndexingStore implements IndexingStore {
 
       const rows = await Promise.all(
         chunkedRows.map((c) =>
-          this.db.insertInto(table).values(c).returningAll().execute(),
+          this.db
+            .insertInto(versionedTableName)
+            .values(c)
+            .returningAll()
+            .execute(),
         ),
       );
 
-      return rows.flat().map((row) => this.deserializeRow({ tableName, row }));
+      return rows
+        .flat()
+        .map((row) => decodeRow(row, this.schema!.tables[tableName], "sqlite"));
     });
   };
 
@@ -412,35 +566,30 @@ export class SqliteIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
+    const versionedTableName = `${tableName}_versioned`;
+    const table = this.schema!.tables[tableName];
+
     return this.wrap({ method: "update", tableName }, async () => {
-      const table = `${tableName}_versioned`;
-      const formattedId = formatColumnValue({
-        value: id,
-        encodeBigInts: true,
-      });
+      const encodedId = encodeValue(id, table.id, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRow = await tx
-          .selectFrom(table)
+          .selectFrom(versionedTableName)
           .selectAll()
-          .where(
-            "id",
-            this.idColumnComparator({ tableName, schema: this.schema }),
-            formattedId,
-          )
+          .where("id", "=", encodedId)
           .where("effectiveToCheckpoint", "=", "latest")
           .executeTakeFirstOrThrow();
 
         // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof formatRow>;
+        let updateRow: ReturnType<typeof encodeRow>;
         if (typeof data === "function") {
-          const current = this.deserializeRow({ tableName, row: latestRow });
+          const current = decodeRow(latestRow, table, "sqlite");
           const updateObject = data({ current });
-          updateRow = formatRow({ id, ...updateObject }, true);
+          updateRow = encodeRow({ id, ...updateObject }, table, "sqlite");
         } else {
-          updateRow = formatRow({ id, ...data }, true);
+          updateRow = encodeRow({ id, ...data }, table, "sqlite");
         }
 
         // If the update would be applied to a record other than the latest
@@ -453,13 +602,9 @@ export class SqliteIndexingStore implements IndexingStore {
         // this update is occurring within the same indexing function. Update in place.
         if (latestRow.effectiveFromCheckpoint === encodedCheckpoint) {
           return await tx
-            .updateTable(table)
+            .updateTable(versionedTableName)
             .set(updateRow)
-            .where(
-              "id",
-              this.idColumnComparator({ tableName, schema: this.schema }),
-              formattedId,
-            )
+            .where("id", "=", encodedId)
             .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -468,17 +613,13 @@ export class SqliteIndexingStore implements IndexingStore {
         // If the latest version has an earlier effectiveFromCheckpoint than the update,
         // we need to update the latest version AND insert a new version.
         await tx
-          .updateTable(table)
-          .where(
-            "id",
-            this.idColumnComparator({ tableName, schema: this.schema }),
-            formattedId,
-          )
+          .updateTable(versionedTableName)
+          .where("id", "=", encodedId)
           .where("effectiveToCheckpoint", "=", "latest")
           .set({ effectiveToCheckpoint: encodedCheckpoint })
           .execute();
         const row = tx
-          .insertInto(table)
+          .insertInto(versionedTableName)
           .values({
             ...latestRow,
             ...updateRow,
@@ -491,7 +632,7 @@ export class SqliteIndexingStore implements IndexingStore {
         return row;
       });
 
-      const result = this.deserializeRow({ tableName, row });
+      const result = decodeRow(row, table, "sqlite");
 
       return result;
     });
@@ -510,45 +651,43 @@ export class SqliteIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
+    const versionedTableName = `${tableName}_versioned`;
+    const table = this.schema!.tables[tableName];
+
     return this.wrap({ method: "updateMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const rows = await this.db.transaction().execute(async (tx) => {
         // Get all IDs that match the filter.
-        let latestRowsQuery = tx
-          .selectFrom(table)
+        let query = tx
+          .selectFrom(versionedTableName)
           .selectAll()
           .where("effectiveToCheckpoint", "=", "latest");
 
-        if (where) {
-          const whereConditions = buildSqlWhereConditions({
-            where,
-            encodeBigInts: true,
-          });
-          for (const whereCondition of whereConditions) {
-            latestRowsQuery = latestRowsQuery.where(...whereCondition);
-          }
+        const whereConditions = buildWhereConditions({
+          where,
+          table,
+          encoding: "sqlite",
+        });
+        for (const [columnName, comparator, value] of whereConditions) {
+          query = query.where(columnName, comparator, value);
         }
 
-        const latestRows = await latestRowsQuery.execute();
+        const latestRows = await query.execute();
 
         // TODO: This is probably incredibly slow. Ideally, we'd do most of this in the database.
         return await Promise.all(
           latestRows.map(async (latestRow) => {
-            const formattedId = latestRow.id;
+            const encodedId = latestRow.id;
 
             // If the user passed an update function, call it with the current instance.
-            let updateRow: ReturnType<typeof formatRow>;
+            let updateRow: ReturnType<typeof encodeRow>;
             if (typeof data === "function") {
-              const current = this.deserializeRow({
-                tableName,
-                row: latestRow,
-              });
+              const current = decodeRow(latestRow, table, "sqlite");
               const updateObject = data({ current });
-              updateRow = formatRow(updateObject, true);
+              updateRow = encodeRow(updateObject, table, "sqlite");
             } else {
-              updateRow = formatRow(data, true);
+              updateRow = encodeRow(data, table, "sqlite");
             }
 
             // If the update would be applied to a record other than the latest
@@ -561,13 +700,9 @@ export class SqliteIndexingStore implements IndexingStore {
             // this update is occurring within the same block/second. Update in place.
             if (latestRow.effectiveFromCheckpoint === encodedCheckpoint) {
               return await tx
-                .updateTable(table)
+                .updateTable(versionedTableName)
                 .set(updateRow)
-                .where(
-                  "id",
-                  this.idColumnComparator({ tableName, schema: this.schema }),
-                  formattedId,
-                )
+                .where("id", "=", encodedId)
                 .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
                 .returningAll()
                 .executeTakeFirstOrThrow();
@@ -576,17 +711,13 @@ export class SqliteIndexingStore implements IndexingStore {
             // If the latest version has an earlier effectiveFromCheckpoint than the update,
             // we need to update the latest version AND insert a new version.
             await tx
-              .updateTable(table)
-              .where(
-                "id",
-                this.idColumnComparator({ tableName, schema: this.schema }),
-                formattedId,
-              )
+              .updateTable(versionedTableName)
+              .where("id", "=", encodedId)
               .where("effectiveToCheckpoint", "=", "latest")
               .set({ effectiveToCheckpoint: encodedCheckpoint })
               .execute();
             const row = tx
-              .insertInto(table)
+              .insertInto(versionedTableName)
               .values({
                 ...latestRow,
                 ...updateRow,
@@ -601,7 +732,7 @@ export class SqliteIndexingStore implements IndexingStore {
         );
       });
 
-      return rows.map((row) => this.deserializeRow({ tableName, row }));
+      return rows.map((row) => decodeRow(row, table, "sqlite"));
     });
   };
 
@@ -620,32 +751,27 @@ export class SqliteIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
+    const versionedTableName = `${tableName}_versioned`;
+    const table = this.schema!.tables[tableName];
+
     return this.wrap({ method: "upsert", tableName }, async () => {
-      const table = `${tableName}_versioned`;
-      const formattedId = formatColumnValue({
-        value: id,
-        encodeBigInts: true,
-      });
-      const createRow = formatRow({ id, ...create }, true);
+      const encodedId = encodeValue(id, table.id, "sqlite");
+      const createRow = encodeRow({ id, ...create }, table, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRow = await tx
-          .selectFrom(table)
+          .selectFrom(versionedTableName)
           .selectAll()
-          .where(
-            "id",
-            this.idColumnComparator({ tableName, schema: this.schema }),
-            formattedId,
-          )
+          .where("id", "=", encodedId)
           .where("effectiveToCheckpoint", "=", "latest")
           .executeTakeFirst();
 
         // If there is no latest version, insert a new version using the create data.
         if (latestRow === undefined) {
           return await tx
-            .insertInto(table)
+            .insertInto(versionedTableName)
             .values({
               ...createRow,
               effectiveFromCheckpoint: encodedCheckpoint,
@@ -656,13 +782,13 @@ export class SqliteIndexingStore implements IndexingStore {
         }
 
         // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof formatRow>;
+        let updateRow: ReturnType<typeof encodeRow>;
         if (typeof update === "function") {
-          const current = this.deserializeRow({ tableName, row: latestRow });
+          const current = decodeRow(latestRow, table, "sqlite");
           const updateObject = update({ current });
-          updateRow = formatRow({ id, ...updateObject }, true);
+          updateRow = encodeRow({ id, ...updateObject }, table, "sqlite");
         } else {
-          updateRow = formatRow({ id, ...update }, true);
+          updateRow = encodeRow({ id, ...update }, table, "sqlite");
         }
 
         // If the update would be applied to a record other than the latest
@@ -675,13 +801,9 @@ export class SqliteIndexingStore implements IndexingStore {
         // this update is occurring within the same indexing function. Update in place.
         if (latestRow.effectiveFromCheckpoint === encodedCheckpoint) {
           return await tx
-            .updateTable(table)
+            .updateTable(versionedTableName)
             .set(updateRow)
-            .where(
-              "id",
-              this.idColumnComparator({ tableName, schema: this.schema }),
-              formattedId,
-            )
+            .where("id", "=", encodedId)
             .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -690,17 +812,13 @@ export class SqliteIndexingStore implements IndexingStore {
         // If the latest version has an earlier effectiveFromCheckpoint than the update,
         // we need to update the latest version AND insert a new version.
         await tx
-          .updateTable(table)
-          .where(
-            "id",
-            this.idColumnComparator({ tableName, schema: this.schema }),
-            formattedId,
-          )
+          .updateTable(versionedTableName)
+          .where("id", "=", encodedId)
           .where("effectiveToCheckpoint", "=", "latest")
           .set({ effectiveToCheckpoint: encodedCheckpoint })
           .execute();
         const row = tx
-          .insertInto(table)
+          .insertInto(versionedTableName)
           .values({
             ...latestRow,
             ...updateRow,
@@ -713,7 +831,7 @@ export class SqliteIndexingStore implements IndexingStore {
         return row;
       });
 
-      return this.deserializeRow({ tableName, row });
+      return decodeRow(row, table, "sqlite");
     });
   };
 
@@ -726,24 +844,19 @@ export class SqliteIndexingStore implements IndexingStore {
     checkpoint: Checkpoint;
     id: string | number | bigint;
   }) => {
+    const versionedTableName = `${tableName}_versioned`;
+    const table = this.schema!.tables[tableName];
+
     return this.wrap({ method: "delete", tableName }, async () => {
-      const table = `${tableName}_versioned`;
-      const formattedId = formatColumnValue({
-        value: id,
-        encodeBigInts: true,
-      });
+      const encodedId = encodeValue(id, table.id, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const isDeleted = await this.db.transaction().execute(async (tx) => {
         // If the latest version has effectiveFromCheckpoint equal to current checkpoint,
         // this row was created within the same indexing function, and we can delete it.
         let deletedRow = await tx
-          .deleteFrom(table)
-          .where(
-            "id",
-            this.idColumnComparator({ tableName, schema: this.schema }),
-            formattedId,
-          )
+          .deleteFrom(versionedTableName)
+          .where("id", "=", encodedId)
           .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
           .where("effectiveToCheckpoint", "=", "latest")
           .returning(["id"])
@@ -753,13 +866,9 @@ export class SqliteIndexingStore implements IndexingStore {
         // setting effectiveToCheckpoint to the current checkpoint.
         if (!deletedRow) {
           deletedRow = await tx
-            .updateTable(table)
+            .updateTable(versionedTableName)
             .set({ effectiveToCheckpoint: encodedCheckpoint })
-            .where(
-              "id",
-              this.idColumnComparator({ tableName, schema: this.schema }),
-              formattedId,
-            )
+            .where("id", "=", encodedId)
             .where("effectiveToCheckpoint", "=", "latest")
             .returning(["id"])
             .executeTakeFirst();
@@ -770,54 +879,6 @@ export class SqliteIndexingStore implements IndexingStore {
 
       return isDeleted;
     });
-  };
-
-  private deserializeRow = ({
-    tableName,
-    row,
-  }: {
-    tableName: string;
-    row: Record<string, unknown>;
-  }) => {
-    const columns = Object.entries(this.schema!.tables).find(
-      ([name]) => name === tableName,
-    )![1];
-
-    const deserializedRow = {} as Row;
-
-    Object.entries(columns).forEach(([columnName, column]) => {
-      const value = row[columnName] as string | number | null | undefined;
-
-      if (value === null || value === undefined) {
-        deserializedRow[columnName] = null;
-        return;
-      }
-
-      if (isOneColumn(column)) return;
-      if (isManyColumn(column)) return;
-      if (!isEnumColumn(column) && !isReferenceColumn(column) && column.list) {
-        let parsedValue = JSON.parse(value as string);
-        if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
-        deserializedRow[columnName] = parsedValue;
-        return;
-      }
-
-      if ((column.type as Scalar) === "boolean") {
-        deserializedRow[columnName] = value === 1 ? true : false;
-        return;
-      }
-
-      if (column.type === "bigint") {
-        deserializedRow[columnName] = decodeToBigInt(
-          value as unknown as string,
-        );
-        return;
-      }
-
-      deserializedRow[columnName] = value;
-    });
-
-    return deserializedRow;
   };
 
   private wrap = async <T>(
@@ -832,12 +893,4 @@ export class SqliteIndexingStore implements IndexingStore {
     );
     return result;
   };
-
-  private idColumnComparator = ({
-    tableName,
-    schema,
-  }: {
-    tableName: string;
-    schema: Schema | undefined;
-  }) => (schema?.tables[tableName]?.id.type === "bytes" ? "like" : "=");
 }

@@ -1,6 +1,5 @@
 import { expect, test } from "vitest";
-
-import { validateHistoricalBlockRange } from "./utils.js";
+import { validateHistoricalBlockRange } from "./validateHistoricalBlockRange.js";
 
 test("validateHistoricalBlockRange throws if start block is greater than latest block", () => {
   expect(() =>

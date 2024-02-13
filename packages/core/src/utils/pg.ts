@@ -1,20 +1,21 @@
-import pg from "pg";
-
+import pg, { type PoolConfig } from "pg";
 import { prettyPrint } from "./print.js";
 
-// Set pg protocol to use BigInt for `numeric` types.
 // See https://github.com/brianc/node-pg-types for details.
-pg.types.setTypeParser(1700, BigInt);
+// Use BigInt for `numeric` types.
+pg.types.setTypeParser(pg.types.builtins.NUMERIC, BigInt);
+// Use Number for `bigint`/`int8` types. We use these for chain IDs.
+pg.types.setTypeParser(pg.types.builtins.INT8, Number);
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114
 const originalClientQuery = pg.Client.prototype.query;
 // @ts-ignore
-pg.Client.prototype.query = async function query(
+pg.Client.prototype.query = function query(
   ...args: [queryText: string, values: any[], callback: () => void]
 ) {
   try {
-    return await originalClientQuery.apply(this, args);
+    return originalClientQuery.apply(this, args);
   } catch (error_) {
     const error = error_ as Error & { detail?: string; meta?: string };
     const [statement, parameters_] = args ?? ["empty", []];
@@ -45,5 +46,10 @@ pg.Client.prototype.query = async function query(
   }
 };
 
-export default pg;
-export type * from "pg";
+export function createPool(config: PoolConfig) {
+  return new pg.Pool({
+    // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
+    statement_timeout: 30_000,
+    ...config,
+  });
+}

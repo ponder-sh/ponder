@@ -1,8 +1,4 @@
 export default {
-  "introducing-ponder": {
-    title: "Introducing Ponder",
-    theme: {
-      sidebar: false,
-    },
-  },
+  "0.2.0": "0.2.0",
+  "introducing-ponder": "Introducing Ponder",
 };

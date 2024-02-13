@@ -35,6 +35,45 @@ test("create empty", async () => {
   expect(templateFiles).toStrictEqual(generatedFiles);
 });
 
+test("create subgraph id", async () => {
+  await run({
+    args: [join("src", "_test", projectName)],
+    options: {
+      template: "subgraph",
+      skipGit: true,
+      subgraph: "QmeCy8bjyudQYwddetkgKDKQTsFxWomvbgsDifnbWFEMK9",
+    },
+  });
+
+  const templateFiles = (
+    fs.readdirSync(join(__dirname, "..", "..", "templates", "subgraph"), {
+      recursive: true,
+    }) as string[]
+  )
+    .concat("ponder.config.ts")
+    .concat("abis/ERC20Abi.ts")
+    .concat("abis/ERC721Abi.ts")
+    .concat("abis/EntryPointAbi.ts")
+    .concat("src/EntryPoint.ts")
+    .concat("src/EntryPointV0.6.0.ts")
+    .concat("abis")
+    .concat("src")
+    // _gitignore is renamed to .gitignore
+    .map((filePath) =>
+      filePath === "_dot_env.local"
+        ? ".env.local"
+        : filePath === "_dot_eslintrc.json"
+          ? ".eslintrc.json"
+          : filePath === "_dot_gitignore"
+            ? ".gitignore"
+            : filePath,
+    )
+    .sort();
+
+  const generatedFiles = fs.readdirSync(genPath, { recursive: true }).sort();
+  expect(generatedFiles).toStrictEqual(templateFiles);
+}, 20_000);
+
 test("create etherscan", async () => {
   await run({
     args: [join("src", "_test", projectName)],
@@ -42,7 +81,7 @@ test("create etherscan", async () => {
       template: "etherscan",
       skipGit: true,
       etherscanApiKey: process.env.ETHERSCAN_API_KEY!,
-      etherscanContractLink:
+      etherscan:
         "https://etherscan.io/address/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     },
   });

@@ -1,5 +1,6 @@
 export default {
   installation: "Installation",
+  typescript: "TypeScript",
   "add-contracts": "Add contracts",
   "design-your-schema": "Design your schema",
   "create-update-records": "Create & update records",

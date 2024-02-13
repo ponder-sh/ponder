@@ -376,6 +376,49 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_02_1_0_nullable_block_columns": {
+    async up(db: Kysely<any>) {
+      // SQLite doesn't support dropping NOT NULL constraints. As a workaround:
+      // 1) Create a new column of the same type without NOT NULL.
+      // 2) Copy data from the old column to the new column.
+      // 3) Drop the old column.
+      // 4) Rename the new column to the old column's name.
+
+      // Drop NOT NULL constraint from "blocks.mixHash".
+      await db.schema
+        .alterTable("blocks")
+        .addColumn("mixHash_temp_null", "varchar(66)")
+        .execute();
+      await db
+        .updateTable("blocks")
+        .set((eb: any) => ({
+          mixHash_temp_null: eb.selectFrom("blocks").select("mixHash"),
+        }))
+        .execute();
+      await db.schema.alterTable("blocks").dropColumn("mixHash").execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("mixHash_temp_null", "mixHash")
+        .execute();
+
+      // Drop NOT NULL constraint from "blocks.nonce".
+      await db.schema
+        .alterTable("blocks")
+        .addColumn("nonce_temp_null", "varchar(18)")
+        .execute();
+      await db
+        .updateTable("blocks")
+        .set((eb: any) => ({
+          nonce_temp_null: eb.selectFrom("blocks").select("nonce"),
+        }))
+        .execute();
+      await db.schema.alterTable("blocks").dropColumn("nonce").execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("nonce_temp_null", "nonce")
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

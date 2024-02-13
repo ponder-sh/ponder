@@ -1,10 +1,9 @@
 import { http, fallback, webSocket } from "viem";
 import { mainnet } from "viem/chains";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 
 import {
   getDefaultMaxBlockRange,
-  getRequestForTransport,
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "./networks.js";
@@ -43,47 +42,6 @@ test("getRpcUrlsForClient should handle a fallback containing an http transport"
   });
 
   expect(rpcUrls).toMatchObject(["http://localhost:8545"]);
-});
-
-test("getRequestForTransport handles default RPC URL", async () => {
-  const request = await getRequestForTransport({
-    transport: http(),
-    chain: mainnet,
-  });
-
-  expect(request).toBeTruthy();
-});
-
-test("getRequestForTransport should handle an http transport", async () => {
-  const request = await getRequestForTransport({
-    transport: http("http://localhost:8545"),
-    chain: mainnet,
-  });
-
-  expect(request).toBeTruthy();
-});
-
-test("getRequestForTransport should handle a websocket transport", async () => {
-  const ws = { type: "webSocket", getSocket: () => Promise.resolve(true) };
-
-  const spy = vi.spyOn(ws, "getSocket");
-  spy.mockReturnValue(Promise.resolve(true));
-
-  const request = await getRequestForTransport({
-    transport: () => ({ value: ws }) as any,
-    chain: mainnet,
-  });
-
-  expect(request).toBeTruthy();
-});
-
-test("getRequestForTransport should handle a fallback containing an http transport", async () => {
-  const request = await getRequestForTransport({
-    transport: fallback([http("http://localhost:8545")]),
-    chain: mainnet,
-  });
-
-  expect(request).toBeTruthy();
 });
 
 test("getDefaultMaxBlockRange should return 2_000 for mainnet", () => {

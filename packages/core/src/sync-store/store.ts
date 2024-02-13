@@ -1,11 +1,8 @@
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type { Block, Log, Transaction } from "@/types/eth.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
 import type { Kysely, Migrator } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
-
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import type { Block } from "@/types/block.js";
-import type { Log } from "@/types/log.js";
-import type { Transaction } from "@/types/transaction.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
 
 export interface SyncStore {
   kind: "sqlite" | "postgres";
@@ -152,6 +149,7 @@ export interface SyncStore {
   getLogEvents(arg: {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
+    limit: number;
     logFilters?: {
       id: string;
       chainId: number;
@@ -168,22 +166,25 @@ export interface SyncStore {
       toBlock?: number;
       includeEventSelectors?: Hex[];
     }[];
-    pageSize?: number;
-  }): AsyncGenerator<{
-    events: {
-      sourceId: string;
-      chainId: number;
-      log: Log;
-      block: Block;
-      transaction: Transaction;
-    }[];
-    metadata: {
-      counts: {
+  }): Promise<
+    {
+      events: {
         sourceId: string;
-        selector: Hex;
-        count: number;
+        chainId: number;
+        log: Log;
+        block: Block;
+        transaction: Transaction;
       }[];
-      pageEndCheckpoint: Checkpoint;
-    };
-  }>;
+      lastCheckpoint: Checkpoint | undefined;
+    } & (
+      | {
+          hasNextPage: true;
+          lastCheckpointInPage: Checkpoint;
+        }
+      | {
+          hasNextPage: false;
+          lastCheckpointInPage: undefined;
+        }
+    )
+  >;
 }

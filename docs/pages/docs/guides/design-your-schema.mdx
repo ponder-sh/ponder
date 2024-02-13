@@ -29,7 +29,7 @@ export default createSchema((p) => ({
 
 ### ID column
 
-Every table _must_ have an `id` column that is a `string`, `bytes`, `int`, or `bigint`.
+Every table _must_ have an `id` column that is a `string`, `hex`, `int`, or `bigint`.
 
 ```ts filename="ponder.schema.ts" {5,9}
 import { createSchema } from "@ponder/core";
@@ -50,12 +50,12 @@ export default createSchema((p) => ({
 
 ### Primitives
 
-Every column is a `string`, `bytes`, `int`, `float`, `bigint`, or `boolean`. Each of these primitive types corresponds to a TypeScript type (used in indexing function code) and a JSON data type (returned by the GraphQL API).
+Every column is a `string`, `hex`, `int`, `float`, `bigint`, or `boolean`. Each of these primitive types corresponds to a TypeScript type (used in indexing function code) and a JSON data type (returned by the GraphQL API).
 
 | name               | description                                    | TypeScript type | JSON data type |
 | :----------------- | :--------------------------------------------- | :-------------- | :------------- |
 | `p.string(){:ts}`  | A UTF‐8 character sequence                     | `string`        | `string`       |
-| `p.bytes(){:ts}`   | A UTF‐8 character sequence with `0x` prefix    | `0x${string}`   | `string`       |
+| `p.hex(){:ts}`     | A UTF‐8 character sequence with `0x` prefix    | `0x${string}`   | `string`       |
 | `p.int(){:ts}`     | A signed 32‐bit integer                        | `number`        | `number`       |
 | `p.float(){:ts}`   | A signed floating-point value                  | `number`        | `number`       |
 | `p.bigint(){:ts}`  | A large integer (holds `uint256` and `int256`) | `bigint`        | `string`       |
@@ -70,7 +70,7 @@ import { createSchema } from "@ponder/core";
 
 export default createSchema((p) => ({
   Account: p.createTable({
-    id: p.bytes(),
+    id: p.hex(),
     daiBalance: p.bigint(),
     totalUsdValue: p.float(),
     lastActiveAt: p.int(),
@@ -172,7 +172,7 @@ import { createSchema } from "@ponder/core";
 
 export default createSchema((p) => ({
   User: p.createTable({
-    id: p.bytes(),
+    id: p.hex(),
     ens: p.string(),
     github: p.string().optional(),
   }),

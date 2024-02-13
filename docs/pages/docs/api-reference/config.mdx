@@ -43,7 +43,8 @@ The `networks` field is an object where each key is a network name containing th
 | **chainId**                      |       `number`        | The [chain ID](https://chainlist.org) for the network.                                                                 |
 | **transport**                    |   `viem.Transport`    | A Viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).              |
 | **pollingInterval**              | `number \| undefined` | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this network.                              |
-| **maxHistoricalTaskConcurrency** | `number \| undefined` | **Default: `20`**. Maximum concurrency of tasks during the historical sync. Can be reduced to work around rate limits. |
+| **maxRequestsPerSecond**         | `number \| undefined` | **Default: `50`**. Maximum number of RPC requests per second. Can be reduced to work around rate limits.               |
+| **maxHistoricalTaskConcurrency** | `number \| undefined` | **Default: `20`**. (Deprecated) Maximum concurrency of tasks during the historical sync.                               |
 
 ```ts filename="ponder.config.ts" {7-12,16}
 import { createConfig } from "@ponder/core";
@@ -131,7 +132,7 @@ export default createConfig({
 
 ## Database
 
-Ponder uses a SQL database to cache blockchain data and store indexed data. In development, Ponder uses a SQLite database located at `.ponder/store/`. In production, Ponder works best with a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
+Ponder uses a SQL database to cache blockchain data and store indexed data. In development, Ponder uses a SQLite database located at `.ponder/store`. In production, Ponder works best with a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ either the `DATABASE_PRIVATE_URL` or `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with that connection string. If both `DATABASE_PRIVATE_URL` and `DATABASE_URL` are present, `DATABASE_PRIVATE_URL` will be used.
 
 See [Deploy to production](/guides/production) for more details.
 

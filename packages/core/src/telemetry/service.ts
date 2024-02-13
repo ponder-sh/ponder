@@ -1,7 +1,5 @@
-import child_process from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
-import url from "node:url";
 
 import { randomBytes } from "crypto";
 import os from "os";
@@ -15,8 +13,7 @@ import process from "process";
 
 import type { Options } from "@/config/options.js";
 import { getGitRemoteUrl } from "@/telemetry/remote.js";
-
-const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
+import { wait } from "@/utils/wait.js";
 
 type TelemetryEvent = {
   event: string;
@@ -56,11 +53,15 @@ export class TelemetryService {
 
   private controller = new AbortController();
   private context?: TelemetryEventContext;
+  private heartbeatIntervalId?: NodeJS.Timeout;
 
   constructor({ options }: { options: Options }) {
     this.options = options;
     this.conf = new Conf({ projectName: "ponder" });
     this.notify();
+    this.heartbeatIntervalId = setInterval(() => {
+      this.record({ event: "Heartbeat" });
+    }, 60_000);
   }
 
   record(event: TelemetryEvent) {
@@ -99,21 +100,18 @@ export class TelemetryService {
         signal: this.controller.signal,
       });
     } catch (e) {
-      const error = e as { name: string };
-      if (error.name === "AbortError") {
-        this.events.push(serializedEvent);
-      } else {
-        throw error;
-      }
+      // Do nothing
     }
   };
 
   async kill() {
+    clearInterval(this.heartbeatIntervalId);
     this.queue.pause();
     this.queue.clear();
-    this.controller.abort();
-    await this.queue.onIdle();
-    this.flushDetached();
+    await Promise.race([wait(500), this.queue.onIdle()]);
+    if (this.queue.pending > 0) {
+      this.controller.abort();
+    }
   }
 
   private notify() {
@@ -130,32 +128,8 @@ export class TelemetryService {
     console.log(
       `${pc.magenta(
         "Attention",
-      )}: Ponder now collects completely anonymous telemetry regarding usage. This data helps shape Ponder's roadmap and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`,
+      )}: Ponder collects anonymous telemetry data to identify issues and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`,
     );
-  }
-
-  private flushDetached() {
-    if (this.events.length === 0) return;
-
-    const eventsWithContext = this.events.map((event) => ({
-      ...event,
-      anonymousId: this.anonymousId,
-      // Note that it's possible for the context to be undefined here.
-      context: this.context,
-    }));
-    const serializedEvents = JSON.stringify(eventsWithContext);
-
-    const telemetryEventsFilePath = path.join(
-      this.options.ponderDir,
-      "telemetry-events.json",
-    );
-    fs.writeFileSync(telemetryEventsFilePath, serializedEvents);
-
-    child_process.spawn(process.execPath, [
-      path.join(__dirname, "detached-flush.js"),
-      this.options.telemetryUrl,
-      telemetryEventsFilePath,
-    ]);
   }
 
   get disabled() {

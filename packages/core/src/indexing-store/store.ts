@@ -1,8 +1,8 @@
-import type { Kysely } from "kysely";
-
 import type { Schema } from "@/schema/types.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
+import type { Kysely } from "kysely";
+import type { Hex } from "viem";
 
 export type Table = {
   [key: string]:
@@ -10,17 +10,19 @@ export type Table = {
     | bigint
     | number
     | boolean
-    | (string | bigint | number | boolean)[];
+    | Hex
+    | (string | bigint | number | boolean | Hex)[];
 };
 
 export type Row = {
-  id: string | number | bigint;
+  id: string | number | bigint | Hex;
   [key: string]:
     | string
     | bigint
     | number
     | boolean
-    | (string | bigint | number | boolean)[]
+    | Hex
+    | (string | bigint | number | boolean | Hex)[]
     | null;
 };
 
@@ -30,7 +32,8 @@ type OperatorMap<
     | bigint
     | number
     | boolean
-    | (string | bigint | number | boolean)[],
+    | Hex
+    | (string | bigint | number | boolean | Hex)[],
 > = {
   equals?: TField;
   not?: TField;
@@ -44,16 +47,18 @@ type OperatorMap<
       notIn?: TField[];
     }) &
   (TField extends string
-    ? {
-        contains?: TField;
-        notContains?: TField;
-        startsWith?: TField;
-        notStartsWith?: TField;
-        endsWith?: TField;
-        notEndsWith?: TField;
-      }
+    ? TField extends Hex
+      ? {}
+      : {
+          contains?: TField;
+          notContains?: TField;
+          startsWith?: TField;
+          notStartsWith?: TField;
+          endsWith?: TField;
+          notEndsWith?: TField;
+        }
     : {}) &
-  (TField extends number | bigint
+  (TField extends number | bigint | Hex
     ? {
         gt?: TField;
         gte?: TField;
@@ -68,13 +73,9 @@ export type WhereInput<TTable extends Table> = {
     | TTable[ColumnName];
 };
 
-export type OrderByInput<TTable extends Table> =
-  | {
-      [ColumnName in keyof TTable]?: "asc" | "desc";
-    }
-  | {
-      [ColumnName in keyof TTable]?: "asc" | "desc";
-    }[];
+export type OrderByInput<table, columns extends keyof table = keyof table> = {
+  [ColumnName in columns]?: "asc" | "desc";
+};
 
 export interface IndexingStore {
   kind: "sqlite" | "postgres";
@@ -83,6 +84,8 @@ export interface IndexingStore {
   schema?: Schema;
 
   reload(options?: { schema?: Schema }): Promise<void>;
+
+  teardown(): Promise<void>;
 
   kill(): Promise<void>;
 
@@ -100,10 +103,19 @@ export interface IndexingStore {
     tableName: string;
     checkpoint?: Checkpoint;
     where?: WhereInput<any>;
-    skip?: number;
-    take?: number;
     orderBy?: OrderByInput<any>;
-  }): Promise<Row[]>;
+    before?: string | null;
+    after?: string | null;
+    limit?: number;
+  }): Promise<{
+    items: Row[];
+    pageInfo: {
+      startCursor: string | null;
+      endCursor: string | null;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }>;
 
   create(options: {
     tableName: string;

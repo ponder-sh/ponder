@@ -1,8 +1,3 @@
-import child_process from "node:child_process";
-import fs from "node:fs";
-import { tmpdir } from "node:os";
-
-import path from "path";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { TelemetryService } from "@/telemetry/service.js";
@@ -41,57 +36,4 @@ test("events are not processed if telemetry is disabled", async (context) => {
   await telemetry.flush();
 
   expect(fetchSpy).not.toHaveBeenCalled();
-});
-
-test("events are put back in queue if telemetry service is killed", async (context) => {
-  const options = {
-    ...context.common.options,
-    telemetryDisabled: false,
-    telemetryUrl: "https://reqres.in/api/users",
-  };
-  const telemetry = new TelemetryService({ options });
-
-  fetchSpy.mockImplementationOnce(() => {
-    throw { name: "AbortError" };
-  });
-
-  telemetry.record({ event: "test" });
-  await telemetry.flush();
-
-  // @ts-ignore
-  expect(telemetry.events.length).toBe(1);
-});
-
-test("kill method should persist events and trigger detached flush", async (context) => {
-  const options = {
-    ...context.common.options,
-    telemetryDisabled: false,
-    telemetryUrl: "https://reqres.in/api/users",
-    ponderDir: tmpdir(),
-  };
-
-  const spawn = vi.spyOn(child_process, "spawn");
-  const telemetry = new TelemetryService({ options });
-  const fileName = path.join(options.ponderDir, "telemetry-events.json");
-
-  const writeFileSyncSpy = vi
-    .spyOn(fs, "writeFileSync")
-    .mockImplementationOnce(() => vi.fn());
-
-  // Mock the fetch call to throw an AbortError so that the event is put back in the queue.
-  fetchSpy.mockImplementation(() => {
-    throw { name: "AbortError" };
-  });
-
-  for (let i = 0; i < 10; i++) {
-    telemetry.record({ event: "test" });
-  }
-  // Note that we are not flushing here, because we want to test the detachedFlush flow.
-
-  await telemetry.kill();
-
-  const fileNameArgument = writeFileSyncSpy.mock.calls[0][0];
-
-  expect(spawn).toHaveBeenCalled();
-  expect(fileNameArgument).toBe(fileName);
 });

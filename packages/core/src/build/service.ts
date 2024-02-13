@@ -14,20 +14,30 @@ import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
+import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
 import { safeBuildNetworksAndSources } from "./config/config.js";
 import {
   type IndexingFunctions,
   type RawIndexingFunctions,
   safeBuildIndexingFunctions,
 } from "./functions/functions.js";
+import { type TableAccess, parseAst } from "./functions/parseAst.js";
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 type BuildServiceEvents = {
+  // Note: Should new config ever trigger a re-analyze?
   newConfig: { config: Config; sources: Source[]; networks: Network[] };
-  newIndexingFunctions: { indexingFunctions: IndexingFunctions };
-  newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
+  newIndexingFunctions: {
+    indexingFunctions: IndexingFunctions;
+    tableAccess: TableAccess;
+  };
+  newSchema: {
+    schema: Schema;
+    graphqlSchema: GraphQLSchema;
+    tableAccess: TableAccess;
+  };
   error: { kind: "config" | "schema" | "indexingFunctions"; error: Error };
 };
 
@@ -43,6 +53,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   // Maintain the latest version of built user code to support validation.
   // Note that `networks` and `schema` are not currently needed for validation.
   private sources?: Source[];
+  private schema?: Schema;
   private indexingFunctions?: IndexingFunctions;
 
   constructor({ common }: { common: Common }) {
@@ -82,7 +93,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       publicDir: false,
       customLogger: viteLogger,
       server: { hmr: false },
-      plugins: [vitePluginPonder()],
+      plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
     });
 
     // This is Vite boilerplate (initializes the Rollup container).
@@ -134,9 +145,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       if (invalidated.includes(this.common.options.schemaFile)) {
         const schemaResult = await this.loadSchema();
         const validationResult = this.validate();
+        const analyzeResult = this.analyze();
 
         if (schemaResult.success && validationResult.success) {
-          this.emit("newSchema", schemaResult);
+          this.emit("newSchema", {
+            ...schemaResult,
+            tableAccess: analyzeResult,
+          });
         } else {
           const error = schemaResult.error ?? (validationResult.error as Error);
           this.common.logger.error({ service: "build", error });
@@ -159,9 +174,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           files: indexingFunctionFiles,
         });
         const validationResult = this.validate();
+        const analyzeResult = this.analyze();
 
         if (indexingFunctionsResult.success && validationResult.success) {
-          this.emit("newIndexingFunctions", indexingFunctionsResult);
+          this.emit("newIndexingFunctions", {
+            ...indexingFunctionsResult,
+            tableAccess: analyzeResult,
+          });
         } else {
           const error =
             indexingFunctionsResult.error ?? (validationResult.error as Error);
@@ -183,7 +202,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       );
       if (
         ignoreRegex.test(file) ||
-        path.join(this.common.options.generatedDir, "schema.graphql") === file
+        path.join(this.common.options.generatedDir, "schema.graphql") ===
+          file ||
+        path.join(this.common.options.rootDir, "ponder-env.d.ts") === file
       )
         return;
 
@@ -215,6 +236,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return { error: indexingFunctionsResult.error } as const;
 
     const validationResult = this.validate();
+    const analyzeResult = this.analyze();
     if (!validationResult.success)
       return { error: validationResult.error } as const;
 
@@ -229,6 +251,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       schema,
       graphqlSchema,
       indexingFunctions,
+      tableAccess: analyzeResult,
     };
   }
 
@@ -271,6 +294,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     const schema = buildResult.data.schema;
+    this.schema = schema;
 
     // TODO: Probably move this elsewhere. Also, handle errors.
     const graphqlSchema = buildGqlSchema(buildResult.data.schema);
@@ -360,6 +384,24 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     return { success: true } as const;
+  }
+
+  private analyze() {
+    if (!this.rawIndexingFunctions || !this.schema) return [];
+
+    const tableNames = Object.keys(this.schema.tables);
+    const filePaths = Object.keys(this.rawIndexingFunctions);
+    const indexingFunctionKeys = Object.values(
+      this.rawIndexingFunctions,
+    ).flatMap((indexingFunctions) => indexingFunctions.map((x) => x.name));
+
+    const tableAccessMap = parseAst({
+      tableNames,
+      filePaths,
+      indexingFunctionKeys,
+    });
+
+    return tableAccessMap;
   }
 
   private async executeFile(file: string) {

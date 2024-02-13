@@ -5,7 +5,6 @@ import {
   type Network,
   getDefaultMaxBlockRange,
   getFinalityBlockCount,
-  getRequestForTransport,
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
@@ -29,17 +28,10 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
         Object.values(chains).find((c) =>
           "id" in c ? c.id === chainId : false,
         ) ?? chains.mainnet;
+      const chain = { ...defaultChain, name: networkName, id: chainId };
 
-      const chain = {
-        ...defaultChain,
-        name: networkName,
-        id: chainId,
-      };
-
-      // Note: These can throw.
+      // Note: This can throw.
       const rpcUrls = await getRpcUrlsForClient({ transport, chain });
-      const request = await getRequestForTransport({ transport, chain });
-
       rpcUrls.forEach((rpcUrl) => {
         if (isRpcUrlPublic(rpcUrl)) {
           warnings.push(
@@ -51,13 +43,13 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
       return {
         name: networkName,
         chainId: chainId,
-        request,
-        url: rpcUrls[0],
+        chain,
+        transport: network.transport({ chain }),
+        maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
         pollingInterval: network.pollingInterval ?? 1_000,
         defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
-        maxHistoricalTaskConcurrency:
-          network.maxHistoricalTaskConcurrency ?? 20,
         finalityBlockCount: getFinalityBlockCount({ chainId }),
+        maxHistoricalTaskConcurrency: 20,
       } satisfies Network;
     }),
   );
@@ -65,6 +57,14 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
   const sources: Source[] = Object.entries(config.contracts)
     // First, apply any network-specific overrides and flatten the result.
     .flatMap(([contractName, contract]) => {
+      if (contract.network === null || contract.network === undefined) {
+        throw new Error(
+          `Validation failed: Network for contract '${contractName}' is null or undefined. Expected one of [${networks
+            .map((n) => `'${n.name}'`)
+            .join(", ")}].`,
+        );
+      }
+
       // Single network case.
       if (typeof contract.network === "string") {
         return {

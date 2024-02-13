@@ -24,6 +24,7 @@ import {
   validateProjectName,
   validateTemplateName,
 } from "./helpers/validate.js";
+import { fromSubgraphId } from "./subgraph.js";
 
 const log = console.log;
 
@@ -62,7 +63,12 @@ const templates = [
   {
     id: "etherscan",
     title: "Etherscan contract link",
-    description: "Bootstrap from an Etherscan contract link",
+    description: "Create from an Etherscan contract link",
+  },
+  {
+    id: "subgraph",
+    title: "Subgraph ID",
+    description: "Create from a deployed subgraph",
   },
   {
     id: "feature-factory",
@@ -120,6 +126,8 @@ export async function run({
 }) {
   if (options.help) return;
 
+  const warnings: string[] = [];
+
   log();
   log(
     `Welcome to ${pico.bold(
@@ -174,8 +182,9 @@ export async function run({
   });
   if (!nameValidation.valid) throw new ValidationError(nameValidation);
 
-  // Automatically use etherscan as a template when appropriate.
-  if (options.etherscanContractLink && !templateId) templateId = "etherscan";
+  // Automatically set template if using shortcut.
+  if (options.etherscan && !templateId) templateId = "etherscan";
+  if (options.subgraph && !templateId) templateId = "subgraph";
 
   // Extract template ID from CLI or prompt
   if (!templateId) {
@@ -207,29 +216,70 @@ export async function run({
 
   const targetPath = path.join(process.cwd(), projectPath);
 
+  let url: string | undefined = options.etherscan;
   if (templateMeta.id === "etherscan") {
-    let link = options.etherscanContractLink;
-    if (!link) {
+    if (!url) {
       const result = await prompts({
         type: "text",
-        name: "link",
-        message: "Enter an Etherscan contract link",
+        name: "url",
+        message: "Enter a block explorer contract url",
         initial: "https://etherscan.io/address/0x97...",
       });
-      link = result.link;
+      url = result.url;
     }
-
-    config = await fromEtherscan({
-      rootDir: targetPath,
-      etherscanLink: link,
-      etherscanApiKey: options.etherscanApiKey,
-    });
   }
 
-  log(`Creating a repo at: ${pico.green(targetPath)}`);
+  let subgraph: string | undefined = options.subgraph;
+  if (templateMeta.id === "subgraph") {
+    if (!subgraph) {
+      const result = await prompts({
+        type: "text",
+        name: "id",
+        message: "Enter a subgraph ID",
+        initial: "Qmb3hd2hYd2nWFgcmRswykF1dUBSrDUrinYCgN1dmE1tNy",
+      });
+      subgraph = result.id;
+    }
+    if (!subgraph) {
+      log(pico.red("No subgraph ID provided."));
+      process.exit(0);
+    }
+  }
+
   log();
-  log(`Using template: ${pico.bold(templateMeta.title)}`);
-  log();
+
+  if (templateMeta.id === "etherscan") {
+    const host = new URL(url!).host;
+    const result = await oraPromise(
+      fromEtherscan({
+        rootDir: targetPath,
+        etherscanLink: url!,
+        etherscanApiKey: options.etherscanApiKey,
+      }),
+      {
+        text: `Fetching contract metadata from ${pico.bold(
+          host,
+        )}. This may take a few seconds.`,
+        failText: "Failed to fetch contract metadata.",
+        successText: `Fetched contract metadata from ${pico.bold(host)}.`,
+      },
+    );
+    config = result.config;
+    warnings.push(...result.warnings);
+  }
+
+  if (templateMeta.id === "subgraph") {
+    const result = await oraPromise(
+      fromSubgraphId({ rootDir: targetPath, subgraphId: subgraph! }),
+      {
+        text: "Fetching subgraph metadata. This may take a few seconds.",
+        failText: "Failed to fetch subgraph metadata.",
+        successText: `Fetched subgraph metadata for ${pico.bold(subgraph)}.`,
+      },
+    );
+    config = result.config;
+    warnings.push(...result.warnings);
+  }
 
   // Copy template contents into the target path
   const templatePath = path.join(templatesPath, templateMeta.id);
@@ -249,6 +299,10 @@ export async function run({
 
       ${Object.values(config.contracts)
         .flatMap((c) => c.abi)
+        .filter(
+          (tag, index, array) =>
+            array.findIndex((t) => t.dir === tag.dir) === index,
+        )
         .map(
           (abi) =>
             `import {${abi.name}} from "${abi.dir.slice(
@@ -295,7 +349,7 @@ export async function run({
         : contract.abi.abi;
 
       const abiEvents = abi.filter(
-        (item): item is AbiEvent => item.type === "event",
+        (item): item is AbiEvent => item.type === "event" && !item.anonymous,
       );
 
       const eventNamesToWrite = abiEvents
@@ -339,8 +393,6 @@ export async function run({
   const packageManager = getPackageManager({ options });
 
   // Install in background to not clutter screen
-  log(`Installing with: ${pico.bold(packageManager)}`);
-  log();
   const installArgs = [
     "install",
     packageManager === "npm" ? "--quiet" : "--silent",
@@ -358,31 +410,45 @@ export async function run({
       },
     }),
     {
-      text: "Installing packages. This may take a few seconds.",
+      text: `Installing packages with ${pico.bold(
+        packageManager,
+      )}. This may take a few seconds.`,
       failText: "Failed to install packages.",
-      successText: "Installed packages.",
+      successText: `Installed packages with ${pico.bold(packageManager)}.`,
     },
   );
-  log();
 
   // Create git repository
   if (!options.skipGit) {
-    await execa("git", ["init"], { cwd: targetPath });
-    await execa("git", ["add", "."], { cwd: targetPath });
-    await execa(
-      "git",
-      [
-        "commit",
-        "--no-verify",
-        "--message",
-        "chore: initial commit from create-ponder",
-      ],
-      { cwd: targetPath },
+    await oraPromise(
+      async () => {
+        await execa("git", ["init"], { cwd: targetPath });
+        await execa("git", ["add", "."], { cwd: targetPath });
+        await execa(
+          "git",
+          [
+            "commit",
+            "--no-verify",
+            "--message",
+            "chore: initial commit from create-ponder",
+          ],
+          { cwd: targetPath },
+        );
+      },
+      {
+        text: "Initializing git repository.",
+        failText: "Failed to initialize git repository.",
+        successText: "Initialized git repository.",
+      },
     );
-    log(pico.green("✔"), "Initialized git repository.");
-    log();
   }
 
+  for (const warning of warnings) {
+    log();
+    log(pico.yellow(warning));
+  }
+
+  log();
   log("―――――――――――――――――――――");
   log();
   log(
@@ -392,15 +458,15 @@ export async function run({
   );
   log();
   log(
-    `To start your app, run \`${pico.bold(
+    `To start your app, run ${pico.bold(
       pico.cyan(`cd ${projectPath}`),
-    )}\` and then \`${pico.bold(
+    )} and then ${pico.bold(
       pico.cyan(
         `${packageManager}${
           packageManager === "npm" || packageManager === "bun" ? " run" : ""
         } dev`,
       ),
-    )}\``,
+    )}`,
   );
   log();
   log("―――――――――――――――――――――");
@@ -410,19 +476,21 @@ export async function run({
 (async () => {
   const cli = cac(rootPackageJson.name)
     .version(rootPackageJson.version)
-    .usage(`${pico.green("<project-directory>")} [options]`)
+    .usage(`${pico.green("<directory>")} [options]`)
     .option(
-      "-t, --template [name]",
-      `A template to bootstrap with. Available: ${templates
-        .map(({ id }) => id)
-        .join(", ")}`,
+      "-t, --template [id]",
+      `Use a template. Options: ${templates.map(({ id }) => id).join(", ")}`,
     )
-    .option("--etherscan-contract-link [link]", "Etherscan contract link")
-    .option("--etherscan-api-key [key]", "Etherscan API key")
+    .option("--etherscan [url]", "Use the Etherscan template")
+    .option("--subgraph [id]", "Use the subgraph template")
     .option("--npm", "Use npm as your package manager")
     .option("--pnpm", "Use pnpm as your package manager")
     .option("--yarn", "Use yarn as your package manager")
-    .option("--skip-git", "Skips initializing the project as a git repository")
+    .option("--skip-git", "Skip initializing a git repository")
+    .option(
+      "--etherscan-api-key [key]",
+      "Etherscan API key for Etherscan template",
+    )
     .help();
 
   // Check Nodejs version

@@ -1,3 +1,14 @@
+import type { Common } from "@/Ponder.js";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type { Block, Log, Transaction } from "@/types/eth.js";
+import type { NonNull } from "@/types/utils.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
+import {
+  buildFactoryFragments,
+  buildLogFilterFragments,
+} from "@/utils/fragments.js";
+import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
+import { range } from "@/utils/range.js";
 import {
   type ExpressionBuilder,
   Kysely,
@@ -6,6 +17,7 @@ import {
   type Transaction as KyselyTransaction,
   sql,
 } from "kysely";
+import type { Pool } from "pg";
 import {
   type Hex,
   type RpcBlock,
@@ -13,23 +25,6 @@ import {
   type RpcTransaction,
   checksumAddress,
 } from "viem";
-
-import type { Common } from "@/Ponder.js";
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import type { Block } from "@/types/block.js";
-import type { Log } from "@/types/log.js";
-import type { Transaction } from "@/types/transaction.js";
-import type { NonNull } from "@/types/utils.js";
-import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
-import {
-  buildFactoryFragments,
-  buildLogFilterFragments,
-} from "@/utils/fragments.js";
-import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
-import type pg from "@/utils/pg.js";
-import { range } from "@/utils/range.js";
-import { wait } from "@/utils/wait.js";
-
 import type { SyncStore } from "../store.js";
 import {
   type SyncStoreTables,
@@ -45,10 +40,15 @@ export class PostgresSyncStore implements SyncStore {
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({ common, pool }: { common: Common; pool: pg.Pool }) {
+  constructor({ common, pool }: { common: Common; pool: Pool }) {
     this.common = common;
     this.db = new Kysely<SyncStoreTables>({
       dialect: new PostgresDialect({ pool }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_postgres_query_count?.inc({ kind: "sync" });
+        }
+      },
     });
 
     this.migrator = new Migrator({
@@ -820,15 +820,16 @@ export class PostgresSyncStore implements SyncStore {
     return result;
   };
 
-  async *getLogEvents({
+  async getLogEvents({
     fromCheckpoint,
     toCheckpoint,
+    limit,
     logFilters = [],
     factories = [],
-    pageSize = 10_000,
   }: {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
+    limit: number;
     logFilters?: {
       id: string;
       chainId: number;
@@ -845,27 +846,57 @@ export class PostgresSyncStore implements SyncStore {
       toBlock?: number;
       includeEventSelectors?: Hex[];
     }[];
-    pageSize: number;
   }) {
     const start = performance.now();
-
-    const sourceIds = [
-      ...logFilters.map((f) => f.id),
-      ...factories.map((f) => f.id),
-    ];
 
     const baseQuery = this.db
       .with(
         "sources(source_id)",
         () =>
           sql`( values ${sql.join(
-            sourceIds.map((id) => sql`( ${sql.val(id)} )`),
+            [...logFilters.map((f) => f.id), ...factories.map((f) => f.id)].map(
+              (id) => sql`( ${sql.val(id)} )`,
+            ),
           )} )`,
       )
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
       .innerJoin("sources", (join) => join.onTrue())
+      .where((eb) => {
+        const logFilterCmprs = logFilters.map((logFilter) => {
+          const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+          if (logFilter.includeEventSelectors) {
+            exprs.push(
+              eb.or(
+                logFilter.includeEventSelectors.map((t) =>
+                  eb("logs.topic0", "=", t),
+                ),
+              ),
+            );
+          }
+          return eb.and(exprs);
+        });
+
+        const factoryCmprs = factories.map((factory) => {
+          const exprs = this.buildFactoryCmprs({ eb, factory });
+          if (factory.includeEventSelectors) {
+            exprs.push(
+              eb.or(
+                factory.includeEventSelectors.map((t) =>
+                  eb("logs.topic0", "=", t),
+                ),
+              ),
+            );
+          }
+          return eb.and(exprs);
+        });
+
+        return eb.or([...logFilterCmprs, ...factoryCmprs]);
+      });
+
+    // Get full log objects, including the includeEventSelectors clause.
+    const requestedLogs = await baseQuery
       .select([
         "source_id",
 
@@ -923,205 +954,161 @@ export class PostgresSyncStore implements SyncStore {
         "transactions.v as tx_v",
       ])
       .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
-      .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint));
-
-    // Get total count of matching logs, grouped by log filter and event selector.
-    const eventCountsQuery = baseQuery
-      .clearSelect()
-      .select([
-        "source_id",
-        "logs.topic0",
-        this.db.fn.count("logs.id").as("count"),
-      ])
-      .where((eb) => {
-        // NOTE: Not adding the includeEventSelectors clause here.
-        const logFilterCmprs = logFilters.map((logFilter) =>
-          eb.and(this.buildLogFilterCmprs({ eb, logFilter })),
-        );
-
-        const factoryCmprs = factories.map((factory) =>
-          eb.and(this.buildFactoryCmprs({ eb, factory })),
-        );
-
-        return eb.or([...logFilterCmprs, ...factoryCmprs]);
-      })
-      .groupBy(["source_id", "logs.topic0"]);
-
-    // Fetch the event counts once and include it in every response.
-    const eventCountsRaw = await eventCountsQuery.execute();
-    const eventCounts = eventCountsRaw.map((c) => ({
-      sourceId: String(c.source_id),
-      selector: c.topic0 as Hex,
-      count: Number(c.count),
-    }));
-
-    // Get full log objects, including the includeEventSelectors clause.
-    const includedLogsBaseQuery = baseQuery
-      .where((eb) => {
-        const logFilterCmprs = logFilters.map((logFilter) => {
-          const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-          if (logFilter.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                logFilter.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
-
-        const factoryCmprs = factories.map((factory) => {
-          const exprs = this.buildFactoryCmprs({ eb, factory });
-          if (factory.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                factory.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
-
-        return eb.or([...logFilterCmprs, ...factoryCmprs]);
-      })
+      .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
       .orderBy("blocks.timestamp", "asc")
       .orderBy("logs.chainId", "asc")
       .orderBy("blocks.number", "asc")
-      .orderBy("logs.logIndex", "asc");
+      .orderBy("logs.logIndex", "asc")
+      .limit(limit + 1)
+      .execute();
 
-    let cursorCheckpoint: Checkpoint | undefined = undefined;
+    const events = requestedLogs.map((_row) => {
+      // Without this cast, the block_ and tx_ fields are all nullable
+      // which makes this very annoying. Should probably add a runtime check
+      // that those fields are indeed present before continuing here.
+      const row = _row as NonNull<(typeof requestedLogs)[number]>;
 
-    while (true) {
-      let query = includedLogsBaseQuery.limit(pageSize);
-      if (cursorCheckpoint !== undefined) {
-        query = query.where((eb) =>
-          this.buildCheckpointCmprs(eb, ">", cursorCheckpoint!),
-        );
-      }
-
-      const requestedLogs = await query.execute();
-
-      const events = requestedLogs.map((_row) => {
-        // Without this cast, the block_ and tx_ fields are all nullable
-        // which makes this very annoying. Should probably add a runtime check
-        // that those fields are indeed present before continuing here.
-        const row = _row as NonNull<(typeof requestedLogs)[number]>;
-
-        return {
-          sourceId: row.source_id,
-          chainId: row.log_chainId,
-          log: {
-            address: checksumAddress(row.log_address),
-            blockHash: row.log_blockHash,
-            blockNumber: row.log_blockNumber,
-            data: row.log_data,
-            id: row.log_id as Log["id"],
-            logIndex: Number(row.log_logIndex),
-            removed: false,
-            topics: [
-              row.log_topic0,
-              row.log_topic1,
-              row.log_topic2,
-              row.log_topic3,
-            ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
-            transactionHash: row.log_transactionHash,
-            transactionIndex: Number(row.log_transactionIndex),
-          },
-          block: {
-            baseFeePerGas: row.block_baseFeePerGas,
-            difficulty: row.block_difficulty,
-            extraData: row.block_extraData,
-            gasLimit: row.block_gasLimit,
-            gasUsed: row.block_gasUsed,
-            hash: row.block_hash,
-            logsBloom: row.block_logsBloom,
-            miner: checksumAddress(row.block_miner),
-            mixHash: row.block_mixHash,
-            nonce: row.block_nonce,
-            number: row.block_number,
-            parentHash: row.block_parentHash,
-            receiptsRoot: row.block_receiptsRoot,
-            sha3Uncles: row.block_sha3Uncles,
-            size: row.block_size,
-            stateRoot: row.block_stateRoot,
-            timestamp: row.block_timestamp,
-            totalDifficulty: row.block_totalDifficulty,
-            transactionsRoot: row.block_transactionsRoot,
-          },
-          transaction: {
-            blockHash: row.tx_blockHash,
-            blockNumber: row.tx_blockNumber,
-            from: checksumAddress(row.tx_from),
-            gas: row.tx_gas,
-            hash: row.tx_hash,
-            input: row.tx_input,
-            nonce: Number(row.tx_nonce),
-            r: row.tx_r,
-            s: row.tx_s,
-            to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
-            transactionIndex: Number(row.tx_transactionIndex),
-            value: row.tx_value,
-            v: row.tx_v,
-            ...(row.tx_type === "0x0"
-              ? { type: "legacy", gasPrice: row.tx_gasPrice }
-              : row.tx_type === "0x1"
-                ? {
-                    type: "eip2930",
-                    gasPrice: row.tx_gasPrice,
-                    accessList: JSON.parse(row.tx_accessList),
-                  }
-                : row.tx_type === "0x2"
-                  ? {
-                      type: "eip1559",
-                      maxFeePerGas: row.tx_maxFeePerGas,
-                      maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
-                    }
-                  : row.tx_type === "0x7e"
-                    ? {
-                        type: "deposit",
-                        maxFeePerGas: row.tx_maxFeePerGas ?? undefined,
-                        maxPriorityFeePerGas:
-                          row.tx_maxPriorityFeePerGas ?? undefined,
-                      }
-                    : { type: row.tx_type }),
-          },
-        } satisfies {
-          sourceId: string;
-          chainId: number;
-          log: Log;
-          block: Block;
-          transaction: Transaction;
-        };
-      });
-
-      const lastEvent = events[events.length - 1];
-      if (lastEvent) {
-        cursorCheckpoint = {
-          blockTimestamp: Number(lastEvent.block.timestamp),
-          chainId: lastEvent.chainId,
-          blockNumber: Number(lastEvent.block.number),
-          logIndex: lastEvent.log.logIndex,
-        };
-      }
-
-      yield {
-        events,
-        metadata: {
-          counts: eventCounts,
-          pageEndCheckpoint: cursorCheckpoint
-            ? cursorCheckpoint
-            : zeroCheckpoint,
+      return {
+        sourceId: row.source_id,
+        chainId: row.log_chainId,
+        log: {
+          address: checksumAddress(row.log_address),
+          blockHash: row.log_blockHash,
+          blockNumber: row.log_blockNumber,
+          data: row.log_data,
+          id: row.log_id as Log["id"],
+          logIndex: Number(row.log_logIndex),
+          removed: false,
+          topics: [
+            row.log_topic0,
+            row.log_topic1,
+            row.log_topic2,
+            row.log_topic3,
+          ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
+          transactionHash: row.log_transactionHash,
+          transactionIndex: Number(row.log_transactionIndex),
         },
+        block: {
+          baseFeePerGas: row.block_baseFeePerGas,
+          difficulty: row.block_difficulty,
+          extraData: row.block_extraData,
+          gasLimit: row.block_gasLimit,
+          gasUsed: row.block_gasUsed,
+          hash: row.block_hash,
+          logsBloom: row.block_logsBloom,
+          miner: checksumAddress(row.block_miner),
+          mixHash: row.block_mixHash,
+          nonce: row.block_nonce,
+          number: row.block_number,
+          parentHash: row.block_parentHash,
+          receiptsRoot: row.block_receiptsRoot,
+          sha3Uncles: row.block_sha3Uncles,
+          size: row.block_size,
+          stateRoot: row.block_stateRoot,
+          timestamp: row.block_timestamp,
+          totalDifficulty: row.block_totalDifficulty,
+          transactionsRoot: row.block_transactionsRoot,
+        },
+        transaction: {
+          blockHash: row.tx_blockHash,
+          blockNumber: row.tx_blockNumber,
+          from: checksumAddress(row.tx_from),
+          gas: row.tx_gas,
+          hash: row.tx_hash,
+          input: row.tx_input,
+          nonce: Number(row.tx_nonce),
+          r: row.tx_r,
+          s: row.tx_s,
+          to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
+          transactionIndex: Number(row.tx_transactionIndex),
+          value: row.tx_value,
+          v: row.tx_v,
+          ...(row.tx_type === "0x0"
+            ? { type: "legacy", gasPrice: row.tx_gasPrice }
+            : row.tx_type === "0x1"
+              ? {
+                  type: "eip2930",
+                  gasPrice: row.tx_gasPrice,
+                  accessList: JSON.parse(row.tx_accessList),
+                }
+              : row.tx_type === "0x2"
+                ? {
+                    type: "eip1559",
+                    maxFeePerGas: row.tx_maxFeePerGas,
+                    maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
+                  }
+                : row.tx_type === "0x7e"
+                  ? {
+                      type: "deposit",
+                      maxFeePerGas: row.tx_maxFeePerGas ?? undefined,
+                      maxPriorityFeePerGas:
+                        row.tx_maxPriorityFeePerGas ?? undefined,
+                    }
+                  : { type: row.tx_type }),
+        },
+      } satisfies {
+        sourceId: string;
+        chainId: number;
+        log: Log;
+        block: Block;
+        transaction: Transaction;
       };
+    });
 
-      if (events.length < pageSize) break;
+    // Query for the checkpoint of the last event in the requested range (ignore the batch limit)
+    const lastCheckpointRows = await baseQuery
+      .select([
+        "blocks.timestamp as block_timestamp",
+        "logs.chainId as log_chainId",
+        "blocks.number as block_number",
+        "logs.logIndex as log_logIndex",
+      ])
+      .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
+      .orderBy("blocks.timestamp", "desc")
+      .orderBy("logs.chainId", "desc")
+      .orderBy("blocks.number", "desc")
+      .orderBy("logs.logIndex", "desc")
+      .limit(1)
+      .execute();
+
+    const lastCheckpointRow = lastCheckpointRows[0];
+    const lastCheckpoint =
+      lastCheckpointRow !== undefined
+        ? ({
+            blockTimestamp: Number(lastCheckpointRow.block_timestamp!),
+            blockNumber: Number(lastCheckpointRow.block_number!),
+            chainId: lastCheckpointRow.log_chainId,
+            logIndex: lastCheckpointRow.log_logIndex,
+          } satisfies Checkpoint)
+        : undefined;
+
+    this.record("getLogEvents", performance.now() - start);
+
+    if (events.length === limit + 1) {
+      events.pop();
+
+      const lastEventInPage = events[events.length - 1];
+      const lastCheckpointInPage = {
+        blockTimestamp: Number(lastEventInPage.block.timestamp),
+        chainId: lastEventInPage.chainId,
+        blockNumber: Number(lastEventInPage.block.number),
+        logIndex: lastEventInPage.log.logIndex,
+      } satisfies Checkpoint;
+
+      return {
+        events,
+        hasNextPage: true,
+        lastCheckpointInPage,
+        lastCheckpoint,
+      } as const;
+    } else {
+      return {
+        events,
+        hasNextPage: false,
+        lastCheckpointInPage: undefined,
+        lastCheckpoint,
+      } as const;
     }
-
-    this.record("getLogEvents", start);
   }
 
   /**
@@ -1210,7 +1197,7 @@ export class PostgresSyncStore implements SyncStore {
       eb(
         "logs.chainId",
         "=",
-        sql`cast (${sql.val(logFilter.chainId)} as integer)`,
+        sql`cast (${sql.val(logFilter.chainId)} as numeric(16, 0))`,
       ),
     );
 
@@ -1271,7 +1258,7 @@ export class PostgresSyncStore implements SyncStore {
       eb(
         "logs.chainId",
         "=",
-        sql`cast (${sql.val(factory.chainId)} as integer)`,
+        sql`cast (${sql.val(factory.chainId)} as numeric(16, 0))`,
       ),
     );
 
@@ -1301,18 +1288,9 @@ export class PostgresSyncStore implements SyncStore {
     return exprs;
   };
 
-  private transaction = async <U>(
+  private transaction = <U>(
     callback: (tx: KyselyTransaction<SyncStoreTables>) => Promise<U>,
-  ) => {
-    return await this.db.transaction().execute(async (tx) => {
-      return await Promise.race([
-        callback(tx),
-        wait(15_000).then(() => {
-          throw new Error("Postgres transaction timed out after 15 seconds.");
-        }),
-      ]);
-    });
-  };
+  ) => this.db.transaction().execute(callback);
 
   private record(methodName: string, start: number) {
     this.common.metrics.ponder_sync_store_method_duration.observe(

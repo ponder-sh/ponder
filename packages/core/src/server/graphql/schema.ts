@@ -1,3 +1,5 @@
+import type { IndexingStore } from "@/indexing-store/store.js";
+import type { Scalar, Schema } from "@/schema/types.js";
 import {
   GraphQLBoolean,
   type GraphQLFieldConfig,
@@ -8,10 +10,6 @@ import {
   GraphQLSchema,
   GraphQLString,
 } from "graphql";
-
-import type { IndexingStore } from "@/indexing-store/store.js";
-import type { Scalar, Schema } from "@/schema/types.js";
-
 import { buildEntityTypes } from "./entity.js";
 import { buildPluralField } from "./plural.js";
 import { buildSingularField } from "./singular.js";
@@ -38,7 +36,7 @@ export const tsTypeToGqlScalar: { [type in Scalar]: GraphQLScalarType } = {
   string: GraphQLString,
   boolean: GraphQLBoolean,
   bigint: GraphQLBigInt,
-  bytes: GraphQLString,
+  hex: GraphQLString,
 };
 
 export type Source = { request: unknown };
@@ -49,27 +47,28 @@ export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
 
   // First build the entity types. These have resolvers defined for any
   // relationship or derived fields. This is also important for the thunk nonsense.
-  const { entityGqlTypes, enumGqlTypes } = buildEntityTypes({
+  const { entityTypes, entityPageTypes, enumTypes } = buildEntityTypes({
     schema,
   });
 
   for (const [tableName, table] of Object.entries(schema.tables)) {
-    const entityGqlType = entityGqlTypes[tableName];
+    const entityType = entityTypes[tableName];
+    const entityPageType = entityPageTypes[tableName];
 
     const singularFieldName =
       tableName.charAt(0).toLowerCase() + tableName.slice(1);
     queryFields[singularFieldName] = buildSingularField({
       tableName,
       table,
-      entityGqlType,
+      entityType,
     });
 
     const pluralFieldName = `${singularFieldName}s`;
     queryFields[pluralFieldName] = buildPluralField({
       table,
       tableName,
-      entityGqlType,
-      enumGqlTypes,
+      entityPageType,
+      enumTypes,
     });
   }
 

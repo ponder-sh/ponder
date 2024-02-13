@@ -69,7 +69,7 @@ export const isCheckpointEqual = (a: Checkpoint, b: Checkpoint) => {
 };
 
 /**
- * Returns true if checkpoint a is greater than to checkpoint b.
+ * Returns true if checkpoint a is greater than checkpoint b.
  * Returns false if the checkpoints are equal.
  */
 export const isCheckpointGreaterThan = (a: Checkpoint, b: Checkpoint) => {
@@ -90,6 +90,16 @@ export const isCheckpointGreaterThan = (a: Checkpoint, b: Checkpoint) => {
   if (a.logIndex === undefined) return true;
   // Otherwise b is undefined and a is defined, so b is greater.
   else return false;
+};
+
+/**
+ * Returns true if checkpoint a is greater than or equal to checkpoint b.
+ */
+export const isCheckpointGreaterThanOrEqualTo = (
+  a: Checkpoint,
+  b: Checkpoint,
+) => {
+  return isCheckpointGreaterThan(a, b) || isCheckpointEqual(a, b);
 };
 
 export const checkpointMax = (...checkpoints: Checkpoint[]) =>

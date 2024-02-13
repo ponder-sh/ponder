@@ -16,8 +16,7 @@ export type ParseAbiEvent<
   ///
   abiEvents extends AbiEvent = ExtractAbiEvents<abi>,
   noOverloadEvent = Extract<abiEvents, { name: signature }>,
-  overloadEvent extends AbiEvent = ParseAbiItem<`event ${signature}`> &
-    AbiEvent,
+  overloadEvent = Extract<abiEvents, ParseAbiItem<`event ${signature}`>>,
 > = [noOverloadEvent] extends [never]
   ? [overloadEvent] extends [never]
     ? AbiEvent
@@ -48,11 +47,4 @@ export type SafeEventNames<
   abi extends Abi,
   ///
   abiEvents extends AbiEvent = ExtractAbiEvents<abi>,
-  signatures extends string = FormatAbiItem<abiEvents>,
-> = string extends signatures
-  ? string
-  : {
-      [i in signatures]: ParseAbiItem<i> extends AbiEvent
-        ? FormatAbiEvent<abi, ParseAbiItem<i>>
-        : never;
-    }[signatures];
+> = abiEvents extends abiEvents ? FormatAbiEvent<abi, abiEvents> : never;

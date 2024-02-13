@@ -17,7 +17,9 @@ runs:
         node-version: ${{ matrix.node-version == 'Node 18' && 18 || 20 }}
 
     - name: Set up foundry
-      uses: foundry-rs/foundry-toolchain@v1.0.10
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: nightly
 
     - name: Install dependencies
       shell: bash

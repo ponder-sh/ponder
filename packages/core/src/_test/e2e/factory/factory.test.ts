@@ -1,8 +1,4 @@
 import { rmSync } from "node:fs";
-
-import request from "supertest";
-import { afterEach, beforeEach, expect, test } from "vitest";
-
 import { Ponder } from "@/Ponder.js";
 import {
   setupAnvil,
@@ -13,6 +9,8 @@ import { simulate } from "@/_test/simulate.js";
 import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
 import { range } from "@/utils/range.js";
+import request from "supertest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupSyncStore(context));
@@ -68,13 +66,15 @@ test("factory", async (context) => {
     ponder,
     `
     swapEvents {
-      id
-      pair
-      from
-      to
+      items {
+        id
+        pair
+        from
+        to
+      }
     }
     `,
-  ).then((g) => g.swapEvents);
+  ).then((g) => g.swapEvents.items);
 
   expect(swapEvents).toHaveLength(4);
 
@@ -89,13 +89,15 @@ test("factory", async (context) => {
     ponder,
     `
     swapEvents {
-      id
-      pair
-      from
-      to
+      items {
+        id
+        pair
+        from
+        to
+      }
     }
     `,
-  ).then((g) => g.swapEvents);
+  ).then((g) => g.swapEvents.items);
 
   expect(swapEvents).toHaveLength(5);
 

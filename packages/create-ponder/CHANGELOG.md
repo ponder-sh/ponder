@@ -1,5 +1,43 @@
 # create-ponder
 
+## 0.2.5
+
+## 0.2.4
+
+## 0.2.3
+
+### Patch Changes
+
+- [#622](https://github.com/ponder-sh/ponder/pull/622) [`72adc7aca8cb9938ce5344f1a613b653ae072b1b`](https://github.com/ponder-sh/ponder/commit/72adc7aca8cb9938ce5344f1a613b653ae072b1b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `Schema` utility type to `ponder-env.d.ts`. Removed outdated `Infer` and `DatabaseModel` types.
+
+## 0.2.2
+
+## 0.2.1
+
+## 0.2.0
+
+### Minor Changes
+
+- [#596](https://github.com/ponder-sh/ponder/pull/596) [`ed7b8c7f881386f718e0f61ae863190c7f160953`](https://github.com/ponder-sh/ponder/commit/ed7b8c7f881386f718e0f61ae863190c7f160953) Thanks [@kyscott18](https://github.com/kyscott18)! - Released 0.2.0, please see the [migration guide](https://ponder.sh/docs/migration-guide) for details.
+
+## 0.1.9
+
+## 0.1.8
+
+### Patch Changes
+
+- [#582](https://github.com/ponder-sh/ponder/pull/582) [`e7219d90178725fc51a8078358583844d7fe4a61`](https://github.com/ponder-sh/ponder/commit/e7219d90178725fc51a8078358583844d7fe4a61) Thanks [@grayleonard](https://github.com/grayleonard)! - Re-added subgraph ID support
+
+- [#585](https://github.com/ponder-sh/ponder/pull/585) [`2e208b41a0923ffa9b9179519294968ddd4b9cab`](https://github.com/ponder-sh/ponder/commit/2e208b41a0923ffa9b9179519294968ddd4b9cab) Thanks [@0xOlias](https://github.com/0xOlias)! - Renamed `create-ponder` CLI options `--etherscan-contract-link` to `--etherscan` and `--subgraph-id` to `--subgraph`.
+
+## 0.1.7
+
+### Patch Changes
+
+- [#579](https://github.com/ponder-sh/ponder/pull/579) [`a0e4b154f4bab629d60880477dc6aa6ab64f95b0`](https://github.com/ponder-sh/ponder/commit/a0e4b154f4bab629d60880477dc6aa6ab64f95b0) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated block explorer template to use `viem/chains` explorer API URLs. Updated CLI styles.
+
+## 0.1.6
+
 ## 0.1.5
 
 ## 0.1.4

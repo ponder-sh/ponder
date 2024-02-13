@@ -1,6 +1,6 @@
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
-import { type Transport } from "viem";
+import { type Narrow, type Transport } from "viem";
 import type { GetAddress } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
 import type { NonStrictPick } from "./utilityTypes.js";
@@ -14,15 +14,15 @@ export type BlockConfig = {
   maxBlockRange?: number;
 };
 
-export type DatabaseConfig =
+type DatabaseConfig =
   | {
       kind: "sqlite";
-      /** Path to SQLite database file. Default: `"./.ponder/cache.db"`. */
+      /** Path to SQLite database file. Default: `".ponder/store"`. */
       filename?: string;
     }
   | {
       kind: "postgres";
-      /** PostgreSQL database connection string. Default: `process.env.DATABASE_URL`. */
+      /** PostgreSQL database connection string. Default: `process.env.DATABASE_PRIVATE_URL` or `process.env.DATABASE_URL`. */
       connectionString?: string;
     };
 
@@ -31,9 +31,11 @@ export type OptionConfig = {
   maxHealthcheckDuration?: number;
 };
 
-export type NetworkConfig = {
+export type NetworkConfig<network> = {
   /** Chain ID of the network. */
-  chainId: number;
+  chainId: network extends { chainId: infer chainId extends number }
+    ? chainId | number
+    : number;
   /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
    *
    * __To avoid rate limiting, include a custom RPC URL.__ Usage:
@@ -51,7 +53,9 @@ export type NetworkConfig = {
   transport: Transport;
   /** Polling frequency (in ms). Default: `1_000`. */
   pollingInterval?: number;
-  /** Maximum concurrency of tasks during the historical sync. Default: `20`. */
+  /** Maximum number of RPC requests per second. Default: `50`. */
+  maxRequestsPerSecond?: number;
+  /** (Deprecated) Maximum concurrency of tasks during the historical sync. Default: `20`. */
   maxHistoricalTaskConcurrency?: number;
 };
 
@@ -126,20 +130,20 @@ type ContractsConfig<networks, contracts> = {} extends contracts
 type NetworksConfig<networks> = {} extends networks
   ? {}
   : {
-      [networkName in keyof networks]: NetworkConfig;
+      [networkName in keyof networks]: NetworkConfig<networks[networkName]>;
     };
 
 export const createConfig = <const networks, const contracts>(config: {
   // TODO: add jsdoc to these properties.
-  networks: NetworksConfig<networks>;
-  contracts: ContractsConfig<networks, contracts>;
+  networks: NetworksConfig<Narrow<networks>>;
+  contracts: ContractsConfig<networks, Narrow<contracts>>;
   database?: DatabaseConfig;
   options?: OptionConfig;
 }): CreateConfigReturnType<networks, contracts> =>
   config as CreateConfigReturnType<networks, contracts>;
 
 export type Config = {
-  networks: { [name: string]: NetworkConfig };
+  networks: { [name: string]: NetworkConfig<unknown> };
   contracts: { [name: string]: GetContract };
   database?: DatabaseConfig;
   options?: OptionConfig;

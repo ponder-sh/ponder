@@ -1,17 +1,3 @@
-import { Emittery } from "@/utils/emittery.js";
-import {
-  type Hash,
-  type Hex,
-  InvalidParamsRpcError,
-  LimitExceededRpcError,
-  type RpcBlock,
-  type RpcError,
-  type RpcLog,
-  type RpcTransaction,
-  hexToNumber,
-  toHex,
-} from "viem";
-
 import type { Common } from "@/Ponder.js";
 import type { Network } from "@/config/networks.js";
 import {
@@ -19,11 +5,13 @@ import {
   type LogFilter,
   type LogFilterCriteria,
   type Source,
+  type Topics,
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
+import { Emittery } from "@/utils/emittery.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   BlockProgressTracker,
@@ -35,10 +23,23 @@ import {
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { getErrorMessage, request } from "@/utils/request.js";
-import { startClock } from "@/utils/timer.js";
-
-import { validateHistoricalBlockRange } from "./utils.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
+import {
+  type Address,
+  BlockNotFoundError,
+  type Hash,
+  type Hex,
+  type RpcBlock,
+  type RpcLog,
+  hexToNumber,
+  numberToHex,
+  toHex,
+} from "viem";
+import {
+  type LogFilterError,
+  getLogFilterRetryRanges,
+} from "./getLogFilterRetryRanges.js";
+import { validateHistoricalBlockRange } from "./validateHistoricalBlockRange.js";
 
 type HistoricalSyncEvents = {
   /**
@@ -77,9 +78,7 @@ type FactoryLogFilterTask = {
 type BlockTask = {
   kind: "BLOCK";
   blockNumber: number;
-  callbacks: ((
-    block: RpcBlock & { transactions: RpcTransaction[] },
-  ) => Promise<void>)[];
+  callbacks: ((block: HistoricalBlock) => Promise<void>)[];
 };
 
 type HistoricalSyncTask =
@@ -88,10 +87,20 @@ type HistoricalSyncTask =
   | FactoryLogFilterTask
   | BlockTask;
 
+type HistoricalBlock = RpcBlock<"finalized", true>;
+
+type LogInterval = {
+  startBlock: number;
+  endBlock: number;
+  logs: RpcLog[];
+  transactionHashes: Set<Hash>;
+};
+
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private common: Common;
   private syncStore: SyncStore;
   private network: Network;
+  private requestQueue: RequestQueue;
 
   /**
    * Service configuration. Will eventually be reloadable.
@@ -118,7 +127,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    */
   private blockCallbacks: Record<
     number,
-    ((block: RpcBlock & { transactions: RpcTransaction[] }) => Promise<void>)[]
+    ((block: HistoricalBlock) => Promise<void>)[]
   > = {};
 
   /**
@@ -128,18 +137,22 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private blockTasksEnqueuedCheckpoint = 0;
 
   private queue: Queue<HistoricalSyncTask>;
-  private isKilling = false;
+
+  /** If true, failed tasks should not log errors or be retried. */
+  private isShuttingDown = false;
   private progressLogInterval?: NodeJS.Timeout;
 
   constructor({
     common,
     syncStore,
     network,
+    requestQueue,
     sources = [],
   }: {
     common: Common;
     syncStore: SyncStore;
     network: Network;
+    requestQueue: RequestQueue;
     sources?: Source[];
   }) {
     super();
@@ -147,6 +160,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.common = common;
     this.syncStore = syncStore;
     this.network = network;
+    this.requestQueue = requestQueue;
     this.sources = sources;
 
     this.queue = this.buildQueue();
@@ -160,7 +174,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     finalizedBlockNumber: number;
   }) {
     // Initialize state variables. Required when restarting the service.
-    this.isKilling = false;
+    this.isShuttingDown = false;
     this.blockTasksEnqueuedCheckpoint = 0;
 
     this.finalizedBlockNumber = finalizedBlockNumber;
@@ -218,7 +232,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           for (const [fromBlock, toBlock] of logFilterTaskChunks) {
             this.queue.addTask(
-              { kind: "LOG_FILTER", logFilter: source, fromBlock, toBlock },
+              {
+                kind: "LOG_FILTER",
+                logFilter: source,
+                fromBlock,
+                toBlock,
+              },
               { priority: Number.MAX_SAFE_INTEGER - fromBlock },
             );
           }
@@ -467,14 +486,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.queue.start();
   }
 
-  kill = async () => {
-    this.isKilling = true;
+  kill = () => {
+    this.isShuttingDown = true;
     clearInterval(this.progressLogInterval);
-
     this.queue.pause();
     this.queue.clear();
-    await this.onIdle();
-
     this.common.logger.debug({
       service: "historical",
       msg: `Killed historical sync service (network=${this.network.name})`,
@@ -487,26 +503,22 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     );
 
   private buildQueue = () => {
-    const worker: Worker<HistoricalSyncTask> = async ({
-      task,
-      queue,
-      signal,
-    }) => {
+    const worker: Worker<HistoricalSyncTask> = async ({ task, queue }) => {
       switch (task.kind) {
         case "LOG_FILTER": {
-          await this.logFilterTaskWorker({ task, signal });
+          await this.logFilterTaskWorker(task);
           break;
         }
         case "FACTORY_CHILD_ADDRESS": {
-          await this.factoryChildAddressTaskWorker({ task, signal });
+          await this.factoryChildAddressTaskWorker(task);
           break;
         }
         case "FACTORY_LOG_FILTER": {
-          await this.factoryLogFilterTaskWorker({ task, signal });
+          await this.factoryLogFilterTaskWorker(task);
           break;
         }
         case "BLOCK": {
-          await this.blockTaskWorker({ task, signal });
+          await this.blockTaskWorker(task);
           break;
         }
       }
@@ -514,7 +526,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       // If this is not the final task, return.
       if (queue.size > 0 || queue.pending > 1) return;
       // If this is the final task but the kill() method has been called, do nothing.
-      if (this.isKilling) return;
+      if (this.isShuttingDown) return;
 
       // If this is the final task, run the cleanup/completion logic.
       clearInterval(this.progressLogInterval);
@@ -538,42 +550,63 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         autoStart: false,
       },
       onError: ({ error, task, queue }) => {
-        const message = getErrorMessage(error);
+        if (this.isShuttingDown) return;
+
         switch (task.kind) {
           case "LOG_FILTER": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Log filter task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.logFilter.contractName}, network=${this.network.name}, error=${message})`,
+              msg: `Log filter task failed, retrying... [${task.fromBlock}, ${
+                task.toBlock
+              }] (contract=${task.logFilter.contractName}, network=${
+                this.network.name
+              }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask(task, { priority, retry: true });
+            queue.addTask({ ...task }, { priority });
             break;
           }
           case "FACTORY_CHILD_ADDRESS": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Factory child address task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.factory.contractName}, network=${this.network.name}, error=${message})`,
+              msg: `Factory child address task failed, retrying... [${
+                task.fromBlock
+              }, ${task.toBlock}] (contract=${
+                task.factory.contractName
+              }, network=${
+                this.network.name
+              }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask(task, { priority, retry: true });
+            queue.addTask({ ...task }, { priority });
             break;
           }
           case "FACTORY_LOG_FILTER": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Factory log filter task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.factory.contractName}, network=${this.network.name}, error=${message})`,
+              msg: `Factory log filter task failed, retrying... [${
+                task.fromBlock
+              }, ${task.toBlock}] (contract=${
+                task.factory.contractName
+              }, network=${
+                this.network.name
+              }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
-            queue.addTask(task, { priority, retry: true });
+            queue.addTask({ ...task }, { priority });
             break;
           }
           case "BLOCK": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Block task failed, retrying... [${task.blockNumber}] (network=${this.network.name}, error=${message})`,
+              msg: `Block task failed, retrying... [${
+                task.blockNumber
+              }] (network=${
+                this.network.name
+              }, error=${`${error.name}: ${error.message}`})`,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.blockNumber;
-            queue.addTask(task, { priority, retry: true });
+            queue.addTask({ ...task }, { priority });
             break;
           }
         }
@@ -584,42 +617,33 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   };
 
   private logFilterTaskWorker = async ({
-    task,
-    signal,
-  }: {
-    task: LogFilterTask;
-    signal: AbortSignal;
-  }) => {
-    const { logFilter, fromBlock, toBlock } = task;
-
-    const logs = await this._eth_getLogs(
-      {
-        address: logFilter.criteria.address,
-        topics: logFilter.criteria.topics,
-        fromBlock: toHex(fromBlock),
-        toBlock: toHex(toBlock),
-      },
-      signal,
-    );
+    logFilter,
+    fromBlock,
+    toBlock,
+  }: LogFilterTask) => {
+    const logs = await this._eth_getLogs({
+      address: logFilter.criteria.address,
+      topics: logFilter.criteria.topics,
+      fromBlock: toHex(fromBlock),
+      toBlock: toHex(toBlock),
+    });
 
     const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
 
     for (const logInterval of logIntervals) {
-      const { startBlock, endBlock, logs, transactionHashes } = logInterval;
-      (this.blockCallbacks[endBlock] ||= []).push(async (block) => {
-        await this.syncStore.insertLogFilterInterval({
+      const { startBlock, endBlock } = logInterval;
+
+      if (this.blockCallbacks[endBlock] === undefined)
+        this.blockCallbacks[endBlock] = [];
+
+      this.blockCallbacks[endBlock].push(async (block) => {
+        await this._insertLogFilterInterval({
+          logInterval,
+          logFilter: logFilter.criteria,
           chainId: logFilter.chainId,
           block,
-          transactions: block.transactions.filter((tx) =>
-            transactionHashes.has(tx.hash),
-          ),
-          logs,
-          logFilter: logFilter.criteria,
-          interval: {
-            startBlock: BigInt(startBlock),
-            endBlock: BigInt(endBlock),
-          },
         });
+
         this.common.metrics.ponder_historical_completed_blocks.inc(
           { network: this.network.name, contract: logFilter.contractName },
           endBlock - startBlock + 1,
@@ -628,116 +652,23 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
 
     this.logFilterProgressTrackers[logFilter.id].addCompletedInterval([
-      task.fromBlock,
-      task.toBlock,
+      fromBlock,
+      toBlock,
     ]);
 
     this.enqueueBlockTasks();
 
     this.common.logger.trace({
       service: "historical",
-      msg: `Completed LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${task.fromBlock}, ${task.toBlock}] (contract=${logFilter.contractName}, network=${this.network.name})`,
-    });
-  };
-
-  private factoryChildAddressTaskWorker = async ({
-    task,
-    signal,
-  }: {
-    task: FactoryChildAddressTask;
-    signal: AbortSignal;
-  }) => {
-    const { factory, fromBlock, toBlock } = task;
-
-    const logs = await this._eth_getLogs(
-      {
-        address: factory.criteria.address,
-        topics: [factory.criteria.eventSelector],
-        fromBlock: toHex(fromBlock),
-        toBlock: toHex(toBlock),
-      },
-      signal,
-    );
-
-    // Insert the new child address logs into the store.
-    await this.syncStore.insertFactoryChildAddressLogs({
-      chainId: factory.chainId,
-      logs,
-    });
-
-    // Register block callbacks for the child address logs. This is how
-    // the intervals will be recorded (marking the child address logs as
-    // cached on subsequent starts).
-    const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
-    for (const logInterval of logIntervals) {
-      const { startBlock, endBlock, logs, transactionHashes } = logInterval;
-      (this.blockCallbacks[endBlock] ||= []).push(async (block) => {
-        await this.syncStore.insertLogFilterInterval({
-          chainId: factory.chainId,
-          logFilter: {
-            address: factory.criteria.address,
-            topics: [factory.criteria.eventSelector],
-          },
-          block,
-          transactions: block.transactions.filter((tx) =>
-            transactionHashes.has(tx.hash),
-          ),
-          logs,
-          interval: {
-            startBlock: BigInt(startBlock),
-            endBlock: BigInt(endBlock),
-          },
-        });
-      });
-    }
-
-    // Update the checkpoint, and if necessary, enqueue factory log filter tasks.
-    const { isUpdated, prevCheckpoint, newCheckpoint } =
-      this.factoryChildAddressProgressTrackers[factory.id].addCompletedInterval(
-        [fromBlock, toBlock],
-      );
-    if (isUpdated) {
-      // It's possible for the factory log filter to have already completed some or
-      // all of the block interval here. To avoid duplicates, only add intervals that
-      // are still marked as required.
-      const requiredIntervals = intervalIntersection(
-        [[prevCheckpoint + 1, newCheckpoint]],
-        this.factoryLogFilterProgressTrackers[factory.id].getRequired(),
-      );
-      const factoryLogFilterChunks = getChunks({
-        intervals: requiredIntervals,
-        maxChunkSize:
-          factory.maxBlockRange ?? this.network.defaultMaxBlockRange,
-      });
-
-      for (const [fromBlock, toBlock] of factoryLogFilterChunks) {
-        this.queue.addTask(
-          { kind: "FACTORY_LOG_FILTER", factory, fromBlock, toBlock },
-          { priority: Number.MAX_SAFE_INTEGER - fromBlock },
-        );
-      }
-    }
-    this.common.metrics.ponder_historical_completed_blocks.inc(
-      {
-        network: this.network.name,
-        contract: `${factory.contractName}_factory`,
-      },
-      toBlock - fromBlock + 1,
-    );
-
-    this.common.logger.trace({
-      service: "historical",
-      msg: `Completed FACTORY_CHILD_ADDRESS task [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
+      msg: `Completed LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${logFilter.contractName}, network=${this.network.name})`,
     });
   };
 
   private factoryLogFilterTaskWorker = async ({
-    task: { factory, fromBlock, toBlock },
-    signal,
-  }: {
-    task: FactoryLogFilterTask;
-    signal: AbortSignal;
-  }) => {
+    factory,
+    fromBlock,
+    toBlock,
+  }: FactoryLogFilterTask) => {
     const iterator = this.syncStore.getFactoryChildAddresses({
       chainId: factory.chainId,
       factory: factory.criteria,
@@ -745,25 +676,25 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
 
     const logs: RpcLog[] = [];
-
     for await (const childContractAddressBatch of iterator) {
-      const batchLogs = await this._eth_getLogs(
-        {
-          address: childContractAddressBatch,
-          topics: factory.criteria.topics,
-          fromBlock: toHex(fromBlock),
-          toBlock: toHex(toBlock),
-        },
-        signal,
-      );
-      logs.push(...batchLogs);
+      const _logs = await this._eth_getLogs({
+        address: childContractAddressBatch,
+        topics: factory.criteria.topics,
+        fromBlock: numberToHex(fromBlock),
+        toBlock: numberToHex(toBlock),
+      });
+      logs.push(..._logs);
     }
 
     const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
 
     for (const logInterval of logIntervals) {
       const { startBlock, endBlock, logs, transactionHashes } = logInterval;
-      (this.blockCallbacks[endBlock] ||= []).push(async (block) => {
+
+      if (this.blockCallbacks[endBlock] === undefined)
+        this.blockCallbacks[endBlock] = [];
+
+      this.blockCallbacks[endBlock].push(async (block) => {
         await this.syncStore.insertFactoryLogFilterInterval({
           chainId: factory.chainId,
           factory: factory.criteria,
@@ -798,35 +729,99 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
   };
 
-  private blockTaskWorker = async ({
-    task,
-    signal,
-  }: {
-    task: BlockTask;
-    signal: AbortSignal;
-  }) => {
-    const { blockNumber, callbacks } = task;
+  private factoryChildAddressTaskWorker = async ({
+    factory,
+    fromBlock,
+    toBlock,
+  }: FactoryChildAddressTask) => {
+    const logs = await this._eth_getLogs({
+      address: factory.criteria.address,
+      topics: [factory.criteria.eventSelector],
+      fromBlock: toHex(fromBlock),
+      toBlock: toHex(toBlock),
+    });
 
-    const stopClock = startClock();
+    // Insert the new child address logs into the store.
+    await this.syncStore.insertFactoryChildAddressLogs({
+      chainId: factory.chainId,
+      logs,
+    });
 
-    const block = (await request(this.network, {
-      body: {
-        method: "eth_getBlockByNumber",
-        params: [toHex(blockNumber), true],
+    // Register block callbacks for the child address logs. This is how
+    // the intervals will be recorded (marking the child address logs as
+    // cached on subsequent starts).
+    const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
+    for (const logInterval of logIntervals) {
+      if (this.blockCallbacks[logInterval.endBlock] === undefined)
+        this.blockCallbacks[logInterval.endBlock] = [];
+
+      this.blockCallbacks[logInterval.endBlock].push(async (block) => {
+        await this._insertLogFilterInterval({
+          logInterval,
+          logFilter: {
+            address: factory.criteria.address,
+            topics: [factory.criteria.eventSelector],
+          },
+          chainId: factory.chainId,
+          block,
+        });
+      });
+    }
+
+    // Update the checkpoint, and if necessary, enqueue factory log filter tasks.
+    const { isUpdated, prevCheckpoint, newCheckpoint } =
+      this.factoryChildAddressProgressTrackers[factory.id].addCompletedInterval(
+        [fromBlock, toBlock],
+      );
+    if (isUpdated) {
+      // It's possible for the factory log filter to have already completed some or
+      // all of the block interval here. To avoid duplicates, only add intervals that
+      // are still marked as required.
+      const requiredIntervals = intervalIntersection(
+        [[prevCheckpoint + 1, newCheckpoint]],
+        this.factoryLogFilterProgressTrackers[factory.id].getRequired(),
+      );
+      const factoryLogFilterChunks = getChunks({
+        intervals: requiredIntervals,
+        maxChunkSize:
+          factory.maxBlockRange ?? this.network.defaultMaxBlockRange,
+      });
+
+      for (const [fromBlock, toBlock] of factoryLogFilterChunks) {
+        this.queue.addTask(
+          {
+            kind: "FACTORY_LOG_FILTER",
+            factory,
+            fromBlock,
+            toBlock,
+          },
+          { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+        );
+      }
+    }
+    this.common.metrics.ponder_historical_completed_blocks.inc(
+      {
+        network: this.network.name,
+        contract: `${factory.contractName}_factory`,
       },
-      fetchOptions: { signal },
-    })) as RpcBlock & {
-      transactions: RpcTransaction[];
-    };
-
-    this.common.metrics.ponder_historical_rpc_request_duration.observe(
-      { method: "eth_getBlockByNumber", network: this.network.name },
-      stopClock(),
+      toBlock - fromBlock + 1,
     );
 
-    if (!block) throw new Error(`Block not found: ${blockNumber}`);
+    this.common.logger.trace({
+      service: "historical",
+      msg: `Completed FACTORY_CHILD_ADDRESS task [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
+    });
+  };
 
-    await Promise.all(callbacks.map((cb) => cb(block)));
+  private blockTaskWorker = async ({ blockNumber, callbacks }: BlockTask) => {
+    const block = await this._eth_getBlockByNumber({
+      blockNumber,
+    });
+
+    while (callbacks.length !== 0) {
+      await callbacks[callbacks.length - 1](block);
+      callbacks.pop()!;
+    }
 
     const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
       blockNumber,
@@ -925,6 +920,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           {
             kind: "BLOCK",
             blockNumber,
+
             callbacks: this.blockCallbacks[blockNumber],
           },
           { priority: Number.MAX_SAFE_INTEGER - blockNumber },
@@ -943,122 +939,97 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
   };
 
-  private _eth_getLogs = async (
-    options: LogFilterCriteria & { fromBlock: Hex; toBlock: Hex },
-    signal: AbortSignal,
-  ) => {
-    const logs: RpcLog[] = [];
-
-    let error: (Partial<RpcError> & { name: string }) | null = null;
-
-    const stopClock = startClock();
+  /**
+   * Helper function for "eth_getLogs" rpc request.
+   * Handles different error types and retries the request if applicable.
+   */
+  private _eth_getLogs = (params: {
+    address?: Address | Address[];
+    topics?: Topics;
+    fromBlock: Hex;
+    toBlock: Hex;
+  }): Promise<RpcLog[]> => {
     try {
-      return await request(this.network, {
-        body: {
-          method: "eth_getLogs",
-          params: [
-            {
-              ...options,
-              address: options.address
-                ? Array.isArray(options.address)
-                  ? options.address.map((a) => toLowerCase(a))
-                  : toLowerCase(options.address)
-                : undefined,
-            },
-          ],
-        },
-        fetchOptions: { signal },
+      return this.requestQueue.request({
+        method: "eth_getLogs",
+        params: [
+          {
+            fromBlock: params.fromBlock,
+            toBlock: params.toBlock,
+
+            topics: params.topics,
+            address: params.address
+              ? Array.isArray(params.address)
+                ? params.address.map((a) => toLowerCase(a))
+                : toLowerCase(params.address)
+              : undefined,
+          },
+        ],
       });
     } catch (err) {
-      error = err as Partial<RpcError> & { name: string };
-    } finally {
-      this.common.metrics.ponder_historical_rpc_request_duration.observe(
-        { method: "eth_getLogs", network: this.network.name },
-        stopClock(),
+      const retryRanges = getLogFilterRetryRanges(
+        err as LogFilterError,
+        params.fromBlock,
+        params.toBlock,
       );
+
+      return Promise.all(
+        retryRanges.map(([from, to]) =>
+          this._eth_getLogs({
+            fromBlock: from,
+            toBlock: to,
+            topics: params.topics,
+            address: params.address,
+          }),
+        ),
+      ).then((l) => l.flat());
     }
-
-    if (!error) return logs;
-
-    const retryRanges: ([Hex, Hex] | readonly [Hex, Hex])[] = [];
-    if (
-      // Alchemy response size error.
-      error.code === InvalidParamsRpcError.code &&
-      error.details!.startsWith("Log response size exceeded.")
-    ) {
-      const safe = error.details!.split("this block range should work: ")[1];
-      const safeStart = Number(safe.split(", ")[0].slice(1));
-      const safeEnd = Number(safe.split(", ")[1].slice(0, -1));
-
-      retryRanges.push([toHex(safeStart), toHex(safeEnd)]);
-      retryRanges.push([toHex(safeEnd + 1), options.toBlock]);
-    } else if (
-      // Another Alchemy response size error.
-      error.details?.includes("Response size is larger than 150MB limit")
-    ) {
-      // No hint available, split into 10 equal ranges.
-      const from = hexToNumber(options.fromBlock);
-      const to = hexToNumber(options.toBlock);
-      const chunks = getChunks({
-        intervals: [[from, to]],
-        maxChunkSize: Math.round((to - from) / 10),
-      });
-      retryRanges.push(
-        ...chunks.map(([f, t]) => [toHex(f), toHex(t)] as const),
-      );
-    } else if (
-      // Infura block range limit error.
-      error.code === LimitExceededRpcError.code &&
-      error.details!.includes("query returned more than 10000 results")
-    ) {
-      const safe = error.details!.split("Try with this block range ")[1];
-      const safeStart = Number(safe.split(", ")[0].slice(1));
-      const safeEnd = Number(safe.split(", ")[1].slice(0, -2));
-
-      retryRanges.push([toHex(safeStart), toHex(safeEnd)]);
-      retryRanges.push([toHex(safeEnd + 1), options.toBlock]);
-    } else if (
-      // Thirdweb block range limit error.
-      error.code === InvalidParamsRpcError.code &&
-      error.details!.includes("block range less than 20000")
-    ) {
-      const midpoint = Math.floor(
-        (Number(options.toBlock) - Number(options.fromBlock)) / 2 +
-          Number(options.fromBlock),
-      );
-
-      retryRanges.push([toHex(options.fromBlock), toHex(midpoint)]);
-      retryRanges.push([toHex(midpoint + 1), options.toBlock]);
-    } else if (
-      // Quicknode block range limit error (should never happen).
-      error.name === "HttpRequestError" &&
-      error.details!.includes(
-        "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range",
-      )
-    ) {
-      const midpoint = Math.floor(
-        (Number(options.toBlock) - Number(options.fromBlock)) / 2 +
-          Number(options.fromBlock),
-      );
-      retryRanges.push([toHex(options.fromBlock), toHex(midpoint)]);
-      retryRanges.push([toHex(midpoint + 1), options.toBlock]);
-    } else {
-      // Throw any unrecognized errors.
-      throw error;
-    }
-
-    for (const [from, to] of retryRanges) {
-      const logs_ = await this._eth_getLogs(
-        {
-          ...options,
-          fromBlock: from,
-          toBlock: to,
-        },
-        signal,
-      );
-      logs.push(...logs_);
-    }
-
-    return logs;
   };
+
+  /**
+   * Helper function for "eth_getBlockByNumber" request.
+   */
+  private _eth_getBlockByNumber = (params: {
+    blockNumber: number;
+  }): Promise<HistoricalBlock> =>
+    this.requestQueue
+      .request({
+        method: "eth_getBlockByNumber",
+        params: [numberToHex(params.blockNumber), true],
+      })
+      .then((block) => {
+        if (!block)
+          throw new BlockNotFoundError({
+            blockNumber: BigInt(params.blockNumber),
+          });
+        return block as HistoricalBlock;
+      });
+
+  /**
+   * Helper function for "insertLogFilterInterval"
+   */
+  private _insertLogFilterInterval = ({
+    logInterval: { transactionHashes, logs, startBlock, endBlock },
+    logFilter,
+    block,
+    chainId,
+  }: {
+    logInterval: LogInterval;
+    logFilter: LogFilterCriteria;
+    block: HistoricalBlock;
+    chainId: number;
+  }) =>
+    this.syncStore.insertLogFilterInterval({
+      chainId,
+      logFilter,
+      block,
+      transactions: block.transactions.filter((tx) =>
+        transactionHashes.has(tx.hash),
+      ),
+      logs,
+      interval: {
+        startBlock: BigInt(startBlock),
+        endBlock: BigInt(endBlock),
+      },
+    });
 }
