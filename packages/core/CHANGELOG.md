@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.2.5
+
+### Patch Changes
+
+- [#637](https://github.com/ponder-sh/ponder/pull/637) [`d055e9cee0dc25dcfaeb48a63dfa9664ec018acd`](https://github.com/ponder-sh/ponder/commit/d055e9cee0dc25dcfaeb48a63dfa9664ec018acd) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue with parsing indexing functions, leading to incorrect ordering
+
 ## 0.2.4
 
 ### Patch Changes
