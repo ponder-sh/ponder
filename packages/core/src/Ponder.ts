@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
@@ -92,6 +93,14 @@ export class Ponder {
     syncStore?: SyncStore;
     indexingStore?: IndexingStore;
   } = {}) {
+    const dotEnvPath = path.join(this.common.options.rootDir, ".env.local");
+    if (!existsSync(dotEnvPath)) {
+      this.common.logger.warn({
+        service: "app",
+        msg: "Local environment file (.env.local) not found",
+      });
+    }
+
     const success = await this.setupBuildService();
     if (!success) return;
 
@@ -155,17 +164,17 @@ export class Ponder {
       common: this.common,
       config: this.config,
     });
+
+    if (database.indexing.kind === "sqlite") {
+      throw new Error(`The 'ponder serve' command only works with Postgres.`);
+    }
+
     this.common.metrics.registerDatabaseMetrics(database);
-    this.indexingStore =
-      database.indexing.kind === "sqlite"
-        ? new SqliteIndexingStore({
-            common: this.common,
-            database: database.indexing.database,
-          })
-        : new PostgresIndexingStore({
-            common: this.common,
-            pool: database.indexing.pool,
-          });
+    this.indexingStore = new PostgresIndexingStore({
+      common: this.common,
+      pool: database.indexing.pool,
+      usePublic: true,
+    });
 
     this.serverService = new ServerService({
       common: this.common,
@@ -227,6 +236,7 @@ export class Ponder {
         msg: "Failed intial build",
       });
       await this.buildService.kill();
+      await this.common.telemetry.kill();
       return false;
     }
 

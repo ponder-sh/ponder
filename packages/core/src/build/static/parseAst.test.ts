@@ -62,7 +62,7 @@ test("helper function", () => {
     ],
   });
 
-  expect(tableAccess).toHaveLength(2);
+  expect(tableAccess).toHaveLength(6);
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
@@ -76,6 +76,30 @@ test("helper function", () => {
     indexingFunctionKey: "C:Event1",
     access: "write",
     hash: expect.any(String),
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event2",
+    access: "read",
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event2",
+    access: "write",
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event3",
+    access: "read",
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event3",
+    access: "write",
   });
 });
 

@@ -169,7 +169,10 @@ export const parseAst = ({
     const ast = isJs ? js.parse(file) : ts.parse(file);
     const root = ast.root();
 
-    const nodes = root.findAll('ponder.on("$NAME", $FUNC)');
+    const nodes = root
+      .findAll('ponder.on("$NAME", $FUNC)')
+      .concat(root.findAll("ponder.on('$NAME', $FUNC)"))
+      .concat(root.findAll("ponder.on(`$NAME`, $FUNC)"));
 
     for (const node of nodes) {
       const indexingFunctionKey = getEventSignature(node);
@@ -184,7 +187,7 @@ export const parseAst = ({
       for (const [name, helperFunctionState] of Object.entries(
         helperFunctionAccess,
       )) {
-        if (funcNode.find(`${name}($$$)`) !== null) {
+        if (funcNode.find(`${name}`) !== null) {
           for (const state of helperFunctionState) {
             addToTableAccess(state.table, indexingFunctionKey, state.method);
           }

@@ -397,6 +397,7 @@ export class SqliteIndexingStore implements IndexingStore {
       for (const [column, direction] of orderByConditions) {
         query = query.orderBy(column, direction);
       }
+      const orderDirection = orderByConditions[0][1];
 
       if (limit > MAX_LIMIT) {
         throw new Error(
@@ -447,7 +448,9 @@ export class SqliteIndexingStore implements IndexingStore {
           encodeValue(value, table[columnName], "sqlite"),
         ]) satisfies [string, any][];
         query = query
-          .where((eb) => buildCursorConditions(cursorValues, "after", eb))
+          .where((eb) =>
+            buildCursorConditions(cursorValues, "after", orderDirection, eb),
+          )
           .limit(limit + 2);
 
         const rows = await query.execute();
@@ -499,7 +502,9 @@ export class SqliteIndexingStore implements IndexingStore {
           encodeValue(value, table[columnName], "sqlite"),
         ]) satisfies [string, any][];
         query = query
-          .where((eb) => buildCursorConditions(cursorValues, "before", eb))
+          .where((eb) =>
+            buildCursorConditions(cursorValues, "before", orderDirection, eb),
+          )
           .limit(limit + 2);
 
         const rows = await query.execute();

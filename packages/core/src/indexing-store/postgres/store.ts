@@ -52,8 +52,14 @@ export class PostgresIndexingStore implements IndexingStore {
 
   private databaseSchemaName: string;
 
-  constructor({ common, pool }: { common: Common; pool: Pool }) {
-    this.databaseSchemaName = `ponder_${new Date().getTime()}`;
+  constructor({
+    common,
+    pool,
+    usePublic = false,
+  }: { common: Common; pool: Pool; usePublic?: boolean }) {
+    this.databaseSchemaName = usePublic
+      ? "public"
+      : `ponder_${new Date().getTime()}`;
     this.common = common;
 
     this.common.logger.debug({
@@ -438,6 +444,7 @@ export class PostgresIndexingStore implements IndexingStore {
             : sql`desc nulls last`,
         );
       }
+      const orderDirection = orderByConditions[0][1];
 
       if (limit > MAX_LIMIT) {
         throw new Error(
@@ -484,7 +491,9 @@ export class PostgresIndexingStore implements IndexingStore {
           encodeValue(value, table[columnName], "postgres"),
         ]) satisfies [string, any][];
         query = query
-          .where((eb) => buildCursorConditions(cursorValues, "after", eb))
+          .where((eb) =>
+            buildCursorConditions(cursorValues, "after", orderDirection, eb),
+          )
           .limit(limit + 2);
 
         const rows = await query.execute();
@@ -536,7 +545,9 @@ export class PostgresIndexingStore implements IndexingStore {
           encodeValue(value, table[columnName], "postgres"),
         ]) satisfies [string, any][];
         query = query
-          .where((eb) => buildCursorConditions(cursorValues, "before", eb))
+          .where((eb) =>
+            buildCursorConditions(cursorValues, "before", orderDirection, eb),
+          )
           .limit(limit + 2);
 
         const rows = await query.execute();
