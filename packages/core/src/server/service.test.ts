@@ -1549,254 +1549,6 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   await service.kill();
 });
 
-// test("serves plural entities versioned at specified timestamp", async (context) => {
-//   const { common, indexingStore } = context;
-//   const { service, gql, createTestEntity } = await setup({
-//     common,
-//     indexingStore,
-//   });
-
-//   await createTestEntity({ id: 1 });
-//   await createTestEntity({ id: 2 });
-
-//   await indexingStore.update({
-//     tableName: "TestEntity",
-//     checkpoint: createCheckpoint(10),
-//     id: String(1),
-//     data: {
-//       string: "updated",
-//     },
-//   });
-//   await indexingStore.update({
-//     tableName: "TestEntity",
-//     checkpoint: createCheckpoint(15),
-//     id: String(2),
-//     data: {
-//       string: "updated",
-//     },
-//   });
-
-//   const responseOld = await gql(`
-//     testEntitys(timestamp: 12, orderBy: "int") {
-//       items {
-//         id
-//         string
-//       }
-//     }
-//   `);
-//   expect(responseOld.body.errors).toBe(undefined);
-//   expect(responseOld.statusCode).toBe(200);
-//   const testEntitysOld = responseOld.body.data.testEntitys.items;
-//   expect(testEntitysOld).toMatchObject([
-//     { id: "1", string: "updated" },
-//     { id: "2", string: "2" },
-//   ]);
-
-//   const response = await gql(`
-//     testEntitys(orderBy: "int") {
-//       items {
-//         id
-//         string
-//       }
-//     }
-//   `);
-//   expect(response.body.errors).toBe(undefined);
-//   expect(response.statusCode).toBe(200);
-//   const testEntitys = response.body.data.testEntitys.items;
-//   expect(testEntitys).toMatchObject([
-//     { id: "1", string: "updated" },
-//     { id: "2", string: "updated" },
-//   ]);
-
-//   await service.kill();
-// });
-
-// test("serves after-based derived paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
-//   const { service, gql, createTestEntity, createEntityWithStringId } =
-//     await setup({
-//       common,
-//       indexingStore,
-//     });
-
-//   await createTestEntity({ id: 1 });
-//   await createTestEntity({ id: 2 });
-//   await createTestEntity({ id: 3 });
-
-//   await createEntityWithStringId({ id: "0", testEntityId: "1" });
-//   await createEntityWithStringId({ id: "1", testEntityId: "1" });
-//   await createEntityWithStringId({ id: "2", testEntityId: "1" });
-
-//   const responseFirst = await gql(`
-//     testEntitys(limit: 1) {
-//       items {
-//         id
-//         derived(after: "MA==", limit: 1) {
-//           items {
-//             id
-//           }
-//           after
-//         }
-//       }
-//     }
-//   `);
-
-//   expect(responseFirst.body.errors).toBe(undefined);
-//   expect(responseFirst.statusCode).toBe(200);
-//   expect(responseFirst.body.data.testEntitys.items[0].derived.after).toBe(
-//     btoa(String(1)),
-//   );
-//   const testEntitysFirst =
-//     responseFirst.body.data.testEntitys.items[0].derived.items;
-//   expect(testEntitysFirst).toMatchObject([{ id: "1" }]);
-
-//   await service.kill();
-// });
-
-// test("serves after-based paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
-//   const { service, gql, createTestEntity } = await setup({
-//     common,
-//     indexingStore,
-//   });
-
-//   await createTestEntity({ id: 1 });
-//   await createTestEntity({ id: 2 });
-
-//   const responseFirst = await gql(`
-//     testEntitys(limit: 1) {
-//       items {
-//         id
-//         string
-//       }
-//       after
-//     }
-//   `);
-
-//   expect(responseFirst.body.errors).toBe(undefined);
-//   expect(responseFirst.statusCode).toBe(200);
-//   expect(responseFirst.body.data.testEntitys.after).toBe(btoa(String(1)));
-//   const testEntitysFirst = responseFirst.body.data.testEntitys.items;
-//   expect(testEntitysFirst).toMatchObject([{ id: "1" }]);
-
-//   const responseAfter = await gql(`
-//     testEntitys(limit: 1, after: "${responseFirst.body.data.testEntitys.after}") {
-//       items {
-//         id
-//         string
-//       }
-//       after
-//     }
-//   `);
-
-//   expect(responseAfter.body.errors).toBe(undefined);
-//   expect(responseAfter.statusCode).toBe(200);
-//   const testEntitys = responseAfter.body.data.testEntitys.items;
-//   expect(testEntitys).toMatchObject([{ id: "2" }]);
-
-//   await service.kill();
-// });
-
-// test("serves after-based paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
-//   const { service, gql, createTestEntity } = await setup({
-//     common,
-//     indexingStore,
-//   });
-
-//   await createTestEntity({ id: 1 });
-//   await createTestEntity({ id: 2 });
-
-//   const responseFirst = await gql(`
-//     testEntitys(limit: 1) {
-//       items {
-//         id
-//         string
-//       }
-//       after
-//     }
-//   `);
-
-//   expect(responseFirst.body.errors).toBe(undefined);
-//   expect(responseFirst.statusCode).toBe(200);
-//   expect(responseFirst.body.data.testEntitys.after).toBe(btoa(String(1)));
-//   const testEntitysFirst = responseFirst.body.data.testEntitys.items;
-//   expect(testEntitysFirst).toMatchObject([{ id: "1" }]);
-
-//   const responseAfter = await gql(`
-//     testEntitys(limit: 1, after: "${responseFirst.body.data.testEntitys.after}") {
-//       items {
-//         id
-//         string
-//       }
-//       after
-//     }
-//   `);
-
-//   expect(responseAfter.body.errors).toBe(undefined);
-//   expect(responseAfter.statusCode).toBe(200);
-//   const testEntitys = responseAfter.body.data.testEntitys.items;
-//   expect(testEntitys).toMatchObject([{ id: "2" }]);
-
-//   await service.kill();
-// });
-
-// test("serves before-based paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
-//   const { service, gql, createTestEntity } = await setup({
-//     common,
-//     indexingStore,
-//   });
-
-//   await createTestEntity({ id: 1 });
-//   await createTestEntity({ id: 2 });
-//   await createTestEntity({ id: 3 });
-
-//   const responseFirst = await gql(`
-//     testEntitys(limit: 2) {
-//       items {
-//         id
-//       }
-//       after
-//     }
-//   `);
-
-//   expect(responseFirst.body.errors).toBe(undefined);
-//   expect(responseFirst.statusCode).toBe(200);
-//   expect(responseFirst.body.data.testEntitys.after).toBe(btoa(String(2)));
-//   const testEntitysFirst = responseFirst.body.data.testEntitys.items;
-//   expect(testEntitysFirst).toMatchObject([{ id: "1" }, { id: "2" }]);
-
-//   const responseAfter = await gql(`
-//     testEntitys(limit: 1, after: "${responseFirst.body.data.testEntitys.after}") {
-//       items {
-//         id
-//       }
-//       before
-//     }
-//   `);
-
-//   expect(responseAfter.body.errors).toBe(undefined);
-//   expect(responseAfter.statusCode).toBe(200);
-//   const testEntitysAfter = responseAfter.body.data.testEntitys.items;
-//   expect(testEntitysAfter).toMatchObject([{ id: "3" }]);
-
-//   const responseBefore = await gql(`
-//     testEntitys(limit: 1, before: "${responseAfter.body.data.testEntitys.before}") {
-//       items {
-//         id
-//       }
-//     }
-//   `);
-
-//   expect(responseAfter.body.errors).toBe(undefined);
-//   expect(responseAfter.statusCode).toBe(200);
-//   const testEntitysBefore = responseBefore.body.data.testEntitys.items;
-//   expect(testEntitysBefore).toMatchObject([{ id: "2" }]);
-
-//   await service.kill();
-// });
-
 test("responds with appropriate status code pre and post historical sync", async (context) => {
   const { common, indexingStore } = context;
   const { service, gql, createTestEntity } = await setup({
@@ -1842,6 +1594,77 @@ test("responds with appropriate status code pre and post historical sync", async
   expect(testEntitys[0]).toMatchObject({
     id: "0",
   });
+
+  await service.kill();
+});
+
+test("/admin/reload emits chainIds in reload event", async (context) => {
+  const { common, indexingStore } = context;
+  const { service } = await setup({
+    common,
+    indexingStore,
+    options: {
+      hasCompletedHistoricalIndexing: false,
+      registerDevRoutes: true,
+    },
+  });
+
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await request(service.app)
+    .post("/admin/reload")
+    .query({ chainId: "1" })
+    .expect(200);
+
+  expect(emitSpy).toHaveBeenCalledWith("admin:reload", {
+    chainId: 1,
+  });
+
+  await service.kill();
+});
+
+test("/admin/reload fails with non-integer chain IDs", async (context) => {
+  const { common, indexingStore } = context;
+  const { service } = await setup({
+    common,
+    indexingStore,
+    options: {
+      hasCompletedHistoricalIndexing: false,
+      registerDevRoutes: true,
+    },
+  });
+
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await request(service.app)
+    .post("/admin/reload")
+    .query({ chainId: "badchainid" })
+    .expect(400);
+
+  expect(emitSpy).not.toHaveBeenCalled();
+
+  await service.kill();
+});
+
+test("/admin/reload does not exist if dev routes aren't registered", async (context) => {
+  const { common, indexingStore } = context;
+  const { service } = await setup({
+    common,
+    indexingStore,
+    options: {
+      hasCompletedHistoricalIndexing: false,
+      registerDevRoutes: false,
+    },
+  });
+
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await request(service.app)
+    .post("/admin/reload")
+    .query({ chainId: "badchainid" })
+    .expect(404);
+
+  expect(emitSpy).not.toHaveBeenCalled();
 
   await service.kill();
 });
@@ -1911,74 +1734,90 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   await service.kill();
 });
 
-// Admin routes.
-test("/admin/reload emits chainIds in reload event", async (context) => {
+test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
   const { common, indexingStore } = context;
-  const { service } = await setup({
-    common,
-    indexingStore,
-    options: {
-      hasCompletedHistoricalIndexing: false,
-      registerDevRoutes: true,
-    },
-  });
+  const { service, gql, createTestEntity, createEntityWithBigIntId } =
+    await setup({ common, indexingStore });
 
-  const emitSpy = vi.spyOn(service, "emit");
+  const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
+  const findManySpy = vi.spyOn(indexingStore, "findMany");
 
-  await request(service.app)
-    .post("/admin/reload")
-    .query({ chainId: "1" })
-    .expect(200);
+  await Promise.all(
+    range(0, 50).map(async (n) => {
+      await createTestEntity({ id: n });
+      createEntityWithBigIntId({ id: BigInt(n), testEntityId: String(n) });
+    }),
+  );
 
-  expect(emitSpy).toHaveBeenCalledWith("admin:reload", {
-    chainId: 1,
-  });
+  const response = await gql(`
+    entityWithBigIntIds {
+      items {
+        id
+        testEntity {
+          id
+          string
+          int
+          float
+          boolean
+          hex
+          bigInt
+        }
+      }
+    }
+  `);
+
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { entityWithBigIntIds } = response.body.data;
+  expect(entityWithBigIntIds.items).toHaveLength(50);
+
+  expect(findManySpy).toHaveBeenCalledTimes(2);
+  expect(findUniqueSpy).toHaveBeenCalledTimes(0);
 
   await service.kill();
 });
 
-test("/admin/reload fails with non-integer chain IDs", async (context) => {
+test("uses dataloader to resolve a plural -> p.many() path", async (context) => {
   const { common, indexingStore } = context;
-  const { service } = await setup({
-    common,
-    indexingStore,
-    options: {
-      hasCompletedHistoricalIndexing: false,
-      registerDevRoutes: true,
-    },
-  });
+  const { service, gql, createTestEntity, createEntityWithBigIntId } =
+    await setup({ common, indexingStore });
 
-  const emitSpy = vi.spyOn(service, "emit");
+  const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
+  const findManySpy = vi.spyOn(indexingStore, "findMany");
 
-  await request(service.app)
-    .post("/admin/reload")
-    .query({ chainId: "badchainid" })
-    .expect(400);
+  await Promise.all(
+    range(0, 50).map(async (n) => {
+      await createTestEntity({ id: n });
+      createEntityWithBigIntId({ id: BigInt(n), testEntityId: String(n) });
+    }),
+  );
 
-  expect(emitSpy).not.toHaveBeenCalled();
+  const response = await gql(`
+    entityWithBigIntIds {
+      items {
+        id
+        testEntity {
+          id
+          string
+          int
+          float
+          boolean
+          hex
+          bigInt
+        }
+      }
+    }
+  `);
 
-  await service.kill();
-});
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { entityWithBigIntIds } = response.body.data;
+  expect(entityWithBigIntIds.items).toHaveLength(50);
 
-test("/admin/reload does not exist if dev routes aren't registered", async (context) => {
-  const { common, indexingStore } = context;
-  const { service } = await setup({
-    common,
-    indexingStore,
-    options: {
-      hasCompletedHistoricalIndexing: false,
-      registerDevRoutes: false,
-    },
-  });
-
-  const emitSpy = vi.spyOn(service, "emit");
-
-  await request(service.app)
-    .post("/admin/reload")
-    .query({ chainId: "badchainid" })
-    .expect(404);
-
-  expect(emitSpy).not.toHaveBeenCalled();
+  // findMany should be called once per level of the query
+  expect(findManySpy).toHaveBeenCalledTimes(2);
+  // findUnique should not be called at all
+  expect(findUniqueSpy).toHaveBeenCalledTimes(0);
 
   await service.kill();
 });

@@ -1,3 +1,5 @@
+import type { Schema } from "@/schema/types.js";
+import { maxCheckpoint } from "@/utils/checkpoint.js";
 import type { GraphQLObjectType } from "graphql";
 import {
   type GraphQLFieldConfig,
@@ -5,18 +7,14 @@ import {
   GraphQLInt,
   GraphQLNonNull,
 } from "graphql";
-
-import type { BaseColumn, ID, Schema } from "@/schema/types.js";
-import { maxCheckpoint } from "@/utils/checkpoint.js";
-
-import type { Context, Source } from "./schema.js";
+import type { Context, Parent } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
 
 type SingularArgs = {
   id?: string;
   timestamp?: number;
 };
-type SingularResolver = GraphQLFieldResolver<Source, Context, SingularArgs>;
+type SingularResolver = GraphQLFieldResolver<Parent, Context, SingularArgs>;
 
 const buildSingularField = ({
   tableName,
@@ -25,8 +23,8 @@ const buildSingularField = ({
 }: {
   tableName: string;
   table: Schema["tables"][string];
-  entityType: GraphQLObjectType<Source, Context>;
-}): GraphQLFieldConfig<Source, Context> => {
+  entityType: GraphQLObjectType<Parent, Context>;
+}): GraphQLFieldConfig<Parent, Context> => {
   const resolver: SingularResolver = async (_, args, context) => {
     const { store } = context;
     const { id, timestamp } = args;
@@ -38,7 +36,7 @@ const buildSingularField = ({
       : undefined; // Latest.
 
     const entityInstance = await store.findUnique({
-      tableName: tableName,
+      tableName,
       id,
       checkpoint,
     });
@@ -49,13 +47,7 @@ const buildSingularField = ({
   return {
     type: entityType,
     args: {
-      id: {
-        type: new GraphQLNonNull(
-          tsTypeToGqlScalar[
-            (table as { id: BaseColumn<ID, never, false, false> }).id.type
-          ],
-        ),
-      },
+      id: { type: new GraphQLNonNull(tsTypeToGqlScalar[table.id.type]) },
       timestamp: { type: GraphQLInt },
     },
     resolve: resolver,
