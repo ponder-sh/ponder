@@ -54,7 +54,7 @@ const s = createSchema((p) => ({
 
 const graphqlSchema = buildGqlSchema(s);
 
-const setup = async ({
+export const setup = async ({
   common,
   indexingStore,
   options = {
