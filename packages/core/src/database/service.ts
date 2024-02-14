@@ -1,3 +1,5 @@
+import type { FunctionIds, TableIds } from "@/build/static/ids.js";
+import type { Schema } from "@/schema/types.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 
 export type Metadata = {
@@ -12,13 +14,21 @@ export interface DatabaseService {
 
   metadata: Metadata[];
 
-  // setup(): Promise<void>;
+  setup(): Promise<void>;
 
-  // reset(): Promise<void>;
+  reset({
+    schema,
+    tableIds,
+    functionIds,
+  }: {
+    schema: Schema;
+    tableIds: TableIds;
+    functionIds: FunctionIds;
+  }): Promise<void>;
 
-  // kill(): Promise<void>;
+  kill(): Promise<void>;
 
   flush(metadata: Metadata[]): Promise<void>;
 
-  // publish(): Promise<void>;
+  publish(): Promise<void>;
 }

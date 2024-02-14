@@ -1,11 +1,6 @@
 import type { Common } from "@/Ponder.js";
-import type { FunctionIds } from "@/build/static/ids.js";
 import type { Schema } from "@/schema/types.js";
-import {
-  type Checkpoint,
-  decodeCheckpoint,
-  encodeCheckpoint,
-} from "@/utils/checkpoint.js";
+import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { Kysely, SqliteDialect } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
@@ -16,6 +11,7 @@ import {
 } from "../utils/cursor.js";
 import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { buildWhereConditions } from "../utils/filter.js";
+import { revertTable } from "../utils/revert.js";
 import { buildOrderByConditions } from "../utils/sort.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
@@ -52,104 +48,20 @@ export class SqliteIndexingStore implements IndexingStore {
     this.schema = schema;
   };
 
-  getInitialCheckpoints = (
-    functionIds: FunctionIds,
-  ): Promise<{
-    [functionIds: string]: {
-      fromCheckpoint: Checkpoint;
-      toCheckpoint: Checkpoint;
-      eventCount: number;
-    };
-  }> => {
-    return this.wrap({ method: "getInitialCheckpoints" }, async () => {
-      const _functionIds = Object.values(functionIds);
-
-      const checkpoints = (await this.db
-        .selectFrom("indexingCheckpoints")
-        .selectAll()
-        .where("functionId", "in", _functionIds)
-        .execute()) as {
-        functionId: string;
-        fromCheckpoint: string;
-        toCheckpoint: string;
-        eventCount: number;
-      }[];
-
-      return checkpoints.reduce<{
-        [functionIds: string]: {
-          fromCheckpoint: Checkpoint;
-          toCheckpoint: Checkpoint;
-          eventCount: number;
-        };
-      }>(
-        (acc, cur) => ({
-          ...acc,
-          [cur.functionId]: {
-            fromCheckpoint: decodeCheckpoint(cur.fromCheckpoint),
-            toCheckpoint: decodeCheckpoint(cur.toCheckpoint),
-            eventCount: cur.eventCount,
-          },
-        }),
-        {},
-      );
-    });
-  };
-
-  setCheckpoints = (
-    functionId: string,
-    fromCheckpoint: Checkpoint,
-    toCheckpoint: Checkpoint,
-    eventCount: number,
-  ) => {
-    return this.wrap({ method: "setCheckpoints" }, async () => {
-      await this.db.transaction().execute((tx) =>
-        tx
-          .insertInto("indexingCheckpoints")
-          .values({
-            functionId,
-            fromCheckpoint: encodeCheckpoint(fromCheckpoint),
-            toCheckpoint: encodeCheckpoint(toCheckpoint),
-            eventCount,
-          })
-          .onConflict((oc) =>
-            oc.column("functionId").doUpdateSet({
-              fromCheckpoint: encodeCheckpoint(fromCheckpoint),
-              toCheckpoint: encodeCheckpoint(toCheckpoint),
-              eventCount,
-            }),
-          )
-          .execute(),
-      );
-    });
-  };
-
   /**
    * Revert any changes that occurred during or after the specified checkpoint.
    */
   revert = async ({ checkpoint }: { checkpoint: Checkpoint }) => {
     return this.wrap({ method: "revert" }, async () => {
-      await this.db.transaction().execute(async (tx) => {
-        await Promise.all(
-          Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
-            const versionedTableName = `${tableName}_versioned`;
-            const encodedCheckpoint = encodeCheckpoint(checkpoint);
-
-            // Delete any versions that are newer than or equal to the safe checkpoint.
-            await tx
-              .deleteFrom(versionedTableName)
-              .where("effectiveFromCheckpoint", ">=", encodedCheckpoint)
-              .execute();
-
-            // Now, any versions with effectiveToCheckpoint greater than or equal
-            // to the safe checkpoint are the new latest version.
-            await tx
-              .updateTable(versionedTableName)
-              .set({ effectiveToCheckpoint: "latest" })
-              .where("effectiveToCheckpoint", ">=", encodedCheckpoint)
-              .execute();
-          }),
+      await this.db
+        .transaction()
+        .execute((tx) =>
+          Promise.all(
+            Object.keys(this.schema?.tables ?? {}).map(async (tableName) =>
+              revertTable(tx, tableName, checkpoint),
+            ),
+          ),
         );
-      });
     });
   };
 

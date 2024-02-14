@@ -11,45 +11,19 @@ import { Kysely, Migrator, SqliteDialect, Transaction, sql } from "kysely";
 import type { DatabaseService, Metadata } from "../service.js";
 import { migrationProvider } from "./migrations.js";
 
-/**
- * database name (file)
- *   table name
- *
- * ponder_core_cache.db
- *   metadata
- *     function_id
- *     from
- *     to
- *     event_count
- *   {table_id}
- *     {...columns}
- *     _from_checkpoint
- *     _to_checkpoint
- *
- * ponder_core_{instance_id}.db
- *   {table_id}
- *     {...columns}
- *     _from_checkpoint
- *     _to_checkpoint
- *
- * ponder_sync.db
- *   blocks
- *   {...sync tables}
- */
-
 export class SqliteDatabaseService implements DatabaseService {
   kind = "sqlite" as const;
 
   private common: Common;
-  private directory: string;
-
-  private sqliteDatabase: BetterSqlite3.Database;
 
   db: Kysely<any>;
+
   schema?: Schema;
   tableIds?: TableIds;
-
   metadata: Metadata[] = undefined!;
+
+  private directory: string;
+  private sqliteDatabase: BetterSqlite3.Database;
 
   constructor({
     common,
@@ -93,15 +67,6 @@ export class SqliteDatabaseService implements DatabaseService {
   }
 
   async setup() {
-    // Connect
-    // Create if not exists the database files / databases
-    // Attach cold storage database to instance database
-    // 1) Create instance database
-    // 2) Create (if not exists) and migrate the cold database
-    // 3) Attach cold database to instance database
-    // 4) Create user tables in instance database
-    // 5) (if found) Copy data from cold to instance database and update in-memory checkpoints
-
     const coldMigrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
@@ -113,13 +78,13 @@ export class SqliteDatabaseService implements DatabaseService {
   }
 
   async kill() {
-    // Flush
-
-    await this.db.destroy();
-
-    fs.rmSync(
-      path.join(this.directory, `ponder_core_${this.common.instanceId}.db`),
-    );
+    try {
+      await this.db.destroy();
+    } finally {
+      fs.rmSync(
+        path.join(this.directory, `ponder_core_${this.common.instanceId}.db`),
+      );
+    }
   }
 
   async reset({
@@ -131,7 +96,6 @@ export class SqliteDatabaseService implements DatabaseService {
     tableIds: TableIds;
     functionIds: FunctionIds;
   }) {
-    // Set the new schema.
     if (schema) this.schema = schema;
     if (tableIds) this.tableIds = tableIds;
 
@@ -159,7 +123,7 @@ export class SqliteDatabaseService implements DatabaseService {
     }));
   }
 
-  flush = async (metadata: Metadata[]): Promise<void> => {
+  async flush(metadata: Metadata[]): Promise<void> {
     await this.db.transaction().execute(async (tx) => {
       await this.dropColdTables(tx);
       await this.createTables(tx, "cold");
@@ -183,7 +147,7 @@ export class SqliteDatabaseService implements DatabaseService {
         ),
       );
     });
-  };
+  }
 
   async publish() {
     // ???
