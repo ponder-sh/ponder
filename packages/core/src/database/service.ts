@@ -1,5 +1,16 @@
+import type { Checkpoint } from "@/utils/checkpoint.js";
+
+export type Metadata = {
+  functionId: string;
+  fromCheckpoint: Checkpoint;
+  toCheckpoint: Checkpoint;
+  eventCount: number;
+};
+
 export interface DatabaseService {
   kind: "sqlite" | "postgres";
+
+  metadata: Metadata[];
 
   // setup(): Promise<void>;
 
@@ -7,7 +18,7 @@ export interface DatabaseService {
 
   // kill(): Promise<void>;
 
-  // flush(): Promise<void>;
+  flush(metadata: Metadata[]): Promise<void>;
 
   // publish(): Promise<void>;
 }

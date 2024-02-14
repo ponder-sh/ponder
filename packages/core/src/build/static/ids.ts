@@ -81,7 +81,8 @@ export const getIds = ({
           tableInputs: tables.map((t) => tableInputs[t]),
         }),
       )
-      .digest("hex");
+      .digest("base64")
+      .slice(0, 10);
   }
 
   // Build table IDs
@@ -105,7 +106,8 @@ export const getIds = ({
           tableInputs: tables.map((t) => tableInputs[t]),
         }),
       )
-      .digest("hex");
+      .digest("base64")
+      .slice(0, 10);
   }
 
   return { tableIds, functionIds };

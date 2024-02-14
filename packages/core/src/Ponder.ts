@@ -346,6 +346,7 @@ export class Ponder {
 
     this.indexingService = new IndexingService({
       common: this.common,
+      database: this.database,
       syncStore: this.syncStore,
       indexingStore: this.indexingStore,
       syncGatewayService: this.syncGatewayService,
@@ -374,6 +375,14 @@ export class Ponder {
       graphqlSchema: this.graphqlSchema,
     });
 
+    this.indexingStore.reset({ schema: this.schema });
+
+    await this.database.reset({
+      schema: this.schema,
+      tableIds: this.tableIds,
+      functionIds: this.functionIds,
+    });
+
     // Start the indexing service
     await this.indexingService.reset({
       indexingFunctions: this.indexingFunctions,
@@ -382,10 +391,6 @@ export class Ponder {
       tableIds: this.tableIds,
       functionIds: this.functionIds,
     });
-
-    this.indexingStore.reset({ schema: this.schema });
-
-    await this.database.reset({ schema: this.schema, tableIds: this.tableIds });
 
     await this.indexingService.processEvents();
 
@@ -523,15 +528,15 @@ export class Ponder {
         this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
         this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
+        this.indexingStore.reset({ schema });
+        await this.database.reset({ schema, tableIds, functionIds });
+
         await this.indexingService.reset({
           schema,
           tableAccess: this.tableAccess,
           tableIds,
           functionIds,
         });
-
-        this.indexingStore.reset({ schema });
-        await this.database.reset({ schema, tableIds });
 
         await this.indexingService.processEvents();
       },
@@ -547,14 +552,18 @@ export class Ponder {
         this.tableIds = tableIds;
         this.functionIds = functionIds;
 
+        await this.database.reset({
+          schema: this.schema,
+          tableIds,
+          functionIds,
+        });
+
         await this.indexingService.reset({
           indexingFunctions,
           tableAccess,
           tableIds,
           functionIds,
         });
-
-        await this.database.reset({ tableIds });
 
         await this.indexingService.processEvents();
       },

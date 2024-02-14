@@ -1,14 +1,14 @@
-import { rmSync } from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/Ponder.js";
-import type { TableIds } from "@/build/static/ids.js";
+import type { FunctionIds, TableIds } from "@/build/static/ids.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
+import { decodeCheckpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { createSqliteDatabase } from "@/utils/sqlite.js";
 import BetterSqlite3 from "better-sqlite3";
-import { Kysely, Migrator, SqliteDialect, sql } from "kysely";
-import type { DatabaseService } from "../service.js";
+import { Kysely, Migrator, SqliteDialect, Transaction, sql } from "kysely";
+import type { DatabaseService, Metadata } from "../service.js";
 import { migrationProvider } from "./migrations.js";
 
 /**
@@ -49,6 +49,8 @@ export class SqliteDatabaseService implements DatabaseService {
   schema?: Schema;
   tableIds?: TableIds;
 
+  metadata: Metadata[] = undefined!;
+
   constructor({
     common,
     directory,
@@ -73,9 +75,9 @@ export class SqliteDatabaseService implements DatabaseService {
     this.db = new Kysely({
       dialect: new SqliteDialect({ database: sqliteDatabase }),
       log(event) {
-        console.log(event);
-        // if (event.level === "query")
-        //   common.metrics.ponder_sqlite_query_count?.inc({ kind: "indexing" });
+        if (event.level === "query") {
+          common.metrics.ponder_sqlite_query_count?.inc({ kind: "indexing" });
+        }
       },
     });
   }
@@ -115,7 +117,7 @@ export class SqliteDatabaseService implements DatabaseService {
 
     await this.db.destroy();
 
-    rmSync(
+    fs.rmSync(
       path.join(this.directory, `ponder_core_${this.common.instanceId}.db`),
     );
   }
@@ -123,109 +125,65 @@ export class SqliteDatabaseService implements DatabaseService {
   async reset({
     schema,
     tableIds,
-  }: { schema?: Schema; tableIds?: TableIds } = {}): Promise<{
-    [functionIds: string]: {
-      fromCheckpoint: Checkpoint;
-      toCheckpoint: Checkpoint;
-      eventCount: number;
-    };
-  }> {
-    // If there is no existing schema and no new schema was provided, do nothing.
-    if (!this.schema && !schema && !this.tableIds && !tableIds) return {};
-
+    functionIds,
+  }: {
+    schema: Schema;
+    tableIds: TableIds;
+    functionIds: FunctionIds;
+  }) {
     // Set the new schema.
     if (schema) this.schema = schema;
     if (tableIds) this.tableIds = tableIds;
 
+    const _functionIds = Object.values(functionIds);
+
+    const metadata = await this.db.transaction().execute(async (tx) => {
+      await this.createTables(tx, "cold");
+      await this.createTables(tx, "hot");
+      await this.copyTables(tx, "cold");
+      return tx
+        .withSchema("cold")
+        .selectFrom("metadata")
+        .selectAll()
+        .where("functionId", "in", _functionIds)
+        .execute();
+    });
+
+    // TODO: revert tables to toCheckpoint
+
+    this.metadata = metadata.map((m) => ({
+      functionId: m.functionId,
+      fromCheckpoint: decodeCheckpoint(m.fromCheckpoint),
+      toCheckpoint: decodeCheckpoint(m.toCheckpoint),
+      eventCount: m.eventCount,
+    }));
+  }
+
+  flush = async (metadata: Metadata[]): Promise<void> => {
     await this.db.transaction().execute(async (tx) => {
-      // Create tables for new schema.
+      await this.dropColdTables(tx);
+      await this.createTables(tx, "cold");
+      await this.copyTables(tx, "hot");
+
+      const values = metadata.map((m) => ({
+        functionId: m.functionId,
+        fromCheckpoint: encodeCheckpoint(m.fromCheckpoint),
+        toCheckpoint: encodeCheckpoint(m.toCheckpoint),
+        eventCount: m.eventCount,
+      }));
+
       await Promise.all(
-        Object.entries(this.schema!.tables).map(
-          async ([tableName, columns]) => {
-            const versionedTableName = `${tableName}_versioned`;
-
-            let tableBuilder = tx.schema
-              .createTable(versionedTableName)
-              .ifNotExists();
-
-            Object.entries(columns).forEach(([columnName, column]) => {
-              if (isOneColumn(column)) return;
-              if (isManyColumn(column)) return;
-              if (isEnumColumn(column)) {
-                // Handle enum types
-                tableBuilder = tableBuilder.addColumn(
-                  columnName,
-                  "text",
-                  (col) => {
-                    if (!column.optional) col = col.notNull();
-                    if (!column.list) {
-                      col = col.check(
-                        sql`${sql.ref(columnName)} in (${sql.join(
-                          schema!.enums[column.type].map((v) => sql.lit(v)),
-                        )})`,
-                      );
-                    }
-                    return col;
-                  },
-                );
-              } else if (column.list) {
-                // Handle scalar list columns
-                tableBuilder = tableBuilder.addColumn(
-                  columnName,
-                  "text",
-                  (col) => {
-                    if (!column.optional) col = col.notNull();
-                    return col;
-                  },
-                );
-              } else {
-                // Non-list base columns
-                tableBuilder = tableBuilder.addColumn(
-                  columnName,
-                  scalarToSqlType[column.type],
-                  (col) => {
-                    if (!column.optional) col = col.notNull();
-                    return col;
-                  },
-                );
-              }
-            });
-
-            tableBuilder = tableBuilder.addColumn(
-              "effectiveFromCheckpoint",
-              "varchar(58)",
-              (col) => col.notNull(),
-            );
-            tableBuilder = tableBuilder.addColumn(
-              "effectiveToCheckpoint",
-              "varchar(58)",
-              (col) => col.notNull(),
-            );
-            tableBuilder = tableBuilder.addPrimaryKeyConstraint(
-              `${versionedTableName}_effectiveToCheckpoint_unique`,
-              ["id", "effectiveToCheckpoint"] as never[],
-            );
-
-            await tableBuilder.execute();
-          },
+        values.map((row) =>
+          tx
+            .withSchema("cold")
+            .insertInto("metadata")
+            .values(row)
+            .onConflict((oc) => oc.doUpdateSet(row))
+            .execute(),
         ),
       );
     });
-
-    // TODO(kyle): check cache, maybe don't create tables, copy tables over, return checkpoints
-
-    return {};
-  }
-
-  async flush(
-    functionId: string,
-    fromCheckpoint: Checkpoint,
-    toCheckpoint: Checkpoint,
-    eventCount: number,
-  ) {
-    // In transaction, copy instance database to cold storage and update metadata
-    // (accounting for finality)
-  }
+  };
 
   async publish() {
     // ???
@@ -257,6 +215,106 @@ export class SqliteDatabaseService implements DatabaseService {
     //   });
     // };
   }
+
+  private dropColdTables = (tx: Transaction<any>) =>
+    Promise.all(
+      Object.keys(this.schema!.tables).map((tableName) =>
+        tx
+          .withSchema("cold")
+          .schema.dropTable(this.tableIds![tableName])
+          .ifExists()
+          .execute(),
+      ),
+    );
+
+  private createTables = (_tx: Transaction<any>, database: "cold" | "hot") =>
+    Promise.all(
+      Object.entries(this.schema!.tables).map(async ([tableName, columns]) => {
+        // Database specific variables
+        const versionedTableName =
+          database === "cold"
+            ? this.tableIds![tableName]
+            : `${tableName}_versioned`;
+        const tx = database === "cold" ? _tx.withSchema("cold") : _tx;
+
+        let tableBuilder = tx.schema
+          .createTable(versionedTableName)
+          .ifNotExists();
+
+        Object.entries(columns).forEach(([columnName, column]) => {
+          if (isOneColumn(column)) return;
+          if (isManyColumn(column)) return;
+          if (isEnumColumn(column)) {
+            // Handle enum types
+            tableBuilder = tableBuilder.addColumn(columnName, "text", (col) => {
+              if (!column.optional) col = col.notNull();
+              if (!column.list) {
+                col = col.check(
+                  sql`${sql.ref(columnName)} in (${sql.join(
+                    this.schema!.enums[column.type].map((v) => sql.lit(v)),
+                  )})`,
+                );
+              }
+              return col;
+            });
+          } else if (column.list) {
+            // Handle scalar list columns
+            tableBuilder = tableBuilder.addColumn(columnName, "text", (col) => {
+              if (!column.optional) col = col.notNull();
+              return col;
+            });
+          } else {
+            // Non-list base columns
+            tableBuilder = tableBuilder.addColumn(
+              columnName,
+              scalarToSqlType[column.type],
+              (col) => {
+                if (!column.optional) col = col.notNull();
+                return col;
+              },
+            );
+          }
+        });
+
+        tableBuilder = tableBuilder.addColumn(
+          "effectiveFromCheckpoint",
+          "varchar(58)",
+          (col) => col.notNull(),
+        );
+        tableBuilder = tableBuilder.addColumn(
+          "effectiveToCheckpoint",
+          "varchar(58)",
+          (col) => col.notNull(),
+        );
+        tableBuilder = tableBuilder.addPrimaryKeyConstraint(
+          `${versionedTableName}_effectiveToCheckpoint_unique`,
+          ["id", "effectiveToCheckpoint"] as never[],
+        );
+
+        await tableBuilder.execute();
+      }),
+    );
+
+  private copyTables = (tx: Transaction<any>, fromDatabase: "cold" | "hot") =>
+    Promise.all(
+      Object.keys(this.schema!.tables).map(async (tableName) => {
+        // Database specific variables
+        const fromTable =
+          fromDatabase === "cold"
+            ? `"cold"."${this.tableIds![tableName]}"`
+            : `"${tableName}_versioned"`;
+        const toTable =
+          fromDatabase === "cold"
+            ? `"${tableName}_versioned"`
+            : `"cold"."${this.tableIds![tableName]}"`;
+
+        const query = sql`INSERT INTO ${sql.raw(
+          toTable,
+        )} SELECT * FROM ${sql.raw(fromTable)}`;
+
+        await query.execute(tx);
+      }),
+    );
 }
 
 const scalarToSqlType = {
