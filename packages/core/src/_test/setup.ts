@@ -56,6 +56,7 @@ export const setupContext = (context: TestContext) => {
     telemetryDisabled: true,
   };
   context.common = {
+    instanceId: randomBytes(4).toString("hex"),
     options,
     logger: new LoggerService({ level: "silent" }),
     metrics: new MetricsService(),

@@ -1,14 +1,13 @@
 import type { Common } from "@/Ponder.js";
-import type { FunctionIds, TableIds } from "@/build/static/ids.js";
+import type { FunctionIds } from "@/build/static/ids.js";
 import type { Schema } from "@/schema/types.js";
-import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
-import { Kysely, Migrator, SqliteDialect, sql } from "kysely";
+import { Kysely, SqliteDialect } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
 import {
   buildCursorConditions,
@@ -18,37 +17,25 @@ import {
 import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { buildWhereConditions } from "../utils/filter.js";
 import { buildOrderByConditions } from "../utils/sort.js";
-import { migrationProvider } from "./migrations.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
 
-const scalarToSqlType = {
-  boolean: "integer",
-  int: "integer",
-  float: "text",
-  string: "text",
-  bigint: "varchar(79)",
-  hex: "blob",
-} as const;
-
 export class SqliteIndexingStore implements IndexingStore {
   kind = "sqlite" as const;
   private common: Common;
 
   db: Kysely<any>;
-  migrator: Migrator;
-
   schema?: Schema;
-  tableIds?: TableIds;
 
   constructor({
     common,
     database,
   }: {
     common: Common;
+    // Must have correct main database
     database: SqliteDatabase;
   }) {
     this.common = common;
@@ -59,28 +46,10 @@ export class SqliteIndexingStore implements IndexingStore {
           common.metrics.ponder_sqlite_query_count?.inc({ kind: "indexing" });
       },
     });
-    this.migrator = new Migrator({
-      db: this.db,
-      provider: migrationProvider,
-    });
   }
 
-  async kill() {
-    return this.wrap({ method: "kill" }, async () => {
-      try {
-        await this.db.destroy();
-      } catch (e) {
-        const error = e as Error;
-        if (error.message !== "Called end on pool more than once") {
-          throw error;
-        }
-      }
-    });
-  }
-
-  migrateUp = async () => {
-    const { error } = await this.migrator.migrateToLatest();
-    if (error) throw error;
+  reset = ({ schema }: { schema: Schema }) => {
+    this.schema = schema;
   };
 
   getInitialCheckpoints = (
@@ -155,128 +124,6 @@ export class SqliteIndexingStore implements IndexingStore {
   };
 
   /**
-   * Resets the database by dropping existing tables and creating new tables.
-   * If no new schema is provided, the existing schema is used.
-   *
-   * @param options.schema New schema to be used.
-   */
-  reload = async ({
-    schema,
-    tableIds,
-  }: { schema?: Schema; tableIds?: TableIds } = {}) => {
-    return this.wrap({ method: "reload" }, async () => {
-      // If there is no existing schema and no new schema was provided, do nothing.
-      if (!this.schema && !schema && !this.tableIds && !tableIds) return;
-
-      // Set the new schema.
-      if (schema) this.schema = schema;
-
-      if (tableIds) this.tableIds = tableIds;
-
-      await this.db.transaction().execute(async (tx) => {
-        // Create tables for new schema.
-        await Promise.all(
-          Object.entries(this.schema!.tables).map(
-            async ([tableName, columns]) => {
-              const table = this.tableIds![tableName];
-
-              let tableBuilder = tx.schema.createTable(table).ifNotExists();
-
-              Object.entries(columns).forEach(([columnName, column]) => {
-                if (isOneColumn(column)) return;
-                if (isManyColumn(column)) return;
-                if (isEnumColumn(column)) {
-                  // Handle enum types
-                  tableBuilder = tableBuilder.addColumn(
-                    columnName,
-                    "text",
-                    (col) => {
-                      if (!column.optional) col = col.notNull();
-                      if (!column.list) {
-                        col = col.check(
-                          sql`${sql.ref(columnName)} in (${sql.join(
-                            schema!.enums[column.type].map((v) => sql.lit(v)),
-                          )})`,
-                        );
-                      }
-                      return col;
-                    },
-                  );
-                } else if (column.list) {
-                  // Handle scalar list columns
-                  tableBuilder = tableBuilder.addColumn(
-                    columnName,
-                    "text",
-                    (col) => {
-                      if (!column.optional) col = col.notNull();
-                      return col;
-                    },
-                  );
-                } else {
-                  // Non-list base columns
-                  tableBuilder = tableBuilder.addColumn(
-                    columnName,
-                    scalarToSqlType[column.type],
-                    (col) => {
-                      if (!column.optional) col = col.notNull();
-                      return col;
-                    },
-                  );
-                }
-              });
-
-              tableBuilder = tableBuilder.addColumn(
-                "effectiveFromCheckpoint",
-                "varchar(58)",
-                (col) => col.notNull(),
-              );
-              tableBuilder = tableBuilder.addColumn(
-                "effectiveToCheckpoint",
-                "varchar(58)",
-                (col) => col.notNull(),
-              );
-              tableBuilder = tableBuilder.addPrimaryKeyConstraint(
-                `${table}_effectiveToCheckpoint_unique`,
-                ["id", "effectiveToCheckpoint"] as never[],
-              );
-
-              await tableBuilder.execute();
-            },
-          ),
-        );
-      });
-    });
-  };
-
-  publish = async () => {
-    return this.wrap({ method: "publish" }, async () => {
-      await this.db.transaction().execute(async (tx) => {
-        // Create views for the latest version of each table.
-        await Promise.all(
-          Object.entries(this.schema!.tables).map(
-            async ([tableName, columns]) => {
-              await tx.schema.dropView(tableName).ifExists().execute();
-
-              const columnNames = Object.entries(columns)
-                .filter(([, c]) => !isOneColumn(c) && !isManyColumn(c))
-                .map(([name]) => name);
-              await tx.schema
-                .createView(tableName)
-                .as(
-                  tx
-                    .selectFrom(this.tableIds![tableName])
-                    .select(columnNames)
-                    .where("effectiveToCheckpoint", "=", "latest"),
-                )
-                .execute();
-            },
-          ),
-        );
-      });
-    });
-  };
-
-  /**
    * Revert any changes that occurred during or after the specified checkpoint.
    */
   revert = async ({ checkpoint }: { checkpoint: Checkpoint }) => {
@@ -284,19 +131,19 @@ export class SqliteIndexingStore implements IndexingStore {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
           Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
-            const table = this.tableIds![tableName];
+            const versionedTableName = `${tableName}_versioned`;
             const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
             // Delete any versions that are newer than or equal to the safe checkpoint.
             await tx
-              .deleteFrom(table)
+              .deleteFrom(versionedTableName)
               .where("effectiveFromCheckpoint", ">=", encodedCheckpoint)
               .execute();
 
             // Now, any versions with effectiveToCheckpoint greater than or equal
             // to the safe checkpoint are the new latest version.
             await tx
-              .updateTable(table)
+              .updateTable(versionedTableName)
               .set({ effectiveToCheckpoint: "latest" })
               .where("effectiveToCheckpoint", ">=", encodedCheckpoint)
               .execute();
@@ -315,7 +162,7 @@ export class SqliteIndexingStore implements IndexingStore {
     checkpoint?: Checkpoint | "latest";
     id: string | number | bigint;
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "findUnique", tableName }, async () => {
@@ -364,7 +211,7 @@ export class SqliteIndexingStore implements IndexingStore {
     after?: string | null;
     limit?: number;
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "findMany", tableName }, async () => {
@@ -566,7 +413,7 @@ export class SqliteIndexingStore implements IndexingStore {
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "create", tableName }, async () => {
@@ -596,7 +443,7 @@ export class SqliteIndexingStore implements IndexingStore {
     checkpoint: Checkpoint;
     data: Row[];
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "createMany", tableName }, async () => {
@@ -640,7 +487,7 @@ export class SqliteIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "update", tableName }, async () => {
@@ -725,7 +572,7 @@ export class SqliteIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "updateMany", tableName }, async () => {
@@ -825,7 +672,7 @@ export class SqliteIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "upsert", tableName }, async () => {
@@ -918,7 +765,7 @@ export class SqliteIndexingStore implements IndexingStore {
     checkpoint: Checkpoint;
     id: string | number | bigint;
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "delete", tableName }, async () => {

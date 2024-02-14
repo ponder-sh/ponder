@@ -206,10 +206,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   /**
    * Registers a new set of indexing functions, schema, or table accesss, cancels
-   * the database mutexes & event queue, drops and re-creates
-   * all tables from the indexing store, and rebuilds the indexing function map state.
+   * the database mutexes & event queue, and rebuilds the indexing function map state.
    *
-   * Note: Caller should (probably) immediately call processEvents after this method.
+   * Note: Caller should (probably) call processEvents shortly after this method.
    */
   reset = async ({
     indexingFunctions: newIndexingFunctions,
@@ -282,20 +281,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     });
 
     this.isPaused = false;
-    this.common.metrics.ponder_indexing_has_error.set(0);
 
+    this.common.metrics.ponder_indexing_has_error.set(0);
     this.common.metrics.ponder_indexing_total_seconds.reset();
     this.common.metrics.ponder_indexing_completed_seconds.reset();
-
-    await this.indexingStore.reload({
-      schema: this.schema,
-      tableIds: this.tableIds,
-    });
-    this.common.logger.debug({
-      service: "indexing",
-      msg: "Reset indexing store",
-    });
-
     this.common.metrics.ponder_indexing_completed_timestamp.set(0);
   };
 
@@ -927,25 +916,25 @@ export class IndexingService extends Emittery<IndexingEvents> {
   };
 
   private setIndexingFunctionCheckpoint = async (
+    // @ts-ignore
     indexingFunctionKey: string,
   ) => {
-    const state = this.indexingFunctionStates[indexingFunctionKey];
-
-    const toCheckpoint =
-      state.lastEventCheckpoint &&
-      isCheckpointEqual(
-        state.lastEventCheckpoint,
-        state.tasksProcessedToCheckpoint,
-      )
-        ? this.syncGatewayService.checkpoint
-        : state.tasksProcessedToCheckpoint;
-
-    await this.indexingStore.setCheckpoints(
-      this.functionIds![indexingFunctionKey],
-      state.firstEventCheckpoint!,
-      toCheckpoint,
-      state.eventCount,
-    );
+    // TODO: flush database
+    // const state = this.indexingFunctionStates[indexingFunctionKey];
+    // const toCheckpoint =
+    //   state.lastEventCheckpoint &&
+    //   isCheckpointEqual(
+    //     state.lastEventCheckpoint,
+    //     state.tasksProcessedToCheckpoint,
+    //   )
+    //     ? this.syncGatewayService.checkpoint
+    //     : state.tasksProcessedToCheckpoint;
+    // await this.indexingStore.setCheckpoints(
+    //   this.functionIds![indexingFunctionKey],
+    //   state.firstEventCheckpoint!,
+    //   toCheckpoint,
+    //   state.eventCount,
+    // );
   };
 
   private buildSourceById = () => {
@@ -967,9 +956,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
     // clear in case of reloads
     this.indexingFunctionStates = {};
 
-    const checkpoints = await this.indexingStore.getInitialCheckpoints(
-      this.functionIds,
-    );
+    // TODO: read metadata from database
+
+    // const checkpoints = await this.indexingStore.getInitialCheckpoints(
+    //   this.functionIds,
+    // );
+
+    const checkpoints: Awaited<ReturnType<any>> = {};
 
     for (const contractName of Object.keys(this.indexingFunctions)) {
       // Not sure why this is necessary
@@ -1104,6 +1097,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   private logCachedProgress = (key: string) => {
     const state = this.indexingFunctionStates[key];
+
+    if (
+      state.firstEventCheckpoint === undefined ||
+      state.lastEventCheckpoint === undefined
+    )
+      return;
 
     const numerator =
       Math.min(

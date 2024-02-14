@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -28,9 +29,11 @@ import { UiService } from "@/ui/service.js";
 import type { GraphQLSchema } from "graphql";
 import type { FunctionIds, TableIds } from "./build/static/ids.js";
 import type { TableAccess } from "./build/static/parseAst.js";
+import { SqliteDatabaseService } from "./database/sqlite/service.js";
 import { type RequestQueue, createRequestQueue } from "./utils/requestQueue.js";
 
 export type Common = {
+  instanceId: string;
   options: Options;
   logger: LoggerService;
   metrics: MetricsService;
@@ -42,6 +45,7 @@ export class Ponder {
   buildService: BuildService;
 
   // User config and build artifacts
+  database: SqliteDatabaseService = undefined!;
   config: Config = undefined!;
   sources: Source[] = undefined!;
   networks: Network[] = undefined!;
@@ -73,6 +77,7 @@ export class Ponder {
   uiService: UiService = undefined!;
 
   constructor({ options }: { options: Options }) {
+    const instanceId = randomBytes(4).toString("hex");
     const logger = new LoggerService({
       level: options.logLevel,
       dir: options.logDir,
@@ -80,8 +85,7 @@ export class Ponder {
     const metrics = new MetricsService();
     const telemetry = new TelemetryService({ options });
 
-    this.common = { options, logger, metrics, telemetry };
-
+    this.common = { instanceId, options, logger, metrics, telemetry };
     this.buildService = new BuildService({ common: this.common });
   }
 
@@ -170,11 +174,11 @@ export class Ponder {
     }
 
     this.common.metrics.registerDatabaseMetrics(database);
-    this.indexingStore = new PostgresIndexingStore({
-      common: this.common,
-      pool: database.indexing.pool,
-      usePublic: true,
-    });
+    // this.indexingStore = new PostgresIndexingStore({
+    //   common: this.common,
+    //   pool: database.indexing.pool,
+    //   usePublic: true,
+    // });
 
     this.serverService = new ServerService({
       common: this.common,
@@ -263,33 +267,32 @@ export class Ponder {
     syncStore?: SyncStore;
     indexingStore?: IndexingStore;
   }) {
-    const database = buildDatabase({
+    // const database = buildDatabase({
+    //   common: this.common,
+    //   config: this.config,
+    // });
+
+    // TODO: Figure out metrics for the database.
+    // this.common.metrics.registerDatabaseMetrics(database)
+    const database = new SqliteDatabaseService({
       common: this.common,
-      config: this.config,
+      directory: path.join(this.common.options.ponderDir, "store"),
     });
-    this.common.metrics.registerDatabaseMetrics(database);
-    this.syncStore =
-      syncStore ??
-      (database.sync.kind === "sqlite"
-        ? new SqliteSyncStore({
-            common: this.common,
-            database: database.sync.database,
-          })
-        : new PostgresSyncStore({
-            common: this.common,
-            pool: database.sync.pool,
-          }));
-    this.indexingStore =
-      indexingStore ??
-      (database.indexing.kind === "sqlite"
-        ? new SqliteIndexingStore({
-            common: this.common,
-            database: database.indexing.database,
-          })
-        : new PostgresIndexingStore({
-            common: this.common,
-            pool: database.indexing.pool,
-          }));
+    this.database = database;
+
+    await database.setup();
+
+    const indexingDatabase = await database.getMainDatabase();
+    const syncDatabase = await database.getPluginDatabase("sync");
+
+    this.syncStore = new SqliteSyncStore({
+      common: this.common,
+      database: syncDatabase,
+    });
+    this.indexingStore = new SqliteIndexingStore({
+      common: this.common,
+      database: indexingDatabase,
+    });
 
     const networksToSync = this.networks.filter((network) => {
       const hasSources = this.sources.some(
@@ -364,7 +367,6 @@ export class Ponder {
 
     // One-time setup for some services.
     await this.syncStore.migrateUp();
-    await this.indexingStore.migrateUp();
 
     this.serverService.setup({ registerDevRoutes: isDev });
     await this.serverService.start();
@@ -380,6 +382,11 @@ export class Ponder {
       tableIds: this.tableIds,
       functionIds: this.functionIds,
     });
+
+    this.indexingStore.reset({ schema: this.schema });
+
+    await this.database.reset({ schema: this.schema, tableIds: this.tableIds });
+
     await this.indexingService.processEvents();
 
     this.codegenService.generateGraphqlSchemaFile({
@@ -464,8 +471,9 @@ export class Ponder {
       this.syncServices.map(({ requestQueue }) => requestQueue.onIdle()),
     );
 
-    await this.indexingStore.kill();
     await this.syncStore.kill();
+    // TODO: Test this.
+    await this.database.kill();
   }
 
   private registerBuildServiceEventListeners() {
@@ -493,6 +501,14 @@ export class Ponder {
       },
     );
 
+    /**
+     * 1) Pause/reset the indexing service.
+     * 2) Reset the database.
+     * 3) Start everything.
+     *
+     *
+     */
+
     this.buildService.onSerial(
       "newSchema",
       async ({ schema, graphqlSchema, tableIds, functionIds }) => {
@@ -513,6 +529,10 @@ export class Ponder {
           tableIds,
           functionIds,
         });
+
+        this.indexingStore.reset({ schema });
+        await this.database.reset({ schema, tableIds });
+
         await this.indexingService.processEvents();
       },
     );
@@ -533,6 +553,9 @@ export class Ponder {
           tableIds,
           functionIds,
         });
+
+        await this.database.reset({ tableIds });
+
         await this.indexingService.processEvents();
       },
     );
@@ -606,7 +629,7 @@ export class Ponder {
           this.syncGatewayService.historicalSyncCompletedAt
       ) {
         this.serverService.setIsHistoricalIndexingComplete();
-        await this.indexingStore.publish();
+        await this.database.publish();
       }
     });
 
