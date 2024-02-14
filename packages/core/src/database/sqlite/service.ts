@@ -113,6 +113,8 @@ export class SqliteDatabaseService implements DatabaseService {
         .execute();
     });
 
+    // determine checkpoint of tables
+
     // TODO: revert tables to toCheckpoint
 
     this.metadata = metadata.map((m) => ({
