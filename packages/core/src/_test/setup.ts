@@ -91,7 +91,11 @@ export async function setupSyncStore(
     const pool = createPool({ connectionString });
     await testClient.query(`CREATE DATABASE "${databaseName}"`);
 
-    context.syncStore = new PostgresSyncStore({ common: context.common, pool });
+    context.syncStore = new PostgresSyncStore({
+      common: context.common,
+      schemaName: "public",
+      pool,
+    });
 
     if (options.migrateUp) await context.syncStore.migrateUp();
 
@@ -128,10 +132,7 @@ export async function setupSyncStore(
  * beforeEach((context) => setupIndexingStore(context))
  * ```
  */
-export async function setupIndexingStore(
-  context: TestContext,
-  options = { migrateUp: true },
-) {
+export async function setupIndexingStore(context: TestContext) {
   if (process.env.DATABASE_URL) {
     const testClient = new pg.Client({
       connectionString: process.env.DATABASE_URL,
@@ -149,14 +150,12 @@ export async function setupIndexingStore(
 
     context.indexingStore = new PostgresIndexingStore({
       common: context.common,
+      schemaName: "public",
       pool,
     });
 
-    if (options.migrateUp) await context.indexingStore.migrateUp();
-
     return async () => {
       try {
-        await context.indexingStore.kill();
         await testClient.query(`DROP DATABASE "${databaseName}"`);
         await testClient.end();
       } catch (e) {
@@ -170,11 +169,9 @@ export async function setupIndexingStore(
       common: context.common,
       database: createSqliteDatabase(":memory:"),
     });
-    if (options.migrateUp) await context.indexingStore.migrateUp();
 
     return async () => {
       try {
-        await context.indexingStore.kill();
       } catch (e) {
         // This fails in end-to-end tests where the pool has
         // already been shut down during the Ponder instance kill() method.

@@ -2,10 +2,7 @@ import { http, getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
 import { type Config, createConfig } from "../../config/config.js";
-import {
-  buildNetworksAndSources,
-  safeBuildNetworksAndSources,
-} from "./config.js";
+import { buildConfig, safeBuildConfig } from "./config.js";
 
 const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
 const event1 = parseAbiItem("event Event1()");
@@ -19,7 +16,7 @@ const bytes1 =
 const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
 
-test("buildNetworksAndSources() builds topics for multiple events", async () => {
+test("buildConfig() builds topics for multiple events", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -40,14 +37,14 @@ test("buildNetworksAndSources() builds topics for multiple events", async () => 
     },
   });
 
-  const { sources } = await buildNetworksAndSources({ config });
+  const { sources } = await buildConfig({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     [getEventSelector(event0), getEventSelector(event1)],
   ]);
 });
 
-test("buildNetworksAndSources() handles overloaded event signatures and combines topics", async () => {
+test("buildConfig() handles overloaded event signatures and combines topics", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -70,14 +67,14 @@ test("buildNetworksAndSources() handles overloaded event signatures and combines
     },
   });
 
-  const { sources } = await buildNetworksAndSources({ config });
+  const { sources } = await buildConfig({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     [getEventSelector(event1), getEventSelector(event1Overloaded)],
   ]);
 });
 
-test("buildNetworksAndSources() creates a source for each network for multi-network contracts", async () => {
+test("buildConfig() creates a source for each network for multi-network contracts", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -97,12 +94,12 @@ test("buildNetworksAndSources() creates a source for each network for multi-netw
     },
   });
 
-  const { sources } = await buildNetworksAndSources({ config });
+  const { sources } = await buildConfig({ config });
 
   expect(sources.length).toBe(2);
 });
 
-test("buildNetworksAndSources() builds topics for event with args", async () => {
+test("buildConfig() builds topics for event with args", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -128,7 +125,7 @@ test("buildNetworksAndSources() builds topics for event with args", async () => 
     },
   });
 
-  const { sources } = await buildNetworksAndSources({ config });
+  const { sources } = await buildConfig({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     getEventSelector(event0),
@@ -136,7 +133,7 @@ test("buildNetworksAndSources() builds topics for event with args", async () => 
   ]);
 });
 
-test("buildNetworksAndSources() builds topics for event with unnamed parameters", async () => {
+test("buildConfig() builds topics for event with unnamed parameters", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -160,7 +157,7 @@ test("buildNetworksAndSources() builds topics for event with unnamed parameters"
     },
   });
 
-  const { sources } = await buildNetworksAndSources({ config });
+  const { sources } = await buildConfig({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     getEventSelector(event1Overloaded),
@@ -168,7 +165,7 @@ test("buildNetworksAndSources() builds topics for event with unnamed parameters"
   ]);
 });
 
-test("buildNetworksAndSources() overrides default values with network-specific values", async () => {
+test("buildConfig() overrides default values with network-specific values", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -193,12 +190,12 @@ test("buildNetworksAndSources() overrides default values with network-specific v
     },
   });
 
-  const { sources } = await buildNetworksAndSources({ config });
+  const { sources } = await buildConfig({ config });
 
   expect(sources[0].criteria.address).toBe(address2);
 });
 
-test("buildNetworksAndSources() handles network name shortcut", async () => {
+test("buildConfig() handles network name shortcut", async () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -219,12 +216,12 @@ test("buildNetworksAndSources() handles network name shortcut", async () => {
     },
   });
 
-  const { sources } = await buildNetworksAndSources({ config });
+  const { sources } = await buildConfig({ config });
 
   expect(sources[0].networkName).toBe("mainnet");
 });
 
-test("buildNetworksAndSources() validates network name", async () => {
+test("buildConfig() validates network name", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -239,7 +236,7 @@ test("buildNetworksAndSources() validates network name", async () => {
     },
   });
 
-  const result = await safeBuildNetworksAndSources({ config });
+  const result = await safeBuildConfig({ config });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
@@ -247,7 +244,7 @@ test("buildNetworksAndSources() validates network name", async () => {
   );
 });
 
-test("buildNetworksAndSources() warns for public RPC URL", async () => {
+test("buildConfig() warns for public RPC URL", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -261,7 +258,7 @@ test("buildNetworksAndSources() warns for public RPC URL", async () => {
     },
   });
 
-  const result = await safeBuildNetworksAndSources({ config });
+  const result = await safeBuildConfig({ config });
 
   expect(result.success).toBe(true);
   expect(result.data?.warnings[0]).toBe(
@@ -269,7 +266,7 @@ test("buildNetworksAndSources() warns for public RPC URL", async () => {
   );
 });
 
-test("buildNetworksAndSources() validates against multiple events and indexed argument values", async () => {
+test("buildConfig() validates against multiple events and indexed argument values", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -287,7 +284,7 @@ test("buildNetworksAndSources() validates against multiple events and indexed ar
     },
   }) as any;
 
-  const result = await safeBuildNetworksAndSources({ config });
+  const result = await safeBuildConfig({ config });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
@@ -295,7 +292,7 @@ test("buildNetworksAndSources() validates against multiple events and indexed ar
   );
 });
 
-test("buildNetworksAndSources() validates event filter event name must be present in ABI", async () => {
+test("buildConfig() validates event filter event name must be present in ABI", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -312,7 +309,7 @@ test("buildNetworksAndSources() validates event filter event name must be presen
     },
   });
 
-  const result = await safeBuildNetworksAndSources({ config });
+  const result = await safeBuildConfig({ config });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
@@ -320,7 +317,7 @@ test("buildNetworksAndSources() validates event filter event name must be presen
   );
 });
 
-test("buildNetworksAndSources() validates against specifying both factory and address", async () => {
+test("buildConfig() validates against specifying both factory and address", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -340,7 +337,7 @@ test("buildNetworksAndSources() validates against specifying both factory and ad
     },
   });
 
-  const result = await safeBuildNetworksAndSources({ config });
+  const result = await safeBuildConfig({ config });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
@@ -348,7 +345,7 @@ test("buildNetworksAndSources() validates against specifying both factory and ad
   );
 });
 
-test("buildNetworksAndSources() validates address prefix", async () => {
+test("buildConfig() validates address prefix", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -363,7 +360,7 @@ test("buildNetworksAndSources() validates address prefix", async () => {
     },
   }) as Config;
 
-  const result = await safeBuildNetworksAndSources({ config });
+  const result = await safeBuildConfig({ config });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
@@ -371,7 +368,7 @@ test("buildNetworksAndSources() validates address prefix", async () => {
   );
 });
 
-test("buildNetworksAndSources() validates address length", async () => {
+test("buildConfig() validates address length", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -385,7 +382,7 @@ test("buildNetworksAndSources() validates address length", async () => {
     },
   });
 
-  const result = await safeBuildNetworksAndSources({ config });
+  const result = await safeBuildConfig({ config });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(

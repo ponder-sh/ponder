@@ -1,4 +1,5 @@
 import type { DatabaseConfig } from "@/config/database.js";
+import type { DatabaseService } from "@/database/service.js";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 
@@ -202,56 +203,56 @@ export class MetricsService {
     });
   }
 
-  registerDatabaseMetrics(database: DatabaseConfig) {
-    if (database.sync.kind === "postgres") {
-      this.registry.removeSingleMetric("ponder_postgres_query_count");
-      this.ponder_postgres_query_count = new prometheus.Counter({
-        name: "ponder_postgres_query_count",
-        help: "Number of queries executed by Postgres",
-        labelNames: ["kind"] as const,
-        registers: [this.registry],
-      });
+  // TODO: Unfuck metrics!
+  // registerDatabaseMetrics(database: DatabaseService) {
+  //   if (database.kind === "postgres") {
+  //     this.registry.removeSingleMetric("ponder_postgres_query_count");
+  //     this.ponder_postgres_query_count = new prometheus.Counter({
+  //       name: "ponder_postgres_query_count",
+  //       help: "Number of queries executed by Postgres",
+  //       labelNames: ["kind"] as const,
+  //       registers: [this.registry],
+  //     });
 
-      const pool = database.sync.pool as unknown as Pool;
-      this.registry.removeSingleMetric("ponder_postgres_idle_connection_count");
-      this.ponder_postgres_idle_connection_count = new prometheus.Gauge({
-        name: "ponder_postgres_idle_connection_count",
-        help: "Number of idle connections in the pool",
-        registers: [this.registry],
-        collect() {
-          this.set(pool.idleCount);
-        },
-      });
-      this.registry.removeSingleMetric(
-        "ponder_postgres_total_connection_count",
-      );
-      this.ponder_postgres_total_connection_count = new prometheus.Gauge({
-        name: "ponder_postgres_total_connection_count",
-        help: "Total number of connections in the pool",
-        registers: [this.registry],
-        collect() {
-          this.set(pool.totalCount);
-        },
-      });
-      this.registry.removeSingleMetric("ponder_postgres_request_queue_count");
-      this.ponder_postgres_request_queue_count = new prometheus.Gauge({
-        name: "ponder_postgres_request_queue_count",
-        help: "Number of transaction or query requests waiting for an available connection",
-        registers: [this.registry],
-        collect() {
-          this.set(pool.waitingCount);
-        },
-      });
-    } else {
-      this.registry.removeSingleMetric("ponder_sqlite_query_count");
-      this.ponder_sqlite_query_count = new prometheus.Counter({
-        name: "ponder_sqlite_query_count",
-        help: "Number of queries executed by SQLite",
-        labelNames: ["kind"] as const,
-        registers: [this.registry],
-      });
-    }
-  }
+  //     this.registry.removeSingleMetric("ponder_postgres_idle_connection_count");
+  //     this.ponder_postgres_idle_connection_count = new prometheus.Gauge({
+  //       name: "ponder_postgres_idle_connection_count",
+  //       help: "Number of idle connections in the pool",
+  //       registers: [this.registry],
+  //       collect() {
+  //         this.set(pool.idleCount);
+  //       },
+  //     });
+  //     this.registry.removeSingleMetric(
+  //       "ponder_postgres_total_connection_count",
+  //     );
+  //     this.ponder_postgres_total_connection_count = new prometheus.Gauge({
+  //       name: "ponder_postgres_total_connection_count",
+  //       help: "Total number of connections in the pool",
+  //       registers: [this.registry],
+  //       collect() {
+  //         this.set(pool.totalCount);
+  //       },
+  //     });
+  //     this.registry.removeSingleMetric("ponder_postgres_request_queue_count");
+  //     this.ponder_postgres_request_queue_count = new prometheus.Gauge({
+  //       name: "ponder_postgres_request_queue_count",
+  //       help: "Number of transaction or query requests waiting for an available connection",
+  //       registers: [this.registry],
+  //       collect() {
+  //         this.set(pool.waitingCount);
+  //       },
+  //     });
+  //   } else {
+  //     this.registry.removeSingleMetric("ponder_sqlite_query_count");
+  //     this.ponder_sqlite_query_count = new prometheus.Counter({
+  //       name: "ponder_sqlite_query_count",
+  //       help: "Number of queries executed by SQLite",
+  //       labelNames: ["kind"] as const,
+  //       registers: [this.registry],
+  //     });
+  //   }
+  // }
 
   /**
    * Get string representation for all metrics.

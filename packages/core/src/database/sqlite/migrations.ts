@@ -5,7 +5,7 @@ const migrations: Record<string, Migration> = {
   "2024_01_29_0_initial": {
     async up(db: Kysely<any>) {
       await db.schema
-        .withSchema("cold")
+        .withSchema("cache")
         .createTable("metadata")
         .addColumn("functionId", "text", (col) => col.notNull().primaryKey())
         .addColumn("fromCheckpoint", "varchar(58)", (col) => col.notNull())

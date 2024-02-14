@@ -15,6 +15,7 @@ import {
   Migrator,
   PostgresDialect,
   type Transaction as KyselyTransaction,
+  WithSchemaPlugin,
   sql,
 } from "kysely";
 import type { Pool } from "pg";
@@ -40,7 +41,11 @@ export class PostgresSyncStore implements SyncStore {
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({ common, pool }: { common: Common; pool: Pool }) {
+  constructor({
+    common,
+    pool,
+    schemaName,
+  }: { common: Common; pool: Pool; schemaName: string }) {
     this.common = common;
     this.db = new Kysely<SyncStoreTables>({
       dialect: new PostgresDialect({ pool }),
@@ -49,12 +54,12 @@ export class PostgresSyncStore implements SyncStore {
           common.metrics.ponder_postgres_query_count?.inc({ kind: "sync" });
         }
       },
-    });
+    }).withPlugin(new WithSchemaPlugin(schemaName));
 
     this.migrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
-      migrationTableSchema: "public",
+      migrationTableSchema: schemaName,
     });
   }
 

@@ -5,8 +5,7 @@ import process from "node:process";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import { BuildService } from "@/build/service.js";
 import { CodegenService } from "@/codegen/service.js";
-import type { Config } from "@/config/config.js";
-import { buildDatabase } from "@/config/database.js";
+import { type DatabaseConfig } from "@/config/database.js";
 import { type Network } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
 import type { Source } from "@/config/sources.js";
@@ -29,6 +28,8 @@ import { UiService } from "@/ui/service.js";
 import type { GraphQLSchema } from "graphql";
 import type { FunctionIds, TableIds } from "./build/static/ids.js";
 import type { TableAccess } from "./build/static/parseAst.js";
+import { PostgresDatabaseService } from "./database/postgres/service.js";
+import type { DatabaseService } from "./database/service.js";
 import { SqliteDatabaseService } from "./database/sqlite/service.js";
 import { type RequestQueue, createRequestQueue } from "./utils/requestQueue.js";
 
@@ -44,9 +45,10 @@ export class Ponder {
   common: Common;
   buildService: BuildService;
 
+  database: DatabaseService = undefined!;
+
   // User config and build artifacts
-  database: SqliteDatabaseService = undefined!;
-  config: Config = undefined!;
+  databaseConfig: DatabaseConfig = undefined!;
   sources: Source[] = undefined!;
   networks: Network[] = undefined!;
   schema: Schema = undefined!;
@@ -113,7 +115,7 @@ export class Ponder {
       properties: {
         command: "ponder dev",
         contractCount: this.sources.length,
-        databaseKind: this.config.database?.kind,
+        databaseKind: this.databaseConfig.kind,
       },
     });
 
@@ -142,7 +144,7 @@ export class Ponder {
       properties: {
         command: "ponder start",
         contractCount: this.sources.length,
-        databaseKind: this.config.database?.kind,
+        databaseKind: this.databaseConfig.kind,
       },
     });
 
@@ -160,25 +162,27 @@ export class Ponder {
       event: "App Started",
       properties: {
         command: "ponder serve",
-        databaseKind: this.config.database?.kind,
+        databaseKind: this.databaseConfig.kind,
       },
     });
 
-    const database = buildDatabase({
-      common: this.common,
-      config: this.config,
-    });
-
-    if (database.indexing.kind === "sqlite") {
+    if (this.databaseConfig.kind === "sqlite") {
       throw new Error(`The 'ponder serve' command only works with Postgres.`);
     }
 
-    this.common.metrics.registerDatabaseMetrics(database);
-    // this.indexingStore = new PostgresIndexingStore({
-    //   common: this.common,
-    //   pool: database.indexing.pool,
-    //   usePublic: true,
-    // });
+    const database = new PostgresDatabaseService({
+      common: this.common,
+      poolConfig: this.databaseConfig.poolConfig,
+    });
+    this.database = database;
+
+    const indexingDatabase = await database.getIndexingDatabase();
+    this.indexingStore = new PostgresIndexingStore({
+      common: this.common,
+      schemaName: indexingDatabase.schemaName,
+      pool: indexingDatabase.pool,
+    });
+    // this.common.metrics.registerDatabaseMetrics(database);
 
     this.serverService = new ServerService({
       common: this.common,
@@ -244,7 +248,7 @@ export class Ponder {
       return false;
     }
 
-    this.config = result.config;
+    this.databaseConfig = result.databaseConfig;
     this.sources = result.sources;
     this.networks = result.networks;
     this.schema = result.schema;
@@ -267,32 +271,52 @@ export class Ponder {
     syncStore?: SyncStore;
     indexingStore?: IndexingStore;
   }) {
-    // const database = buildDatabase({
-    //   common: this.common,
-    //   config: this.config,
-    // });
-
     // TODO: Figure out metrics for the database.
     // this.common.metrics.registerDatabaseMetrics(database)
-    const database = new SqliteDatabaseService({
-      common: this.common,
-      directory: path.join(this.common.options.ponderDir, "store"),
-    });
-    this.database = database;
 
-    await database.setup();
+    if (this.databaseConfig.kind === "sqlite") {
+      const database = new SqliteDatabaseService({
+        common: this.common,
+        directory: this.databaseConfig.directory,
+      });
+      this.database = database;
 
-    const indexingDatabase = await database.getMainDatabase();
-    const syncDatabase = await database.getPluginDatabase("sync");
+      await database.setup();
 
-    this.syncStore = new SqliteSyncStore({
-      common: this.common,
-      database: syncDatabase,
-    });
-    this.indexingStore = new SqliteIndexingStore({
-      common: this.common,
-      database: indexingDatabase,
-    });
+      const indexingDatabase = await database.getIndexingDatabase();
+      this.indexingStore = new SqliteIndexingStore({
+        common: this.common,
+        database: indexingDatabase.database,
+      });
+
+      const syncDatabase = await database.getSyncDatabase();
+      this.syncStore = new SqliteSyncStore({
+        common: this.common,
+        database: syncDatabase.database,
+      });
+    } else {
+      const database = new PostgresDatabaseService({
+        common: this.common,
+        poolConfig: this.databaseConfig.poolConfig,
+      });
+      this.database = database;
+
+      await database.setup();
+
+      const indexingDatabase = await database.getIndexingDatabase();
+      this.indexingStore = new PostgresIndexingStore({
+        common: this.common,
+        schemaName: indexingDatabase.schemaName,
+        pool: indexingDatabase.pool,
+      });
+
+      const syncDatabase = await database.getSyncDatabase();
+      this.syncStore = new PostgresSyncStore({
+        common: this.common,
+        schemaName: syncDatabase.schemaName,
+        pool: syncDatabase.pool,
+      });
+    }
 
     const networksToSync = this.networks.filter((network) => {
       const hasSources = this.sources.some(
@@ -484,7 +508,7 @@ export class Ponder {
   private registerBuildServiceEventListeners() {
     this.buildService.onSerial(
       "newConfig",
-      async ({ config, sources, networks, functionIds, tableIds }) => {
+      async ({ databaseConfig, sources, networks, functionIds, tableIds }) => {
         this.uiService.ui.indexingError = false;
 
         this.clearCoreServiceEventListeners();
@@ -492,7 +516,7 @@ export class Ponder {
 
         await this.common.metrics.resetMetrics();
 
-        this.config = config;
+        this.databaseConfig = databaseConfig;
         this.sources = sources;
         this.networks = networks;
 

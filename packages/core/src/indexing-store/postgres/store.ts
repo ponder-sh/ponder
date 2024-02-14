@@ -29,30 +29,19 @@ export class PostgresIndexingStore implements IndexingStore {
   schema?: Schema;
   tableIds?: TableIds;
 
-  private databaseSchemaName: string;
-
   constructor({
     common,
     pool,
-    usePublic = false,
-  }: { common: Common; pool: Pool; usePublic?: boolean }) {
-    this.databaseSchemaName = usePublic
-      ? "public"
-      : `ponder_${new Date().getTime()}`;
+    schemaName,
+  }: { common: Common; pool: Pool; schemaName: string }) {
     this.common = common;
-
-    this.common.logger.debug({
-      msg: `Using schema '${this.databaseSchemaName}'`,
-      service: "indexing",
-    });
-
     this.db = new Kysely({
       dialect: new PostgresDialect({ pool }),
       log(event) {
         if (event.level === "query")
           common.metrics.ponder_postgres_query_count?.inc({ kind: "indexing" });
       },
-    }).withPlugin(new WithSchemaPlugin(this.databaseSchemaName));
+    }).withPlugin(new WithSchemaPlugin(schemaName));
   }
 
   reset = ({ schema }: { schema: Schema }) => {

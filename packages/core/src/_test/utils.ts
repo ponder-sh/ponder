@@ -1,5 +1,5 @@
 import type { Common, Ponder } from "@/Ponder.js";
-import { buildNetworksAndSources } from "@/build/config/config.js";
+import { buildConfig } from "@/build/config/config.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { FunctionIds, TableIds } from "@/build/static/ids.js";
 import { createConfig } from "@/config/config.js";
@@ -111,8 +111,9 @@ export const getNetworkAndSources = async (
   common: Common,
 ) => {
   const config = getConfig(addresses);
-  const { networks, sources } = await buildNetworksAndSources({
+  const { networks, sources } = await buildConfig({
     config,
+    options: common.options,
   });
   const mainnet = { ...networks[0], finalityBlockCount: 4 };
   const requestQueue = createRequestQueue({

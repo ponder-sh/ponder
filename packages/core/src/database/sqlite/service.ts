@@ -23,7 +23,8 @@ export class SqliteDatabaseService implements DatabaseService {
   metadata: Metadata[] = undefined!;
 
   private directory: string;
-  private sqliteDatabase: BetterSqlite3.Database;
+
+  private sqliteIndexingDatabase: BetterSqlite3.Database;
 
   constructor({
     common,
@@ -35,16 +36,16 @@ export class SqliteDatabaseService implements DatabaseService {
     this.common = common;
     this.directory = directory;
 
-    const coldDbPath = path.join(directory, "ponder_core_cache.db");
-    const instanceDbPath = path.join(
+    const cacheDbPath = path.join(directory, "ponder_core_cache.db");
+    const liveDbPath = path.join(
       directory,
       `ponder_core_${common.instanceId}.db`,
     );
 
-    const sqliteDatabase = createSqliteDatabase(instanceDbPath);
-    sqliteDatabase.exec(`ATTACH DATABASE '${coldDbPath}' AS cold`);
+    const sqliteDatabase = createSqliteDatabase(liveDbPath);
+    sqliteDatabase.exec(`ATTACH DATABASE '${cacheDbPath}' AS cache`);
 
-    this.sqliteDatabase = sqliteDatabase;
+    this.sqliteIndexingDatabase = sqliteDatabase;
 
     this.db = new Kysely({
       dialect: new SqliteDialect({ database: sqliteDatabase }),
@@ -56,25 +57,25 @@ export class SqliteDatabaseService implements DatabaseService {
     });
   }
 
-  async getMainDatabase() {
-    return this.sqliteDatabase;
-  }
-
-  async getPluginDatabase(pluginName: string) {
-    const dbPath = path.join(this.directory, `ponder_${pluginName}.db`);
-    const sqliteDatabase = createSqliteDatabase(dbPath);
-    return sqliteDatabase;
-  }
-
   async setup() {
-    const coldMigrator = new Migrator({
+    const cacheMigrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
-      migrationTableName: "cold.migrations",
-      migrationLockTableName: "cold.migrations_lock",
+      migrationTableName: "cache.migrations",
+      migrationLockTableName: "cache.migrations_lock",
     });
-    const result = await coldMigrator.migrateToLatest();
+    const result = await cacheMigrator.migrateToLatest();
     if (result.error) throw result.error;
+  }
+
+  async getIndexingDatabase() {
+    return { database: this.sqliteIndexingDatabase };
+  }
+
+  async getSyncDatabase() {
+    const dbPath = path.join(this.directory, "ponder_sync.db");
+    const syncDatabase = createSqliteDatabase(dbPath);
+    return { database: syncDatabase };
   }
 
   async kill() {
@@ -102,11 +103,11 @@ export class SqliteDatabaseService implements DatabaseService {
     const _functionIds = Object.values(functionIds);
 
     const metadata = await this.db.transaction().execute(async (tx) => {
-      await this.createTables(tx, "cold");
-      await this.createTables(tx, "hot");
-      await this.copyTables(tx, "cold");
+      await this.createTables(tx, "cache");
+      await this.createTables(tx, "live");
+      await this.copyTables(tx, "cache");
       return tx
-        .withSchema("cold")
+        .withSchema("cache")
         .selectFrom("metadata")
         .selectAll()
         .where("functionId", "in", _functionIds)
@@ -127,9 +128,9 @@ export class SqliteDatabaseService implements DatabaseService {
 
   async flush(metadata: Metadata[]): Promise<void> {
     await this.db.transaction().execute(async (tx) => {
-      await this.dropColdTables(tx);
-      await this.createTables(tx, "cold");
-      await this.copyTables(tx, "hot");
+      await this.dropCacheTables(tx);
+      await this.createTables(tx, "cache");
+      await this.copyTables(tx, "live");
 
       const values = metadata.map((m) => ({
         functionId: m.functionId,
@@ -141,7 +142,7 @@ export class SqliteDatabaseService implements DatabaseService {
       await Promise.all(
         values.map((row) =>
           tx
-            .withSchema("cold")
+            .withSchema("cache")
             .insertInto("metadata")
             .values(row)
             .onConflict((oc) => oc.doUpdateSet(row))
@@ -182,26 +183,26 @@ export class SqliteDatabaseService implements DatabaseService {
     // };
   }
 
-  private dropColdTables = (tx: Transaction<any>) =>
+  private dropCacheTables = (tx: Transaction<any>) =>
     Promise.all(
       Object.keys(this.schema!.tables).map((tableName) =>
         tx
-          .withSchema("cold")
+          .withSchema("cache")
           .schema.dropTable(this.tableIds![tableName])
           .ifExists()
           .execute(),
       ),
     );
 
-  private createTables = (_tx: Transaction<any>, database: "cold" | "hot") =>
+  private createTables = (_tx: Transaction<any>, database: "cache" | "live") =>
     Promise.all(
       Object.entries(this.schema!.tables).map(async ([tableName, columns]) => {
         // Database specific variables
         const versionedTableName =
-          database === "cold"
+          database === "cache"
             ? this.tableIds![tableName]
             : `${tableName}_versioned`;
-        const tx = database === "cold" ? _tx.withSchema("cold") : _tx;
+        const tx = database === "cache" ? _tx.withSchema("cache") : _tx;
 
         let tableBuilder = tx.schema
           .createTable(versionedTableName)
@@ -261,18 +262,18 @@ export class SqliteDatabaseService implements DatabaseService {
       }),
     );
 
-  private copyTables = (tx: Transaction<any>, fromDatabase: "cold" | "hot") =>
+  private copyTables = (tx: Transaction<any>, fromDatabase: "cache" | "live") =>
     Promise.all(
       Object.keys(this.schema!.tables).map(async (tableName) => {
         // Database specific variables
         const fromTable =
-          fromDatabase === "cold"
-            ? `"cold"."${this.tableIds![tableName]}"`
+          fromDatabase === "cache"
+            ? `"cache"."${this.tableIds![tableName]}"`
             : `"${tableName}_versioned"`;
         const toTable =
-          fromDatabase === "cold"
+          fromDatabase === "cache"
             ? `"${tableName}_versioned"`
-            : `"cold"."${this.tableIds![tableName]}"`;
+            : `"cache"."${this.tableIds![tableName]}"`;
 
         const query = sql`INSERT INTO ${sql.raw(
           toTable,
