@@ -82,24 +82,28 @@ test("helper function", () => {
     table: "Table1",
     indexingFunctionKey: "C:Event2",
     access: "read",
+    hash: expect.any(String),
   });
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
     indexingFunctionKey: "C:Event2",
     access: "write",
+    hash: expect.any(String),
   });
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
     indexingFunctionKey: "C:Event3",
     access: "read",
+    hash: expect.any(String),
   });
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
     indexingFunctionKey: "C:Event3",
     access: "write",
+    hash: expect.any(String),
   });
 });
 
