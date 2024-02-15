@@ -24,8 +24,8 @@ export type UiState = {
 
   indexingStats: {
     event: string;
-    totalSeconds: number;
-    completedSeconds: number;
+    totalSeconds: number | undefined;
+    completedSeconds: number | undefined;
     completedEventCount: number;
   }[];
   indexingCompletedToTimestamp: number;
@@ -132,7 +132,12 @@ const App = (ui: UiState) => {
       <Text bold={true}>Indexing </Text>
       {indexingStats.map(
         ({ event, totalSeconds, completedSeconds, completedEventCount }) => {
-          const rate = completedSeconds / totalSeconds;
+          const rate =
+            totalSeconds === undefined ||
+            completedSeconds === undefined ||
+            totalSeconds === 0
+              ? 1
+              : completedSeconds / totalSeconds;
 
           const titleText = event.padEnd(titleWidth, " ");
 
@@ -147,7 +152,8 @@ const App = (ui: UiState) => {
             <Box flexDirection="column" key={event}>
               <Box flexDirection="row">
                 <Text>{titleText} </Text>
-                {completedSeconds > 0 ? (
+                {completedSeconds !== undefined &&
+                totalSeconds !== undefined ? (
                   <>
                     <ProgressBar current={rate} end={1} width={barWidth} />
                     <Text>
