@@ -1,8 +1,15 @@
 import type { Common } from "@/Ponder.js";
 import type { FunctionIds, TableIds } from "@/build/static/ids.js";
+import type { TableAccess } from "@/build/static/parseAst.js";
+import { revertTable } from "@/indexing-store/utils/revert.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import { decodeCheckpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
+import {
+  checkpointMin,
+  decodeCheckpoint,
+  encodeCheckpoint,
+} from "@/utils/checkpoint.js";
+import { dedupe } from "@/utils/dedupe.js";
 import { createPool } from "@/utils/pg.js";
 import { Kysely, Migrator, PostgresDialect, Transaction, sql } from "kysely";
 import type { Pool, PoolConfig } from "pg";
@@ -84,10 +91,12 @@ export class PostgresDatabaseService implements DatabaseService {
     schema,
     tableIds,
     functionIds,
+    tableAccess,
   }: {
     schema: Schema;
     tableIds: TableIds;
     functionIds: FunctionIds;
+    tableAccess: TableAccess;
   }) {
     if (schema) this.schema = schema;
     if (tableIds) this.tableIds = tableIds;
@@ -108,14 +117,34 @@ export class PostgresDatabaseService implements DatabaseService {
         .execute();
     });
 
-    // TODO: revert tables to toCheckpoint
-
     this.metadata = metadata.map((m) => ({
       functionId: m.functionId,
       fromCheckpoint: decodeCheckpoint(m.fromCheckpoint),
       toCheckpoint: decodeCheckpoint(m.toCheckpoint),
       eventCount: m.eventCount,
     }));
+
+    for (const tableName of Object.keys(schema.tables)) {
+      const indexingFunctionKeys = tableAccess
+        .filter((t) => t.access === "write" && t.table === tableName)
+        .map((t) => t.indexingFunctionKey);
+
+      const tableMetadata = dedupe(indexingFunctionKeys).map((key) =>
+        this.metadata.find((m) => m.functionId === functionIds[key]),
+      );
+
+      if (tableMetadata.some((m) => m === undefined)) return;
+
+      const checkpoints = tableMetadata.map((m) => m!.toCheckpoint);
+
+      const tableCheckpoint = checkpointMin(...checkpoints);
+
+      await revertTable(
+        this.db.withSchema(this.schemaName),
+        tableName,
+        tableCheckpoint,
+      );
+    }
   }
 
   async flush(metadata: Metadata[]): Promise<void> {
@@ -133,7 +162,7 @@ export class PostgresDatabaseService implements DatabaseService {
 
       for (const row of values) {
         await tx
-          .withSchema("cache")
+          .withSchema("ponder_core_cache")
           .insertInto("metadata")
           .values(row)
           .onConflict((oc) => oc.column("functionId").doUpdateSet(row))
