@@ -926,7 +926,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           );
 
           return {
-            fromCheckpoint: state.firstEventCheckpoint!,
+            fromCheckpoint: state.firstEventCheckpoint ?? null,
             toCheckpoint,
             functionId: this.functionIds![indexingFunctionKey],
             eventCount: state.eventCount,
@@ -1102,14 +1102,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const state = this.indexingFunctionStates[key];
 
     const numerator =
-      Math.min(
-        state.tasksProcessedToCheckpoint.blockTimestamp,
-        state.lastEventCheckpoint!.blockTimestamp,
-      ) - state.firstEventCheckpoint!.blockTimestamp;
+      state.firstEventCheckpoint === undefined ||
+      state.lastEventCheckpoint === undefined
+        ? 0
+        : Math.min(
+            state.tasksProcessedToCheckpoint.blockTimestamp,
+            state.lastEventCheckpoint.blockTimestamp,
+          ) - state.firstEventCheckpoint.blockTimestamp;
 
     const denominator =
-      state.lastEventCheckpoint!.blockTimestamp -
-      state.firstEventCheckpoint!.blockTimestamp;
+      state.firstEventCheckpoint === undefined ||
+      state.lastEventCheckpoint === undefined
+        ? 1
+        : state.lastEventCheckpoint.blockTimestamp -
+          state.firstEventCheckpoint.blockTimestamp;
 
     const cache = formatPercentage(Math.max(numerator / denominator, 0));
     this.common.logger.info({

@@ -5,7 +5,7 @@ import type { Checkpoint } from "@/utils/checkpoint.js";
 
 export type Metadata = {
   functionId: string;
-  fromCheckpoint: Checkpoint;
+  fromCheckpoint: Checkpoint | null;
   toCheckpoint: Checkpoint;
   eventCount: number;
 };

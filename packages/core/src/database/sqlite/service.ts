@@ -158,7 +158,9 @@ export class SqliteDatabaseService implements DatabaseService {
 
       const values = metadata.map((m) => ({
         functionId: m.functionId,
-        fromCheckpoint: encodeCheckpoint(m.fromCheckpoint),
+        fromCheckpoint: m.fromCheckpoint
+          ? encodeCheckpoint(m.fromCheckpoint)
+          : null,
         toCheckpoint: encodeCheckpoint(m.toCheckpoint),
         eventCount: m.eventCount,
       }));

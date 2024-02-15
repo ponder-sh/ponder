@@ -8,7 +8,7 @@ const migrations: Record<string, Migration> = {
         .withSchema("ponder_core_cache")
         .createTable("metadata")
         .addColumn("functionId", "text", (col) => col.notNull().primaryKey())
-        .addColumn("fromCheckpoint", "varchar(58)", (col) => col.notNull())
+        .addColumn("fromCheckpoint", "varchar(58)")
         .addColumn("toCheckpoint", "varchar(58)", (col) => col.notNull())
         .addColumn("eventCount", "integer", (col) => col.notNull())
         .execute();
