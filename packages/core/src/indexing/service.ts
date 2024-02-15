@@ -1098,13 +1098,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private logCachedProgress = (key: string) => {
     const state = this.indexingFunctionStates[key];
 
-    // TODO: why do we need this
-    if (
-      state.firstEventCheckpoint === undefined ||
-      state.lastEventCheckpoint === undefined
-    )
-      return;
-
     const numerator =
       Math.min(
         state.tasksProcessedToCheckpoint.blockTimestamp,
