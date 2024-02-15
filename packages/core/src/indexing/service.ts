@@ -105,6 +105,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   private isSetupStarted;
 
+  private setupFunctionStates: Record<
+    /* Indexing function key: "{ContractName}:setup */
+    string,
+    {
+      contractName: string;
+      isComplete: boolean;
+    }
+  > = {};
+
   private indexingFunctionStates: Record<
     /* Indexing function key: "{ContractName}:{EventName}" */
     string,
@@ -306,6 +315,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.enqueueSetupTasks();
     }
 
+    // Mark setup functions as complete
+    for (const setupKey of Object.keys(this.setupFunctionStates)) {
+      this.setupFunctionStates[setupKey].isComplete = true;
+    }
+
     this.queue!.start();
     await this.queue.onIdle();
 
@@ -431,6 +445,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
   enqueueSetupTasks = () => {
     for (const contractName of Object.keys(this.indexingFunctions!)) {
       if (this.indexingFunctions![contractName].setup === undefined) continue;
+
+      if (this.setupFunctionStates[`${contractName}:setup`].isComplete)
+        continue;
 
       for (const network of this.networks) {
         const source = this.sources.find(
@@ -657,7 +674,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         // Emit log if this is the end of a batch of logs
         if (data.eventsProcessed) {
           this.emitCheckpoint();
-          await this.flush();
 
           const num = data.eventsProcessed;
           this.common.logger.info({
@@ -791,7 +807,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         this.updateCompletedSeconds(key);
 
         this.emitCheckpoint();
-        await this.flush();
         this.logCachedProgress(key);
       }
 
@@ -917,22 +932,46 @@ export class IndexingService extends Emittery<IndexingEvents> {
   };
 
   private flush = async () => {
-    await this.database.flush(
-      Object.entries(this.indexingFunctionStates).map(
-        ([indexingFunctionKey, state]) => {
-          const toCheckpoint = checkpointMin(
-            state.tasksProcessedToCheckpoint,
-            this.syncGatewayService.finalityCheckpoint,
-          );
+    const indexingFunctionMetadata = Object.entries(
+      this.indexingFunctionStates,
+    ).map(([indexingFunctionKey, state]) => {
+      const processedCheckpoint =
+        state.lastEventCheckpoint &&
+        isCheckpointEqual(
+          state.tasksProcessedToCheckpoint,
+          state.lastEventCheckpoint,
+        )
+          ? this.syncGatewayService.checkpoint
+          : state.tasksProcessedToCheckpoint;
 
-          return {
-            fromCheckpoint: state.firstEventCheckpoint ?? null,
-            toCheckpoint,
-            functionId: this.functionIds![indexingFunctionKey],
-            eventCount: state.eventCount,
-          };
-        },
-      ),
+      const toCheckpoint = checkpointMin(
+        processedCheckpoint,
+        this.syncGatewayService.finalityCheckpoint,
+      );
+
+      return {
+        functionId: this.functionIds![indexingFunctionKey],
+        fromCheckpoint: state.firstEventCheckpoint ?? null,
+        toCheckpoint,
+        eventCount: state.eventCount,
+      };
+    });
+
+    const setupFunctionMetadata = Object.entries(this.setupFunctionStates)
+      .map(([setupFunctionKey, state]) =>
+        state.isComplete
+          ? {
+              functionId: this.functionIds![setupFunctionKey],
+              fromCheckpoint: null,
+              toCheckpoint: zeroCheckpoint,
+              eventCount: 0,
+            }
+          : null,
+      )
+      .filter((m) => m !== null) as Metadata[];
+
+    await this.database.flush(
+      indexingFunctionMetadata.concat(setupFunctionMetadata),
     );
   };
 
@@ -954,6 +993,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     // clear in case of reloads
     this.indexingFunctionStates = {};
+    this.setupFunctionStates = {};
 
     const checkpoints: { [functionId: string]: Omit<Metadata, "functionId"> } =
       {};
@@ -973,9 +1013,21 @@ export class IndexingService extends Emittery<IndexingEvents> {
       for (const eventName of Object.keys(
         this.indexingFunctions[contractName],
       )) {
-        if (eventName === "setup") continue;
-
         const indexingFunctionKey = `${contractName}:${eventName}`;
+
+        if (eventName === "setup") {
+          const indexingFunctionKey = `${contractName}:${eventName}`;
+
+          const checkpoint =
+            checkpoints[this.functionIds[indexingFunctionKey]]!;
+
+          this.setupFunctionStates[indexingFunctionKey] = {
+            contractName,
+            isComplete: checkpoint ? true : false,
+          };
+
+          continue;
+        }
 
         // All tables that this indexing function key reads
         const tableReads = this.tableAccess

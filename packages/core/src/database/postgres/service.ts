@@ -5,7 +5,7 @@ import { revertTable } from "@/indexing-store/utils/revert.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
-  checkpointMin,
+  checkpointMax,
   decodeCheckpoint,
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -109,21 +109,26 @@ export class PostgresDatabaseService implements DatabaseService {
       await this.createTables(tx, "cache");
       await this.createTables(tx, "live");
       await this.copyTables(tx, "cache");
-      return tx
-        .withSchema("ponder_core_cache")
+      const m = await tx
+        .withSchema("cache")
         .selectFrom("metadata")
         .selectAll()
         .where("functionId", "in", _functionIds)
         .execute();
+
+      return m;
     });
 
     this.metadata = metadata.map((m) => ({
       functionId: m.functionId,
-      fromCheckpoint: decodeCheckpoint(m.fromCheckpoint),
+      fromCheckpoint: m.fromCheckpoint
+        ? decodeCheckpoint(m.fromCheckpoint)
+        : null,
       toCheckpoint: decodeCheckpoint(m.toCheckpoint),
       eventCount: m.eventCount,
     }));
 
+    // Table checkpoint is the minimum checkpoint of all the functions that write to it.
     for (const tableName of Object.keys(schema.tables)) {
       const indexingFunctionKeys = tableAccess
         .filter((t) => t.access === "write" && t.table === tableName)
@@ -133,11 +138,13 @@ export class PostgresDatabaseService implements DatabaseService {
         this.metadata.find((m) => m.functionId === functionIds[key]),
       );
 
-      if (tableMetadata.some((m) => m === undefined)) return;
+      if (tableMetadata.some((m) => m === undefined)) continue;
 
       const checkpoints = tableMetadata.map((m) => m!.toCheckpoint);
 
-      const tableCheckpoint = checkpointMin(...checkpoints);
+      if (checkpoints.length === 0) continue;
+
+      const tableCheckpoint = checkpointMax(...checkpoints);
 
       await revertTable(
         this.db.withSchema(this.schemaName),

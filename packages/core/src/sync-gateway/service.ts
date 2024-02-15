@@ -213,6 +213,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
         ? checkpointMax(n.historicalCheckpoint, n.realtimeCheckpoint)
         : n.historicalCheckpoint,
     );
+
     const newCheckpoint = checkpointMin(...checkpoints);
 
     if (isCheckpointGreaterThan(newCheckpoint, this.checkpoint)) {

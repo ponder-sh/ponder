@@ -452,13 +452,19 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   private analyze() {
-    if (!this.tableAccess || !this.schema || !this.sources)
+    if (
+      !this.tableAccess ||
+      !this.schema ||
+      !this.sources ||
+      !this.indexingFunctions
+    )
       return { success: false } as const;
 
     const ids = getIds({
       sources: this.sources,
       tableAccess: this.tableAccess,
       schema: this.schema,
+      indexingFunctions: this.indexingFunctions,
     });
 
     return {

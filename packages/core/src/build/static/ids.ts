@@ -3,6 +3,7 @@ import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
 import { dedupe } from "@/utils/dedupe.js";
+import type { IndexingFunctions } from "../functions/functions.js";
 import type { TableAccess } from "./parseAst.js";
 
 export type FunctionIds = { [func: string]: string };
@@ -24,7 +25,13 @@ export const getIds = ({
   sources,
   tableAccess,
   schema,
-}: { sources: Source[]; schema: Schema; tableAccess: TableAccess }) => {
+  indexingFunctions,
+}: {
+  sources: Source[];
+  schema: Schema;
+  tableAccess: TableAccess;
+  indexingFunctions: IndexingFunctions;
+}) => {
   const functionInputs: FunctionInputs = {};
   const tableInputs: TableInputs = {};
 
@@ -61,32 +68,36 @@ export const getIds = ({
   const tableIds: TableIds = {};
 
   // Build function IDs
-  for (const indexingFunctionKey of Object.keys(functionInputs)) {
-    const { functions, tables } = resolveDependencies({
-      name: indexingFunctionKey,
-      type: "function",
-      tableAccess,
-    });
+  for (const sourceName of Object.keys(indexingFunctions)) {
+    for (const eventName of Object.keys(indexingFunctions[sourceName])) {
+      const indexingFunctionKey = `${sourceName}:${eventName}`;
 
-    functionIds[indexingFunctionKey] = crypto
-      .createHash("sha256")
-      .update(
-        JSON.stringify({
-          name: indexingFunctionKey,
-          type: "function",
+      const { functions, tables } = resolveDependencies({
+        name: indexingFunctionKey,
+        type: "function",
+        tableAccess,
+      });
 
-          functions,
-          tables,
-          functionInputs: functions.map((f) => functionInputs[f]),
-          tableInputs: tables.map((t) => tableInputs[t]),
-        }),
-      )
-      .digest("base64")
-      .slice(0, 10);
+      functionIds[indexingFunctionKey] = crypto
+        .createHash("sha256")
+        .update(
+          JSON.stringify({
+            name: indexingFunctionKey,
+            type: "function",
+
+            functions,
+            tables,
+            functionInputs: functions.map((f) => functionInputs[f]),
+            tableInputs: tables.map((t) => tableInputs[t]),
+          }),
+        )
+        .digest("base64")
+        .slice(0, 10);
+    }
   }
 
   // Build table IDs
-  for (const tableName of Object.keys(tableInputs)) {
+  for (const tableName of Object.keys(schema.tables)) {
     const { functions, tables } = resolveDependencies({
       name: tableName,
       type: "table",
