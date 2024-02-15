@@ -139,16 +139,14 @@ export class SqliteDatabaseService implements DatabaseService {
         eventCount: m.eventCount,
       }));
 
-      await Promise.all(
-        values.map((row) =>
-          tx
-            .withSchema("cache")
-            .insertInto("metadata")
-            .values(row)
-            .onConflict((oc) => oc.doUpdateSet(row))
-            .execute(),
-        ),
-      );
+      for (const row of values) {
+        await tx
+          .withSchema("cache")
+          .insertInto("metadata")
+          .values(row)
+          .onConflict((oc) => oc.column("functionId").doUpdateSet(row))
+          .execute();
+      }
     });
   }
 
