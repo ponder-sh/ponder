@@ -403,6 +403,7 @@ export class Ponder {
       schema: this.schema,
       tableIds: this.tableIds,
       functionIds: this.functionIds,
+      tableAccess: this.tableAccess,
     });
 
     // Start the indexing service
@@ -551,7 +552,12 @@ export class Ponder {
         this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
         this.indexingStore.reset({ schema });
-        await this.database.reset({ schema, tableIds, functionIds });
+        await this.database.reset({
+          schema,
+          tableIds,
+          functionIds,
+          tableAccess: this.tableAccess,
+        });
 
         await this.indexingService.reset({
           schema,
@@ -578,6 +584,7 @@ export class Ponder {
           schema: this.schema,
           tableIds,
           functionIds,
+          tableAccess,
         });
 
         await this.indexingService.reset({

@@ -1,8 +1,8 @@
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
-import type { Transaction } from "kysely";
+import type { Kysely } from "kysely";
 
 export const revertTable = async (
-  tx: Transaction<any>,
+  kysely: Kysely<any>,
   tableName: string,
   checkpoint: Checkpoint,
 ) => {
@@ -10,14 +10,14 @@ export const revertTable = async (
   const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
   // Delete any versions that are newer than or equal to the safe checkpoint.
-  await tx
+  await kysely
     .deleteFrom(versionedTableName)
     .where("effectiveFromCheckpoint", ">=", encodedCheckpoint)
     .execute();
 
   // Now, any versions with effectiveToCheckpoint greater than or equal
   // to the safe checkpoint are the new latest version.
-  await tx
+  await kysely
     .updateTable(versionedTableName)
     .set({ effectiveToCheckpoint: "latest" })
     .where("effectiveToCheckpoint", ">=", encodedCheckpoint)
