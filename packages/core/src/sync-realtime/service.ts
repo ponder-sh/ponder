@@ -204,6 +204,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         chainId: this.network.chainId,
       });
 
+      this.emit("finalityCheckpoint", {
+        blockTimestamp: this.finalizedBlock.timestamp,
+        chainId: this.network.chainId,
+        blockNumber: this.finalizedBlock.number,
+      });
+
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },
         0,

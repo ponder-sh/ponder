@@ -920,7 +920,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     await this.database.flush(
       Object.entries(this.indexingFunctionStates).map(
         ([indexingFunctionKey, state]) => {
-          const toCheckpoint = state.tasksProcessedToCheckpoint;
+          const toCheckpoint = checkpointMin(
+            state.tasksProcessedToCheckpoint,
+            this.syncGatewayService.finalityCheckpoint,
+          );
 
           return {
             fromCheckpoint: state.firstEventCheckpoint!,
