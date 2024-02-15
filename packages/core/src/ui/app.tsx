@@ -152,7 +152,8 @@ const App = (ui: UiState) => {
             <Box flexDirection="column" key={event}>
               <Box flexDirection="row">
                 <Text>{titleText} </Text>
-                {completedSeconds !== undefined ? (
+                {completedSeconds !== undefined &&
+                totalSeconds !== undefined ? (
                   <>
                     <ProgressBar current={rate} end={1} width={barWidth} />
                     <Text>
