@@ -1,6 +1,3 @@
-import type { DatabaseConfig } from "@/config/database.js";
-import type { DatabaseService } from "@/database/service.js";
-import type { Pool } from "pg";
 import prometheus from "prom-client";
 
 const httpRequestBucketsInMs = [

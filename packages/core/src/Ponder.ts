@@ -263,8 +263,6 @@ export class Ponder {
 
   private async setupCoreServices({
     isDev,
-    syncStore,
-    indexingStore,
   }: {
     isDev: boolean;
     // These options are only used for testing.

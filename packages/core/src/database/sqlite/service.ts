@@ -68,11 +68,11 @@ export class SqliteDatabaseService implements DatabaseService {
     if (result.error) throw result.error;
   }
 
-  async getIndexingDatabase() {
+  async getIndexingDatabase(): Promise<{ database: BetterSqlite3.Database }> {
     return { database: this.sqliteIndexingDatabase };
   }
 
-  async getSyncDatabase() {
+  async getSyncDatabase(): Promise<{ database: BetterSqlite3.Database }> {
     const dbPath = path.join(this.directory, "ponder_sync.db");
     const syncDatabase = createSqliteDatabase(dbPath);
     return { database: syncDatabase };
