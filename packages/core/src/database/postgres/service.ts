@@ -1,17 +1,16 @@
 import type { Common } from "@/Ponder.js";
 import type { FunctionIds, TableIds } from "@/build/static/ids.js";
 import type { Schema } from "@/schema/types.js";
+import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import { decodeCheckpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { createPool } from "@/utils/pg.js";
-import { Kysely, Migrator, PostgresDialect, Transaction } from "kysely";
+import { Kysely, Migrator, PostgresDialect, Transaction, sql } from "kysely";
 import type { Pool, PoolConfig } from "pg";
 import type { DatabaseService, Metadata } from "../service.js";
 import { migrationProvider } from "./migrations.js";
 
 export class PostgresDatabaseService implements DatabaseService {
   kind = "postgres" as const;
-
-  private common: Common;
 
   db: Kysely<any>;
   private pool: Pool;
@@ -29,7 +28,6 @@ export class PostgresDatabaseService implements DatabaseService {
     common: Common;
     poolConfig: PoolConfig;
   }) {
-    this.common = common;
     this.schemaName = `ponder_core_${common.instanceId}`;
 
     const pool = createPool(poolConfig);
@@ -56,6 +54,7 @@ export class PostgresDatabaseService implements DatabaseService {
       migrationTableSchema: "ponder_core_cache",
     });
     const result = await migrator.migrateToLatest();
+
     if (result.error) throw result.error;
   }
 
@@ -73,6 +72,7 @@ export class PostgresDatabaseService implements DatabaseService {
     try {
       await this.db.destroy();
     } catch (e) {
+      // TODO: drop table
       const error = e as Error;
       if (error.message !== "Called end on pool more than once") {
         throw error;
@@ -97,9 +97,9 @@ export class PostgresDatabaseService implements DatabaseService {
     await this.db.schema.createSchema(this.schemaName).ifNotExists().execute();
 
     const metadata = await this.db.transaction().execute(async (tx) => {
-      // await this.createTables(tx, "cold");
-      // await this.createTables(tx, "hot");
-      // await this.copyTables(tx, "cold");
+      await this.createTables(tx, "cache");
+      await this.createTables(tx, "live");
+      await this.copyTables(tx, "cache");
       return tx
         .withSchema("ponder_core_cache")
         .selectFrom("metadata")
@@ -121,8 +121,8 @@ export class PostgresDatabaseService implements DatabaseService {
   async flush(metadata: Metadata[]): Promise<void> {
     await this.db.transaction().execute(async (tx) => {
       await this.dropCacheTables(tx);
-      // await this.createTables(tx, "cold");
-      // await this.copyTables(tx, "hot");
+      await this.createTables(tx, "cache");
+      await this.copyTables(tx, "live");
 
       const values = metadata.map((m) => ({
         functionId: m.functionId,
@@ -134,10 +134,10 @@ export class PostgresDatabaseService implements DatabaseService {
       await Promise.all(
         values.map((row) =>
           tx
-            .withSchema("cold")
+            .withSchema("ponder_core_cache")
             .insertInto("metadata")
             .values(row)
-            .onConflict((oc) => oc.doUpdateSet(row))
+            .onConflict((oc) => oc.column("functionId").doUpdateSet(row))
             .execute(),
         ),
       );
@@ -158,6 +158,98 @@ export class PostgresDatabaseService implements DatabaseService {
           .ifExists()
           .execute(),
       ),
+    );
+
+  private createTables = (_tx: Transaction<any>, database: "cache" | "live") =>
+    Promise.all(
+      Object.entries(this.schema!.tables).map(async ([tableName, columns]) => {
+        // Database specific variables
+        const versionedTableName =
+          database === "cache"
+            ? this.tableIds![tableName]
+            : `${tableName}_versioned`;
+        const tx =
+          database === "cache"
+            ? _tx.withSchema("ponder_core_cache")
+            : _tx.withSchema(this.schemaName);
+
+        let tableBuilder = tx.schema
+          .createTable(versionedTableName)
+          .ifNotExists();
+
+        Object.entries(columns).forEach(([columnName, column]) => {
+          if (isOneColumn(column)) return;
+          if (isManyColumn(column)) return;
+          if (isEnumColumn(column)) {
+            // Handle enum types
+            tableBuilder = tableBuilder.addColumn(columnName, "text", (col) => {
+              if (!column.optional) col = col.notNull();
+              if (!column.list) {
+                col = col.check(
+                  sql`${sql.ref(columnName)} in (${sql.join(
+                    this.schema!.enums[column.type].map((v) => sql.lit(v)),
+                  )})`,
+                );
+              }
+              return col;
+            });
+          } else if (column.list) {
+            // Handle scalar list columns
+            tableBuilder = tableBuilder.addColumn(columnName, "text", (col) => {
+              if (!column.optional) col = col.notNull();
+              return col;
+            });
+          } else {
+            // Non-list base columns
+            tableBuilder = tableBuilder.addColumn(
+              columnName,
+              scalarToSqlType[column.type],
+              (col) => {
+                if (!column.optional) col = col.notNull();
+                return col;
+              },
+            );
+          }
+        });
+
+        tableBuilder = tableBuilder.addColumn(
+          "effectiveFromCheckpoint",
+          "varchar(58)",
+          (col) => col.notNull(),
+        );
+        tableBuilder = tableBuilder.addColumn(
+          "effectiveToCheckpoint",
+          "varchar(58)",
+          (col) => col.notNull(),
+        );
+        tableBuilder = tableBuilder.addPrimaryKeyConstraint(
+          `${versionedTableName}_effectiveToCheckpoint_unique`,
+          ["id", "effectiveToCheckpoint"] as never[],
+        );
+
+        await tableBuilder.execute();
+      }),
+    );
+
+  private copyTables = (tx: Transaction<any>, fromDatabase: "cache" | "live") =>
+    Promise.all(
+      Object.keys(this.schema!.tables).map(async (tableName) => {
+        // Database specific variables
+        const fromTable =
+          fromDatabase === "cache"
+            ? `"ponder_core_cache"."${this.tableIds![tableName]}"`
+            : `"${this.schemaName}"."${tableName}_versioned"`;
+        const toTable =
+          fromDatabase === "cache"
+            ? `"${this.schemaName}"."${tableName}_versioned"`
+            : `"ponder_core_cache"."${this.tableIds![tableName]}"`;
+
+        const query = sql`INSERT INTO ${sql.raw(
+          toTable,
+        )} SELECT * FROM ${sql.raw(fromTable)}`;
+
+        await query.execute(tx);
+      }),
     );
 }
 

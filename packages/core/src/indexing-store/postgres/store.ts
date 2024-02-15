@@ -74,7 +74,7 @@ export class PostgresIndexingStore implements IndexingStore {
     checkpoint?: Checkpoint | "latest";
     id: string | number | bigint;
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "findUnique", tableName }, async () => {
@@ -123,7 +123,7 @@ export class PostgresIndexingStore implements IndexingStore {
     after?: string | null;
     limit?: number;
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "findMany", tableName }, async () => {
@@ -326,7 +326,7 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "create", tableName }, async () => {
@@ -356,7 +356,7 @@ export class PostgresIndexingStore implements IndexingStore {
     checkpoint: Checkpoint;
     data: Row[];
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "createMany", tableName }, async () => {
@@ -398,7 +398,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "update", tableName }, async () => {
@@ -483,7 +483,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "updateMany", tableName }, async () => {
@@ -583,7 +583,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "upsert", tableName }, async () => {
@@ -676,7 +676,7 @@ export class PostgresIndexingStore implements IndexingStore {
     checkpoint: Checkpoint;
     id: string | number | bigint;
   }) => {
-    const versionedTableName = this.tableIds![tableName];
+    const versionedTableName = `${tableName}_versioned`;
     const table = this.schema!.tables[tableName];
 
     return this.wrap({ method: "delete", tableName }, async () => {
