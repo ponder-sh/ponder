@@ -443,9 +443,9 @@ export async function run({
     );
   }
 
+  log();
   for (const warning of warnings) {
-    log();
-    log(pico.yellow(warning));
+    log(`${pico.yellow("⚠")} ${warning}`);
   }
 
   log();

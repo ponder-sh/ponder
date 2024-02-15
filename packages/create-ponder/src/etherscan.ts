@@ -77,19 +77,33 @@ export const fromEtherscan = async ({
     abiResult = await getContractAbiAndName(contractAddress, apiUrl, apiKey);
   } catch (e) {
     const error = e as Error;
-    throw new Error(
-      `${pico.red("✗")} Failed to fetch contract ABI from block explorer API: ${
-        error.message
-      }`,
+    warnings.push(
+      `Unable to fetch contract ABI from block explorer. Error: ${error.message}`,
     );
+    abiResult = { abi: "[]", contractName: "UnverifiedContract" };
   }
 
   if (typeof abiResult.abi !== "string")
     throw new Error(
       `${pico.red(
         "✗",
-      )} Invalid ABI returned from block explorer API. Is the contract verified?`,
+      )} Invalid ABI returned from block explorer. Is the contract unverified? ABI: ${
+        abiResult.abi
+      }`,
     );
+
+  if (abiResult.contractName === "")
+    abiResult.contractName = "UnverifiedContract";
+  if (abiResult.abi === "Contract source code not verified")
+    abiResult.abi = "[]";
+
+  if (
+    abiResult.contractName === "UnverifiedContract" ||
+    abiResult.abi === "[]"
+  ) {
+    warnings.push("Contract is unverified or has an empty ABI.");
+  }
+
   const baseAbi = JSON.parse(abiResult.abi) as Abi;
   let contractName = abiResult.contractName;
 
@@ -114,8 +128,11 @@ export const fromEtherscan = async ({
     );
 
     blockNumber = contractCreationBlockNumber;
-  } catch (error) {
-    // Do nothing, blockNumber won't be set.
+  } catch (e) {
+    const error = e as Error;
+    warnings.push(
+      `Unable to fetch contract deployment block number from block explorer. Error: ${error.message}`,
+    );
   }
 
   // If the contract is an EIP-1967 proxy, get the implementation contract ABIs.
