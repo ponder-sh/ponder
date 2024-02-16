@@ -18,6 +18,7 @@ import { default as prompts } from "prompts";
 import rootPackageJson from "../package.json" assert { type: "json" };
 import { fromEtherscan } from "./etherscan.js";
 import { getPackageManager } from "./helpers/getPackageManager.js";
+import { mergeAbis } from "./helpers/mergeAbis.js";
 import { notifyUpdate } from "./helpers/notifyUpdate.js";
 import {
   ValidationError,
@@ -345,7 +346,7 @@ export async function run({
     for (const [name, contract] of Object.entries(config.contracts)) {
       // If it's an array of ABIs, use the 2nd one (the implementation ABI).
       const abi = Array.isArray(contract.abi)
-        ? contract.abi[1].abi!
+        ? mergeAbis(contract.abi.map((a) => a.abi))
         : contract.abi.abi;
 
       const abiEvents = abi.filter(
@@ -354,7 +355,7 @@ export async function run({
 
       const eventNamesToWrite = abiEvents
         .map((event) => event.name)
-        .slice(0, 2);
+        .slice(0, 4);
 
       const indexingFunctionFileContents = `
       import { ponder } from '@/generated'
@@ -443,9 +444,9 @@ export async function run({
     );
   }
 
+  log();
   for (const warning of warnings) {
-    log();
-    log(pico.yellow(warning));
+    log(`${pico.yellow("⚠")} ${warning}`);
   }
 
   log();
