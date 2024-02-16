@@ -130,7 +130,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
       lastEventCheckpoint?: Checkpoint;
     }
   > = {};
-  private taskBatchSize: number = MAX_BATCH_SIZE;
 
   private sourceById: { [sourceId: Source["id"]]: Source } = {};
 
@@ -762,10 +761,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const fromCheckpoint = state.tasksLoadedToCheckpoint;
     const toCheckpoint = this.syncGatewayService.checkpoint;
 
+    const taskBatchSize = this.calculateTaskBatchSize(key);
+
     const result = await this.syncGatewayService.getEvents({
       fromCheckpoint,
       toCheckpoint,
-      limit: this.taskBatchSize,
+      limit: taskBatchSize,
       logFilters: state.sources.filter(sourceIsLogFilter).map((logFilter) => ({
         id: logFilter.id,
         chainId: logFilter.chainId,
@@ -961,10 +962,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         };
       }
     }
-
-    this.taskBatchSize = Math.floor(
-      MAX_BATCH_SIZE / Object.keys(this.indexingFunctionStates).length,
-    );
   };
 
   private updateCompletedSeconds = (key: string) => {
@@ -997,5 +994,32 @@ export class IndexingService extends Emittery<IndexingEvents> {
       state.lastEventCheckpoint.blockTimestamp -
         state.firstEventCheckpoint.blockTimestamp,
     );
+  };
+
+  /** Determine the task batch size to use accounting for tasks that already finished loading. */
+  private calculateTaskBatchSize = (key: string) => {
+    let totalBatchSize = MAX_BATCH_SIZE;
+    let unfinishedCount = Object.keys(this.indexingFunctionStates).length;
+
+    for (const indexingFunctionKey of Object.keys(
+      this.indexingFunctionStates,
+    )) {
+      if (key === indexingFunctionKey) continue;
+
+      const state = this.indexingFunctionStates[indexingFunctionKey];
+
+      if (
+        state.lastEventCheckpoint &&
+        isCheckpointGreaterThanOrEqualTo(
+          state.tasksLoadedToCheckpoint,
+          state.lastEventCheckpoint,
+        )
+      ) {
+        totalBatchSize -= state.loadedTasks.length;
+        unfinishedCount -= 1;
+      }
+    }
+
+    return Math.floor(totalBatchSize / unfinishedCount);
   };
 }
