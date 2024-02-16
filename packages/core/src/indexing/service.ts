@@ -97,6 +97,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   queue?: IndexingFunctionQueue;
 
   private flushInterval?: NodeJS.Timeout;
+  private isFlushIntervalExec = false;
 
   private getNetwork: (checkpoint: Checkpoint) => Context["network"] =
     undefined!;
@@ -286,6 +287,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     clearInterval(this.flushInterval);
 
+    await this.flush();
+
     this.common.metrics.ponder_indexing_completed_events.reset();
 
     await this.buildIndexingFunctionStates();
@@ -303,7 +306,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.common.metrics.ponder_indexing_completed_seconds.reset();
     this.common.metrics.ponder_indexing_completed_timestamp.set(0);
 
+    this.isFlushIntervalExec = false;
     this.flushInterval = setInterval(async () => {
+      if (this.isFlushIntervalExec) return;
+      this.isFlushIntervalExec = true;
       this.isPaused = true;
       this.queue?.pause();
 
@@ -313,6 +319,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.queue?.start();
 
       this.processEvents();
+      this.isFlushIntervalExec = false;
     }, 10_000);
   };
 
