@@ -288,7 +288,7 @@ const getContractAbiAndName = async (
       abi = JSON.parse(rawAbi);
     }
 
-    contractName = data.result[0].ContractName;
+    contractName = data.result[0].ContractName ?? "";
     if (contractName === "") contractName = "UnverifiedContract";
   } catch (e) {
     const error = e as Error;
