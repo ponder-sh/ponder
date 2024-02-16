@@ -424,39 +424,6 @@ query {
 
 </div>
 
-## Time-travel queries
-
-Using time-travel queries, you can query the state of your app's database at any point in history. To construct a time-travel query, pass a Unix timestamp to the `timestamp` argument on any of the root query types.
-
-| Time-travel option | Default                |
-| :----------------- | :--------------------- |
-| `timestamp`        | `undefined` ("latest") |
-
-In this example, consider that only Pablo had been added to the database at the specified timestamp, and his age at that time was 42. The other records were inserted later.
-
-<div className="code-columns">
-
-{/* prettier-ignore */}
-```graphql filename="Query"
-query {
-  persons(timestamp: 1689910567) {
-    name
-    age
-  }
-}
-```
-
-{/* prettier-ignore */}
-```json filename="Result"
-{
-  "persons": [
-    { "name": "Pablo", "age": 42 },
-  ]
-}
-```
-
-</div>
-
 ## Relationship fields
 
 <Callout type="info">
@@ -512,3 +479,42 @@ type Person {
 ```
 
 </div>
+
+## Time-travel queries
+
+Using time-travel queries, you can query the state of the database at any point in history. To construct a time-travel query, pass a Unix timestamp to the `timestamp` argument on any of the root query types.
+
+| Time-travel option | Default                |
+| :----------------- | :--------------------- |
+| `timestamp`        | `undefined` ("latest") |
+
+In this example, consider that only Pablo had been added to the database before the specified timestamp, and his age at that time was 42. The other records were inserted later.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(timestamp: 1689910567) {
+    items {
+      name
+      age
+    }
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": {
+    "items": [
+      { "name": "Pablo", "age": 42 },
+    ]
+  }
+}
+```
+
+</div>
+
+<Callout>The `timestamp` argument is __inclusive__. If a log was included in a block with timestamp 100, the result of a query with `timestamp: 100` _includes_ any database operations made while indexing that log.</Callout>

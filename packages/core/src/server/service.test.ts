@@ -1669,67 +1669,56 @@ test("/admin/reload does not exist if dev routes aren't registered", async (cont
   await service.kill();
 });
 
-// This is a known limitation for now, which is that the timestamp version of entities
-// returned in derived fields does not inherit the timestamp argument provided to the parent.
-// So, if you want to use time-travel queries with derived fields, you need to manually
-// include the desired timestamp at every level of the query.
-test.skip("serves derived entities versioned at provided timestamp", async (context) => {
+test("serves nested records at the timestamp/version specified at the top level", async (context) => {
   const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({
-      common,
-      indexingStore,
-    });
+  const { service, gql, createTestEntity, createEntityWithStringId } =
+    await setup({ common, indexingStore });
 
   await createTestEntity({ id: 0 });
-  await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
+  await createEntityWithStringId({ id: "0", testEntityId: "0" });
 
   await indexingStore.update({
-    tableName: "EntityWithBigIntId",
+    tableName: "EntityWithStringId",
     checkpoint: createCheckpoint(10),
-    id: BigInt(0),
-    data: {
-      testEntity: "2",
-    },
+    id: "0",
+    data: { testEntityId: "2" },
   });
 
   const responseOld = await gql(`
     testEntitys(timestamp: 5) {
       items {
         id
-        derivedTestEntity {
-          id
+        derived {
+          items {
+            id
+          }
         }
       }
     }
   `);
   expect(responseOld.body.errors).toBe(undefined);
   expect(responseOld.statusCode).toBe(200);
-  const testEntitysOld = responseOld.body.data.testEntitys.items;
-  expect(testEntitysOld).toHaveLength(1);
-  expect(testEntitysOld[0]).toMatchObject({
-    id: "0",
-    derivedTestEntity: [{ id: "0" }],
-  });
+  const { items: testEntitysOld } = responseOld.body.data.testEntitys;
+  expect(testEntitysOld).toMatchObject([
+    { id: "0", derived: { items: [{ id: "0" }] } },
+  ]);
 
   const response = await gql(`
     testEntitys {
       items {
-          id
-          derivedTestEntity {
+        id
+        derived {
+          items {
             id
           }
+        }
       }
     }
   `);
   expect(response.body.errors).toBe(undefined);
   expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
-  expect(testEntitys.items).toHaveLength(1);
-  expect(testEntitys.items[0]).toMatchObject({
-    id: "0",
-    derivedTestEntity: [],
-  });
+  const { items: testEntitys } = response.body.data.testEntitys;
+  expect(testEntitys).toMatchObject([{ id: "0", derived: { items: [] } }]);
 
   await service.kill();
 });
@@ -1745,7 +1734,10 @@ test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
   await Promise.all(
     range(0, 50).map(async (n) => {
       await createTestEntity({ id: n });
-      createEntityWithBigIntId({ id: BigInt(n), testEntityId: String(n) });
+      await createEntityWithBigIntId({
+        id: BigInt(n),
+        testEntityId: String(n),
+      });
     }),
   );
 
@@ -1771,53 +1763,57 @@ test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
   const { entityWithBigIntIds } = response.body.data;
   expect(entityWithBigIntIds.items).toHaveLength(50);
 
-  expect(findManySpy).toHaveBeenCalledTimes(2);
   expect(findUniqueSpy).toHaveBeenCalledTimes(0);
+  expect(findManySpy).toHaveBeenCalledTimes(2);
 
   await service.kill();
 });
 
-test("uses dataloader to resolve a plural -> p.many() path", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ common, indexingStore });
+test.fails(
+  "uses dataloader to resolve a plural -> p.many() path",
+  async (context) => {
+    const { common, indexingStore } = context;
+    const { service, gql, createTestEntity, createEntityWithStringId } =
+      await setup({ common, indexingStore });
 
-  const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
-  const findManySpy = vi.spyOn(indexingStore, "findMany");
+    const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
+    const findManySpy = vi.spyOn(indexingStore, "findMany");
 
-  await Promise.all(
-    range(0, 50).map(async (n) => {
-      await createTestEntity({ id: n });
-      createEntityWithBigIntId({ id: BigInt(n), testEntityId: String(n) });
-    }),
-  );
+    await Promise.all(
+      range(0, 50).map(async (n) => {
+        await createTestEntity({ id: n });
+        await createEntityWithStringId({
+          id: String(n),
+          testEntityId: String(n),
+        });
+      }),
+    );
 
-  const response = await gql(`
+    const response = await gql(`
     entityWithBigIntIds {
       items {
         id
         testEntity {
           id
-          string
-          int
-          float
-          boolean
-          hex
-          bigInt
+          derived {
+            items {
+              id
+            }
+          }
         }
       }
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { entityWithBigIntIds } = response.body.data;
-  expect(entityWithBigIntIds.items).toHaveLength(50);
+    expect(response.body.errors).toBe(undefined);
+    expect(response.statusCode).toBe(200);
+    const { entityWithBigIntIds } = response.body.data;
+    expect(entityWithBigIntIds.items).toHaveLength(50);
 
-  // findMany should be called once per level of the query
-  expect(findManySpy).toHaveBeenCalledTimes(2);
-  // findUnique should not be called at all
-  expect(findUniqueSpy).toHaveBeenCalledTimes(0);
+    // Fails because we haven't implemented the dataloader for this path yet.
+    expect(findUniqueSpy).toHaveBeenCalledTimes(0);
+    expect(findManySpy).toHaveBeenCalledTimes(2);
 
-  await service.kill();
-});
+    await service.kill();
+  },
+);
