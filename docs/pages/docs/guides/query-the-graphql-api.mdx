@@ -87,6 +87,8 @@ The `where` argument type includes filter options for every column defined on a 
 | `{column}_has`             | Lists of primitives and enums                        | **has** the value as an element           |
 | `{column}_not_has`         | Lists of primitives and enums                        | **does not have** the value as an element |
 
+You can also compose filters using the `AND` and `OR` operators. These special fields accept an array of filter objects.
+
 ### Examples
 
 For the following examples, assume these records exist in your database.
@@ -104,7 +106,7 @@ For the following examples, assume these records exist in your database.
 <div></div>
 </div>
 
-Get all `Person` records with an `age` greater than `32`:
+Get all `Person` records with an `age` greater than `32`.
 
 <div className="code-columns">
 {/* prettier-ignore */}
@@ -129,7 +131,7 @@ query {
 
 </div>
 
-Get all `Person` records with a `name` that does not end with `"y"`:
+Get all `Person` records with a `name` that does not end with `"y"` _and_ an age greater than `60`. Note that when you include multiple filter conditions, they are combined with a logical `AND`.
 
 <div className="code-columns">
 {/* prettier-ignore */}
@@ -151,7 +153,38 @@ query {
   ]
 }
 ```
+</div>
 
+Get all `Person` records with a `name` that contains `"ll"` _or_ an age greater than or equal to `60`. In this case, we use the special `OR` operator to combine multiple filter conditions.
+
+<div className="code-columns">
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(
+    where: {
+      OR: [
+        { name_contains: "ll" },
+        { age_gte: 60 }
+      ] 
+    }
+  ) {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Barry", "age": 57 },
+    { "name": "Sally", "age": 22 },
+    { "name": "Pablo", "age": 71 },
+  ]
+}
+```
 </div>
 
 ## Sorting
