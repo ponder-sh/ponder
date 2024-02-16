@@ -4,6 +4,7 @@ import {
   type GraphQLFieldResolver,
   GraphQLInputObjectType,
   GraphQLInt,
+  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
@@ -41,7 +42,7 @@ export const buildPluralField = ({
       ? { ...maxCheckpoint, blockTimestamp: timestamp }
       : undefined; // Latest.
 
-    const whereObject = where ? buildWhereObject({ where }) : {};
+    const whereObject = where ? buildWhereObject(where) : {};
 
     const orderByObject = orderBy
       ? { [orderBy]: orderDirection || "asc" }
@@ -59,7 +60,7 @@ export const buildPluralField = ({
   };
 
   return {
-    type: entityPageType,
+    type: new GraphQLNonNull(entityPageType),
     args: {
       timestamp: { type: GraphQLInt },
       where: { type: entityFilterType },

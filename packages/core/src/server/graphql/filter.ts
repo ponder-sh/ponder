@@ -1,7 +1,7 @@
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
-  GraphQLEnumType,
+  type GraphQLEnumType,
   type GraphQLInputFieldConfigMap,
   GraphQLInputObjectType,
 } from "graphql";
@@ -30,67 +30,75 @@ export const buildEntityFilterTypes = ({
   const entityFilterTypes: Record<string, GraphQLInputObjectType> = {};
 
   for (const [tableName, table] of Object.entries(schema.tables)) {
-    const filterFields: GraphQLInputFieldConfigMap = {};
-
-    Object.entries(table).forEach(([columnName, column]) => {
-      // Note: Only include non-virtual columns in plural fields
-      if (isOneColumn(column)) return;
-      if (isManyColumn(column)) return;
-
-      const type = isEnumColumn(column)
-        ? enumTypes[column.type]
-        : tsTypeToGqlScalar[column.type];
-
-      if (column.list) {
-        // List fields => universal, plural
-        filterOperators.universal.forEach((suffix) => {
-          filterFields[`${columnName}${suffix}`] = {
-            type: new GraphQLList(type),
-          };
-        });
-
-        filterOperators.plural.forEach((suffix) => {
-          filterFields[`${columnName}${suffix}`] = {
-            type: type,
-          };
-        });
-      } else {
-        // Scalar fields => universal, singular, numeric OR string depending on base type
-        // Note: Booleans => universal and singular only.
-        filterOperators.universal.forEach((suffix) => {
-          filterFields[`${columnName}${suffix}`] = {
-            type: type,
-          };
-        });
-
-        filterOperators.singular.forEach((suffix) => {
-          filterFields[`${columnName}${suffix}`] = {
-            type: new GraphQLList(type),
-          };
-        });
-
-        if (["int", "bigint", "float", "hex"].includes(column.type)) {
-          filterOperators.numeric.forEach((suffix) => {
-            filterFields[`${columnName}${suffix}`] = {
-              type: type,
-            };
-          });
-        }
-
-        if ("string" === column.type) {
-          filterOperators.string.forEach((suffix) => {
-            filterFields[`${columnName}${suffix}`] = {
-              type: type,
-            };
-          });
-        }
-      }
-    });
-
-    entityFilterTypes[tableName] = new GraphQLInputObjectType({
+    const filterType = new GraphQLInputObjectType({
       name: `${tableName}Filter`,
-      fields: filterFields,
+      fields: () => {
+        const filterFields: GraphQLInputFieldConfigMap = {
+          // Logical operators
+          AND: { type: new GraphQLList(filterType) },
+          OR: { type: new GraphQLList(filterType) },
+        };
+
+        Object.entries(table).forEach(([columnName, column]) => {
+          // Note: Only include non-virtual columns in plural fields
+          if (isOneColumn(column)) return;
+          if (isManyColumn(column)) return;
+
+          const type = isEnumColumn(column)
+            ? enumTypes[column.type]
+            : tsTypeToGqlScalar[column.type];
+
+          if (column.list) {
+            // List fields => universal, plural
+            filterOperators.universal.forEach((suffix) => {
+              filterFields[`${columnName}${suffix}`] = {
+                type: new GraphQLList(type),
+              };
+            });
+
+            filterOperators.plural.forEach((suffix) => {
+              filterFields[`${columnName}${suffix}`] = {
+                type: type,
+              };
+            });
+          } else {
+            // Scalar fields => universal, singular, numeric OR string depending on base type
+            // Note: Booleans => universal and singular only.
+            filterOperators.universal.forEach((suffix) => {
+              filterFields[`${columnName}${suffix}`] = {
+                type: type,
+              };
+            });
+
+            filterOperators.singular.forEach((suffix) => {
+              filterFields[`${columnName}${suffix}`] = {
+                type: new GraphQLList(type),
+              };
+            });
+
+            if (["int", "bigint", "float", "hex"].includes(column.type)) {
+              filterOperators.numeric.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = {
+                  type: type,
+                };
+              });
+            }
+
+            if ("string" === column.type) {
+              filterOperators.string.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = {
+                  type: type,
+                };
+              });
+            }
+          }
+        });
+
+        return filterFields;
+      },
     });
+
+    entityFilterTypes[tableName] = filterType;
   }
 
   return { entityFilterTypes };
@@ -115,10 +123,22 @@ const graphqlFilterToStoreCondition = {
   not_ends_with: "notEndsWith",
 } as const;
 
-export function buildWhereObject({ where }: { where: Record<string, any> }) {
+export function buildWhereObject(where: Record<string, any>) {
   const whereObject: Record<string, any> = {};
 
-  Object.entries(where).forEach(([whereKey, rawValue]) => {
+  for (const [whereKey, rawValue] of Object.entries(where)) {
+    // Handle the `and` and `or` operators.
+    if (whereKey === "AND" || whereKey === "OR") {
+      if (!Array.isArray(rawValue)) {
+        throw new Error(
+          `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
+        );
+      }
+
+      whereObject[whereKey] = rawValue.map(buildWhereObject);
+      continue;
+    }
+
     const [fieldName, condition_] = whereKey.split(/_(.*)/s);
     // This is a hack to handle the "" operator, which the regex above doesn't handle
     const condition = (
@@ -133,7 +153,9 @@ export function buildWhereObject({ where }: { where: Record<string, any> }) {
     }
 
     whereObject[fieldName] = { [storeCondition]: rawValue };
-  });
+  }
+
+  console.log(whereObject);
 
   return whereObject;
 }

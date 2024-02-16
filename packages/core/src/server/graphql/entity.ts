@@ -116,7 +116,7 @@ export const buildEntityTypes = ({
               const { where, orderBy, orderDirection, limit, after, before } =
                 args;
 
-              const whereObject = where ? buildWhereObject({ where }) : {};
+              const whereObject = where ? buildWhereObject(where) : {};
               // Add the parent record ID to the where object.
               // Note that this overrides any existing equals condition.
               (whereObject[column.referenceColumn] ??= {}).equals = parent.id;
@@ -186,9 +186,11 @@ export const buildEntityTypes = ({
       name: `${tableName}Page`,
       fields: () => ({
         items: {
-          type: new GraphQLList(new GraphQLNonNull(entityTypes[tableName])),
+          type: new GraphQLNonNull(
+            new GraphQLList(new GraphQLNonNull(entityTypes[tableName])),
+          ),
         },
-        pageInfo: { type: GraphQLPageInfo },
+        pageInfo: { type: new GraphQLNonNull(GraphQLPageInfo) },
       }),
     });
   }
