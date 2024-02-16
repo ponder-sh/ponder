@@ -523,6 +523,9 @@ importers:
       pg:
         specifier: ^8.11.3
         version: 8.11.3
+      pg-connection-string:
+        specifier: ^2.6.2
+        version: 2.6.2
       picocolors:
         specifier: ^1.0.0
         version: 1.0.0

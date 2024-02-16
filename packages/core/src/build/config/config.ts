@@ -57,6 +57,14 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
   const sources: Source[] = Object.entries(config.contracts)
     // First, apply any network-specific overrides and flatten the result.
     .flatMap(([contractName, contract]) => {
+      if (contract.network === null || contract.network === undefined) {
+        throw new Error(
+          `Validation failed: Network for contract '${contractName}' is null or undefined. Expected one of [${networks
+            .map((n) => `'${n.name}'`)
+            .join(", ")}].`,
+        );
+      }
+
       // Single network case.
       if (typeof contract.network === "string") {
         return {

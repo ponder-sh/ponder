@@ -7,25 +7,25 @@ import { Callout } from 'nextra/components'
 
 # TypeScript
 
-Ponder uses advanced TypeScript features to offer end-to-end type safety without any code generation.
+Ponder uses advanced TypeScript features to offer end-to-end type safety without code generation.
 
-<Callout type="info">We **strongly** recommend that Ponder users invest the time to set up a working TypeScript development environment. It will pay dividends in the long run.</Callout>
+<Callout type="info">We **strongly** recommend that Ponder users take the time to set up a working TypeScript development environment. It will pay dividends in the long run.</Callout>
 
 ## Requirements
 
-- TypeScript `v5.0.4` or greater and viem `v1.16.0` or greater.
-- Contract ABIs must be asserted `as const` following [ABIType guidelines](https://abitype.dev/guide/getting-started#usage).
+- TypeScript `>=5.0.4` and viem `>=1.16.0`
+- ABIs must be asserted `as const` following [ABIType guidelines](https://abitype.dev/guide/getting-started#usage).
 - The `ponder-env.d.ts` file must be included in your project.
 
 ## `ponder-env.d.ts`
 
-This "magical" file is what makes Ponder's zero-codegen type system possible. The file contains a module declaration for `"@/generated"{:ts}` that exports types derived from your project's config and schema types.
+This "magical" file is what makes Ponder's zero-codegen type system possible. The file contains a module declaration for `"@/generated"{:ts}` that exports types derived from `ponder.config.ts` and `ponder.schema.ts`.
 
 Occasionally, Ponder's dev server may make changes to `ponder-env.d.ts` after upgrading to a new version of `@ponder/core`. When this happens, please commit the changes into version control.
 
 ## VSCode
 
-By default, VSCode's TypeScript language features use an internal version of TypeScript. Sometimes, this version does not meet Ponder's requirement of `v5.0.4`.
+By default, VSCode's TypeScript language features use an internal version of TypeScript. Sometimes, this version does not meet Ponder's requirement of `>=5.0.4`.
 
 To change VSCode's TypeScript version, run `TypeScript: Select TypeScript version..."` from the command palette and select `Use Workspace Version` or [update VSCode's version](https://stackoverflow.com/questions/39668731/what-typescript-version-is-visual-studio-code-using-how-to-update-it).
 
@@ -115,3 +115,21 @@ function helper(args: IndexingFunctionArgs<"Weth:Deposit">) {
 ```
 
 Like `Event` and `Context`, `IndexingFunctionArgs` returns the union of all indexing function argument types if no event name is provided.
+
+### `Schema`
+
+A generic type that requires a table name from `ponder.schema.ts` and returns the type of a record in that table.
+
+```ts
+import { ponder, type Schema } from "@/generated";
+
+function helper(account: Schema<"Account">) {
+  account;
+  // ^? {
+  //      id: bigint;
+  //      balance: bigint;
+  //      nickname: string;
+  //      createdAt: number;
+  //    }
+}
+```

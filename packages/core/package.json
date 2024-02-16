@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.2.4",
+  "version": "0.2.6",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -66,6 +66,7 @@
     "p-limit": "^5.0.0",
     "p-queue": "^7.4.1",
     "pg": "^8.11.3",
+    "pg-connection-string": "^2.6.2",
     "picocolors": "^1.0.0",
     "pino": "^8.16.2",
     "prom-client": "^15.0.0",
