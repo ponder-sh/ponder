@@ -789,7 +789,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         tasks.push({
           kind: "LOG",
           data: {
-            networkName: this.sourceById[event.sourceId].networkName,
+            networkName: "mainnet",
             contractName: state.contractName,
             eventName: state.eventName,
             event: {

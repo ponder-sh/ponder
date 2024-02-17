@@ -169,7 +169,6 @@ export interface SyncStore {
   }): Promise<
     {
       events: {
-        sourceId: string;
         chainId: number;
         log: Log;
         block: Block;
