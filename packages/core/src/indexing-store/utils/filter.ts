@@ -1,7 +1,10 @@
 import type { Schema } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
-import type { ComparisonOperatorExpression } from "kysely";
-import type { Table, WhereInput } from "../store.js";
+import type {
+  ComparisonOperatorExpression,
+  ExpressionBuilder,
+  ExpressionWrapper,
+} from "kysely";
 import { encodeValue } from "./encoding.js";
 
 const filterValidityMap = {
@@ -46,7 +49,7 @@ const filterEncodingMap: {
   [condition: string]: (
     value: any,
     encode: (v: any) => any,
-  ) => [comparator: string, value: any];
+  ) => [comparator: ComparisonOperatorExpression, value: any];
 } = {
   // Universal
   equals: (value, encode) =>
@@ -74,23 +77,34 @@ const filterEncodingMap: {
 } as const;
 
 export function buildWhereConditions({
+  eb,
   where,
   table,
   encoding,
 }: {
-  where: WhereInput<Table> | undefined;
+  eb: ExpressionBuilder<any, string>;
+  where: Record<string, any>;
   table: Schema["tables"][keyof Schema["tables"]];
   encoding: "sqlite" | "postgres";
 }) {
-  if (where === undefined) return [];
-
-  const conditions: [
-    columnName: string,
-    comparator: ComparisonOperatorExpression,
-    value: any,
-  ][] = [];
+  const exprs: ExpressionWrapper<any, string, any>[] = [];
 
   for (const [columnName, rhs] of Object.entries(where)) {
+    if (columnName === "AND" || columnName === "OR") {
+      if (!Array.isArray(rhs)) {
+        throw new Error(
+          `Invalid filter. Expected an array for logical operator '${columnName}', got '${rhs}'.`,
+        );
+      }
+
+      const nestedExprs = rhs.map((nestedWhere) =>
+        buildWhereConditions({ eb, where: nestedWhere, table, encoding }),
+      );
+
+      exprs.push(eb[columnName === "AND" ? "and" : "or"](nestedExprs));
+      continue;
+    }
+
     const column = table[columnName];
 
     if (!column) {
@@ -137,13 +151,9 @@ export function buildWhereConditions({
           : (v: any) => encodeValue(v, column, encoding);
 
       const [comparator, encodedValue] = filterEncodingFn(value, encode);
-      conditions.push([
-        columnName,
-        comparator as ComparisonOperatorExpression,
-        encodedValue,
-      ]);
+      exprs.push(eb.eb(columnName, comparator, encodedValue));
     }
   }
 
-  return conditions;
+  return eb.and(exprs);
 }

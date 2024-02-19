@@ -50,6 +50,7 @@
     "cac": "^6.7.14",
     "conf": "^12.0.0",
     "cors": "^2.8.5",
+    "dataloader": "^2.2.2",
     "detect-package-manager": "^3.0.1",
     "dotenv": "^16.3.1",
     "emittery": "^1.0.1",

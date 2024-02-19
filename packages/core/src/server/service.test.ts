@@ -1549,254 +1549,6 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   await service.kill();
 });
 
-// test("serves plural entities versioned at specified timestamp", async (context) => {
-//   const { common, indexingStore } = context;
-//   const { service, gql, createTestEntity } = await setup({
-//     common,
-//     indexingStore,
-//   });
-
-//   await createTestEntity({ id: 1 });
-//   await createTestEntity({ id: 2 });
-
-//   await indexingStore.update({
-//     tableName: "TestEntity",
-//     checkpoint: createCheckpoint(10),
-//     id: String(1),
-//     data: {
-//       string: "updated",
-//     },
-//   });
-//   await indexingStore.update({
-//     tableName: "TestEntity",
-//     checkpoint: createCheckpoint(15),
-//     id: String(2),
-//     data: {
-//       string: "updated",
-//     },
-//   });
-
-//   const responseOld = await gql(`
-//     testEntitys(timestamp: 12, orderBy: "int") {
-//       items {
-//         id
-//         string
-//       }
-//     }
-//   `);
-//   expect(responseOld.body.errors).toBe(undefined);
-//   expect(responseOld.statusCode).toBe(200);
-//   const testEntitysOld = responseOld.body.data.testEntitys.items;
-//   expect(testEntitysOld).toMatchObject([
-//     { id: "1", string: "updated" },
-//     { id: "2", string: "2" },
-//   ]);
-
-//   const response = await gql(`
-//     testEntitys(orderBy: "int") {
-//       items {
-//         id
-//         string
-//       }
-//     }
-//   `);
-//   expect(response.body.errors).toBe(undefined);
-//   expect(response.statusCode).toBe(200);
-//   const testEntitys = response.body.data.testEntitys.items;
-//   expect(testEntitys).toMatchObject([
-//     { id: "1", string: "updated" },
-//     { id: "2", string: "updated" },
-//   ]);
-
-//   await service.kill();
-// });
-
-// test("serves after-based derived paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
-//   const { service, gql, createTestEntity, createEntityWithStringId } =
-//     await setup({
-//       common,
-//       indexingStore,
-//     });
-
-//   await createTestEntity({ id: 1 });
-//   await createTestEntity({ id: 2 });
-//   await createTestEntity({ id: 3 });
-
-//   await createEntityWithStringId({ id: "0", testEntityId: "1" });
-//   await createEntityWithStringId({ id: "1", testEntityId: "1" });
-//   await createEntityWithStringId({ id: "2", testEntityId: "1" });
-
-//   const responseFirst = await gql(`
-//     testEntitys(limit: 1) {
-//       items {
-//         id
-//         derived(after: "MA==", limit: 1) {
-//           items {
-//             id
-//           }
-//           after
-//         }
-//       }
-//     }
-//   `);
-
-//   expect(responseFirst.body.errors).toBe(undefined);
-//   expect(responseFirst.statusCode).toBe(200);
-//   expect(responseFirst.body.data.testEntitys.items[0].derived.after).toBe(
-//     btoa(String(1)),
-//   );
-//   const testEntitysFirst =
-//     responseFirst.body.data.testEntitys.items[0].derived.items;
-//   expect(testEntitysFirst).toMatchObject([{ id: "1" }]);
-
-//   await service.kill();
-// });
-
-// test("serves after-based paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
-//   const { service, gql, createTestEntity } = await setup({
-//     common,
-//     indexingStore,
-//   });
-
-//   await createTestEntity({ id: 1 });
-//   await createTestEntity({ id: 2 });
-
-//   const responseFirst = await gql(`
-//     testEntitys(limit: 1) {
-//       items {
-//         id
-//         string
-//       }
-//       after
-//     }
-//   `);
-
-//   expect(responseFirst.body.errors).toBe(undefined);
-//   expect(responseFirst.statusCode).toBe(200);
-//   expect(responseFirst.body.data.testEntitys.after).toBe(btoa(String(1)));
-//   const testEntitysFirst = responseFirst.body.data.testEntitys.items;
-//   expect(testEntitysFirst).toMatchObject([{ id: "1" }]);
-
-//   const responseAfter = await gql(`
-//     testEntitys(limit: 1, after: "${responseFirst.body.data.testEntitys.after}") {
-//       items {
-//         id
-//         string
-//       }
-//       after
-//     }
-//   `);
-
-//   expect(responseAfter.body.errors).toBe(undefined);
-//   expect(responseAfter.statusCode).toBe(200);
-//   const testEntitys = responseAfter.body.data.testEntitys.items;
-//   expect(testEntitys).toMatchObject([{ id: "2" }]);
-
-//   await service.kill();
-// });
-
-// test("serves after-based paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
-//   const { service, gql, createTestEntity } = await setup({
-//     common,
-//     indexingStore,
-//   });
-
-//   await createTestEntity({ id: 1 });
-//   await createTestEntity({ id: 2 });
-
-//   const responseFirst = await gql(`
-//     testEntitys(limit: 1) {
-//       items {
-//         id
-//         string
-//       }
-//       after
-//     }
-//   `);
-
-//   expect(responseFirst.body.errors).toBe(undefined);
-//   expect(responseFirst.statusCode).toBe(200);
-//   expect(responseFirst.body.data.testEntitys.after).toBe(btoa(String(1)));
-//   const testEntitysFirst = responseFirst.body.data.testEntitys.items;
-//   expect(testEntitysFirst).toMatchObject([{ id: "1" }]);
-
-//   const responseAfter = await gql(`
-//     testEntitys(limit: 1, after: "${responseFirst.body.data.testEntitys.after}") {
-//       items {
-//         id
-//         string
-//       }
-//       after
-//     }
-//   `);
-
-//   expect(responseAfter.body.errors).toBe(undefined);
-//   expect(responseAfter.statusCode).toBe(200);
-//   const testEntitys = responseAfter.body.data.testEntitys.items;
-//   expect(testEntitys).toMatchObject([{ id: "2" }]);
-
-//   await service.kill();
-// });
-
-// test("serves before-based paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
-//   const { service, gql, createTestEntity } = await setup({
-//     common,
-//     indexingStore,
-//   });
-
-//   await createTestEntity({ id: 1 });
-//   await createTestEntity({ id: 2 });
-//   await createTestEntity({ id: 3 });
-
-//   const responseFirst = await gql(`
-//     testEntitys(limit: 2) {
-//       items {
-//         id
-//       }
-//       after
-//     }
-//   `);
-
-//   expect(responseFirst.body.errors).toBe(undefined);
-//   expect(responseFirst.statusCode).toBe(200);
-//   expect(responseFirst.body.data.testEntitys.after).toBe(btoa(String(2)));
-//   const testEntitysFirst = responseFirst.body.data.testEntitys.items;
-//   expect(testEntitysFirst).toMatchObject([{ id: "1" }, { id: "2" }]);
-
-//   const responseAfter = await gql(`
-//     testEntitys(limit: 1, after: "${responseFirst.body.data.testEntitys.after}") {
-//       items {
-//         id
-//       }
-//       before
-//     }
-//   `);
-
-//   expect(responseAfter.body.errors).toBe(undefined);
-//   expect(responseAfter.statusCode).toBe(200);
-//   const testEntitysAfter = responseAfter.body.data.testEntitys.items;
-//   expect(testEntitysAfter).toMatchObject([{ id: "3" }]);
-
-//   const responseBefore = await gql(`
-//     testEntitys(limit: 1, before: "${responseAfter.body.data.testEntitys.before}") {
-//       items {
-//         id
-//       }
-//     }
-//   `);
-
-//   expect(responseAfter.body.errors).toBe(undefined);
-//   expect(responseAfter.statusCode).toBe(200);
-//   const testEntitysBefore = responseBefore.body.data.testEntitys.items;
-//   expect(testEntitysBefore).toMatchObject([{ id: "2" }]);
-
-//   await service.kill();
-// });
-
 test("responds with appropriate status code pre and post historical sync", async (context) => {
   const { common, indexingStore } = context;
   const { service, gql, createTestEntity } = await setup({
@@ -1846,72 +1598,6 @@ test("responds with appropriate status code pre and post historical sync", async
   await service.kill();
 });
 
-// This is a known limitation for now, which is that the timestamp version of entities
-// returned in derived fields does not inherit the timestamp argument provided to the parent.
-// So, if you want to use time-travel queries with derived fields, you need to manually
-// include the desired timestamp at every level of the query.
-test.skip("serves derived entities versioned at provided timestamp", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({
-      common,
-      indexingStore,
-    });
-
-  await createTestEntity({ id: 0 });
-  await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
-
-  await indexingStore.update({
-    tableName: "EntityWithBigIntId",
-    checkpoint: createCheckpoint(10),
-    id: BigInt(0),
-    data: {
-      testEntity: "2",
-    },
-  });
-
-  const responseOld = await gql(`
-    testEntitys(timestamp: 5) {
-      items {
-        id
-        derivedTestEntity {
-          id
-        }
-      }
-    }
-  `);
-  expect(responseOld.body.errors).toBe(undefined);
-  expect(responseOld.statusCode).toBe(200);
-  const testEntitysOld = responseOld.body.data.testEntitys.items;
-  expect(testEntitysOld).toHaveLength(1);
-  expect(testEntitysOld[0]).toMatchObject({
-    id: "0",
-    derivedTestEntity: [{ id: "0" }],
-  });
-
-  const response = await gql(`
-    testEntitys {
-      items {
-          id
-          derivedTestEntity {
-            id
-          }
-      }
-    }
-  `);
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
-  expect(testEntitys.items).toHaveLength(1);
-  expect(testEntitys.items[0]).toMatchObject({
-    id: "0",
-    derivedTestEntity: [],
-  });
-
-  await service.kill();
-});
-
-// Admin routes.
 test("/admin/reload emits chainIds in reload event", async (context) => {
   const { common, indexingStore } = context;
   const { service } = await setup({
@@ -1982,3 +1668,152 @@ test("/admin/reload does not exist if dev routes aren't registered", async (cont
 
   await service.kill();
 });
+
+test("serves nested records at the timestamp/version specified at the top level", async (context) => {
+  const { common, indexingStore } = context;
+  const { service, gql, createTestEntity, createEntityWithStringId } =
+    await setup({ common, indexingStore });
+
+  await createTestEntity({ id: 0 });
+  await createEntityWithStringId({ id: "0", testEntityId: "0" });
+
+  await indexingStore.update({
+    tableName: "EntityWithStringId",
+    checkpoint: createCheckpoint(10),
+    id: "0",
+    data: { testEntityId: "2" },
+  });
+
+  const responseOld = await gql(`
+    testEntitys(timestamp: 5) {
+      items {
+        id
+        derived {
+          items {
+            id
+          }
+        }
+      }
+    }
+  `);
+  expect(responseOld.body.errors).toBe(undefined);
+  expect(responseOld.statusCode).toBe(200);
+  const { items: testEntitysOld } = responseOld.body.data.testEntitys;
+  expect(testEntitysOld).toMatchObject([
+    { id: "0", derived: { items: [{ id: "0" }] } },
+  ]);
+
+  const response = await gql(`
+    testEntitys {
+      items {
+        id
+        derived {
+          items {
+            id
+          }
+        }
+      }
+    }
+  `);
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { items: testEntitys } = response.body.data.testEntitys;
+  expect(testEntitys).toMatchObject([{ id: "0", derived: { items: [] } }]);
+
+  await service.kill();
+});
+
+test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
+  const { common, indexingStore } = context;
+  const { service, gql, createTestEntity, createEntityWithBigIntId } =
+    await setup({ common, indexingStore });
+
+  const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
+  const findManySpy = vi.spyOn(indexingStore, "findMany");
+
+  await Promise.all(
+    range(0, 50).map(async (n) => {
+      await createTestEntity({ id: n });
+      await createEntityWithBigIntId({
+        id: BigInt(n),
+        testEntityId: String(n),
+      });
+    }),
+  );
+
+  const response = await gql(`
+    entityWithBigIntIds {
+      items {
+        id
+        testEntity {
+          id
+          string
+          int
+          float
+          boolean
+          hex
+          bigInt
+        }
+      }
+    }
+  `);
+
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { entityWithBigIntIds } = response.body.data;
+  expect(entityWithBigIntIds.items).toHaveLength(50);
+
+  expect(findUniqueSpy).toHaveBeenCalledTimes(0);
+  expect(findManySpy).toHaveBeenCalledTimes(2);
+
+  await service.kill();
+});
+
+test.fails(
+  "uses dataloader to resolve a plural -> p.many() path",
+  async (context) => {
+    const { common, indexingStore } = context;
+    const { service, gql, createTestEntity, createEntityWithStringId } =
+      await setup({ common, indexingStore });
+
+    const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
+    const findManySpy = vi.spyOn(indexingStore, "findMany");
+
+    await Promise.all(
+      range(0, 50).map(async (n) => {
+        await createTestEntity({ id: n });
+        await createEntityWithStringId({
+          id: String(n),
+          testEntityId: String(n),
+        });
+      }),
+    );
+
+    const response = await gql(`
+    entityWithBigIntIds {
+      items {
+        id
+        testEntity {
+          id
+          derived {
+            items {
+              id
+            }
+          }
+        }
+      }
+    }
+  `);
+
+    expect(response.body.errors).toBe(undefined);
+    expect(response.statusCode).toBe(200);
+    const { entityWithBigIntIds } = response.body.data;
+    expect(entityWithBigIntIds.items).toHaveLength(50);
+
+    // Fails because we haven't implemented the dataloader for this path yet.
+    expect(findUniqueSpy).toHaveBeenCalledTimes(0);
+    expect(findManySpy).toHaveBeenCalledTimes(2);
+
+    await service.kill();
+  },
+);

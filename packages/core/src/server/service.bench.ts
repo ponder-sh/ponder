@@ -1,4 +1,4 @@
-import { setupAnvil, setupContext, setupIndexingStore } from "@/_test/setup.js";
+import { setupContext, setupIndexingStore } from "@/_test/setup.js";
 import { type TestContext, bench } from "vitest";
 import { setup as serverSetup } from "./service.test.js";
 
@@ -8,9 +8,7 @@ let server: Awaited<ReturnType<typeof serverSetup>>;
 
 const setup = async () => {
   context = {} as TestContext;
-
   setupContext(context);
-  await setupAnvil(context);
 
   teardownIndexing = await setupIndexingStore(context);
   server = await serverSetup({
@@ -45,14 +43,7 @@ bench(
     `);
     }
   },
-  {
-    setup,
-    teardown,
-    iterations: 5,
-    warmupIterations: 1,
-    time: 60_000,
-    warmupTime: 10_000,
-  },
+  { setup, teardown },
 );
 
 bench(
@@ -72,12 +63,5 @@ bench(
     `);
     }
   },
-  {
-    setup,
-    teardown,
-    iterations: 5,
-    warmupIterations: 1,
-    time: 60_000,
-    warmupTime: 10_000,
-  },
+  { setup, teardown },
 );

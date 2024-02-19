@@ -12,6 +12,7 @@ import { createHttpTerminator } from "http-terminator";
 import type { Common } from "@/Ponder.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
+import { buildLoaderCache } from "./graphql/loaders.js";
 
 type ServerEvents = {
   "admin:reload": { chainId: number };
@@ -117,7 +118,10 @@ export class ServerService extends Emittery<ServerEvents> {
   reloadGraphqlSchema({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
     this.graphqlMiddleware = createHandler({
       schema: graphqlSchema,
-      context: { store: this.indexingStore },
+      context: () => {
+        const { getLoader } = buildLoaderCache({ store: this.indexingStore });
+        return { store: this.indexingStore, getLoader };
+      },
     });
   }
 
