@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.2.7
+
+### Patch Changes
+
+- [#644](https://github.com/ponder-sh/ponder/pull/644) [`573146d9d99abfd1d7657f4cbf313f779dcf3511`](https://github.com/ponder-sh/ponder/commit/573146d9d99abfd1d7657f4cbf313f779dcf3511) Thanks [@0xOlias](https://github.com/0xOlias)! - Added warnings for unverified contracts (incl EOA addresses) when using the block explorer template.
+
 ## 0.2.6
 
 ## 0.2.5
