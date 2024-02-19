@@ -155,7 +155,5 @@ export function buildWhereObject(where: Record<string, any>) {
     whereObject[fieldName] = { [storeCondition]: rawValue };
   }
 
-  console.log(whereObject);
-
   return whereObject;
 }
