@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.2.7
+
+### Patch Changes
+
+- [#636](https://github.com/ponder-sh/ponder/pull/636) [`c10a0b7bff99dd8cd2f38ea0714ff82f5e17f00b`](https://github.com/ponder-sh/ponder/commit/c10a0b7bff99dd8cd2f38ea0714ff82f5e17f00b) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for AND and OR filter operators in the `findMany` store API method and the GraphQL API. Fixed a bug where GraphQL `PageInfo` types were incorrectly marked as nullable.
+
+- [#636](https://github.com/ponder-sh/ponder/pull/636) [`c10a0b7bff99dd8cd2f38ea0714ff82f5e17f00b`](https://github.com/ponder-sh/ponder/commit/c10a0b7bff99dd8cd2f38ea0714ff82f5e17f00b) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a time-travel query bug where nested fields in GraphQL queries would not respect the `timestamp` argument passed to the top-level field. Removed the `timestamp` argument from nested `p.many()` fields. Now, use the `timestamp` argument on the top-level field and all nested fields will respect it.
+
 ## 0.2.6
 
 ### Patch Changes
