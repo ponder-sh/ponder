@@ -838,29 +838,36 @@ export class SqliteSyncStore implements SyncStore {
     fromCheckpoint,
     toCheckpoint,
     limit,
-    logFilters = [],
-    factories = [],
+    logFilters = undefined,
+    factories = undefined,
   }: {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
-    logFilters?: {
-      id: string;
-      chainId: number;
-      criteria: LogFilterCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-      includeEventSelectors?: Hex[];
-    }[];
-    factories?: {
-      id: string;
-      chainId: number;
-      criteria: FactoryCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-      includeEventSelectors?: Hex[];
-    }[];
-  }) {
+  } & (
+    | {
+        logFilters: {
+          id: string;
+          chainId: number;
+          criteria: LogFilterCriteria;
+          fromBlock?: number;
+          toBlock?: number;
+          includeEventSelector: Hex;
+        }[];
+        factories: undefined;
+      }
+    | {
+        logFilters: undefined;
+        factories: {
+          id: string;
+          chainId: number;
+          criteria: FactoryCriteria;
+          fromBlock?: number;
+          toBlock?: number;
+          includeEventSelector: Hex;
+        }[];
+      }
+  )) {
     let stopClock = startClock();
 
     // Query a batch of logs.
@@ -869,33 +876,23 @@ export class SqliteSyncStore implements SyncStore {
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
       .where((eb) => {
-        const logFilterCmprs = logFilters.map((logFilter) => {
-          const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-          if (logFilter.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                logFilter.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
+        const logFilterCmprs =
+          logFilters?.map((logFilter) => {
+            const exprs = this.buildLogFilterCmprs({ eb, logFilter });
 
-        const factoryCmprs = factories.map((factory) => {
-          const exprs = this.buildFactoryCmprs({ eb, factory });
-          if (factory.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                factory.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
+            exprs.push(eb("logs.topic0", "=", logFilter.includeEventSelector));
+
+            return eb.and(exprs);
+          }) ?? [];
+
+        const factoryCmprs =
+          factories?.map((factory) => {
+            const exprs = this.buildFactoryCmprs({ eb, factory });
+
+            exprs.push(eb("logs.topic0", "=", factory.includeEventSelector));
+
+            return eb.and(exprs);
+          }) ?? [];
 
         return eb.or([...logFilterCmprs, ...factoryCmprs]);
       })
@@ -1073,33 +1070,23 @@ export class SqliteSyncStore implements SyncStore {
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .where((eb) => {
-        const logFilterCmprs = logFilters.map((logFilter) => {
-          const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-          if (logFilter.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                logFilter.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
+        const logFilterCmprs =
+          logFilters?.map((logFilter) => {
+            const exprs = this.buildLogFilterCmprs({ eb, logFilter });
 
-        const factoryCmprs = factories.map((factory) => {
-          const exprs = this.buildFactoryCmprs({ eb, factory });
-          if (factory.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                factory.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
+            exprs.push(eb("logs.topic0", "=", logFilter.includeEventSelector));
+
+            return eb.and(exprs);
+          }) ?? [];
+
+        const factoryCmprs =
+          factories?.map((factory) => {
+            const exprs = this.buildFactoryCmprs({ eb, factory });
+
+            exprs.push(eb("logs.topic0", "=", factory.includeEventSelector));
+
+            return eb.and(exprs);
+          }) ?? [];
 
         return eb.or([...logFilterCmprs, ...factoryCmprs]);
       })

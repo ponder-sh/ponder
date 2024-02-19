@@ -215,6 +215,8 @@ test("start() adds log filter events to sync store", async (context) => {
         id: sources[0].id,
         chainId: sources[0].chainId,
         criteria: sources[0].criteria,
+        includeEventSelector:
+          sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -230,7 +232,7 @@ test("start() adds log filter events to sync store", async (context) => {
   await service.onIdle();
 });
 
-test("start() adds log filter and factory contract events to sync store", async (context) => {
+test("start() adds factory events to sync store", async (context) => {
   const { common, syncStore, networks, requestQueues, sources } = context;
 
   const blockNumbers = await getBlockNumbers();
@@ -250,26 +252,17 @@ test("start() adds log filter and factory contract events to sync store", async 
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
-    logFilters: [
-      {
-        id: "Erc20",
-        chainId: sources[0].chainId,
-        criteria: sources[0].criteria,
-      },
-    ],
     factories: [
       {
-        id: "Pair",
+        id: sources[0].id,
         chainId: sources[1].chainId,
         criteria: sources[1].criteria,
+        includeEventSelector: sources[1].abiEvents.bySafeName.Swap!.selector,
       },
     ],
   });
 
-  const sourceIds = events.map((event) => event.sourceId);
-
-  expect(sourceIds.includes("Erc20")).toBe(true);
-  expect(sourceIds.includes("Pair")).toBe(true);
+  expect(events).toHaveLength(1);
 
   service.kill();
   await service.onIdle();

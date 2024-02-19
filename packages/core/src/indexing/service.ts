@@ -751,26 +751,35 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     const taskBatchSize = this.calculateTaskBatchSize(key);
 
+    const sourcesHasFactory = state.sources.some(sourceIsFactory);
+
     const result = await this.syncGatewayService.getEvents({
       fromCheckpoint,
       toCheckpoint,
       limit: taskBatchSize,
-      logFilters: state.sources.filter(sourceIsLogFilter).map((logFilter) => ({
-        id: logFilter.id,
-        chainId: logFilter.chainId,
-        criteria: logFilter.criteria,
-        fromBlock: logFilter.startBlock,
-        toBlock: logFilter.endBlock,
-        includeEventSelectors: [state.eventSelector],
-      })),
-      factories: state.sources.filter(sourceIsFactory).map((factory) => ({
-        id: factory.id,
-        chainId: factory.chainId,
-        criteria: factory.criteria,
-        fromBlock: factory.startBlock,
-        toBlock: factory.endBlock,
-        includeEventSelectors: [state.eventSelector],
-      })),
+      ...(sourcesHasFactory
+        ? {
+            factories: state.sources.filter(sourceIsFactory).map((factory) => ({
+              id: factory.id,
+              chainId: factory.chainId,
+              criteria: factory.criteria,
+              fromBlock: factory.startBlock,
+              toBlock: factory.endBlock,
+              includeEventSelector: state.eventSelector,
+            })),
+          }
+        : {
+            logFilters: state.sources
+              .filter(sourceIsLogFilter)
+              .map((logFilter) => ({
+                id: logFilter.id,
+                chainId: logFilter.chainId,
+                criteria: logFilter.criteria,
+                fromBlock: logFilter.startBlock,
+                toBlock: logFilter.endBlock,
+                includeEventSelector: state.eventSelector,
+              })),
+          }),
     });
 
     const { events, hasNextPage, lastCheckpointInPage, lastCheckpoint } =

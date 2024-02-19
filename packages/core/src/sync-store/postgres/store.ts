@@ -815,29 +815,36 @@ export class PostgresSyncStore implements SyncStore {
     fromCheckpoint,
     toCheckpoint,
     limit,
-    logFilters = [],
-    factories = [],
+    logFilters = undefined,
+    factories = undefined,
   }: {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
-    logFilters?: {
-      id: string;
-      chainId: number;
-      criteria: LogFilterCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-      includeEventSelectors?: Hex[];
-    }[];
-    factories?: {
-      id: string;
-      chainId: number;
-      criteria: FactoryCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-      includeEventSelectors?: Hex[];
-    }[];
-  }) {
+  } & (
+    | {
+        logFilters: {
+          id: string;
+          chainId: number;
+          criteria: LogFilterCriteria;
+          fromBlock?: number;
+          toBlock?: number;
+          includeEventSelector: Hex;
+        }[];
+        factories: undefined;
+      }
+    | {
+        logFilters: undefined;
+        factories: {
+          id: string;
+          chainId: number;
+          criteria: FactoryCriteria;
+          fromBlock?: number;
+          toBlock?: number;
+          includeEventSelector: Hex;
+        }[];
+      }
+  )) {
     let stopClock = startClock();
 
     // Get full log objects, including the includeEventSelectors clause.
@@ -846,33 +853,23 @@ export class PostgresSyncStore implements SyncStore {
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
       .where((eb) => {
-        const logFilterCmprs = logFilters.map((logFilter) => {
-          const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-          if (logFilter.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                logFilter.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
+        const logFilterCmprs =
+          logFilters?.map((logFilter) => {
+            const exprs = this.buildLogFilterCmprs({ eb, logFilter });
 
-        const factoryCmprs = factories.map((factory) => {
-          const exprs = this.buildFactoryCmprs({ eb, factory });
-          if (factory.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                factory.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
+            exprs.push(eb("logs.topic0", "=", logFilter.includeEventSelector));
+
+            return eb.and(exprs);
+          }) ?? [];
+
+        const factoryCmprs =
+          factories?.map((factory) => {
+            const exprs = this.buildFactoryCmprs({ eb, factory });
+
+            exprs.push(eb("logs.topic0", "=", factory.includeEventSelector));
+
+            return eb.and(exprs);
+          }) ?? [];
 
         return eb.or([...logFilterCmprs, ...factoryCmprs]);
       })
@@ -930,12 +927,12 @@ export class PostgresSyncStore implements SyncStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
+      .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
       .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
       .orderBy("blocks.timestamp", "asc")
       .orderBy("logs.chainId", "asc")
       .orderBy("blocks.number", "asc")
       .orderBy("logs.logIndex", "asc")
-      .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
       .limit(limit + 1)
       .execute();
 
@@ -1039,33 +1036,22 @@ export class PostgresSyncStore implements SyncStore {
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .where((eb) => {
-        const logFilterCmprs = logFilters.map((logFilter) => {
-          const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-          if (logFilter.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                logFilter.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
+        const logFilterCmprs =
+          logFilters?.map((logFilter) => {
+            const exprs = this.buildLogFilterCmprs({ eb, logFilter });
 
-        const factoryCmprs = factories.map((factory) => {
-          const exprs = this.buildFactoryCmprs({ eb, factory });
-          if (factory.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                factory.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
+            exprs.push(eb("logs.topic0", "=", logFilter.includeEventSelector));
+
+            return eb.and(exprs);
+          }) ?? [];
+
+        const factoryCmprs =
+          factories?.map((factory) => {
+            const exprs = this.buildFactoryCmprs({ eb, factory });
+            exprs.push(eb("logs.topic0", "=", factory.includeEventSelector));
+
+            return eb.and(exprs);
+          }) ?? [];
 
         return eb.or([...logFilterCmprs, ...factoryCmprs]);
       })
@@ -1075,7 +1061,6 @@ export class PostgresSyncStore implements SyncStore {
         "blocks.number as block_number",
         "logs.logIndex as log_logIndex",
       ])
-      .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
       .orderBy("blocks.timestamp", "desc")
       .orderBy("logs.chainId", "desc")
       .orderBy("blocks.number", "desc")
@@ -1204,7 +1189,6 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     const exprs = [];
 
-    // exprs.push(eb("source_id", "=", logFilter.id));
     exprs.push(
       eb(
         "logs.chainId",
@@ -1265,7 +1249,6 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     const exprs = [];
 
-    // exprs.push(eb("source_id", "=", factory.id));
     exprs.push(
       eb(
         "logs.chainId",
