@@ -63,7 +63,6 @@
     "ink": "^4.4.1",
     "kysely": "^0.26.3",
     "magic-string": "^0.30.5",
-    "p-limit": "^5.0.0",
     "p-queue": "^7.4.1",
     "pg": "^8.11.3",
     "pg-connection-string": "^2.6.2",
