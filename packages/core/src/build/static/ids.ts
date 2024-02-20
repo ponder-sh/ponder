@@ -6,6 +6,8 @@ import { dedupe } from "@/utils/dedupe.js";
 import type { IndexingFunctions } from "../functions/functions.js";
 import type { TableAccess } from "./parseAst.js";
 
+const VERSION = 1;
+
 export type FunctionIds = { [func: string]: string };
 export type TableIds = { [table: string]: string };
 
@@ -21,7 +23,19 @@ type TableInputs = {
   };
 };
 
-export const getIds = ({
+type Identifier = {
+  name: string;
+  type: "table" | "function";
+  version: number;
+
+  functions: string[];
+  tables: string[];
+
+  functionInputs: FunctionInputs[string][];
+  tableInputs: TableInputs[string][];
+};
+
+export const getFunctionAndTableIds = ({
   sources,
   tableAccess,
   schema,
@@ -78,21 +92,15 @@ export const getIds = ({
         tableAccess,
       });
 
-      functionIds[indexingFunctionKey] = crypto
-        .createHash("sha256")
-        .update(
-          JSON.stringify({
-            name: indexingFunctionKey,
-            type: "function",
+      functionIds[indexingFunctionKey] = hashIdentifier({
+        name: indexingFunctionKey,
+        type: "function",
 
-            functions,
-            tables,
-            functionInputs: functions.map((f) => functionInputs[f]),
-            tableInputs: tables.map((t) => tableInputs[t]),
-          }),
-        )
-        .digest("base64")
-        .slice(0, 10);
+        functions,
+        tables,
+        functionInputs: functions.map((f) => functionInputs[f]),
+        tableInputs: tables.map((t) => tableInputs[t]),
+      });
     }
   }
 
@@ -104,21 +112,15 @@ export const getIds = ({
       tableAccess,
     });
 
-    tableIds[tableName] = crypto
-      .createHash("sha256")
-      .update(
-        JSON.stringify({
-          name: tableName,
-          type: "table",
+    tableIds[tableName] = hashIdentifier({
+      name: tableName,
+      type: "table",
 
-          functions,
-          tables,
-          functionInputs: functions.map((f) => functionInputs[f]),
-          tableInputs: tables.map((t) => tableInputs[t]),
-        }),
-      )
-      .digest("base64")
-      .slice(0, 10);
+      functions,
+      tables,
+      functionInputs: functions.map((f) => functionInputs[f]),
+      tableInputs: tables.map((t) => tableInputs[t]),
+    });
   }
 
   return { tableIds, functionIds };
@@ -174,7 +176,7 @@ const resolveDependencies = ({
   return { functions, tables };
 };
 
-/** Resolve the enum columns of a table. Remove "one" and "many" column. */
+/** Resolve the enum columns of a table. Remove "one" and "many" columns. */
 const resolveSchema = (
   table: Schema["tables"][string],
   enums: Schema["enums"],
@@ -201,4 +203,12 @@ const resolveSchema = (
     }
   }
   return table;
+};
+
+const hashIdentifier = (schema: Omit<Identifier, "version">) => {
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify({ ...schema, version: VERSION }))
+    .digest("base64")
+    .slice(0, 10);
 };

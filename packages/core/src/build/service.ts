@@ -25,7 +25,11 @@ import {
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
-import { type FunctionIds, type TableIds, getIds } from "./static/ids.js";
+import {
+  type FunctionIds,
+  type TableIds,
+  getFunctionAndTableIds,
+} from "./static/ids.js";
 import { type TableAccess, parseAst } from "./static/parseAst.js";
 
 type BuildServiceEvents = {
@@ -460,7 +464,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     )
       return { success: false } as const;
 
-    const ids = getIds({
+    const ids = getFunctionAndTableIds({
       sources: this.sources,
       tableAccess: this.tableAccess,
       schema: this.schema,
