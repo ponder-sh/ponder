@@ -16,7 +16,6 @@ import {
   type Checkpoint,
   checkpointMax,
   checkpointMin,
-  isCheckpointEqual,
   isCheckpointGreaterThan,
   isCheckpointGreaterThanOrEqualTo,
   zeroCheckpoint,
@@ -1023,38 +1022,37 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   /** Get keys that need to be loaded. */
   private getLoadKeys = (): string[] => {
-    const minBatchSize = Math.floor(
-      MAX_BATCH_SIZE / (Object.keys(this.indexingFunctionStates).length * 5),
-    );
+    const emptyKey = Object.keys(this.indexingFunctionStates).find((key) => {
+      const state = this.indexingFunctionStates[key];
 
-    const hasEmptyKey = Object.values(this.indexingFunctionStates).some(
-      (state) =>
-        state.loadedTasks.length === 0 &&
-        !isCheckpointEqual(
+      const isFinished =
+        state.lastEventCheckpoint &&
+        isCheckpointGreaterThanOrEqualTo(
           state.tasksLoadedToCheckpoint,
-          this.syncGatewayService.checkpoint,
-        ),
-    );
+          state.lastEventCheckpoint,
+        );
 
-    if (!hasEmptyKey) return [];
+      return state.loadedTasks.length === 0 && !isFinished;
+    });
+
+    if (emptyKey === undefined) return [];
+
+    const minBatchSize = this.calculateTaskBatchSize(emptyKey) / 3;
 
     const loadKeys: string[] = [];
 
     for (const [indexingFunctionKey, state] of Object.entries(
       this.indexingFunctionStates,
     )) {
-      const isNotFinished =
-        !isCheckpointEqual(
+      const isFinished =
+        state.lastEventCheckpoint &&
+        isCheckpointGreaterThanOrEqualTo(
           state.tasksLoadedToCheckpoint,
-          this.syncGatewayService.checkpoint,
-        ) ||
-        isCheckpointGreaterThan(
-          state.lastEventCheckpoint ?? zeroCheckpoint,
-          state.tasksLoadedToCheckpoint,
+          state.lastEventCheckpoint,
         );
 
       if (!state.lastEventCheckpoint) loadKeys.push(indexingFunctionKey);
-      else if (isNotFinished && state.loadedTasks.length < minBatchSize) {
+      else if (!isFinished && state.loadedTasks.length < minBatchSize) {
         loadKeys.push(indexingFunctionKey);
       }
     }
