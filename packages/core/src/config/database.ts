@@ -61,12 +61,11 @@ export const buildDatabase = ({
         )} (from ${source})`,
       });
 
-      const syncPool = createPool({ connectionString });
-      const indexingPool = createPool({ connectionString });
+      const pool = createPool({ connectionString });
 
       return {
-        sync: { kind: "postgres", pool: syncPool },
-        indexing: { kind: "postgres", pool: indexingPool },
+        sync: { kind: "postgres", pool },
+        indexing: { kind: "postgres", pool },
       } satisfies DatabaseConfig;
     }
 
