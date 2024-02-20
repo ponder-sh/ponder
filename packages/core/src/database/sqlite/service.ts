@@ -114,6 +114,7 @@ export class SqliteDatabaseService implements DatabaseService {
 
     const metadata = await this.db.transaction().execute(async (tx) => {
       await this.createTables(tx, "cache");
+      await this.dropTables(tx, "live");
       await this.createTables(tx, "live");
       await this.copyTables(tx, "cache");
       const m = await tx
@@ -159,7 +160,7 @@ export class SqliteDatabaseService implements DatabaseService {
 
   async flush(metadata: Metadata[]): Promise<void> {
     await this.db.transaction().execute(async (tx) => {
-      await this.dropCacheTables(tx);
+      await this.dropTables(tx, "cache");
       await this.createTables(tx, "cache");
       await this.copyTables(tx, "live");
 
@@ -214,16 +215,20 @@ export class SqliteDatabaseService implements DatabaseService {
     // };
   }
 
-  private dropCacheTables = (tx: Transaction<any>) =>
-    Promise.all(
-      Object.keys(this.schema!.tables).map((tableName) =>
-        tx
-          .withSchema("cache")
-          .schema.dropTable(this.tableIds![tableName])
-          .ifExists()
-          .execute(),
-      ),
+  private dropTables = (_tx: Transaction<any>, database: "cache" | "live") => {
+    const tx = database === "cache" ? _tx.withSchema("cache") : _tx;
+
+    return Promise.all(
+      Object.keys(this.schema!.tables).map((tableName) => {
+        const versionedTableName =
+          database === "cache"
+            ? this.tableIds![tableName]
+            : `${tableName}_versioned`;
+
+        return tx.schema.dropTable(versionedTableName).ifExists().execute();
+      }),
     );
+  };
 
   private createTables = (_tx: Transaction<any>, database: "cache" | "live") =>
     Promise.all(
