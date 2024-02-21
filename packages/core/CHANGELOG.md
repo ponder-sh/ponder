@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.2.8
+
+### Patch Changes
+
+- [#648](https://github.com/ponder-sh/ponder/pull/648) [`e12bc8ac74a75d4e6e9962987894e107c98a87a3`](https://github.com/ponder-sh/ponder/commit/e12bc8ac74a75d4e6e9962987894e107c98a87a3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed static analysis issue affecting indexing functions using class methods as helper functions.
+
 ## 0.2.7
 
 ### Patch Changes
