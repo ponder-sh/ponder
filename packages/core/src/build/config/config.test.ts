@@ -1,6 +1,7 @@
 import { http, getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
+import type { Options } from "@/config/options.js";
 import { type Config, createConfig } from "../../config/config.js";
 import { buildConfig, safeBuildConfig } from "./config.js";
 
@@ -15,6 +16,10 @@ const bytes1 =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
 const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
+const options = {
+  ponderDir: "ponderDir",
+  rootDir: "rootDir",
+} as const satisfies Pick<Options, "rootDir" | "ponderDir">;
 
 test("buildConfig() builds topics for multiple events", async () => {
   const config = createConfig({
@@ -37,7 +42,7 @@ test("buildConfig() builds topics for multiple events", async () => {
     },
   });
 
-  const { sources } = await buildConfig({ config });
+  const { sources } = await buildConfig({ config, options });
 
   expect(sources[0].criteria.topics).toMatchObject([
     [getEventSelector(event0), getEventSelector(event1)],
@@ -67,7 +72,7 @@ test("buildConfig() handles overloaded event signatures and combines topics", as
     },
   });
 
-  const { sources } = await buildConfig({ config });
+  const { sources } = await buildConfig({ config, options });
 
   expect(sources[0].criteria.topics).toMatchObject([
     [getEventSelector(event1), getEventSelector(event1Overloaded)],
@@ -94,7 +99,7 @@ test("buildConfig() creates a source for each network for multi-network contract
     },
   });
 
-  const { sources } = await buildConfig({ config });
+  const { sources } = await buildConfig({ config, options });
 
   expect(sources.length).toBe(2);
 });
@@ -125,7 +130,7 @@ test("buildConfig() builds topics for event with args", async () => {
     },
   });
 
-  const { sources } = await buildConfig({ config });
+  const { sources } = await buildConfig({ config, options });
 
   expect(sources[0].criteria.topics).toMatchObject([
     getEventSelector(event0),
@@ -157,7 +162,7 @@ test("buildConfig() builds topics for event with unnamed parameters", async () =
     },
   });
 
-  const { sources } = await buildConfig({ config });
+  const { sources } = await buildConfig({ config, options });
 
   expect(sources[0].criteria.topics).toMatchObject([
     getEventSelector(event1Overloaded),
@@ -190,7 +195,7 @@ test("buildConfig() overrides default values with network-specific values", asyn
     },
   });
 
-  const { sources } = await buildConfig({ config });
+  const { sources } = await buildConfig({ config, options });
 
   expect(sources[0].criteria.address).toBe(address2);
 });
@@ -216,7 +221,7 @@ test("buildConfig() handles network name shortcut", async () => {
     },
   });
 
-  const { sources } = await buildConfig({ config });
+  const { sources } = await buildConfig({ config, options });
 
   expect(sources[0].networkName).toBe("mainnet");
 });
@@ -236,7 +241,7 @@ test("buildConfig() validates network name", async () => {
     },
   });
 
-  const result = await safeBuildConfig({ config });
+  const result = await safeBuildConfig({ config, options });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
@@ -258,12 +263,13 @@ test("buildConfig() warns for public RPC URL", async () => {
     },
   });
 
-  const result = await safeBuildConfig({ config });
+  const result = await safeBuildConfig({ config, options });
 
   expect(result.success).toBe(true);
-  expect(result.data?.warnings[0]).toBe(
-    "Network 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
-  );
+  expect(result.data?.logs[1]).toStrictEqual({
+    level: "warn",
+    msg: "Network 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
+  });
 });
 
 test("buildConfig() validates against multiple events and indexed argument values", async () => {
@@ -284,7 +290,7 @@ test("buildConfig() validates against multiple events and indexed argument value
     },
   }) as any;
 
-  const result = await safeBuildConfig({ config });
+  const result = await safeBuildConfig({ config, options });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
@@ -309,7 +315,7 @@ test("buildConfig() validates event filter event name must be present in ABI", a
     },
   });
 
-  const result = await safeBuildConfig({ config });
+  const result = await safeBuildConfig({ config, options });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
@@ -337,7 +343,7 @@ test("buildConfig() validates against specifying both factory and address", asyn
     },
   });
 
-  const result = await safeBuildConfig({ config });
+  const result = await safeBuildConfig({ config, options });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
@@ -360,7 +366,7 @@ test("buildConfig() validates address prefix", async () => {
     },
   }) as Config;
 
-  const result = await safeBuildConfig({ config });
+  const result = await safeBuildConfig({ config, options });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(
@@ -382,7 +388,7 @@ test("buildConfig() validates address length", async () => {
     },
   });
 
-  const result = await safeBuildConfig({ config });
+  const result = await safeBuildConfig({ config, options });
 
   expect(result.success).toBe(false);
   expect(result.error?.message).toBe(

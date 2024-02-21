@@ -24,7 +24,7 @@ import type {
 export async function buildConfig({
   config,
   options,
-}: { config: Config; options: Options }) {
+}: { config: Config; options: Pick<Options, "ponderDir" | "rootDir"> }) {
   const logs: { level: "warn" | "info"; msg: string }[] = [];
 
   // Build database.
@@ -315,7 +315,7 @@ export async function buildConfig({
 export async function safeBuildConfig({
   config,
   options,
-}: { config: Config; options: Options }) {
+}: { config: Config; options: Pick<Options, "rootDir" | "ponderDir"> }) {
   try {
     const result = await buildConfig({ config, options });
 

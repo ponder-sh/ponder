@@ -13,10 +13,10 @@ import { dedupe } from "@/utils/dedupe.js";
 import { createPool } from "@/utils/pg.js";
 import { Kysely, Migrator, PostgresDialect, Transaction, sql } from "kysely";
 import type { Pool, PoolConfig } from "pg";
-import type { DatabaseService, Metadata } from "../service.js";
+import type { BaseDatabaseService, Metadata } from "../service.js";
 import { migrationProvider } from "./migrations.js";
 
-export class PostgresDatabaseService implements DatabaseService {
+export class PostgresDatabaseService implements BaseDatabaseService {
   kind = "postgres" as const;
 
   db: Kysely<any>;

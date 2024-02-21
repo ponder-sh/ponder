@@ -1,9 +1,14 @@
 import { randomBytes } from "crypto";
+import fs from "fs";
+import os from "os";
 import type { Common } from "@/Ponder.js";
 import type { Config } from "@/config/config.js";
 import type { Network } from "@/config/networks.js";
 import { buildOptions } from "@/config/options.js";
 import type { Factory, LogFilter } from "@/config/sources.js";
+import { PostgresDatabaseService } from "@/database/postgres/service.js";
+import type { DatabaseService } from "@/database/service.js";
+import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
@@ -13,9 +18,7 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
-import { createPool } from "@/utils/pg.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { createSqliteDatabase } from "@/utils/sqlite.js";
 import pg from "pg";
 import type { Address } from "viem";
 import { type TestContext, beforeEach } from "vitest";
@@ -33,6 +36,7 @@ import { getConfig, getNetworkAndSources, testClient } from "./utils.js";
 declare module "vitest" {
   export interface TestContext {
     common: Common;
+    database: DatabaseService;
     syncStore: SyncStore;
     indexingStore: IndexingStore;
     sources: [LogFilter, Factory];
@@ -65,17 +69,14 @@ export const setupContext = (context: TestContext) => {
 };
 
 /**
- * Sets up an isolated SyncStore on the test context.
+ * Sets up an isolated database on the test context.
  *
  * ```ts
  * // Add this to any test suite that uses the SyncStore client.
- * beforeEach((context) => setupSyncStore(context))
+ * beforeEach((context) => setupDatabase(context))
  * ```
  */
-export async function setupSyncStore(
-  context: TestContext,
-  options = { migrateUp: true },
-) {
+export async function setupDatabase(context: TestContext) {
   if (process.env.DATABASE_URL) {
     const testClient = new pg.Client({
       connectionString: process.env.DATABASE_URL,
@@ -83,25 +84,23 @@ export async function setupSyncStore(
     await testClient.connect();
 
     const randomSuffix = randomBytes(10).toString("hex");
-    const databaseName = `vitest_sync_${randomSuffix}`;
+    const databaseName = `vitest_${randomSuffix}`;
     const databaseUrl = new URL(process.env.DATABASE_URL);
     databaseUrl.pathname = `/${databaseName}`;
     const connectionString = databaseUrl.toString();
 
-    const pool = createPool({ connectionString });
     await testClient.query(`CREATE DATABASE "${databaseName}"`);
 
-    context.syncStore = new PostgresSyncStore({
+    context.database = new PostgresDatabaseService({
       common: context.common,
-      schemaName: "public",
-      pool,
+      poolConfig: { connectionString: connectionString },
     });
 
-    if (options.migrateUp) await context.syncStore.migrateUp();
+    await context.database.setup();
 
     return async () => {
       try {
-        await context.syncStore.kill();
+        await context.database.kill();
         await testClient.query(`DROP DATABASE "${databaseName}"`);
         await testClient.end();
       } catch (e) {
@@ -111,16 +110,45 @@ export async function setupSyncStore(
       }
     };
   } else {
-    context.syncStore = new SqliteSyncStore({
+    const tmpdir = os.tmpdir();
+    fs.mkdirSync(tmpdir, { recursive: true });
+    context.database = new SqliteDatabaseService({
       common: context.common,
-      database: createSqliteDatabase(":memory:"),
+      directory: tmpdir,
     });
 
-    if (options.migrateUp) await context.syncStore.migrateUp();
+    await context.database.setup();
 
     return async () => {
-      await context.syncStore.kill();
+      await context.database.kill();
     };
+  }
+}
+
+/**
+ * Sets up an isolated SyncStore on the test context.
+ *
+ * ```ts
+ * // Add this to any test suite that uses the SyncStore client.
+ * beforeEach((context) => setupSyncStore(context))
+ * ```
+ */
+export async function setupSyncStore(context: TestContext) {
+  if (context.database.kind === "postgres") {
+    const syncDatabase = await context.database.getSyncDatabase();
+
+    context.syncStore = new PostgresSyncStore({
+      common: context.common,
+      schemaName: syncDatabase.schemaName,
+      pool: syncDatabase.pool,
+    });
+  } else {
+    const syncDatabase = await context.database.getSyncDatabase();
+
+    context.syncStore = new SqliteSyncStore({
+      common: context.common,
+      database: syncDatabase.database,
+    });
   }
 }
 
@@ -133,51 +161,21 @@ export async function setupSyncStore(
  * ```
  */
 export async function setupIndexingStore(context: TestContext) {
-  if (process.env.DATABASE_URL) {
-    const testClient = new pg.Client({
-      connectionString: process.env.DATABASE_URL,
-    });
-    await testClient.connect();
-    // Create a random database to isolate the tests.
-    const randomSuffix = randomBytes(10).toString("hex");
-    const databaseName = `vitest_indexing_${randomSuffix}`;
-    const databaseUrl = new URL(process.env.DATABASE_URL);
-    databaseUrl.pathname = `/${databaseName}`;
-    const connectionString = databaseUrl.toString();
-
-    const pool = new pg.Pool({ connectionString });
-    await testClient.query(`CREATE DATABASE "${databaseName}"`);
+  if (context.database.kind === "postgres") {
+    const syncDatabase = await context.database.getIndexingDatabase();
 
     context.indexingStore = new PostgresIndexingStore({
       common: context.common,
-      schemaName: "public",
-      pool,
+      schemaName: syncDatabase.schemaName,
+      pool: syncDatabase.pool,
     });
-
-    return async () => {
-      try {
-        await testClient.query(`DROP DATABASE "${databaseName}"`);
-        await testClient.end();
-      } catch (e) {
-        // This fails in end-to-end tests where the pool has
-        // already been shut down during the Ponder instance kill() method.
-        // It's fine to ignore the error.
-      }
-    };
   } else {
+    const syncDatabase = await context.database.getIndexingDatabase();
+
     context.indexingStore = new SqliteIndexingStore({
       common: context.common,
-      database: createSqliteDatabase(":memory:"),
+      database: syncDatabase.database,
     });
-
-    return async () => {
-      try {
-      } catch (e) {
-        // This fails in end-to-end tests where the pool has
-        // already been shut down during the Ponder instance kill() method.
-        // It's fine to ignore the error.
-      }
-    };
   }
 }
 

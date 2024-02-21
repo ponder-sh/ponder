@@ -15,10 +15,10 @@ import { dedupe } from "@/utils/dedupe.js";
 import { createSqliteDatabase } from "@/utils/sqlite.js";
 import BetterSqlite3 from "better-sqlite3";
 import { Kysely, Migrator, SqliteDialect, Transaction, sql } from "kysely";
-import type { DatabaseService, Metadata } from "../service.js";
+import type { BaseDatabaseService, Metadata } from "../service.js";
 import { migrationProvider } from "./migrations.js";
 
-export class SqliteDatabaseService implements DatabaseService {
+export class SqliteDatabaseService implements BaseDatabaseService {
   kind = "sqlite" as const;
 
   private common: Common;
@@ -50,13 +50,13 @@ export class SqliteDatabaseService implements DatabaseService {
       `ponder_core_${common.instanceId}.db`,
     );
 
-    const sqliteDatabase = createSqliteDatabase(liveDbPath);
-    sqliteDatabase.exec(`ATTACH DATABASE '${cacheDbPath}' AS cache`);
-
-    this.sqliteIndexingDatabase = sqliteDatabase;
+    this.sqliteIndexingDatabase = createSqliteDatabase(liveDbPath);
+    this.sqliteIndexingDatabase.exec(
+      `ATTACH DATABASE '${cacheDbPath}' AS cache`,
+    );
 
     this.db = new Kysely({
-      dialect: new SqliteDialect({ database: sqliteDatabase }),
+      dialect: new SqliteDialect({ database: this.sqliteIndexingDatabase }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_sqlite_query_count?.inc({ kind: "indexing" });
