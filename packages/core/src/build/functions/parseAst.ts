@@ -70,7 +70,18 @@ const helperFunctionName = (node: SgNode) => {
       ?.text(),
   );
 
-  return [...arrowFuncName, ...funcDeclarName].filter(
+  const methodDeclarAncestor = node
+    .ancestors()
+    .filter((n) => n.kind() === "method_definition");
+
+  const methodDeclarName = methodDeclarAncestor.map((m) =>
+    m
+      .children()
+      .find((c) => c.kind() === "property_identifier")
+      ?.text(),
+  );
+
+  return [...arrowFuncName, ...funcDeclarName, ...methodDeclarName].filter(
     (name) => !!name,
   ) as string[];
 };

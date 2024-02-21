@@ -22,3 +22,11 @@ export async function helper3({ context }: { event: Event; context: Context }) {
     id: "kyle",
   });
 }
+
+export class HelperClass {
+  async helper({ context }: { event: Event; context: Context }) {
+    await context.db.Table1.upsert({
+      id: "kyle",
+    });
+  }
+}

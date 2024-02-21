@@ -155,3 +155,33 @@ test("renamed variable", () => {
     access: "write",
   });
 });
+
+test("helper class", () => {
+  const tableAccess = parseAst({
+    tableNames,
+    indexingFunctionKeys,
+    filePaths: [
+      path.join(
+        url.fileURLToPath(import.meta.url),
+        "..",
+        "test",
+        "helperClass.ts",
+      ),
+      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+    ],
+  });
+
+  expect(tableAccess).toHaveLength(2);
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event1",
+    access: "read",
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event1",
+    access: "write",
+  });
+});
