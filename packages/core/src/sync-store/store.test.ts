@@ -1,13 +1,16 @@
 import { checksumAddress, hexToBigInt, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
-import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
+import { setupAnvil, setupDatabase, setupSyncStore } from "@/_test/setup.js";
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
+beforeEach(async (context) => {
+  await setupDatabase(context);
+  await setupSyncStore(context);
+});
 
 test("setup creates tables", async ({ syncStore }) => {
   const tables = await syncStore.db.introspection.getTables();

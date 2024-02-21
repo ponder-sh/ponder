@@ -1,6 +1,6 @@
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 
-import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
+import { setupAnvil, setupDatabase, setupSyncStore } from "@/_test/setup.js";
 
 import {
   type Checkpoint,
@@ -11,7 +11,10 @@ import {
 import { SyncGateway } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
+beforeEach(async (context) => {
+  await setupDatabase(context);
+  await setupSyncStore(context);
+});
 
 function getMultichainNetworksAndSources(context: TestContext) {
   const mainnet = context.networks[0];

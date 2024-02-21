@@ -105,18 +105,20 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
     await this.db.schema.createSchema(this.schemaName).ifNotExists().execute();
 
+    // TODO(kyle): error here
     const metadata = await this.db.transaction().execute(async (tx) => {
       await this.createTables(tx, "cache");
       await this.dropTables(tx, "live");
       await this.createTables(tx, "live");
       await this.copyTables(tx, "cache");
+
+      if (_functionIds.length === 0) return [];
       const m = await tx
-        .withSchema("cache")
+        .withSchema("ponder_core_cache")
         .selectFrom("metadata")
         .selectAll()
-        .where("functionId", "in", _functionIds)
+        .where("functionId", "in", ["hihi"])
         .execute();
-
       return m;
     });
 

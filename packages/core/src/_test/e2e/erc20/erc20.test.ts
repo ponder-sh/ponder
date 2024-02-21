@@ -3,6 +3,7 @@ import { Ponder } from "@/Ponder.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
   setupAnvil,
+  setupDatabase,
   setupIndexingStore,
   setupSyncStore,
 } from "@/_test/setup.js";
@@ -15,8 +16,11 @@ import { zeroAddress } from "viem";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
-beforeEach((context) => setupIndexingStore(context));
+beforeEach(async (context) => {
+  await setupDatabase(context);
+  await setupSyncStore(context);
+  await setupIndexingStore(context);
+});
 
 const gql = async (ponder: Ponder, query: string) => {
   const response = await request(ponder.serverService.app)
@@ -31,6 +35,7 @@ afterEach(() => {
   rmSync("./src/_test/e2e/erc20/.ponder", {
     recursive: true,
     force: true,
+    retryDelay: 20,
   });
   rmSync("./src/_test/e2e/erc20/generated", {
     recursive: true,
@@ -45,7 +50,7 @@ test("erc20", async (context) => {
   const testOptions = {
     ...options,
     uiEnabled: false,
-    logLevel: "error",
+    logLevel: "trace",
     telemetryDisabled: true,
   } as const;
 

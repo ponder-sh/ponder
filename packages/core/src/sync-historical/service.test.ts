@@ -1,15 +1,16 @@
-import { HttpRequestError, InvalidParamsRpcError } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
-
-import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
+import { setupAnvil, setupDatabase, setupSyncStore } from "@/_test/setup.js";
 import { getEventsErc20, publicClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-
+import { HttpRequestError, InvalidParamsRpcError } from "viem";
+import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
+beforeEach(async (context) => {
+  await setupDatabase(context);
+  await setupSyncStore(context);
+});
 
 const getBlockNumbers = () =>
   publicClient.getBlockNumber().then((b) => ({

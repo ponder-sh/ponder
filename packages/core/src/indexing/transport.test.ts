@@ -2,13 +2,16 @@ import type { Transport } from "viem";
 import { getFunctionSelector, toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 
-import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
+import { setupAnvil, setupDatabase, setupSyncStore } from "@/_test/setup.js";
 import { anvil, publicClient } from "@/_test/utils.js";
 
 import { ponderTransport } from "./transport.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
+beforeEach(async (context) => {
+  await setupDatabase(context);
+  await setupSyncStore(context);
+});
 
 test("default", ({ syncStore, requestQueues }) => {
   const transport = ponderTransport({

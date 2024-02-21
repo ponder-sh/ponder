@@ -2,6 +2,7 @@ import { rmSync } from "node:fs";
 import { Ponder } from "@/Ponder.js";
 import {
   setupAnvil,
+  setupDatabase,
   setupIndexingStore,
   setupSyncStore,
 } from "@/_test/setup.js";
@@ -13,8 +14,11 @@ import request from "supertest";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
-beforeEach((context) => setupIndexingStore(context));
+beforeEach(async (context) => {
+  await setupDatabase(context);
+  await setupSyncStore(context);
+  await setupIndexingStore(context);
+});
 
 const gql = async (ponder: Ponder, query: string) => {
   const response = await request(ponder.serverService.app)

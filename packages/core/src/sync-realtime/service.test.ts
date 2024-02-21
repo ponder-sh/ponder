@@ -1,4 +1,4 @@
-import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
+import { setupAnvil, setupDatabase, setupSyncStore } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { publicClient, testClient } from "@/_test/utils.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
@@ -7,7 +7,10 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { RealtimeSyncService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
+beforeEach(async (context) => {
+  await setupDatabase(context);
+  await setupSyncStore(context);
+});
 
 const getBlockNumbers = () =>
   publicClient.getBlockNumber().then((b) => ({

@@ -1,6 +1,7 @@
-import { randomBytes } from "crypto";
+import crypto from "crypto";
 import fs from "fs";
 import os from "os";
+import path from "path";
 import type { Common } from "@/Ponder.js";
 import type { Config } from "@/config/config.js";
 import type { Network } from "@/config/networks.js";
@@ -60,7 +61,7 @@ export const setupContext = (context: TestContext) => {
     telemetryDisabled: true,
   };
   context.common = {
-    instanceId: randomBytes(4).toString("hex"),
+    instanceId: crypto.randomBytes(4).toString("hex"),
     options,
     logger: new LoggerService({ level: "silent" }),
     metrics: new MetricsService(),
@@ -81,9 +82,10 @@ export async function setupDatabase(context: TestContext) {
     const testClient = new pg.Client({
       connectionString: process.env.DATABASE_URL,
     });
+
     await testClient.connect();
 
-    const randomSuffix = randomBytes(10).toString("hex");
+    const randomSuffix = crypto.randomBytes(10).toString("hex");
     const databaseName = `vitest_${randomSuffix}`;
     const databaseUrl = new URL(process.env.DATABASE_URL);
     databaseUrl.pathname = `/${databaseName}`;
@@ -112,6 +114,7 @@ export async function setupDatabase(context: TestContext) {
   } else {
     const tmpdir = os.tmpdir();
     fs.mkdirSync(tmpdir, { recursive: true });
+
     context.database = new SqliteDatabaseService({
       common: context.common,
       directory: tmpdir,
@@ -120,6 +123,9 @@ export async function setupDatabase(context: TestContext) {
     await context.database.setup();
 
     return async () => {
+      fs.rmSync(path.join(tmpdir, "ponder_core_cache.db"), { force: true });
+      fs.rmSync(path.join(tmpdir, "ponder_sync.db"), { force: true });
+
       await context.database.kill();
     };
   }
@@ -150,6 +156,8 @@ export async function setupSyncStore(context: TestContext) {
       database: syncDatabase.database,
     });
   }
+
+  await context.syncStore.migrateUp();
 }
 
 /**
@@ -162,19 +170,19 @@ export async function setupSyncStore(context: TestContext) {
  */
 export async function setupIndexingStore(context: TestContext) {
   if (context.database.kind === "postgres") {
-    const syncDatabase = await context.database.getIndexingDatabase();
+    const indexingDatabase = await context.database.getIndexingDatabase();
 
     context.indexingStore = new PostgresIndexingStore({
       common: context.common,
-      schemaName: syncDatabase.schemaName,
-      pool: syncDatabase.pool,
+      schemaName: indexingDatabase.schemaName,
+      pool: indexingDatabase.pool,
     });
   } else {
-    const syncDatabase = await context.database.getIndexingDatabase();
+    const indexingDatabase = await context.database.getIndexingDatabase();
 
     context.indexingStore = new SqliteIndexingStore({
       common: context.common,
-      database: syncDatabase.database,
+      database: indexingDatabase.database,
     });
   }
 }

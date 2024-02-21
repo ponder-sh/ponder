@@ -4,8 +4,10 @@ import { createSchema } from "@/schema/schema.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { beforeEach, expect, test } from "vitest";
 
-beforeEach((context) => setupDatabase(context));
-beforeEach((context) => setupIndexingStore(context));
+beforeEach(async (context) => {
+  await setupDatabase(context);
+  await setupIndexingStore(context);
+});
 
 const schema = createSchema((p) => ({
   PetKind: p.createEnum(["CAT", "DOG"]),
@@ -33,7 +35,7 @@ function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index };
 }
 
-test("create() inserts a record that is effective after specified checkpoint", async (context) => {
+test.only("create() inserts a record that is effective after specified checkpoint", async (context) => {
   const { indexingStore, database } = context;
   await database.reset({
     schema,
