@@ -5,15 +5,15 @@ import { type ORMMethods, ormAccess } from "./orm.js";
  * Returns the tables that are directly accessed inside of a given indexing function callback.
  */
 export const getTableReferences = ({
-  callbackNode,
+  node,
   tableNames,
-}: { callbackNode: SgNode; tableNames: string[] }): {
+}: { node: SgNode; tableNames: string[] }): {
   method: ORMMethods;
   tableName: { matched: true; table: string } | { matched: false };
 }[] => {
   const ormCalls = Object.keys(ormAccess).map((orm) => ({
     method: orm as ORMMethods,
-    nodes: callbackNode.findAll(`$TABLE.${orm}($_)`),
+    nodes: node.findAll(`$TABLE.${orm}($_)`),
   }));
 
   return ormCalls.flatMap((ormCall) => {

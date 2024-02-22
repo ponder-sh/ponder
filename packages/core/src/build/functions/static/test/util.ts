@@ -1,5 +1,5 @@
 import type { SgNode } from "@ast-grep/napi";
-import { type Context, type Event } from "./ponder-env.js";
+import type { Context, Event } from "./ponder-env.d.ts";
 
 export const helper1 = async ({
   context,
@@ -8,34 +8,34 @@ export const helper1 = async ({
   junk?: string;
 }) => {
   await context.db.Table1.upsert({
-    id: "kyle",
+    id: "helper1",
   });
 };
 
 export async function helper2(context: Context) {
   await context.db.Table1.upsert({
-    id: "kyle",
+    id: "helper2",
   });
 }
 
 export async function helper3({ context }: { event: Event; context: Context }) {
   await context.db.Table1.upsert({
-    id: "kyle",
+    id: "helper3",
   });
 }
 
 export class HelperClass {
-  async helper({ context }: { event: Event; context: Context }) {
+  async helperC({ context }: { event: Event; context: Context }) {
     await context.db.Table1.upsert({
-      id: "kyle",
+      id: "helperClass",
     });
   }
 }
 
 export const HelperObject = {
-  helper: async ({ context }: { event: Event; context: Context }) => {
+  helperO: async ({ context }: { event: Event; context: Context }) => {
     await context.db.Table1.upsert({
-      id: "kyle",
+      id: "helperObject",
     });
   },
 };

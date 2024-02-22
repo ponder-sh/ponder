@@ -43,7 +43,7 @@ test("basic", () => {
   });
 });
 
-test.skip("helper function", () => {
+test("helper function", () => {
   const tableAccess = getTableAccess({
     tableNames,
     indexingFunctionKeys,
@@ -156,7 +156,7 @@ test("renamed variable", () => {
   });
 });
 
-test.skip("helper class", () => {
+test("helper class", () => {
   const tableAccess = getTableAccess({
     tableNames,
     indexingFunctionKeys,
@@ -186,7 +186,7 @@ test.skip("helper class", () => {
   });
 });
 
-test.skip("helper object", () => {
+test("helper object", () => {
   const tableAccess = getTableAccess({
     tableNames,
     indexingFunctionKeys,

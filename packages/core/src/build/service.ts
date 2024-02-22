@@ -23,7 +23,7 @@ import {
 } from "./functions/functions.js";
 import {
   type TableAccess,
-  parseAst,
+  getTableAccess,
 } from "./functions/static/getTableAccess.js";
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
@@ -398,7 +398,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.rawIndexingFunctions,
     ).flatMap((indexingFunctions) => indexingFunctions.map((x) => x.name));
 
-    const tableAccessMap = parseAst({
+    const tableAccessMap = getTableAccess({
       tableNames,
       filePaths,
       indexingFunctionKeys,
