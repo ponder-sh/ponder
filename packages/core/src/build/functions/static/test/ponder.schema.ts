@@ -1,4 +1,4 @@
-import { createSchema } from "../../../schema/schema.js";
+import { createSchema } from "../../../../schema/schema.js";
 
 export default createSchema((p) => ({
   Table1: p.createTable({

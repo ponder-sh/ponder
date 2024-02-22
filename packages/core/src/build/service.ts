@@ -21,7 +21,10 @@ import {
   type RawIndexingFunctions,
   safeBuildIndexingFunctions,
 } from "./functions/functions.js";
-import { type TableAccess, parseAst } from "./functions/parseAst.js";
+import {
+  type TableAccess,
+  parseAst,
+} from "./functions/static/getTableAccess.js";
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";

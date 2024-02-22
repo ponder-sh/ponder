@@ -1,3 +1,4 @@
+import type { SgNode } from "@ast-grep/napi";
 import { type Context, type Event } from "./ponder-env.js";
 
 export const helper1 = async ({
@@ -30,3 +31,17 @@ export class HelperClass {
     });
   }
 }
+
+export const HelperObject = {
+  helper: async ({ context }: { event: Event; context: Context }) => {
+    await context.db.Table1.upsert({
+      id: "kyle",
+    });
+  },
+};
+
+export const printNodes = (nodes: SgNode[]) => {
+  for (const node of nodes) {
+    console.log(node.text());
+  }
+};

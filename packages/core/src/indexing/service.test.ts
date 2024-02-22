@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { getEventsErc20 } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
-import type { TableAccess } from "@/build/functions/parseAst.js";
+import type { TableAccess } from "@/build/functions/static/getTableAccess.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";

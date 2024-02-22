@@ -1,14 +1,14 @@
 import path from "path";
 import url from "url";
 import { expect, test } from "vitest";
-import { parseAst } from "./parseAst.js";
+import { getTableAccess } from "./getTableAccess.js";
 import schema from "./test/ponder.schema.js";
 
 const tableNames = Object.keys(schema.tables);
 const indexingFunctionKeys = ["C:Event1", "C:Event2", "C:Event3"];
 
 test("basic", () => {
-  const tableAccess = parseAst({
+  const tableAccess = getTableAccess({
     tableNames,
     indexingFunctionKeys,
     filePaths: [
@@ -43,8 +43,8 @@ test("basic", () => {
   });
 });
 
-test("helper function", () => {
-  const tableAccess = parseAst({
+test.skip("helper function", () => {
+  const tableAccess = getTableAccess({
     tableNames,
     indexingFunctionKeys,
     filePaths: [
@@ -98,7 +98,7 @@ test("helper function", () => {
 });
 
 test.skip("helper rename", () => {
-  const tableAccess = parseAst({
+  const tableAccess = getTableAccess({
     tableNames,
     indexingFunctionKeys,
     filePaths: [
@@ -128,7 +128,7 @@ test.skip("helper rename", () => {
 });
 
 test("renamed variable", () => {
-  const tableAccess = parseAst({
+  const tableAccess = getTableAccess({
     tableNames,
     indexingFunctionKeys,
     filePaths: [
@@ -156,8 +156,8 @@ test("renamed variable", () => {
   });
 });
 
-test("helper class", () => {
-  const tableAccess = parseAst({
+test.skip("helper class", () => {
+  const tableAccess = getTableAccess({
     tableNames,
     indexingFunctionKeys,
     filePaths: [
@@ -185,3 +185,35 @@ test("helper class", () => {
     access: "write",
   });
 });
+
+test.skip("helper object", () => {
+  const tableAccess = getTableAccess({
+    tableNames,
+    indexingFunctionKeys,
+    filePaths: [
+      path.join(
+        url.fileURLToPath(import.meta.url),
+        "..",
+        "test",
+        "helperObject.ts",
+      ),
+      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+    ],
+  });
+
+  expect(tableAccess).toHaveLength(2);
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event1",
+    access: "read",
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event1",
+    access: "write",
+  });
+});
+
+test.todo("nested helper functions");

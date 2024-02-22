@@ -1,5 +1,5 @@
 import { http, parseAbi, zeroAddress } from "viem";
-import { createConfig } from "../../../config/config.js";
+import { createConfig } from "../../../../config/config.js";
 
 const abi = parseAbi([
   "event Event1(bytes32 arg)",
