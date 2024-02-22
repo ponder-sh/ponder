@@ -117,6 +117,11 @@ const templates = [
     description: "A Ponder app for an ERC721 token",
   },
   {
+    id: "reference-erc1155",
+    title: "Reference - ERC1155",
+    description: "A Ponder app for an ERC1155 token",
+  },
+  {
     id: "reference-erc4626",
     title: "Reference - ERC4626",
     description: "A Ponder app for an ERC4626 token",
