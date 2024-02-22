@@ -33,6 +33,9 @@
   "pnpm": {
     "patchedDependencies": {
       "graphql@16.8.1": "patches/graphql@16.8.1.patch"
+    },
+    "peerDependencyRules": {
+      "ignoreMissing": ["node-fetch"]
     }
   },
   "engines": {

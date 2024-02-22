@@ -1,6 +1,6 @@
 import { createConfig } from "@ponder/core";
-import { erc721ABI } from "@wagmi/core";
 import { http } from "viem";
+import { erc721ABI } from "./abis/erc721ABI";
 
 export default createConfig({
   networks: {

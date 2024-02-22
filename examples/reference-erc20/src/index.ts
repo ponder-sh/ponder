@@ -11,7 +11,7 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
       isOwner: false,
     },
     update: ({ current }) => ({
-      balance: current.balance - event.args.value,
+      balance: current.balance - event.args.amount,
     }),
   });
 
@@ -19,11 +19,11 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
   await Account.upsert({
     id: event.args.to,
     create: {
-      balance: event.args.value,
+      balance: event.args.amount,
       isOwner: false,
     },
     update: ({ current }) => ({
-      balance: current.balance + event.args.value,
+      balance: current.balance + event.args.amount,
     }),
   });
 
@@ -33,7 +33,7 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
     data: {
       fromId: event.args.from,
       toId: event.args.to,
-      amount: event.args.value,
+      amount: event.args.amount,
       timestamp: Number(event.block.timestamp),
     },
   });
@@ -50,10 +50,10 @@ ponder.on("ERC20:Approval", async ({ event, context }) => {
     create: {
       ownerId: event.args.owner,
       spenderId: event.args.spender,
-      amount: event.args.value,
+      amount: event.args.amount,
     },
     update: {
-      amount: event.args.value,
+      amount: event.args.amount,
     },
   });
 
@@ -63,7 +63,7 @@ ponder.on("ERC20:Approval", async ({ event, context }) => {
     data: {
       ownerId: event.args.owner,
       spenderId: event.args.spender,
-      amount: event.args.value,
+      amount: event.args.amount,
       timestamp: Number(event.block.timestamp),
     },
   });
