@@ -9,11 +9,11 @@ This example shows how to create a GraphQL API for an ERC1155 token using Ponder
 ```graphql
 {
   token(id: "7") {
-    owner {
+    account {
       id
     }
     transferEvents {
-      items{
+      items {
         fromId
         toId
         timestamp
