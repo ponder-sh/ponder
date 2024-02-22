@@ -116,6 +116,11 @@ const templates = [
     title: "Reference - ERC721",
     description: "A Ponder app for an ERC721 token",
   },
+  {
+    id: "reference-erc1155",
+    title: "Reference - ERC1155",
+    description: "A Ponder app for an ERC1155 token",
+  },
 ] as const satisfies readonly Template[];
 
 export async function run({
