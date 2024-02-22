@@ -17,6 +17,7 @@
     "noEmit": true,
     "lib": ["ES2022"],
     "target": "ES2022",
+    "allowImportingTsExtensions": true,
 
     // Skip type checking for node modules
     "skipLibCheck": true
