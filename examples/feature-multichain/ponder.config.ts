@@ -26,27 +26,27 @@ export default createConfig({
     mainnet: {
       chainId: 1,
       transport: http(process.env.PONDER_RPC_URL_1),
-      pollingInterval: 5_000,
+      pollingInterval: 15_000,
     },
     base: {
       chainId: 8453,
       transport: http(process.env.PONDER_RPC_URL_8453),
-      pollingInterval: 5_000,
+      pollingInterval: 15_000,
     },
     optimism: {
       chainId: 10,
       transport: http(process.env.PONDER_RPC_URL_10),
-      pollingInterval: 5_000,
+      pollingInterval: 15_000,
     },
     arbitrum: {
       chainId: 42161,
       transport: http(process.env.PONDER_RPC_URL_42161),
-      pollingInterval: 5_000,
+      pollingInterval: 15_000,
     },
     polygon: {
       chainId: 137,
       transport: http(process.env.PONDER_RPC_URL_137),
-      pollingInterval: 5_000,
+      pollingInterval: 15_000,
     },
   },
   contracts: {
