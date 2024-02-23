@@ -1,3 +1,4 @@
+import type { SgNode } from "@ast-grep/napi";
 import { getHelperFunctions } from "./getHelperFunctions.js";
 import { getIndexingFunctions } from "./getIndexingFunctions.js";
 import { getTableReferences } from "./getTableReferences.js";
@@ -58,17 +59,39 @@ export const getTableAccess = ({
   const files = parseFiles({ filePaths });
 
   const helperFunctions = files.flatMap((file) => getHelperFunctions({ file }));
-  const helperFunctionAccess = [] as HelperFunctionAccess;
+  const helperFunctionAccess: HelperFunctionAccess = [];
 
   for (const { functionName, bodyNode } of helperFunctions) {
-    const tableReferences = getTableReferences({ node: bodyNode, tableNames });
+    const tableReferences = getTableReferences({
+      node: bodyNode,
+      tableNames,
+    });
 
-    // Helper function invocation
-    // TODO(kyle) nested helper function support
-
-    // ORM function invocation
     for (const tableReference of tableReferences) {
-      helperFunctionAccess.push({ ...tableReference, functionName });
+      helperFunctionAccess.push({
+        ...tableReference,
+        functionName,
+      });
+    }
+  }
+
+  // Nested helper functions
+  for (const { functionName, bodyNode } of helperFunctions) {
+    const nestedHelperFunctions = helperFunctionAccess.filter(
+      (f) => f.functionName !== functionName,
+    );
+
+    for (const nestedHelperFunction of nestedHelperFunctions) {
+      if (
+        bodyNode.find(`${nestedHelperFunction.functionName}`) ||
+        bodyNode.find(`$$$.${nestedHelperFunction.functionName}`)
+      ) {
+        // const helperAccess = helperFunctionAccess.fil((h) => )
+        helperFunctionAccess.push({
+          ...nestedHelperFunction,
+          functionName,
+        });
+      }
     }
   }
 

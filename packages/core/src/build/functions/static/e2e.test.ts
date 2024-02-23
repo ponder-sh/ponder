@@ -216,4 +216,32 @@ test("helper object", () => {
   });
 });
 
-test.todo("nested helper functions");
+test("nested helper functions", () => {
+  const tableAccess = getTableAccess({
+    tableNames,
+    indexingFunctionKeys,
+    filePaths: [
+      path.join(
+        url.fileURLToPath(import.meta.url),
+        "..",
+        "test",
+        "helperNest.ts",
+      ),
+      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+    ],
+  });
+
+  expect(tableAccess).toHaveLength(2);
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event1",
+    access: "read",
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event1",
+    access: "write",
+  });
+});

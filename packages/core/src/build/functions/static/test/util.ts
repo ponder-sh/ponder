@@ -40,6 +40,8 @@ export const HelperObject = {
   },
 };
 
+export const helperNest = (context: Context) => helper1({ context });
+
 export const printNodes = (nodes: SgNode[]) => {
   for (const node of nodes) {
     console.log(node.text());
