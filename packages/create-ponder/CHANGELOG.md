@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.2.9
+
+### Patch Changes
+
+- [#656](https://github.com/ponder-sh/ponder/pull/656) [`f37099f9b04f83505bd9a8afab0e82c78995463b`](https://github.com/ponder-sh/ponder/commit/f37099f9b04f83505bd9a8afab0e82c78995463b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added erc1155 and erc4626 to the list of templates.
+
 ## 0.2.8
 
 ## 0.2.7
