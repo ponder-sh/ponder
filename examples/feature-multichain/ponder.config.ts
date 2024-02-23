@@ -15,24 +15,38 @@ const latestBlockOptimism = await createPublicClient({
 const latestBlockArbitrum = await createPublicClient({
   transport: http(process.env.PONDER_RPC_URL_42161),
 }).getBlock();
+const latestBlockPolygon = await createPublicClient({
+  transport: http(process.env.PONDER_RPC_URL_137),
+}).getBlock();
+
+console.log(latestBlockPolygon.number);
 
 export default createConfig({
   networks: {
     mainnet: {
       chainId: 1,
       transport: http(process.env.PONDER_RPC_URL_1),
+      pollingInterval: 15_000,
     },
     base: {
       chainId: 8453,
       transport: http(process.env.PONDER_RPC_URL_8453),
+      pollingInterval: 15_000,
     },
     optimism: {
       chainId: 10,
       transport: http(process.env.PONDER_RPC_URL_10),
+      pollingInterval: 15_000,
     },
     arbitrum: {
       chainId: 42161,
       transport: http(process.env.PONDER_RPC_URL_42161),
+      pollingInterval: 15_000,
+    },
+    polygon: {
+      chainId: 137,
+      transport: http(process.env.PONDER_RPC_URL_137),
+      pollingInterval: 15_000,
     },
   },
   contracts: {
@@ -53,6 +67,10 @@ export default createConfig({
         arbitrum: {
           address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
           startBlock: Number(latestBlockArbitrum.number) - 50,
+        },
+        polygon: {
+          address: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
+          startBlock: Number(latestBlockPolygon.number) - 200,
         },
       },
     },
