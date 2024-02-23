@@ -549,6 +549,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     ]);
 
     // TODO(kyle) copy cached data
+    // TODO(kyle) extra data is successfully reverted
 
     await database.kill();
     await newDatabase.kill();
