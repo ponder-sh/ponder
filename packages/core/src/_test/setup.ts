@@ -169,16 +169,17 @@ export async function setupSyncStore(context: TestContext) {
  * ```
  */
 export async function setupIndexingStore(context: TestContext) {
-  if (context.database.kind === "postgres") {
-    const indexingDatabase = await context.database.getIndexingDatabase();
+  const database = context.database;
+  if (database.kind === "postgres") {
+    const indexingDatabase = await database.getIndexingDatabase();
 
     context.indexingStore = new PostgresIndexingStore({
       common: context.common,
-      schemaName: indexingDatabase.schemaName,
+      getCurrentIndexingSchemaName: () => database.currentIndexingSchemaName,
       pool: indexingDatabase.pool,
     });
   } else {
-    const indexingDatabase = await context.database.getIndexingDatabase();
+    const indexingDatabase = await database.getIndexingDatabase();
 
     context.indexingStore = new SqliteIndexingStore({
       common: context.common,
