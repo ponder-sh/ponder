@@ -6,8 +6,6 @@ export const getHelperFunctions = ({
 }: { file: SgNode }): { functionName: string; bodyNode: SgNode }[] => {
   const helperFunctions: { functionName: string; bodyNode: SgNode }[] = [];
 
-  // TODO(kyle) make this work for js
-
   const arrowFunctions = file.findAll(ts.kind("arrow_function"));
   const functionDeclarations = file.findAll(ts.kind("function_declaration"));
   const methodDeclarations = file.findAll(ts.kind("method_definition"));
