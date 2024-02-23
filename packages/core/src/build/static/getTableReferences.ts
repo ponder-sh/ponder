@@ -1,5 +1,6 @@
+import type { StoreMethods } from "@/types/model.js";
 import type { SgNode } from "@ast-grep/napi";
-import { type ORMMethods, ormAccess } from "./orm.js";
+import { storeMethodAccess } from "./orm.js";
 
 /**
  * Returns the tables that are directly accessed inside of a given indexing function callback.
@@ -8,11 +9,11 @@ export const getTableReferences = ({
   node,
   tableNames,
 }: { node: SgNode; tableNames: string[] }): {
-  method: ORMMethods;
+  method: StoreMethods;
   tableName: { matched: true; table: string } | { matched: false };
 }[] => {
-  const ormCalls = Object.keys(ormAccess).map((orm) => ({
-    method: orm as ORMMethods,
+  const ormCalls = Object.keys(storeMethodAccess).map((orm) => ({
+    method: orm as StoreMethods,
     nodes: node.findAll(`$TABLE.${orm}($_)`),
   }));
 

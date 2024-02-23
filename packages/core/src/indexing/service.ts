@@ -1,6 +1,7 @@
 import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { TableAccess } from "@/build/static/getTableAccess.js";
+import { storeMethodAccess } from "@/build/static/orm.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Source,
@@ -12,6 +13,7 @@ import type { Schema } from "@/schema/types.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
+import type { StoreMethods } from "@/types/model.js";
 import {
   type Checkpoint,
   checkpointMax,
@@ -93,7 +95,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private getNetwork: (checkpoint: Checkpoint) => Context["network"] =
     undefined!;
   private getClient: (checkpoint: Checkpoint) => Context["client"] = undefined!;
-  private getDB: (checkpoint: Checkpoint) => Context["db"] = undefined!;
+  private getDB: ReturnType<typeof buildDb> = undefined!;
   private getContracts: (checkpoint: Checkpoint) => Context["contracts"] =
     undefined!;
 
@@ -531,7 +533,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
           context: {
             network: this.getNetwork(data.checkpoint),
             client: this.getClient(data.checkpoint),
-            db: this.getDB(data.checkpoint),
+            db: this.getDB({
+              checkpoint: data.checkpoint,
+              handleTableAccess: this.handleTableAccess(fullEventName),
+            }),
             contracts: this.getContracts(data.checkpoint),
           },
         });
@@ -605,7 +610,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
           context: {
             network: this.getNetwork(data.checkpoint),
             client: this.getClient(data.checkpoint),
-            db: this.getDB(data.checkpoint),
+            db: this.getDB({
+              checkpoint: data.checkpoint,
+              handleTableAccess: this.handleTableAccess(fullEventName),
+            }),
             contracts: this.getContracts(data.checkpoint),
           },
         });
@@ -939,7 +947,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         this.common.logger.debug({
           service: "indexing",
-          msg: `Registered indexing function ${indexingFunctionKey} (selfDependent=${isSelfDependent}, parents=[${dedupe(
+          msg: `Registered indexing function "${indexingFunctionKey}" (selfDependent=${isSelfDependent}, parents=[${dedupe(
             parents,
           ).join(", ")}])`,
         });
@@ -998,4 +1006,35 @@ export class IndexingService extends Emittery<IndexingEvents> {
         state.firstEventCheckpoint.blockTimestamp,
     );
   };
+
+  private handleTableAccess =
+    (indexingFunctionKey: string) =>
+    ({
+      storeMethod,
+      tableName,
+    }: { storeMethod: StoreMethods; tableName: string }) => {
+      const accessTypes = storeMethodAccess[storeMethod];
+
+      let hasError = false;
+      for (const accessType of accessTypes) {
+        const matchedAccess =
+          this.tableAccess?.find(
+            (t) =>
+              t.access === accessType &&
+              t.indexingFunctionKey === indexingFunctionKey &&
+              t.table === tableName,
+          ) === undefined;
+
+        if (matchedAccess === undefined) {
+          hasError = true;
+        }
+      }
+
+      if (hasError) {
+        this.common.logger.warn({
+          service: "indexing",
+          msg: `Indexing function "${indexingFunctionKey}" incorrectly parsed, could potentially be run out of order. Please report this bug to "http://github.com/ponder-sh/ponder/issues"`,
+        });
+      }
+    };
 }

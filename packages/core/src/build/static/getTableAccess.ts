@@ -1,7 +1,8 @@
+import type { StoreMethods } from "@/types/model.js";
 import { getHelperFunctions } from "./getHelperFunctions.js";
 import { getIndexingFunctions } from "./getIndexingFunctions.js";
 import { getTableReferences } from "./getTableReferences.js";
-import { type ORMMethods, ormAccess } from "./orm.js";
+import { storeMethodAccess } from "./orm.js";
 import { parseFiles } from "./parseFiles.js";
 
 export type TableAccess = {
@@ -12,7 +13,7 @@ export type TableAccess = {
 
 type HelperFunctionAccess = {
   functionName: string;
-  method: ORMMethods;
+  method: StoreMethods;
   tableName: ReturnType<typeof getTableReferences>[number]["tableName"];
 }[];
 
@@ -31,11 +32,11 @@ export const getTableAccess = ({
     tableName,
     indexingFunctionKey,
   }: {
-    method: ORMMethods;
+    method: StoreMethods;
     tableName: ReturnType<typeof getTableReferences>[number]["tableName"];
     indexingFunctionKey: string;
   }) => {
-    const accessArr = ormAccess[method];
+    const accessArr = storeMethodAccess[method];
     if (tableName.matched) {
       for (const access of accessArr)
         tableAccess.push({

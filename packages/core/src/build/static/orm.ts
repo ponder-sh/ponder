@@ -1,12 +1,17 @@
-export const ormAccess = {
+import type { StoreMethods } from "@/types/model.js";
+
+export const storeMethodAccess = {
   create: ["write"],
+  createMany: ["write"],
   update: ["read", "write"],
-  upsert: ["read", "write"],
-  delete: ["write"],
+  updateMany: ["read", "write"],
   findUnique: ["read"],
   findMany: ["read"],
-  createMany: ["write"],
-  updateMany: ["read", "write"],
-} as const;
-
-export type ORMMethods = keyof typeof ormAccess;
+  upsert: ["read", "write"],
+  delete: ["read", "write"],
+} as const satisfies {
+  [storeMethod in StoreMethods]:
+    | readonly ["read"]
+    | readonly ["write"]
+    | readonly ["read", "write"];
+};

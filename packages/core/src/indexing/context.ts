@@ -4,7 +4,7 @@ import type { Source } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import type { DatabaseModel } from "@/types/model.js";
+import type { DatabaseModel, StoreMethods } from "@/types/model.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
@@ -78,7 +78,16 @@ export const buildDb =
     indexingStore: IndexingStore;
     schema: Schema;
   }) =>
-  (checkpoint: Checkpoint) => {
+  ({
+    checkpoint,
+    handleTableAccess,
+  }: {
+    checkpoint: Checkpoint;
+    handleTableAccess: ({
+      storeMethod,
+      tableName,
+    }: { storeMethod: StoreMethods; tableName: string }) => void;
+  }) => {
     return Object.keys(schema.tables).reduce<
       Record<string, DatabaseModel<Row>>
     >((acc, tableName) => {
@@ -88,7 +97,8 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.findUnique(id=${id})`,
           });
-          return await indexingStore.findUnique({
+          handleTableAccess({ storeMethod: "findUnique", tableName });
+          return indexingStore.findUnique({
             tableName,
             checkpoint,
             id,
@@ -99,7 +109,8 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.findMany`,
           });
-          return await indexingStore.findMany({
+          handleTableAccess({ storeMethod: "findMany", tableName });
+          return indexingStore.findMany({
             tableName,
             checkpoint,
             where,
@@ -114,7 +125,8 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.create(id=${id})`,
           });
-          return await indexingStore.create({
+          handleTableAccess({ storeMethod: "create", tableName });
+          return indexingStore.create({
             tableName,
             checkpoint,
             id,
@@ -126,7 +138,8 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.createMany(count=${data.length})`,
           });
-          return await indexingStore.createMany({
+          handleTableAccess({ storeMethod: "createMany", tableName });
+          return indexingStore.createMany({
             tableName,
             checkpoint,
             data,
@@ -137,7 +150,8 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.update(id=${id})`,
           });
-          return await indexingStore.update({
+          handleTableAccess({ storeMethod: "update", tableName });
+          return indexingStore.update({
             tableName,
             checkpoint,
             id,
@@ -149,7 +163,8 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.updateMany`,
           });
-          return await indexingStore.updateMany({
+          handleTableAccess({ storeMethod: "updateMany", tableName });
+          return indexingStore.updateMany({
             tableName,
             checkpoint,
             where,
@@ -161,7 +176,8 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.upsert(id=${id})`,
           });
-          return await indexingStore.upsert({
+          handleTableAccess({ storeMethod: "upsert", tableName });
+          return indexingStore.upsert({
             tableName,
             checkpoint,
             id,
@@ -174,7 +190,8 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.delete(id=${id})`,
           });
-          return await indexingStore.delete({
+          handleTableAccess({ storeMethod: "delete", tableName });
+          return indexingStore.delete({
             tableName,
             checkpoint,
             id,
