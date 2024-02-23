@@ -13,6 +13,8 @@
     "ponder-examples-project-uniswap-v3-flash",
     "ponder-examples-reference-erc20",
     "ponder-examples-reference-erc721",
+    "ponder-examples-reference-erc1155",
+    "ponder-examples-reference-erc4626",
     "ponder-examples-with-foundry",
     "ponder-examples-with-foundry-ponder",
     "ponder-examples-with-nextjs",
