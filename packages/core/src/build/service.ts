@@ -21,13 +21,10 @@ import {
   type RawIndexingFunctions,
   safeBuildIndexingFunctions,
 } from "./functions/functions.js";
-import {
-  type TableAccess,
-  getTableAccess,
-} from "./functions/static/getTableAccess.js";
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
+import { type TableAccess, getTableAccess } from "./static/getTableAccess.js";
 
 type BuildServiceEvents = {
   // Note: Should new config ever trigger a re-analyze?

@@ -1,6 +1,6 @@
 import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
-import type { TableAccess } from "@/build/functions/static/getTableAccess.js";
+import type { TableAccess } from "@/build/static/getTableAccess.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Source,

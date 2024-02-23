@@ -3,7 +3,7 @@
 // If this happens, please commit the changes. Do not manually edit this file.
 // See https://ponder.sh/docs/guides/typescript for more information.
 
-import type { Virtual } from "../../../../types/virtual.ts";
+import type { Virtual } from "../../../types/virtual.ts";
 
 type config = typeof import("./ponder.config.ts").default;
 type schema = typeof import("./ponder.schema.ts").default;

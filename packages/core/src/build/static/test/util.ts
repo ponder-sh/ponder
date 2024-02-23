@@ -1,5 +1,5 @@
 import type { SgNode } from "@ast-grep/napi";
-import type { Context, Event } from "./ponder-env.d.ts";
+import type { Context, Event } from "./ponder-env.js";
 
 export const helper1 = async ({
   context,
@@ -40,7 +40,9 @@ export const HelperObject = {
   },
 };
 
-export const helperNest = (context: Context) => helper1({ context });
+const helperNestInner = (context: Context) => helper1({ context });
+
+export const helperNest = (context: Context) => helperNestInner(context);
 
 export const printNodes = (nodes: SgNode[]) => {
   for (const node of nodes) {

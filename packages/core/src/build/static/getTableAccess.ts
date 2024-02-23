@@ -1,4 +1,3 @@
-import type { SgNode } from "@ast-grep/napi";
 import { getHelperFunctions } from "./getHelperFunctions.js";
 import { getIndexingFunctions } from "./getIndexingFunctions.js";
 import { getTableReferences } from "./getTableReferences.js";
@@ -58,6 +57,7 @@ export const getTableAccess = ({
 
   const files = parseFiles({ filePaths });
 
+  // Find helper functions and what tables they access.
   const helperFunctions = files.flatMap((file) => getHelperFunctions({ file }));
   const helperFunctionAccess: HelperFunctionAccess = [];
 
@@ -76,25 +76,28 @@ export const getTableAccess = ({
   }
 
   // Nested helper functions
-  for (const { functionName, bodyNode } of helperFunctions) {
-    const nestedHelperFunctions = helperFunctionAccess.filter(
-      (f) => f.functionName !== functionName,
-    );
+  let helperFunctionsToSearch = helperFunctionAccess;
+  let helperFunctionsFound = [];
 
-    for (const nestedHelperFunction of nestedHelperFunctions) {
-      if (
-        bodyNode.find(`${nestedHelperFunction.functionName}`) ||
-        bodyNode.find(`$$$.${nestedHelperFunction.functionName}`)
-      ) {
-        // const helperAccess = helperFunctionAccess.fil((h) => )
-        helperFunctionAccess.push({
-          ...nestedHelperFunction,
-          functionName,
-        });
-      }
+  for (let i = 0; i < 3; i++) {
+    for (const { functionName, bodyNode } of helperFunctions) {
+      const _matched = helperFunctionsToSearch
+        .filter(
+          (f) =>
+            f.functionName !== functionName &&
+            (bodyNode.find(`${f.functionName}`) ||
+              bodyNode.find(`$$$.${f.functionName}`)),
+        )
+        .map((nest) => ({ ...nest, functionName }));
+
+      helperFunctionsFound.push(..._matched);
     }
+    helperFunctionAccess.push(...helperFunctionsFound);
+    helperFunctionsToSearch = helperFunctionsFound;
+    helperFunctionsFound = [];
   }
 
+  // Find indexing functions and what tables + helper functions they access.
   const indexingFunctions = files.flatMap((file) =>
     getIndexingFunctions({ file }),
   );
