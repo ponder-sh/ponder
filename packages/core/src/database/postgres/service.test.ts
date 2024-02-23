@@ -1,6 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { getTableIds } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
+import {
+  encodeCheckpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { sql } from "kysely";
 import { Client } from "pg";
 import { beforeEach, describe, expect, test } from "vitest";
@@ -407,5 +412,212 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await newDatabase.kill();
 
     // Confirm that old instance has been rugged!
+  });
+
+  test("reset against a fresh database reads metadata", async (context) => {
+    const connectionString = (context as any).connectionString as string;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: { connectionString },
+    });
+
+    await database.setup();
+    await database.reset({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: { function: "function" },
+      tableAccess: [],
+    });
+
+    expect(database.metadata).toHaveLength(0);
+
+    const { rows: metadataRows } = await database.db.executeQuery(
+      sql`
+        SELECT *
+        FROM ponder_core_cache.metadata
+      `.compile(database.db),
+    );
+
+    expect(metadataRows).toHaveLength(0);
+
+    await database.kill();
+  });
+
+  test("flush agaisnt a fresh database", async (context) => {
+    const connectionString = (context as any).connectionString as string;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: { connectionString },
+    });
+
+    await database.setup();
+    await database.reset({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: { function: "function" },
+      tableAccess: [],
+    });
+
+    await database.flush([
+      {
+        functionId: "function",
+        fromCheckpoint: null,
+        toCheckpoint: zeroCheckpoint,
+        eventCount: 0,
+      },
+    ]);
+
+    // Confirm that the metadata was writted to metadata
+    const { rows: metadataRows } = await database.db.executeQuery(
+      sql`
+        SELECT *
+        FROM ponder_core_cache.metadata
+      `.compile(database.db),
+    );
+
+    expect(metadataRows).toStrictEqual([
+      {
+        functionId: "function",
+        fromCheckpoint: null,
+        toCheckpoint: encodeCheckpoint(zeroCheckpoint),
+        eventCount: 0,
+      },
+    ]);
+
+    // Check tables were copied to cache
+    const { rows: cacheRows } = await database.db.executeQuery(
+      sql`
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'ponder_core_cache'
+      `.compile(database.db),
+    );
+
+    expect(cacheRows).toContainEqual({ table_name: "Pet" });
+    expect(cacheRows).toContainEqual({ table_name: "Person" });
+
+    // TODO(kyle) check that the rows were copied to the cache
+
+    await database.kill();
+  });
+
+  test("reset against a database with existing metadata", async (context) => {
+    const connectionString = (context as any).connectionString as string;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: { connectionString },
+    });
+
+    await database.setup();
+    await database.reset({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: { function: "function" },
+      tableAccess: [],
+    });
+
+    await database.flush([
+      {
+        functionId: "function",
+        fromCheckpoint: null,
+        toCheckpoint: zeroCheckpoint,
+        eventCount: 0,
+      },
+    ]);
+
+    const newInstanceId = randomBytes(4).toString("hex");
+    const newDatabase = new PostgresDatabaseService({
+      common: { ...context.common, instanceId: newInstanceId },
+      poolConfig: { connectionString },
+    });
+    await newDatabase.setup();
+    await newDatabase.reset({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: { function: "function" },
+      tableAccess: [],
+    });
+
+    // Check that metadata is updated
+    expect(newDatabase.metadata).toStrictEqual([
+      {
+        functionId: "function",
+        fromCheckpoint: null,
+        toCheckpoint: zeroCheckpoint,
+        eventCount: 0,
+      },
+    ]);
+
+    // TODO(kyle) copy cached data
+
+    await database.kill();
+    await newDatabase.kill();
+  });
+
+  test("flush with old metadata to overwrite", async (context) => {
+    const connectionString = (context as any).connectionString as string;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: { connectionString },
+    });
+
+    await database.setup();
+    await database.reset({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: { function: "function" },
+      tableAccess: [],
+    });
+
+    await database.flush([
+      {
+        functionId: "function",
+        fromCheckpoint: null,
+        toCheckpoint: zeroCheckpoint,
+        eventCount: 0,
+      },
+    ]);
+
+    const newInstanceId = randomBytes(4).toString("hex");
+    const newDatabase = new PostgresDatabaseService({
+      common: { ...context.common, instanceId: newInstanceId },
+      poolConfig: { connectionString },
+    });
+    await newDatabase.setup();
+    await newDatabase.reset({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: { function: "function" },
+      tableAccess: [],
+    });
+
+    await newDatabase.flush([
+      {
+        functionId: "function",
+        fromCheckpoint: null,
+        toCheckpoint: maxCheckpoint,
+        eventCount: 1,
+      },
+    ]);
+
+    // Confirm that the metadata was writted to metadata
+    const { rows: metadataRows } = await database.db.executeQuery(
+      sql`
+            SELECT *
+            FROM ponder_core_cache.metadata
+          `.compile(database.db),
+    );
+
+    expect(metadataRows).toStrictEqual([
+      {
+        functionId: "function",
+        fromCheckpoint: null,
+        toCheckpoint: encodeCheckpoint(maxCheckpoint),
+        eventCount: 1,
+      },
+    ]);
+
+    await database.kill();
+    await newDatabase.kill();
   });
 });
