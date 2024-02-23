@@ -11,22 +11,33 @@ import {
 } from "@/utils/checkpoint.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { createPool } from "@/utils/pg.js";
-import { Kysely, Migrator, PostgresDialect, Transaction, sql } from "kysely";
+import {
+  CreateTableBuilder,
+  Kysely,
+  Migrator,
+  PostgresDialect,
+  WithSchemaPlugin,
+  sql,
+} from "kysely";
 import type { Pool, PoolConfig } from "pg";
 import type { BaseDatabaseService, Metadata } from "../service.js";
-import { migrationProvider } from "./migrations.js";
+import { type PonderCoreSchema, migrationProvider } from "./migrations.js";
 
 export class PostgresDatabaseService implements BaseDatabaseService {
   kind = "postgres" as const;
 
-  db: Kysely<any>;
+  db: Kysely<PonderCoreSchema>;
   private pool: Pool;
+
+  private instanceId: string;
+  private publicSchemaName: string;
+  private cacheSchemaName: string;
+  private instanceSchemaName: string;
+  currentIndexingSchemaName: string = null!;
 
   schema?: Schema;
   tableIds?: TableIds;
   metadata: Metadata[] = undefined!;
-
-  private schemaName: string;
 
   constructor({
     common,
@@ -35,38 +46,66 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     common: Common;
     poolConfig: PoolConfig;
   }) {
-    this.schemaName = `ponder_core_${common.instanceId}`;
+    this.instanceId = common.instanceId;
+    this.publicSchemaName = "public";
+    this.cacheSchemaName = "ponder_core_cache";
+    this.instanceSchemaName = `ponder_core_${common.instanceId}`;
 
-    const pool = createPool(poolConfig);
-    this.pool = pool;
-
-    this.db = new Kysely({
-      dialect: new PostgresDialect({ pool }),
+    this.pool = createPool(poolConfig);
+    this.db = new Kysely<PonderCoreSchema>({
+      dialect: new PostgresDialect({ pool: this.pool }),
       log(event) {
-        if (event.level === "query")
+        if (event.level === "error") console.log(event);
+        if (event.level === "query") {
           common.metrics.ponder_postgres_query_count?.inc({ kind: "indexing" });
+        }
       },
     });
   }
 
   async setup() {
+    // 1) Create the core cache schema if it doesn't exist.
     await this.db.schema
-      .createSchema("ponder_core_cache")
+      .createSchema(this.cacheSchemaName)
       .ifNotExists()
       .execute();
 
+    // 2) Run core cache schema migrations.
     const migrator = new Migrator({
-      db: this.db,
+      db: this.db.withPlugin(new WithSchemaPlugin(this.cacheSchemaName)),
       provider: migrationProvider,
-      migrationTableSchema: "ponder_core_cache",
+      migrationTableSchema: this.cacheSchemaName,
     });
     const result = await migrator.migrateToLatest();
-
     if (result.error) throw result.error;
+
+    // 3) Create instance-specific schema and role.
+    await this.db.transaction().execute(async (tx) => {
+      await tx.schema
+        .createSchema(this.instanceSchemaName)
+        .ifNotExists()
+        .execute();
+
+      await tx.executeQuery(
+        sql`CREATE ROLE ${sql.raw(this.instanceSchemaName)}`.compile(tx),
+      );
+      await tx.executeQuery(
+        sql`GRANT USAGE ON SCHEMA ${sql.raw(this.cacheSchemaName)}, ${sql.raw(
+          this.instanceSchemaName,
+        )} TO ${sql.raw(this.instanceSchemaName)}`.compile(tx),
+      );
+      await tx.executeQuery(
+        sql`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA ${sql.raw(
+          this.cacheSchemaName,
+        )}, ${sql.raw(this.instanceSchemaName)} TO ${sql.raw(
+          this.instanceSchemaName,
+        )}`.compile(tx),
+      );
+    });
   }
 
   async getIndexingDatabase() {
-    return { pool: this.pool, schemaName: this.schemaName };
+    return { pool: this.pool, schemaName: this.instanceSchemaName };
   }
 
   async getSyncDatabase() {
@@ -76,6 +115,32 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   }
 
   async kill() {
+    // TODO(kyle): Flush here?
+
+    // Delete instance-specific role and schema.
+    await this.db.transaction().execute(async (tx) => {
+      await tx.executeQuery(
+        sql`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA ${sql.raw(
+          this.cacheSchemaName,
+        )}, ${sql.raw(this.instanceSchemaName)} FROM ${sql.raw(
+          this.instanceSchemaName,
+        )}`.compile(tx),
+      );
+      await tx.executeQuery(
+        sql`REVOKE USAGE ON SCHEMA ${sql.raw(this.cacheSchemaName)}, ${sql.raw(
+          this.instanceSchemaName,
+        )} FROM ${sql.raw(this.instanceSchemaName)}`.compile(tx),
+      );
+      await tx.executeQuery(
+        sql`DROP ROLE ${sql.raw(this.instanceSchemaName)}`.compile(tx),
+      );
+      await tx.schema
+        .dropSchema(this.instanceSchemaName)
+        .ifExists()
+        .cascade()
+        .execute();
+    });
+
     try {
       await this.db.destroy();
     } catch (e) {
@@ -101,25 +166,73 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     if (schema) this.schema = schema;
     if (tableIds) this.tableIds = tableIds;
 
-    const _functionIds = Object.values(functionIds);
-
-    await this.db.schema.createSchema(this.schemaName).ifNotExists().execute();
-
-    // TODO(kyle): error here
     const metadata = await this.db.transaction().execute(async (tx) => {
-      await this.createTables(tx, "cache");
-      await this.dropTables(tx, "live");
-      await this.createTables(tx, "live");
-      await this.copyTables(tx, "cache");
+      // 1) Edge case: If there are no rows found in the lock table, acquire the lock.
+      const latestLock = await tx
+        .withSchema(this.cacheSchemaName)
+        .selectFrom("lock")
+        .selectAll()
+        .executeTakeFirst();
+      if (latestLock === undefined) {
+        await tx
+          .withSchema(this.cacheSchemaName)
+          .insertInto("lock")
+          .values({
+            id: "instance_lock",
+            instance_id: this.instanceId,
+            schema: JSON.stringify(this.schema),
+          })
+          .execute();
 
-      if (_functionIds.length === 0) return [];
-      const m = await tx
-        .withSchema("ponder_core_cache")
+        this.currentIndexingSchemaName = this.publicSchemaName;
+      } else {
+        this.currentIndexingSchemaName = this.instanceSchemaName;
+      }
+
+      // 2) Create tables in the current indexing schema, copying cached data if available.
+      const tables = Object.entries(this.schema!.tables);
+      await Promise.all(
+        tables.map(async ([tableName, columns]) => {
+          const tableId = this.tableIds![tableName];
+          const versionedTableName = `${tableName}_versioned`;
+
+          // 1) Create a table in the instance schema.
+          await tx.schema
+            .withSchema(this.currentIndexingSchemaName)
+            .createTable(versionedTableName)
+            .$call((builder) => this.buildColumns(builder, tableName, columns))
+            .execute();
+
+          // 2) Create a table in the cache schema if it doesn't already exist.
+          await tx.schema
+            .withSchema(this.cacheSchemaName)
+            .createTable(tableId)
+            .$call((builder) => this.buildColumns(builder, tableName, columns))
+            .ifNotExists()
+            .execute();
+
+          // 3) Copy data from the cache table to the new table.
+          await tx.executeQuery(
+            sql`INSERT INTO ${sql.raw(
+              `"${this.currentIndexingSchemaName}"."${versionedTableName}"`,
+            )} SELECT * FROM ${sql.raw(
+              `"${this.cacheSchemaName}"."${tableId}"`,
+            )}`.compile(tx),
+          );
+        }),
+      );
+
+      const functionIds_ = Object.values(functionIds);
+      if (functionIds_.length === 0) return [];
+
+      const metadata = await tx
+        .withSchema(this.cacheSchemaName)
         .selectFrom("metadata")
         .selectAll()
-        .where("functionId", "in", ["hihi"])
+        .where("functionId", "in", functionIds_)
         .execute();
-      return m;
+
+      return metadata;
     });
 
     this.metadata = metadata.map((m) => ({
@@ -131,7 +244,12 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       eventCount: m.eventCount,
     }));
 
-    // Table checkpoint is the minimum checkpoint of all the functions that write to it.
+    /**
+     * It's possible for the cache tables to contain more data than the metadata indicates.
+     * To avoid copying unfinalized data left over from a previous instance, we must revert
+     * the instance tables to the checkpoint saved in the metadata after copying from the cache.
+     * In other words, metadata checkpoints are always <= actual rows in the corresponding table.
+     */
     for (const tableName of Object.keys(schema.tables)) {
       const indexingFunctionKeys = tableAccess
         .filter((t) => t.access === "write" && t.table === tableName)
@@ -150,7 +268,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       const tableCheckpoint = checkpointMax(...checkpoints);
 
       await revertTable(
-        this.db.withSchema(this.schemaName),
+        this.db.withSchema(this.currentIndexingSchemaName),
         tableName,
         tableCheckpoint,
       );
@@ -159,11 +277,39 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
   async flush(metadata: Metadata[]): Promise<void> {
     await this.db.transaction().execute(async (tx) => {
-      await this.dropTables(tx, "cache");
-      await this.createTables(tx, "cache");
-      await this.copyTables(tx, "live");
+      const tables = Object.entries(this.schema!.tables);
 
-      const values = metadata.map((m) => ({
+      await Promise.all(
+        tables.map(async ([tableName, columns]) => {
+          const tableId = this.tableIds![tableName];
+          const versionedTableName = `${tableName}_versioned`;
+
+          // 1) Drop existing cache table.
+          await tx.schema
+            .withSchema(this.cacheSchemaName)
+            .dropTable(tableId)
+            .ifExists()
+            .execute();
+
+          // 2) Create new empty cache table.
+          await tx.schema
+            .withSchema(this.cacheSchemaName)
+            .createTable(tableId)
+            .$call((builder) => this.buildColumns(builder, tableName, columns))
+            .execute();
+
+          // 3) Copy data from current indexing table to new cache table.
+          await tx.executeQuery(
+            sql`INSERT INTO ${sql.raw(
+              `"${this.cacheSchemaName}"."${tableId}"`,
+            )} SELECT * FROM ${sql.raw(
+              `"${this.currentIndexingSchemaName}"."${versionedTableName}"`,
+            )}`.compile(tx),
+          );
+        }),
+      );
+
+      const newMetadata = metadata.map((m) => ({
         functionId: m.functionId,
         fromCheckpoint: m.fromCheckpoint
           ? encodeCheckpoint(m.fromCheckpoint)
@@ -172,131 +318,190 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         eventCount: m.eventCount,
       }));
 
-      for (const row of values) {
-        await tx
-          .withSchema("ponder_core_cache")
-          .insertInto("metadata")
-          .values(row)
-          .onConflict((oc) => oc.column("functionId").doUpdateSet(row))
-          .execute();
-      }
+      await Promise.all(
+        newMetadata.map(async (metadata) => {
+          await tx
+            .withSchema(this.cacheSchemaName)
+            .insertInto("metadata")
+            .values(metadata)
+            .onConflict((oc) => oc.column("functionId").doUpdateSet(metadata))
+            .execute();
+        }),
+      );
     });
   }
 
   async publish() {
-    // TODO(kevin)
-    // search path
+    await this.db.transaction().execute(async (tx) => {
+      const latestLock = await tx
+        .withSchema(this.cacheSchemaName)
+        .selectFrom("lock")
+        .selectAll()
+        .executeTakeFirst();
+
+      // If the latest lock is undefined, it's an invariant violation.
+      if (latestLock === undefined) {
+        throw new Error(
+          "Invariant violation: Attempted to publish, but the lock table is empty.",
+        );
+      }
+
+      // If the latest lock is this instance, we already published and can return early.
+      if (latestLock.instance_id === this.instanceId) return;
+
+      const oldSchemaName = `ponder_core_${latestLock.instance_id}`;
+      const oldTableNames = Object.keys(
+        (JSON.parse(latestLock.schema) as Schema).tables,
+      );
+
+      // The database can be in a few states:
+      // 1) Previous instance is not running, shut down gracefully
+      // 2) Previous instance is not running, shut down abruptly
+      // 3) Previous instance is still running, lock has not expired
+      // 4) Previous instance is still running, lock has expired (????)
+
+      // If the old instance schema still exists, move tables from public to it.
+      // Otherwise, drop any old tables from public.
+      const { rows: schemaExistsRows } = await tx.executeQuery<{
+        exists: boolean;
+      }>(
+        sql`SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname = '${sql.raw(
+          oldSchemaName,
+        )}')`.compile(tx),
+      );
+      const oldInstanceSchemaExists = schemaExistsRows[0]?.exists ?? false;
+      if (oldInstanceSchemaExists) {
+        await Promise.all(
+          oldTableNames.map(async (oldTableName) => {
+            const oldVersionedTableName = `${oldTableName}_versioned`;
+            await tx.schema
+              .withSchema(this.publicSchemaName)
+              .alterTable(oldVersionedTableName)
+              .setSchema(oldSchemaName)
+              .execute();
+          }),
+        );
+      } else {
+        await Promise.all(
+          oldTableNames.map(async (oldTableName) => {
+            const oldVersionedTableName = `${oldTableName}_versioned`;
+            await tx.schema
+              .withSchema(this.publicSchemaName)
+              .dropTable(oldVersionedTableName)
+              .ifExists()
+              .cascade()
+              .execute();
+          }),
+        );
+      }
+
+      // If the old instance role still exists, revoke public permissions.
+      const { rows: roleExistsRows } = await tx.executeQuery<{
+        exists: boolean;
+      }>(
+        sql`SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = '${sql.raw(
+          oldSchemaName,
+        )}')`.compile(tx),
+      );
+      const oldInstanceRoleExists = roleExistsRows[0]?.exists ?? false;
+
+      // 2) Revoke public schema access privileges for the old user.
+      if (oldInstanceRoleExists) {
+        await tx.executeQuery(
+          sql`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA ${sql.raw(
+            this.publicSchemaName,
+          )} FROM ${sql.raw(oldSchemaName)}`.compile(tx),
+        );
+        await tx.executeQuery(
+          sql`REVOKE USAGE ON SCHEMA ${sql.raw(
+            this.publicSchemaName,
+          )} FROM ${sql.raw(oldSchemaName)}`.compile(tx),
+        );
+      }
+
+      // Move the new instance tables into the public schema.
+      const tableNames = Object.keys(this.schema!.tables);
+      await Promise.all(
+        tableNames.map(async (tableName) => {
+          const versionedTableName = `${tableName}_versioned`;
+          await tx.schema
+            .withSchema(this.instanceSchemaName)
+            .alterTable(versionedTableName)
+            .setSchema(this.publicSchemaName)
+            .execute();
+        }),
+      );
+
+      // Update the lock.
+      await tx
+        .withSchema(this.cacheSchemaName)
+        .updateTable("lock")
+        .where("id", "=", "instance_lock")
+        .set({
+          instance_id: this.instanceId,
+          schema: JSON.stringify(this.schema!),
+        })
+        .execute();
+
+      this.currentIndexingSchemaName = this.publicSchemaName;
+    });
   }
 
-  private dropTables = (_tx: Transaction<any>, database: "cache" | "live") => {
-    const tx =
-      database === "cache"
-        ? _tx.withSchema("ponder_core_cache")
-        : _tx.withSchema(this.schemaName);
-
-    return Promise.all(
-      Object.keys(this.schema!.tables).map((tableName) => {
-        const versionedTableName =
-          database === "cache"
-            ? this.tableIds![tableName]
-            : `${tableName}_versioned`;
-
-        return tx.schema.dropTable(versionedTableName).ifExists().execute();
-      }),
-    );
-  };
-
-  private createTables = (_tx: Transaction<any>, database: "cache" | "live") =>
-    Promise.all(
-      Object.entries(this.schema!.tables).map(async ([tableName, columns]) => {
-        // Database specific variables
-        const versionedTableName =
-          database === "cache"
-            ? this.tableIds![tableName]
-            : `${tableName}_versioned`;
-        const tx =
-          database === "cache"
-            ? _tx.withSchema("ponder_core_cache")
-            : _tx.withSchema(this.schemaName);
-
-        let tableBuilder = tx.schema
-          .createTable(versionedTableName)
-          .ifNotExists();
-
-        Object.entries(columns).forEach(([columnName, column]) => {
-          if (isOneColumn(column)) return;
-          if (isManyColumn(column)) return;
-          if (isEnumColumn(column)) {
-            // Handle enum types
-            tableBuilder = tableBuilder.addColumn(columnName, "text", (col) => {
-              if (!column.optional) col = col.notNull();
-              if (!column.list) {
-                col = col.check(
-                  sql`${sql.ref(columnName)} in (${sql.join(
-                    this.schema!.enums[column.type].map((v) => sql.lit(v)),
-                  )})`,
-                );
-              }
-              return col;
-            });
-          } else if (column.list) {
-            // Handle scalar list columns
-            tableBuilder = tableBuilder.addColumn(columnName, "text", (col) => {
-              if (!column.optional) col = col.notNull();
-              return col;
-            });
-          } else {
-            // Non-list base columns
-            tableBuilder = tableBuilder.addColumn(
-              columnName,
-              scalarToSqlType[column.type],
-              (col) => {
-                if (!column.optional) col = col.notNull();
-                return col;
-              },
+  buildColumns(
+    builder: CreateTableBuilder<string>,
+    tableId: string,
+    columns: Schema["tables"][string],
+  ) {
+    Object.entries(columns).forEach(([columnName, column]) => {
+      if (isOneColumn(column)) return;
+      if (isManyColumn(column)) return;
+      if (isEnumColumn(column)) {
+        // Handle enum types
+        builder = builder.addColumn(columnName, "text", (col) => {
+          if (!column.optional) col = col.notNull();
+          if (!column.list) {
+            col = col.check(
+              sql`${sql.ref(columnName)} in (${sql.join(
+                this.schema!.enums[column.type].map((v) => sql.lit(v)),
+              )})`,
             );
           }
+          return col;
         });
+      } else if (column.list) {
+        // Handle scalar list columns
+        builder = builder.addColumn(columnName, "text", (col) => {
+          if (!column.optional) col = col.notNull();
+          return col;
+        });
+      } else {
+        // Non-list base columns
+        builder = builder.addColumn(
+          columnName,
+          scalarToSqlType[column.type],
+          (col) => {
+            if (!column.optional) col = col.notNull();
+            return col;
+          },
+        );
+      }
+    });
 
-        tableBuilder = tableBuilder.addColumn(
-          "effectiveFromCheckpoint",
-          "varchar(58)",
-          (col) => col.notNull(),
-        );
-        tableBuilder = tableBuilder.addColumn(
-          "effectiveToCheckpoint",
-          "varchar(58)",
-          (col) => col.notNull(),
-        );
-        tableBuilder = tableBuilder.addPrimaryKeyConstraint(
-          `${versionedTableName}_effectiveToCheckpoint_unique`,
-          ["id", "effectiveToCheckpoint"] as never[],
-        );
-
-        await tableBuilder.execute();
-      }),
+    builder = builder.addColumn(
+      "effectiveFromCheckpoint",
+      "varchar(58)",
+      (col) => col.notNull(),
+    );
+    builder = builder.addColumn("effectiveToCheckpoint", "varchar(58)", (col) =>
+      col.notNull(),
+    );
+    builder = builder.addPrimaryKeyConstraint(
+      `${tableId}_id_checkpoint_unique`,
+      ["id", "effectiveToCheckpoint"] as never[],
     );
 
-  private copyTables = (tx: Transaction<any>, fromDatabase: "cache" | "live") =>
-    Promise.all(
-      Object.keys(this.schema!.tables).map(async (tableName) => {
-        // Database specific variables
-        const fromTable =
-          fromDatabase === "cache"
-            ? `"ponder_core_cache"."${this.tableIds![tableName]}"`
-            : `"${this.schemaName}"."${tableName}_versioned"`;
-        const toTable =
-          fromDatabase === "cache"
-            ? `"${this.schemaName}"."${tableName}_versioned"`
-            : `"ponder_core_cache"."${this.tableIds![tableName]}"`;
-
-        const query = sql`INSERT INTO ${sql.raw(
-          toTable,
-        )} SELECT * FROM ${sql.raw(fromTable)}`;
-
-        await query.execute(tx);
-      }),
-    );
+    return builder;
+  }
 }
 
 const scalarToSqlType = {

@@ -179,8 +179,8 @@ export class Ponder {
     const indexingDatabase = await database.getIndexingDatabase();
     this.indexingStore = new PostgresIndexingStore({
       common: this.common,
-      schemaName: indexingDatabase.schemaName,
       pool: indexingDatabase.pool,
+      getCurrentIndexingSchemaName: () => database.currentIndexingSchemaName,
     });
     // this.common.metrics.registerDatabaseMetrics(database);
 
@@ -281,13 +281,13 @@ export class Ponder {
 
       await database.setup();
 
-      const indexingDatabase = await database.getIndexingDatabase();
+      const indexingDatabase = await this.database.getIndexingDatabase();
       this.indexingStore = new SqliteIndexingStore({
         common: this.common,
         database: indexingDatabase.database,
       });
 
-      const syncDatabase = await database.getSyncDatabase();
+      const syncDatabase = await this.database.getSyncDatabase();
       this.syncStore = new SqliteSyncStore({
         common: this.common,
         database: syncDatabase.database,
@@ -304,11 +304,11 @@ export class Ponder {
       const indexingDatabase = await database.getIndexingDatabase();
       this.indexingStore = new PostgresIndexingStore({
         common: this.common,
-        schemaName: indexingDatabase.schemaName,
         pool: indexingDatabase.pool,
+        getCurrentIndexingSchemaName: () => database.currentIndexingSchemaName,
       });
 
-      const syncDatabase = await database.getSyncDatabase();
+      const syncDatabase = await this.database.getSyncDatabase();
       this.syncStore = new PostgresSyncStore({
         common: this.common,
         schemaName: syncDatabase.schemaName,
