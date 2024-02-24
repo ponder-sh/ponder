@@ -1,4 +1,4 @@
-import type { StoreMethods } from "@/types/model.js";
+import type { StoreMethod } from "@/types/model.js";
 
 export const storeMethodAccess = {
   create: ["write"],
@@ -10,7 +10,7 @@ export const storeMethodAccess = {
   upsert: ["read", "write"],
   delete: ["read", "write"],
 } as const satisfies {
-  [storeMethod in StoreMethods]:
+  [storeMethod in StoreMethod]:
     | readonly ["read"]
     | readonly ["write"]
     | readonly ["read", "write"];

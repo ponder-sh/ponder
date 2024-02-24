@@ -6,7 +6,7 @@ import type {
   Prettify,
 } from "./utils.js";
 
-export type StoreMethods = Prettify<keyof DatabaseModel<any>>;
+export type StoreMethod = Prettify<keyof DatabaseModel<any>>;
 
 export type DatabaseModel<T extends { id: string | number | bigint | Hex }> = {
   create: (

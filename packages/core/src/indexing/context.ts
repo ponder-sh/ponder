@@ -4,7 +4,7 @@ import type { Source } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import type { DatabaseModel, StoreMethods } from "@/types/model.js";
+import type { DatabaseModel, StoreMethod } from "@/types/model.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
@@ -86,7 +86,7 @@ export const buildDb =
     handleTableAccess: ({
       storeMethod,
       tableName,
-    }: { storeMethod: StoreMethods; tableName: string }) => void;
+    }: { storeMethod: StoreMethod; tableName: string }) => void;
   }) => {
     return Object.keys(schema.tables).reduce<
       Record<string, DatabaseModel<Row>>

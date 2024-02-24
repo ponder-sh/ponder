@@ -1,20 +1,21 @@
-import type { StoreMethods } from "@/types/model.js";
+import type { StoreMethod } from "@/types/model.js";
 import { getHelperFunctions } from "./getHelperFunctions.js";
 import { getIndexingFunctions } from "./getIndexingFunctions.js";
 import { getTableReferences } from "./getTableReferences.js";
-import { storeMethodAccess } from "./orm.js";
 import { parseFiles } from "./parseFiles.js";
 
 export type TableAccess = {
-  table: string;
-  indexingFunctionKey: string;
-  access: "read" | "write";
-}[];
+  [indexingFunctionKey: string]: {
+    tableName: string;
+    storeMethod: StoreMethod;
+  }[];
+};
 
 type HelperFunctionAccess = {
   functionName: string;
-  method: StoreMethods;
+  /** Intermediate type for table name that encodes whether a valid tableName was found or not. */
   tableName: ReturnType<typeof getTableReferences>[number]["tableName"];
+  storeMethod: StoreMethod;
 }[];
 
 export const getTableAccess = ({
@@ -25,33 +26,31 @@ export const getTableAccess = ({
   indexingFunctionKeys: string[];
   filePaths: string[];
 }) => {
-  const tableAccess = [] as TableAccess;
+  const tableAccess = {} as TableAccess;
 
   const addToTableAccess = ({
-    method,
+    storeMethod,
     tableName,
     indexingFunctionKey,
   }: {
-    method: StoreMethods;
+    storeMethod: StoreMethod;
     tableName: ReturnType<typeof getTableReferences>[number]["tableName"];
     indexingFunctionKey: string;
   }) => {
-    const accessArr = storeMethodAccess[method];
+    if (tableAccess[indexingFunctionKey] === undefined)
+      tableAccess[indexingFunctionKey] = [];
+
     if (tableName.matched) {
-      for (const access of accessArr)
-        tableAccess.push({
-          table: tableName.table,
-          indexingFunctionKey,
-          access,
-        });
+      tableAccess[indexingFunctionKey].push({
+        tableName: tableName.table,
+        storeMethod,
+      });
     } else {
-      for (const table of tableNames) {
-        for (const access of accessArr)
-          tableAccess.push({
-            table,
-            indexingFunctionKey,
-            access,
-          });
+      for (const tableName of tableNames) {
+        tableAccess[indexingFunctionKey].push({
+          tableName,
+          storeMethod,
+        });
       }
     }
   };
@@ -78,7 +77,7 @@ export const getTableAccess = ({
 
   // Nested helper functions
   let helperFunctionsToSearch = helperFunctionAccess;
-  let helperFunctionsFound = [];
+  let helperFunctionsFound: HelperFunctionAccess = [];
 
   for (let i = 0; i < 3; i++) {
     for (const { functionName, bodyNode } of helperFunctions) {
@@ -110,20 +109,43 @@ export const getTableAccess = ({
     });
 
     // Helper function invocation
-    for (const { functionName, method, tableName } of helperFunctionAccess) {
+    for (const {
+      functionName,
+      storeMethod,
+      tableName,
+    } of helperFunctionAccess) {
       if (
         callbackNode.find(`${functionName}`) ||
         callbackNode.find(`$$$.${functionName}`)
       ) {
-        addToTableAccess({ method, tableName, indexingFunctionKey });
+        addToTableAccess({ storeMethod, tableName, indexingFunctionKey });
       }
     }
 
-    // ORM function invocation
-    for (const { method, tableName } of tableReferences) {
-      addToTableAccess({ method, tableName, indexingFunctionKey });
+    // Store method invocation
+    for (const { storeMethod, tableName } of tableReferences) {
+      addToTableAccess({ storeMethod, tableName, indexingFunctionKey });
     }
   }
 
-  return tableAccess;
+  // Dedupe tableAccess
+  const dedupedTableAccess: TableAccess = {};
+
+  for (const indexingFunctionKey of Object.keys(tableAccess)) {
+    dedupedTableAccess[indexingFunctionKey] = [];
+    const seen = new Set<string>();
+
+    for (const { storeMethod, tableName } of tableAccess[indexingFunctionKey]) {
+      const key = `${tableName}_${storeMethod}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        dedupedTableAccess[indexingFunctionKey].push({
+          tableName,
+          storeMethod,
+        });
+      }
+    }
+  }
+
+  return dedupedTableAccess;
 };

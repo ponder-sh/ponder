@@ -1,7 +1,7 @@
 import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { TableAccess } from "@/build/static/getTableAccess.js";
-import { storeMethodAccess } from "@/build/static/orm.js";
+import { storeMethodAccess } from "@/build/static/storeMethodAccess.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Source,
@@ -13,7 +13,7 @@ import type { Schema } from "@/schema/types.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
-import type { StoreMethods } from "@/types/model.js";
+import type { StoreMethod } from "@/types/model.js";
 import {
   type Checkpoint,
   checkpointMax,
@@ -903,31 +903,32 @@ export class IndexingService extends Emittery<IndexingEvents> {
         const indexingFunctionKey = `${contractName}:${eventName}`;
 
         // All tables that this indexing function key reads
-        const tableReads = this.tableAccess
-          .filter(
-            (t) =>
-              t.indexingFunctionKey === indexingFunctionKey &&
-              t.access === "read",
-          )
-          .map((t) => t.table);
+        const tableReads = this.tableAccess[indexingFunctionKey]
+          ?.filter((t) => storeMethodAccess[t.storeMethod][0] === "read")
+          .map((t) => t.tableName);
 
         // All indexing function keys that write to a table in `tableReads`
         // except for itself.
-        const parents = this.tableAccess
-          .filter(
-            (t) =>
-              !t.indexingFunctionKey.includes(":setup") &&
-              t.access === "write" &&
-              tableReads.includes(t.table) &&
-              t.indexingFunctionKey !== indexingFunctionKey,
-          )
-          .map((t) => t.indexingFunctionKey);
+        const parents: string[] = [];
+        for (const parentIndexingFunctionKey of Object.keys(this.tableAccess)) {
+          for (const { storeMethod, tableName } of this.tableAccess[
+            indexingFunctionKey
+          ] ?? []) {
+            if (
+              !parentIndexingFunctionKey.includes(":setup") &&
+              storeMethodAccess[storeMethod][1] === "write" &&
+              tableReads.includes(tableName) &&
+              parentIndexingFunctionKey !== indexingFunctionKey
+            ) {
+              parents.push(parentIndexingFunctionKey);
+            }
+          }
+        }
 
-        const isSelfDependent = this.tableAccess.some(
+        const isSelfDependent = this.tableAccess[indexingFunctionKey]?.some(
           (t) =>
-            t.access === "write" &&
-            tableReads.includes(t.table) &&
-            t.indexingFunctionKey === indexingFunctionKey,
+            storeMethodAccess[t.storeMethod][1] === "write" &&
+            tableReads.includes(t.tableName),
         );
 
         const keySources = this.sources.filter(
@@ -947,9 +948,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         this.common.logger.debug({
           service: "indexing",
-          msg: `Registered indexing function "${indexingFunctionKey}" (selfDependent=${isSelfDependent}, parents=[${dedupe(
-            parents,
-          ).join(", ")}])`,
+          msg: `Registered indexing function "${indexingFunctionKey}" with table access [${this.tableAccess[
+            indexingFunctionKey
+          ]
+            ?.map(
+              ({ storeMethod, tableName }) => `${tableName}.${storeMethod}()`,
+            )
+            .join(", ")}]`,
         });
 
         this.indexingFunctionStates[indexingFunctionKey] = {
@@ -1012,28 +1017,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
     ({
       storeMethod,
       tableName,
-    }: { storeMethod: StoreMethods; tableName: string }) => {
-      const accessTypes = storeMethodAccess[storeMethod];
+    }: { storeMethod: StoreMethod; tableName: string }) => {
+      const matchedAccess = this.tableAccess?.[indexingFunctionKey]?.find(
+        (t) => t.storeMethod === storeMethod && t.tableName === tableName,
+      );
 
-      let hasError = false;
-      for (const accessType of accessTypes) {
-        const matchedAccess =
-          this.tableAccess?.find(
-            (t) =>
-              t.access === accessType &&
-              t.indexingFunctionKey === indexingFunctionKey &&
-              t.table === tableName,
-          ) === undefined;
-
-        if (matchedAccess === undefined) {
-          hasError = true;
-        }
-      }
-
-      if (hasError) {
+      if (matchedAccess === undefined) {
         this.common.logger.warn({
           service: "indexing",
-          msg: `Indexing function "${indexingFunctionKey}" incorrectly parsed, could potentially be run out of order. Please report this bug to "http://github.com/ponder-sh/ponder/issues"`,
+          msg: `Unexpected table access in indexing function "${indexingFunctionKey}". Events could potentially be run out of order. Please report this bug to "http://github.com/ponder-sh/ponder/issues".`,
         });
       }
     };

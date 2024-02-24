@@ -387,7 +387,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   private analyze() {
-    if (!this.rawIndexingFunctions || !this.schema) return [];
+    if (!this.rawIndexingFunctions || !this.schema) return {};
 
     const tableNames = Object.keys(this.schema.tables);
     const filePaths = Object.keys(this.rawIndexingFunctions);

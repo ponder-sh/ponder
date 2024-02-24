@@ -13,7 +13,7 @@ export const parseFile = ({ filePath }: { filePath: string }) => {
   const isJs =
     extension === ".js" || extension === ".mjs" || extension === ".cjs";
 
-  const file = fs.readFileSync(filePath).toString();
+  const file = fs.readFileSync(filePath, "utf8");
 
   const ast = isJs ? js.parse(file) : ts.parse(file);
   return ast.root();

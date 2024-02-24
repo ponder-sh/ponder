@@ -16,31 +16,19 @@ test("basic", () => {
     ],
   });
 
-  expect(tableAccess).toHaveLength(4);
+  expect(tableAccess["C:Event1"]).toStrictEqual([
+    {
+      tableName: "Table1",
+      storeMethod: "upsert",
+    },
+  ]);
 
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event1",
-    access: "read",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event1",
-    access: "write",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event2",
-    access: "read",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event2",
-    access: "write",
-  });
+  expect(tableAccess["C:Event2"]).toStrictEqual([
+    {
+      tableName: "Table1",
+      storeMethod: "upsert",
+    },
+  ]);
 });
 
 test("helper function", () => {
@@ -58,43 +46,26 @@ test("helper function", () => {
     ],
   });
 
-  expect(tableAccess).toHaveLength(6);
+  expect(tableAccess["C:Event1"]).toStrictEqual([
+    {
+      tableName: "Table1",
+      storeMethod: "upsert",
+    },
+  ]);
 
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event1",
-    access: "read",
-  });
+  expect(tableAccess["C:Event2"]).toStrictEqual([
+    {
+      tableName: "Table1",
+      storeMethod: "upsert",
+    },
+  ]);
 
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event1",
-    access: "write",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event2",
-    access: "read",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event2",
-    access: "write",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event3",
-    access: "read",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event3",
-    access: "write",
-  });
+  expect(tableAccess["C:Event3"]).toStrictEqual([
+    {
+      tableName: "Table1",
+      storeMethod: "upsert",
+    },
+  ]);
 });
 
 test.skip("helper rename", () => {
@@ -141,19 +112,13 @@ test("renamed variable", () => {
     ],
   });
 
-  expect(tableAccess).toHaveLength(6);
+  // Unable to match on a table name, so fall back to all table names
 
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event2",
-    access: "read",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event2",
-    access: "write",
-  });
+  expect(tableAccess["C:Event2"]).toStrictEqual([
+    { tableName: "Table1", storeMethod: "upsert" },
+    { tableName: "Table2", storeMethod: "upsert" },
+    { tableName: "Table3", storeMethod: "upsert" },
+  ]);
 });
 
 test("helper class", () => {
@@ -171,19 +136,9 @@ test("helper class", () => {
     ],
   });
 
-  expect(tableAccess).toHaveLength(2);
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event1",
-    access: "read",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event1",
-    access: "write",
-  });
+  expect(tableAccess["C:Event1"]).toStrictEqual([
+    { tableName: "Table1", storeMethod: "upsert" },
+  ]);
 });
 
 test("helper object", () => {
@@ -201,19 +156,9 @@ test("helper object", () => {
     ],
   });
 
-  expect(tableAccess).toHaveLength(2);
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event1",
-    access: "read",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event1",
-    access: "write",
-  });
+  expect(tableAccess["C:Event1"]).toStrictEqual([
+    { tableName: "Table1", storeMethod: "upsert" },
+  ]);
 });
 
 test("nested helper functions", () => {
@@ -230,18 +175,7 @@ test("nested helper functions", () => {
       path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
     ],
   });
-
-  expect(tableAccess).toHaveLength(2);
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event1",
-    access: "read",
-  });
-
-  expect(tableAccess).toContainEqual({
-    table: "Table1",
-    indexingFunctionKey: "C:Event1",
-    access: "write",
-  });
+  expect(tableAccess["C:Event1"]).toStrictEqual([
+    { tableName: "Table1", storeMethod: "upsert" },
+  ]);
 });
