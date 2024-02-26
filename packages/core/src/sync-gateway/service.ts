@@ -158,7 +158,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
         ...networkCheckpoints.map((n) => n.historicalCheckpoint),
       );
       this.historicalSyncCompletedAt = maxHistoricalCheckpoint.blockTimestamp;
-
       this.common.logger.debug({
         service: "gateway",
         msg: "Completed historical sync across all networks",

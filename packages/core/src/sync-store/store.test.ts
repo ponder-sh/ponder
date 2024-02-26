@@ -8,8 +8,9 @@ import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 beforeEach((context) => setupAnvil(context));
 beforeEach(async (context) => {
-  await setupDatabase(context);
+  const teardownDatabase = await setupDatabase(context);
   await setupSyncStore(context);
+  return teardownDatabase;
 });
 
 test("setup creates tables", async ({ syncStore }) => {

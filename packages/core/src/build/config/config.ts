@@ -31,7 +31,7 @@ export async function buildConfig({
   let databaseConfig: DatabaseConfig;
 
   const defaultStorePath = path.join(options.ponderDir, "store");
-  const sqlitePrintPath = path.relative(options.rootDir, defaultStorePath);
+  const sqlitePrintPath = defaultStorePath; // path.relative(options.rootDir, defaultStorePath);
 
   if (config.database?.kind) {
     if (config.database.kind === "postgres") {

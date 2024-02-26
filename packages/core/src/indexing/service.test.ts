@@ -17,9 +17,11 @@ import { IndexingService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
 beforeEach(async (context) => {
-  await setupDatabase(context);
+  const teardownDatabase = await setupDatabase(context);
   await setupSyncStore(context);
   await setupIndexingStore(context);
+
+  return teardownDatabase;
 });
 beforeEach(() => {
   // Restore getEvents to the initial implementation.
@@ -84,7 +86,7 @@ function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index, blockNumber: index };
 }
 
-test.skip("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
+test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
   const {
     common,
     syncStore,
@@ -100,6 +102,7 @@ test.skip("processEvents() calls getEvents with sequential timestamp ranges", as
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -118,6 +121,7 @@ test.skip("processEvents() calls getEvents with sequential timestamp ranges", as
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -170,6 +174,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -188,6 +193,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -244,6 +250,7 @@ test("processEvent() runs setup functions before log event", async (context) => 
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -279,6 +286,7 @@ test("processEvent() runs setup functions before log event", async (context) => 
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -296,6 +304,8 @@ test("processEvent() runs setup functions before log event", async (context) => 
 
   expect(setupIndexingFunction).toHaveBeenCalledTimes(1);
   expect(transferIndexingFunction).toHaveBeenCalledTimes(2);
+
+  expect(setup).toBe(true);
 
   await service.kill();
   await service.onIdle();
@@ -317,6 +327,7 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -335,6 +346,7 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -372,6 +384,7 @@ test("processEvents() orders tasks with self reliance", async (context) => {
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -405,6 +418,7 @@ test("processEvents() orders tasks with self reliance", async (context) => {
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -442,6 +456,7 @@ test("processEvents() model methods insert data into the indexing store", async 
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -455,6 +470,13 @@ test("processEvents() model methods insert data into the indexing store", async 
     requestQueues,
   });
 
+  await database.reset({
+    schema,
+    tableAccess,
+    functionIds: getFunctionIds(indexingFunctions),
+    tableIds: getTableIds(schema),
+  });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -492,6 +514,7 @@ test("processEvents() updates metrics", async (context) => {
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -505,6 +528,13 @@ test("processEvents() updates metrics", async (context) => {
     requestQueues,
   });
 
+  await database.reset({
+    schema,
+    tableAccess,
+    functionIds: getFunctionIds(indexingFunctions),
+    tableIds: getTableIds(schema),
+  });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -552,6 +582,7 @@ test("processEvents() reads data from a contract", async (context) => {
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -571,6 +602,7 @@ test("processEvents() reads data from a contract", async (context) => {
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions: readContractIndexingFunctions,
@@ -608,6 +640,7 @@ test("processEvents() recovers from errors while reading data from a contract", 
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -630,6 +663,7 @@ test("processEvents() recovers from errors while reading data from a contract", 
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions: readContractIndexingFunctions,
@@ -667,6 +701,7 @@ test("processEvents() retries indexing functions", async (context) => {
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -688,6 +723,7 @@ test("processEvents() retries indexing functions", async (context) => {
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -727,6 +763,7 @@ test("processEvents() handles errors", async (context) => {
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -763,6 +800,7 @@ test("processEvents() handles errors", async (context) => {
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -802,6 +840,7 @@ test("processEvents can be called multiple times", async (context) => {
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -830,6 +869,7 @@ test("processEvents can be called multiple times", async (context) => {
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -867,6 +907,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -885,6 +926,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -930,6 +972,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -951,6 +994,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -990,6 +1034,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -1011,6 +1056,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -1054,6 +1100,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -1072,6 +1119,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -1127,6 +1175,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   const syncGatewayService = {
     getEvents,
     checkpoint: zeroCheckpoint,
+    finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
   const service = new IndexingService({
@@ -1145,6 +1194,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     functionIds: getFunctionIds(indexingFunctions),
     tableIds: getTableIds(schema),
   });
+  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,

@@ -2,17 +2,22 @@ import request from "supertest";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import type { Common } from "@/Ponder.js";
-import { setupIndexingStore } from "@/_test/setup.js";
+import { setupDatabase, setupIndexingStore } from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 
 import { getTableIds } from "@/_test/utils.js";
+import type { DatabaseService } from "@/database/service.js";
 import { buildGqlSchema } from "./graphql/schema.js";
 import { ServerService } from "./service.js";
 
-beforeEach((context) => setupIndexingStore(context));
+beforeEach(async (context) => {
+  const teardownDatabase = await setupDatabase(context);
+  setupIndexingStore(context);
+  return teardownDatabase;
+});
 
 const s = createSchema((p) => ({
   TestEnum: p.createEnum(["ZERO", "ONE", "TWO"]),
@@ -57,6 +62,7 @@ const graphqlSchema = buildGqlSchema(s);
 
 const setup = async ({
   common,
+  database,
   indexingStore,
   options = {
     hasCompletedHistoricalIndexing: true,
@@ -64,13 +70,20 @@ const setup = async ({
   },
 }: {
   common: Common;
+  database: DatabaseService;
   indexingStore: IndexingStore;
   options?: {
     hasCompletedHistoricalIndexing: boolean;
     registerDevRoutes: boolean;
   };
 }) => {
-  await indexingStore.reload({ schema: s, tableIds: getTableIds(s) });
+  await database.reset({
+    schema: s,
+    tableAccess: [],
+    tableIds: getTableIds(s),
+    functionIds: {},
+  });
+  indexingStore.reset({ schema: s });
 
   const service = new ServerService({ common, indexingStore });
   service.setup({ registerDevRoutes: options.registerDevRoutes });
@@ -175,9 +188,10 @@ function createCheckpoint(index: number): Checkpoint {
 
 // Graphql routes.
 test("serves all scalar types correctly", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
+    database,
     indexingStore,
   });
 
@@ -236,10 +250,11 @@ test("serves all scalar types correctly", async (context) => {
 });
 
 test("serves all scalar list types correctly", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -293,10 +308,11 @@ test("serves all scalar list types correctly", async (context) => {
 });
 
 test("serves all optional types correctly", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -324,10 +340,11 @@ test("serves all optional types correctly", async (context) => {
 });
 
 test("serves enum types correctly", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -365,9 +382,9 @@ test("serves enum types correctly", async (context) => {
 });
 
 test("serves many column types correctly", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity, createEntityWithStringId } =
-    await setup({ common, indexingStore });
+    await setup({ common, indexingStore, database });
 
   await createTestEntity({ id: 0 });
   await createEntityWithStringId({ id: "0", testEntityId: "0" });
@@ -400,14 +417,14 @@ test("serves many column types correctly", async (context) => {
 });
 
 test("serves one column types correctly", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const {
     service,
     gql,
     createTestEntity,
     createEntityWithBigIntId,
     createEntityWithNullRef,
-  } = await setup({ common, indexingStore });
+  } = await setup({ common, indexingStore, database });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -469,10 +486,11 @@ test("serves one column types correctly", async (context) => {
 });
 
 test("finds unique entity by bigint id", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createEntityWithBigIntId } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -493,10 +511,11 @@ test("finds unique entity by bigint id", async (context) => {
 });
 
 test("finds unique entity with id: 0", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createEntityWithIntId } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createEntityWithIntId({ id: 0 });
@@ -517,10 +536,11 @@ test("finds unique entity with id: 0", async (context) => {
 });
 
 test("filters on string field equals", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 123 });
@@ -546,10 +566,11 @@ test("filters on string field equals", async (context) => {
 });
 
 test("filters on string field in", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 123 });
@@ -576,10 +597,11 @@ test("filters on string field in", async (context) => {
 });
 
 test("filters on string field contains", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 123 });
@@ -606,10 +628,11 @@ test("filters on string field contains", async (context) => {
 });
 
 test("filters on string field starts with", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 123 });
@@ -637,10 +660,11 @@ test("filters on string field starts with", async (context) => {
 });
 
 test("filters on string field not ends with", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 123 });
@@ -668,10 +692,11 @@ test("filters on string field not ends with", async (context) => {
 });
 
 test("filters on integer field equals", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -698,10 +723,11 @@ test("filters on integer field equals", async (context) => {
 });
 
 test("filters on integer field greater than", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -727,10 +753,11 @@ test("filters on integer field greater than", async (context) => {
 });
 
 test("filters on integer field less than or equal to", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -757,10 +784,11 @@ test("filters on integer field less than or equal to", async (context) => {
 });
 
 test("filters on integer field in", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -787,10 +815,11 @@ test("filters on integer field in", async (context) => {
 });
 
 test("filters on float field equals", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -818,10 +847,11 @@ test("filters on float field equals", async (context) => {
 });
 
 test("filters on float field greater than", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -847,10 +877,11 @@ test("filters on float field greater than", async (context) => {
 });
 
 test("filters on float field less than or equal to", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -878,10 +909,11 @@ test("filters on float field less than or equal to", async (context) => {
 });
 
 test("filters on float field in", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -909,10 +941,11 @@ test("filters on float field in", async (context) => {
 });
 
 test("filters on bigInt field equals", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -940,10 +973,11 @@ test("filters on bigInt field equals", async (context) => {
 });
 
 test("filters on bigInt field greater than", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -969,10 +1003,11 @@ test("filters on bigInt field greater than", async (context) => {
 });
 
 test("filters on hex field equals", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -1000,10 +1035,11 @@ test("filters on hex field equals", async (context) => {
 });
 
 test("filters on hex field greater than", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -1029,10 +1065,11 @@ test("filters on hex field greater than", async (context) => {
 });
 
 test("filters on bigInt field less than or equal to", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -1060,10 +1097,11 @@ test("filters on bigInt field less than or equal to", async (context) => {
 });
 
 test("filters on bigInt field in", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -1091,10 +1129,11 @@ test("filters on bigInt field in", async (context) => {
 });
 
 test("filters on string list field equals", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -1120,10 +1159,11 @@ test("filters on string list field equals", async (context) => {
 });
 
 test("filters on string list field has", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -1149,10 +1189,11 @@ test("filters on string list field has", async (context) => {
 });
 
 test("filters on enum field equals", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -1178,10 +1219,11 @@ test("filters on enum field equals", async (context) => {
 });
 
 test("filters on enum field in", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -1209,9 +1251,9 @@ test("filters on enum field in", async (context) => {
 });
 
 test("filters on relationship field equals", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ common, indexingStore });
+    await setup({ common, indexingStore, database });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1244,9 +1286,9 @@ test("filters on relationship field equals", async (context) => {
 });
 
 test("filters on relationship field in", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ common, indexingStore });
+    await setup({ common, indexingStore, database });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1273,9 +1315,9 @@ test("filters on relationship field in", async (context) => {
 });
 
 test("filters on relationship field in", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ common, indexingStore });
+    await setup({ common, indexingStore, database });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1302,10 +1344,11 @@ test("filters on relationship field in", async (context) => {
 });
 
 test("orders by on int field ascending", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 1 });
@@ -1333,10 +1376,11 @@ test("orders by on int field ascending", async (context) => {
 });
 
 test("orders by on int field descending", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 1 });
@@ -1364,10 +1408,11 @@ test("orders by on int field descending", async (context) => {
 });
 
 test("orders by on bigInt field ascending including negative values", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 1 });
@@ -1397,10 +1442,11 @@ test("orders by on bigInt field ascending including negative values", async (con
 });
 
 test("orders by on bigInt field descending", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 1 });
@@ -1428,10 +1474,11 @@ test("orders by on bigInt field descending", async (context) => {
 });
 
 test("limits to the first 50 by default", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await Promise.all(range(0, 105).map((n) => createTestEntity({ id: n })));
@@ -1455,10 +1502,11 @@ test("limits to the first 50 by default", async (context) => {
 });
 
 test("limits as expected if less than 1000", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await Promise.all(range(0, 105).map((n) => createTestEntity({ id: n })));
@@ -1482,10 +1530,11 @@ test("limits as expected if less than 1000", async (context) => {
 });
 
 test("throws if limit is greater than 1000", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 0 });
@@ -1509,10 +1558,11 @@ test("throws if limit is greater than 1000", async (context) => {
 });
 
 test("serves singular entity versioned at specified timestamp", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
     indexingStore,
+    database,
   });
 
   await createTestEntity({ id: 1 });
@@ -1551,7 +1601,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
 });
 
 // test("serves plural entities versioned at specified timestamp", async (context) => {
-//   const { common, indexingStore } = context;
+//   const { common, indexingStore, database } = context;
 //   const { service, gql, createTestEntity } = await setup({
 //     common,
 //     indexingStore,
@@ -1613,7 +1663,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
 // });
 
 // test("serves after-based derived paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
+//   const { common, indexingStore, database } = context;
 //   const { service, gql, createTestEntity, createEntityWithStringId } =
 //     await setup({
 //       common,
@@ -1655,7 +1705,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
 // });
 
 // test("serves after-based paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
+//   const { common, indexingStore, database } = context;
 //   const { service, gql, createTestEntity } = await setup({
 //     common,
 //     indexingStore,
@@ -1699,7 +1749,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
 // });
 
 // test("serves after-based paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
+//   const { common, indexingStore, database } = context;
 //   const { service, gql, createTestEntity } = await setup({
 //     common,
 //     indexingStore,
@@ -1743,7 +1793,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
 // });
 
 // test("serves before-based paginated plural entities", async (context) => {
-//   const { common, indexingStore } = context;
+//   const { common, indexingStore, database } = context;
 //   const { service, gql, createTestEntity } = await setup({
 //     common,
 //     indexingStore,
@@ -1799,9 +1849,10 @@ test("serves singular entity versioned at specified timestamp", async (context) 
 // });
 
 test("responds with appropriate status code pre and post historical sync", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
+    database,
     indexingStore,
     options: {
       hasCompletedHistoricalIndexing: false,
@@ -1852,10 +1903,11 @@ test("responds with appropriate status code pre and post historical sync", async
 // So, if you want to use time-travel queries with derived fields, you need to manually
 // include the desired timestamp at every level of the query.
 test.skip("serves derived entities versioned at provided timestamp", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({
       common,
+      database,
       indexingStore,
     });
 
@@ -1914,9 +1966,10 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
 
 // Admin routes.
 test("/admin/reload emits chainIds in reload event", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service } = await setup({
     common,
+    database,
     indexingStore,
     options: {
       hasCompletedHistoricalIndexing: false,
@@ -1939,9 +1992,10 @@ test("/admin/reload emits chainIds in reload event", async (context) => {
 });
 
 test("/admin/reload fails with non-integer chain IDs", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service } = await setup({
     common,
+    database,
     indexingStore,
     options: {
       hasCompletedHistoricalIndexing: false,
@@ -1962,9 +2016,10 @@ test("/admin/reload fails with non-integer chain IDs", async (context) => {
 });
 
 test("/admin/reload does not exist if dev routes aren't registered", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, indexingStore, database } = context;
   const { service } = await setup({
     common,
+    database,
     indexingStore,
     options: {
       hasCompletedHistoricalIndexing: false,

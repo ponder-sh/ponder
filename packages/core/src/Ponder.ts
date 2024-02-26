@@ -661,8 +661,9 @@ export class Ponder {
       // If a batch of events are processed AND the historical sync is complete AND
       // the new toTimestamp is greater than the historical sync completion timestamp,
       // historical event processing is complete, and the server should begin responding as healthy.
+
       if (
-        this.syncGatewayService.historicalSyncCompletedAt &&
+        this.syncGatewayService.historicalSyncCompletedAt !== undefined &&
         toCheckpoint.blockTimestamp >=
           this.syncGatewayService.historicalSyncCompletedAt
       ) {

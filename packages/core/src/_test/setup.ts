@@ -123,10 +123,16 @@ export async function setupDatabase(context: TestContext) {
     await context.database.setup();
 
     return async () => {
-      fs.rmSync(path.join(tmpdir, "ponder_core_cache.db"), { force: true });
-      fs.rmSync(path.join(tmpdir, "ponder_sync.db"), { force: true });
-
       await context.database.kill();
+
+      fs.rmSync(path.join(tmpdir, "ponder_core_cache.db"), { force: true });
+      fs.rmSync(
+        path.join(tmpdir, `ponder_core_${context.common.instanceId}.db`),
+        {
+          force: true,
+        },
+      );
+      fs.rmSync(path.join(tmpdir, "ponder_sync.db"), { force: true });
     };
   }
 }

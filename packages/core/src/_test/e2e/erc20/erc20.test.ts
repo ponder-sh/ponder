@@ -1,12 +1,7 @@
 import { rmSync } from "node:fs";
 import { Ponder } from "@/Ponder.js";
 import { ALICE, BOB } from "@/_test/constants.js";
-import {
-  setupAnvil,
-  setupDatabase,
-  setupIndexingStore,
-  setupSyncStore,
-} from "@/_test/setup.js";
+import { setupAnvil } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
@@ -16,11 +11,6 @@ import { zeroAddress } from "viem";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach(async (context) => {
-  await setupDatabase(context);
-  await setupSyncStore(context);
-  await setupIndexingStore(context);
-});
 
 const gql = async (ponder: Ponder, query: string) => {
   const response = await request(ponder.serverService.app)
@@ -50,7 +40,7 @@ test("erc20", async (context) => {
   const testOptions = {
     ...options,
     uiEnabled: false,
-    logLevel: "trace",
+    logLevel: "error",
     telemetryDisabled: true,
   } as const;
 

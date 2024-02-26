@@ -8,8 +8,9 @@ import { RealtimeSyncService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
 beforeEach(async (context) => {
-  await setupDatabase(context);
+  const teardownDatabase = await setupDatabase(context);
   await setupSyncStore(context);
+  return teardownDatabase;
 });
 
 const getBlockNumbers = () =>
