@@ -75,7 +75,7 @@ export class PostgresSyncStore implements SyncStore {
     const { error } = await this.migrator.migrateToLatest();
     if (error) throw error;
 
-    this.record("migrateUp", start);
+    this.record("migrateUp", performance.now() - start);
   };
 
   insertLogFilterInterval = async ({
@@ -136,7 +136,7 @@ export class PostgresSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertLogFilterInterval", start);
+    this.record("insertLogFilterInterval", performance.now() - start);
   };
 
   getLogFilterIntervals = async ({
@@ -253,7 +253,7 @@ export class PostgresSyncStore implements SyncStore {
 
     const intersectIntervals = intervalIntersectionMany(fragmentIntervals);
 
-    this.record("getLogFilterIntervals", start);
+    this.record("getLogFilterIntervals", performance.now() - start);
 
     return intersectIntervals;
   };
@@ -282,7 +282,7 @@ export class PostgresSyncStore implements SyncStore {
       }
     });
 
-    this.record("insertFactoryChildAddressLogs", start);
+    this.record("insertFactoryChildAddressLogs", performance.now() - start);
   };
 
   async *getFactoryChildAddresses({
@@ -335,7 +335,7 @@ export class PostgresSyncStore implements SyncStore {
       if (batch.length < pageSize) break;
     }
 
-    this.record("getFactoryChildAddresses", start);
+    this.record("getFactoryChildAddresses", performance.now() - start);
   }
 
   insertFactoryLogFilterInterval = async ({
@@ -386,7 +386,7 @@ export class PostgresSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertFactoryLogFilterInterval", start);
+    this.record("insertFactoryLogFilterInterval", performance.now() - start);
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -515,7 +515,7 @@ export class PostgresSyncStore implements SyncStore {
 
     const intersectIntervals = intervalIntersectionMany(fragmentIntervals);
 
-    this.record("getFactoryLogFilterIntervals", start);
+    this.record("getFactoryLogFilterIntervals", performance.now() - start);
 
     return intersectIntervals;
   };
@@ -557,7 +557,7 @@ export class PostgresSyncStore implements SyncStore {
       }
     });
 
-    this.record("insertRealtimeBlock", start);
+    this.record("insertRealtimeBlock", performance.now() - start);
   };
 
   insertRealtimeInterval = async ({
@@ -595,7 +595,7 @@ export class PostgresSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertRealtimeInterval", start);
+    this.record("insertRealtimeInterval", performance.now() - start);
   };
 
   deleteRealtimeData = async ({
@@ -701,7 +701,7 @@ export class PostgresSyncStore implements SyncStore {
         .execute();
     });
 
-    this.record("deleteRealtimeData", start);
+    this.record("deleteRealtimeData", performance.now() - start);
   };
 
   /** SYNC HELPER METHODS */
@@ -791,7 +791,7 @@ export class PostgresSyncStore implements SyncStore {
       )
       .execute();
 
-    this.record("insertRpcRequestResult", start);
+    this.record("insertRpcRequestResult", performance.now() - start);
   };
 
   getRpcRequestResult = async ({
@@ -815,7 +815,7 @@ export class PostgresSyncStore implements SyncStore {
 
     const result = contractReadResult ?? null;
 
-    this.record("getRpcRequestResult", start);
+    this.record("getRpcRequestResult", performance.now() - start);
 
     return result;
   };
@@ -1292,10 +1292,10 @@ export class PostgresSyncStore implements SyncStore {
     callback: (tx: KyselyTransaction<SyncStoreTables>) => Promise<U>,
   ) => this.db.transaction().execute(callback);
 
-  private record(methodName: string, start: number) {
+  private record(methodName: string, duration: number) {
     this.common.metrics.ponder_sync_store_method_duration.observe(
       { method: methodName },
-      performance.now() - start,
+      duration,
     );
   }
 }
