@@ -1,12 +1,16 @@
 import { describe } from "node:test";
-import { setupContext, setupIndexingStore } from "@/_test/setup.js";
+import {
+  setupContext,
+  setupDatabase,
+  setupIndexingStore,
+} from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
 import { zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import { type TestContext, bench } from "vitest";
 
 let context: TestContext;
-let teardownIndexingStore: () => Promise<void>;
+let teardownDatabase: () => Promise<void>;
 let count = 50_000;
 
 const schema = createSchema((p) => ({
@@ -37,9 +41,10 @@ const setup = async () => {
 
   setupContext(context);
 
-  teardownIndexingStore = await setupIndexingStore(context);
+  teardownDatabase = await setupDatabase(context);
+  await setupIndexingStore(context);
 
-  await context.indexingStore.reload({ schema });
+  context.indexingStore.reset({ schema });
   await context.indexingStore.createMany({
     tableName: "IntTable",
     checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
@@ -75,7 +80,7 @@ const setup = async () => {
 };
 
 const teardown = async () => {
-  await teardownIndexingStore();
+  await teardownDatabase();
 };
 
 // IntTable

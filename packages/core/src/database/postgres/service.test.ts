@@ -248,7 +248,6 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   test("publish with old instance still running", async (context) => {
     const connectionString = (context as any).connectionString as string;
 
-    const instanceId = context.common.instanceId;
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: { connectionString },

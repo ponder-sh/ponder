@@ -1,4 +1,9 @@
-import { setupAnvil, setupContext, setupSyncStore } from "@/_test/setup.js";
+import {
+  setupAnvil,
+  setupContext,
+  setupDatabase,
+  setupSyncStore,
+} from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { publicClient } from "@/_test/utils.js";
 import { type TestContext, bench } from "vitest";
@@ -26,7 +31,8 @@ const getBlockNumbers = () =>
 bench(
   "Historical sync benchmark",
   async () => {
-    const teardownSync = await setupSyncStore(context);
+    const teardownDatabase = await setupDatabase(context);
+    await setupSyncStore(context);
 
     const service = new HistoricalSyncService({
       common: context.common,
@@ -42,7 +48,7 @@ bench(
 
     await new Promise<void>((resolve) => service.on("syncComplete", resolve));
 
-    await teardownSync();
+    await teardownDatabase();
   },
   {
     setup,
