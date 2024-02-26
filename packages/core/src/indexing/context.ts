@@ -80,10 +80,10 @@ export const buildDb =
   }) =>
   ({
     checkpoint,
-    handleTableAccess,
+    onTableAccess,
   }: {
     checkpoint: Checkpoint;
-    handleTableAccess: ({
+    onTableAccess: ({
       storeMethod,
       tableName,
     }: { storeMethod: StoreMethod; tableName: string }) => void;
@@ -97,7 +97,7 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.findUnique(id=${id})`,
           });
-          handleTableAccess({ storeMethod: "findUnique", tableName });
+          onTableAccess({ storeMethod: "findUnique", tableName });
           return indexingStore.findUnique({
             tableName,
             checkpoint,
@@ -109,7 +109,7 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.findMany`,
           });
-          handleTableAccess({ storeMethod: "findMany", tableName });
+          onTableAccess({ storeMethod: "findMany", tableName });
           return indexingStore.findMany({
             tableName,
             checkpoint,
@@ -125,7 +125,7 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.create(id=${id})`,
           });
-          handleTableAccess({ storeMethod: "create", tableName });
+          onTableAccess({ storeMethod: "create", tableName });
           return indexingStore.create({
             tableName,
             checkpoint,
@@ -138,7 +138,7 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.createMany(count=${data.length})`,
           });
-          handleTableAccess({ storeMethod: "createMany", tableName });
+          onTableAccess({ storeMethod: "createMany", tableName });
           return indexingStore.createMany({
             tableName,
             checkpoint,
@@ -150,7 +150,7 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.update(id=${id})`,
           });
-          handleTableAccess({ storeMethod: "update", tableName });
+          onTableAccess({ storeMethod: "update", tableName });
           return indexingStore.update({
             tableName,
             checkpoint,
@@ -163,7 +163,7 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.updateMany`,
           });
-          handleTableAccess({ storeMethod: "updateMany", tableName });
+          onTableAccess({ storeMethod: "updateMany", tableName });
           return indexingStore.updateMany({
             tableName,
             checkpoint,
@@ -176,7 +176,7 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.upsert(id=${id})`,
           });
-          handleTableAccess({ storeMethod: "upsert", tableName });
+          onTableAccess({ storeMethod: "upsert", tableName });
           return indexingStore.upsert({
             tableName,
             checkpoint,
@@ -190,7 +190,7 @@ export const buildDb =
             service: "store",
             msg: `${tableName}.delete(id=${id})`,
           });
-          handleTableAccess({ storeMethod: "delete", tableName });
+          onTableAccess({ storeMethod: "delete", tableName });
           return indexingStore.delete({
             tableName,
             checkpoint,

@@ -535,7 +535,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             client: this.getClient(data.checkpoint),
             db: this.getDB({
               checkpoint: data.checkpoint,
-              handleTableAccess: this.handleTableAccess(fullEventName),
+              onTableAccess: this.onTableAccess(fullEventName),
             }),
             contracts: this.getContracts(data.checkpoint),
           },
@@ -612,7 +612,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             client: this.getClient(data.checkpoint),
             db: this.getDB({
               checkpoint: data.checkpoint,
-              handleTableAccess: this.handleTableAccess(fullEventName),
+              onTableAccess: this.onTableAccess(fullEventName),
             }),
             contracts: this.getContracts(data.checkpoint),
           },
@@ -1012,7 +1012,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
   };
 
-  private handleTableAccess =
+  private onTableAccess =
     (indexingFunctionKey: string) =>
     ({
       storeMethod,
@@ -1025,7 +1025,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       if (matchedAccess === undefined) {
         this.common.logger.warn({
           service: "indexing",
-          msg: `Unexpected table access in indexing function "${indexingFunctionKey}". Events could potentially be run out of order. Please report this bug to "http://github.com/ponder-sh/ponder/issues".`,
+          msg: `Unexpected table access "${tableName}.${storeMethod}()" in indexing function "${indexingFunctionKey}". This may cause event ordering issues. Please open an issue http://github.com/ponder-sh/ponder/issues.`,
         });
       }
     };
