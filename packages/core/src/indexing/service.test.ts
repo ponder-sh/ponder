@@ -10,7 +10,11 @@ import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { TableAccess } from "@/build/static/parseAst.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
-import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { decodeEventLog } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { IndexingService } from "./service.js";
@@ -1219,6 +1223,92 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     await common.metrics.ponder_indexing_completed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReorg).toBe(6);
+
+  await service.kill();
+  await service.onIdle();
+});
+
+test("reset() loads from cache", async (context) => {
+  const {
+    common,
+    syncStore,
+    indexingStore,
+    sources,
+    networks,
+    requestQueues,
+    database,
+  } = context;
+
+  const getEvents = vi.fn(await getEventsErc20(sources));
+
+  const syncGatewayService = {
+    getEvents,
+    checkpoint: maxCheckpoint,
+    finalityCheckpoint: maxCheckpoint,
+  } as unknown as SyncGateway;
+
+  const service = new IndexingService({
+    common,
+    database,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+    requestQueues,
+  });
+  await database.reset({
+    schema,
+    tableAccess,
+    functionIds: getFunctionIds(indexingFunctions),
+    tableIds: getTableIds(schema),
+  });
+  indexingStore.reset({ schema });
+  await service.reset({
+    schema,
+    indexingFunctions,
+    tableAccess,
+    functionIds: getFunctionIds(indexingFunctions),
+    tableIds: getTableIds(schema),
+  });
+
+  await service.processEvents();
+
+  await service.kill();
+  await service.onIdle();
+
+  await database.reset({
+    schema,
+    tableAccess,
+    functionIds: getFunctionIds(indexingFunctions),
+    tableIds: getTableIds(schema),
+  });
+  indexingStore.reset({ schema });
+  await service.reset({
+    schema,
+    indexingFunctions,
+    tableAccess,
+    functionIds: getFunctionIds(indexingFunctions),
+    tableIds: getTableIds(schema),
+  });
+
+  expect(database.metadata).toStrictEqual([
+    {
+      eventCount: 2,
+      functionId: "Erc20:Transfer",
+      fromCheckpoint: {
+        blockTimestamp: expect.any(Number),
+        blockNumber: expect.any(Number),
+        chainId: expect.any(Number),
+        logIndex: expect.any(Number),
+      },
+      toCheckpoint: expect.any(Object),
+    },
+  ]);
+
+  expect(database.metadata[0].fromCheckpoint?.blockTimestamp).toBeGreaterThan(
+    0,
+  );
 
   await service.kill();
   await service.onIdle();
