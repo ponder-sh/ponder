@@ -948,13 +948,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         this.common.logger.debug({
           service: "indexing",
-          msg: `Registered indexing function "${indexingFunctionKey}" with table access [${this.tableAccess[
-            indexingFunctionKey
-          ]
-            ?.map(
-              ({ storeMethod, tableName }) => `${tableName}.${storeMethod}()`,
-            )
-            .join(", ")}]`,
+          msg: `Registered indexing function "${indexingFunctionKey}" with table access [${
+            this.tableAccess[indexingFunctionKey]
+              ?.map(
+                ({ storeMethod, tableName }) => `${tableName}.${storeMethod}()`,
+              )
+              ?.join(", ") ?? ""
+          }]`,
         });
 
         this.indexingFunctionStates[indexingFunctionKey] = {
