@@ -11,6 +11,7 @@ import {
 import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
+import { debounce } from "@/utils/debounce.js";
 import { Emittery } from "@/utils/emittery.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
@@ -137,6 +138,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private blockTasksEnqueuedCheckpoint = 0;
 
   private queue: Queue<HistoricalSyncTask>;
+  private debouncedEmitCheckpoint: (checkpoint: Checkpoint) => void;
 
   /** If true, failed tasks should not log errors or be retried. */
   private isShuttingDown = false;
@@ -164,6 +166,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.sources = sources;
 
     this.queue = this.buildQueue();
+    this.debouncedEmitCheckpoint = debounce(1_000, (checkpoint: Checkpoint) => {
+      this.emit("historicalCheckpoint", checkpoint);
+    });
   }
 
   async setup({
@@ -829,7 +834,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
 
     if (newBlockCheckpoint) {
-      this.emit("historicalCheckpoint", {
+      this.debouncedEmitCheckpoint({
         blockTimestamp: newBlockCheckpoint.blockTimestamp,
         chainId: this.network.chainId,
         blockNumber: newBlockCheckpoint.blockNumber,

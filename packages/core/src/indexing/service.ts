@@ -1010,6 +1010,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
         isCheckpointGreaterThanOrEqualTo(
           state.tasksLoadedToCheckpoint,
           state.lastEventCheckpoint,
+        ) &&
+        isCheckpointGreaterThanOrEqualTo(
+          state.tasksLoadedToCheckpoint,
+          this.syncGatewayService.checkpoint,
         )
       ) {
         totalBatchSize -= state.loadedTasks.length;
