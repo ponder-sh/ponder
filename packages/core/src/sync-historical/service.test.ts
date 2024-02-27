@@ -216,8 +216,7 @@ test("start() adds log filter events to sync store", async (context) => {
         id: sources[0].id,
         chainId: sources[0].chainId,
         criteria: sources[0].criteria,
-        includeEventSelector:
-          sources[0].abiEvents.bySafeName.Transfer!.selector,
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -258,7 +257,7 @@ test("start() adds factory events to sync store", async (context) => {
         id: sources[0].id,
         chainId: sources[1].chainId,
         criteria: sources[1].criteria,
-        includeEventSelector: sources[1].abiEvents.bySafeName.Swap!.selector,
+        eventSelector: sources[1].abiEvents.bySafeName.Swap!.selector,
       },
     ],
   });

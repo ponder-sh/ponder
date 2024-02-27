@@ -159,7 +159,7 @@ export interface SyncStore {
             criteria: LogFilterCriteria;
             fromBlock?: number;
             toBlock?: number;
-            includeEventSelector: Hex;
+            eventSelector: Hex;
           }[];
           factories?: undefined;
         }
@@ -171,7 +171,7 @@ export interface SyncStore {
             criteria: FactoryCriteria;
             fromBlock?: number;
             toBlock?: number;
-            includeEventSelector: Hex;
+            eventSelector: Hex;
           }[];
         }
     ),

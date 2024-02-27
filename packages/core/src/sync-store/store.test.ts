@@ -1089,8 +1089,7 @@ test("getLogEvents returns log events", async ({
         id: "noFilter",
         chainId: 1,
         criteria: {},
-        includeEventSelector:
-          sources[0].abiEvents.bySafeName.Transfer!.selector,
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -1127,8 +1126,7 @@ test("getLogEvents filters on log filter with one address", async ({
         id: "singleAddress",
         chainId: 1,
         criteria: { address: erc20.address },
-        includeEventSelector:
-          sources[0].abiEvents.bySafeName.Transfer!.selector,
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -1167,8 +1165,7 @@ test("getLogEvents filters on log filter with multiple addresses", async ({
         criteria: {
           address: [erc20.address, factory.address],
         },
-        includeEventSelector:
-          sources[0].abiEvents.bySafeName.Transfer!.selector,
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -1213,8 +1210,7 @@ test("getLogEvents filters on log filter with single topic", async ({
         criteria: {
           topics: [rpcData.block1.logs[0].topics[0]!, null, null, null],
         },
-        includeEventSelector:
-          sources[0].abiEvents.bySafeName.Transfer!.selector,
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -1264,8 +1260,7 @@ test("getLogEvents filters on log filter with multiple topics", async ({
             null,
           ],
         },
-        includeEventSelector:
-          sources[0].abiEvents.bySafeName.Transfer!.selector,
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -1325,7 +1320,7 @@ test("getLogEvents filters on simple factory", async ({
             "0x0000000000000000000000000000000000000000000factoryeventsignature",
           childAddressLocation: "topic1",
         },
-        includeEventSelector: rpcData.block2.logs[0].topics[0]!,
+        eventSelector: rpcData.block2.logs[0].topics[0]!,
       },
     ],
   });
@@ -1359,7 +1354,7 @@ test("getLogEvents filters on fromBlock", async ({ syncStore, sources }) => {
         chainId: 1,
         fromBlock: Number(rpcData.block2.block.number!),
         criteria: {},
-        includeEventSelector: rpcData.block2.logs[0].topics[0]!,
+        eventSelector: rpcData.block2.logs[0].topics[0]!,
       },
     ],
   });
@@ -1398,8 +1393,7 @@ test("getLogEvents filters on multiple filters", async ({
         id: "singleAddress",
         chainId: 1,
         criteria: { address: erc20.address },
-        includeEventSelector:
-          sources[0].abiEvents.bySafeName.Transfer!.selector,
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
       {
         id: "singleTopic",
@@ -1407,8 +1401,7 @@ test("getLogEvents filters on multiple filters", async ({
         criteria: {
           topics: [rpcData.block1.logs[0].topics[0]!, null, null, null],
         },
-        includeEventSelector:
-          sources[0].abiEvents.bySafeName.Transfer!.selector,
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -1457,7 +1450,7 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async ({
         id: "noFilter",
         chainId: 1,
         criteria: {},
-        includeEventSelector: rpcData.block2.logs[0].topics[0]!,
+        eventSelector: rpcData.block2.logs[0].topics[0]!,
       },
     ],
   });
@@ -1495,8 +1488,7 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async ({
         id: "noFilter",
         chainId: 1,
         criteria: {},
-        includeEventSelector:
-          sources[0].abiEvents.bySafeName.Transfer!.selector,
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -1508,7 +1500,7 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async ({
   ]);
 });
 
-test("getLogEvents returns no events if includeEventSelector doesn't match", async ({
+test("getLogEvents returns no events if eventSelector doesn't match", async ({
   syncStore,
   sources,
 }) => {
@@ -1529,7 +1521,7 @@ test("getLogEvents returns no events if includeEventSelector doesn't match", asy
     toCheckpoint: maxCheckpoint,
     limit: 100,
     logFilters: [
-      { id: "noFilter", chainId: 1, criteria: {}, includeEventSelector: "0x" },
+      { id: "noFilter", chainId: 1, criteria: {}, eventSelector: "0x" },
     ],
   });
 

@@ -111,7 +111,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
             criteria: LogFilterCriteria;
             fromBlock?: number;
             toBlock?: number;
-            includeEventSelector: Hex;
+            eventSelector: Hex;
           }[];
           factories?: undefined;
         }
@@ -123,7 +123,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
             criteria: FactoryCriteria;
             fromBlock?: number;
             toBlock?: number;
-            includeEventSelector: Hex;
+            eventSelector: Hex;
           }[];
         }
     ),

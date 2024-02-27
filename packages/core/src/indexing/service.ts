@@ -772,7 +772,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               criteria: factory.criteria,
               fromBlock: factory.startBlock,
               toBlock: factory.endBlock,
-              includeEventSelector: state.eventSelector,
+              eventSelector: state.eventSelector,
             })),
           }
         : {
@@ -784,7 +784,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 criteria: logFilter.criteria,
                 fromBlock: logFilter.startBlock,
                 toBlock: logFilter.endBlock,
-                includeEventSelector: state.eventSelector,
+                eventSelector: state.eventSelector,
               })),
           }),
     });

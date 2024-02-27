@@ -828,7 +828,7 @@ export class PostgresSyncStore implements SyncStore {
           criteria: LogFilterCriteria;
           fromBlock?: number;
           toBlock?: number;
-          includeEventSelector: Hex;
+          eventSelector: Hex;
         }[];
         factories: undefined;
       }
@@ -840,13 +840,13 @@ export class PostgresSyncStore implements SyncStore {
           criteria: FactoryCriteria;
           fromBlock?: number;
           toBlock?: number;
-          includeEventSelector: Hex;
+          eventSelector: Hex;
         }[];
       }
   )) {
     let stopClock = startClock();
 
-    // Get full log objects, including the includeEventSelectors clause.
+    // Get full log objects, including the eventSelector clause.
     const requestedLogs = await this.db
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
@@ -856,7 +856,7 @@ export class PostgresSyncStore implements SyncStore {
           logFilters?.map((logFilter) => {
             const exprs = this.buildLogFilterCmprs({ eb, logFilter });
 
-            exprs.push(eb("logs.topic0", "=", logFilter.includeEventSelector));
+            exprs.push(eb("logs.topic0", "=", logFilter.eventSelector));
 
             return eb.and(exprs);
           }) ?? [];
@@ -865,7 +865,7 @@ export class PostgresSyncStore implements SyncStore {
           factories?.map((factory) => {
             const exprs = this.buildFactoryCmprs({ eb, factory });
 
-            exprs.push(eb("logs.topic0", "=", factory.includeEventSelector));
+            exprs.push(eb("logs.topic0", "=", factory.eventSelector));
 
             return eb.and(exprs);
           }) ?? [];
@@ -1039,7 +1039,7 @@ export class PostgresSyncStore implements SyncStore {
           logFilters?.map((logFilter) => {
             const exprs = this.buildLogFilterCmprs({ eb, logFilter });
 
-            exprs.push(eb("logs.topic0", "=", logFilter.includeEventSelector));
+            exprs.push(eb("logs.topic0", "=", logFilter.eventSelector));
 
             return eb.and(exprs);
           }) ?? [];
@@ -1047,7 +1047,7 @@ export class PostgresSyncStore implements SyncStore {
         const factoryCmprs =
           factories?.map((factory) => {
             const exprs = this.buildFactoryCmprs({ eb, factory });
-            exprs.push(eb("logs.topic0", "=", factory.includeEventSelector));
+            exprs.push(eb("logs.topic0", "=", factory.eventSelector));
 
             return eb.and(exprs);
           }) ?? [];

@@ -852,7 +852,7 @@ export class SqliteSyncStore implements SyncStore {
           criteria: LogFilterCriteria;
           fromBlock?: number;
           toBlock?: number;
-          includeEventSelector: Hex;
+          eventSelector: Hex;
         }[];
         factories: undefined;
       }
@@ -864,7 +864,7 @@ export class SqliteSyncStore implements SyncStore {
           criteria: FactoryCriteria;
           fromBlock?: number;
           toBlock?: number;
-          includeEventSelector: Hex;
+          eventSelector: Hex;
         }[];
       }
   )) {
@@ -880,7 +880,7 @@ export class SqliteSyncStore implements SyncStore {
           logFilters?.map((logFilter) => {
             const exprs = this.buildLogFilterCmprs({ eb, logFilter });
 
-            exprs.push(eb("logs.topic0", "=", logFilter.includeEventSelector));
+            exprs.push(eb("logs.topic0", "=", logFilter.eventSelector));
 
             return eb.and(exprs);
           }) ?? [];
@@ -889,7 +889,7 @@ export class SqliteSyncStore implements SyncStore {
           factories?.map((factory) => {
             const exprs = this.buildFactoryCmprs({ eb, factory });
 
-            exprs.push(eb("logs.topic0", "=", factory.includeEventSelector));
+            exprs.push(eb("logs.topic0", "=", factory.eventSelector));
 
             return eb.and(exprs);
           }) ?? [];
@@ -1074,7 +1074,7 @@ export class SqliteSyncStore implements SyncStore {
           logFilters?.map((logFilter) => {
             const exprs = this.buildLogFilterCmprs({ eb, logFilter });
 
-            exprs.push(eb("logs.topic0", "=", logFilter.includeEventSelector));
+            exprs.push(eb("logs.topic0", "=", logFilter.eventSelector));
 
             return eb.and(exprs);
           }) ?? [];
@@ -1083,7 +1083,7 @@ export class SqliteSyncStore implements SyncStore {
           factories?.map((factory) => {
             const exprs = this.buildFactoryCmprs({ eb, factory });
 
-            exprs.push(eb("logs.topic0", "=", factory.includeEventSelector));
+            exprs.push(eb("logs.topic0", "=", factory.eventSelector));
 
             return eb.and(exprs);
           }) ?? [];
