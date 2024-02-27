@@ -1030,6 +1030,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
         isCheckpointGreaterThanOrEqualTo(
           state.tasksLoadedToCheckpoint,
           state.lastEventCheckpoint,
+        ) &&
+        isCheckpointGreaterThanOrEqualTo(
+          state.tasksLoadedToCheckpoint,
+          this.syncGatewayService.checkpoint,
         );
 
       return state.loadedTasks.length === 0 && !isFinished;
@@ -1049,6 +1053,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
         isCheckpointGreaterThanOrEqualTo(
           state.tasksLoadedToCheckpoint,
           state.lastEventCheckpoint,
+        ) &&
+        isCheckpointGreaterThanOrEqualTo(
+          state.tasksLoadedToCheckpoint,
+          this.syncGatewayService.checkpoint,
         );
 
       if (!state.lastEventCheckpoint) loadKeys.push(indexingFunctionKey);

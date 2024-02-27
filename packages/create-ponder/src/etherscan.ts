@@ -72,25 +72,15 @@ export const fromEtherscan = async ({
     );
   }
 
-  let abiResult: { abi: string; contractName: string } | undefined = undefined;
-  try {
-    abiResult = await getContractAbiAndName(contractAddress, apiUrl, apiKey);
-  } catch (e) {
-    const error = e as Error;
-    throw new Error(
-      `${pico.red("✗")} Failed to fetch contract ABI from block explorer API: ${
-        error.message
-      }`,
-    );
-  }
+  const abiResult = await getContractAbiAndName(
+    contractAddress,
+    apiUrl,
+    apiKey,
+  );
 
-  if (typeof abiResult.abi !== "string")
-    throw new Error(
-      `${pico.red(
-        "✗",
-      )} Invalid ABI returned from block explorer API. Is the contract verified?`,
-    );
-  const baseAbi = JSON.parse(abiResult.abi) as Abi;
+  warnings.push(...abiResult.warnings);
+
+  const baseAbi = abiResult.abi;
   let contractName = abiResult.contractName;
 
   const abis: { abi: Abi; contractName: string }[] = [
@@ -114,8 +104,11 @@ export const fromEtherscan = async ({
     );
 
     blockNumber = contractCreationBlockNumber;
-  } catch (error) {
-    // Do nothing, blockNumber won't be set.
+  } catch (e) {
+    const error = e as Error;
+    warnings.push(
+      `Unable to fetch contract deployment block number from block explorer. Error: ${error.message}`,
+    );
   }
 
   // If the contract is an EIP-1967 proxy, get the implementation contract ABIs.
@@ -137,22 +130,21 @@ export const fromEtherscan = async ({
 
     for (const implAddress of implAddresses) {
       if (!apiKey) await wait(5000);
-      const { abi, contractName: implContractName } =
-        await getContractAbiAndName(implAddress, apiUrl, apiKey);
+      const abiResult = await getContractAbiAndName(
+        implAddress,
+        apiUrl,
+        apiKey,
+      );
 
-      if (typeof abi !== "string") {
-        warnings.push(
-          `Unable to fetch ABI for implementation contract ${implAddress}. Please see the proxy contract documentation for more details: https://ponder.sh/docs/guides/add-contracts#multiple-abis`,
-        );
-        continue;
-      }
+      warnings.push(...abiResult.warnings);
 
-      // Update the top-level contract name to the impl contract name.
-      contractName = implContractName;
       abis.push({
-        abi: JSON.parse(abi) as Abi,
-        contractName: `${contractName}_${implAddress.slice(0, 6)}`,
+        abi: abiResult.abi,
+        contractName: `${abiResult.contractName}_${implAddress.slice(0, 6)}`,
       });
+
+      // Also update the top-level contract name to the last-in impl contract name.
+      contractName = abiResult.contractName;
     }
   }
 
@@ -278,12 +270,36 @@ const getContractAbiAndName = async (
     address: contractAddress,
   });
   if (apiKey) searchParams.append("apikey", apiKey);
-  const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
 
-  const abi = data.result[0].ABI as string;
-  const contractName = data.result[0].ContractName as string;
+  const warnings: string[] = [];
+  let abi: Abi;
+  let contractName: string;
 
-  return { abi, contractName };
+  try {
+    const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
+
+    const rawAbi = data.result[0].ABI as string;
+    if (rawAbi === "Contract source code not verified") {
+      warnings.push(
+        `Contract ${contractAddress} is unverified or has an empty ABI.`,
+      );
+      abi = [];
+    } else {
+      abi = JSON.parse(rawAbi);
+    }
+
+    contractName = data.result[0].ContractName ?? "";
+    if (contractName === "") contractName = "UnverifiedContract";
+  } catch (e) {
+    const error = e as Error;
+    warnings.push(
+      `Failed to fetch ABI for contract ${contractAddress}. Marking as unverified. Error: ${error.message}`,
+    );
+    abi = [];
+    contractName = "UnverifiedContract";
+  }
+
+  return { abi, contractName, warnings };
 };
 
 const getProxyImplementationAddresses = async ({

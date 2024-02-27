@@ -71,6 +71,9 @@ export type WhereInput<TTable extends Table> = {
   [ColumnName in keyof TTable]?:
     | Prettify<OperatorMap<TTable[ColumnName]>>
     | TTable[ColumnName];
+} & {
+  AND?: Prettify<WhereInput<TTable>>[];
+  OR?: Prettify<WhereInput<TTable>>[];
 };
 
 export type OrderByInput<table, columns extends keyof table = keyof table> = {

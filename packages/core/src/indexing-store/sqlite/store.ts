@@ -310,13 +310,15 @@ export class SqliteIndexingStore implements IndexingStore {
           );
       }
 
-      const whereConditions = buildWhereConditions({
-        where,
-        table,
-        encoding: "sqlite",
-      });
-      for (const [columnName, comparator, value] of whereConditions) {
-        query = query.where(columnName, comparator, value);
+      if (where) {
+        query = query.where((eb) =>
+          buildWhereConditions({
+            eb,
+            where,
+            table,
+            encoding: "sqlite",
+          }),
+        );
       }
 
       const orderByConditions = buildOrderByConditions({ orderBy, table });
@@ -664,13 +666,15 @@ export class SqliteIndexingStore implements IndexingStore {
           .selectAll()
           .where("effectiveToCheckpoint", "=", "latest");
 
-        const whereConditions = buildWhereConditions({
-          where,
-          table,
-          encoding: "sqlite",
-        });
-        for (const [columnName, comparator, value] of whereConditions) {
-          query = query.where(columnName, comparator, value);
+        if (where) {
+          query = query.where((eb) =>
+            buildWhereConditions({
+              eb,
+              where,
+              table,
+              encoding: "sqlite",
+            }),
+          );
         }
 
         const latestRows = await query.execute();

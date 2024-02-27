@@ -7,7 +7,7 @@ import { type TestContext, bench } from "vitest";
 
 let context: TestContext;
 let teardownIndexingStore: () => Promise<void>;
-let count = 50_000;
+let count = 1_000;
 
 const schema = createSchema((p) => ({
   IntTable: p.createTable({
@@ -91,10 +91,7 @@ describe("IntTable", () => {
         data: { name: "Kyle", bigAge: 10n },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -107,10 +104,7 @@ describe("IntTable", () => {
         data: { name: "Kyle" },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -124,10 +118,7 @@ describe("IntTable", () => {
         update: { name: "Kyle" },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -139,10 +130,7 @@ describe("IntTable", () => {
         id: --count,
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -153,10 +141,7 @@ describe("IntTable", () => {
         id: 500,
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -166,10 +151,7 @@ describe("IntTable", () => {
         tableName: "IntTable",
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -185,10 +167,7 @@ describe("IntTable", () => {
         ],
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -201,10 +180,7 @@ describe("IntTable", () => {
         where: { id: { equals: 500 } },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -214,10 +190,7 @@ describe("IntTable", () => {
         checkpoint: { ...zeroCheckpoint, blockTimestamp: 500 },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 });
 
@@ -234,10 +207,7 @@ describe("StringTable", () => {
         data: { name: "Kyle", bigAge: 10n },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -250,10 +220,7 @@ describe("StringTable", () => {
         data: { name: "Kyle" },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -267,10 +234,7 @@ describe("StringTable", () => {
         update: { name: "Kyle" },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -282,10 +246,7 @@ describe("StringTable", () => {
         id: (count--).toString(),
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -296,10 +257,7 @@ describe("StringTable", () => {
         id: "500",
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -309,10 +267,7 @@ describe("StringTable", () => {
         tableName: "StringTable",
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -328,10 +283,7 @@ describe("StringTable", () => {
         ],
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -344,10 +296,7 @@ describe("StringTable", () => {
         where: { id: { equals: "500" } },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -357,10 +306,7 @@ describe("StringTable", () => {
         checkpoint: { ...zeroCheckpoint, blockTimestamp: 500 },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 });
 
@@ -377,10 +323,7 @@ describe("HexTable", () => {
         data: { name: "Kyle", bigAge: 10n },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -393,10 +336,7 @@ describe("HexTable", () => {
         data: { name: "Kyle" },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -410,10 +350,7 @@ describe("HexTable", () => {
         update: { name: "Kyle" },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -425,10 +362,7 @@ describe("HexTable", () => {
         id: `0x${(count--).toString(16)}`,
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -439,10 +373,7 @@ describe("HexTable", () => {
         id: "0x500",
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -452,10 +383,7 @@ describe("HexTable", () => {
         tableName: "HexTable",
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -471,10 +399,7 @@ describe("HexTable", () => {
         ],
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -487,10 +412,7 @@ describe("HexTable", () => {
         where: { id: { equals: "0x500" } },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -500,10 +422,7 @@ describe("HexTable", () => {
         checkpoint: { ...zeroCheckpoint, blockTimestamp: 500 },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 });
 
@@ -520,10 +439,7 @@ describe("BigintTable", () => {
         data: { name: "Kyle", bigAge: 10n },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -536,10 +452,7 @@ describe("BigintTable", () => {
         data: { name: "Kyle" },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -553,10 +466,7 @@ describe("BigintTable", () => {
         update: { name: "Kyle" },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -568,10 +478,7 @@ describe("BigintTable", () => {
         id: BigInt(count--),
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -582,10 +489,7 @@ describe("BigintTable", () => {
         id: 500n,
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -595,10 +499,7 @@ describe("BigintTable", () => {
         tableName: "BigintTable",
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -614,10 +515,7 @@ describe("BigintTable", () => {
         ],
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -630,10 +528,7 @@ describe("BigintTable", () => {
         where: { id: { equals: 500n } },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 
   bench(
@@ -643,9 +538,6 @@ describe("BigintTable", () => {
         checkpoint: { ...zeroCheckpoint, blockTimestamp: 500 },
       });
     },
-    {
-      setup,
-      teardown,
-    },
+    { setup, teardown },
   );
 });

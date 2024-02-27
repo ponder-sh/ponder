@@ -11,6 +11,9 @@ import {
   GraphQLString,
 } from "graphql";
 import { buildEntityTypes } from "./entity.js";
+import { buildEnumTypes } from "./enum.js";
+import { buildEntityFilterTypes } from "./filter.js";
+import type { GetLoader } from "./loaders.js";
 import { buildPluralField } from "./plural.js";
 import { buildSingularField } from "./singular.js";
 
@@ -39,21 +42,27 @@ export const tsTypeToGqlScalar: { [type in Scalar]: GraphQLScalarType } = {
   hex: GraphQLString,
 };
 
-export type Source = { request: unknown };
-export type Context = { store: IndexingStore };
+export type Parent = Record<string, any>;
+export type Context = {
+  store: IndexingStore;
+  getLoader: GetLoader;
+};
 
 export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
-  const queryFields: Record<string, GraphQLFieldConfig<Source, Context>> = {};
+  const queryFields: Record<string, GraphQLFieldConfig<Parent, Context>> = {};
 
-  // First build the entity types. These have resolvers defined for any
-  // relationship or derived fields. This is also important for the thunk nonsense.
-  const { entityTypes, entityPageTypes, enumTypes } = buildEntityTypes({
+  const { enumTypes } = buildEnumTypes({ schema });
+  const { entityFilterTypes } = buildEntityFilterTypes({ schema, enumTypes });
+  const { entityTypes, entityPageTypes } = buildEntityTypes({
     schema,
+    enumTypes,
+    entityFilterTypes,
   });
 
   for (const [tableName, table] of Object.entries(schema.tables)) {
     const entityType = entityTypes[tableName];
     const entityPageType = entityPageTypes[tableName];
+    const entityFilterType = entityFilterTypes[tableName];
 
     const singularFieldName =
       tableName.charAt(0).toLowerCase() + tableName.slice(1);
@@ -65,10 +74,9 @@ export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
 
     const pluralFieldName = `${singularFieldName}s`;
     queryFields[pluralFieldName] = buildPluralField({
-      table,
       tableName,
       entityPageType,
-      enumTypes,
+      entityFilterType,
     });
   }
 

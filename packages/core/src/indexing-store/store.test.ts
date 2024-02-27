@@ -768,6 +768,39 @@ test("findMany() filters on bigint gt", async (context) => {
   expect(items.map((i) => i.bigAge)).toMatchObject([105n, 190n]);
 });
 
+test("findMany() filters with complex OR condition", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+      { id: "id4", name: "Zarbar" },
+      { id: "id5", name: "Winston", age: 12 },
+    ],
+  });
+
+  const { items } = await indexingStore.findMany({
+    tableName: "Pet",
+    where: {
+      OR: [
+        { bigAge: { gt: 50n } },
+        { AND: [{ name: "Foo" }, { bigAge: { lt: 20n } }] },
+      ],
+    },
+  });
+
+  expect(items).toMatchObject([
+    { id: "id1", name: "Skip", bigAge: 105n },
+    { id: "id2", name: "Foo", bigAge: 10n },
+    { id: "id3", name: "Bar", bigAge: 190n },
+  ]);
+});
+
 test("findMany() sorts and filters together", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
