@@ -140,7 +140,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private blockTasksEnqueuedCheckpoint = 0;
 
   private queue: Queue<HistoricalSyncTask>;
-  private debouncedEmitCheckpoint: (checkpoint: Checkpoint) => void;
 
   /** If true, failed tasks should not log errors or be retried. */
   private isShuttingDown = false;
@@ -168,12 +167,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.sources = sources;
 
     this.queue = this.buildQueue();
-    this.debouncedEmitCheckpoint = debounce(
-      HISTORICAL_CHECKPOINT_EMIT_INTERVAL,
-      (checkpoint: Checkpoint) => {
-        this.emit("historicalCheckpoint", checkpoint);
-      },
-    );
   }
 
   async setup({
@@ -1042,4 +1035,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         endBlock: BigInt(endBlock),
       },
     });
+
+  private debouncedEmitCheckpoint = debounce(
+    HISTORICAL_CHECKPOINT_EMIT_INTERVAL,
+    (checkpoint: Checkpoint) => {
+      this.emit("historicalCheckpoint", checkpoint);
+    },
+  );
 }
