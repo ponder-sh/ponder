@@ -18,7 +18,6 @@ import {
   type Checkpoint,
   checkpointMax,
   checkpointMin,
-  isCheckpointEqual,
   isCheckpointGreaterThan,
   isCheckpointGreaterThanOrEqualTo,
   zeroCheckpoint,
@@ -30,7 +29,7 @@ import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
 import type { AbiEvent } from "abitype";
-import { E_CANCELED, Mutex, type MutexInterface } from "async-mutex";
+import { E_CANCELED, Mutex } from "async-mutex";
 import { type Hex, decodeEventLog } from "viem";
 import {
   type Context,
@@ -101,6 +100,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   private isSetupStarted;
 
+  /* Mutex ensuring tasks are not loaded twice. */
+  private loadingMutex: Mutex;
+
   private indexingFunctionStates: Record<
     /* Indexing function key: "{ContractName}:{EventName}" */
     string,
@@ -124,15 +126,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
       tasksLoadedToCheckpoint: Checkpoint;
       /* Buffer of in memory tasks that haven't been enqueued yet. */
       loadedTasks: LogEventTask[];
-      /* Mutex ensuring tasks are not loaded twice. */
-      loadingMutex: Mutex;
       /* Checkpoint of the first loaded event (for metrics). */
       firstEventCheckpoint?: Checkpoint;
       /* Checkpoint of the last loaded event (for metrics). */
       lastEventCheckpoint?: Checkpoint;
     }
   > = {};
-  private taskBatchSize: number = MAX_BATCH_SIZE;
 
   private sourceById: { [sourceId: Source["id"]]: Source } = {};
 
@@ -175,6 +174,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.getContracts = buildContracts({
       sources,
     });
+
+    this.loadingMutex = new Mutex();
   }
 
   kill = () => {
@@ -182,9 +183,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.queue?.pause();
     this.queue?.clear();
-    for (const key of Object.keys(this.indexingFunctionStates)) {
-      this.indexingFunctionStates[key].loadingMutex.cancel();
-    }
+    this.loadingMutex.cancel();
     this.common.logger.debug({
       service: "indexing",
       msg: "Killed indexing service",
@@ -237,9 +236,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.isPaused = true;
     this.queue?.pause();
 
-    for (const state of Object.values(this.indexingFunctionStates)) {
-      state.loadingMutex.cancel();
-    }
+    this.loadingMutex.cancel();
 
     this.queue?.clear();
     await this.queue?.onIdle();
@@ -290,13 +287,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.queue!.start();
     await this.queue.onIdle();
 
-    await Promise.all(
-      Object.entries(this.indexingFunctionStates).map(([key, state]) =>
-        state.loadingMutex.runExclusive(() =>
-          this.loadIndexingFunctionTasks(key),
-        ),
-      ),
-    );
+    await this.loadingMutex.runExclusive(async () => {
+      const loadKeys = this.getLoadKeys();
+
+      await Promise.all(
+        loadKeys.map((key) => this.loadIndexingFunctionTasks(key)),
+      );
+    });
 
     this.enqueueLogEventTasks();
 
@@ -323,80 +320,75 @@ export class IndexingService extends Emittery<IndexingEvents> {
   handleReorg = async (safeCheckpoint: Checkpoint) => {
     if (this.isPaused) return;
 
-    let releases: MutexInterface.Releaser[] = [];
-    try {
-      releases = await Promise.all(
-        Object.values(this.indexingFunctionStates).map((indexFunc) =>
-          indexFunc.loadingMutex.acquire(),
-        ),
-      );
-      const hasProcessedInvalidEvents = Object.values(
-        this.indexingFunctionStates,
-      ).some((state) =>
-        isCheckpointGreaterThan(
-          state.tasksProcessedToCheckpoint,
-          safeCheckpoint,
-        ),
-      );
-
-      if (!hasProcessedInvalidEvents) {
-        // No unsafe events have been processed, so no need to revert (case 1 & case 2).
-        this.common.logger.debug({
-          service: "indexing",
-          msg: "No unsafe events were detected while reconciling a reorg, no-op",
-        });
-        return;
-      }
-
-      // Unsafe events have been processed, must revert the indexing store and update
-      // eventsProcessedToTimestamp accordingly (case 3).
-      await this.indexingStore.revert({ checkpoint: safeCheckpoint });
-
-      this.common.metrics.ponder_indexing_completed_timestamp.set(
-        safeCheckpoint.blockTimestamp,
-      );
-
-      // Note: There's currently no way to know how many events are "thrown out"
-      // during the reorg reconciliation, so the event count metrics
-      // (e.g. ponder_indexing_processed_events) will be slightly inflated.
-
-      this.common.logger.debug({
-        service: "indexing",
-        msg: `Reverted indexing store to safe timestamp ${safeCheckpoint.blockTimestamp}`,
-      });
-
-      for (const state of Object.values(this.indexingFunctionStates)) {
-        if (
+    await this.loadingMutex.runExclusive(async () => {
+      try {
+        const hasProcessedInvalidEvents = Object.values(
+          this.indexingFunctionStates,
+        ).some((state) =>
           isCheckpointGreaterThan(
             state.tasksProcessedToCheckpoint,
             safeCheckpoint,
-          )
-        ) {
-          state.tasksProcessedToCheckpoint = safeCheckpoint;
+          ),
+        );
+
+        if (!hasProcessedInvalidEvents) {
+          // No unsafe events have been processed, so no need to revert (case 1 & case 2).
+          this.common.logger.debug({
+            service: "indexing",
+            msg: "No unsafe events were detected while reconciling a reorg, no-op",
+          });
+          return;
         }
-        if (
-          isCheckpointGreaterThan(
-            state.tasksLoadedFromCheckpoint,
-            safeCheckpoint,
-          )
-        ) {
-          state.tasksLoadedFromCheckpoint = safeCheckpoint;
+
+        // Unsafe events have been processed, must revert the indexing store and update
+        // eventsProcessedToTimestamp accordingly (case 3).
+        await this.indexingStore.revert({ checkpoint: safeCheckpoint });
+
+        this.common.metrics.ponder_indexing_completed_timestamp.set(
+          safeCheckpoint.blockTimestamp,
+        );
+
+        // Note: There's currently no way to know how many events are "thrown out"
+        // during the reorg reconciliation, so the event count metrics
+        // (e.g. ponder_indexing_processed_events) will be slightly inflated.
+
+        this.common.logger.debug({
+          service: "indexing",
+          msg: `Reverted indexing store to safe timestamp ${safeCheckpoint.blockTimestamp}`,
+        });
+
+        for (const state of Object.values(this.indexingFunctionStates)) {
+          if (
+            isCheckpointGreaterThan(
+              state.tasksProcessedToCheckpoint,
+              safeCheckpoint,
+            )
+          ) {
+            state.tasksProcessedToCheckpoint = safeCheckpoint;
+          }
+          if (
+            isCheckpointGreaterThan(
+              state.tasksLoadedFromCheckpoint,
+              safeCheckpoint,
+            )
+          ) {
+            state.tasksLoadedFromCheckpoint = safeCheckpoint;
+          }
+          if (
+            isCheckpointGreaterThan(
+              state.tasksLoadedToCheckpoint,
+              safeCheckpoint,
+            )
+          ) {
+            state.tasksLoadedToCheckpoint = safeCheckpoint;
+          }
         }
-        if (
-          isCheckpointGreaterThan(state.tasksLoadedToCheckpoint, safeCheckpoint)
-        ) {
-          state.tasksLoadedToCheckpoint = safeCheckpoint;
-        }
+      } catch (error) {
+        // Pending locks get cancelled in reset(). This is expected, so it's safe to
+        // ignore the error that is thrown when a pending lock is cancelled.
+        if (error !== E_CANCELED) throw error;
       }
-    } catch (error) {
-      // Pending locks get cancelled in reset(). This is expected, so it's safe to
-      // ignore the error that is thrown when a pending lock is cancelled.
-      if (error !== E_CANCELED) throw error;
-    } finally {
-      for (const release of releases) {
-        release();
-      }
-    }
+    });
   };
 
   /**
@@ -710,9 +702,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     if (this.isPaused) return;
 
-    await this.indexingFunctionStates[fullEventName].loadingMutex.runExclusive(
-      () => this.loadIndexingFunctionTasks(fullEventName),
-    );
+    await this.loadingMutex.runExclusive(async () => {
+      const loadKeys = this.getLoadKeys();
+
+      await Promise.all(
+        loadKeys.map((key) => this.loadIndexingFunctionTasks(key)),
+      );
+    });
 
     if (this.isPaused) return;
 
@@ -756,44 +752,47 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const state = this.indexingFunctionStates[key];
     const tasks = state.loadedTasks;
 
-    if (
-      tasks.length > 0 ||
-      isCheckpointEqual(
-        state.tasksLoadedToCheckpoint,
-        this.syncGatewayService.checkpoint,
-      )
-    ) {
-      return;
-    }
-
     // TODO: Deep copy these.
     const fromCheckpoint = state.tasksLoadedToCheckpoint;
     const toCheckpoint = this.syncGatewayService.checkpoint;
 
+    const taskBatchSize = this.calculateTaskBatchSize(key);
+
+    const sourcesHasFactory = state.sources.some(sourceIsFactory);
+
     const result = await this.syncGatewayService.getEvents({
       fromCheckpoint,
       toCheckpoint,
-      limit: this.taskBatchSize,
-      logFilters: state.sources.filter(sourceIsLogFilter).map((logFilter) => ({
-        id: logFilter.id,
-        chainId: logFilter.chainId,
-        criteria: logFilter.criteria,
-        fromBlock: logFilter.startBlock,
-        toBlock: logFilter.endBlock,
-        includeEventSelectors: [state.eventSelector],
-      })),
-      factories: state.sources.filter(sourceIsFactory).map((factory) => ({
-        id: factory.id,
-        chainId: factory.chainId,
-        criteria: factory.criteria,
-        fromBlock: factory.startBlock,
-        toBlock: factory.endBlock,
-        includeEventSelectors: [state.eventSelector],
-      })),
+      limit: taskBatchSize,
+      ...(sourcesHasFactory
+        ? {
+            factories: state.sources.filter(sourceIsFactory).map((factory) => ({
+              id: factory.id,
+              chainId: factory.chainId,
+              criteria: factory.criteria,
+              fromBlock: factory.startBlock,
+              toBlock: factory.endBlock,
+              eventSelector: state.eventSelector,
+            })),
+          }
+        : {
+            logFilters: state.sources
+              .filter(sourceIsLogFilter)
+              .map((logFilter) => ({
+                id: logFilter.id,
+                chainId: logFilter.chainId,
+                criteria: logFilter.criteria,
+                fromBlock: logFilter.startBlock,
+                toBlock: logFilter.endBlock,
+                eventSelector: state.eventSelector,
+              })),
+          }),
     });
 
     const { events, hasNextPage, lastCheckpointInPage, lastCheckpoint } =
       result;
+
+    const previousLength = tasks.length;
 
     for (const event of events) {
       try {
@@ -806,7 +805,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         tasks.push({
           kind: "LOG",
           data: {
-            networkName: this.sourceById[event.sourceId].networkName,
+            networkName: "mainnet",
             contractName: state.contractName,
             eventName: state.eventName,
             event: {
@@ -840,7 +839,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
       : toCheckpoint;
 
     if (tasks.length > 0) {
-      state.tasksLoadedFromCheckpoint = tasks[0].data.checkpoint;
+      if (previousLength === 0) {
+        state.tasksLoadedFromCheckpoint = tasks[0].data.checkpoint;
+      }
 
       // Set special tasks properties necessary for advancing tasksProcessedToCheckpoint
       // as far into the future as possible, mostly for emitting events.
@@ -970,14 +971,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
           tasksLoadedFromCheckpoint: zeroCheckpoint,
           tasksLoadedToCheckpoint: zeroCheckpoint,
           loadedTasks: [],
-          loadingMutex: new Mutex(),
         };
       }
     }
-
-    this.taskBatchSize = Math.floor(
-      MAX_BATCH_SIZE / Object.keys(this.indexingFunctionStates).length,
-    );
   };
 
   private updateCompletedSeconds = (key: string) => {
@@ -1010,6 +1006,83 @@ export class IndexingService extends Emittery<IndexingEvents> {
       state.lastEventCheckpoint.blockTimestamp -
         state.firstEventCheckpoint.blockTimestamp,
     );
+  };
+
+  /** Determine the task batch size to use accounting for tasks that already finished loading. */
+  private calculateTaskBatchSize = (key: string): number => {
+    let totalBatchSize = MAX_BATCH_SIZE;
+    let unfinishedCount = Object.keys(this.indexingFunctionStates).length;
+
+    for (const [indexingFunctionKey, state] of Object.entries(
+      this.indexingFunctionStates,
+    )) {
+      if (key === indexingFunctionKey) continue;
+
+      if (
+        state.lastEventCheckpoint &&
+        isCheckpointGreaterThanOrEqualTo(
+          state.tasksLoadedToCheckpoint,
+          state.lastEventCheckpoint,
+        ) &&
+        isCheckpointGreaterThanOrEqualTo(
+          state.tasksLoadedToCheckpoint,
+          this.syncGatewayService.checkpoint,
+        )
+      ) {
+        totalBatchSize -= state.loadedTasks.length;
+        unfinishedCount -= 1;
+      }
+    }
+
+    return Math.floor(totalBatchSize / unfinishedCount);
+  };
+
+  /** Get keys that need to be loaded. */
+  private getLoadKeys = (): string[] => {
+    const emptyKey = Object.keys(this.indexingFunctionStates).find((key) => {
+      const state = this.indexingFunctionStates[key];
+
+      const isFinished =
+        state.lastEventCheckpoint &&
+        isCheckpointGreaterThanOrEqualTo(
+          state.tasksLoadedToCheckpoint,
+          state.lastEventCheckpoint,
+        ) &&
+        isCheckpointGreaterThanOrEqualTo(
+          state.tasksLoadedToCheckpoint,
+          this.syncGatewayService.checkpoint,
+        );
+
+      return state.loadedTasks.length === 0 && !isFinished;
+    });
+
+    if (emptyKey === undefined) return [];
+
+    const minBatchSize = this.calculateTaskBatchSize(emptyKey) / 3;
+
+    const loadKeys: string[] = [];
+
+    for (const [indexingFunctionKey, state] of Object.entries(
+      this.indexingFunctionStates,
+    )) {
+      const isFinished =
+        state.lastEventCheckpoint &&
+        isCheckpointGreaterThanOrEqualTo(
+          state.tasksLoadedToCheckpoint,
+          state.lastEventCheckpoint,
+        ) &&
+        isCheckpointGreaterThanOrEqualTo(
+          state.tasksLoadedToCheckpoint,
+          this.syncGatewayService.checkpoint,
+        );
+
+      if (!state.lastEventCheckpoint) loadKeys.push(indexingFunctionKey);
+      else if (!isFinished && state.loadedTasks.length < minBatchSize) {
+        loadKeys.push(indexingFunctionKey);
+      }
+    }
+
+    return loadKeys;
   };
 
   private onTableAccess =
