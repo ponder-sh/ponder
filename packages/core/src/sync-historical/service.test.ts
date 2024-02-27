@@ -483,7 +483,7 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   await service.onIdle();
 });
 
-test.only("start() emits historicalCheckpoint event", async (context) => {
+test("start() emits historicalCheckpoint event", async (context) => {
   const { common, syncStore, sources, networks, requestQueues } = context;
 
   const blockNumbers = await getBlockNumbers();
