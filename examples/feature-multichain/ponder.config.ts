@@ -19,7 +19,7 @@ const latestBlockPolygon = await createPublicClient({
   transport: http(process.env.PONDER_RPC_URL_137),
 }).getBlock();
 
-console.log(latestBlockPolygon.number);
+console.log("huzzah");
 
 export default createConfig({
   networks: {
