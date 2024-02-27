@@ -3,5 +3,5 @@ import { HelperClass } from "./util.js";
 
 ponder.on("C:Event1", async ({ event, context }) => {
   const h = new HelperClass();
-  await h.helper({ context, event });
+  await h.helperC({ context, event });
 });
