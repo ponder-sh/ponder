@@ -490,8 +490,8 @@ importers:
   packages/core:
     dependencies:
       '@ast-grep/napi':
-        specifier: ^0.17.1
-        version: 0.17.1
+        specifier: ^0.19.3
+        version: 0.19.3
       '@babel/code-frame':
         specifier: ^7.23.4
         version: 7.23.5
@@ -735,8 +735,8 @@ packages:
       '@jridgewell/trace-mapping': 0.3.20
     dev: true
 
-  /@ast-grep/napi-darwin-arm64@0.17.1:
-    resolution: {integrity: sha512-QO5EyZLXUyJyyS1Q/IQyllayDVb2zgWyWEWhl//B8Y8iuXYEPPj3eIbqVyo3zhgEDLgtd8RZOipgWJLQTmKJPw==}
+  /@ast-grep/napi-darwin-arm64@0.19.3:
+    resolution: {integrity: sha512-emLNSpyey1m/qgHEE+CXgQ68s47bCsgDn36JeWsRp3XGvJa5Nbu7HlywjD3qxLCi+nIkwGni/2bcD+zEieI7gQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
@@ -744,8 +744,8 @@ packages:
     dev: false
     optional: true
 
-  /@ast-grep/napi-darwin-x64@0.17.1:
-    resolution: {integrity: sha512-vaZUNCaDdNDwe6lEmyRF89omtItm4dAFJvCEXUzpcVF7aX5eKg/8sj176gDPLkErNcE5Eqenc9+2aSFc2ppWhw==}
+  /@ast-grep/napi-darwin-x64@0.19.3:
+    resolution: {integrity: sha512-aftYFczI9xhnLxpss/enDSlbnYltny4StSFV05TQ/EqsrQjSQu8+MxKNerFmL4dXO2hdU426s9ib9Ax575zc9w==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -753,8 +753,8 @@ packages:
     dev: false
     optional: true
 
-  /@ast-grep/napi-linux-arm64-gnu@0.17.1:
-    resolution: {integrity: sha512-vSidne672ClHpTtkv+d6F+Vit6rvPOPpwFvrsmf/SJnIUZr2PXbdp2z1zxUy0w+41LIMEPdWd99wmiCbBFWAGg==}
+  /@ast-grep/napi-linux-arm64-gnu@0.19.3:
+    resolution: {integrity: sha512-rbfngSm2w/vR+akQUYZmtCQOXFLWKEEuyDwgNPHJ3UN9Yi90g1yzS2j8I1DxsKRUuN+0TTuqa+TT9lMelxljAw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -762,8 +762,8 @@ packages:
     dev: false
     optional: true
 
-  /@ast-grep/napi-linux-x64-gnu@0.17.1:
-    resolution: {integrity: sha512-njoCGNqpg2cVTNPvjq2Jp8bT30x6EGd/Bl8hzAJTHo9KYDTYGPmdGdr3TVOoUcSgsIqiveNFZ5yaVg8pNez7uA==}
+  /@ast-grep/napi-linux-x64-gnu@0.19.3:
+    resolution: {integrity: sha512-WjGHyXTBJEcj/+TQHG1tlAC45FrxM8oskNnc11b5DieeZ6ezeiPQbi6dJhZm+HDvsaoJt3caBRRsSKfJFo4olQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -771,8 +771,17 @@ packages:
     dev: false
     optional: true
 
-  /@ast-grep/napi-win32-arm64-msvc@0.17.1:
-    resolution: {integrity: sha512-LhFRY7Vl8tCM93RqDdCO5tpseVFwoZKfoNyLF2zBwKi/fOfZ+g0iMlhpaFU6vtlGq1MECUxtZTK80NQr7HIcCA==}
+  /@ast-grep/napi-linux-x64-musl@0.19.3:
+    resolution: {integrity: sha512-q0p1SUHq0W9BDVcuKYNm0SX0FyPzYc3JpbwGUOu1U6yg2F6JZwY03JekSAGNsXBNcqWFObtJfQiPOX9UQkee9Q==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@ast-grep/napi-win32-arm64-msvc@0.19.3:
+    resolution: {integrity: sha512-x1hC5n+Iudb9otOLVSrSm4Isa8PGByKt7WabuPtLVR4BGbSJ4pF1gdNjcOXT9icBbwhzT7DEOjSSoaQsqbi4WQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
@@ -780,8 +789,8 @@ packages:
     dev: false
     optional: true
 
-  /@ast-grep/napi-win32-ia32-msvc@0.17.1:
-    resolution: {integrity: sha512-UmnekTcxUPxIhZdR8AxABuxkgIYCd+uKAMg0PcumwTLstbXVC3wWpNe93wDpioRV7hgG/W8hxH+9cs4m9E2f5w==}
+  /@ast-grep/napi-win32-ia32-msvc@0.19.3:
+    resolution: {integrity: sha512-GYgc4wYE/2u3C/y0Hoi0+uzooo/zYswpZj2psm/95YJxsEAjnsXGpGDk+B8u7qK3UeSiB5Bl/iqGdhaDDhR8Cw==}
     engines: {node: '>= 10'}
     cpu: [ia32]
     os: [win32]
@@ -789,8 +798,8 @@ packages:
     dev: false
     optional: true
 
-  /@ast-grep/napi-win32-x64-msvc@0.17.1:
-    resolution: {integrity: sha512-3YpFwuDaMXSE29wxUNfik1sY8NTgzlAzCCyiD654T+ZjBGXAr+9XlIx1Sp0qjMjoQeVAxhg48RnzZZDs8fWpPA==}
+  /@ast-grep/napi-win32-x64-msvc@0.19.3:
+    resolution: {integrity: sha512-qRPVhnYPdzX2i7jeYht7+D/uOL2Igfz3TCr/0XmtVwjfgCFxEeuR2sgfs5r326Yl/Mt+nbNE/o4CcvWy+P0KwA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -798,17 +807,18 @@ packages:
     dev: false
     optional: true
 
-  /@ast-grep/napi@0.17.1:
-    resolution: {integrity: sha512-IxCE3wSIKpyR3cJIkfwMfDeNf6e+R4X2pw9X5kc8OrCCmvrNfHfvWtmVqBZOREd7peshvkB/yi9jTx31VklQGw==}
+  /@ast-grep/napi@0.19.3:
+    resolution: {integrity: sha512-8QAhX5EcUQXb0sZeHr1RMBjW8cyiY1yZGi5YNfYn0S2KT+ejtDC43Dhpwtzbxoz/Dg2vdt9DhMfxaN4do2HJww==}
     engines: {node: '>= 10'}
     optionalDependencies:
-      '@ast-grep/napi-darwin-arm64': 0.17.1
-      '@ast-grep/napi-darwin-x64': 0.17.1
-      '@ast-grep/napi-linux-arm64-gnu': 0.17.1
-      '@ast-grep/napi-linux-x64-gnu': 0.17.1
-      '@ast-grep/napi-win32-arm64-msvc': 0.17.1
-      '@ast-grep/napi-win32-ia32-msvc': 0.17.1
-      '@ast-grep/napi-win32-x64-msvc': 0.17.1
+      '@ast-grep/napi-darwin-arm64': 0.19.3
+      '@ast-grep/napi-darwin-x64': 0.19.3
+      '@ast-grep/napi-linux-arm64-gnu': 0.19.3
+      '@ast-grep/napi-linux-x64-gnu': 0.19.3
+      '@ast-grep/napi-linux-x64-musl': 0.19.3
+      '@ast-grep/napi-win32-arm64-msvc': 0.19.3
+      '@ast-grep/napi-win32-ia32-msvc': 0.19.3
+      '@ast-grep/napi-win32-x64-msvc': 0.19.3
     dev: false
 
   /@babel/code-frame@7.23.5:
@@ -4155,6 +4165,12 @@ packages:
 
   /@types/hast@3.0.3:
     resolution: {integrity: sha512-2fYGlaDy/qyLlhidX42wAH0KBi2TCjKMH8CHmBXgRlJ3Y+OXTiqsPQ6IWarZKwF1JoUcAJdPogv1d4b0COTpmQ==}
+    dependencies:
+      '@types/unist': 3.0.2
+    dev: false
+
+  /@types/hast@3.0.4:
+    resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
     dependencies:
       '@types/unist': 3.0.2
     dev: false
@@ -8430,6 +8446,24 @@ packages:
       zwitch: 2.0.4
     dev: false
 
+  /hast-util-raw@9.0.2:
+    resolution: {integrity: sha512-PldBy71wO9Uq1kyaMch9AHIghtQvIwxBUkv823pKmkTM3oV1JxtsTNYdevMxvUHqcnOAuO65JKU2+0NOxc2ksA==}
+    dependencies:
+      '@types/hast': 3.0.4
+      '@types/unist': 3.0.2
+      '@ungap/structured-clone': 1.2.0
+      hast-util-from-parse5: 8.0.1
+      hast-util-to-parse5: 8.0.0
+      html-void-elements: 3.0.0
+      mdast-util-to-hast: 13.1.0
+      parse5: 7.1.2
+      unist-util-position: 5.0.0
+      unist-util-visit: 5.0.0
+      vfile: 6.0.1
+      web-namespaces: 2.0.1
+      zwitch: 2.0.4
+    dev: false
+
   /hast-util-to-estree@2.3.3:
     resolution: {integrity: sha512-ihhPIUPxN0v0w6M5+IiAZZrn0LH2uZomeWwhn7uP7avZC6TE7lIiEh2yBMPr5+zi1aUCXq6VoYRgs2Bw9xmycQ==}
     dependencies:
@@ -8478,15 +8512,15 @@ packages:
   /hast-util-to-html@9.0.0:
     resolution: {integrity: sha512-IVGhNgg7vANuUA2XKrT6sOIIPgaYZnmLx3l/CCOAK0PtgfoHrZwX7jCSYyFxHTrGmC6S9q8aQQekjp4JPZF+cw==}
     dependencies:
-      '@types/hast': 3.0.3
+      '@types/hast': 3.0.4
       '@types/unist': 3.0.2
       ccount: 2.0.1
       comma-separated-tokens: 2.0.3
-      hast-util-raw: 9.0.1
+      hast-util-raw: 9.0.2
       hast-util-whitespace: 3.0.0
       html-void-elements: 3.0.0
-      mdast-util-to-hast: 13.0.2
-      property-information: 6.4.0
+      mdast-util-to-hast: 13.1.0
+      property-information: 6.4.1
       space-separated-tokens: 2.0.2
       stringify-entities: 4.0.3
       zwitch: 2.0.4
@@ -8520,7 +8554,7 @@ packages:
   /hast-util-whitespace@3.0.0:
     resolution: {integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==}
     dependencies:
-      '@types/hast': 3.0.3
+      '@types/hast': 3.0.4
     dev: false
 
   /hastscript@8.0.0:
@@ -10145,6 +10179,20 @@ packages:
       unist-util-visit: 5.0.0
     dev: false
 
+  /mdast-util-to-hast@13.1.0:
+    resolution: {integrity: sha512-/e2l/6+OdGp/FB+ctrJ9Avz71AN/GRH3oi/3KAx/kMnoUsD6q0woXlDT8lLEeViVKE7oZxE7RXzvO3T8kF2/sA==}
+    dependencies:
+      '@types/hast': 3.0.4
+      '@types/mdast': 4.0.3
+      '@ungap/structured-clone': 1.2.0
+      devlop: 1.1.0
+      micromark-util-sanitize-uri: 2.0.0
+      trim-lines: 3.0.1
+      unist-util-position: 5.0.0
+      unist-util-visit: 5.0.0
+      vfile: 6.0.1
+    dev: false
+
   /mdast-util-to-markdown@1.5.0:
     resolution: {integrity: sha512-bbv7TPv/WC49thZPg3jXuqzuvI45IL2EVAr/KxF0BSdHsU0ceFHOmwQn6evxAh1GaoK/6GQ1wp4R4oW2+LFL/A==}
     dependencies:
@@ -11025,6 +11073,9 @@ packages:
     resolution: {integrity: sha512-G3Z7vx0IFb/FQ4JxvtqGABsOTIqRWvgQz6e+erkB+JJD6LrszQtMozEHI4EkmgZQvnGHrpLVzUWk7t4sJCIkVw==}
     peerDependencies:
       node-fetch: '*'
+    peerDependenciesMeta:
+      node-fetch:
+        optional: true
     dependencies:
       node-fetch: 2.7.0
     dev: true
@@ -12136,6 +12187,10 @@ packages:
 
   /property-information@6.4.0:
     resolution: {integrity: sha512-9t5qARVofg2xQqKtytzt+lZ4d1Qvj8t5B8fEwXK6qOfgRLgH/b13QlgEyDh033NOS31nXeFbYv7CLUDG1CeifQ==}
+    dev: false
+
+  /property-information@6.4.1:
+    resolution: {integrity: sha512-OHYtXfu5aI2sS2LWFSN5rgJjrQ4pCy8i1jubJLe2QvMF8JJ++HXTUIVWFLfXJoaOfvYYjk2SN8J2wFUWIGXT4w==}
     dev: false
 
   /protobufjs@6.11.4:
