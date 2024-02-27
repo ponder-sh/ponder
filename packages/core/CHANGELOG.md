@@ -1,5 +1,17 @@
 # @ponder/core
 
+## 0.2.10
+
+### Patch Changes
+
+- [#667](https://github.com/ponder-sh/ponder/pull/667) [`c3864c967dbd04cc240d0092829e10d49e7eaff0`](https://github.com/ponder-sh/ponder/commit/c3864c967dbd04cc240d0092829e10d49e7eaff0) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated ast-grep to 0.19.3 which fixed support for running Ponder on Alpine Linux-based Docker images.
+
+- [#663](https://github.com/ponder-sh/ponder/pull/663) [`51aa6f7ae8266f5b29ed719aa85d48be1266ba17`](https://github.com/ponder-sh/ponder/commit/51aa6f7ae8266f5b29ed719aa85d48be1266ba17) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed sync-store metrics for Postgres apps.
+
+- [#655](https://github.com/ponder-sh/ponder/pull/655) [`c7d7d3a4982ae162254014c0e2f6b1ec67056d7a`](https://github.com/ponder-sh/ponder/commit/c7d7d3a4982ae162254014c0e2f6b1ec67056d7a) Thanks [@kyscott18](https://github.com/kyscott18)! - Added a warning log when static analysis fails.
+
+- [#662](https://github.com/ponder-sh/ponder/pull/662) [`ef704653d0b124a5fc917ccc160d86ea5cf950d7`](https://github.com/ponder-sh/ponder/commit/ef704653d0b124a5fc917ccc160d86ea5cf950d7) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved indexing performance when loading events from the database.
+
 ## 0.2.9
 
 ## 0.2.8
