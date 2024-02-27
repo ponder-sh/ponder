@@ -42,6 +42,8 @@ import {
 } from "./getLogFilterRetryRanges.js";
 import { validateHistoricalBlockRange } from "./validateHistoricalBlockRange.js";
 
+const HISTORICAL_CHECKPOINT_EMIT_INTERVAL = 500;
+
 type HistoricalSyncEvents = {
   /**
    * Emitted when the service has finished processing all historical sync tasks.
@@ -166,9 +168,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.sources = sources;
 
     this.queue = this.buildQueue();
-    this.debouncedEmitCheckpoint = debounce(1_000, (checkpoint: Checkpoint) => {
-      this.emit("historicalCheckpoint", checkpoint);
-    });
+    this.debouncedEmitCheckpoint = debounce(
+      HISTORICAL_CHECKPOINT_EMIT_INTERVAL,
+      (checkpoint: Checkpoint) => {
+        this.emit("historicalCheckpoint", checkpoint);
+      },
+    );
   }
 
   async setup({

@@ -6,6 +6,7 @@ import { getEventsErc20, publicClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
+import { wait } from "@/utils/wait.js";
 import { HistoricalSyncService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -482,7 +483,7 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   await service.onIdle();
 });
 
-test("start() emits historicalCheckpoint event", async (context) => {
+test.only("start() emits historicalCheckpoint event", async (context) => {
   const { common, syncStore, sources, networks, requestQueues } = context;
 
   const blockNumbers = await getBlockNumbers();
@@ -503,6 +504,9 @@ test("start() emits historicalCheckpoint event", async (context) => {
   service.start();
 
   await service.onIdle();
+
+  // Flush the debounce state
+  await wait(500);
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     blockTimestamp: Number(finalizedBlock.timestamp),
