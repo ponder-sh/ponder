@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { getEventsErc20 } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
-import type { TableAccess } from "@/build/functions/parseAst.js";
+import type { TableAccess } from "@/build/static/getTableAccess.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -67,13 +67,14 @@ const readContractIndexingFunctions: IndexingFunctions = {
   Erc20: { Transfer: readContractTransferIndexingFunction },
 };
 
-const tableAccess: TableAccess = [
-  {
-    table: "TransferEvent",
-    access: "write",
-    indexingFunctionKey: "Erc20:Transfer",
-  },
-];
+const tableAccess: TableAccess = {
+  "Erc20:Transfer": [
+    {
+      storeMethod: "create",
+      tableName: "TransferEvent",
+    },
+  ],
+};
 
 function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index, blockNumber: index };
@@ -296,18 +297,14 @@ test("processEvents() orders tasks with self reliance", async (context) => {
     requestQueues,
   });
 
-  const tableAccess: TableAccess = [
-    {
-      table: "TransferEvent",
-      access: "write",
-      indexingFunctionKey: "Erc20:Transfer",
-    },
-    {
-      table: "TransferEvent",
-      access: "read",
-      indexingFunctionKey: "Erc20:Transfer",
-    },
-  ];
+  const tableAccess: TableAccess = {
+    "Erc20:Transfer": [
+      {
+        tableName: "TransferEvent",
+        storeMethod: "update",
+      },
+    ],
+  };
 
   await service.reset({ schema, indexingFunctions, tableAccess });
 
@@ -552,19 +549,14 @@ test("processEvents() handles errors", async (context) => {
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
-  const tableAccess: TableAccess = [
-    {
-      table: "TransferEvent",
-      access: "write",
-      indexingFunctionKey: "Erc20:Transfer",
-    },
-    {
-      table: "TransferEvent",
-      access: "read",
-      indexingFunctionKey: "Erc20:Transfer",
-    },
-  ];
-
+  const tableAccess: TableAccess = {
+    "Erc20:Transfer": [
+      {
+        tableName: "TransferEvent",
+        storeMethod: "update",
+      },
+    ],
+  };
   await service.reset({ schema, indexingFunctions, tableAccess });
 
   transferIndexingFunction.mockImplementation(() => {
