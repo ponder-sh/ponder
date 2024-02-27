@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Fixed Docker compatibility issues by upgrading ast-grep.
+Updated ast-grep to 0.19.3 which fixed support for running Ponder on Alpine Linux-based Docker images.
