@@ -1229,7 +1229,6 @@ export class SqliteSyncStore implements SyncStore {
   }) => {
     const exprs = [];
 
-    // exprs.push(eb("source_id", "=", logFilter.id));
     exprs.push(eb("logs.chainId", "=", logFilter.chainId));
 
     if (logFilter.criteria.address) {
@@ -1284,7 +1283,6 @@ export class SqliteSyncStore implements SyncStore {
   }) => {
     const exprs = [];
 
-    // exprs.push(eb("source_id", "=", factory.id));
     exprs.push(eb("logs.chainId", "=", factory.chainId));
 
     const selectChildAddressExpression =
