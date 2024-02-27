@@ -21,10 +21,10 @@ import {
   type RawIndexingFunctions,
   safeBuildIndexingFunctions,
 } from "./functions/functions.js";
-import { type TableAccess, parseAst } from "./functions/parseAst.js";
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
+import { type TableAccess, getTableAccess } from "./static/getTableAccess.js";
 
 type BuildServiceEvents = {
   // Note: Should new config ever trigger a re-analyze?
@@ -387,7 +387,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   private analyze() {
-    if (!this.rawIndexingFunctions || !this.schema) return [];
+    if (!this.rawIndexingFunctions || !this.schema) return {};
 
     const tableNames = Object.keys(this.schema.tables);
     const filePaths = Object.keys(this.rawIndexingFunctions);
@@ -395,7 +395,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.rawIndexingFunctions,
     ).flatMap((indexingFunctions) => indexingFunctions.map((x) => x.name));
 
-    const tableAccessMap = parseAst({
+    const tableAccessMap = getTableAccess({
       tableNames,
       filePaths,
       indexingFunctionKeys,
