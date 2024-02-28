@@ -86,15 +86,15 @@ export class SqliteIndexingStore implements IndexingStore {
         .where("id", "=", encodedId);
 
       if (checkpoint === "latest") {
-        query = query.where("effectiveToCheckpoint", "=", "latest");
+        query = query.where("effective_to", "=", "latest");
       } else {
         const encodedCheckpoint = encodeCheckpoint(checkpoint);
         query = query
-          .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
+          .where("effective_from", "<=", encodedCheckpoint)
           .where(({ eb, or }) =>
             or([
-              eb("effectiveToCheckpoint", ">", encodedCheckpoint),
-              eb("effectiveToCheckpoint", "=", "latest"),
+              eb("effective_to", ">", encodedCheckpoint),
+              eb("effective_to", "=", "latest"),
             ]),
           );
       }
@@ -130,15 +130,15 @@ export class SqliteIndexingStore implements IndexingStore {
       let query = this.db.selectFrom(versionedTableName).selectAll();
 
       if (checkpoint === "latest") {
-        query = query.where("effectiveToCheckpoint", "=", "latest");
+        query = query.where("effective_to", "=", "latest");
       } else {
         const encodedCheckpoint = encodeCheckpoint(checkpoint);
         query = query
-          .where("effectiveFromCheckpoint", "<=", encodedCheckpoint)
+          .where("effective_from", "<=", encodedCheckpoint)
           .where(({ eb, or }) =>
             or([
-              eb("effectiveToCheckpoint", ">", encodedCheckpoint),
-              eb("effectiveToCheckpoint", "=", "latest"),
+              eb("effective_to", ">", encodedCheckpoint),
+              eb("effective_to", "=", "latest"),
             ]),
           );
       }
@@ -336,8 +336,8 @@ export class SqliteIndexingStore implements IndexingStore {
         .insertInto(versionedTableName)
         .values({
           ...createRow,
-          effectiveFromCheckpoint: encodedCheckpoint,
-          effectiveToCheckpoint: "latest",
+          effective_from: encodedCheckpoint,
+          effective_to: "latest",
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -362,8 +362,8 @@ export class SqliteIndexingStore implements IndexingStore {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const createRows = data.map((d) => ({
         ...encodeRow({ ...d }, table, "sqlite"),
-        effectiveFromCheckpoint: encodedCheckpoint,
-        effectiveToCheckpoint: "latest",
+        effective_from: encodedCheckpoint,
+        effective_to: "latest",
       }));
 
       const chunkedRows = [];
@@ -412,7 +412,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .selectFrom(versionedTableName)
           .selectAll()
           .where("id", "=", encodedId)
-          .where("effectiveToCheckpoint", "=", "latest")
+          .where("effective_to", "=", "latest")
           .executeTakeFirstOrThrow();
 
         // If the user passed an update function, call it with the current instance.
@@ -427,37 +427,37 @@ export class SqliteIndexingStore implements IndexingStore {
 
         // If the update would be applied to a record other than the latest
         // record, throw an error.
-        if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
+        if (latestRow.effective_from > encodedCheckpoint) {
           throw new Error("Cannot update a record in the past");
         }
 
-        // If the latest version has the same effectiveFromCheckpoint as the update,
+        // If the latest version has the same effective_from as the update,
         // this update is occurring within the same indexing function. Update in place.
-        if (latestRow.effectiveFromCheckpoint === encodedCheckpoint) {
+        if (latestRow.effective_from === encodedCheckpoint) {
           return await tx
             .updateTable(versionedTableName)
             .set(updateRow)
             .where("id", "=", encodedId)
-            .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
+            .where("effective_from", "=", encodedCheckpoint)
             .returningAll()
             .executeTakeFirstOrThrow();
         }
 
-        // If the latest version has an earlier effectiveFromCheckpoint than the update,
+        // If the latest version has an earlier effective_from than the update,
         // we need to update the latest version AND insert a new version.
         await tx
           .updateTable(versionedTableName)
           .where("id", "=", encodedId)
-          .where("effectiveToCheckpoint", "=", "latest")
-          .set({ effectiveToCheckpoint: encodedCheckpoint })
+          .where("effective_to", "=", "latest")
+          .set({ effective_to: encodedCheckpoint })
           .execute();
         const row = tx
           .insertInto(versionedTableName)
           .values({
             ...latestRow,
             ...updateRow,
-            effectiveFromCheckpoint: encodedCheckpoint,
-            effectiveToCheckpoint: "latest",
+            effective_from: encodedCheckpoint,
+            effective_to: "latest",
           })
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -495,7 +495,7 @@ export class SqliteIndexingStore implements IndexingStore {
         let query = tx
           .selectFrom(versionedTableName)
           .selectAll()
-          .where("effectiveToCheckpoint", "=", "latest");
+          .where("effective_to", "=", "latest");
 
         const whereConditions = buildWhereConditions({
           where,
@@ -525,37 +525,37 @@ export class SqliteIndexingStore implements IndexingStore {
 
             // If the update would be applied to a record other than the latest
             // record, throw an error.
-            if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
+            if (latestRow.effective_from > encodedCheckpoint) {
               throw new Error("Cannot update a record in the past");
             }
 
             // If the latest version has the same effectiveFrom timestamp as the update,
             // this update is occurring within the same block/second. Update in place.
-            if (latestRow.effectiveFromCheckpoint === encodedCheckpoint) {
+            if (latestRow.effective_from === encodedCheckpoint) {
               return await tx
                 .updateTable(versionedTableName)
                 .set(updateRow)
                 .where("id", "=", encodedId)
-                .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
+                .where("effective_from", "=", encodedCheckpoint)
                 .returningAll()
                 .executeTakeFirstOrThrow();
             }
 
-            // If the latest version has an earlier effectiveFromCheckpoint than the update,
+            // If the latest version has an earlier effective_from than the update,
             // we need to update the latest version AND insert a new version.
             await tx
               .updateTable(versionedTableName)
               .where("id", "=", encodedId)
-              .where("effectiveToCheckpoint", "=", "latest")
-              .set({ effectiveToCheckpoint: encodedCheckpoint })
+              .where("effective_to", "=", "latest")
+              .set({ effective_to: encodedCheckpoint })
               .execute();
             const row = tx
               .insertInto(versionedTableName)
               .values({
                 ...latestRow,
                 ...updateRow,
-                effectiveFromCheckpoint: encodedCheckpoint,
-                effectiveToCheckpoint: "latest",
+                effective_from: encodedCheckpoint,
+                effective_to: "latest",
               })
               .returningAll()
               .executeTakeFirstOrThrow();
@@ -598,7 +598,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .selectFrom(versionedTableName)
           .selectAll()
           .where("id", "=", encodedId)
-          .where("effectiveToCheckpoint", "=", "latest")
+          .where("effective_to", "=", "latest")
           .executeTakeFirst();
 
         // If there is no latest version, insert a new version using the create data.
@@ -607,8 +607,8 @@ export class SqliteIndexingStore implements IndexingStore {
             .insertInto(versionedTableName)
             .values({
               ...createRow,
-              effectiveFromCheckpoint: encodedCheckpoint,
-              effectiveToCheckpoint: "latest",
+              effective_from: encodedCheckpoint,
+              effective_to: "latest",
             })
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -626,37 +626,37 @@ export class SqliteIndexingStore implements IndexingStore {
 
         // If the update would be applied to a record other than the latest
         // record, throw an error.
-        if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
+        if (latestRow.effective_from > encodedCheckpoint) {
           throw new Error("Cannot update a record in the past");
         }
 
-        // If the latest version has the same effectiveFromCheckpoint as the update,
+        // If the latest version has the same effective_from as the update,
         // this update is occurring within the same indexing function. Update in place.
-        if (latestRow.effectiveFromCheckpoint === encodedCheckpoint) {
+        if (latestRow.effective_from === encodedCheckpoint) {
           return await tx
             .updateTable(versionedTableName)
             .set(updateRow)
             .where("id", "=", encodedId)
-            .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
+            .where("effective_from", "=", encodedCheckpoint)
             .returningAll()
             .executeTakeFirstOrThrow();
         }
 
-        // If the latest version has an earlier effectiveFromCheckpoint than the update,
+        // If the latest version has an earlier effective_from than the update,
         // we need to update the latest version AND insert a new version.
         await tx
           .updateTable(versionedTableName)
           .where("id", "=", encodedId)
-          .where("effectiveToCheckpoint", "=", "latest")
-          .set({ effectiveToCheckpoint: encodedCheckpoint })
+          .where("effective_to", "=", "latest")
+          .set({ effective_to: encodedCheckpoint })
           .execute();
         const row = tx
           .insertInto(versionedTableName)
           .values({
             ...latestRow,
             ...updateRow,
-            effectiveFromCheckpoint: encodedCheckpoint,
-            effectiveToCheckpoint: "latest",
+            effective_from: encodedCheckpoint,
+            effective_to: "latest",
           })
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -685,24 +685,24 @@ export class SqliteIndexingStore implements IndexingStore {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const isDeleted = await this.db.transaction().execute(async (tx) => {
-        // If the latest version has effectiveFromCheckpoint equal to current checkpoint,
+        // If the latest version has effective_from equal to current checkpoint,
         // this row was created within the same indexing function, and we can delete it.
         let deletedRow = await tx
           .deleteFrom(versionedTableName)
           .where("id", "=", encodedId)
-          .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
-          .where("effectiveToCheckpoint", "=", "latest")
+          .where("effective_from", "=", encodedCheckpoint)
+          .where("effective_to", "=", "latest")
           .returning(["id"])
           .executeTakeFirst();
 
         // If we did not take the shortcut above, update the latest record
-        // setting effectiveToCheckpoint to the current checkpoint.
+        // setting effective_to to the current checkpoint.
         if (!deletedRow) {
           deletedRow = await tx
             .updateTable(versionedTableName)
-            .set({ effectiveToCheckpoint: encodedCheckpoint })
+            .set({ effective_to: encodedCheckpoint })
             .where("id", "=", encodedId)
-            .where("effectiveToCheckpoint", "=", "latest")
+            .where("effective_to", "=", "latest")
             .returning(["id"])
             .executeTakeFirst();
         }

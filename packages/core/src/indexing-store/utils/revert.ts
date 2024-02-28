@@ -12,14 +12,14 @@ export const revertTable = async (
   // Delete any versions that are newer than or equal to the safe checkpoint.
   await kysely
     .deleteFrom(versionedTableName)
-    .where("effectiveFromCheckpoint", ">=", encodedCheckpoint)
+    .where("effective_from", ">=", encodedCheckpoint)
     .execute();
 
-  // Now, any versions with effectiveToCheckpoint greater than or equal
+  // Now, any versions with effective_to greater than or equal
   // to the safe checkpoint are the new latest version.
   await kysely
     .updateTable(versionedTableName)
-    .set({ effectiveToCheckpoint: "latest" })
-    .where("effectiveToCheckpoint", ">=", encodedCheckpoint)
+    .set({ effective_to: "latest" })
+    .where("effective_to", ">=", encodedCheckpoint)
     .execute();
 };
