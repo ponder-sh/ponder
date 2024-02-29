@@ -1,6 +1,6 @@
+import type { Common } from "@/Ponder.js";
 import type { Kysely } from "kysely";
 import { type Migration, type MigrationProvider, sql } from "kysely";
-import { SCHEMA_NAME } from "./store.js";
 
 const migrations: Record<string, Migration> = {
   "2023_05_15_0_initial": {
@@ -432,8 +432,16 @@ class StaticMigrationProvider implements MigrationProvider {
 
 export const migrationProvider = new StaticMigrationProvider();
 
-export async function moveLegacyTables(db: Kysely<any>) {
-  // If the database has migration tables present in the public schema,
+export async function moveLegacyTables({
+  common,
+  db,
+  newSchemaName,
+}: {
+  common: Common;
+  db: Kysely<any>;
+  newSchemaName: string;
+}) {
+  // If the database has ponder migration tables present in the public schema,
   // move them to the new schema.
   let hasLegacyMigrations = false;
   try {
@@ -443,61 +451,61 @@ export async function moveLegacyTables(db: Kysely<any>) {
     if (rows[0]?.name === "2023_05_15_0_initial") hasLegacyMigrations = true;
   } catch (e) {
     const error = e as Error;
-    if (error.message !== 'relation "public.kysely_migration" does not exist')
-      throw error;
+    if (!error.message.includes("does not exist")) throw error;
   }
 
-  if (hasLegacyMigrations) {
-    async function moveOrDeleteTable(tableName: string) {
-      try {
-        await db.schema
-          .alterTable(`public.${tableName}`)
-          .setSchema(SCHEMA_NAME)
-          .execute();
-      } catch (e) {
-        const error = e as Error;
-        switch (error.message) {
-          case `relation "${tableName}" already exists in schema "${SCHEMA_NAME}"`: {
-            await db.schema
-              .dropTable(`public.${tableName}`)
-              .execute()
-              .catch(() => {});
-            break;
-          }
-          case `relation "public.${tableName}" does not exist`: {
-            break;
-          }
-          default: {
-            console.warn(
-              `Failed to migrate table "${tableName}" to "ponder_sync" schema:`,
-            );
-            console.warn(error);
-          }
+  if (!hasLegacyMigrations) return;
+
+  async function moveOrDeleteTable(tableName: string) {
+    try {
+      await db.schema
+        .alterTable(`public.${tableName}`)
+        .setSchema(newSchemaName)
+        .execute();
+    } catch (e) {
+      const error = e as Error;
+      switch (error.message) {
+        case `relation "${tableName}" already exists in schema "${newSchemaName}"`: {
+          await db.schema
+            .dropTable(`public.${tableName}`)
+            .execute()
+            // Ignore errors if this fails.
+            .catch(() => {});
+          break;
+        }
+        case `relation "public.${tableName}" does not exist`: {
+          break;
+        }
+        default: {
+          common.logger.warn({
+            service: "database",
+            msg: `Failed to migrate table "${tableName}" to "ponder_sync" schema: ${error.message}`,
+          });
         }
       }
     }
+  }
 
-    const tableNames = [
-      "kysely_migration",
-      "kysely_migration_lock",
-      "blocks",
-      "logs",
-      "transactions",
-      "rpcRequestResults",
-      // Note that logFilterIntervals has a constraint that uses logFilters,
-      // so the order here matters. Same story with factoryLogFilterIntervals.
-      "logFilterIntervals",
-      "logFilters",
-      "factoryLogFilterIntervals",
-      "factories",
-      // Old ones that are no longer being used, but should still be moved
-      // so that older migrations work as expected.
-      "contractReadResults",
-      "logFilterCachedRanges",
-    ];
+  const tableNames = [
+    "kysely_migration",
+    "kysely_migration_lock",
+    "blocks",
+    "logs",
+    "transactions",
+    "rpcRequestResults",
+    // Note that logFilterIntervals has a constraint that uses logFilters,
+    // so the order here matters. Same story with factoryLogFilterIntervals.
+    "logFilterIntervals",
+    "logFilters",
+    "factoryLogFilterIntervals",
+    "factories",
+    // Old ones that are no longer being used, but should still be moved
+    // so that older migrations work as expected.
+    "contractReadResults",
+    "logFilterCachedRanges",
+  ];
 
-    for (const tableName of tableNames) {
-      await moveOrDeleteTable(tableName);
-    }
+  for (const tableName of tableNames) {
+    await moveOrDeleteTable(tableName);
   }
 }

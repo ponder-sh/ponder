@@ -35,12 +35,13 @@ import {
 } from "./encoding.js";
 import { migrationProvider, moveLegacyTables } from "./migrations.js";
 
-export const SCHEMA_NAME = "ponder_sync" as const;
-
 export class PostgresSyncStore implements SyncStore {
   private common: Common;
+
   kind = "postgres" as const;
   db: Kysely<SyncStoreTables>;
+
+  private schemaName: string;
 
   constructor({
     common,
@@ -48,6 +49,8 @@ export class PostgresSyncStore implements SyncStore {
     schemaName,
   }: { common: Common; pool: Pool; schemaName: string }) {
     this.common = common;
+    this.schemaName = schemaName;
+
     this.db = new Kysely<SyncStoreTables>({
       dialect: new PostgresDialect({ pool }),
       log(event) {
@@ -56,26 +59,22 @@ export class PostgresSyncStore implements SyncStore {
         }
       },
     }).withPlugin(new WithSchemaPlugin(schemaName));
-
-    this.migrator = new Migrator({
-      db: this.db,
-      provider: migrationProvider,
-      migrationTableSchema: schemaName,
-    });
   }
 
   migrateUp = async () => {
     const start = performance.now();
 
-    await this.db.schema.createSchema(SCHEMA_NAME).ifNotExists().execute();
-
     // TODO: Probably remove this at 1.0 to speed up startup time.
-    await moveLegacyTables(this.db);
+    await moveLegacyTables({
+      common: this.common,
+      db: this.db,
+      newSchemaName: this.schemaName,
+    });
 
     const migrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
-      migrationTableSchema: SCHEMA_NAME,
+      migrationTableSchema: this.schemaName,
     });
 
     const { error } = await migrator.migrateToLatest();
