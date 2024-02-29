@@ -21,34 +21,39 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
-import { createPool } from "@/utils/pg.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { createSqliteDatabase } from "@/utils/sqlite.js";
 import pg from "pg";
 import type { Address } from "viem";
 import { type TestContext, beforeEach } from "vitest";
 import { deploy, simulate } from "./simulate.js";
-import { getConfig, getNetworkAndSources, testClient } from "./utils.js";
+import {
+  getConfig,
+  getNetworkAndSources,
+  getTableIds,
+  testClient,
+} from "./utils.js";
 
 declare module "vitest" {
   export interface TestContext {
     common: Common;
-    database: DatabaseService;
     databaseConfig: DatabaseConfig;
-    syncStore: SyncStore;
-    indexingStore: IndexingStore;
     sources: [LogFilter, Factory];
     networks: Network[];
     requestQueues: RequestQueue[];
     config: Config;
     erc20: { address: Address };
     factory: { address: Address; pair: Address };
+
+    // // These are available on a per-file basis.
+    // database: DatabaseService;
+    // indexingStore: IndexingStore;
+    // syncStore: SyncStore;
   }
 }
 
-beforeEach((context) => setupContext(context));
+beforeEach(setupContext);
 
-export const setupContext = (context: TestContext) => {
+export function setupContext(context: TestContext) {
   const options = {
     ...buildOptions({
       cliOptions: { config: "", root: "" },
@@ -61,7 +66,7 @@ export const setupContext = (context: TestContext) => {
     metrics: new MetricsService(),
     telemetry: new TelemetryService({ options }),
   };
-};
+}
 
 /**
  * Sets up an isolated database on the test context.
@@ -72,10 +77,10 @@ export const setupContext = (context: TestContext) => {
  *
  * ```ts
  * // Add this to any test suite that uses the database.
- * beforeEach((context) => setupDatabase(context))
+ * beforeEach((context) => setupIsolatedDatabase(context))
  * ```
  */
-export async function setupDatabase(context: TestContext) {
+export async function setupIsolatedDatabase(context: TestContext) {
   if (process.env.DATABASE_URL) {
     const client = new pg.Client({
       connectionString: process.env.DATABASE_URL,
@@ -87,22 +92,16 @@ export async function setupDatabase(context: TestContext) {
     const databaseName = `vitest_${randomSuffix}`;
     const databaseUrl = new URL(process.env.DATABASE_URL);
     databaseUrl.pathname = `/${databaseName}`;
-    const connectionString = databaseUrl.toString();
-    const poolConfig = { connectionString };
+    const poolConfig = { connectionString: databaseUrl.toString() };
 
     await client.query(`CREATE DATABASE "${databaseName}"`);
 
     context.databaseConfig = { kind: "postgres", poolConfig };
-    context.database = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig,
-    });
-
-    await context.database.setup();
 
     return async () => {
-      await context.database.kill();
-      await client.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
+      await client.query(
+        `DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`,
+      );
       await client.end();
     };
   } else {
@@ -110,98 +109,192 @@ export async function setupDatabase(context: TestContext) {
     fs.mkdirSync(tempDir, { recursive: true });
 
     context.databaseConfig = { kind: "sqlite", directory: tempDir };
-    context.database = new SqliteDatabaseService({
-      common: context.common,
-      directory: tempDir,
-    });
-
-    await context.database.setup();
 
     return async () => {
-      await context.database.kill();
       fs.rmSync(tempDir, { force: true, recursive: true });
     };
   }
 }
 
-/**
- * Sets up an isolated SyncStore on the test context.
- *
- * ```ts
- * // Add this to any test suite that uses the SyncStore client.
- * beforeEach((context) => setupSyncStore(context))
- * ```
- */
-export async function setupSyncStore(context: TestContext) {
-  if (context.databaseConfig.kind === "postgres") {
-    const pool = createPool({ ...context.databaseConfig.poolConfig });
+type DatabaseServiceReset = Parameters<DatabaseService["reset"]>[0];
+const defaultSchema = createSchema(() => ({}));
+const defaultDatabaseServiceReset: DatabaseServiceReset = {
+  schema: defaultSchema,
+  tableIds: getTableIds(defaultSchema),
+  functionIds: {},
+  tableAccess: [],
+};
 
-    context.syncStore = new PostgresSyncStore({
+export async function setupDatabaseServices(
+  context: TestContext,
+  overrides: Partial<DatabaseServiceReset> = {},
+): Promise<{
+  database: DatabaseService;
+  syncStore: SyncStore;
+  indexingStore: IndexingStore;
+  cleanup: () => Promise<void>;
+}> {
+  const config = {
+    ...defaultDatabaseServiceReset,
+    ...overrides,
+  };
+
+  if (context.databaseConfig.kind === "sqlite") {
+    const database = new SqliteDatabaseService({
       common: context.common,
-      pool,
-      schemaName: "ponder_sync",
+      directory: context.databaseConfig.directory,
     });
 
-    return async () => {
-      await pool.end();
-    };
+    await database.setup();
+    await database.reset(config);
+
+    const indexingStoreConfig = database.getIndexingStoreConfig();
+    const indexingStore = new SqliteIndexingStore({
+      common: context.common,
+      schema: config.schema,
+      ...indexingStoreConfig,
+    });
+
+    const syncStoreConfig = database.getSyncStoreConfig();
+    const syncStore = new SqliteSyncStore({
+      common: context.common,
+      ...syncStoreConfig,
+    });
+
+    await syncStore.migrateUp();
+
+    const cleanup = () => database.kill();
+
+    return { database, indexingStore, syncStore, cleanup };
   } else {
-    const file = path.join(context.databaseConfig.directory, "ponder_sync.db");
-    const database = createSqliteDatabase(file);
-
-    context.syncStore = new SqliteSyncStore({
+    const database = new PostgresDatabaseService({
       common: context.common,
-      database,
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
-    return () => database.close();
+    await database.setup();
+    await database.reset({
+      ...defaultDatabaseServiceReset,
+      ...overrides,
+    });
+
+    const indexingStoreConfig = database.getIndexingStoreConfig();
+    const indexingStore = new PostgresIndexingStore({
+      common: context.common,
+      schema: config.schema,
+      ...indexingStoreConfig,
+    });
+
+    const syncStoreConfig = await database.getSyncStoreConfig();
+    const syncStore = new PostgresSyncStore({
+      common: context.common,
+      ...syncStoreConfig,
+    });
+
+    await syncStore.migrateUp();
+
+    const cleanup = () => database.kill();
+
+    return { database, indexingStore, syncStore, cleanup };
   }
 }
 
-/**
- * Sets up an isolated IndexingStore on the test context. After setting up,
- * be sure to set the schema within each test.
- *
- * ```ts
- * // Add this to any test suite that uses the IndexingStore.
- * beforeEach((context) => setupIndexingStore(context))
- *
- * // Set the schema within each test.
- * test("my test", (context) => {
- *   context.indexingStore.schema = createSchema({ ... })
- *   // ...
- * })
- * ```
- */
-export function setupIndexingStore(context: TestContext) {
-  const placeholderSchema = createSchema(() => ({}));
+// /**
+//  * Sets up a DatabaseService on the test context.
+//  *
+//  * ```ts
+//  * // Add this to any test suite that uses the database.
+//  * beforeEach((context) => setupDatabase(context))
+//  * ```
+//  */
+// export async function setupDatabase(context: TestContext) {
+//   if (context.databaseConfig.kind === "postgres") {
+//     context.database = new PostgresDatabaseService({
+//       common: context.common,
+//       poolConfig: context.databaseConfig.poolConfig,
+//     });
 
-  if (context.databaseConfig.kind === "postgres") {
-    const pool = createPool({ ...context.databaseConfig.poolConfig });
+//     return async () => {
+//       await context.database.kill();
+//     };
+//   } else {
+//     context.database = new SqliteDatabaseService({
+//       common: context.common,
+//       directory: context.databaseConfig.directory,
+//     });
 
-    context.indexingStore = new PostgresIndexingStore({
-      common: context.common,
-      pool,
-      schemaName: "ponder_instance_1",
-      schema: placeholderSchema,
-    });
+//     return async () => {
+//       await context.database.kill();
+//     };
+//   }
+// }
 
-    return async () => {
-      await pool.end();
-    };
-  } else {
-    const file = path.join(context.databaseConfig.directory, "ponder.db");
-    const database = createSqliteDatabase(file);
+// /**
+//  * Sets up an isolated SyncStore on the test context.
+//  *
+//  * ```ts
+//  * // Add this to any test suite that uses the SyncStore client.
+//  * beforeEach((context) => setupSyncStore(context))
+//  * ```
+//  */
+// export async function setupSyncStore(context: TestContext) {
+//   if (context.database.kind === "postgres") {
+//     const syncStoreConfig = await context.database.getSyncStoreConfig();
 
-    context.indexingStore = new SqliteIndexingStore({
-      common: context.common,
-      database,
-      schema: placeholderSchema,
-    });
+//     context.syncStore = new PostgresSyncStore({
+//       common: context.common,
+//       ...syncStoreConfig,
+//     });
 
-    return () => database.close();
-  }
-}
+//     await context.syncStore.migrateUp();
+//   } else {
+//     const syncStoreConfig = context.database.getSyncStoreConfig();
+
+//     context.syncStore = new SqliteSyncStore({
+//       common: context.common,
+//       ...syncStoreConfig,
+//     });
+
+//     await context.syncStore.migrateUp();
+//   }
+// }
+
+// /**
+//  * Sets up an isolated IndexingStore on the test context. After setting up,
+//  * be sure to set the schema within each test.
+//  *
+//  * ```ts
+//  * // Add this to any test suite that uses the IndexingStore.
+//  * beforeEach((context) => setupIndexingStore(context))
+//  *
+//  * // Set the schema within each test.
+//  * test("my test", (context) => {
+//  *   context.indexingStore.schema = createSchema({ ... })
+//  *   // ...
+//  * })
+//  * ```
+//  */
+// export function setupIndexingStore(context: TestContext) {
+//   const placeholderSchema = createSchema(() => ({}));
+
+//   if (context.database.kind === "postgres") {
+//     const indexingStoreConfig = context.database.getIndexingStoreConfig();
+
+//     context.indexingStore = new PostgresIndexingStore({
+//       common: context.common,
+//       schema: placeholderSchema,
+//       ...indexingStoreConfig,
+//     });
+//   } else {
+//     const indexingStoreConfig = context.database.getIndexingStoreConfig();
+
+//     context.indexingStore = new SqliteIndexingStore({
+//       common: context.common,
+//       schema: placeholderSchema,
+//       ...indexingStoreConfig,
+//     });
+//   }
+// }
 
 /**
  * Sets up an isolated Ethereum client on the test context, with the appropriate Erc20 + Factory state.

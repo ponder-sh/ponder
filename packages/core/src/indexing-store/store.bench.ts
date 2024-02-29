@@ -1,16 +1,20 @@
 import { describe } from "node:test";
 import {
   setupContext,
-  setupDatabase,
-  setupIndexingStore,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { getTableIds } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import { type TestContext, bench } from "vitest";
+import type { IndexingStore } from "./store.js";
 
 let context: TestContext;
-let teardownDatabase: () => Promise<void>;
+let indexingStore: IndexingStore;
+let cleanup: () => Promise<void>;
+
 let count = 50_000;
 
 const schema = createSchema((p) => ({
@@ -40,17 +44,25 @@ const setup = async () => {
   context = {} as TestContext;
 
   setupContext(context);
+  const cleanupDatabase = await setupIsolatedDatabase(context);
+  const { indexingStore: indexingStore_, cleanup: cleanupIndexingStore } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableIds: getTableIds(schema),
+    });
 
-  teardownDatabase = await setupDatabase(context);
-  await setupIndexingStore(context);
+  indexingStore = indexingStore_;
+  cleanup = async () => {
+    await cleanupIndexingStore();
+    await cleanupDatabase();
+  };
 
-  context.indexingStore.reset({ schema });
-  await context.indexingStore.createMany({
+  await indexingStore.createMany({
     tableName: "IntTable",
     checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
     data: range(0, count).map((i) => ({ id: i, name: "Kevin", bigAge: 22n })),
   });
-  await context.indexingStore.createMany({
+  await indexingStore.createMany({
     tableName: "StringTable",
     checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
     data: range(0, count).map((i) => ({
@@ -59,7 +71,7 @@ const setup = async () => {
       bigAge: 22n,
     })),
   });
-  await context.indexingStore.createMany({
+  await indexingStore.createMany({
     tableName: "HexTable",
     checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
     data: range(0, count).map((i) => ({
@@ -68,7 +80,7 @@ const setup = async () => {
       bigAge: 22n,
     })),
   });
-  await context.indexingStore.createMany({
+  await indexingStore.createMany({
     tableName: "BigintTable",
     checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
     data: range(0, count).map((i) => ({
@@ -80,7 +92,7 @@ const setup = async () => {
 };
 
 const teardown = async () => {
-  await teardownDatabase();
+  await cleanup();
 };
 
 // IntTable
@@ -89,7 +101,7 @@ describe("IntTable", () => {
   bench(
     "IntTable create",
     async () => {
-      await context.indexingStore.create({
+      await indexingStore.create({
         tableName: "IntTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: count++,
@@ -105,7 +117,7 @@ describe("IntTable", () => {
   bench(
     "IntTable update",
     async () => {
-      await context.indexingStore.update({
+      await indexingStore.update({
         tableName: "IntTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: 500,
@@ -121,7 +133,7 @@ describe("IntTable", () => {
   bench(
     "IntTable upsert",
     async () => {
-      await context.indexingStore.upsert({
+      await indexingStore.upsert({
         tableName: "IntTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: count++,
@@ -138,7 +150,7 @@ describe("IntTable", () => {
   bench(
     "IntTable delete",
     async () => {
-      await context.indexingStore.delete({
+      await indexingStore.delete({
         tableName: "IntTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: --count,
@@ -153,7 +165,7 @@ describe("IntTable", () => {
   bench(
     "IntTable findUnique",
     async () => {
-      await context.indexingStore.findUnique({
+      await indexingStore.findUnique({
         tableName: "IntTable",
         id: 500,
       });
@@ -167,7 +179,7 @@ describe("IntTable", () => {
   bench(
     "IntTable findMany",
     async () => {
-      await context.indexingStore.findMany({
+      await indexingStore.findMany({
         tableName: "IntTable",
       });
     },
@@ -180,7 +192,7 @@ describe("IntTable", () => {
   bench(
     "IntTable createMany",
     async () => {
-      await context.indexingStore.createMany({
+      await indexingStore.createMany({
         tableName: "IntTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         data: [
@@ -199,7 +211,7 @@ describe("IntTable", () => {
   bench(
     "IntTable updateMany",
     async () => {
-      await context.indexingStore.updateMany({
+      await indexingStore.updateMany({
         tableName: "IntTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         data: { name: "Kevin", bigAge: 22n },
@@ -215,7 +227,7 @@ describe("IntTable", () => {
   bench(
     "IntTable revert",
     async () => {
-      await context.indexingStore.revert({
+      await indexingStore.revert({
         checkpoint: { ...zeroCheckpoint, blockTimestamp: 500 },
       });
     },
@@ -232,7 +244,7 @@ describe("StringTable", () => {
   bench(
     "StringTable create",
     async () => {
-      await context.indexingStore.create({
+      await indexingStore.create({
         tableName: "StringTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: (count++).toString(),
@@ -248,7 +260,7 @@ describe("StringTable", () => {
   bench(
     "StringTable update",
     async () => {
-      await context.indexingStore.update({
+      await indexingStore.update({
         tableName: "StringTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: "500",
@@ -264,7 +276,7 @@ describe("StringTable", () => {
   bench(
     "StringTable upsert",
     async () => {
-      await context.indexingStore.upsert({
+      await indexingStore.upsert({
         tableName: "StringTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: (count++).toString(),
@@ -281,7 +293,7 @@ describe("StringTable", () => {
   bench(
     "StringTable delete",
     async () => {
-      await context.indexingStore.delete({
+      await indexingStore.delete({
         tableName: "StringTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: (count--).toString(),
@@ -296,7 +308,7 @@ describe("StringTable", () => {
   bench(
     "StringTable findUnique",
     async () => {
-      await context.indexingStore.findUnique({
+      await indexingStore.findUnique({
         tableName: "StringTable",
         id: "500",
       });
@@ -310,7 +322,7 @@ describe("StringTable", () => {
   bench(
     "StringTable findMany",
     async () => {
-      await context.indexingStore.findMany({
+      await indexingStore.findMany({
         tableName: "StringTable",
       });
     },
@@ -323,7 +335,7 @@ describe("StringTable", () => {
   bench(
     "StringTable createMany",
     async () => {
-      await context.indexingStore.createMany({
+      await indexingStore.createMany({
         tableName: "StringTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         data: [
@@ -342,7 +354,7 @@ describe("StringTable", () => {
   bench(
     "StringTable updateMany",
     async () => {
-      await context.indexingStore.updateMany({
+      await indexingStore.updateMany({
         tableName: "StringTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         data: { name: "Kevin", bigAge: 22n },
@@ -358,7 +370,7 @@ describe("StringTable", () => {
   bench(
     "StringTable revert",
     async () => {
-      await context.indexingStore.revert({
+      await indexingStore.revert({
         checkpoint: { ...zeroCheckpoint, blockTimestamp: 500 },
       });
     },
@@ -375,7 +387,7 @@ describe("HexTable", () => {
   bench(
     "HexTable create",
     async () => {
-      await context.indexingStore.create({
+      await indexingStore.create({
         tableName: "HexTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: `0x${(count++).toString(16)}`,
@@ -391,7 +403,7 @@ describe("HexTable", () => {
   bench(
     "HexTable update",
     async () => {
-      await context.indexingStore.update({
+      await indexingStore.update({
         tableName: "HexTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: "0x500",
@@ -407,7 +419,7 @@ describe("HexTable", () => {
   bench(
     "HexTable upsert",
     async () => {
-      await context.indexingStore.upsert({
+      await indexingStore.upsert({
         tableName: "HexTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: `0x${(count++).toString(16)}`,
@@ -424,7 +436,7 @@ describe("HexTable", () => {
   bench(
     "HexTable delete",
     async () => {
-      await context.indexingStore.delete({
+      await indexingStore.delete({
         tableName: "HexTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: `0x${(count--).toString(16)}`,
@@ -439,7 +451,7 @@ describe("HexTable", () => {
   bench(
     "HexTable findUnique",
     async () => {
-      await context.indexingStore.findUnique({
+      await indexingStore.findUnique({
         tableName: "HexTable",
         id: "0x500",
       });
@@ -453,7 +465,7 @@ describe("HexTable", () => {
   bench(
     "HexTable findMany",
     async () => {
-      await context.indexingStore.findMany({
+      await indexingStore.findMany({
         tableName: "HexTable",
       });
     },
@@ -466,7 +478,7 @@ describe("HexTable", () => {
   bench(
     "HexTable createMany",
     async () => {
-      await context.indexingStore.createMany({
+      await indexingStore.createMany({
         tableName: "HexTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         data: [
@@ -485,7 +497,7 @@ describe("HexTable", () => {
   bench(
     "HexTable updateMany",
     async () => {
-      await context.indexingStore.updateMany({
+      await indexingStore.updateMany({
         tableName: "HexTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         data: { name: "Kevin", bigAge: 22n },
@@ -501,7 +513,7 @@ describe("HexTable", () => {
   bench(
     "HexTable revert",
     async () => {
-      await context.indexingStore.revert({
+      await indexingStore.revert({
         checkpoint: { ...zeroCheckpoint, blockTimestamp: 500 },
       });
     },
@@ -518,7 +530,7 @@ describe("BigintTable", () => {
   bench(
     "BigintTable create",
     async () => {
-      await context.indexingStore.create({
+      await indexingStore.create({
         tableName: "BigintTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: BigInt(count++),
@@ -534,7 +546,7 @@ describe("BigintTable", () => {
   bench(
     "BigintTable update",
     async () => {
-      await context.indexingStore.update({
+      await indexingStore.update({
         tableName: "BigintTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: 500n,
@@ -550,7 +562,7 @@ describe("BigintTable", () => {
   bench(
     "BigintTable upsert",
     async () => {
-      await context.indexingStore.upsert({
+      await indexingStore.upsert({
         tableName: "BigintTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: BigInt(count++),
@@ -567,7 +579,7 @@ describe("BigintTable", () => {
   bench(
     "BigintTable delete",
     async () => {
-      await context.indexingStore.delete({
+      await indexingStore.delete({
         tableName: "BigintTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         id: BigInt(count--),
@@ -582,7 +594,7 @@ describe("BigintTable", () => {
   bench(
     "BigintTable findUnique",
     async () => {
-      await context.indexingStore.findUnique({
+      await indexingStore.findUnique({
         tableName: "BigintTable",
         id: 500n,
       });
@@ -596,7 +608,7 @@ describe("BigintTable", () => {
   bench(
     "BigintTable findMany",
     async () => {
-      await context.indexingStore.findMany({
+      await indexingStore.findMany({
         tableName: "BigintTable",
       });
     },
@@ -609,7 +621,7 @@ describe("BigintTable", () => {
   bench(
     "BigintTable createMany",
     async () => {
-      await context.indexingStore.createMany({
+      await indexingStore.createMany({
         tableName: "BigintTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         data: [
@@ -628,7 +640,7 @@ describe("BigintTable", () => {
   bench(
     "BigintTable updateMany",
     async () => {
-      await context.indexingStore.updateMany({
+      await indexingStore.updateMany({
         tableName: "BigintTable",
         checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
         data: { name: "Kevin", bigAge: 22n },
@@ -644,7 +656,7 @@ describe("BigintTable", () => {
   bench(
     "BigintTable revert",
     async () => {
-      await context.indexingStore.revert({
+      await indexingStore.revert({
         checkpoint: { ...zeroCheckpoint, blockTimestamp: 500 },
       });
     },

@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import { Ponder } from "@/Ponder.js";
 import { ALICE, BOB } from "@/_test/constants.js";
-import { setupAnvil } from "@/_test/setup.js";
+import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
@@ -10,7 +10,8 @@ import request from "supertest";
 import { zeroAddress } from "viem";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-beforeEach((context) => setupAnvil(context));
+beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 const gql = async (ponder: Ponder, query: string) => {
   const response = await request(ponder.serverService.app)

@@ -1,4 +1,8 @@
-import { setupAnvil, setupDatabase, setupSyncStore } from "@/_test/setup.js";
+import {
+  setupAnvil,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import { getEventsErc20, publicClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -7,11 +11,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach(async (context) => {
-  const teardownDatabase = await setupDatabase(context);
-  await setupSyncStore(context);
-  return teardownDatabase;
-});
+beforeEach((context) => setupIsolatedDatabase(context));
 
 const getBlockNumbers = () =>
   publicClient.getBlockNumber().then((b) => ({
@@ -20,7 +20,8 @@ const getBlockNumbers = () =>
   }));
 
 test("start() with log filter inserts log filter interval records", async (context) => {
-  const { common, syncStore, networks, requestQueues, sources } = context;
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const blockNumbers = await getBlockNumbers();
   const service = new HistoricalSyncService({
@@ -45,11 +46,12 @@ test("start() with log filter inserts log filter interval records", async (conte
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() with factory contract inserts log filter and factory log filter interval records", async (context) => {
-  const { common, syncStore, networks, requestQueues, sources } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   const service = new HistoricalSyncService({
@@ -85,11 +87,12 @@ test("start() with factory contract inserts log filter and factory log filter in
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() with factory contract inserts child contract addresses", async (context) => {
-  const { common, syncStore, networks, sources, requestQueues, factory } =
-    context;
+  const { common, networks, requestQueues, sources, factory } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const blockNumbers = await getBlockNumbers();
 
@@ -117,11 +120,12 @@ test("start() with factory contract inserts child contract addresses", async (co
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("setup() with log filter and factory contract updates block metrics", async (context) => {
-  const { common, syncStore, networks, requestQueues, sources } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   const service = new HistoricalSyncService({
@@ -158,11 +162,12 @@ test("setup() with log filter and factory contract updates block metrics", async
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() with log filter and factory contract updates completed blocks metrics", async (context) => {
-  const { common, syncStore, networks, requestQueues, sources } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   const service = new HistoricalSyncService({
@@ -190,11 +195,12 @@ test("start() with log filter and factory contract updates completed blocks metr
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() adds log filter events to sync store", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   const service = new HistoricalSyncService({
@@ -230,11 +236,12 @@ test("start() adds log filter events to sync store", async (context) => {
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() adds log filter and factory contract events to sync store", async (context) => {
-  const { common, syncStore, networks, requestQueues, sources } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   const service = new HistoricalSyncService({
@@ -275,11 +282,12 @@ test("start() adds log filter and factory contract events to sync store", async 
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() retries unexpected error in log filter task", async (context) => {
-  const { common, syncStore, networks, requestQueues, sources } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcRequestSpy = vi.spyOn(requestQueues[0], "request");
 
   rpcRequestSpy.mockRejectedValueOnce(new Error("Unexpected error!"));
@@ -309,11 +317,12 @@ test("start() retries unexpected error in log filter task", async (context) => {
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() retries unexpected error in block task", async (context) => {
-  const { common, syncStore, networks, requestQueues, sources } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   const spy = vi.spyOn(syncStore, "insertLogFilterInterval");
@@ -342,11 +351,12 @@ test("start() retries unexpected error in block task", async (context) => {
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() handles Alchemy 'Log response size exceeded' error", async (context) => {
-  const { common, syncStore, networks, requestQueues, sources } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   const rpcRequestSpy = vi.spyOn(requestQueues[0], "request");
@@ -382,11 +392,12 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 10,000 blocks range' error", async (context) => {
-  const { common, syncStore, networks, requestQueues, sources } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   const rpcRequestSpy = vi.spyOn(requestQueues[0], "request");
@@ -422,10 +433,12 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() emits sync completed event", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues } = context;
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const service = new HistoricalSyncService({
     common,
@@ -444,11 +457,12 @@ test("start() emits sync completed event", async (context) => {
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() emits checkpoint and sync completed event if 100% cached", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   let service = new HistoricalSyncService({
@@ -489,11 +503,12 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("start() emits historicalCheckpoint event", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
   const finalizedBlock = await publicClient.getBlock({
     blockNumber: BigInt(blockNumbers.finalizedBlockNumber),
@@ -521,4 +536,5 @@ test("start() emits historicalCheckpoint event", async (context) => {
 
   service.kill();
   await service.onIdle();
+  await cleanup();
 });

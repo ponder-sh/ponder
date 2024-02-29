@@ -286,6 +286,8 @@ export class Ponder {
         common: this.common,
         ...syncStoreConfig,
       });
+
+      await this.syncStore.migrateUp();
     } else {
       const database = new PostgresDatabaseService({
         common: this.common,
@@ -313,6 +315,8 @@ export class Ponder {
         common: this.common,
         ...syncStoreConfig,
       });
+
+      await this.syncStore.migrateUp();
     }
 
     const networksToSync = this.networks.filter((network) => {
@@ -386,9 +390,6 @@ export class Ponder {
       common: this.common,
       sources: this.sources,
     });
-
-    // One-time setup for some services.
-    await this.syncStore.migrateUp();
 
     this.serverService.setup({ registerDevRoutes: isDev });
     await this.serverService.start();

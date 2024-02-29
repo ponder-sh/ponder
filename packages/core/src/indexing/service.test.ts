@@ -1,9 +1,8 @@
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
-  setupDatabase,
-  setupIndexingStore,
-  setupSyncStore,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getEventsErc20, getFunctionIds, getTableIds } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
@@ -20,13 +19,8 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { IndexingService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach(async (context) => {
-  const teardownDatabase = await setupDatabase(context);
-  await setupSyncStore(context);
-  await setupIndexingStore(context);
+beforeEach((context) => setupIsolatedDatabase(context));
 
-  return teardownDatabase;
-});
 beforeEach(() => {
   // Restore getEvents to the initial implementation.
   vi.restoreAllMocks();
@@ -91,15 +85,14 @@ function createCheckpoint(index: number): Checkpoint {
 }
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
-  const {
-    common,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-    database,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -119,13 +112,6 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     networks,
     requestQueues,
   });
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -160,18 +146,18 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
-  const {
-    common,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-    database,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -191,13 +177,6 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     networks,
     requestQueues,
   });
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -236,18 +215,35 @@ test("processEvents() calls indexing functions with correct arguments", async (c
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("processEvent() runs setup functions before log event", async (context) => {
-  const {
-    common,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-    database,
-  } = context;
+  let setup = false;
+
+  const setupIndexingFunction = vi.fn(async () => {
+    setup = true;
+  });
+
+  const transferIndexingFunction = vi.fn(async () => {
+    expect(setup).toBe(true);
+  });
+
+  const indexingFunctions = {
+    Erc20: {
+      Transfer: transferIndexingFunction,
+      setup: setupIndexingFunction,
+    },
+  };
+
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -268,29 +264,6 @@ test("processEvent() runs setup functions before log event", async (context) => 
     requestQueues,
   });
 
-  let setup = false;
-
-  const setupIndexingFunction = vi.fn(async () => {
-    setup = true;
-  });
-
-  const transferIndexingFunction = vi.fn(async () => {
-    expect(setup).toBe(true);
-  });
-
-  const indexingFunctions = {
-    Erc20: {
-      Transfer: transferIndexingFunction,
-      setup: setupIndexingFunction,
-    },
-  };
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -313,18 +286,18 @@ test("processEvent() runs setup functions before log event", async (context) => 
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("processEvents() orders tasks with no parents or self reliance", async (context) => {
-  const {
-    common,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-    database,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -344,13 +317,7 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
     networks,
     requestQueues,
   });
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
+
   await service.reset({
     schema,
     indexingFunctions,
@@ -370,18 +337,34 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("processEvents() orders tasks with self reliance", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+
+  const tableAccess: TableAccess = [
+    {
+      table: "TransferEvent",
+      access: "write",
+      indexingFunctionKey: "Erc20:Transfer",
+      hash: "",
+    },
+    {
+      table: "TransferEvent",
+      access: "read",
+      indexingFunctionKey: "Erc20:Transfer",
+      hash: "",
+    },
+  ];
+
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -402,27 +385,6 @@ test("processEvents() orders tasks with self reliance", async (context) => {
     requestQueues,
   });
 
-  const tableAccess: TableAccess = [
-    {
-      table: "TransferEvent",
-      access: "write",
-      indexingFunctionKey: "Erc20:Transfer",
-      hash: "",
-    },
-    {
-      table: "TransferEvent",
-      access: "read",
-      indexingFunctionKey: "Erc20:Transfer",
-      hash: "",
-    },
-  ];
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -442,18 +404,19 @@ test("processEvents() orders tasks with self reliance", async (context) => {
 
   await service.kill();
   await service.onIdle();
+
+  await cleanup();
 });
 
 test("processEvents() model methods insert data into the indexing store", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -474,13 +437,6 @@ test("processEvents() model methods insert data into the indexing store", async 
     requestQueues,
   });
 
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -500,18 +456,18 @@ test("processEvents() model methods insert data into the indexing store", async 
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("processEvents() updates metrics", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -532,13 +488,6 @@ test("processEvents() updates metrics", async (context) => {
     requestQueues,
   });
 
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -568,18 +517,18 @@ test("processEvents() updates metrics", async (context) => {
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("processEvents() reads data from a contract", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -600,13 +549,6 @@ test("processEvents() reads data from a contract", async (context) => {
     requestQueues,
   });
 
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions: readContractIndexingFunctions,
@@ -626,18 +568,18 @@ test("processEvents() reads data from a contract", async (context) => {
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("processEvents() recovers from errors while reading data from a contract", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -661,13 +603,6 @@ test("processEvents() recovers from errors while reading data from a contract", 
   const spy = vi.spyOn(requestQueues[0], "request");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions: readContractIndexingFunctions,
@@ -687,18 +622,18 @@ test("processEvents() recovers from errors while reading data from a contract", 
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("processEvents() retries indexing functions", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -721,13 +656,6 @@ test("processEvents() retries indexing functions", async (context) => {
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -749,18 +677,34 @@ test("processEvents() retries indexing functions", async (context) => {
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("processEvents() handles errors", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+
+  const tableAccess: TableAccess = [
+    {
+      table: "TransferEvent",
+      access: "write",
+      indexingFunctionKey: "Erc20:Transfer",
+      hash: "",
+    },
+    {
+      table: "TransferEvent",
+      access: "read",
+      indexingFunctionKey: "Erc20:Transfer",
+      hash: "",
+    },
+  ];
+
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -783,28 +727,6 @@ test("processEvents() handles errors", async (context) => {
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
-  const tableAccess: TableAccess = [
-    {
-      table: "TransferEvent",
-      access: "write",
-      indexingFunctionKey: "Erc20:Transfer",
-      hash: "",
-    },
-    {
-      table: "TransferEvent",
-      access: "read",
-      indexingFunctionKey: "Erc20:Transfer",
-      hash: "",
-    },
-  ];
-
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -826,18 +748,27 @@ test("processEvents() handles errors", async (context) => {
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("processEvents can be called multiple times", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+
+  const setupIndexingFunction = vi.fn(async () => {});
+  const indexingFunctions = {
+    Erc20: {
+      Transfer: transferIndexingFunction,
+      setup: setupIndexingFunction,
+    },
+  };
+
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -858,22 +789,6 @@ test("processEvents can be called multiple times", async (context) => {
     requestQueues,
   });
 
-  const setupIndexingFunction = vi.fn(async () => {});
-
-  const indexingFunctions = {
-    Erc20: {
-      Transfer: transferIndexingFunction,
-      setup: setupIndexingFunction,
-    },
-  };
-
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -893,18 +808,18 @@ test("processEvents can be called multiple times", async (context) => {
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -924,13 +839,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     networks,
     requestQueues,
   });
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
+
   await service.reset({
     schema,
     indexingFunctions,
@@ -958,18 +867,18 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("handleReorg() reverts the indexing store", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -992,13 +901,6 @@ test("handleReorg() reverts the indexing store", async (context) => {
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -1020,18 +922,18 @@ test("handleReorg() reverts the indexing store", async (context) => {
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -1054,13 +956,6 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -1086,18 +981,18 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -1117,13 +1012,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     networks,
     requestQueues,
   });
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
+
   await service.reset({
     schema,
     indexingFunctions,
@@ -1161,18 +1050,18 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const {
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-  } = context;
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -1192,13 +1081,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     networks,
     requestQueues,
   });
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
+
   await service.reset({
     schema,
     indexingFunctions,
@@ -1226,18 +1109,18 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });
 
-test("reset() loads from cache", async (context) => {
-  const {
-    common,
-    syncStore,
-    indexingStore,
-    sources,
-    networks,
-    requestQueues,
-    database,
-  } = context;
+test.only("reset() loads from cache", async (context) => {
+  const { common, sources, networks, requestQueues } = context;
+  const { database, syncStore, indexingStore, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      tableAccess,
+      functionIds: getFunctionIds(indexingFunctions),
+      tableIds: getTableIds(schema),
+    });
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
@@ -1257,13 +1140,7 @@ test("reset() loads from cache", async (context) => {
     networks,
     requestQueues,
   });
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
+
   await service.reset({
     schema,
     indexingFunctions,
@@ -1277,13 +1154,6 @@ test("reset() loads from cache", async (context) => {
   await service.kill();
   await service.onIdle();
 
-  await database.reset({
-    schema,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-  indexingStore.reset({ schema });
   await service.reset({
     schema,
     indexingFunctions,
@@ -1312,4 +1182,5 @@ test("reset() loads from cache", async (context) => {
 
   await service.kill();
   await service.onIdle();
+  await cleanup();
 });

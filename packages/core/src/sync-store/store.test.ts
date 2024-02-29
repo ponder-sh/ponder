@@ -1,19 +1,20 @@
 import { checksumAddress, hexToBigInt, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
-import { setupAnvil, setupDatabase, setupSyncStore } from "@/_test/setup.js";
+import {
+  setupAnvil,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach(async (context) => {
-  const teardownDatabase = await setupDatabase(context);
-  await setupSyncStore(context);
-  return teardownDatabase;
-});
+beforeEach((context) => setupIsolatedDatabase(context));
 
-test("setup creates tables", async ({ syncStore }) => {
+test("setup creates tables", async (context) => {
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const tables = await syncStore.db.introspection.getTables();
   const tableNames = tables.map((t) => t.name);
   expect(tableNames).toContain("blocks");
@@ -26,13 +27,12 @@ test("setup creates tables", async ({ syncStore }) => {
   expect(tableNames).toContain("factoryLogFilterIntervals");
 
   expect(tableNames).toContain("rpcRequestResults");
+  await cleanup();
 });
 
-test("insertLogFilterInterval inserts block, transactions, and logs", async ({
-  syncStore,
-  erc20,
-  sources,
-}) => {
+test("insertLogFilterInterval inserts block, transactions, and logs", async (context) => {
+  const { erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
   const blockNumber = await publicClient.getBlockNumber();
 
@@ -57,14 +57,12 @@ test("insertLogFilterInterval inserts block, transactions, and logs", async ({
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
+  await cleanup();
 });
 
-test("insertLogFilterInterval updates sync db metrics", async ({
-  syncStore,
-  common,
-  erc20,
-  sources,
-}) => {
+test("insertLogFilterInterval updates sync db metrics", async (context) => {
+  const { common, erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
   const blockNumber = await publicClient.getBlockNumber();
 
@@ -86,12 +84,13 @@ test("insertLogFilterInterval updates sync db metrics", async ({
 
   expect(countMetric).toBeTruthy();
   expect(countMetric?.value).toBe(1);
+  await cleanup();
 });
 
-test("insertLogFilterInterval inserts log filter intervals", async ({
-  syncStore,
-  sources,
-}) => {
+test("insertLogFilterInterval inserts log filter intervals", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertLogFilterInterval({
@@ -113,13 +112,12 @@ test("insertLogFilterInterval inserts log filter intervals", async ({
   });
 
   expect(logFilterRanges).toMatchObject([[0, 100]]);
+  await cleanup();
 });
 
-test("insertLogFilterInterval merges ranges on insertion", async ({
-  syncStore,
-  erc20,
-  sources,
-}) => {
+test("insertLogFilterInterval merges ranges on insertion", async (context) => {
+  const { erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertLogFilterInterval({
@@ -179,13 +177,12 @@ test("insertLogFilterInterval merges ranges on insertion", async ({
       Number(rpcData.block3.block.number!),
     ],
   ]);
+  await cleanup();
 });
 
-test("insertLogFilterInterval merges log intervals inserted concurrently", async ({
-  syncStore,
-  erc20,
-  sources,
-}) => {
+test("insertLogFilterInterval merges log intervals inserted concurrently", async (context) => {
+  const { erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await Promise.all([
@@ -229,12 +226,12 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
       Number(rpcData.block3.block.number!),
     ],
   ]);
+  await cleanup();
 });
 
-test("getLogFilterIntervals respects log filter inclusivity rules", async ({
-  syncStore,
-  sources,
-}) => {
+test("getLogFilterIntervals respects log filter inclusivity rules", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertLogFilterInterval({
@@ -270,13 +267,12 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async ({
   });
 
   expect(logFilterRanges).toMatchObject([[0, 100]]);
+  await cleanup();
 });
 
-test("getLogFilterRanges handles complex log filter inclusivity rules", async ({
-  syncStore,
-
-  sources,
-}) => {
+test("getLogFilterRanges handles complex log filter inclusivity rules", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertLogFilterInterval({
@@ -309,12 +305,12 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async ({
     [0, 100],
     [150, 250],
   ]);
+  await cleanup();
 });
 
-test("insertFactoryChildAddressLogs inserts logs", async ({
-  syncStore,
-  sources,
-}) => {
+test("insertFactoryChildAddressLogs inserts logs", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertFactoryChildAddressLogs({
@@ -324,12 +320,12 @@ test("insertFactoryChildAddressLogs inserts logs", async ({
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
+  await cleanup();
 });
 
-test("getFactoryChildAddresses gets child addresses for topic location", async ({
-  syncStore,
-  sources,
-}) => {
+test("getFactoryChildAddresses gets child addresses for topic location", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   const factoryCriteria = {
@@ -392,12 +388,12 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
     "0xchild20000000000000000000000000000000000",
     "0xchild40000000000000000000000000000000000",
   ]);
+  await cleanup();
 });
 
-test("getFactoryChildAddresses gets child addresses for offset location", async ({
-  syncStore,
-  sources,
-}) => {
+test("getFactoryChildAddresses gets child addresses for offset location", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   const factoryCriteria = {
@@ -444,12 +440,12 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
     "0xchild10000000000000000000000000000000000",
     "0xchild20000000000000000000000000000000000",
   ]);
+  await cleanup();
 });
 
-test("getFactoryChildAddresses respects upToBlockNumber argument", async ({
-  syncStore,
-  sources,
-}) => {
+test("getFactoryChildAddresses respects upToBlockNumber argument", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   const factoryCriteria = {
@@ -507,12 +503,12 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async ({
     "0xchild10000000000000000000000000000000000",
     "0xchild20000000000000000000000000000000000",
   ]);
+  await cleanup();
 });
 
-test("getFactoryChildAddresses paginates correctly", async ({
-  syncStore,
-  sources,
-}) => {
+test("getFactoryChildAddresses paginates correctly", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   const factoryCriteria = {
@@ -580,11 +576,12 @@ test("getFactoryChildAddresses paginates correctly", async ({
     }
     idx++;
   }
+  await cleanup();
 });
 
-test("getFactoryChildAddresses does not yield empty list", async ({
-  syncStore,
-}) => {
+test("getFactoryChildAddresses does not yield empty list", async (context) => {
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
   const factoryCriteria = {
     address: "0xfactory",
     eventSelector:
@@ -604,12 +601,12 @@ test("getFactoryChildAddresses does not yield empty list", async ({
   }
 
   expect(didYield).toBe(false);
+  await cleanup();
 });
 
-test("insertFactoryLogFilterInterval inserts block, transactions, and logs", async ({
-  syncStore,
-  sources,
-}) => {
+test("insertFactoryLogFilterInterval inserts block, transactions, and logs", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   const factoryCriteria = {
@@ -637,12 +634,12 @@ test("insertFactoryLogFilterInterval inserts block, transactions, and logs", asy
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
+  await cleanup();
 });
 
-test("insertFactoryLogFilterInterval inserts and merges child contract intervals", async ({
-  syncStore,
-  sources,
-}) => {
+test("insertFactoryLogFilterInterval inserts and merges child contract intervals", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   const factoryCriteria = {
@@ -689,12 +686,12 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
   });
 
   expect(intervals).toMatchObject([[0, 1000]]);
+  await cleanup();
 });
 
-test("getFactoryLogFilterIntervals handles topic filtering rules", async ({
-  syncStore,
-  sources,
-}) => {
+test("getFactoryLogFilterIntervals handles topic filtering rules", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   const factoryCriteria = {
@@ -732,9 +729,12 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async ({
   });
 
   expect(intervals).toMatchObject([[0, 500]]);
+  await cleanup();
 });
 
-test("insertRealtimeBlock inserts data", async ({ syncStore, sources }) => {
+test("insertRealtimeBlock inserts data", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -753,12 +753,13 @@ test("insertRealtimeBlock inserts data", async ({ syncStore, sources }) => {
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
+  await cleanup();
 });
 
-test("insertRealtimeInterval inserts log filter intervals", async ({
-  syncStore,
-  erc20,
-}) => {
+test("insertRealtimeInterval inserts log filter intervals", async (context) => {
+  const { erc20 } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
   const logFilterCriteria = {
     address: erc20.address,
   } satisfies LogFilterCriteria;
@@ -822,13 +823,12 @@ test("insertRealtimeInterval inserts log filter intervals", async ({
       factory: factoryCriteriaTwo,
     }),
   ).toMatchObject([[500, 550]]);
+  await cleanup();
 });
 
-test("deleteRealtimeData deletes blocks, transactions and logs", async ({
-  syncStore,
-  sources,
-  erc20,
-}) => {
+test("deleteRealtimeData deletes blocks, transactions and logs", async (context) => {
+  const { erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertLogFilterInterval({
@@ -879,13 +879,12 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async ({
 
   logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
+  await cleanup();
 });
 
-test("deleteRealtimeData updates interval data", async ({
-  syncStore,
-  sources,
-  erc20,
-}) => {
+test("deleteRealtimeData updates interval data", async (context) => {
+  const { erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   const logFilterCriteria = {
@@ -970,11 +969,12 @@ test("deleteRealtimeData updates interval data", async ({
       Number(rpcData.block1.block.number!),
     ],
   ]);
+  await cleanup();
 });
 
-test("insertRpcRequestResult inserts a request result", async ({
-  syncStore,
-}) => {
+test("insertRpcRequestResult inserts a request result", async (context) => {
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -993,9 +993,12 @@ test("insertRpcRequestResult inserts a request result", async ({
     request: "0x123",
     result: "0x789",
   });
+  await cleanup();
 });
 
-test("insertRpcRequestResult upserts on conflict", async ({ syncStore }) => {
+test("insertRpcRequestResult upserts on conflict", async (context) => {
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -1031,9 +1034,12 @@ test("insertRpcRequestResult upserts on conflict", async ({ syncStore }) => {
     request: "0x123",
     result: "0x789123",
   });
+  await cleanup();
 });
 
-test("getRpcRequestResult returns data", async ({ syncStore }) => {
+test("getRpcRequestResult returns data", async (context) => {
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -1053,9 +1059,12 @@ test("getRpcRequestResult returns data", async ({ syncStore }) => {
     blockNumber: 100n,
     result: "0x789",
   });
+  await cleanup();
 });
 
-test("getRpcRequestResult returns null if not found", async ({ syncStore }) => {
+test("getRpcRequestResult returns null if not found", async (context) => {
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
   await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
@@ -1070,13 +1079,12 @@ test("getRpcRequestResult returns null if not found", async ({ syncStore }) => {
   });
 
   expect(rpcRequestResult).toBe(null);
+  await cleanup();
 });
 
-test("getLogEvents returns log events", async ({
-  syncStore,
-  sources,
-  erc20,
-}) => {
+test("getLogEvents returns log events", async (context) => {
+  const { erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1102,13 +1110,12 @@ test("getLogEvents returns log events", async ({
   expect(events[1].log.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
   expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  await cleanup();
 });
 
-test("getLogEvents filters on log filter with one address", async ({
-  syncStore,
-  sources,
-  erc20,
-}) => {
+test("getLogEvents filters on log filter with one address", async (context) => {
+  const { erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1132,14 +1139,12 @@ test("getLogEvents filters on log filter with one address", async ({
   expect(events).toHaveLength(2);
   expect(events[0].log.address).toBe(checksumAddress(erc20.address));
   expect(events[1].log.address).toBe(checksumAddress(erc20.address));
+  await cleanup();
 });
 
-test("getLogEvents filters on log filter with multiple addresses", async ({
-  syncStore,
-  sources,
-  erc20,
-  factory,
-}) => {
+test("getLogEvents filters on log filter with multiple addresses", async (context) => {
+  const { erc20, sources, factory } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1186,12 +1191,12 @@ test("getLogEvents filters on log filter with multiple addresses", async ({
       address: checksumAddress(factory.address),
     },
   });
+  await cleanup();
 });
 
-test("getLogEvents filters on log filter with single topic", async ({
-  syncStore,
-  sources,
-}) => {
+test("getLogEvents filters on log filter with single topic", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1232,12 +1237,12 @@ test("getLogEvents filters on log filter with single topic", async ({
       topics: rpcData.block1.logs[1].topics,
     },
   });
+  await cleanup();
 });
 
-test("getLogEvents filters on log filter with multiple topics", async ({
-  syncStore,
-  sources,
-}) => {
+test("getLogEvents filters on log filter with multiple topics", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1277,12 +1282,12 @@ test("getLogEvents filters on log filter with multiple topics", async ({
     },
   });
   expect(events).toHaveLength(1);
+  await cleanup();
 });
 
-test("getLogEvents filters on simple factory", async ({
-  syncStore,
-  sources,
-}) => {
+test("getLogEvents filters on simple factory", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertFactoryChildAddressLogs({
@@ -1335,9 +1340,12 @@ test("getLogEvents filters on simple factory", async ({
     sourceId: "simple",
     log: { topics: rpcData.block2.logs[0].topics },
   });
+  await cleanup();
 });
 
-test("getLogEvents filters on fromBlock", async ({ syncStore, sources }) => {
+test("getLogEvents filters on fromBlock", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1371,13 +1379,12 @@ test("getLogEvents filters on fromBlock", async ({ syncStore, sources }) => {
     },
   });
   expect(events).toHaveLength(1);
+  await cleanup();
 });
 
-test("getLogEvents filters on multiple filters", async ({
-  syncStore,
-  sources,
-  erc20,
-}) => {
+test("getLogEvents filters on multiple filters", async (context) => {
+  const { erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1435,12 +1442,12 @@ test("getLogEvents filters on multiple filters", async ({
       topics: rpcData.block1.logs[1].topics,
     },
   });
+  await cleanup();
 });
 
-test("getLogEvents filters on fromCheckpoint (exclusive)", async ({
-  syncStore,
-  sources,
-}) => {
+test("getLogEvents filters on fromCheckpoint (exclusive)", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1468,12 +1475,12 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async ({
 
   expect(events).toHaveLength(1);
   expect(events[0].block.hash).toBe(rpcData.block2.block.hash);
+  await cleanup();
 });
 
-test("getLogEvents filters on toCheckpoint (inclusive)", async ({
-  syncStore,
-  sources,
-}) => {
+test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1502,12 +1509,12 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async ({
     rpcData.block1.block.hash,
     rpcData.block1.block.hash,
   ]);
+  await cleanup();
 });
 
-test("getLogEvents returns no events if includeEventSelectors is an empty array", async ({
-  syncStore,
-  sources,
-}) => {
+test("getLogEvents returns no events if includeEventSelectors is an empty array", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1530,4 +1537,5 @@ test("getLogEvents returns no events if includeEventSelectors is an empty array"
   });
 
   expect(events).toHaveLength(0);
+  await cleanup();
 });
