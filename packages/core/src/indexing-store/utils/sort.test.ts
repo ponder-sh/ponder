@@ -27,15 +27,25 @@ test("buildOrderByConditions defaults to id ascending", () => {
   expect(conditions).toEqual([["id", "asc"]]);
 });
 
-test("buildOrderByConditions adds secondary sort for non-id columns", () => {
-  const conditions = buildOrderByConditions({
+test("buildOrderByConditions adds secondary sort for non-id columns using the same direction", () => {
+  const conditionsAsc = buildOrderByConditions({
+    orderBy: { names: "asc" },
+    table: schema.tables.Pet,
+  });
+
+  expect(conditionsAsc).toEqual([
+    ["names", "asc"],
+    ["id", "asc"],
+  ]);
+
+  const conditionsDesc = buildOrderByConditions({
     orderBy: { names: "desc" },
     table: schema.tables.Pet,
   });
 
-  expect(conditions).toEqual([
+  expect(conditionsDesc).toEqual([
     ["names", "desc"],
-    ["id", "asc"],
+    ["id", "desc"],
   ]);
 });
 

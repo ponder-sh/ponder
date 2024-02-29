@@ -1,8 +1,6 @@
 import type { Common } from "@/Ponder.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import type { Block } from "@/types/block.js";
-import type { Log } from "@/types/log.js";
-import type { Transaction } from "@/types/transaction.js";
+import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import {
@@ -44,7 +42,11 @@ export class PostgresSyncStore implements SyncStore {
   kind = "postgres" as const;
   db: Kysely<SyncStoreTables>;
 
-  constructor({ common, pool }: { common: Common; pool: Pool }) {
+  constructor({
+    common,
+    pool,
+    schemaName,
+  }: { common: Common; pool: Pool; schemaName: string }) {
     this.common = common;
     this.db = new Kysely<SyncStoreTables>({
       dialect: new PostgresDialect({ pool }),
@@ -53,18 +55,13 @@ export class PostgresSyncStore implements SyncStore {
           common.metrics.ponder_postgres_query_count?.inc({ kind: "sync" });
         }
       },
-    }).withPlugin(new WithSchemaPlugin(SCHEMA_NAME));
-  }
+    }).withPlugin(new WithSchemaPlugin(schemaName));
 
-  async kill() {
-    try {
-      await this.db.destroy();
-    } catch (e) {
-      const error = e as Error;
-      if (error.message !== "Called end on pool more than once") {
-        throw error;
-      }
-    }
+    this.migrator = new Migrator({
+      db: this.db,
+      provider: migrationProvider,
+      migrationTableSchema: schemaName,
+    });
   }
 
   migrateUp = async () => {

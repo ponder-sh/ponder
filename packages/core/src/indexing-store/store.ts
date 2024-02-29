@@ -80,16 +80,7 @@ export type OrderByInput<table, columns extends keyof table = keyof table> = {
 export interface IndexingStore {
   kind: "sqlite" | "postgres";
   db: Kysely<any>;
-
-  schema?: Schema;
-
-  reload(options?: { schema?: Schema }): Promise<void>;
-
-  teardown(): Promise<void>;
-
-  kill(): Promise<void>;
-
-  publish(): Promise<void>;
+  schema: Schema;
 
   revert(options: { checkpoint: Checkpoint }): Promise<void>;
 

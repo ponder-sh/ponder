@@ -1,7 +1,10 @@
 import type { Common, Ponder } from "@/Ponder.js";
-import { buildNetworksAndSources } from "@/build/config/config.js";
+import { buildConfig } from "@/build/config/config.js";
+import type { IndexingFunctions } from "@/build/functions/functions.js";
+import type { FunctionIds, TableIds } from "@/build/static/ids.js";
 import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";
+import type { Schema } from "@/schema/types.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import type {
@@ -108,8 +111,9 @@ export const getNetworkAndSources = async (
   common: Common,
 ) => {
   const config = getConfig(addresses);
-  const { networks, sources } = await buildNetworksAndSources({
+  const { networks, sources } = await buildConfig({
     config,
+    options: common.options,
   });
   const mainnet = { ...networks[0], finalityBlockCount: 4 };
   const requestQueue = createRequestQueue({
@@ -271,4 +275,35 @@ export const onAllEventsIndexed = (ponder: Ponder) => {
       }
     });
   });
+};
+
+/**
+ * Returns simple function IDs
+ */
+export const getFunctionIds = (
+  indexingFunctions: IndexingFunctions,
+): FunctionIds => {
+  const functionIds: FunctionIds = {};
+
+  for (const contractName of Object.keys(indexingFunctions)) {
+    for (const eventName of Object.keys(indexingFunctions[contractName])) {
+      const key = `${contractName}:${eventName}`;
+      functionIds[key] = key;
+    }
+  }
+
+  return functionIds;
+};
+
+/**
+ * Returns simple table IDs
+ */
+export const getTableIds = (schema: Schema): TableIds => {
+  const tableIds: TableIds = {};
+
+  for (const tableName of Object.keys(schema.tables)) {
+    tableIds[tableName] = tableName;
+  }
+
+  return tableIds;
 };

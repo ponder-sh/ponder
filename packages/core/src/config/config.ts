@@ -17,12 +17,12 @@ export type BlockConfig = {
 type DatabaseConfig =
   | {
       kind: "sqlite";
-      /** Path to SQLite database file. Default: `"./.ponder/cache.db"`. */
-      filename?: string;
+      /** Directory path to use for SQLite database files. Default: `".ponder/sqlite"`. */
+      directory?: string;
     }
   | {
       kind: "postgres";
-      /** PostgreSQL database connection string. Default: `process.env.DATABASE_URL`. */
+      /** PostgreSQL database connection string. Default: `process.env.DATABASE_PRIVATE_URL` or `process.env.DATABASE_URL`. */
       connectionString?: string;
     };
 

@@ -28,6 +28,16 @@ test("buildWhereConditions handles equals shortcut", () => {
   expect(conditions).toEqual([["id", "=", "abc"]]);
 });
 
+test("buildWhereConditions handles not", () => {
+  const conditions = buildWhereConditions({
+    where: { id: { not: "abc" } },
+    table: schema.tables.Pet,
+    encoding: "sqlite",
+  });
+
+  expect(conditions).toEqual([["id", "!=", "abc"]]);
+});
+
 test("buildWhereConditions handles multiple conditions for one column", () => {
   const conditions = buildWhereConditions({
     where: { id: { contains: "abc", notStartsWith: "z" } },

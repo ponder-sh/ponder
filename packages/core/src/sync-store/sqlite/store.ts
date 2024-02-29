@@ -16,9 +16,7 @@ import {
 
 import type { Common } from "@/Ponder.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import type { Block } from "@/types/block.js";
-import type { Log } from "@/types/log.js";
-import type { Transaction } from "@/types/transaction.js";
+import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
@@ -57,17 +55,6 @@ export class SqliteSyncStore implements SyncStore {
           common.metrics.ponder_sqlite_query_count?.inc({ kind: "sync" });
       },
     });
-  }
-
-  async kill() {
-    try {
-      await this.db.destroy();
-    } catch (e) {
-      const error = e as Error;
-      if (error.message !== "Called end on pool more than once") {
-        throw error;
-      }
-    }
   }
 
   migrateUp = async () => {
@@ -1077,6 +1064,9 @@ export class SqliteSyncStore implements SyncStore {
         transaction: Transaction;
       };
     });
+
+    // Note: do the same for first checkpoint
+    // Note: should make once off functions for special queries
 
     // Query for the checkpoint of the last event in the requested range (ignore the batch limit)
     const lastCheckpointRows = await baseQuery

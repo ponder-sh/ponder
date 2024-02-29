@@ -1,10 +1,10 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import { BuildService } from "@/build/service.js";
 import { CodegenService } from "@/codegen/service.js";
-import type { Config } from "@/config/config.js";
-import { buildDatabase } from "@/config/database.js";
+import { type DatabaseConfig } from "@/config/database.js";
 import { type Network } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
 import type { Source } from "@/config/sources.js";
@@ -25,7 +25,11 @@ import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
 import type { GraphQLSchema } from "graphql";
-import type { TableAccess } from "./build/functions/parseAst.js";
+import type { FunctionIds, TableIds } from "./build/static/ids.js";
+import type { TableAccess } from "./build/static/parseAst.js";
+import { PostgresDatabaseService } from "./database/postgres/service.js";
+import type { DatabaseService } from "./database/service.js";
+import { SqliteDatabaseService } from "./database/sqlite/service.js";
 import { type RequestQueue, createRequestQueue } from "./utils/requestQueue.js";
 
 export type Common = {
@@ -39,14 +43,18 @@ export class Ponder {
   common: Common;
   buildService: BuildService;
 
+  database: DatabaseService = undefined!;
+
   // User config and build artifacts
-  config: Config = undefined!;
+  databaseConfig: DatabaseConfig = undefined!;
   sources: Source[] = undefined!;
   networks: Network[] = undefined!;
   schema: Schema = undefined!;
   graphqlSchema: GraphQLSchema = undefined!;
   indexingFunctions: IndexingFunctions = undefined!;
   tableAccess: TableAccess = undefined!;
+  tableIds: TableIds = undefined!;
+  functionIds: FunctionIds = undefined!;
 
   // Sync services
   syncStore: SyncStore = undefined!;
@@ -77,31 +85,33 @@ export class Ponder {
     const telemetry = new TelemetryService({ options });
 
     this.common = { options, logger, metrics, telemetry };
-
     this.buildService = new BuildService({ common: this.common });
   }
 
-  async dev({
-    syncStore,
-    indexingStore,
-  }: {
-    // These options are only used for testing.
-    syncStore?: SyncStore;
-    indexingStore?: IndexingStore;
-  } = {}) {
+  async dev(databaseConfigOverride?: DatabaseConfig) {
+    const dotEnvPath = path.join(this.common.options.rootDir, ".env.local");
+    if (!existsSync(dotEnvPath)) {
+      this.common.logger.warn({
+        service: "app",
+        msg: "Local environment file (.env.local) not found",
+      });
+    }
+
     const success = await this.setupBuildService();
     if (!success) return;
+
+    if (databaseConfigOverride) this.databaseConfig = databaseConfigOverride;
 
     this.common.telemetry.record({
       event: "App Started",
       properties: {
         command: "ponder dev",
         contractCount: this.sources.length,
-        databaseKind: this.config.database?.kind,
+        databaseKind: this.databaseConfig.kind,
       },
     });
 
-    await this.setupCoreServices({ isDev: true, syncStore, indexingStore });
+    await this.setupCoreServices({ isDev: true });
     this.registerCoreServiceEventListeners();
 
     // If running `ponder dev`, register build service listeners to handle hot reloads.
@@ -110,27 +120,22 @@ export class Ponder {
     await this.startSyncServices();
   }
 
-  async start({
-    syncStore,
-    indexingStore,
-  }: {
-    // These options are only used for testing.
-    syncStore?: SyncStore;
-    indexingStore?: IndexingStore;
-  } = {}) {
+  async start(databaseConfigOverride?: DatabaseConfig) {
     const success = await this.setupBuildService();
     if (!success) return;
+
+    if (databaseConfigOverride) this.databaseConfig = databaseConfigOverride;
 
     this.common.telemetry.record({
       event: "App Started",
       properties: {
         command: "ponder start",
         contractCount: this.sources.length,
-        databaseKind: this.config.database?.kind,
+        databaseKind: this.databaseConfig.kind,
       },
     });
 
-    await this.setupCoreServices({ isDev: false, syncStore, indexingStore });
+    await this.setupCoreServices({ isDev: false });
     this.registerCoreServiceEventListeners();
 
     await this.startSyncServices();
@@ -144,25 +149,34 @@ export class Ponder {
       event: "App Started",
       properties: {
         command: "ponder serve",
-        databaseKind: this.config.database?.kind,
+        databaseKind: this.databaseConfig.kind,
       },
     });
 
-    const database = buildDatabase({
+    if (this.databaseConfig.kind === "sqlite") {
+      throw new Error(`The 'ponder serve' command only works with Postgres.`);
+    }
+
+    const database = new PostgresDatabaseService({
       common: this.common,
-      config: this.config,
+      poolConfig: this.databaseConfig.poolConfig,
     });
-    this.common.metrics.registerDatabaseMetrics(database);
-    this.indexingStore =
-      database.indexing.kind === "sqlite"
-        ? new SqliteIndexingStore({
-            common: this.common,
-            database: database.indexing.database,
-          })
-        : new PostgresIndexingStore({
-            common: this.common,
-            pool: database.indexing.pool,
-          });
+    this.database = database;
+    await this.database.setup();
+    await this.database.reset({
+      schema: this.schema,
+      tableIds: this.tableIds,
+      functionIds: this.functionIds,
+      tableAccess: this.tableAccess,
+    });
+
+    const indexingStoreConfig = database.getIndexingStoreConfig();
+    this.indexingStore = new PostgresIndexingStore({
+      common: this.common,
+      schema: this.schema,
+      ...indexingStoreConfig,
+    });
+    // this.common.metrics.registerDatabaseMetrics(database);
 
     this.serverService = new ServerService({
       common: this.common,
@@ -224,57 +238,86 @@ export class Ponder {
         msg: "Failed intial build",
       });
       await this.buildService.kill();
+      await this.common.telemetry.kill();
       return false;
     }
 
-    this.config = result.config;
+    this.databaseConfig = result.databaseConfig;
     this.sources = result.sources;
     this.networks = result.networks;
     this.schema = result.schema;
     this.graphqlSchema = result.graphqlSchema;
     this.indexingFunctions = result.indexingFunctions;
     this.tableAccess = result.tableAccess;
+    this.tableIds = result.tableIds;
+    this.functionIds = result.functionIds;
 
     return true;
   }
 
-  private async setupCoreServices({
-    isDev,
-    syncStore,
-    indexingStore,
-  }: {
-    isDev: boolean;
-    // These options are only used for testing.
-    syncStore?: SyncStore;
-    indexingStore?: IndexingStore;
-  }) {
-    const database = buildDatabase({
-      common: this.common,
-      config: this.config,
-    });
-    this.common.metrics.registerDatabaseMetrics(database);
-    this.syncStore =
-      syncStore ??
-      (database.sync.kind === "sqlite"
-        ? new SqliteSyncStore({
-            common: this.common,
-            database: database.sync.database,
-          })
-        : new PostgresSyncStore({
-            common: this.common,
-            pool: database.sync.pool,
-          }));
-    this.indexingStore =
-      indexingStore ??
-      (database.indexing.kind === "sqlite"
-        ? new SqliteIndexingStore({
-            common: this.common,
-            database: database.indexing.database,
-          })
-        : new PostgresIndexingStore({
-            common: this.common,
-            pool: database.indexing.pool,
-          }));
+  private async setupCoreServices({ isDev }: { isDev: boolean }) {
+    // TODO: Figure out metrics for the database.
+    // this.common.metrics.registerDatabaseMetrics(database)
+
+    if (this.databaseConfig.kind === "sqlite") {
+      const database = new SqliteDatabaseService({
+        common: this.common,
+        directory: this.databaseConfig.directory,
+      });
+      this.database = database;
+
+      await database.setup();
+      await this.database.reset({
+        schema: this.schema,
+        tableIds: this.tableIds,
+        functionIds: this.functionIds,
+        tableAccess: this.tableAccess,
+      });
+
+      const indexingStoreConfig = this.database.getIndexingStoreConfig();
+      this.indexingStore = new SqliteIndexingStore({
+        common: this.common,
+        schema: this.schema,
+        ...indexingStoreConfig,
+      });
+
+      const syncStoreConfig = this.database.getSyncStoreConfig();
+      this.syncStore = new SqliteSyncStore({
+        common: this.common,
+        ...syncStoreConfig,
+      });
+
+      await this.syncStore.migrateUp();
+    } else {
+      const database = new PostgresDatabaseService({
+        common: this.common,
+        poolConfig: this.databaseConfig.poolConfig,
+      });
+      this.database = database;
+
+      await database.setup();
+      await this.database.reset({
+        schema: this.schema,
+        tableIds: this.tableIds,
+        functionIds: this.functionIds,
+        tableAccess: this.tableAccess,
+      });
+
+      const indexingStoreConfig = database.getIndexingStoreConfig();
+      this.indexingStore = new PostgresIndexingStore({
+        common: this.common,
+        schema: this.schema,
+        ...indexingStoreConfig,
+      });
+
+      const syncStoreConfig = await this.database.getSyncStoreConfig();
+      this.syncStore = new PostgresSyncStore({
+        common: this.common,
+        ...syncStoreConfig,
+      });
+
+      await this.syncStore.migrateUp();
+    }
 
     const networksToSync = this.networks.filter((network) => {
       const hasSources = this.sources.some(
@@ -328,6 +371,7 @@ export class Ponder {
 
     this.indexingService = new IndexingService({
       common: this.common,
+      database: this.database,
       syncStore: this.syncStore,
       indexingStore: this.indexingStore,
       syncGatewayService: this.syncGatewayService,
@@ -347,9 +391,6 @@ export class Ponder {
       sources: this.sources,
     });
 
-    // One-time setup for some services.
-    await this.syncStore.migrateUp();
-
     this.serverService.setup({ registerDevRoutes: isDev });
     await this.serverService.start();
     this.serverService.reloadGraphqlSchema({
@@ -361,7 +402,10 @@ export class Ponder {
       indexingFunctions: this.indexingFunctions,
       schema: this.schema,
       tableAccess: this.tableAccess,
+      tableIds: this.tableIds,
+      functionIds: this.functionIds,
     });
+
     await this.indexingService.processEvents();
 
     this.codegenService.generateGraphqlSchemaFile({
@@ -378,7 +422,7 @@ export class Ponder {
           await historical.setup(blockNumbers);
 
           historical.start();
-          await realtime.start();
+          realtime.start();
         }),
       );
     } catch (error_) {
@@ -395,7 +439,7 @@ export class Ponder {
   async kill() {
     this.common.logger.info({
       service: "app",
-      msg: "Shutting down...",
+      msg: "Started shutdown sequence",
     });
     this.common.telemetry.record({
       event: "App Killed",
@@ -425,28 +469,20 @@ export class Ponder {
    * Kill sync and indexing services and stores.
    */
   private async killCoreServices() {
-    // 1) Kick off indexing store teardown. This is the longest-running operation
-    // in the shutdown sequence and we really want to make sure it completes.
-    const indexingStoreTeardownPromise = this.indexingStore.teardown();
-
-    // 2) Kill misc services.
+    // 1) Kill misc services.
     await this.serverService.kill();
     this.uiService.kill();
 
-    // 3) Kill core services. Note that these methods pause and clear the queues
+    // 2) Kill core services. Note that these methods pause and clear the queues
     // and set a boolean flag that allows tasks to fail silently with no retries.
-    this.indexingService.kill();
+    await this.indexingService.kill();
     this.syncServices.forEach(({ realtime, historical, requestQueue }) => {
       realtime.kill();
       historical.kill();
       requestQueue.clear(); // TODO: Remove this once viem supports canceling requests.
     });
 
-    // 4) Indexing store cleanup. This is the longest-running operation,
-    // and we really want to make sure it completes.
-    await indexingStoreTeardownPromise;
-
-    // 5) Cancel pending RPC requests and database queries.
+    // 3) Cancel pending RPC requests and database queries.
     // TODO: Once supported by viem, cancel in-progress requests too. This will
     // cause errors in the sync and indexing services, but they will be silent
     // and the failed tasks will not be retried.
@@ -454,14 +490,13 @@ export class Ponder {
       this.syncServices.map(({ requestQueue }) => requestQueue.onIdle()),
     );
 
-    await this.indexingStore.kill();
-    await this.syncStore.kill();
+    await this.database.kill();
   }
 
   private registerBuildServiceEventListeners() {
     this.buildService.onSerial(
       "newConfig",
-      async ({ config, sources, networks }) => {
+      async ({ databaseConfig, sources, networks, functionIds, tableIds }) => {
         this.uiService.ui.indexingError = false;
 
         this.clearCoreServiceEventListeners();
@@ -469,9 +504,12 @@ export class Ponder {
 
         await this.common.metrics.resetMetrics();
 
-        this.config = config;
+        this.databaseConfig = databaseConfig;
         this.sources = sources;
         this.networks = networks;
+
+        this.tableIds = tableIds;
+        this.functionIds = functionIds;
 
         await this.setupCoreServices({ isDev: true });
         this.registerCoreServiceEventListeners();
@@ -480,32 +518,69 @@ export class Ponder {
       },
     );
 
+    /**
+     * 1) Pause/reset the indexing service.
+     * 2) Reset the database.
+     * 3) Start everything.
+     *
+     *
+     */
+
     this.buildService.onSerial(
       "newSchema",
-      async ({ schema, graphqlSchema, tableAccess }) => {
+      async ({ schema, graphqlSchema, tableIds, functionIds }) => {
         this.uiService.ui.indexingError = false;
 
         this.schema = schema;
         this.graphqlSchema = graphqlSchema;
-        this.tableAccess = tableAccess;
+        this.tableIds = tableIds;
+        this.functionIds = functionIds;
 
         this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
         this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
-        await this.indexingService.reset({ schema, tableAccess });
+        await this.database.reset({
+          schema,
+          tableIds,
+          functionIds,
+          tableAccess: this.tableAccess,
+        });
+
+        await this.indexingService.reset({
+          schema,
+          tableAccess: this.tableAccess,
+          tableIds,
+          functionIds,
+        });
+
         await this.indexingService.processEvents();
       },
     );
 
     this.buildService.onSerial(
       "newIndexingFunctions",
-      async ({ indexingFunctions, tableAccess }) => {
+      async ({ indexingFunctions, tableAccess, tableIds, functionIds }) => {
         this.uiService.ui.indexingError = false;
 
         this.indexingFunctions = indexingFunctions;
         this.tableAccess = tableAccess;
+        this.tableIds = tableIds;
+        this.functionIds = functionIds;
 
-        await this.indexingService.reset({ indexingFunctions, tableAccess });
+        await this.database.reset({
+          schema: this.schema,
+          tableIds,
+          functionIds,
+          tableAccess,
+        });
+
+        await this.indexingService.reset({
+          indexingFunctions,
+          tableAccess,
+          tableIds,
+          functionIds,
+        });
+
         await this.indexingService.processEvents();
       },
     );
@@ -513,14 +588,12 @@ export class Ponder {
     this.buildService.onSerial("error", async () => {
       this.uiService.ui.indexingError = true;
 
-      await this.indexingService.kill();
+      this.indexingService.kill();
 
-      await Promise.all(
-        this.syncServices.map(async ({ realtime, historical }) => {
-          await realtime.kill();
-          await historical.kill();
-        }),
-      );
+      for (const { realtime, historical } of this.syncServices) {
+        realtime.kill();
+        historical.kill();
+      }
     });
   }
 
@@ -551,6 +624,14 @@ export class Ponder {
       realtime.on("shallowReorg", (checkpoint) => {
         this.syncGatewayService.handleReorg(checkpoint);
       });
+
+      realtime.on("fatal", async () => {
+        this.common.logger.fatal({
+          service: "app",
+          msg: "Realtime sync service failed",
+        });
+        await this.kill();
+      });
     });
 
     this.syncGatewayService.on("newCheckpoint", async () => {
@@ -567,13 +648,14 @@ export class Ponder {
       // If a batch of events are processed AND the historical sync is complete AND
       // the new toTimestamp is greater than the historical sync completion timestamp,
       // historical event processing is complete, and the server should begin responding as healthy.
+
       if (
-        this.syncGatewayService.historicalSyncCompletedAt &&
+        this.syncGatewayService.historicalSyncCompletedAt !== undefined &&
         toCheckpoint.blockTimestamp >=
           this.syncGatewayService.historicalSyncCompletedAt
       ) {
         this.serverService.setIsHistoricalIndexingComplete();
-        await this.indexingStore.publish();
+        await this.database.publish();
       }
     });
 
@@ -619,8 +701,8 @@ export class Ponder {
       );
 
       // Reload the sync services for the specific chain by killing, setting up, and then starting again.
-      await syncServiceForChainId.realtime.kill();
-      await syncServiceForChainId.historical.kill();
+      syncServiceForChainId.realtime.kill();
+      syncServiceForChainId.historical.kill();
 
       try {
         const blockNumbers = await syncServiceForChainId.realtime.setup();
@@ -633,10 +715,10 @@ export class Ponder {
           msg: "Failed to fetch initial realtime data",
           error,
         });
-        this.kill();
+        await this.kill();
       }
 
-      await syncServiceForChainId.realtime.start();
+      syncServiceForChainId.realtime.start();
       syncServiceForChainId.historical.start();
 
       // NOTE: We have to reset the historical state after restarting the sync services

@@ -1,6 +1,10 @@
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 
-import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
+import {
+  setupAnvil,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 
 import {
   type Checkpoint,
@@ -11,7 +15,7 @@ import {
 import { SyncGateway } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
+beforeEach((context) => setupIsolatedDatabase(context));
 
 function getMultichainNetworksAndSources(context: TestContext) {
   const mainnet = context.networks[0];
@@ -35,7 +39,8 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): Checkpoint {
 }
 
 test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
@@ -60,10 +65,13 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet10);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
@@ -94,10 +102,13 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", optimism5);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final historical sync is complete", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
@@ -128,10 +139,13 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", optimism5);
   expect(emitSpy).toHaveBeenCalledTimes(1);
   expect(service.historicalSyncCompletedAt).toBe(10);
+
+  await cleanup();
 });
 
 test("handleNewHistoricalCheckpoint emits new checkpoint when other chain is completed", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
@@ -164,10 +178,13 @@ test("handleNewHistoricalCheckpoint emits new checkpoint when other chain is com
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", optimism12);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
@@ -199,10 +216,13 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet10);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is complete", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
@@ -245,10 +265,13 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet25);
   expect(emitSpy).toHaveBeenCalledTimes(2);
   expect(service.historicalSyncCompletedAt).toBe(12);
+
+  await cleanup();
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
@@ -275,10 +298,13 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) 
 
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", optimism12);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequent event is earlier", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
@@ -310,10 +336,13 @@ test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequ
 
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", optimism12);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent event is later", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
@@ -346,10 +375,13 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent even
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", optimism12);
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", mainnet15);
   expect(emitSpy).toHaveBeenCalledTimes(2);
+
+  await cleanup();
 });
 
 test("resetCheckpoints resets the checkpoint states", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
@@ -393,4 +425,6 @@ test("resetCheckpoints resets the checkpoint states", async (context) => {
   expect(service.checkpoint).toBe(zeroCheckpoint);
   expect(service.finalityCheckpoint).toBe(zeroCheckpoint);
   expect(service.historicalSyncCompletedAt).toBe(0);
+
+  await cleanup();
 });

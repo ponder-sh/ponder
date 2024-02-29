@@ -1,5 +1,7 @@
 import fs from "node:fs";
-import { SgNode, js } from "@ast-grep/napi";
+import path from "node:path";
+import { SgNode, js, ts } from "@ast-grep/napi";
+import { hashAst } from "./hash.js";
 
 const ormFunctions = {
   create: ["write"],
@@ -15,7 +17,7 @@ const ormFunctions = {
 /**
  * Return the event signature, "{ContractName}:{EventName}", from the AST node.
  */
-const getEventSignature = (node: SgNode) => {
+export const getEventSignature = (node: SgNode) => {
   return node.getMatch("NAME")?.text()!;
 };
 
@@ -78,6 +80,7 @@ export type TableAccess = {
   table: string;
   indexingFunctionKey: string;
   access: "read" | "write";
+  hash: string;
 }[];
 
 export const parseAst = ({
@@ -89,6 +92,8 @@ export const parseAst = ({
   filePaths: string[];
 }) => {
   const tableAccessMap = [] as TableAccess;
+
+  const astHash: { [indexingFunctionKey: string]: string } = {};
 
   const helperFunctionAccess: Record<
     string,
@@ -110,6 +115,7 @@ export const parseAst = ({
           table: table,
           indexingFunctionKey,
           access,
+          hash: astHash[indexingFunctionKey],
         });
       }
     } else {
@@ -119,6 +125,7 @@ export const parseAst = ({
             table: table,
             indexingFunctionKey,
             access,
+            hash: astHash[indexingFunctionKey],
           });
         }
       }
@@ -129,7 +136,8 @@ export const parseAst = ({
   for (const filePath of filePaths) {
     const file = fs.readFileSync(filePath).toString();
 
-    const ast = js.parse(file);
+    const isJs = path.extname(filePath) === ".js";
+    const ast = isJs ? js.parse(file) : ts.parse(file);
     const root = ast.root();
 
     const ormCalls = findAllORMCalls(root);
@@ -157,15 +165,21 @@ export const parseAst = ({
   for (const filePath of filePaths) {
     const file = fs.readFileSync(filePath).toString();
 
-    const ast = js.parse(file);
+    const isJs = path.extname(filePath) === ".js";
+    const ast = isJs ? js.parse(file) : ts.parse(file);
     const root = ast.root();
 
-    const nodes = root.findAll('ponder.on("$NAME", $FUNC)');
+    const nodes = root
+      .findAll('ponder.on("$NAME", $FUNC)')
+      .concat(root.findAll("ponder.on('$NAME', $FUNC)"))
+      .concat(root.findAll("ponder.on(`$NAME`, $FUNC)"));
 
     for (const node of nodes) {
       const indexingFunctionKey = getEventSignature(node);
 
       const funcNode = node.getMatch("FUNC")!;
+
+      astHash[indexingFunctionKey] = hashAst(funcNode);
 
       const ormCalls = findAllORMCalls(funcNode);
 
@@ -173,7 +187,7 @@ export const parseAst = ({
       for (const [name, helperFunctionState] of Object.entries(
         helperFunctionAccess,
       )) {
-        if (funcNode.find(`${name}($$$)`) !== null) {
+        if (funcNode.find(`${name}`) !== null) {
           for (const state of helperFunctionState) {
             addToTableAccess(state.table, indexingFunctionKey, state.method);
           }

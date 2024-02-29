@@ -1,8 +1,8 @@
 import path from "path";
 import url from "url";
 import { expect, test } from "vitest";
+import schema from "./_test/ponder.schema.js";
 import { parseAst } from "./parseAst.js";
-import schema from "./test/ponder.schema.js";
 
 const tableNames = Object.keys(schema.tables);
 const indexingFunctionKeys = ["C:Event1", "C:Event2", "C:Event3"];
@@ -12,7 +12,7 @@ test("basic", () => {
     tableNames,
     indexingFunctionKeys,
     filePaths: [
-      path.join(url.fileURLToPath(import.meta.url), "..", "test", "basic.ts"),
+      path.join(url.fileURLToPath(import.meta.url), "..", "_test", "basic.ts"),
     ],
   });
 
@@ -22,24 +22,28 @@ test("basic", () => {
     table: "Table1",
     indexingFunctionKey: "C:Event1",
     access: "read",
+    hash: expect.any(String),
   });
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
     indexingFunctionKey: "C:Event1",
     access: "write",
+    hash: expect.any(String),
   });
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
     indexingFunctionKey: "C:Event2",
     access: "read",
+    hash: expect.any(String),
   });
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
     indexingFunctionKey: "C:Event2",
     access: "write",
+    hash: expect.any(String),
   });
 });
 
@@ -51,25 +55,55 @@ test("helper function", () => {
       path.join(
         url.fileURLToPath(import.meta.url),
         "..",
-        "test",
+        "_test",
         "helperFunc.ts",
       ),
-      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+      path.join(url.fileURLToPath(import.meta.url), "..", "_test", "util.ts"),
     ],
   });
 
-  expect(tableAccess).toHaveLength(2);
+  expect(tableAccess).toHaveLength(6);
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
     indexingFunctionKey: "C:Event1",
     access: "read",
+    hash: expect.any(String),
   });
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
     indexingFunctionKey: "C:Event1",
     access: "write",
+    hash: expect.any(String),
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event2",
+    access: "read",
+    hash: expect.any(String),
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event2",
+    access: "write",
+    hash: expect.any(String),
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event3",
+    access: "read",
+    hash: expect.any(String),
+  });
+
+  expect(tableAccess).toContainEqual({
+    table: "Table1",
+    indexingFunctionKey: "C:Event3",
+    access: "write",
+    hash: expect.any(String),
   });
 });
 
@@ -81,10 +115,10 @@ test.skip("helper rename", () => {
       path.join(
         url.fileURLToPath(import.meta.url),
         "..",
-        "test",
+        "_test",
         "helperFuncRename.ts",
       ),
-      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+      path.join(url.fileURLToPath(import.meta.url), "..", "_test", "util.ts"),
     ],
   });
 
@@ -94,12 +128,14 @@ test.skip("helper rename", () => {
     table: "Table1",
     indexingFunctionKey: "C:Event1",
     access: "read",
+    hash: expect.any(String),
   });
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
     indexingFunctionKey: "C:Event1",
     access: "write",
+    hash: expect.any(String),
   });
 });
 
@@ -111,7 +147,7 @@ test("renamed variable", () => {
       path.join(
         url.fileURLToPath(import.meta.url),
         "..",
-        "test",
+        "_test",
         "renameVar.ts",
       ),
     ],
@@ -123,11 +159,13 @@ test("renamed variable", () => {
     table: "Table1",
     indexingFunctionKey: "C:Event2",
     access: "read",
+    hash: expect.any(String),
   });
 
   expect(tableAccess).toContainEqual({
     table: "Table1",
     indexingFunctionKey: "C:Event2",
     access: "write",
+    hash: expect.any(String),
   });
 });

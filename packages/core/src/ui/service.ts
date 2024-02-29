@@ -85,6 +85,7 @@ export class UiService {
         const completedSeconds =
           completedSecondsMetric.find((m) => m.labels.event === event)?.value ??
           0;
+
         const completedEventCount = completedEventsMetric
           .filter((m) => m.labels.event === event)
           .reduce((a, v) => a + v.value, 0);

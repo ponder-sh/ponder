@@ -2,6 +2,7 @@ import path from "node:path";
 import type { Common } from "@/Ponder.js";
 import { safeBuildSchema } from "@/build/schema/schema.js";
 import type { Config } from "@/config/config.js";
+import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
@@ -15,28 +16,42 @@ import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
-import { safeBuildNetworksAndSources } from "./config/config.js";
+import { safeBuildConfig } from "./config/config.js";
 import {
   type IndexingFunctions,
   type RawIndexingFunctions,
   safeBuildIndexingFunctions,
 } from "./functions/functions.js";
-import { type TableAccess, parseAst } from "./functions/parseAst.js";
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
+import {
+  type FunctionIds,
+  type TableIds,
+  getFunctionAndTableIds,
+} from "./static/ids.js";
+import { type TableAccess, parseAst } from "./static/parseAst.js";
 
 type BuildServiceEvents = {
   // Note: Should new config ever trigger a re-analyze?
-  newConfig: { config: Config; sources: Source[]; networks: Network[] };
+  newConfig: {
+    databaseConfig: DatabaseConfig;
+    sources: Source[];
+    networks: Network[];
+    tableIds: TableIds;
+    functionIds: FunctionIds;
+  };
   newIndexingFunctions: {
     indexingFunctions: IndexingFunctions;
     tableAccess: TableAccess;
+    tableIds: TableIds;
+    functionIds: FunctionIds;
   };
   newSchema: {
     schema: Schema;
     graphqlSchema: GraphQLSchema;
-    tableAccess: TableAccess;
+    tableIds: TableIds;
+    functionIds: FunctionIds;
   };
   error: { kind: "config" | "schema" | "indexingFunctions"; error: Error };
 };
@@ -55,6 +70,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   private sources?: Source[];
   private schema?: Schema;
   private indexingFunctions?: IndexingFunctions;
+  private tableAccess?: TableAccess;
 
   constructor({ common }: { common: Common }) {
     super();
@@ -132,9 +148,20 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       if (invalidated.includes(this.common.options.configFile)) {
         const configResult = await this.loadConfig();
         const validationResult = this.validate();
+        const analyzeResult = this.analyze();
 
-        if (configResult.success && validationResult.success) {
-          this.emit("newConfig", configResult);
+        if (
+          configResult.success &&
+          validationResult.success &&
+          analyzeResult.success
+        ) {
+          this.emit("newConfig", {
+            databaseConfig: configResult.databaseConfig,
+            networks: configResult.networks,
+            sources: configResult.sources,
+            functionIds: analyzeResult.functionIds,
+            tableIds: analyzeResult.tableIds,
+          });
         } else {
           const error = configResult.error ?? (validationResult.error as Error);
           this.common.logger.error({ service: "build", error });
@@ -147,10 +174,15 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         const validationResult = this.validate();
         const analyzeResult = this.analyze();
 
-        if (schemaResult.success && validationResult.success) {
+        if (
+          schemaResult.success &&
+          validationResult.success &&
+          analyzeResult.success
+        ) {
           this.emit("newSchema", {
             ...schemaResult,
-            tableAccess: analyzeResult,
+            tableIds: analyzeResult.tableIds,
+            functionIds: analyzeResult.functionIds,
           });
         } else {
           const error = schemaResult.error ?? (validationResult.error as Error);
@@ -174,12 +206,20 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           files: indexingFunctionFiles,
         });
         const validationResult = this.validate();
+        const parseResult = this.parse();
         const analyzeResult = this.analyze();
 
-        if (indexingFunctionsResult.success && validationResult.success) {
+        if (
+          indexingFunctionsResult.success &&
+          validationResult.success &&
+          parseResult.success &&
+          analyzeResult.success
+        ) {
           this.emit("newIndexingFunctions", {
             ...indexingFunctionsResult,
-            tableAccess: analyzeResult,
+            tableAccess: parseResult.tableAccess,
+            tableIds: analyzeResult.tableIds,
+            functionIds: analyzeResult.functionIds,
           });
         } else {
           const error =
@@ -236,22 +276,26 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return { error: indexingFunctionsResult.error } as const;
 
     const validationResult = this.validate();
+    const parseResult = this.parse();
     const analyzeResult = this.analyze();
+
     if (!validationResult.success)
       return { error: validationResult.error } as const;
 
-    const { config, sources, networks } = configResult;
+    const { databaseConfig, sources, networks } = configResult;
     const { schema, graphqlSchema } = schemaResult;
     const { indexingFunctions } = indexingFunctionsResult;
 
     return {
-      config,
+      databaseConfig,
       networks,
       sources,
       schema,
       graphqlSchema,
       indexingFunctions,
-      tableAccess: analyzeResult,
+      tableAccess: parseResult.tableAccess!,
+      tableIds: analyzeResult.tableIds!,
+      functionIds: analyzeResult.functionIds!,
     };
   }
 
@@ -262,22 +306,23 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     const rawConfig = loadResult.exports.default as Config;
-    const buildResult = await safeBuildNetworksAndSources({
+    const buildResult = await safeBuildConfig({
       config: rawConfig,
+      options: this.common.options,
     });
 
     if (buildResult.error) {
       return { success: false, error: buildResult.error } as const;
     }
 
-    for (const warning of buildResult.data.warnings) {
-      this.common.logger.warn({ service: "build", msg: warning });
+    for (const log of buildResult.data.logs) {
+      this.common.logger[log.level]({ service: "build", msg: log.msg });
     }
 
-    const { sources, networks } = buildResult.data;
+    const { databaseConfig, sources, networks } = buildResult.data;
     this.sources = sources;
 
-    return { success: true, config: rawConfig, sources, networks } as const;
+    return { success: true, databaseConfig, sources, networks } as const;
   }
 
   private async loadSchema() {
@@ -386,8 +431,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     return { success: true } as const;
   }
 
-  private analyze() {
-    if (!this.rawIndexingFunctions || !this.schema) return [];
+  private parse() {
+    if (!this.rawIndexingFunctions || !this.schema || !this.sources)
+      return { success: false } as const;
 
     const tableNames = Object.keys(this.schema.tables);
     const filePaths = Object.keys(this.rawIndexingFunctions);
@@ -395,13 +441,41 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.rawIndexingFunctions,
     ).flatMap((indexingFunctions) => indexingFunctions.map((x) => x.name));
 
-    const tableAccessMap = parseAst({
+    const tableAccess = parseAst({
       tableNames,
       filePaths,
       indexingFunctionKeys,
     });
 
-    return tableAccessMap;
+    this.tableAccess = tableAccess;
+
+    return {
+      success: true,
+      tableAccess,
+    } as const;
+  }
+
+  private analyze() {
+    if (
+      !this.tableAccess ||
+      !this.schema ||
+      !this.sources ||
+      !this.indexingFunctions
+    )
+      return { success: false } as const;
+
+    const ids = getFunctionAndTableIds({
+      sources: this.sources,
+      tableAccess: this.tableAccess,
+      schema: this.schema,
+      indexingFunctions: this.indexingFunctions,
+    });
+
+    return {
+      success: true,
+      tableIds: ids.tableIds,
+      functionIds: ids.functionIds,
+    } as const;
   }
 
   private async executeFile(file: string) {

@@ -2,16 +2,9 @@ import { createConfig } from "@/config/config.js";
 import { createSchema, createTable } from "@/schema/schema.js";
 import { http, type Abi, type Hex, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
-import type { Block } from "./block.js";
-import type { Log } from "./log.js";
+import type { Block, Log, Transaction } from "./eth.js";
 import type { DatabaseModel } from "./model.js";
-import type {
-  FormatEventNames,
-  PonderApp,
-  PonderContext,
-  PonderEvent,
-} from "./ponder.js";
-import type { Transaction } from "./transaction.js";
+import type { Virtual } from "./virtual.js";
 
 const event0 = parseAbiItem(
   "event Event0(bytes32 indexed arg, bytes32 indexed arg1)",
@@ -65,7 +58,7 @@ const schema = createSchema((p) => ({
 }));
 
 test("FormatEventNames without filter", () => {
-  type a = FormatEventNames<{
+  type a = Virtual.FormatEventNames<{
     // ^?
     contract: { abi: abi; network: "" };
   }>;
@@ -81,7 +74,7 @@ test("FormatEventNames without filter", () => {
 });
 
 test("FormatEvent names with filter", () => {
-  type a = FormatEventNames<{
+  type a = Virtual.FormatEventNames<{
     // ^?
     contract: { abi: abi; network: ""; filter: { event: "Event1()" } };
   }>;
@@ -93,7 +86,7 @@ test("FormatEvent names with filter", () => {
 });
 
 test("FormatEvent names with filter array", () => {
-  type a = FormatEventNames<{
+  type a = Virtual.FormatEventNames<{
     // ^?
     contract: {
       abi: abi;
@@ -109,7 +102,7 @@ test("FormatEvent names with filter array", () => {
 });
 
 test("FormatEventNames with semi-weak abi", () => {
-  type a = FormatEventNames<{
+  type a = Virtual.FormatEventNames<{
     // ^?
     contract: { abi: abi[number][]; network: "" };
   }>;
@@ -125,7 +118,7 @@ test("FormatEventNames with semi-weak abi", () => {
 });
 
 test("FormatEventNames with weak abi", () => {
-  type a = FormatEventNames<{
+  type a = Virtual.FormatEventNames<{
     // ^?
     contract: { abi: Abi; network: "" };
   }>;
@@ -134,8 +127,8 @@ test("FormatEventNames with weak abi", () => {
   assertType<"contract:setup">({} as any as a);
 });
 
-test("PonderContext db", () => {
-  type a = PonderContext<typeof config, typeof schema, "c1:Event0">["db"];
+test("Context db", () => {
+  type a = Virtual.Context<typeof config, typeof schema, "c1:Event0">["db"];
   //   ^?
 
   type expectedDB = { table: DatabaseModel<{ id: string }> };
@@ -144,8 +137,12 @@ test("PonderContext db", () => {
   assertType<expectedDB>({} as any as a);
 });
 
-test("PonderContext single network", () => {
-  type a = PonderContext<typeof config, typeof schema, "c1:Event0">["network"];
+test("Context single network", () => {
+  type a = Virtual.Context<
+    typeof config,
+    typeof schema,
+    "c1:Event0"
+  >["network"];
   //   ^?
 
   type expectedNetwork = { name: "mainnet"; chainId: 1 };
@@ -154,8 +151,8 @@ test("PonderContext single network", () => {
   assertType<expectedNetwork>({} as any as a);
 });
 
-test("PonderContext multi network", () => {
-  type a = PonderContext<
+test("Context multi network", () => {
+  type a = Virtual.Context<
     typeof config,
     typeof schema,
     "c2:Event1()"
@@ -170,8 +167,12 @@ test("PonderContext multi network", () => {
   assertType<expectedNetwork>({} as any as a);
 });
 
-test("PonderContext client", () => {
-  type a = PonderContext<typeof config, typeof schema, "c2:Event1()">["client"];
+test("Context client", () => {
+  type a = Virtual.Context<
+    typeof config,
+    typeof schema,
+    "c2:Event1()"
+  >["client"];
   //   ^?
 
   type expectedFunctions =
@@ -186,8 +187,8 @@ test("PonderContext client", () => {
   assertType<expectedFunctions>({} as any as keyof a);
 });
 
-test("PonderContext contracts", () => {
-  type a = PonderContext<
+test("Context contracts", () => {
+  type a = Virtual.Context<
     typeof config,
     typeof schema,
     "c2:Event1()"
@@ -212,8 +213,8 @@ test("PonderContext contracts", () => {
   assertType<expectedAddress>({} as any as a["address"]);
 });
 
-test("PonderEvent", () => {
-  type a = PonderEvent<typeof config, "c1:Event0">;
+test("Event", () => {
+  type a = Virtual.Event<typeof config, "c1:Event0">;
   //   ^?
 
   type expectedEvent = {
@@ -231,8 +232,8 @@ test("PonderEvent", () => {
   assertType<expectedEvent>({} as any as a);
 });
 
-test("PonderEvent with unnamed parameters", () => {
-  type a = PonderEvent<typeof config, "c2:Event1(bytes32)">;
+test("Event with unnamed parameters", () => {
+  type a = Virtual.Event<typeof config, "c2:Event1(bytes32)">;
   //   ^?
 
   type expectedEvent = {
@@ -247,8 +248,8 @@ test("PonderEvent with unnamed parameters", () => {
   assertType<expectedEvent>({} as any as a);
 });
 
-test("PonderApp", () => {
-  const ponder = {} as any as PonderApp<typeof config, typeof schema>;
+test("Registry", () => {
+  const ponder = {} as any as Virtual.Registry<typeof config, typeof schema>;
 
   ponder.on("c1:Event0", async ({ event, context }) => {
     event.name;

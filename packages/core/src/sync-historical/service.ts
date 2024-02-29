@@ -627,7 +627,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       fromBlock: toHex(fromBlock),
       toBlock: toHex(toBlock),
     });
-
     const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
 
     for (const logInterval of logIntervals) {
