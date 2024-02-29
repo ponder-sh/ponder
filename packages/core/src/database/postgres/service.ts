@@ -319,8 +319,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
     // TODO(kyle): Flush here?
 
-    // If there is no live instance or a different instance is live,
-    // clean up by dropping the instance schema and the metadata row.
+    // If this instance is not live, drop the instance schema and remove the metadata row.
     await this.db.transaction().execute(async (tx) => {
       const liveInstanceRow = await tx
         .selectFrom("ponder._metadata")

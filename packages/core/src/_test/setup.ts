@@ -61,7 +61,6 @@ export const setupContext = (context: TestContext) => {
     telemetryDisabled: true,
   };
   context.common = {
-    instanceId: crypto.randomBytes(4).toString("hex"),
     options,
     logger: new LoggerService({ level: "silent" }),
     metrics: new MetricsService(),
@@ -101,15 +100,9 @@ export async function setupDatabase(context: TestContext) {
     await context.database.setup();
 
     return async () => {
-      try {
-        await context.database.kill();
-        await testClient.query(`DROP DATABASE "${databaseName}"`);
-        await testClient.end();
-      } catch (e) {
-        // This fails in end-to-end tests where the pool has
-        // already been shut down during the Ponder instance kill() method.
-        // It's fine to ignore the error.
-      }
+      await context.database.kill();
+      await testClient.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
+      await testClient.end();
     };
   } else {
     const tmpdir = os.tmpdir();

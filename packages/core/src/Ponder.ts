@@ -34,7 +34,6 @@ import { SqliteDatabaseService } from "./database/sqlite/service.js";
 import { type RequestQueue, createRequestQueue } from "./utils/requestQueue.js";
 
 export type Common = {
-  instanceId: string;
   options: Options;
   logger: LoggerService;
   metrics: MetricsService;
@@ -79,7 +78,6 @@ export class Ponder {
   uiService: UiService = undefined!;
 
   constructor({ options }: { options: Options }) {
-    const instanceId = randomBytes(4).toString("hex");
     const logger = new LoggerService({
       level: options.logLevel,
       dir: options.logDir,
@@ -87,7 +85,7 @@ export class Ponder {
     const metrics = new MetricsService();
     const telemetry = new TelemetryService({ options });
 
-    this.common = { instanceId, options, logger, metrics, telemetry };
+    this.common = { options, logger, metrics, telemetry };
     this.buildService = new BuildService({ common: this.common });
   }
 
@@ -457,7 +455,7 @@ export class Ponder {
   async kill() {
     this.common.logger.info({
       service: "app",
-      msg: "Shutting down...",
+      msg: "Started shutdown sequence",
     });
     this.common.telemetry.record({
       event: "App Killed",
@@ -509,7 +507,6 @@ export class Ponder {
     );
 
     await this.syncStore.kill();
-    // TODO: Test this.
     await this.database.kill();
   }
 
@@ -553,7 +550,6 @@ export class Ponder {
 
         this.schema = schema;
         this.graphqlSchema = graphqlSchema;
-
         this.tableIds = tableIds;
         this.functionIds = functionIds;
 

@@ -60,7 +60,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     context.connectionString = connectionString;
 
     return async () => {
-      await testClient.query(`DROP DATABASE "${databaseName}"  WITH (FORCE)`);
+      await testClient.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
       await testClient.end();
     };
   });
