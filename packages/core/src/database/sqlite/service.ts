@@ -11,8 +11,7 @@ import {
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import { dedupe } from "@/utils/dedupe.js";
-import { createSqliteDatabase } from "@/utils/sqlite.js";
-import BetterSqlite3 from "better-sqlite3";
+import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
 import {
   CreateTableBuilder,
   Kysely,
@@ -35,7 +34,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
   db: Kysely<PonderCoreSchema>;
 
-  private sqliteDatabase: BetterSqlite3.Database;
+  private sqliteDatabase: SqliteDatabase;
 
   schema?: Schema;
   tableIds?: TableIds;
@@ -70,11 +69,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     });
   }
 
-  getIndexingStoreConfig() {
+  getIndexingStoreConfig(): { database: SqliteDatabase } {
     return { database: this.sqliteDatabase };
   }
 
-  getSyncStoreConfig() {
+  getSyncStoreConfig(): { database: SqliteDatabase } {
     const syncDbPath = path.join(this.directory, "ponder_sync.db");
     const syncDatabase = createSqliteDatabase(syncDbPath);
     return { database: syncDatabase };
