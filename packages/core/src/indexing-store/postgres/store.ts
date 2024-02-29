@@ -75,7 +75,7 @@ export class PostgresIndexingStore implements IndexingStore {
     checkpoint?: Checkpoint | "latest";
     id: string | number | bigint;
   }) => {
-    const table = this.schema!.tables[tableName];
+    const table = this.schema.tables[tableName];
 
     return this.wrap({ method: "findUnique", tableName }, async () => {
       const formattedId = encodeValue(id, table.id, "postgres");
@@ -123,7 +123,7 @@ export class PostgresIndexingStore implements IndexingStore {
     after?: string | null;
     limit?: number;
   }) => {
-    const table = this.schema!.tables[tableName];
+    const table = this.schema.tables[tableName];
 
     return this.wrap({ method: "findMany", tableName }, async () => {
       let query = this.db.selectFrom(tableName).selectAll();
@@ -325,7 +325,7 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
-    const table = this.schema!.tables[tableName];
+    const table = this.schema.tables[tableName];
 
     return this.wrap({ method: "create", tableName }, async () => {
       const createRow = encodeRow({ id, ...data }, table, "postgres");
@@ -354,7 +354,7 @@ export class PostgresIndexingStore implements IndexingStore {
     checkpoint: Checkpoint;
     data: Row[];
   }) => {
-    const table = this.schema!.tables[tableName];
+    const table = this.schema.tables[tableName];
 
     return this.wrap({ method: "createMany", tableName }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
@@ -391,7 +391,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const table = this.schema!.tables[tableName];
+    const table = this.schema.tables[tableName];
 
     return this.wrap({ method: "update", tableName }, async () => {
       const formattedId = encodeValue(id, table.id, "postgres");
@@ -475,7 +475,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const table = this.schema!.tables[tableName];
+    const table = this.schema.tables[tableName];
 
     return this.wrap({ method: "updateMany", tableName }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
@@ -574,7 +574,7 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const table = this.schema!.tables[tableName];
+    const table = this.schema.tables[tableName];
 
     return this.wrap({ method: "upsert", tableName }, async () => {
       const formattedId = encodeValue(id, table.id, "postgres");
@@ -666,7 +666,7 @@ export class PostgresIndexingStore implements IndexingStore {
     checkpoint: Checkpoint;
     id: string | number | bigint;
   }) => {
-    const table = this.schema!.tables[tableName];
+    const table = this.schema.tables[tableName];
 
     return this.wrap({ method: "delete", tableName }, async () => {
       const formattedId = encodeValue(id, table.id, "postgres");

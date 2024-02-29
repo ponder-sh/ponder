@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -292,16 +291,17 @@ export class Ponder {
         tableAccess: this.tableAccess,
       });
 
-      const indexingDatabase = await this.database.getIndexingDatabase();
+      const indexingStoreConfig = this.database.getIndexingStoreConfig();
       this.indexingStore = new SqliteIndexingStore({
         common: this.common,
-        database: indexingDatabase.database,
+        schema: this.schema,
+        ...indexingStoreConfig,
       });
 
-      const syncDatabase = await this.database.getSyncDatabase();
+      const syncStoreConfig = this.database.getSyncStoreConfig();
       this.syncStore = new SqliteSyncStore({
         common: this.common,
-        database: syncDatabase.database,
+        ...syncStoreConfig,
       });
     } else {
       const database = new PostgresDatabaseService({

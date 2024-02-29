@@ -185,8 +185,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     functionIds: FunctionIds;
     tableAccess: TableAccess;
   }) {
-    if (schema) this.schema = schema;
-    if (tableIds) this.tableIds = tableIds;
+    this.schema = schema;
+    this.tableIds = tableIds;
 
     const metadata = await this.db.transaction().execute(async (tx) => {
       // 1) Acquire an instance ID by inserting a row into the public metadata table.

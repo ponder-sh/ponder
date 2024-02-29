@@ -30,8 +30,8 @@ export async function buildConfig({
   // Build database.
   let databaseConfig: DatabaseConfig;
 
-  const defaultStorePath = path.join(options.ponderDir, "store");
-  const sqlitePrintPath = defaultStorePath; // path.relative(options.rootDir, defaultStorePath);
+  const sqliteDir = path.join(options.ponderDir, "sqlite");
+  const sqlitePrintPath = path.relative(options.rootDir, sqliteDir);
 
   if (config.database?.kind) {
     if (config.database.kind === "postgres") {
@@ -67,7 +67,7 @@ export async function buildConfig({
         msg: `Using SQLite database at ${sqlitePrintPath} (from ponder.config.ts)`,
       });
 
-      databaseConfig = { kind: "sqlite", directory: sqlitePrintPath };
+      databaseConfig = { kind: "sqlite", directory: sqliteDir };
     }
   } else {
     let connectionString: string | undefined = undefined;
@@ -97,7 +97,7 @@ export async function buildConfig({
         msg: `Using SQLite database at ${sqlitePrintPath} (default)`,
       });
 
-      databaseConfig = { kind: "sqlite", directory: sqlitePrintPath };
+      databaseConfig = { kind: "sqlite", directory: sqliteDir };
     }
   }
 
