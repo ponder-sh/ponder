@@ -11,8 +11,6 @@ export interface SyncStore {
 
   migrateUp(): Promise<void>;
 
-  kill(): Promise<void>;
-
   /**
    * Insert a list of logs & associated transactions matching a given log filter
    * within a specific block. Also insert the log interval recording the eth_getLogs

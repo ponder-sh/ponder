@@ -2,6 +2,7 @@ import path from "node:path";
 import type { Common } from "@/Ponder.js";
 import { safeBuildSchema } from "@/build/schema/schema.js";
 import type { Config } from "@/config/config.js";
+import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
@@ -15,7 +16,7 @@ import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
-import { safeBuildNetworksAndSources } from "./config/config.js";
+import { safeBuildConfig } from "./config/config.js";
 import {
   type IndexingFunctions,
   type RawIndexingFunctions,
@@ -24,13 +25,17 @@ import {
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
-import { type FunctionIds, type TableIds, getIds } from "./static/ids.js";
+import {
+  type FunctionIds,
+  type TableIds,
+  getFunctionAndTableIds,
+} from "./static/ids.js";
 import { type TableAccess, parseAst } from "./static/parseAst.js";
 
 type BuildServiceEvents = {
   // Note: Should new config ever trigger a re-analyze?
   newConfig: {
-    config: Config;
+    databaseConfig: DatabaseConfig;
     sources: Source[];
     networks: Network[];
     tableIds: TableIds;
@@ -151,7 +156,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           analyzeResult.success
         ) {
           this.emit("newConfig", {
-            config: configResult.config,
+            databaseConfig: configResult.databaseConfig,
             networks: configResult.networks,
             sources: configResult.sources,
             functionIds: analyzeResult.functionIds,
@@ -277,12 +282,12 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     if (!validationResult.success)
       return { error: validationResult.error } as const;
 
-    const { config, sources, networks } = configResult;
+    const { databaseConfig, sources, networks } = configResult;
     const { schema, graphqlSchema } = schemaResult;
     const { indexingFunctions } = indexingFunctionsResult;
 
     return {
-      config,
+      databaseConfig,
       networks,
       sources,
       schema,
@@ -301,22 +306,23 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     const rawConfig = loadResult.exports.default as Config;
-    const buildResult = await safeBuildNetworksAndSources({
+    const buildResult = await safeBuildConfig({
       config: rawConfig,
+      options: this.common.options,
     });
 
     if (buildResult.error) {
       return { success: false, error: buildResult.error } as const;
     }
 
-    for (const warning of buildResult.data.warnings) {
-      this.common.logger.warn({ service: "build", msg: warning });
+    for (const log of buildResult.data.logs) {
+      this.common.logger[log.level]({ service: "build", msg: log.msg });
     }
 
-    const { sources, networks } = buildResult.data;
+    const { databaseConfig, sources, networks } = buildResult.data;
     this.sources = sources;
 
-    return { success: true, config: rawConfig, sources, networks } as const;
+    return { success: true, databaseConfig, sources, networks } as const;
   }
 
   private async loadSchema() {
@@ -450,13 +456,19 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   private analyze() {
-    if (!this.tableAccess || !this.schema || !this.sources)
+    if (
+      !this.tableAccess ||
+      !this.schema ||
+      !this.sources ||
+      !this.indexingFunctions
+    )
       return { success: false } as const;
 
-    const ids = getIds({
+    const ids = getFunctionAndTableIds({
       sources: this.sources,
       tableAccess: this.tableAccess,
       schema: this.schema,
+      indexingFunctions: this.indexingFunctions,
     });
 
     return {

@@ -1,5 +1,7 @@
+import path from "node:path";
 import { buildAbiEvents, buildTopics } from "@/config/abi.js";
 import type { Config } from "@/config/config.js";
+import type { DatabaseConfig } from "@/config/database.js";
 import { buildFactoryCriteria } from "@/config/factories.js";
 import {
   type Network,
@@ -8,8 +10,10 @@ import {
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
+import type { Options } from "@/config/options.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import parse from "pg-connection-string";
 import type {
   Factory,
   LogFilter,
@@ -17,8 +21,85 @@ import type {
   Topics,
 } from "../../config/sources.js";
 
-export async function buildNetworksAndSources({ config }: { config: Config }) {
-  const warnings: string[] = [];
+export async function buildConfig({
+  config,
+  options,
+}: { config: Config; options: Pick<Options, "ponderDir" | "rootDir"> }) {
+  const logs: { level: "warn" | "info"; msg: string }[] = [];
+
+  // Build database.
+  let databaseConfig: DatabaseConfig;
+
+  const sqliteDir = path.join(options.ponderDir, "sqlite");
+  const sqlitePrintPath = path.relative(options.rootDir, sqliteDir);
+
+  if (config.database?.kind) {
+    if (config.database.kind === "postgres") {
+      let connectionString: string | undefined = undefined;
+      let source: string | undefined = undefined;
+
+      if (config.database.connectionString) {
+        connectionString = config.database.connectionString;
+        source = "ponder.config.ts";
+      } else if (process.env.DATABASE_PRIVATE_URL) {
+        connectionString = process.env.DATABASE_PRIVATE_URL;
+        source = "DATABASE_PRIVATE_URL env var";
+      } else if (process.env.DATABASE_URL) {
+        connectionString = process.env.DATABASE_URL;
+        source = "DATABASE_URL env var";
+      } else {
+        throw new Error(
+          `Invalid database configuration: "kind" is set to "postgres" but no connection string was provided.`,
+        );
+      }
+
+      logs.push({
+        level: "info",
+        msg: `Using Postgres database ${getDatabaseName(
+          connectionString,
+        )} (from ${source})`,
+      });
+
+      databaseConfig = { kind: "postgres", poolConfig: { connectionString } };
+    } else {
+      logs.push({
+        level: "info",
+        msg: `Using SQLite database at ${sqlitePrintPath} (from ponder.config.ts)`,
+      });
+
+      databaseConfig = { kind: "sqlite", directory: sqliteDir };
+    }
+  } else {
+    let connectionString: string | undefined = undefined;
+    let source: string | undefined = undefined;
+    if (process.env.DATABASE_PRIVATE_URL) {
+      connectionString = process.env.DATABASE_PRIVATE_URL;
+      source = "DATABASE_PRIVATE_URL env var";
+    } else if (process.env.DATABASE_URL) {
+      connectionString = process.env.DATABASE_URL;
+      source = "DATABASE_URL env var";
+    }
+
+    if (connectionString !== undefined) {
+      // If either of the DATABASE_URL env vars are set, use them.
+      logs.push({
+        level: "info",
+        msg: `Using Postgres database ${getDatabaseName(
+          connectionString,
+        )} (from ${source})`,
+      });
+
+      databaseConfig = { kind: "postgres", poolConfig: { connectionString } };
+    } else {
+      // Fall back to SQLite.
+      logs.push({
+        level: "info",
+        msg: `Using SQLite database at ${sqlitePrintPath} (default)`,
+      });
+
+      databaseConfig = { kind: "sqlite", directory: sqliteDir };
+    }
+  }
 
   const networks: Network[] = await Promise.all(
     Object.entries(config.networks).map(async ([networkName, network]) => {
@@ -34,9 +115,10 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
       const rpcUrls = await getRpcUrlsForClient({ transport, chain });
       rpcUrls.forEach((rpcUrl) => {
         if (isRpcUrlPublic(rpcUrl)) {
-          warnings.push(
-            `Network '${networkName}' is using a public RPC URL (${rpcUrl}). Most apps require an RPC URL with a higher rate limit.`,
-          );
+          logs.push({
+            level: "warn",
+            msg: `Network '${networkName}' is using a public RPC URL (${rpcUrl}). Most apps require an RPC URL with a higher rate limit.`,
+          });
         }
       });
 
@@ -227,14 +309,15 @@ export async function buildNetworksAndSources({ config }: { config: Config }) {
       } satisfies LogFilter;
     });
 
-  return { networks, sources, warnings };
+  return { databaseConfig, networks, sources, logs };
 }
 
-export async function safeBuildNetworksAndSources({
+export async function safeBuildConfig({
   config,
-}: { config: Config }) {
+  options,
+}: { config: Config; options: Pick<Options, "rootDir" | "ponderDir"> }) {
   try {
-    const result = await buildNetworksAndSources({ config });
+    const result = await buildConfig({ config, options });
 
     return { success: true, data: result } as const;
   } catch (error_) {
@@ -242,4 +325,9 @@ export async function safeBuildNetworksAndSources({
     error.stack = undefined;
     return { success: false, error } as const;
   }
+}
+
+function getDatabaseName(connectionString: string) {
+  const parsed = (parse as unknown as typeof parse.parse)(connectionString);
+  return `${parsed.host}:${parsed.port}/${parsed.database}`;
 }

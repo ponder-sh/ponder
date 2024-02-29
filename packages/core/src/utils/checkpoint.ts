@@ -19,6 +19,7 @@ const EXECUTION_INDEX_DIGITS = 16;
 
 export const encodeCheckpoint = (checkpoint: Checkpoint) => {
   const { blockTimestamp, chainId, blockNumber, logIndex } = checkpoint;
+
   const result =
     blockTimestamp.toString().padStart(BLOCK_TIMESTAMP_DIGITS, "0") +
     chainId.toString().padStart(CHAIN_ID_DIGITS, "0") +
@@ -54,7 +55,11 @@ export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
   const blockNumber = +checkpoint.slice(offset, offset + BLOCK_NUMBER_DIGITS);
   offset += BLOCK_NUMBER_DIGITS;
 
-  const logIndex = +checkpoint.slice(offset, offset + EXECUTION_INDEX_DIGITS);
+  let logIndex = Number(
+    checkpoint.slice(offset, offset + EXECUTION_INDEX_DIGITS),
+  );
+
+  if (logIndex > Number.MAX_SAFE_INTEGER) logIndex = Number.MAX_SAFE_INTEGER;
 
   return { blockTimestamp, chainId, blockNumber, logIndex };
 };

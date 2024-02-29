@@ -3,7 +3,10 @@ import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
 import { dedupe } from "@/utils/dedupe.js";
+import type { IndexingFunctions } from "../functions/functions.js";
 import type { TableAccess } from "./parseAst.js";
+
+const VERSION = 1;
 
 export type FunctionIds = { [func: string]: string };
 export type TableIds = { [table: string]: string };
@@ -20,11 +23,29 @@ type TableInputs = {
   };
 };
 
-export const getIds = ({
+type Identifier = {
+  name: string;
+  type: "table" | "function";
+  version: number;
+
+  functions: string[];
+  tables: string[];
+
+  functionInputs: FunctionInputs[string][];
+  tableInputs: TableInputs[string][];
+};
+
+export const getFunctionAndTableIds = ({
   sources,
   tableAccess,
   schema,
-}: { sources: Source[]; schema: Schema; tableAccess: TableAccess }) => {
+  indexingFunctions,
+}: {
+  sources: Source[];
+  schema: Schema;
+  tableAccess: TableAccess;
+  indexingFunctions: IndexingFunctions;
+}) => {
   const functionInputs: FunctionInputs = {};
   const tableInputs: TableInputs = {};
 
@@ -61,51 +82,45 @@ export const getIds = ({
   const tableIds: TableIds = {};
 
   // Build function IDs
-  for (const indexingFunctionKey of Object.keys(functionInputs)) {
-    const { functions, tables } = resolveDependencies({
-      name: indexingFunctionKey,
-      type: "function",
-      tableAccess,
-    });
+  for (const sourceName of Object.keys(indexingFunctions)) {
+    for (const eventName of Object.keys(indexingFunctions[sourceName])) {
+      const indexingFunctionKey = `${sourceName}:${eventName}`;
 
-    functionIds[indexingFunctionKey] = crypto
-      .createHash("sha256")
-      .update(
-        JSON.stringify({
-          name: indexingFunctionKey,
-          type: "function",
+      const { functions, tables } = resolveDependencies({
+        name: indexingFunctionKey,
+        type: "function",
+        tableAccess,
+      });
 
-          functions,
-          tables,
-          functionInputs: functions.map((f) => functionInputs[f]),
-          tableInputs: tables.map((t) => tableInputs[t]),
-        }),
-      )
-      .digest("hex");
+      functionIds[indexingFunctionKey] = hashIdentifier({
+        name: indexingFunctionKey,
+        type: "function",
+
+        functions,
+        tables,
+        functionInputs: functions.map((f) => functionInputs[f]),
+        tableInputs: tables.map((t) => tableInputs[t]),
+      });
+    }
   }
 
   // Build table IDs
-  for (const tableName of Object.keys(tableInputs)) {
+  for (const tableName of Object.keys(schema.tables)) {
     const { functions, tables } = resolveDependencies({
       name: tableName,
       type: "table",
       tableAccess,
     });
 
-    tableIds[tableName] = crypto
-      .createHash("sha256")
-      .update(
-        JSON.stringify({
-          name: tableName,
-          type: "table",
+    tableIds[tableName] = hashIdentifier({
+      name: tableName,
+      type: "table",
 
-          functions,
-          tables,
-          functionInputs: functions.map((f) => functionInputs[f]),
-          tableInputs: tables.map((t) => tableInputs[t]),
-        }),
-      )
-      .digest("hex");
+      functions,
+      tables,
+      functionInputs: functions.map((f) => functionInputs[f]),
+      tableInputs: tables.map((t) => tableInputs[t]),
+    });
   }
 
   return { tableIds, functionIds };
@@ -161,7 +176,7 @@ const resolveDependencies = ({
   return { functions, tables };
 };
 
-/** Resolve the enum columns of a table. Remove "one" and "many" column. */
+/** Resolve the enum columns of a table. Remove "one" and "many" columns. */
 const resolveSchema = (
   table: Schema["tables"][string],
   enums: Schema["enums"],
@@ -188,4 +203,12 @@ const resolveSchema = (
     }
   }
   return table;
+};
+
+const hashIdentifier = (schema: Omit<Identifier, "version">) => {
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify({ ...schema, version: VERSION }))
+    .digest("base64")
+    .slice(0, 10);
 };

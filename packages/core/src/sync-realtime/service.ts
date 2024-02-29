@@ -180,6 +180,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       finalizedBlockNumber,
     ).then(realtimeBlockToLightBlock);
 
+    this.emit("finalityCheckpoint", {
+      blockTimestamp: this.finalizedBlock.timestamp,
+      chainId: this.network.chainId,
+      blockNumber: this.finalizedBlock.number,
+    });
+
     return { latestBlockNumber, finalizedBlockNumber };
   };
 
