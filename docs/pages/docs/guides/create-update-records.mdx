@@ -440,6 +440,46 @@ const { items } = await Player.findMany({
 
 </div>
 
+You can also use the `AND` and `OR` operators to combine filters.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts" {10-15}
+await Player.createMany({
+  data: [
+    { id: "Jim", age: 34 },
+    { id: "Andrew", age: 19 },
+    { id: "Janet", age: 56 },
+  ],
+});
+
+const { items } = await Player.findMany({
+  where: {
+    OR: [
+      { id: { endsWith: "m" } },
+      { age: { gt: 50 } },
+    ],
+  }
+});
+// [
+//   { id: "Jim", age: 34 },
+//   { id: "Janet", age: 56 }
+// ]
+```
+
+</div>
+
 #### Sorting
 
 Sort the result list by passing an `orderBy` option containing a field name and sort direction (`"asc"{:ts}` or `"desc"{:ts}`).

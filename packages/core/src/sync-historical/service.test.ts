@@ -6,6 +6,7 @@ import {
 import { getEventsErc20, publicClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { wait } from "@/utils/wait.js";
 import { HttpRequestError, InvalidParamsRpcError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
@@ -223,6 +224,7 @@ test("start() adds log filter events to sync store", async (context) => {
         id: sources[0].id,
         chainId: sources[0].chainId,
         criteria: sources[0].criteria,
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -239,7 +241,7 @@ test("start() adds log filter events to sync store", async (context) => {
   await cleanup();
 });
 
-test("start() adds log filter and factory contract events to sync store", async (context) => {
+test("start() adds factory events to sync store", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
@@ -259,26 +261,17 @@ test("start() adds log filter and factory contract events to sync store", async 
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
-    logFilters: [
-      {
-        id: "Erc20",
-        chainId: sources[0].chainId,
-        criteria: sources[0].criteria,
-      },
-    ],
     factories: [
       {
-        id: "Pair",
+        id: sources[0].id,
         chainId: sources[1].chainId,
         criteria: sources[1].criteria,
+        eventSelector: sources[1].abiEvents.bySafeName.Swap!.selector,
       },
     ],
   });
 
-  const sourceIds = events.map((event) => event.sourceId);
-
-  expect(sourceIds.includes("Erc20")).toBe(true);
-  expect(sourceIds.includes("Pair")).toBe(true);
+  expect(events).toHaveLength(1);
 
   service.kill();
   await service.onIdle();
@@ -527,6 +520,9 @@ test("start() emits historicalCheckpoint event", async (context) => {
   service.start();
 
   await service.onIdle();
+
+  // Flush the debounce state
+  await wait(500);
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     blockTimestamp: Number(finalizedBlock.timestamp),

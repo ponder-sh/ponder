@@ -71,7 +71,9 @@ npm run dev
 
 Ponder fetches data using the standard Ethereum RPC API. To get started, you'll need an RPC URL from a provider like Alchemy or Infura.
 
-Open up `.env.local` and paste in RPC URLs for any networks that your project uses:
+Open `.env.local` and paste in RPC URLs for any networks that your project uses.
+
+Each RPC URL environment variable is named `PONDER_RPC_URL` postfixed with the chain ID (e.g. `PONDER_RPC_URL_8453` for Base Mainnet):
 
 {/* prettier-ignore */}
 ```js filename=".env.local"

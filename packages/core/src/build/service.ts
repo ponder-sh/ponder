@@ -29,8 +29,8 @@ import {
   type FunctionIds,
   type TableIds,
   getFunctionAndTableIds,
-} from "./static/ids.js";
-import { type TableAccess, parseAst } from "./static/parseAst.js";
+} from "./static/getFunctionAndTableIds.js";
+import { type TableAccess, getTableAccess } from "./static/getTableAccess.js";
 
 type BuildServiceEvents = {
   // Note: Should new config ever trigger a re-analyze?
@@ -441,7 +441,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.rawIndexingFunctions,
     ).flatMap((indexingFunctions) => indexingFunctions.map((x) => x.name));
 
-    const tableAccess = parseAst({
+    const tableAccess = getTableAccess({
       tableNames,
       filePaths,
       indexingFunctionKeys,

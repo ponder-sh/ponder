@@ -4,7 +4,7 @@ import type { Schema } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
 import { dedupe } from "@/utils/dedupe.js";
 import type { IndexingFunctions } from "../functions/functions.js";
-import type { TableAccess } from "./parseAst.js";
+import type { TableAccess } from "./getTableAccess.js";
 
 const VERSION = 1;
 

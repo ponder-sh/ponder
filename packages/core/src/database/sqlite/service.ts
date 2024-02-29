@@ -1,7 +1,10 @@
 import path from "node:path";
 import type { Common } from "@/Ponder.js";
-import type { FunctionIds, TableIds } from "@/build/static/ids.js";
-import type { TableAccess } from "@/build/static/parseAst.js";
+import type {
+  FunctionIds,
+  TableIds,
+} from "@/build/static/getFunctionAndTableIds.js";
+import type { TableAccess } from "@/build/static/getTableAccess.js";
 import { revertTable } from "@/indexing-store/utils/revert.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";

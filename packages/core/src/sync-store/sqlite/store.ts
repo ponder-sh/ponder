@@ -29,6 +29,7 @@ import { range } from "@/utils/range.js";
 import { type SqliteDatabase } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 
+import { startClock } from "@/utils/timer.js";
 import type { SyncStore } from "../store.js";
 import type { BigIntText } from "./format.js";
 import {
@@ -66,12 +67,12 @@ export class SqliteSyncStore implements SyncStore {
   }
 
   migrateUp = async () => {
-    const start = performance.now();
+    const stopClock = startClock();
 
     const { error } = await this.migrator.migrateToLatest();
     if (error) throw error;
 
-    this.record("migrateUp", performance.now() - start);
+    this.record("migrateUp", stopClock());
   };
 
   insertLogFilterInterval = async ({
@@ -89,7 +90,7 @@ export class SqliteSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const start = performance.now();
+    const stopClock = startClock();
     await this.transaction(async (tx) => {
       await tx
         .insertInto("blocks")
@@ -121,7 +122,7 @@ export class SqliteSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertLogFilterInterval", performance.now() - start);
+    this.record("insertLogFilterInterval", stopClock());
   };
 
   getLogFilterIntervals = async ({
@@ -131,7 +132,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     logFilter: LogFilterCriteria;
   }) => {
-    const start = performance.now();
+    const stopClock = startClock();
     const fragments = buildLogFilterFragments({ ...logFilter, chainId });
 
     // First, attempt to merge overlapping and adjacent intervals.
@@ -239,7 +240,7 @@ export class SqliteSyncStore implements SyncStore {
     });
 
     const intersectionIntervals = intervalIntersectionMany(fragmentIntervals);
-    this.record("getLogFilterIntervals", performance.now() - start);
+    this.record("getLogFilterIntervals", stopClock());
     return intersectionIntervals;
   };
 
@@ -250,7 +251,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     logs: RpcLog[];
   }) => {
-    const start = performance.now();
+    const stopClock = startClock();
 
     await this.transaction(async (tx) => {
       for (const rpcLog of rpcLogs) {
@@ -262,7 +263,7 @@ export class SqliteSyncStore implements SyncStore {
       }
     });
 
-    this.record("insertFactoryChildAddressLogs", performance.now() - start);
+    this.record("insertFactoryChildAddressLogs", stopClock());
   };
 
   async *getFactoryChildAddresses({
@@ -301,9 +302,9 @@ export class SqliteSyncStore implements SyncStore {
         query = query.where("blockNumber", ">", cursor);
       }
 
-      const start = performance.now();
+      const stopClock = startClock();
       const batch = await query.execute();
-      queryExecutionTime += performance.now() - start;
+      queryExecutionTime += stopClock();
 
       const lastRow = batch[batch.length - 1];
       if (lastRow) {
@@ -335,7 +336,7 @@ export class SqliteSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const start = performance.now();
+    const stopClock = startClock();
 
     await this.transaction(async (tx) => {
       await tx
@@ -368,7 +369,7 @@ export class SqliteSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertFactoryLogFilterInterval", performance.now() - start);
+    this.record("insertFactoryLogFilterInterval", stopClock());
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -378,7 +379,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     factory: FactoryCriteria;
   }) => {
-    const start = performance.now();
+    const stopClock = startClock();
 
     const fragments = buildFactoryFragments({
       ...factory,
@@ -497,7 +498,7 @@ export class SqliteSyncStore implements SyncStore {
 
     const intersectionIntervals = intervalIntersectionMany(fragmentIntervals);
 
-    this.record("getFactoryLogFilterIntervals", performance.now() - start);
+    this.record("getFactoryLogFilterIntervals", stopClock());
 
     return intersectionIntervals;
   };
@@ -513,7 +514,7 @@ export class SqliteSyncStore implements SyncStore {
     transactions: RpcTransaction[];
     logs: RpcLog[];
   }) => {
-    const start = performance.now();
+    const stopClock = startClock();
 
     await this.transaction(async (tx) => {
       await tx
@@ -539,7 +540,7 @@ export class SqliteSyncStore implements SyncStore {
       }
     });
 
-    this.record("insertRealtimeBlock", performance.now() - start);
+    this.record("insertRealtimeBlock", stopClock());
   };
 
   insertRealtimeInterval = async ({
@@ -553,7 +554,7 @@ export class SqliteSyncStore implements SyncStore {
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const start = performance.now();
+    const stopClock = startClock();
 
     await this.transaction(async (tx) => {
       await this._insertLogFilterInterval({
@@ -577,7 +578,7 @@ export class SqliteSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertRealtimeInterval", performance.now() - start);
+    this.record("insertRealtimeInterval", stopClock());
   };
 
   deleteRealtimeData = async ({
@@ -587,7 +588,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     fromBlock: bigint;
   }) => {
-    const start = performance.now();
+    const stopClock = startClock();
 
     const fromBlock = encodeAsText(fromBlock_);
 
@@ -685,7 +686,7 @@ export class SqliteSyncStore implements SyncStore {
         .execute();
     });
 
-    this.record("deleteRealtimeData", performance.now() - start);
+    this.record("deleteRealtimeData", stopClock());
   };
 
   /** SYNC HELPER METHODS */
@@ -775,7 +776,7 @@ export class SqliteSyncStore implements SyncStore {
     request: string;
     result: string;
   }) => {
-    const start = performance.now();
+    const stopClock = startClock();
 
     await this.db
       .insertInto("rpcRequestResults")
@@ -788,7 +789,7 @@ export class SqliteSyncStore implements SyncStore {
       .onConflict((oc) => oc.doUpdateSet({ result }))
       .execute();
 
-    this.record("insertRpcRequestResult", performance.now() - start);
+    this.record("insertRpcRequestResult", stopClock());
   };
 
   getRpcRequestResult = async ({
@@ -800,7 +801,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     request: string;
   }) => {
-    const start = performance.now();
+    const stopClock = startClock();
 
     const rpcRequestResult = await this.db
       .selectFrom("rpcRequestResults")
@@ -817,7 +818,7 @@ export class SqliteSyncStore implements SyncStore {
         }
       : null;
 
-    this.record("getRpcRequestResult", performance.now() - start);
+    this.record("getRpcRequestResult", stopClock());
 
     return result;
   };
@@ -826,143 +827,175 @@ export class SqliteSyncStore implements SyncStore {
     fromCheckpoint,
     toCheckpoint,
     limit,
-    logFilters = [],
-    factories = [],
+    logFilters = undefined,
+    factories = undefined,
   }: {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
-    logFilters?: {
-      id: string;
-      chainId: number;
-      criteria: LogFilterCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-      includeEventSelectors?: Hex[];
-    }[];
-    factories?: {
-      id: string;
-      chainId: number;
-      criteria: FactoryCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-      includeEventSelectors?: Hex[];
-    }[];
-  }) {
-    const start = performance.now();
-
-    const baseQuery = this.db
-      .with(
-        "sources(source_id)",
-        () =>
-          sql`( values ${sql.join(
-            [...logFilters.map((f) => f.id), ...factories.map((f) => f.id)].map(
-              (id) => sql`( ${sql.val(id)} )`,
-            ),
-          )} )`,
-      )
-      .selectFrom("logs")
-      .leftJoin("blocks", "blocks.hash", "logs.blockHash")
-      .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
-      .innerJoin("sources", (join) => join.onTrue())
-      .where((eb) => {
-        const logFilterCmprs = logFilters.map((logFilter) => {
-          const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-          if (logFilter.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                logFilter.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
-
-        const factoryCmprs = factories.map((factory) => {
-          const exprs = this.buildFactoryCmprs({ eb, factory });
-          if (factory.includeEventSelectors) {
-            exprs.push(
-              eb.or(
-                factory.includeEventSelectors.map((t) =>
-                  eb("logs.topic0", "=", t),
-                ),
-              ),
-            );
-          }
-          return eb.and(exprs);
-        });
-
-        return eb.or([...logFilterCmprs, ...factoryCmprs]);
-      });
+  } & (
+    | {
+        logFilters: {
+          id: string;
+          chainId: number;
+          criteria: LogFilterCriteria;
+          fromBlock?: number;
+          toBlock?: number;
+          eventSelector: Hex;
+        }[];
+        factories: undefined;
+      }
+    | {
+        logFilters: undefined;
+        factories: {
+          id: string;
+          chainId: number;
+          criteria: FactoryCriteria;
+          fromBlock?: number;
+          toBlock?: number;
+          eventSelector: Hex;
+        }[];
+      }
+  )) {
+    const stopClock = startClock();
 
     // Query a batch of logs.
-    const requestedLogs = await baseQuery
-      .select([
-        "source_id",
+    const [requestedLogs, lastCheckpointRows] = await Promise.all([
+      this.db
+        .selectFrom("logs")
+        .leftJoin("blocks", "blocks.hash", "logs.blockHash")
+        .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
+        .where((eb) => {
+          const logFilterCmprs =
+            logFilters?.map((logFilter) => {
+              const exprs = this.buildLogFilterCmprs({ eb, logFilter });
 
-        "logs.address as log_address",
-        "logs.blockHash as log_blockHash",
-        "logs.blockNumber as log_blockNumber",
-        "logs.chainId as log_chainId",
-        "logs.data as log_data",
-        "logs.id as log_id",
-        "logs.logIndex as log_logIndex",
-        "logs.topic0 as log_topic0",
-        "logs.topic1 as log_topic1",
-        "logs.topic2 as log_topic2",
-        "logs.topic3 as log_topic3",
-        "logs.transactionHash as log_transactionHash",
-        "logs.transactionIndex as log_transactionIndex",
+              exprs.push(eb("logs.topic0", "=", logFilter.eventSelector));
 
-        "blocks.baseFeePerGas as block_baseFeePerGas",
-        "blocks.difficulty as block_difficulty",
-        "blocks.extraData as block_extraData",
-        "blocks.gasLimit as block_gasLimit",
-        "blocks.gasUsed as block_gasUsed",
-        "blocks.hash as block_hash",
-        "blocks.logsBloom as block_logsBloom",
-        "blocks.miner as block_miner",
-        "blocks.mixHash as block_mixHash",
-        "blocks.nonce as block_nonce",
-        "blocks.number as block_number",
-        "blocks.parentHash as block_parentHash",
-        "blocks.receiptsRoot as block_receiptsRoot",
-        "blocks.sha3Uncles as block_sha3Uncles",
-        "blocks.size as block_size",
-        "blocks.stateRoot as block_stateRoot",
-        "blocks.timestamp as block_timestamp",
-        "blocks.totalDifficulty as block_totalDifficulty",
-        "blocks.transactionsRoot as block_transactionsRoot",
+              return eb.and(exprs);
+            }) ?? [];
 
-        "transactions.accessList as tx_accessList",
-        "transactions.blockHash as tx_blockHash",
-        "transactions.blockNumber as tx_blockNumber",
-        "transactions.from as tx_from",
-        "transactions.gas as tx_gas",
-        "transactions.gasPrice as tx_gasPrice",
-        "transactions.hash as tx_hash",
-        "transactions.input as tx_input",
-        "transactions.maxFeePerGas as tx_maxFeePerGas",
-        "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
-        "transactions.nonce as tx_nonce",
-        "transactions.r as tx_r",
-        "transactions.s as tx_s",
-        "transactions.to as tx_to",
-        "transactions.transactionIndex as tx_transactionIndex",
-        "transactions.type as tx_type",
-        "transactions.value as tx_value",
-        "transactions.v as tx_v",
-      ])
-      .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
-      .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
-      .orderBy("blocks.timestamp", "asc")
-      .orderBy("logs.chainId", "asc")
-      .orderBy("blocks.number", "asc")
-      .orderBy("logs.logIndex", "asc")
-      .limit(limit + 1)
-      .execute();
+          const factoryCmprs =
+            factories?.map((factory) => {
+              const exprs = this.buildFactoryCmprs({ eb, factory });
+
+              exprs.push(eb("logs.topic0", "=", factory.eventSelector));
+
+              return eb.and(exprs);
+            }) ?? [];
+
+          return eb.or([...logFilterCmprs, ...factoryCmprs]);
+        })
+        .select([
+          "logs.address as log_address",
+          "logs.blockHash as log_blockHash",
+          "logs.blockNumber as log_blockNumber",
+          "logs.chainId as log_chainId",
+          "logs.data as log_data",
+          "logs.id as log_id",
+          "logs.logIndex as log_logIndex",
+          "logs.topic0 as log_topic0",
+          "logs.topic1 as log_topic1",
+          "logs.topic2 as log_topic2",
+          "logs.topic3 as log_topic3",
+          "logs.transactionHash as log_transactionHash",
+          "logs.transactionIndex as log_transactionIndex",
+
+          "blocks.baseFeePerGas as block_baseFeePerGas",
+          "blocks.difficulty as block_difficulty",
+          "blocks.extraData as block_extraData",
+          "blocks.gasLimit as block_gasLimit",
+          "blocks.gasUsed as block_gasUsed",
+          "blocks.hash as block_hash",
+          "blocks.logsBloom as block_logsBloom",
+          "blocks.miner as block_miner",
+          "blocks.mixHash as block_mixHash",
+          "blocks.nonce as block_nonce",
+          "blocks.number as block_number",
+          "blocks.parentHash as block_parentHash",
+          "blocks.receiptsRoot as block_receiptsRoot",
+          "blocks.sha3Uncles as block_sha3Uncles",
+          "blocks.size as block_size",
+          "blocks.stateRoot as block_stateRoot",
+          "blocks.timestamp as block_timestamp",
+          "blocks.totalDifficulty as block_totalDifficulty",
+          "blocks.transactionsRoot as block_transactionsRoot",
+
+          "transactions.accessList as tx_accessList",
+          "transactions.blockHash as tx_blockHash",
+          "transactions.blockNumber as tx_blockNumber",
+          "transactions.from as tx_from",
+          "transactions.gas as tx_gas",
+          "transactions.gasPrice as tx_gasPrice",
+          "transactions.hash as tx_hash",
+          "transactions.input as tx_input",
+          "transactions.maxFeePerGas as tx_maxFeePerGas",
+          "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
+          "transactions.nonce as tx_nonce",
+          "transactions.r as tx_r",
+          "transactions.s as tx_s",
+          "transactions.to as tx_to",
+          "transactions.transactionIndex as tx_transactionIndex",
+          "transactions.type as tx_type",
+          "transactions.value as tx_value",
+          "transactions.v as tx_v",
+        ])
+        .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
+        .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
+        .orderBy("blocks.timestamp", "asc")
+        .orderBy("logs.chainId", "asc")
+        .orderBy("blocks.number", "asc")
+        .orderBy("logs.logIndex", "asc")
+        .limit(limit + 1)
+        .execute()
+        .then((out) => {
+          this.record("getLogEvents", stopClock());
+
+          return out;
+        }),
+      this.db
+        .selectFrom("logs")
+        .leftJoin("blocks", "blocks.hash", "logs.blockHash")
+        .where((eb) => {
+          const logFilterCmprs =
+            logFilters?.map((logFilter) => {
+              const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+
+              exprs.push(eb("logs.topic0", "=", logFilter.eventSelector));
+
+              return eb.and(exprs);
+            }) ?? [];
+
+          const factoryCmprs =
+            factories?.map((factory) => {
+              const exprs = this.buildFactoryCmprs({ eb, factory });
+
+              exprs.push(eb("logs.topic0", "=", factory.eventSelector));
+
+              return eb.and(exprs);
+            }) ?? [];
+
+          return eb.or([...logFilterCmprs, ...factoryCmprs]);
+        })
+        .select([
+          "blocks.timestamp as block_timestamp",
+          "logs.chainId as log_chainId",
+          "blocks.number as block_number",
+          "logs.logIndex as log_logIndex",
+        ])
+        .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
+        .orderBy("blocks.timestamp", "desc")
+        .orderBy("logs.chainId", "desc")
+        .orderBy("blocks.number", "desc")
+        .orderBy("logs.logIndex", "desc")
+        .limit(1)
+        .execute()
+        .then((out) => {
+          this.record("getLogEventCount", stopClock());
+
+          return out;
+        }),
+    ]);
 
     const events = requestedLogs.map((_row) => {
       // Without this cast, the block_ and tx_ fields are all nullable
@@ -970,7 +1003,6 @@ export class SqliteSyncStore implements SyncStore {
       // that those fields are indeed present before continuing here.
       const row = _row as NonNull<(typeof requestedLogs)[number]>;
       return {
-        sourceId: row.source_id,
         chainId: row.log_chainId,
         log: {
           address: checksumAddress(row.log_address),
@@ -1060,32 +1092,12 @@ export class SqliteSyncStore implements SyncStore {
                     }),
         },
       } satisfies {
-        sourceId: string;
         chainId: number;
         log: Log;
         block: Block;
         transaction: Transaction;
       };
     });
-
-    // Note: do the same for first checkpoint
-    // Note: should make once off functions for special queries
-
-    // Query for the checkpoint of the last event in the requested range (ignore the batch limit)
-    const lastCheckpointRows = await baseQuery
-      .select([
-        "blocks.timestamp as block_timestamp",
-        "logs.chainId as log_chainId",
-        "blocks.number as block_number",
-        "logs.logIndex as log_logIndex",
-      ])
-      .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
-      .orderBy("blocks.timestamp", "desc")
-      .orderBy("logs.chainId", "desc")
-      .orderBy("blocks.number", "desc")
-      .orderBy("logs.logIndex", "desc")
-      .limit(1)
-      .execute();
 
     const lastCheckpointRow = lastCheckpointRows[0];
     const lastCheckpoint =
@@ -1101,8 +1113,6 @@ export class SqliteSyncStore implements SyncStore {
             logIndex: lastCheckpointRow.log_logIndex,
           } satisfies Checkpoint)
         : undefined;
-
-    this.record("getLogEvents", performance.now() - start);
 
     if (events.length === limit + 1) {
       events.pop();
@@ -1212,7 +1222,6 @@ export class SqliteSyncStore implements SyncStore {
   }) => {
     const exprs = [];
 
-    exprs.push(eb("source_id", "=", logFilter.id));
     exprs.push(eb("logs.chainId", "=", logFilter.chainId));
 
     if (logFilter.criteria.address) {
@@ -1267,7 +1276,6 @@ export class SqliteSyncStore implements SyncStore {
   }) => {
     const exprs = [];
 
-    exprs.push(eb("source_id", "=", factory.id));
     exprs.push(eb("logs.chainId", "=", factory.chainId));
 
     const selectChildAddressExpression =

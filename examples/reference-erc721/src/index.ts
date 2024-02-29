@@ -15,7 +15,7 @@ ponder.on("ERC721:Transfer", async ({ event, context }) => {
 
   // Create or update a Token.
   await Token.upsert({
-    id: event.args.tokenId,
+    id: event.args.id,
     create: {
       ownerId: event.args.to,
     },
@@ -30,7 +30,7 @@ ponder.on("ERC721:Transfer", async ({ event, context }) => {
     data: {
       fromId: event.args.from,
       toId: event.args.to,
-      tokenId: event.args.tokenId,
+      tokenId: event.args.id,
       timestamp: Number(event.block.timestamp),
     },
   });

@@ -95,7 +95,7 @@
       rgba(0, 0, 0, 0) 0%,
       #fff 100%
     ),
-    url("/hero-texture.png") lightgray 50% / cover no-repeat;
+    url("/hero.png") lightgray 50% / cover no-repeat;
 }
 .dark .hero-texture {
   background:
@@ -104,5 +104,5 @@
       rgba(0, 0, 0, 0) -20%,
       #111 100%
     ),
-    url("/hero-texture.png") lightgray 50% / cover no-repeat;
+    url("/hero.png") lightgray 50% / cover no-repeat;
 }

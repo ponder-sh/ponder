@@ -75,7 +75,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     // Instance tables were created in the cache schema
@@ -125,7 +125,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     // TODO add some data and then flush
@@ -166,7 +166,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: { function: "function" },
-      tableAccess: [],
+      tableAccess: {},
     });
 
     const { rows: instancePetRows } = await databaseTwo.db.executeQuery(
@@ -186,7 +186,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await databaseTwo.kill();
   });
 
-  test.todo("setup with cache hit, truncate required", async (context) => {});
+  test.todo("setup with cache hit, truncate required");
 
   test("publish with fresh database", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
@@ -200,7 +200,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     await database.publish();
@@ -240,7 +240,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     const databaseTwo = new PostgresDatabaseService({
@@ -252,7 +252,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schemaTwo,
       tableIds: getTableIds(schemaTwo),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
     await databaseTwo.publish();
 
@@ -330,7 +330,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     await database.publish();
@@ -354,7 +354,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -429,7 +429,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -523,7 +523,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -629,7 +629,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     await database.kill();
@@ -659,7 +659,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     await database.publish();
@@ -698,7 +698,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
     await database.publish();
 
@@ -712,7 +712,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schemaTwo,
       tableIds: getTableIds(schemaTwo),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
     await otherDatabase.publish();
 

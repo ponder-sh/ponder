@@ -25,8 +25,11 @@ import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
 import type { GraphQLSchema } from "graphql";
-import type { FunctionIds, TableIds } from "./build/static/ids.js";
-import type { TableAccess } from "./build/static/parseAst.js";
+import type {
+  FunctionIds,
+  TableIds,
+} from "./build/static/getFunctionAndTableIds.js";
+import type { TableAccess } from "./build/static/getTableAccess.js";
 import { PostgresDatabaseService } from "./database/postgres/service.js";
 import type { DatabaseService } from "./database/service.js";
 import { SqliteDatabaseService } from "./database/sqlite/service.js";

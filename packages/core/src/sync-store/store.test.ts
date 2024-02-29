@@ -1096,17 +1096,22 @@ test("getLogEvents returns log events", async (context) => {
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
-    logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
+    logFilters: [
+      {
+        id: "noFilter",
+        chainId: 1,
+        criteria: {},
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
+      },
+    ],
   });
 
   expect(events).toHaveLength(2);
 
-  expect(events[0].sourceId).toEqual("noFilter");
   expect(events[0].log.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
   expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
 
-  expect(events[1].sourceId).toEqual("noFilter");
   expect(events[1].log.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
   expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
@@ -1132,6 +1137,7 @@ test("getLogEvents filters on log filter with one address", async (context) => {
         id: "singleAddress",
         chainId: 1,
         criteria: { address: erc20.address },
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
@@ -1168,27 +1174,20 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
         criteria: {
           address: [erc20.address, factory.address],
         },
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
 
-  expect(events).toHaveLength(3);
+  expect(events).toHaveLength(2);
   expect(events[0]).toMatchObject({
-    sourceId: "multipleAddress",
     log: {
       address: checksumAddress(erc20.address),
     },
   });
   expect(events[1]).toMatchObject({
-    sourceId: "multipleAddress",
     log: {
       address: checksumAddress(erc20.address),
-    },
-  });
-  expect(events[2]).toMatchObject({
-    sourceId: "multipleAddress",
-    log: {
-      address: checksumAddress(factory.address),
     },
   });
   await cleanup();
@@ -1220,19 +1219,18 @@ test("getLogEvents filters on log filter with single topic", async (context) => 
         criteria: {
           topics: [rpcData.block1.logs[0].topics[0]!, null, null, null],
         },
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
 
   expect(events).toHaveLength(2);
   expect(events[0]).toMatchObject({
-    sourceId: "singleTopic",
     log: {
       topics: rpcData.block1.logs[0].topics,
     },
   });
   expect(events[1]).toMatchObject({
-    sourceId: "singleTopic",
     log: {
       topics: rpcData.block1.logs[1].topics,
     },
@@ -1271,12 +1269,12 @@ test("getLogEvents filters on log filter with multiple topics", async (context) 
             null,
           ],
         },
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
 
   expect(events[0]).toMatchObject({
-    sourceId: "multipleTopics",
     log: {
       topics: rpcData.block1.logs[0].topics,
     },
@@ -1331,13 +1329,13 @@ test("getLogEvents filters on simple factory", async (context) => {
             "0x0000000000000000000000000000000000000000000factoryeventsignature",
           childAddressLocation: "topic1",
         },
+        eventSelector: rpcData.block2.logs[0].topics[0]!,
       },
     ],
   });
 
   expect(events).toHaveLength(1);
   expect(events[0]).toMatchObject({
-    sourceId: "simple",
     log: { topics: rpcData.block2.logs[0].topics },
   });
   await cleanup();
@@ -1368,12 +1366,12 @@ test("getLogEvents filters on fromBlock", async (context) => {
         chainId: 1,
         fromBlock: Number(rpcData.block2.block.number!),
         criteria: {},
+        eventSelector: rpcData.block2.logs[0].topics[0]!,
       },
     ],
   });
 
   expect(events[0]).toMatchObject({
-    sourceId: "fromBlock",
     block: {
       number: BigInt(rpcData.block2.block.number!),
     },
@@ -1406,6 +1404,7 @@ test("getLogEvents filters on multiple filters", async (context) => {
         id: "singleAddress",
         chainId: 1,
         criteria: { address: erc20.address },
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
       {
         id: "singleTopic",
@@ -1413,33 +1412,20 @@ test("getLogEvents filters on multiple filters", async (context) => {
         criteria: {
           topics: [rpcData.block1.logs[0].topics[0]!, null, null, null],
         },
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
       },
     ],
   });
 
-  expect(events).toHaveLength(4);
+  expect(events).toHaveLength(2);
   expect(events[0]).toMatchObject({
-    sourceId: "singleAddress",
-    log: {
-      address: checksumAddress(erc20.address),
-    },
-  });
-  expect(events[2]).toMatchObject({
-    sourceId: "singleAddress",
-    log: {
-      address: checksumAddress(erc20.address),
-    },
-  });
-  expect(events[1]).toMatchObject({
-    sourceId: "singleTopic",
     log: {
       topics: rpcData.block1.logs[0].topics,
     },
   });
-  expect(events[3]).toMatchObject({
-    sourceId: "singleTopic",
+  expect(events[1]).toMatchObject({
     log: {
-      topics: rpcData.block1.logs[1].topics,
+      address: checksumAddress(erc20.address),
     },
   });
   await cleanup();
@@ -1470,7 +1456,14 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async (context) => {
     },
     toCheckpoint: maxCheckpoint,
     limit: 100,
-    logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
+    logFilters: [
+      {
+        id: "noFilter",
+        chainId: 1,
+        criteria: {},
+        eventSelector: rpcData.block2.logs[0].topics[0]!,
+      },
+    ],
   });
 
   expect(events).toHaveLength(1);
@@ -1501,7 +1494,14 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
       blockNumber: Number(rpcData.block1.block.number!),
     },
     limit: 100,
-    logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
+    logFilters: [
+      {
+        id: "noFilter",
+        chainId: 1,
+        criteria: {},
+        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
+      },
+    ],
   });
 
   expect(events).toHaveLength(2);
@@ -1512,9 +1512,10 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents returns no events if includeEventSelectors is an empty array", async (context) => {
+test("getLogEvents returns no events if eventSelector doesn't match", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
+
   const rpcData = await getRawRPCData(sources);
 
   await syncStore.insertRealtimeBlock({
@@ -1532,7 +1533,7 @@ test("getLogEvents returns no events if includeEventSelectors is an empty array"
     toCheckpoint: maxCheckpoint,
     limit: 100,
     logFilters: [
-      { id: "noFilter", chainId: 1, criteria: {}, includeEventSelectors: [] },
+      { id: "noFilter", chainId: 1, criteria: {}, eventSelector: "0x" },
     ],
   });
 

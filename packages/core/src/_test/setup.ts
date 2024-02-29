@@ -122,7 +122,7 @@ const defaultDatabaseServiceReset: DatabaseServiceReset = {
   schema: defaultSchema,
   tableIds: getTableIds(defaultSchema),
   functionIds: {},
-  tableAccess: [],
+  tableAccess: {},
 };
 
 export async function setupDatabaseServices(

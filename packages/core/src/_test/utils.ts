@@ -1,7 +1,10 @@
 import type { Common, Ponder } from "@/Ponder.js";
 import { buildConfig } from "@/build/config/config.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
-import type { FunctionIds, TableIds } from "@/build/static/ids.js";
+import type {
+  FunctionIds,
+  TableIds,
+} from "@/build/static/getFunctionAndTableIds.js";
 import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";

@@ -80,12 +80,12 @@ export class UiService {
       );
 
       this.ui.indexingStats = eventNames.map((event) => {
-        const totalSeconds =
-          totalSecondsMetric.find((m) => m.labels.event === event)?.value ?? 0;
-        const completedSeconds =
-          completedSecondsMetric.find((m) => m.labels.event === event)?.value ??
-          0;
-
+        const totalSeconds = totalSecondsMetric.find(
+          (m) => m.labels.event === event,
+        )?.value;
+        const completedSeconds = completedSecondsMetric.find(
+          (m) => m.labels.event === event,
+        )?.value;
         const completedEventCount = completedEventsMetric
           .filter((m) => m.labels.event === event)
           .reduce((a, v) => a + v.value, 0);

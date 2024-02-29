@@ -70,7 +70,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     // Instance tables were created in the cache schema
@@ -101,7 +101,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
     await database.kill();
 
@@ -125,7 +125,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schemaTwo,
       tableIds: getTableIds(schemaTwo),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     // New tables were created
@@ -134,9 +134,9 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.kill();
   });
 
-  test.todo("setup with cache hit", async (context) => {});
+  test.todo("setup with cache hit");
 
-  test.todo("setup with cache hit, truncate required", async (context) => {});
+  test.todo("setup with cache hit, truncate required");
 
   test("publish is a no-op", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
@@ -150,7 +150,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     await database.publish();
@@ -172,7 +172,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -247,7 +247,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -341,7 +341,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -447,7 +447,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: [],
+      tableAccess: {},
     });
 
     await database.publish();

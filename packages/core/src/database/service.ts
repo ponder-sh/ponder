@@ -1,5 +1,8 @@
-import type { FunctionIds, TableIds } from "@/build/static/ids.js";
-import type { TableAccess } from "@/build/static/parseAst.js";
+import type {
+  FunctionIds,
+  TableIds,
+} from "@/build/static/getFunctionAndTableIds.js";
+import type { TableAccess } from "@/build/static/getTableAccess.js";
 import type { Schema } from "@/schema/types.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import { PostgresDatabaseService } from "./postgres/service.js";

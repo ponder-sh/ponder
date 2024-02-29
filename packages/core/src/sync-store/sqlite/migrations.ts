@@ -419,6 +419,15 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_03_00_0_log_transaction_hash_index": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createIndex("log_transaction_hash_index")
+        .on("logs")
+        .column("transactionHash")
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

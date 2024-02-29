@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.2.5",
+  "version": "0.2.11",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -42,7 +42,7 @@
     }
   },
   "dependencies": {
-    "@ast-grep/napi": "^0.17.1",
+    "@ast-grep/napi": "^0.19.3",
     "@babel/code-frame": "^7.23.4",
     "abitype": "^0.10.2",
     "async-mutex": "^0.4.0",
@@ -50,6 +50,7 @@
     "cac": "^6.7.14",
     "conf": "^12.0.0",
     "cors": "^2.8.5",
+    "dataloader": "^2.2.2",
     "detect-package-manager": "^3.0.1",
     "dotenv": "^16.3.1",
     "emittery": "^1.0.1",
@@ -62,7 +63,6 @@
     "ink": "^4.4.1",
     "kysely": "^0.26.3",
     "magic-string": "^0.30.5",
-    "p-limit": "^5.0.0",
     "p-queue": "^7.4.1",
     "pg": "^8.11.3",
     "pg-connection-string": "^2.6.2",

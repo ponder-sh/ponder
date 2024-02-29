@@ -18,20 +18,13 @@ const fetchPonderMetrics = async () => {
   }
 };
 
-const fetchPonderGraphql = async () => {
-  try {
-    const graphqlResponse = await fetchWithTimeout(
-      "http://localhost:42069/graphql",
-    );
-    try {
-      JSON.parse(await graphqlResponse.text());
-      return false;
-    } catch (err) {
-      return true;
-    }
-  } catch (err) {
-    return false;
-  }
+const fetchHealth = async () => {
+  const healthResponse = await fetchWithTimeout(
+    "http://localhost:42069/health",
+  );
+
+  if (healthResponse.status === 200) return true;
+  return false;
 };
 
 const waitForSetupComplete = async () => {
@@ -64,7 +57,7 @@ const waitForSyncComplete = async () => {
   let duration = 0;
   await new Promise((resolve) => {
     const interval = setInterval(async () => {
-      if (await fetchPonderGraphql()) {
+      if (await fetchHealth()) {
         duration = endClock();
         clearInterval(interval);
         resolve(undefined);
@@ -99,14 +92,14 @@ const ponder = async () => {
 };
 
 const bench = async () => {
-  rmSync(path.join(process.argv[2]!, ".ponder"), {
-    recursive: true,
-    force: true,
-  });
-  rmSync(path.join(process.argv[2]!, "generated"), {
-    recursive: true,
-    force: true,
-  });
+  // rmSync(path.join(process.argv[2]!, ".ponder"), {
+  //   recursive: true,
+  //   force: true,
+  // });
+  // rmSync(path.join(process.argv[2]!, "generated"), {
+  //   recursive: true,
+  //   force: true,
+  // });
 
   const ponderCold = await ponder();
   const ponderHot = await ponder();

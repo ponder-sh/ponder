@@ -1,5 +1,49 @@
 # @ponder/core
 
+## 0.2.11
+
+### Patch Changes
+
+- [#672](https://github.com/ponder-sh/ponder/pull/672) [`3b50ef2891917e3af18f11f48fff9fe6a5f15545`](https://github.com/ponder-sh/ponder/commit/3b50ef2891917e3af18f11f48fff9fe6a5f15545) Thanks [@0xOlias](https://github.com/0xOlias)! - Increased default Postgres statement timeout.
+
+- [#669](https://github.com/ponder-sh/ponder/pull/669) [`41c72adec0c6c039f7e475d7e8aab8a5aa61651e`](https://github.com/ponder-sh/ponder/commit/41c72adec0c6c039f7e475d7e8aab8a5aa61651e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed indexing service event ordering bug.
+
+## 0.2.10
+
+### Patch Changes
+
+- [#667](https://github.com/ponder-sh/ponder/pull/667) [`c3864c967dbd04cc240d0092829e10d49e7eaff0`](https://github.com/ponder-sh/ponder/commit/c3864c967dbd04cc240d0092829e10d49e7eaff0) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated ast-grep to 0.19.3 which fixed support for running Ponder on Alpine Linux-based Docker images.
+
+- [#663](https://github.com/ponder-sh/ponder/pull/663) [`51aa6f7ae8266f5b29ed719aa85d48be1266ba17`](https://github.com/ponder-sh/ponder/commit/51aa6f7ae8266f5b29ed719aa85d48be1266ba17) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed sync-store metrics for Postgres apps.
+
+- [#655](https://github.com/ponder-sh/ponder/pull/655) [`c7d7d3a4982ae162254014c0e2f6b1ec67056d7a`](https://github.com/ponder-sh/ponder/commit/c7d7d3a4982ae162254014c0e2f6b1ec67056d7a) Thanks [@kyscott18](https://github.com/kyscott18)! - Added a warning log when static analysis fails.
+
+- [#662](https://github.com/ponder-sh/ponder/pull/662) [`ef704653d0b124a5fc917ccc160d86ea5cf950d7`](https://github.com/ponder-sh/ponder/commit/ef704653d0b124a5fc917ccc160d86ea5cf950d7) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved indexing performance when loading events from the database.
+
+## 0.2.9
+
+## 0.2.8
+
+### Patch Changes
+
+- [#648](https://github.com/ponder-sh/ponder/pull/648) [`e12bc8ac74a75d4e6e9962987894e107c98a87a3`](https://github.com/ponder-sh/ponder/commit/e12bc8ac74a75d4e6e9962987894e107c98a87a3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed static analysis issue affecting indexing functions using class methods as helper functions.
+
+## 0.2.7
+
+### Patch Changes
+
+- [#636](https://github.com/ponder-sh/ponder/pull/636) [`c10a0b7bff99dd8cd2f38ea0714ff82f5e17f00b`](https://github.com/ponder-sh/ponder/commit/c10a0b7bff99dd8cd2f38ea0714ff82f5e17f00b) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for AND and OR filter operators in the `findMany` store API method and the GraphQL API. Fixed a bug where GraphQL `PageInfo` types were incorrectly marked as nullable.
+
+- [#636](https://github.com/ponder-sh/ponder/pull/636) [`c10a0b7bff99dd8cd2f38ea0714ff82f5e17f00b`](https://github.com/ponder-sh/ponder/commit/c10a0b7bff99dd8cd2f38ea0714ff82f5e17f00b) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a time-travel query bug where nested fields in GraphQL queries would not respect the `timestamp` argument passed to the top-level field. Removed the `timestamp` argument from nested `p.many()` fields. Now, use the `timestamp` argument on the top-level field and all nested fields will respect it.
+
+## 0.2.6
+
+### Patch Changes
+
+- [#643](https://github.com/ponder-sh/ponder/pull/643) [`7328e54232cb85d7370c33aba783a2f1f7ef0ab0`](https://github.com/ponder-sh/ponder/commit/7328e54232cb85d7370c33aba783a2f1f7ef0ab0) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with the terminal ui showing "waiting to start..." when one event had been processed
+
+- [#635](https://github.com/ponder-sh/ponder/pull/635) [`6e7d49f0f2ea05558affc996fc2ee83db881880c`](https://github.com/ponder-sh/ponder/commit/6e7d49f0f2ea05558affc996fc2ee83db881880c) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for the `DATABASE_PRIVATE_URL` environment variable. Added info log on startup that includes which database is being used. Added warning for missing `.env.local` file during development. Improved ponder.config.ts validation for misspelled keys.
+
 ## 0.2.5
 
 ### Patch Changes

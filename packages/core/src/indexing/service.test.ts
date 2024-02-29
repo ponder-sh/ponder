@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { getEventsErc20, getFunctionIds, getTableIds } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
-import type { TableAccess } from "@/build/static/parseAst.js";
+import type { TableAccess } from "@/build/static/getTableAccess.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 import {
@@ -71,14 +71,14 @@ const readContractIndexingFunctions: IndexingFunctions = {
   Erc20: { Transfer: readContractTransferIndexingFunction },
 };
 
-const tableAccess: TableAccess = [
-  {
-    table: "TransferEvent",
-    access: "write",
-    indexingFunctionKey: "Erc20:Transfer",
-    hash: "",
-  },
-];
+const tableAccess: TableAccess = {
+  "Erc20:Transfer": [
+    {
+      storeMethod: "create",
+      tableName: "TransferEvent",
+    },
+  ],
+};
 
 function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index, blockNumber: index };
@@ -343,20 +343,14 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
 test("processEvents() orders tasks with self reliance", async (context) => {
   const { common, sources, networks, requestQueues } = context;
 
-  const tableAccess: TableAccess = [
-    {
-      table: "TransferEvent",
-      access: "write",
-      indexingFunctionKey: "Erc20:Transfer",
-      hash: "",
-    },
-    {
-      table: "TransferEvent",
-      access: "read",
-      indexingFunctionKey: "Erc20:Transfer",
-      hash: "",
-    },
-  ];
+  const tableAccess: TableAccess = {
+    "Erc20:Transfer": [
+      {
+        tableName: "TransferEvent",
+        storeMethod: "update",
+      },
+    ],
+  };
 
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
@@ -683,20 +677,14 @@ test("processEvents() retries indexing functions", async (context) => {
 test("processEvents() handles errors", async (context) => {
   const { common, sources, networks, requestQueues } = context;
 
-  const tableAccess: TableAccess = [
-    {
-      table: "TransferEvent",
-      access: "write",
-      indexingFunctionKey: "Erc20:Transfer",
-      hash: "",
-    },
-    {
-      table: "TransferEvent",
-      access: "read",
-      indexingFunctionKey: "Erc20:Transfer",
-      hash: "",
-    },
-  ];
+  const tableAccess: TableAccess = {
+    "Erc20:Transfer": [
+      {
+        tableName: "TransferEvent",
+        storeMethod: "update",
+      },
+    ],
+  };
 
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {

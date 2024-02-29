@@ -1,5 +1,25 @@
 # create-ponder
 
+## 0.2.11
+
+## 0.2.10
+
+## 0.2.9
+
+### Patch Changes
+
+- [#656](https://github.com/ponder-sh/ponder/pull/656) [`f37099f9b04f83505bd9a8afab0e82c78995463b`](https://github.com/ponder-sh/ponder/commit/f37099f9b04f83505bd9a8afab0e82c78995463b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added erc1155 and erc4626 to the list of templates.
+
+## 0.2.8
+
+## 0.2.7
+
+### Patch Changes
+
+- [#644](https://github.com/ponder-sh/ponder/pull/644) [`573146d9d99abfd1d7657f4cbf313f779dcf3511`](https://github.com/ponder-sh/ponder/commit/573146d9d99abfd1d7657f4cbf313f779dcf3511) Thanks [@0xOlias](https://github.com/0xOlias)! - Added warnings for unverified contracts (incl EOA addresses) when using the block explorer template.
+
+## 0.2.6
+
 ## 0.2.5
 
 ## 0.2.4

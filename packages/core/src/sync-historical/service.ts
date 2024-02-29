@@ -11,6 +11,7 @@ import {
 import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
+import { debounce } from "@/utils/debounce.js";
 import { Emittery } from "@/utils/emittery.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
@@ -40,6 +41,8 @@ import {
   getLogFilterRetryRanges,
 } from "./getLogFilterRetryRanges.js";
 import { validateHistoricalBlockRange } from "./validateHistoricalBlockRange.js";
+
+const HISTORICAL_CHECKPOINT_EMIT_INTERVAL = 500;
 
 type HistoricalSyncEvents = {
   /**
@@ -828,7 +831,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
 
     if (newBlockCheckpoint) {
-      this.emit("historicalCheckpoint", {
+      this.debouncedEmitCheckpoint({
         blockTimestamp: newBlockCheckpoint.blockTimestamp,
         chainId: this.network.chainId,
         blockNumber: newBlockCheckpoint.blockNumber,
@@ -1031,4 +1034,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         endBlock: BigInt(endBlock),
       },
     });
+
+  private debouncedEmitCheckpoint = debounce(
+    HISTORICAL_CHECKPOINT_EMIT_INTERVAL,
+    (checkpoint: Checkpoint) => {
+      this.emit("historicalCheckpoint", checkpoint);
+    },
+  );
 }
