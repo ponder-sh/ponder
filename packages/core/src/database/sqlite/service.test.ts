@@ -1,7 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { mkdirSync, rmSync } from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { setupIsolatedDatabase } from "@/_test/setup.js";
 import { getTableIds } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import {
@@ -12,6 +9,8 @@ import {
 import { Kysely, sql } from "kysely";
 import { beforeEach, describe, expect, test } from "vitest";
 import { SqliteDatabaseService } from "./service.js";
+
+beforeEach(setupIsolatedDatabase);
 
 const schema = createSchema((p) => ({
   PetKind: p.createEnum(["CAT", "DOG"]),
@@ -44,18 +43,11 @@ const schemaTwo = createSchema((p) => ({
 const shouldSkip = process.env.DATABASE_URL !== undefined;
 
 describe.skipIf(shouldSkip)("sqlite database", () => {
-  beforeEach<{ directory: string }>((context) => {
-    const tempDir = path.join(os.tmpdir(), randomUUID());
-    context.directory = tempDir;
-    mkdirSync(tempDir, { recursive: true });
-    return () => rmSync(tempDir, { recursive: true, force: true });
-  });
-
   test("setup with fresh database", async (context) => {
-    const directory = (context as any).directory as string;
+    if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,
-      directory,
+      directory: context.databaseConfig.directory,
     });
 
     await database.setup();
@@ -92,12 +84,12 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
   });
 
   test("setup with existing tables", async (context) => {
-    const directory = (context as any).directory as string;
-
+    if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,
-      directory,
+      directory: context.databaseConfig.directory,
     });
+
     await database.setup();
     await database.reset({
       schema: schema,
@@ -109,7 +101,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
 
     const databaseTwo = new SqliteDatabaseService({
       common: context.common,
-      directory,
+      directory: context.databaseConfig.directory,
     });
 
     // Old tables still exist
@@ -141,10 +133,10 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
   test.todo("setup with cache hit, truncate required", async (context) => {});
 
   test("publish is a no-op", async (context) => {
-    const directory = (context as any).directory as string;
+    if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,
-      directory,
+      directory: context.databaseConfig.directory,
     });
 
     await database.setup();
@@ -163,10 +155,10 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
   });
 
   test.todo("flush with fresh database", async (context) => {
-    const directory = (context as any).directory as string;
+    if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,
-      directory,
+      directory: context.databaseConfig.directory,
     });
 
     await database.setup();
@@ -199,10 +191,10 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
   test.todo("flush with some partial cache tables", async (context) => {});
 
   test("kill", async (context) => {
-    const directory = (context as any).directory as string;
+    if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,
-      directory,
+      directory: context.databaseConfig.directory,
     });
 
     await database.setup();

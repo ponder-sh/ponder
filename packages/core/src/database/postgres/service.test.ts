@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { setupIsolatedDatabase } from "@/_test/setup.js";
 import { getTableIds } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import {
@@ -7,9 +7,10 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { Kysely, sql } from "kysely";
-import { Client } from "pg";
 import { beforeEach, describe, expect, test } from "vitest";
 import { PostgresDatabaseService } from "./service.js";
+
+beforeEach(setupIsolatedDatabase);
 
 const schema = createSchema((p) => ({
   PetKind: p.createEnum(["CAT", "DOG"]),
@@ -42,34 +43,11 @@ const schemaTwo = createSchema((p) => ({
 const shouldSkip = process.env.DATABASE_URL === undefined;
 
 describe.skipIf(shouldSkip)("postgres database", () => {
-  beforeEach<{ connectionString: string }>(async (context) => {
-    const testClient = new Client({
-      connectionString: process.env.DATABASE_URL,
-    });
-
-    await testClient.connect();
-
-    const randomSuffix = randomBytes(10).toString("hex");
-    const databaseName = `vitest_${randomSuffix}`;
-    const databaseUrl = new URL(process.env.DATABASE_URL!);
-    databaseUrl.pathname = `/${databaseName}`;
-    const connectionString = databaseUrl.toString();
-
-    await testClient.query(`CREATE DATABASE "${databaseName}"`);
-
-    context.connectionString = connectionString;
-
-    return async () => {
-      await testClient.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
-      await testClient.end();
-    };
-  });
-
   test("setup with fresh database", async (context) => {
-    const connectionString = (context as any).connectionString as string;
+    if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     await database.setup();
@@ -134,10 +112,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   test.todo("setup with cache hit, truncate required", async (context) => {});
 
   test("publish with fresh database", async (context) => {
-    const connectionString = (context as any).connectionString as string;
+    if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     await database.setup();
@@ -174,11 +152,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   });
 
   test("publish with another instance live", async (context) => {
-    const connectionString = (context as any).connectionString as string;
-
+    if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     await database.setup();
@@ -191,7 +168,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
     await databaseTwo.setup();
     await databaseTwo.reset({
@@ -265,10 +242,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   });
 
   test("publish twice for same instance", async (context) => {
-    const connectionString = (context as any).connectionString as string;
+    if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     await database.setup();
@@ -289,10 +266,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   });
 
   test.todo("flush with fresh database", async (context) => {
-    const connectionString = (context as any).connectionString as string;
+    if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     await database.setup();
@@ -325,10 +302,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   test.todo("flush with some partial cache tables", async (context) => {});
 
   test("kill before publish", async (context) => {
-    const connectionString = (context as any).connectionString as string;
+    if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     await database.setup();
@@ -343,7 +320,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const tempDb = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     // Instance schema was dropped
@@ -355,10 +332,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   });
 
   test("kill after publish", async (context) => {
-    const connectionString = (context as any).connectionString as string;
+    if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     await database.setup();
@@ -375,7 +352,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const tempDb = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     // Instance schema was not dropped
@@ -394,10 +371,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   });
 
   test("kill after publish with another instance live", async (context) => {
-    const connectionString = (context as any).connectionString as string;
+    if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     await database.setup();
@@ -411,7 +388,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const otherDatabase = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     await otherDatabase.setup();
@@ -427,7 +404,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const tempDb = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString },
+      poolConfig: context.databaseConfig.poolConfig,
     });
 
     // Instance schema was dropped
