@@ -1112,7 +1112,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   await cleanup();
 });
 
-test.only("reset() loads from cache", async (context) => {
+test("reset() loads from cache", async (context) => {
   const { common, sources, networks, requestQueues } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
