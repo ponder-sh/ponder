@@ -175,12 +175,19 @@ export class Ponder {
       poolConfig: this.databaseConfig.poolConfig,
     });
     this.database = database;
+    await this.database.setup();
+    await this.database.reset({
+      schema: this.schema,
+      tableIds: this.tableIds,
+      functionIds: this.functionIds,
+      tableAccess: this.tableAccess,
+    });
 
-    const indexingDatabase = await database.getIndexingDatabase();
+    const indexingStoreConfig = database.getIndexingStoreConfig();
     this.indexingStore = new PostgresIndexingStore({
       common: this.common,
-      pool: indexingDatabase.pool,
-      getCurrentIndexingSchemaName: () => database.currentIndexingSchemaName,
+      schema: this.schema,
+      ...indexingStoreConfig,
     });
     // this.common.metrics.registerDatabaseMetrics(database);
 
@@ -280,6 +287,12 @@ export class Ponder {
       this.database = database;
 
       await database.setup();
+      await this.database.reset({
+        schema: this.schema,
+        tableIds: this.tableIds,
+        functionIds: this.functionIds,
+        tableAccess: this.tableAccess,
+      });
 
       const indexingDatabase = await this.database.getIndexingDatabase();
       this.indexingStore = new SqliteIndexingStore({
@@ -300,19 +313,24 @@ export class Ponder {
       this.database = database;
 
       await database.setup();
-
-      const indexingDatabase = await database.getIndexingDatabase();
-      this.indexingStore = new PostgresIndexingStore({
-        common: this.common,
-        pool: indexingDatabase.pool,
-        getCurrentIndexingSchemaName: () => database.currentIndexingSchemaName,
+      await this.database.reset({
+        schema: this.schema,
+        tableIds: this.tableIds,
+        functionIds: this.functionIds,
+        tableAccess: this.tableAccess,
       });
 
-      const syncDatabase = await this.database.getSyncDatabase();
+      const indexingStoreConfig = database.getIndexingStoreConfig();
+      this.indexingStore = new PostgresIndexingStore({
+        common: this.common,
+        schema: this.schema,
+        ...indexingStoreConfig,
+      });
+
+      const syncStoreConfig = await this.database.getSyncStoreConfig();
       this.syncStore = new PostgresSyncStore({
         common: this.common,
-        schemaName: syncDatabase.schemaName,
-        pool: syncDatabase.pool,
+        ...syncStoreConfig,
       });
     }
 
@@ -395,15 +413,6 @@ export class Ponder {
     await this.serverService.start();
     this.serverService.reloadGraphqlSchema({
       graphqlSchema: this.graphqlSchema,
-    });
-
-    this.indexingStore.reset({ schema: this.schema });
-
-    await this.database.reset({
-      schema: this.schema,
-      tableIds: this.tableIds,
-      functionIds: this.functionIds,
-      tableAccess: this.tableAccess,
     });
 
     // Start the indexing service
@@ -551,7 +560,6 @@ export class Ponder {
         this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
         this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
-        this.indexingStore.reset({ schema });
         await this.database.reset({
           schema,
           tableIds,

@@ -116,7 +116,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(metadataRows).toEqual([
       {
         created_at: expect.any(Number),
-        heartbeart_at: expect.any(Number),
+        heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: null,
         schema: schema,
@@ -163,7 +163,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(metadataRows).toEqual([
       {
         created_at: expect.any(Number),
-        heartbeart_at: expect.any(Number),
+        heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: expect.any(Number),
         schema: schema,
@@ -215,14 +215,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(firstMetadataRows).toEqual([
       {
         created_at: expect.any(Number),
-        heartbeart_at: expect.any(Number),
+        heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: null,
         schema: schema,
       },
       {
         created_at: expect.any(Number),
-        heartbeart_at: expect.any(Number),
+        heartbeat_at: expect.any(Number),
         instance_id: 2,
         published_at: expect.any(Number),
         schema: schemaTwo,
@@ -246,14 +246,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(metadataRows).toEqual([
       {
         created_at: expect.any(Number),
-        heartbeart_at: expect.any(Number),
+        heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: expect.any(Number),
         schema: schema,
       },
       {
         created_at: expect.any(Number),
-        heartbeart_at: expect.any(Number),
+        heartbeat_at: expect.any(Number),
         instance_id: 2,
         published_at: expect.any(Number),
         schema: schemaTwo,

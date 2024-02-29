@@ -49,7 +49,7 @@ export type PonderCoreSchema = {
     instance_id: Generated<number>;
     schema: JSONColumnType<Schema>;
     created_at: bigint;
-    heartbeart_at: bigint;
+    heartbeat_at: bigint;
     published_at: bigint | null;
   };
 };
