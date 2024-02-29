@@ -905,7 +905,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         // All tables that this indexing function key reads
         const tableReads = this.tableAccess[indexingFunctionKey]
-          ?.filter((t) => storeMethodAccess[t.storeMethod][0] === "read")
+          ?.filter((t) =>
+            storeMethodAccess[t.storeMethod].some((s) => s === "read"),
+          )
           .map((t) => t.tableName);
 
         // All indexing function keys that write to a table in `tableReads`
@@ -917,7 +919,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           ] ?? []) {
             if (
               !parentIndexingFunctionKey.includes(":setup") &&
-              storeMethodAccess[storeMethod][1] === "write" &&
+              storeMethodAccess[storeMethod].some((s) => s === "write") &&
               tableReads.includes(tableName) &&
               parentIndexingFunctionKey !== indexingFunctionKey
             ) {
@@ -928,7 +930,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         const isSelfDependent = this.tableAccess[indexingFunctionKey]?.some(
           (t) =>
-            storeMethodAccess[t.storeMethod][1] === "write" &&
+            storeMethodAccess[t.storeMethod].some((s) => s === "write") &&
             tableReads.includes(t.tableName),
         );
 
