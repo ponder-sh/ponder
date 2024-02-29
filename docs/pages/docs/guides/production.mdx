@@ -46,7 +46,7 @@ After a moment, your Ponder service should redeploy successfully. Check the **Bu
 
 ### Zero-downtime deployments
 
-Ponder supports zero-downtime deployments by waiting until all events have been processed before responding as healthy. To support long-running backfills, Ponder apps will begin responding as healthy _before_ the backfill is complete if it exceeds the `maxHealthcheckDuration`. This option defaults 240 seconds (4 minutes), and is configurable using [`options.maxHealthcheckDuration`](/api-reference/ponder-config#options).
+Ponder supports zero-downtime deployments by waiting until all events have been processed before responding as healthy. To support long-running backfills, Ponder apps will begin responding as healthy _before_ the backfill is complete if it exceeds the `maxHealthcheckDuration`. This option defaults 240 seconds (4 minutes), and is configurable using [`options.maxHealthcheckDuration`](/api-reference/config#options).
 
 If you're using Railway, Ponder will set `maxHealthcheckDuration` automatically according to the **Healthcheck Timeout** specified in your app service settings.
 
