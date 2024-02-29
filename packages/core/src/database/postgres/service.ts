@@ -44,6 +44,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   private adminPool: Pool;
   db: Kysely<PonderCoreSchema>;
 
+  private indexingPool?: Pool;
+  private syncPool?: Pool;
+
   private instanceId: number = null!;
   private instanceSchemaName: string = null!;
   private heartbeatInterval: NodeJS.Timeout = null!;
@@ -80,15 +83,59 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   }
 
   getIndexingStoreConfig() {
-    const indexingPool = createPool(this.poolConfig);
-    return { pool: indexingPool, schemaName: this.instanceSchemaName };
+    this.indexingPool = createPool(this.poolConfig);
+    return { pool: this.indexingPool, schemaName: this.instanceSchemaName };
   }
 
   async getSyncStoreConfig() {
     const pluginSchemaName = "ponder_sync";
     await this.db.schema.createSchema(pluginSchemaName).ifNotExists().execute();
-    const syncPool = createPool(this.poolConfig);
-    return { pool: syncPool, schemaName: pluginSchemaName };
+    this.syncPool = createPool(this.poolConfig);
+    return { pool: this.syncPool, schemaName: pluginSchemaName };
+  }
+
+  async kill() {
+    clearInterval(this.heartbeatInterval);
+
+    // TODO(kyle): Flush here?
+
+    // If this instance is not live, drop the instance schema and remove the metadata row.
+    await this.db.transaction().execute(async (tx) => {
+      const liveInstanceRow = await tx
+        .selectFrom("ponder._metadata")
+        .select(["instance_id"])
+        .where("published_at", "is not", null)
+        .orderBy("published_at", "desc")
+        .limit(1)
+        .executeTakeFirst();
+
+      if (liveInstanceRow?.instance_id === this.instanceId) {
+        this.common.logger.debug({
+          service: "database",
+          msg: `Current instance (${this.instanceId}) is live, not dropping schema 'ponder_instance_${this.instanceId}'`,
+        });
+        return;
+      }
+
+      await tx.schema
+        .dropSchema(this.instanceSchemaName)
+        .ifExists()
+        .cascade()
+        .execute();
+      await tx
+        .deleteFrom("ponder._metadata")
+        .where("instance_id", "=", this.instanceId)
+        .execute();
+
+      this.common.logger.debug({
+        service: "database",
+        msg: `Dropped schema for current instance (${this.instanceId})`,
+      });
+    });
+
+    await this.adminPool.end();
+    await this.indexingPool?.end();
+    await this.syncPool?.end();
   }
 
   async setup() {
@@ -311,56 +358,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         tableName,
         tableCheckpoint,
       );
-    }
-  }
-
-  async kill() {
-    clearInterval(this.heartbeatInterval);
-
-    // TODO(kyle): Flush here?
-
-    // If this instance is not live, drop the instance schema and remove the metadata row.
-    await this.db.transaction().execute(async (tx) => {
-      const liveInstanceRow = await tx
-        .selectFrom("ponder._metadata")
-        .select(["instance_id"])
-        .where("published_at", "is not", null)
-        .orderBy("published_at", "desc")
-        .limit(1)
-        .executeTakeFirst();
-
-      if (liveInstanceRow?.instance_id === this.instanceId) {
-        this.common.logger.debug({
-          service: "database",
-          msg: `Current instance (${this.instanceId}) is live, not dropping schema 'ponder_instance_${this.instanceId}'`,
-        });
-        return;
-      }
-
-      await tx.schema
-        .dropSchema(this.instanceSchemaName)
-        .ifExists()
-        .cascade()
-        .execute();
-      await tx
-        .deleteFrom("ponder._metadata")
-        .where("instance_id", "=", this.instanceId)
-        .execute();
-
-      this.common.logger.debug({
-        service: "database",
-        msg: `Dropped schema for current instance (${this.instanceId})`,
-      });
-    });
-
-    try {
-      await this.db.destroy();
-    } catch (e) {
-      // TODO: drop table
-      const error = e as Error;
-      if (error.message !== "Called end on pool more than once") {
-        throw error;
-      }
     }
   }
 

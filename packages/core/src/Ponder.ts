@@ -88,14 +88,7 @@ export class Ponder {
     this.buildService = new BuildService({ common: this.common });
   }
 
-  async dev({
-    syncStore,
-    indexingStore,
-  }: {
-    // These options are only used for testing.
-    syncStore?: SyncStore;
-    indexingStore?: IndexingStore;
-  } = {}) {
+  async dev(databaseConfigOverride?: DatabaseConfig) {
     const dotEnvPath = path.join(this.common.options.rootDir, ".env.local");
     if (!existsSync(dotEnvPath)) {
       this.common.logger.warn({
@@ -107,6 +100,8 @@ export class Ponder {
     const success = await this.setupBuildService();
     if (!success) return;
 
+    if (databaseConfigOverride) this.databaseConfig = databaseConfigOverride;
+
     this.common.telemetry.record({
       event: "App Started",
       properties: {
@@ -116,7 +111,7 @@ export class Ponder {
       },
     });
 
-    await this.setupCoreServices({ isDev: true, syncStore, indexingStore });
+    await this.setupCoreServices({ isDev: true });
     this.registerCoreServiceEventListeners();
 
     // If running `ponder dev`, register build service listeners to handle hot reloads.
@@ -125,16 +120,11 @@ export class Ponder {
     await this.startSyncServices();
   }
 
-  async start({
-    syncStore,
-    indexingStore,
-  }: {
-    // These options are only used for testing.
-    syncStore?: SyncStore;
-    indexingStore?: IndexingStore;
-  } = {}) {
+  async start(databaseConfigOverride?: DatabaseConfig) {
     const success = await this.setupBuildService();
     if (!success) return;
+
+    if (databaseConfigOverride) this.databaseConfig = databaseConfigOverride;
 
     this.common.telemetry.record({
       event: "App Started",
@@ -145,7 +135,7 @@ export class Ponder {
       },
     });
 
-    await this.setupCoreServices({ isDev: false, syncStore, indexingStore });
+    await this.setupCoreServices({ isDev: false });
     this.registerCoreServiceEventListeners();
 
     await this.startSyncServices();
@@ -265,14 +255,7 @@ export class Ponder {
     return true;
   }
 
-  private async setupCoreServices({
-    isDev,
-  }: {
-    isDev: boolean;
-    // These options are only used for testing.
-    syncStore?: SyncStore;
-    indexingStore?: IndexingStore;
-  }) {
+  private async setupCoreServices({ isDev }: { isDev: boolean }) {
     // TODO: Figure out metrics for the database.
     // this.common.metrics.registerDatabaseMetrics(database)
 
@@ -506,7 +489,6 @@ export class Ponder {
       this.syncServices.map(({ requestQueue }) => requestQueue.onIdle()),
     );
 
-    await this.syncStore.kill();
     await this.database.kill();
   }
 

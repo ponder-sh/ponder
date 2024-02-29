@@ -63,17 +63,6 @@ export class PostgresSyncStore implements SyncStore {
     });
   }
 
-  async kill() {
-    try {
-      await this.db.destroy();
-    } catch (e) {
-      const error = e as Error;
-      if (error.message !== "Called end on pool more than once") {
-        throw error;
-      }
-    }
-  }
-
   migrateUp = async () => {
     const start = performance.now();
 

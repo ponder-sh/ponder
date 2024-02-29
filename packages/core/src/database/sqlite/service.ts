@@ -137,7 +137,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
           // a) Create a table in the instance schema.
           await tx.schema
-
             .createTable(tableName)
             .$call((builder) => this.buildColumns(builder, tableName, columns))
             .execute();

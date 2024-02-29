@@ -49,10 +49,7 @@ test("factory", async (context) => {
   }
 
   const ponder = new Ponder({ options: testOptions });
-  await ponder.start({
-    syncStore: context.syncStore,
-    indexingStore: context.indexingStore,
-  });
+  await ponder.start(context.databaseConfig);
 
   await onAllEventsIndexed(ponder);
 

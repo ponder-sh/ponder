@@ -1,15 +1,17 @@
-import crypto from "crypto";
+import crypto, { randomUUID } from "crypto";
 import fs from "fs";
+import path from "node:path";
 import os from "os";
-import path from "path";
 import type { Common } from "@/Ponder.js";
 import type { Config } from "@/config/config.js";
+import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import { buildOptions } from "@/config/options.js";
 import type { Factory, LogFilter } from "@/config/sources.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
+import { createSchema } from "@/index.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
@@ -19,25 +21,20 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
+import { createPool } from "@/utils/pg.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
+import { createSqliteDatabase } from "@/utils/sqlite.js";
 import pg from "pg";
 import type { Address } from "viem";
 import { type TestContext, beforeEach } from "vitest";
 import { deploy, simulate } from "./simulate.js";
 import { getConfig, getNetworkAndSources, testClient } from "./utils.js";
 
-/**
- * Inject an isolated sync store into the test context.
- *
- * If `process.env.DATABASE_URL` is set, assume it's a Postgres connection string
- * and run tests against it. If passed a `schema`, PostgresSyncStore will create
- * it if it doesn't exist, then use for all connections. We use the Vitest pool ID as
- * the schema key which enables test isolation (same approach as Anvil.js).
- */
 declare module "vitest" {
   export interface TestContext {
     common: Common;
     database: DatabaseService;
+    databaseConfig: DatabaseConfig;
     syncStore: SyncStore;
     indexingStore: IndexingStore;
     sources: [LogFilter, Factory];
@@ -49,9 +46,7 @@ declare module "vitest" {
   }
 }
 
-beforeEach((context) => {
-  setupContext(context);
-});
+beforeEach((context) => setupContext(context));
 
 export const setupContext = (context: TestContext) => {
   const options = {
@@ -71,61 +66,60 @@ export const setupContext = (context: TestContext) => {
 /**
  * Sets up an isolated database on the test context.
  *
+ * If `process.env.DATABASE_URL` is set, creates a new database and drops
+ * it in the cleanup function. If it's not set, creates a temporary directory
+ * for SQLite and removes it in the cleanup function.
+ *
  * ```ts
- * // Add this to any test suite that uses the SyncStore client.
+ * // Add this to any test suite that uses the database.
  * beforeEach((context) => setupDatabase(context))
  * ```
  */
 export async function setupDatabase(context: TestContext) {
   if (process.env.DATABASE_URL) {
-    const testClient = new pg.Client({
+    const client = new pg.Client({
       connectionString: process.env.DATABASE_URL,
     });
 
-    await testClient.connect();
+    await client.connect();
 
     const randomSuffix = crypto.randomBytes(10).toString("hex");
     const databaseName = `vitest_${randomSuffix}`;
     const databaseUrl = new URL(process.env.DATABASE_URL);
     databaseUrl.pathname = `/${databaseName}`;
     const connectionString = databaseUrl.toString();
+    const poolConfig = { connectionString };
 
-    await testClient.query(`CREATE DATABASE "${databaseName}"`);
+    await client.query(`CREATE DATABASE "${databaseName}"`);
 
+    context.databaseConfig = { kind: "postgres", poolConfig };
     context.database = new PostgresDatabaseService({
       common: context.common,
-      poolConfig: { connectionString: connectionString },
+      poolConfig,
     });
 
     await context.database.setup();
 
     return async () => {
       await context.database.kill();
-      await testClient.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
-      await testClient.end();
+      await client.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
+      await client.end();
     };
   } else {
-    const tmpdir = os.tmpdir();
-    fs.mkdirSync(tmpdir, { recursive: true });
+    const tempDir = path.join(os.tmpdir(), randomUUID());
+    fs.mkdirSync(tempDir, { recursive: true });
 
+    context.databaseConfig = { kind: "sqlite", directory: tempDir };
     context.database = new SqliteDatabaseService({
       common: context.common,
-      directory: tmpdir,
+      directory: tempDir,
     });
 
     await context.database.setup();
 
     return async () => {
       await context.database.kill();
-
-      fs.rmSync(path.join(tmpdir, "ponder_core_cache.db"), { force: true });
-      fs.rmSync(
-        path.join(tmpdir, `ponder_core_${context.common.instanceId}.db`),
-        {
-          force: true,
-        },
-      );
-      fs.rmSync(path.join(tmpdir, "ponder_sync.db"), { force: true });
+      fs.rmSync(tempDir, { force: true, recursive: true });
     };
   }
 }
@@ -139,51 +133,73 @@ export async function setupDatabase(context: TestContext) {
  * ```
  */
 export async function setupSyncStore(context: TestContext) {
-  if (context.database.kind === "postgres") {
-    const syncDatabase = await context.database.getSyncDatabase();
+  if (context.databaseConfig.kind === "postgres") {
+    const pool = createPool({ ...context.databaseConfig.poolConfig });
 
     context.syncStore = new PostgresSyncStore({
       common: context.common,
-      schemaName: syncDatabase.schemaName,
-      pool: syncDatabase.pool,
+      pool,
+      schemaName: "ponder_sync",
     });
+
+    return async () => {
+      await pool.end();
+    };
   } else {
-    const syncDatabase = await context.database.getSyncDatabase();
+    const file = path.join(context.databaseConfig.directory, "ponder_sync.db");
+    const database = createSqliteDatabase(file);
 
     context.syncStore = new SqliteSyncStore({
       common: context.common,
-      database: syncDatabase.database,
+      database,
     });
-  }
 
-  await context.syncStore.migrateUp();
+    return () => database.close();
+  }
 }
 
 /**
- * Sets up an isolated IndexingStore on the test context.
+ * Sets up an isolated IndexingStore on the test context. After setting up,
+ * be sure to set the schema within each test.
  *
  * ```ts
- * // Add this to any test suite that uses the IndexingStore client.
+ * // Add this to any test suite that uses the IndexingStore.
  * beforeEach((context) => setupIndexingStore(context))
+ *
+ * // Set the schema within each test.
+ * test("my test", (context) => {
+ *   context.indexingStore.schema = createSchema({ ... })
+ *   // ...
+ * })
  * ```
  */
-export async function setupIndexingStore(context: TestContext) {
-  const database = context.database;
-  if (database.kind === "postgres") {
-    const indexingDatabase = await database.getIndexingDatabase();
+export function setupIndexingStore(context: TestContext) {
+  const placeholderSchema = createSchema(() => ({}));
+
+  if (context.databaseConfig.kind === "postgres") {
+    const pool = createPool({ ...context.databaseConfig.poolConfig });
 
     context.indexingStore = new PostgresIndexingStore({
       common: context.common,
-      getCurrentIndexingSchemaName: () => database.currentIndexingSchemaName,
-      pool: indexingDatabase.pool,
+      pool,
+      schemaName: "ponder_instance_1",
+      schema: placeholderSchema,
     });
+
+    return async () => {
+      await pool.end();
+    };
   } else {
-    const indexingDatabase = await database.getIndexingDatabase();
+    const file = path.join(context.databaseConfig.directory, "ponder.db");
+    const database = createSqliteDatabase(file);
 
     context.indexingStore = new SqliteIndexingStore({
       common: context.common,
-      database: indexingDatabase.database,
+      database,
+      schema: placeholderSchema,
     });
+
+    return () => database.close();
   }
 }
 
