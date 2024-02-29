@@ -297,6 +297,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       const functionIds_ = Object.values(functionIds);
       if (functionIds_.length === 0) return [];
 
+      // Get the metadata for the data that we (maybe) copied over from the cache.
       const metadata = await tx
         .selectFrom("ponder_cache.function_metadata")
         .selectAll()
