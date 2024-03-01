@@ -16,6 +16,7 @@ import {
   checkpointMax,
   decodeCheckpoint,
   encodeCheckpoint,
+  maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
@@ -301,10 +302,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             // c) Copy data from the cache table to the new table.
             await tx.executeQuery(
               sql`INSERT INTO ${sql.raw(
-                `"${this.instanceSchemaName}"."${tableName}"`,
-              )} SELECT * FROM ${sql.raw(
-                `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
-              )}`.compile(tx),
+                `${this.instanceSchemaName}."${tableName}"`,
+              )} (SELECT * FROM ${sql.raw(
+                `${CACHE_SCHEMA_NAME}."${tableId}"`,
+              )})`.compile(tx),
             );
           }),
         );
@@ -458,7 +459,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           table_id: tableId,
           to_checkpoint:
             checkpoints.length === 0
-              ? encodeCheckpoint(zeroCheckpoint)
+              ? encodeCheckpoint(maxCheckpoint)
               : encodeCheckpoint(checkpointMax(...checkpoints)),
         });
       }
