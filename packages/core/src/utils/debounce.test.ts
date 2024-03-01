@@ -22,7 +22,7 @@ test("invokes function after interval passes", async () => {
 
   d(1);
 
-  await wait(0);
+  await wait(1);
 
   d(2);
   expect(i).toBe(2);
