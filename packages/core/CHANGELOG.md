@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.2.12
+
+### Patch Changes
+
+- [#676](https://github.com/ponder-sh/ponder/pull/676) [`695fe00d0a630bab6835889d59221676519c1c87`](https://github.com/ponder-sh/ponder/commit/695fe00d0a630bab6835889d59221676519c1c87) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where paginated queries using `before` did not behave correctly.
+
 ## 0.2.11
 
 ### Patch Changes
