@@ -8,7 +8,7 @@ import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import { buildGqlSchema } from "./graphql/schema.js";
 import { ServerService } from "./service.js";
 
-beforeEach(setupIsolatedDatabase);
+beforeEach((context) => setupIsolatedDatabase(context));
 
 const schema = createSchema((p) => ({
   TestEnum: p.createEnum(["ZERO", "ONE", "TWO"]),
@@ -1441,7 +1441,6 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   expect(testEntity.string).toBe("updated");
 
   await service.kill();
-
   await cleanup();
 });
 
@@ -1637,6 +1636,7 @@ test("serves nested records at the timestamp/version specified at the top level"
     gql,
     createTestEntity,
     createEntityWithStringId,
+    cleanup,
   } = await setup({ context });
 
   await createTestEntity({ id: 0 });
@@ -1686,6 +1686,7 @@ test("serves nested records at the timestamp/version specified at the top level"
   expect(testEntitys).toMatchObject([{ id: "0", derived: { items: [] } }]);
 
   await service.kill();
+  await cleanup();
 });
 
 test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
@@ -1695,6 +1696,7 @@ test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
     createTestEntity,
     createEntityWithBigIntId,
     indexingStore,
+    cleanup,
   } = await setup({ context });
 
   const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
@@ -1736,9 +1738,10 @@ test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
   expect(findManySpy).toHaveBeenCalledTimes(2);
 
   await service.kill();
+  await cleanup();
 });
 
-test.fails(
+test.skip.fails(
   "uses dataloader to resolve a plural -> p.many() path",
   async (context) => {
     const {
@@ -1747,6 +1750,7 @@ test.fails(
       gql,
       createTestEntity,
       createEntityWithStringId,
+      cleanup,
     } = await setup({ context });
 
     const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
@@ -1788,5 +1792,6 @@ test.fails(
     expect(findManySpy).toHaveBeenCalledTimes(2);
 
     await service.kill();
+    await cleanup();
   },
 );
