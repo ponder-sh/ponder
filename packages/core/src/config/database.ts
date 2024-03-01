@@ -28,12 +28,10 @@ export const buildDatabase = ({
   config: Config;
 }): DatabaseConfig => {
   const { ponderDir, rootDir } = common.options;
-  const storePath = (() => {
-    if (config.database?.kind === "sqlite" && config.database.filename) {
-      return path.join(rootDir, config.database.filename);
-    }
-    return path.join(ponderDir, "store");
-  })();
+  const storePath =
+    config.database?.kind === "sqlite" && config.database.filename
+      ? path.join(rootDir, config.database.filename)
+      : path.join(ponderDir, "store");
   const syncFilePath = path.join(storePath, "sync.db");
   const indexingFilePath = path.join(storePath, "indexing.db");
   const sqlitePrintPath = path.relative(rootDir, storePath);
