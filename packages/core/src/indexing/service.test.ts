@@ -72,12 +72,15 @@ const readContractIndexingFunctions: IndexingFunctions = {
 };
 
 const tableAccess: TableAccess = {
-  "Erc20:Transfer": [
-    {
-      storeMethod: "create",
-      tableName: "TransferEvent",
-    },
-  ],
+  "Erc20:Transfer": {
+    access: [
+      {
+        storeMethod: "create",
+        tableName: "TransferEvent",
+      },
+    ],
+    hash: "hash",
+  },
 };
 
 function createCheckpoint(index: number): Checkpoint {
@@ -344,12 +347,15 @@ test("processEvents() orders tasks with self reliance", async (context) => {
   const { common, sources, networks, requestQueues } = context;
 
   const tableAccess: TableAccess = {
-    "Erc20:Transfer": [
-      {
-        tableName: "TransferEvent",
-        storeMethod: "update",
-      },
-    ],
+    "Erc20:Transfer": {
+      access: [
+        {
+          tableName: "TransferEvent",
+          storeMethod: "update",
+        },
+      ],
+      hash: "hash",
+    },
   };
 
   const { database, syncStore, indexingStore, cleanup } =
@@ -678,12 +684,15 @@ test("processEvents() handles errors", async (context) => {
   const { common, sources, networks, requestQueues } = context;
 
   const tableAccess: TableAccess = {
-    "Erc20:Transfer": [
-      {
-        tableName: "TransferEvent",
-        storeMethod: "update",
-      },
-    ],
+    "Erc20:Transfer": {
+      access: [
+        {
+          tableName: "TransferEvent",
+          storeMethod: "update",
+        },
+      ],
+      hash: "hash",
+    },
   };
 
   const { database, syncStore, indexingStore, cleanup } =
@@ -1112,6 +1121,8 @@ test("reset() loads from cache", async (context) => {
 
   const getEvents = vi.fn(await getEventsErc20(sources));
 
+  const flushSpy = vi.spyOn(database, "flush");
+
   const syncGatewayService = {
     getEvents,
     checkpoint: maxCheckpoint,
@@ -1150,7 +1161,7 @@ test("reset() loads from cache", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  expect(database.metadata).toStrictEqual([
+  expect(flushSpy).toHaveBeenCalledWith([
     {
       eventCount: 2,
       functionId: "Erc20:Transfer",
@@ -1163,10 +1174,6 @@ test("reset() loads from cache", async (context) => {
       toCheckpoint: expect.any(Object),
     },
   ]);
-
-  expect(database.metadata[0].fromCheckpoint?.blockTimestamp).toBeGreaterThan(
-    0,
-  );
 
   await service.kill();
   await service.onIdle();

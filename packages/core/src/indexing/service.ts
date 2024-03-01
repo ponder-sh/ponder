@@ -4,8 +4,12 @@ import type {
   FunctionIds,
   TableIds,
 } from "@/build/static/getFunctionAndTableIds.js";
-import type { TableAccess } from "@/build/static/getTableAccess.js";
-import { storeMethodAccess } from "@/build/static/storeMethodAccess.js";
+import {
+  type TableAccess,
+  getTableAccessInverse,
+  isReadStoreMethod,
+  isWriteStoreMethod,
+} from "@/build/static/getTableAccess.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Source,
@@ -819,6 +823,25 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const fromCheckpoint = state.tasksLoadedToCheckpoint;
     const toCheckpoint = this.syncGatewayService.checkpoint;
 
+    if (
+      tasks.length > 0 ||
+      isCheckpointGreaterThanOrEqualTo(fromCheckpoint, toCheckpoint)
+    ) {
+      if (state.lastEventCheckpoint === undefined) {
+        // Note: This is the path for a fully cached indexing function.
+
+        state.lastEventCheckpoint = this.syncGatewayService.checkpoint;
+
+        this.updateTotalSeconds(key);
+        this.updateCompletedSeconds(key);
+
+        this.emitCheckpoint();
+        this.logCachedProgress(key);
+      }
+
+      return;
+    }
+
     const taskBatchSize = this.calculateTaskBatchSize(key);
 
     const sourcesHasFactory = state.sources.some(sourceIsFactory);
@@ -1051,33 +1074,33 @@ export class IndexingService extends Emittery<IndexingEvents> {
         }
 
         // All tables that this indexing function key reads
-        const tableReads = this.tableAccess[indexingFunctionKey]
-          ?.filter((t) =>
-            storeMethodAccess[t.storeMethod].some((s) => s === "read"),
-          )
+        const tableReads = this.tableAccess[indexingFunctionKey]?.access
+          ?.filter((t) => isReadStoreMethod(t.storeMethod))
           .map((t) => t.tableName);
 
         // All indexing function keys that write to a table in `tableReads`
         // except for itself.
         const parents: string[] = [];
-        for (const parentIndexingFunctionKey of Object.keys(this.tableAccess)) {
-          for (const { storeMethod, tableName } of this.tableAccess[
-            indexingFunctionKey
-          ] ?? []) {
+        const inverseTableAccess = getTableAccessInverse(this.tableAccess);
+        for (const tableName of tableReads) {
+          for (const {
+            indexingFunctionKey: parentIndexingFunctionKey,
+            storeMethod,
+          } of inverseTableAccess[tableName]) {
             if (
               !parentIndexingFunctionKey.includes(":setup") &&
-              storeMethodAccess[storeMethod].some((s) => s === "write") &&
-              tableReads.includes(tableName) &&
+              isWriteStoreMethod(storeMethod) &&
               parentIndexingFunctionKey !== indexingFunctionKey
-            ) {
+            )
               parents.push(parentIndexingFunctionKey);
-            }
           }
         }
 
-        const isSelfDependent = this.tableAccess[indexingFunctionKey]?.some(
+        const isSelfDependent = this.tableAccess[
+          indexingFunctionKey
+        ]?.access?.some(
           (t) =>
-            storeMethodAccess[t.storeMethod].some((s) => s === "write") &&
+            isWriteStoreMethod(t.storeMethod) &&
             tableReads.includes(t.tableName),
         );
 
@@ -1099,7 +1122,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         this.common.logger.debug({
           service: "indexing",
           msg: `Registered indexing function "${indexingFunctionKey}" with table access [${
-            this.tableAccess[indexingFunctionKey]
+            this.tableAccess[indexingFunctionKey]?.access
               ?.map(
                 ({ storeMethod, tableName }) => `${tableName}.${storeMethod}()`,
               )
@@ -1282,7 +1305,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
       storeMethod,
       tableName,
     }: { storeMethod: StoreMethod; tableName: string }) => {
-      const matchedAccess = this.tableAccess?.[indexingFunctionKey]?.find(
+      const matchedAccess = this.tableAccess?.[
+        indexingFunctionKey
+      ]?.access?.find(
         (t) => t.storeMethod === storeMethod && t.tableName === tableName,
       );
 

@@ -4,15 +4,9 @@ import type {
   TableIds,
 } from "@/build/static/getFunctionAndTableIds.js";
 import type { TableAccess } from "@/build/static/getTableAccess.js";
-import { revertTable } from "@/indexing-store/utils/revert.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import {
-  checkpointMax,
-  decodeCheckpoint,
-  encodeCheckpoint,
-} from "@/utils/checkpoint.js";
-import { dedupe } from "@/utils/dedupe.js";
+import { decodeCheckpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool } from "@/utils/pg.js";
 import {
@@ -228,7 +222,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     schema,
     tableIds,
     functionIds,
-    tableAccess,
   }: {
     schema: Schema;
     tableIds: TableIds;
@@ -340,29 +333,29 @@ export class PostgresDatabaseService implements BaseDatabaseService {
      * the instance tables to the checkpoint saved in the metadata after copying from the cache.
      * In other words, metadata checkpoints are always <= actual rows in the corresponding table.
      */
-    for (const tableName of Object.keys(schema.tables)) {
-      const indexingFunctionKeys = tableAccess
-        .filter((t) => t.access === "write" && t.table === tableName)
-        .map((t) => t.indexingFunctionKey);
+    // for (const tableName of Object.keys(schema.tables)) {
+    //   const indexingFunctionKeys = tableAccess.access
+    //     .filter((t) => t.access === "write" && t.table === tableName)
+    //     .map((t) => t.indexingFunctionKey);
 
-      const tableMetadata = dedupe(indexingFunctionKeys).map((key) =>
-        this.metadata.find((m) => m.functionId === functionIds[key]),
-      );
+    //   const tableMetadata = dedupe(indexingFunctionKeys).map((key) =>
+    //     this.metadata.find((m) => m.functionId === functionIds[key]),
+    //   );
 
-      if (tableMetadata.some((m) => m === undefined)) continue;
+    //   if (tableMetadata.some((m) => m === undefined)) continue;
 
-      const checkpoints = tableMetadata.map((m) => m!.toCheckpoint);
+    //   const checkpoints = tableMetadata.map((m) => m!.toCheckpoint);
 
-      if (checkpoints.length === 0) continue;
+    //   if (checkpoints.length === 0) continue;
 
-      const tableCheckpoint = checkpointMax(...checkpoints);
+    //   const tableCheckpoint = checkpointMax(...checkpoints);
 
-      await revertTable(
-        this.db.withSchema(this.instanceSchemaName),
-        tableName,
-        tableCheckpoint,
-      );
-    }
+    //   await revertTable(
+    //     this.db.withSchema(this.instanceSchemaName),
+    //     tableName,
+    //     tableCheckpoint,
+    //   );
+    // }
   }
 
   async flush(metadata: Metadata[]): Promise<void> {

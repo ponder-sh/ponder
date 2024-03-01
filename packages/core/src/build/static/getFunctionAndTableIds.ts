@@ -4,7 +4,11 @@ import type { Schema } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
 import { dedupe } from "@/utils/dedupe.js";
 import type { IndexingFunctions } from "../functions/functions.js";
-import type { TableAccess } from "./getTableAccess.js";
+import {
+  type TableAccess,
+  getTableAccessForTable,
+  isWriteStoreMethod,
+} from "./getTableAccess.js";
 
 const VERSION = 1;
 
@@ -49,19 +53,8 @@ export const getFunctionAndTableIds = ({
   const functionInputs: FunctionInputs = {};
   const tableInputs: TableInputs = {};
 
-  // Dedupe indexing function keys
-  const seenKeys: Set<string> = new Set();
-  const _keys = tableAccess.filter((t) => {
-    if (seenKeys.has(t.indexingFunctionKey)) {
-      return false;
-    } else {
-      seenKeys.add(t.indexingFunctionKey);
-      return true;
-    }
-  });
-
   // Build function inputs
-  for (const { hash, indexingFunctionKey } of _keys) {
+  for (const [indexingFunctionKey, { hash }] of Object.entries(tableAccess)) {
     const contractName = indexingFunctionKey.split(":")[0]!;
     const tableSources = sources.filter((s) => s.contractName === contractName);
 
@@ -149,8 +142,11 @@ const resolveDependencies = ({
     if (type === "table") {
       tables.push(name);
 
-      const functionNames = tableAccess
-        .filter((t) => t.access === "write" && t.table === name)
+      const functionNames = getTableAccessForTable({
+        tableAccess,
+        tableName: name,
+      })
+        .filter((t) => isWriteStoreMethod(t.storeMethod))
         .map((t) => t.indexingFunctionKey);
 
       for (const functionName of dedupe(functionNames)) {
@@ -161,9 +157,7 @@ const resolveDependencies = ({
     else {
       functions.push(name);
 
-      const tableNames = tableAccess
-        .filter((t) => t.indexingFunctionKey === name)
-        .map((t) => t.table);
+      const tableNames = tableAccess[name].access.map((t) => t.tableName);
 
       for (const tableName of dedupe(tableNames)) {
         innerResolve(tableName, "table");
@@ -209,6 +203,6 @@ const hashIdentifier = (schema: Omit<Identifier, "version">) => {
   return crypto
     .createHash("sha256")
     .update(JSON.stringify({ ...schema, version: VERSION }))
-    .digest("base64")
+    .digest("hex")
     .slice(0, 10);
 };

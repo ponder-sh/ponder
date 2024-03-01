@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import type { SgNode } from "@ast-grep/napi";
 
-export const hashAst = (root: SgNode) => {
+export const getNodeHash = (node: SgNode) => {
   const nodes: string[] = [];
 
   const dfs = (node: SgNode) => {
@@ -11,7 +11,7 @@ export const hashAst = (root: SgNode) => {
     }
   };
 
-  dfs(root);
+  dfs(node);
 
   const hash = crypto
     .createHash("sha256")

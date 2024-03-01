@@ -617,6 +617,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
+  test.todo("flush with less cache tables");
+
   test("kill before publish", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
