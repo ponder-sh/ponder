@@ -375,7 +375,7 @@ export class PostgresIndexingStore implements IndexingStore {
       if (after === null && before === null) {
         query = query.limit(limit + 1);
         const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, "sqlite"));
+        const records = rows.map((row) => decodeRow(row, table, "postgres"));
 
         if (records.length === limit + 1) {
           records.pop();
@@ -474,7 +474,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
         const rows = await query.execute();
         const records = rows
-          .map((row) => decodeRow(row, table, "sqlite"))
+          .map((row) => decodeRow(row, table, "postgres"))
           // Reverse the records again, back to the original order.
           .reverse();
 
