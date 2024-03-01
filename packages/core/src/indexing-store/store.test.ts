@@ -861,25 +861,32 @@ test("findMany() cursor pagination ascending", async (context) => {
     tableName: "Pet",
     checkpoint: createCheckpoint(10),
     data: [
-      { id: "id1", name: "Skip", bigAge: 105n },
-      { id: "id2", name: "Foo", bigAge: 10n },
-      { id: "id3", name: "Bar", bigAge: 190n },
+      { id: "id1", name: "Skip" },
+      { id: "id2", name: "Foo" },
+      { id: "id3", name: "Bar" },
       { id: "id4", name: "Zarbar" },
-      { id: "id5", name: "Winston", age: 12 },
+      { id: "id5", name: "Winston" },
+      { id: "id6", name: "Book" },
+      { id: "id7", name: "Shea" },
+      { id: "id8", name: "Snack" },
+      { id: "id9", name: "Last" },
     ],
   });
 
   const resultOne = await indexingStore.findMany({
     tableName: "Pet",
-    orderBy: { name: "asc" },
-    limit: 2,
+    orderBy: { id: "asc" },
+    limit: 5,
   });
 
   expect(
     resultOne.items.map((i) => ({ id: i.id, name: i.name })),
   ).toMatchObject([
-    { id: "id3", name: "Bar" },
+    { id: "id1", name: "Skip" },
     { id: "id2", name: "Foo" },
+    { id: "id3", name: "Bar" },
+    { id: "id4", name: "Zarbar" },
+    { id: "id5", name: "Winston" },
   ]);
   expect(resultOne.pageInfo).toMatchObject({
     startCursor: expect.any(String),
@@ -890,16 +897,17 @@ test("findMany() cursor pagination ascending", async (context) => {
 
   const resultTwo = await indexingStore.findMany({
     tableName: "Pet",
-    orderBy: { name: "asc" },
+    orderBy: { id: "asc" },
     after: resultOne.pageInfo.endCursor,
   });
 
   expect(
     resultTwo.items.map((i) => ({ id: i.id, name: i.name })),
   ).toMatchObject([
-    { id: "id1", name: "Skip" },
-    { id: "id5", name: "Winston" },
-    { id: "id4", name: "Zarbar" },
+    { id: "id6", name: "Book" },
+    { id: "id7", name: "Shea" },
+    { id: "id8", name: "Snack" },
+    { id: "id9", name: "Last" },
   ]);
   expect(resultTwo.pageInfo).toMatchObject({
     startCursor: expect.any(String),
@@ -910,14 +918,17 @@ test("findMany() cursor pagination ascending", async (context) => {
 
   const resultThree = await indexingStore.findMany({
     tableName: "Pet",
-    orderBy: { name: "asc" },
+    orderBy: { id: "asc" },
     before: resultTwo.pageInfo.startCursor,
-    limit: 1,
+    limit: 2,
   });
 
   expect(
     resultThree.items.map((i) => ({ id: i.id, name: i.name })),
-  ).toMatchObject([{ id: "id2", name: "Foo" }]);
+  ).toMatchObject([
+    { id: "id4", name: "Zarbar" },
+    { id: "id5", name: "Winston" },
+  ]);
   expect(resultThree.pageInfo).toMatchObject({
     startCursor: expect.any(String),
     endCursor: expect.any(String),
