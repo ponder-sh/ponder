@@ -1,6 +1,10 @@
 import { setupIndexingStore } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
-import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { CompiledQuery } from "kysely";
 import { beforeEach, expect, test } from "vitest";
 
@@ -130,27 +134,6 @@ test("create() inserts a record that is not effective before timestamp", async (
   expect(instance).toBeNull();
 });
 
-test("create() throws on unique constraint violation even if checkpoint is different", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
-
-  await expect(() =>
-    indexingStore.create({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(15),
-      id: "id1",
-      data: { name: "Skip", age: 13 },
-    }),
-  ).rejects.toThrow();
-});
-
 test("create() respects optional fields", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
@@ -191,20 +174,6 @@ test("create() accepts enums", async (context) => {
   expect(instance).toMatchObject({ id: "id1", name: "Skip", kind: "CAT" });
 });
 
-test("create() throws on invalid enum value", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
-
-  await expect(() =>
-    indexingStore.create({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(10),
-      id: "id1",
-      data: { name: "Skip", kind: "NOTACAT" },
-    }),
-  ).rejects.toThrow();
-});
-
 test("create() accepts BigInt fields as bigint and returns as bigint", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
@@ -223,6 +192,66 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
   });
 
   expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
+});
+
+test("create() throws if passed an invalid enum value", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await expect(() =>
+    indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", kind: "NOTACAT" },
+    }),
+  ).rejects.toThrow();
+});
+
+test("create() throws if a record with the same ID already exists", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+    data: { name: "Skip", kind: "CAT" },
+  });
+
+  await expect(() =>
+    indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", kind: "CAT" },
+    }),
+  ).rejects.toThrowError(
+    "Cannot create Pet record with ID id1 because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using Pet.upsert().",
+  );
+});
+
+test("create() throws if a record with the same ID already exists with a different checkpoint", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  await expect(() =>
+    indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(15),
+      id: "id1",
+      data: { name: "Skip", age: 13 },
+    }),
+  ).rejects.toThrowError(
+    "Cannot create Pet record with ID id1 because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using Pet.upsert().",
+  );
 });
 
 test("update() updates a record", async (context) => {
@@ -322,6 +351,22 @@ test("update() updates a record and maintains older version", async (context) =>
   });
 });
 
+test("update() throws if trying to update a record that does not exist", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await expect(() =>
+    indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(8),
+      id: "id1",
+      data: { name: "Peanut Butter" },
+    }),
+  ).rejects.toThrowError(
+    "Cannot update Pet record with ID id1 because no existing record was found with that ID. Consider using Pet.upsert(), or create the record before updating it. Hint: Did you forget to await the promise returned by a store method?",
+  );
+});
+
 test("update() throws if trying to update an instance in the past", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
@@ -340,7 +385,13 @@ test("update() throws if trying to update an instance in the past", async (conte
       id: "id1",
       data: { name: "Peanut Butter" },
     }),
-  ).rejects.toThrow();
+  ).rejects.toThrowError(
+    `Cannot update Pet record with ID id1 at checkpoint ${encodeCheckpoint(
+      createCheckpoint(8),
+    )} because there is a newer version of the record at checkpoint ${encodeCheckpoint(
+      createCheckpoint(10),
+    )}. Hint: Did you forget to await the promise returned by a store method?`,
+  );
 });
 
 test("update() updates a record in-place within the same timestamp", async (context) => {
@@ -469,7 +520,13 @@ test("upsert() throws if trying to update an instance in the past", async (conte
       create: { name: "Jelly" },
       update: { name: "Peanut Butter" },
     }),
-  ).rejects.toThrow();
+  ).rejects.toThrowError(
+    `Cannot update Pet record with ID id1 at checkpoint ${encodeCheckpoint(
+      createCheckpoint(8),
+    )} because there is a newer version of the record at checkpoint ${encodeCheckpoint(
+      createCheckpoint(10),
+    )}. Hint: Did you forget to await the promise returned by a store method?`,
+  );
 });
 
 test("upsert() updates a record in-place within the same timestamp", async (context) => {
@@ -1184,6 +1241,32 @@ test("createMany() inserts a large number of entities", async (context) => {
   expect(items.length).toBe(1_000);
 });
 
+test("createMany() throws if a record with the same ID already exists", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+    data: { name: "Skip", kind: "CAT" },
+  });
+
+  await expect(() =>
+    indexingStore.createMany({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      data: [
+        { id: "id1", name: "Skip", bigAge: 105n },
+        { id: "id2", name: "Foo", bigAge: 10n },
+        { id: "id3", name: "Bar", bigAge: 190n },
+      ],
+    }),
+  ).rejects.toThrowError(
+    "Cannot createMany Pet records because one or more records already exist (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method?",
+  );
+});
+
 test("updateMany() updates multiple entities", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
@@ -1210,6 +1293,33 @@ test("updateMany() updates multiple entities", async (context) => {
   const { items } = await indexingStore.findMany({ tableName: "Pet" });
 
   expect(items.map((i) => i.bigAge)).toMatchObject([300n, 10n, 300n]);
+});
+
+test("updateMany() throws if trying to update a record in the past", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+    data: { name: "Skip" },
+  });
+
+  await expect(() =>
+    indexingStore.updateMany({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(8),
+      where: { id: { equals: "id1" } },
+      data: { name: "Peanut Butter" },
+    }),
+  ).rejects.toThrowError(
+    `Cannot update Pet record with ID id1 at checkpoint ${encodeCheckpoint(
+      createCheckpoint(8),
+    )} because there is a newer version of the record at checkpoint ${encodeCheckpoint(
+      createCheckpoint(10),
+    )}. Hint: Did you forget to await the promise returned by a store method?`,
+  );
 });
 
 test("revert() deletes versions newer than the safe timestamp", async (context) => {

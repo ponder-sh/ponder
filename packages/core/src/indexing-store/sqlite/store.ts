@@ -510,17 +510,26 @@ export class SqliteIndexingStore implements IndexingStore {
       const createRow = encodeRow({ id, ...data }, table, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const row = await this.db
-        .insertInto(versionedTableName)
-        .values({
-          ...createRow,
-          effectiveFromCheckpoint: encodedCheckpoint,
-          effectiveToCheckpoint: "latest",
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+      try {
+        const row = await this.db
+          .insertInto(versionedTableName)
+          .values({
+            ...createRow,
+            effectiveFromCheckpoint: encodedCheckpoint,
+            effectiveToCheckpoint: "latest",
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow();
 
-      return decodeRow(row, this.schema!.tables[tableName], "sqlite");
+        return decodeRow(row, table, "sqlite");
+      } catch (err) {
+        const error = err as Error;
+        throw error.message.includes("UNIQUE constraint failed")
+          ? new Error(
+              `Cannot create ${tableName} record with ID ${id} because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using ${tableName}.upsert().`,
+            )
+          : error;
+      }
     });
   };
 
@@ -548,19 +557,26 @@ export class SqliteIndexingStore implements IndexingStore {
       for (let i = 0, len = createRows.length; i < len; i += MAX_BATCH_SIZE)
         chunkedRows.push(createRows.slice(i, i + MAX_BATCH_SIZE));
 
-      const rows = await Promise.all(
-        chunkedRows.map((c) =>
-          this.db
-            .insertInto(versionedTableName)
-            .values(c)
-            .returningAll()
-            .execute(),
-        ),
-      );
+      try {
+        const rows = await Promise.all(
+          chunkedRows.map((c) =>
+            this.db
+              .insertInto(versionedTableName)
+              .values(c)
+              .returningAll()
+              .execute(),
+          ),
+        );
 
-      return rows
-        .flat()
-        .map((row) => decodeRow(row, this.schema!.tables[tableName], "sqlite"));
+        return rows.flat().map((row) => decodeRow(row, table, "sqlite"));
+      } catch (err) {
+        const error = err as Error;
+        throw error.message.includes("UNIQUE constraint failed")
+          ? new Error(
+              `Cannot createMany ${tableName} records because one or more records already exist (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method?`,
+            )
+          : error;
+      }
     });
   };
 
@@ -591,7 +607,11 @@ export class SqliteIndexingStore implements IndexingStore {
           .selectAll()
           .where("id", "=", encodedId)
           .where("effectiveToCheckpoint", "=", "latest")
-          .executeTakeFirstOrThrow();
+          .executeTakeFirst();
+        if (!latestRow)
+          throw new Error(
+            `Cannot update ${tableName} record with ID ${id} because no existing record was found with that ID. Consider using ${tableName}.upsert(), or create the record before updating it. Hint: Did you forget to await the promise returned by a store method?`,
+          );
 
         // If the user passed an update function, call it with the current instance.
         let updateRow: ReturnType<typeof encodeRow>;
@@ -605,9 +625,10 @@ export class SqliteIndexingStore implements IndexingStore {
 
         // If the update would be applied to a record other than the latest
         // record, throw an error.
-        if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
-          throw new Error("Cannot update a record in the past");
-        }
+        if (latestRow.effectiveFromCheckpoint > encodedCheckpoint)
+          throw new Error(
+            `Cannot update ${tableName} record with ID ${id} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effectiveFromCheckpoint}. Hint: Did you forget to await the promise returned by a store method?`,
+          );
 
         // If the latest version has the same effectiveFromCheckpoint as the update,
         // this update is occurring within the same indexing function. Update in place.
@@ -629,7 +650,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .where("effectiveToCheckpoint", "=", "latest")
           .set({ effectiveToCheckpoint: encodedCheckpoint })
           .execute();
-        const row = tx
+        return tx
           .insertInto(versionedTableName)
           .values({
             ...latestRow,
@@ -639,8 +660,6 @@ export class SqliteIndexingStore implements IndexingStore {
           })
           .returningAll()
           .executeTakeFirstOrThrow();
-
-        return row;
       });
 
       const result = decodeRow(row, table, "sqlite");
@@ -705,9 +724,10 @@ export class SqliteIndexingStore implements IndexingStore {
 
             // If the update would be applied to a record other than the latest
             // record, throw an error.
-            if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
-              throw new Error("Cannot update a record in the past");
-            }
+            if (latestRow.effectiveFromCheckpoint > encodedCheckpoint)
+              throw new Error(
+                `Cannot update ${tableName} record with ID ${encodedId} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effectiveFromCheckpoint}. Hint: Did you forget to await the promise returned by a store method?`,
+              );
 
             // If the latest version has the same effectiveFrom timestamp as the update,
             // this update is occurring within the same block/second. Update in place.
@@ -729,7 +749,7 @@ export class SqliteIndexingStore implements IndexingStore {
               .where("effectiveToCheckpoint", "=", "latest")
               .set({ effectiveToCheckpoint: encodedCheckpoint })
               .execute();
-            const row = tx
+            return tx
               .insertInto(versionedTableName)
               .values({
                 ...latestRow,
@@ -739,8 +759,6 @@ export class SqliteIndexingStore implements IndexingStore {
               })
               .returningAll()
               .executeTakeFirstOrThrow();
-
-            return row;
           }),
         );
       });
@@ -806,9 +824,10 @@ export class SqliteIndexingStore implements IndexingStore {
 
         // If the update would be applied to a record other than the latest
         // record, throw an error.
-        if (latestRow.effectiveFromCheckpoint > encodedCheckpoint) {
-          throw new Error("Cannot update a record in the past");
-        }
+        if (latestRow.effectiveFromCheckpoint > encodedCheckpoint)
+          throw new Error(
+            `Cannot update ${tableName} record with ID ${id} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effectiveFromCheckpoint}. Hint: Did you forget to await the promise returned by a store method?`,
+          );
 
         // If the latest version has the same effectiveFromCheckpoint as the update,
         // this update is occurring within the same indexing function. Update in place.
@@ -830,7 +849,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .where("effectiveToCheckpoint", "=", "latest")
           .set({ effectiveToCheckpoint: encodedCheckpoint })
           .execute();
-        const row = tx
+        return tx
           .insertInto(versionedTableName)
           .values({
             ...latestRow,
@@ -840,8 +859,6 @@ export class SqliteIndexingStore implements IndexingStore {
           })
           .returningAll()
           .executeTakeFirstOrThrow();
-
-        return row;
       });
 
       return decodeRow(row, table, "sqlite");
