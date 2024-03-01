@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.2.13
+
+### Patch Changes
+
+- [#679](https://github.com/ponder-sh/ponder/pull/679) [`1ab3ff6a20941bdd00d422280714c206642b5e02`](https://github.com/ponder-sh/ponder/commit/1ab3ff6a20941bdd00d422280714c206642b5e02) Thanks [@jaylmiller](https://github.com/jaylmiller)! - Fixed `filename` field in sqlite configuration, previously it was ignored.
+
 ## 0.2.12
 
 ### Patch Changes
