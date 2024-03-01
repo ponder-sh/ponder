@@ -354,6 +354,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.queue!.start();
     await this.queue.onIdle();
 
+    if (isCheckpointEqual(this.syncGatewayService.checkpoint, zeroCheckpoint)) {
+      return;
+    }
+
     await this.loadingMutex.runExclusive(async () => {
       const loadKeys = this.getLoadKeys();
 
@@ -945,6 +949,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     if (state.lastEventCheckpoint === undefined) {
       state.lastEventCheckpoint = lastCheckpoint ?? toCheckpoint;
 
+      this.updateTotalSeconds(key);
+      this.updateCompletedSeconds(key);
+
+      this.emitCheckpoint();
       this.logCachedProgress(key);
     } else {
       state.lastEventCheckpoint = checkpointMax(
@@ -960,9 +968,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const checkpoint = checkpointMin(
       ...Object.values(this.indexingFunctionStates).map((state) =>
         state.lastEventCheckpoint !== undefined &&
-        isCheckpointEqual(
-          state.lastEventCheckpoint,
+        isCheckpointGreaterThanOrEqualTo(
           state.tasksProcessedToCheckpoint,
+          state.lastEventCheckpoint,
         )
           ? this.syncGatewayService.checkpoint
           : state.tasksProcessedToCheckpoint,

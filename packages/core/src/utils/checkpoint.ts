@@ -55,11 +55,11 @@ export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
   const blockNumber = +checkpoint.slice(offset, offset + BLOCK_NUMBER_DIGITS);
   offset += BLOCK_NUMBER_DIGITS;
 
-  let logIndex = Number(
+  let logIndex: number | undefined = Number(
     checkpoint.slice(offset, offset + EXECUTION_INDEX_DIGITS),
   );
 
-  if (logIndex > Number.MAX_SAFE_INTEGER) logIndex = Number.MAX_SAFE_INTEGER;
+  if (logIndex > Number.MAX_SAFE_INTEGER) logIndex = undefined;
 
   return { blockTimestamp, chainId, blockNumber, logIndex };
 };
