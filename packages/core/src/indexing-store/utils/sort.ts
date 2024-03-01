@@ -57,3 +57,10 @@ export function buildOrderByConditions({
 
   return orderByConditions;
 }
+
+export function reverseOrderByConditions(orderByConditions: OrderByConditions) {
+  return orderByConditions.map(([columnName, direction]) => [
+    columnName,
+    direction === "asc" ? "desc" : "asc",
+  ]) satisfies OrderByConditions;
+}
