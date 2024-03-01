@@ -43,11 +43,6 @@ declare module "vitest" {
     config: Config;
     erc20: { address: Address };
     factory: { address: Address; pair: Address };
-
-    // // These are available on a per-file basis.
-    // database: DatabaseService;
-    // indexingStore: IndexingStore;
-    // syncStore: SyncStore;
   }
 }
 
@@ -173,10 +168,7 @@ export async function setupDatabaseServices(
     });
 
     await database.setup();
-    await database.reset({
-      ...defaultDatabaseServiceReset,
-      ...overrides,
-    });
+    await database.reset(config);
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
     const indexingStore = new PostgresIndexingStore({

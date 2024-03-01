@@ -41,8 +41,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   private adminPool: Pool;
   db: Kysely<PonderCoreSchema>;
 
-  private indexingPool?: Pool;
-  private syncPool?: Pool;
+  private indexingPool: Pool;
+  private syncPool: Pool;
 
   private instanceId: number = null!;
   private instanceSchemaName: string = null!;
@@ -67,6 +67,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       min: ADMIN_POOL_SIZE,
       max: ADMIN_POOL_SIZE,
     });
+    this.indexingPool = createPool(this.poolConfig);
+    this.syncPool = createPool(this.poolConfig);
 
     this.db = new Kysely<PonderCoreSchema>({
       dialect: new PostgresDialect({ pool: this.adminPool }),
@@ -80,14 +82,12 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   }
 
   getIndexingStoreConfig() {
-    this.indexingPool = createPool(this.poolConfig);
     return { pool: this.indexingPool, schemaName: this.instanceSchemaName };
   }
 
   async getSyncStoreConfig() {
     const pluginSchemaName = "ponder_sync";
     await this.db.schema.createSchema(pluginSchemaName).ifNotExists().execute();
-    this.syncPool = createPool(this.poolConfig);
     return { pool: this.syncPool, schemaName: pluginSchemaName };
   }
 
@@ -131,8 +131,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     });
 
     await this.adminPool.end();
-    await this.indexingPool?.end();
-    await this.syncPool?.end();
+    await this.indexingPool.end();
+    await this.syncPool.end();
   }
 
   async setup() {
