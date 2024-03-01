@@ -448,7 +448,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         ] ?? []) {
           if (isWriteStoreMethod(storeMethod)) {
             const checkpoint = metadata.find(
-              (m) => m.functionId === indexingFunctionKey,
+              (m) => m.functionName === indexingFunctionKey,
             )?.toCheckpoint;
             if (checkpoint !== undefined) checkpoints.push(checkpoint);
           }
