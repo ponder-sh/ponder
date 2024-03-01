@@ -84,8 +84,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       "kysely_migration_lock",
       "function_metadata",
       "table_metadata",
-      "Pet",
-      "Person",
+      "0xPet",
+      "0xPerson",
     ]);
 
     // Instance tables were created in the instance schema
@@ -124,7 +124,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.reset({
       schema: schema,
       tableIds: getTableIds(schema),
-      functionIds: { function: "function" },
+      functionIds: { function: "0xfunction" },
       tableAccess: {},
     });
 
@@ -147,7 +147,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.flush([
       {
-        functionId: "function",
+        functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: createCheckpoint(1),
@@ -156,7 +156,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     ]);
 
     const { rows: instancePetRows1 } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(instancePetRows1).toHaveLength(3);
 
@@ -171,7 +171,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await databaseTwo.reset({
       schema: schema,
       tableIds: getTableIds(schema),
-      functionIds: { function: "function" },
+      functionIds: { function: "0xfunction" },
       tableAccess: {},
     });
 
@@ -183,7 +183,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     expect(databaseTwo.functionMetadata).toStrictEqual([
       {
-        functionId: "function",
+        functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: createCheckpoint(1),
@@ -397,13 +397,13 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(tableMetadataRowsBefore).toStrictEqual([]);
 
     const { rows: petRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsBefore).toStrictEqual([]);
 
     await database.flush([
       {
-        functionId: "function",
+        functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
@@ -416,7 +416,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(functionMetadataRowsAfter).toStrictEqual([
       {
-        function_id: "function",
+        function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(zeroCheckpoint),
@@ -429,13 +429,13 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
-        table_id: "Pet",
+        table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         schema: expect.any(Object),
       },
       {
-        table_id: "Person",
+        table_id: "0xPerson",
         table_name: "Person",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         schema: expect.any(Object),
@@ -443,7 +443,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     ]);
 
     const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsAfter).length(3);
 
@@ -497,13 +497,13 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(tableMetadataRowsBefore).toStrictEqual([]);
 
     const { rows: petRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsBefore).toStrictEqual([]);
 
     await database.flush([
       {
-        functionId: "function",
+        functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
@@ -523,7 +523,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.flush([
       {
-        functionId: "function",
+        functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: maxCheckpoint,
@@ -536,7 +536,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(functionMetadataRowsAfter).toStrictEqual([
       {
-        function_id: "function",
+        function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
@@ -549,13 +549,13 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
-        table_id: "Pet",
+        table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         schema: expect.any(Object),
       },
       {
-        table_id: "Person",
+        table_id: "0xPerson",
         table_name: "Person",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         schema: expect.any(Object),
@@ -563,7 +563,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     ]);
 
     const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsAfter).length(6);
 
@@ -617,13 +617,13 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(tableMetadataRowsBefore).toStrictEqual([]);
 
     const { rows: petRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsBefore).toStrictEqual([]);
 
     await database.flush([
       {
-        functionId: "function",
+        functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
@@ -643,7 +643,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.flush([
       {
-        functionId: "function",
+        functionId: "0xfunction",
         functionName: "function",
 
         fromCheckpoint: null,
@@ -651,7 +651,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         eventCount: 6,
       },
       {
-        functionId: "function1",
+        functionId: "0xfunction1",
         functionName: "function1",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
@@ -664,14 +664,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(functionMetadataRowsAfter).toStrictEqual([
       {
-        function_id: "function",
+        function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         event_count: 6,
       },
       {
-        function_id: "function1",
+        function_id: "0xfunction1",
         function_name: "function1",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(zeroCheckpoint),
@@ -684,13 +684,13 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
-        table_id: "Pet",
+        table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         schema: expect.any(Object),
       },
       {
-        table_id: "Person",
+        table_id: "0xPerson",
         table_name: "Person",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         schema: expect.any(Object),
@@ -698,14 +698,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     ]);
 
     const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsAfter).length(6);
 
     await database.kill();
   });
 
-  test.todo("flush with less cache tables");
+  test.todo("flush with table checkpoints");
 
   test("kill before publish", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;

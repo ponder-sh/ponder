@@ -79,8 +79,8 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       "kysely_migration_lock",
       "function_metadata",
       "table_metadata",
-      "Pet",
-      "Person",
+      "0xPet",
+      "0xPerson",
     ]);
 
     // Instance tables were created in the public schema
@@ -202,14 +202,14 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     expect(metadataRowsBefore).toStrictEqual([]);
 
     const { rows: petRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsBefore).toStrictEqual([]);
 
     await database.flush([
       {
         functionId: "function",
-        functionName: "function",
+        functionName: "0xfunction",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
         eventCount: 3,
@@ -222,7 +222,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     expect(metadataRowsAfter).toStrictEqual([
       {
         function_id: "function",
-        function_name: "function",
+        function_name: "0xfunction",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(zeroCheckpoint),
         event_count: 3,
@@ -230,7 +230,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     ]);
 
     const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsAfter).length(3);
 
@@ -279,14 +279,14 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     expect(metadataRowsBefore).toStrictEqual([]);
 
     const { rows: petRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsBefore).toStrictEqual([]);
 
     await database.flush([
       {
         functionId: "function",
-        functionName: "function",
+        functionName: "0xfunction",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
         eventCount: 3,
@@ -306,7 +306,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.flush([
       {
         functionId: "function",
-        functionName: "function",
+        functionName: "0xfunction",
         fromCheckpoint: null,
         toCheckpoint: maxCheckpoint,
         eventCount: 6,
@@ -319,7 +319,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     expect(metadataRowsAfter).toStrictEqual([
       {
         function_id: "function",
-        function_name: "function",
+        function_name: "0xfunction",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         event_count: 6,
@@ -327,7 +327,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     ]);
 
     const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsAfter).length(6);
 
@@ -376,7 +376,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     expect(metadataRowsBefore).toStrictEqual([]);
 
     const { rows: petRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsBefore).toStrictEqual([]);
 
@@ -403,14 +403,14 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.flush([
       {
         functionId: "function",
-        functionName: "function",
+        functionName: "0xfunction",
         fromCheckpoint: null,
         toCheckpoint: maxCheckpoint,
         eventCount: 6,
       },
       {
         functionId: "function1",
-        functionName: "function1",
+        functionName: "0xfunction1",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
         eventCount: 0,
@@ -423,14 +423,14 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     expect(metadataRowsAfter).toStrictEqual([
       {
         function_id: "function",
-        function_name: "function",
+        function_name: "0xfunction",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         event_count: 6,
       },
       {
         function_id: "function1",
-        function_name: "function1",
+        function_name: "0xfunction1",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(zeroCheckpoint),
         event_count: 0,
@@ -438,7 +438,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     ]);
 
     const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."Pet"`.compile(database.db),
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
     expect(petRowsAfter).length(6);
 

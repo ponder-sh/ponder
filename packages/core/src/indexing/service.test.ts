@@ -1164,7 +1164,7 @@ test("reset() loads from cache", async (context) => {
   expect(flushSpy).toHaveBeenCalledWith([
     {
       eventCount: 2,
-      functionId: "Erc20:Transfer",
+      functionId: "0xErc20:Transfer",
       functionName: "Erc20:Transfer",
       fromCheckpoint: {
         blockTimestamp: expect.any(Number),

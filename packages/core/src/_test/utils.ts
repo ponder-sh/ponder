@@ -291,7 +291,7 @@ export const getFunctionIds = (
   for (const contractName of Object.keys(indexingFunctions)) {
     for (const eventName of Object.keys(indexingFunctions[contractName])) {
       const key = `${contractName}:${eventName}`;
-      functionIds[key] = key;
+      functionIds[key] = `0x${key}`;
     }
   }
 
@@ -305,7 +305,7 @@ export const getTableIds = (schema: Schema): TableIds => {
   const tableIds: TableIds = {};
 
   for (const tableName of Object.keys(schema.tables)) {
-    tableIds[tableName] = tableName;
+    tableIds[tableName] = `0x${tableName}`;
   }
 
   return tableIds;
