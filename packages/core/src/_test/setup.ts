@@ -94,9 +94,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
     context.databaseConfig = { kind: "postgres", poolConfig };
 
     return async () => {
-      await client.query(
-        `DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`,
-      );
+      await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
       await client.end();
     };
   } else {
