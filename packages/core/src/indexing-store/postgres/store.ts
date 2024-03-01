@@ -12,7 +12,10 @@ import {
 import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { buildWhereConditions } from "../utils/filter.js";
 import { revertTable } from "../utils/revert.js";
-import { buildOrderByConditions } from "../utils/sort.js";
+import {
+  buildOrderByConditions,
+  reverseOrderByConditions,
+} from "../utils/sort.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
@@ -144,12 +147,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
       if (where) {
         query = query.where((eb) =>
-          buildWhereConditions({
-            eb,
-            where,
-            table,
-            encoding: "postgres",
-          }),
+          buildWhereConditions({ eb, where, table, encoding: "postgres" }),
         );
       }
 
@@ -179,7 +177,7 @@ export class PostgresIndexingStore implements IndexingStore {
       if (after === null && before === null) {
         query = query.limit(limit + 1);
         const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, "sqlite"));
+        const records = rows.map((row) => decodeRow(row, table, "postgres"));
 
         if (records.length === limit + 1) {
           records.pop();
@@ -268,8 +266,19 @@ export class PostgresIndexingStore implements IndexingStore {
           )
           .limit(limit + 2);
 
+        // Reverse the order by conditions to get the previous page.
+        query = query.clearOrderBy();
+        const reversedOrderByConditions =
+          reverseOrderByConditions(orderByConditions);
+        for (const [column, direction] of reversedOrderByConditions) {
+          query = query.orderBy(column, direction);
+        }
+
         const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, "postgres"));
+        const records = rows
+          .map((row) => decodeRow(row, table, "postgres"))
+          // Reverse the records again, back to the original order.
+          .reverse();
 
         if (records.length === 0) {
           return {
