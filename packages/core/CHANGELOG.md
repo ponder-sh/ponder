@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.2.14
+
+### Patch Changes
+
+- [#681](https://github.com/ponder-sh/ponder/pull/681) [`1490ac801f646ef5d06694acf2ffda6054966c21`](https://github.com/ponder-sh/ponder/commit/1490ac801f646ef5d06694acf2ffda6054966c21) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved unique constraint violation and checkpoint violation error messages for `create`, `createMany`, `update`, `updateMany`, and `upsert` store methods.
+
 ## 0.2.13
 
 ### Patch Changes
