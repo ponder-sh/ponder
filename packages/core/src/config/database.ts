@@ -28,10 +28,15 @@ export const buildDatabase = ({
   config: Config;
 }): DatabaseConfig => {
   const { ponderDir, rootDir } = common.options;
-  const defaultStorePath = path.join(ponderDir, "store");
-  const defaultSyncFilePath = path.join(defaultStorePath, "sync.db");
-  const defaultIndexingFilePath = path.join(defaultStorePath, "indexing.db");
-  const sqlitePrintPath = path.relative(rootDir, defaultStorePath);
+  const storePath = (() => {
+    if (config.database?.kind === "sqlite" && config.database.filename) {
+      return path.join(rootDir, config.database.filename);
+    }
+    return path.join(ponderDir, "store");
+  })();
+  const syncFilePath = path.join(storePath, "sync.db");
+  const indexingFilePath = path.join(storePath, "indexing.db");
+  const sqlitePrintPath = path.relative(rootDir, storePath);
 
   // If the user manually specified a database, use it.
   if (config.database?.kind) {
@@ -77,11 +82,11 @@ export const buildDatabase = ({
     return {
       sync: {
         kind: "sqlite",
-        database: createSqliteDatabase(defaultSyncFilePath),
+        database: createSqliteDatabase(syncFilePath),
       },
       indexing: {
         kind: "sqlite",
-        database: createSqliteDatabase(defaultIndexingFilePath),
+        database: createSqliteDatabase(indexingFilePath),
       },
     } satisfies DatabaseConfig;
   }
@@ -123,11 +128,11 @@ export const buildDatabase = ({
   return {
     sync: {
       kind: "sqlite",
-      database: createSqliteDatabase(defaultSyncFilePath),
+      database: createSqliteDatabase(syncFilePath),
     },
     indexing: {
       kind: "sqlite",
-      database: createSqliteDatabase(defaultIndexingFilePath),
+      database: createSqliteDatabase(indexingFilePath),
     },
   } satisfies DatabaseConfig;
 };
