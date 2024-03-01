@@ -209,6 +209,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.flush([
       {
         functionId: "function",
+        functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
         eventCount: 3,
@@ -221,6 +222,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     expect(metadataRowsAfter).toStrictEqual([
       {
         function_id: "function",
+        function_name: "function",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(zeroCheckpoint),
         event_count: 3,
@@ -284,6 +286,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.flush([
       {
         functionId: "function",
+        functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
         eventCount: 3,
@@ -303,6 +306,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.flush([
       {
         functionId: "function",
+        functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: maxCheckpoint,
         eventCount: 6,
@@ -315,6 +319,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     expect(metadataRowsAfter).toStrictEqual([
       {
         function_id: "function",
+        function_name: "function",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         event_count: 6,
@@ -378,6 +383,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.flush([
       {
         functionId: "function",
+        functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
         eventCount: 3,
@@ -397,12 +403,14 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.flush([
       {
         functionId: "function",
+        functionName: "function",
         fromCheckpoint: null,
         toCheckpoint: maxCheckpoint,
         eventCount: 6,
       },
       {
         functionId: "function1",
+        functionName: "function1",
         fromCheckpoint: null,
         toCheckpoint: zeroCheckpoint,
         eventCount: 0,
@@ -415,12 +423,14 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     expect(metadataRowsAfter).toStrictEqual([
       {
         function_id: "function",
+        function_name: "function",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         event_count: 6,
       },
       {
         function_id: "function1",
+        function_name: "function1",
         from_checkpoint: null,
         to_checkpoint: encodeCheckpoint(zeroCheckpoint),
         event_count: 0,

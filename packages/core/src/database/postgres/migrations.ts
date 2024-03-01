@@ -8,6 +8,7 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("function_metadata")
         .addColumn("function_id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("function_name", "text", (col) => col.notNull())
         .addColumn("from_checkpoint", "varchar(58)")
         .addColumn("to_checkpoint", "varchar(58)", (col) => col.notNull())
         .addColumn("event_count", "integer", (col) => col.notNull())
@@ -16,7 +17,7 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("table_metadata")
         .addColumn("table_id", "text", (col) => col.notNull().primaryKey())
-        .addColumn("from_checkpoint", "varchar(58)", (col) => col.notNull())
+        .addColumn("table_name", "text", (col) => col.notNull())
         .addColumn("to_checkpoint", "varchar(58)", (col) => col.notNull())
         .addColumn("schema", "jsonb", (col) => col.notNull())
         .execute();
@@ -35,13 +36,14 @@ export const migrationProvider = new StaticMigrationProvider();
 export type PonderCoreSchema = {
   "ponder_cache.function_metadata": {
     function_id: string;
+    function_name: string;
     from_checkpoint: string | null;
     to_checkpoint: string;
     event_count: number;
   };
   "ponder_cache.table_metadata": {
     table_id: string;
-    from_checkpoint: string | null;
+    table_name: string;
     to_checkpoint: string;
     schema: JSONColumnType<Schema>;
   };

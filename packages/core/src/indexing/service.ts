@@ -16,7 +16,7 @@ import {
   sourceIsFactory,
   sourceIsLogFilter,
 } from "@/config/sources.js";
-import type { DatabaseService, Metadata } from "@/database/service.js";
+import type { DatabaseService, FunctionMetadata } from "@/database/service.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
@@ -995,6 +995,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
       return {
         functionId: this.functionIds![indexingFunctionKey],
+        functionName: indexingFunctionKey,
         fromCheckpoint: state.firstEventCheckpoint ?? null,
         toCheckpoint,
         eventCount: state.eventCount,
@@ -1006,13 +1007,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
         state.isComplete
           ? {
               functionId: this.functionIds![setupFunctionKey],
+              functionName: setupFunctionKey,
               fromCheckpoint: null,
               toCheckpoint: zeroCheckpoint,
               eventCount: 0,
             }
           : null,
       )
-      .filter((m) => m !== null) as Metadata[];
+      .filter((m) => m !== null) as FunctionMetadata[];
 
     await this.database.flush(
       indexingFunctionMetadata.concat(setupFunctionMetadata),
@@ -1039,9 +1041,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.indexingFunctionStates = {};
     this.setupFunctionStates = {};
 
-    const checkpoints: { [functionId: string]: Omit<Metadata, "functionId"> } =
-      {};
-    const metadata = this.database.metadata;
+    const checkpoints: {
+      [functionId: string]: Omit<
+        FunctionMetadata,
+        "functionId" | "functionName"
+      >;
+    } = {};
+    const metadata = this.database.functionMetadata;
 
     for (const m of metadata) {
       checkpoints[m.functionId] = {

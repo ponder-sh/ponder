@@ -1165,6 +1165,7 @@ test("reset() loads from cache", async (context) => {
     {
       eventCount: 2,
       functionId: "Erc20:Transfer",
+      functionName: "Erc20:Transfer",
       fromCheckpoint: {
         blockTimestamp: expect.any(Number),
         blockNumber: expect.any(Number),

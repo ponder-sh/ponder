@@ -3,10 +3,21 @@ import type {
   FunctionIds,
   TableIds,
 } from "@/build/static/getFunctionAndTableIds.js";
-import type { TableAccess } from "@/build/static/getTableAccess.js";
+import {
+  type TableAccess,
+  getTableAccessInverse,
+  isWriteStoreMethod,
+} from "@/build/static/getTableAccess.js";
+import { revertTable } from "@/indexing-store/utils/revert.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import { decodeCheckpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  checkpointMax,
+  decodeCheckpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool } from "@/utils/pg.js";
 import {
@@ -18,7 +29,7 @@ import {
   sql,
 } from "kysely";
 import type { Pool, PoolConfig } from "pg";
-import type { BaseDatabaseService, Metadata } from "../service.js";
+import type { BaseDatabaseService, FunctionMetadata } from "../service.js";
 import { type PonderCoreSchema, migrationProvider } from "./migrations.js";
 
 const ADMIN_POOL_SIZE = 3;
@@ -50,7 +61,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
   schema?: Schema;
   tableIds?: TableIds;
-  metadata: Metadata[] = undefined!;
+  functionIds?: FunctionIds;
+  tableAccess?: TableAccess;
+
+  functionMetadata: FunctionMetadata[] = undefined!;
 
   constructor({
     common,
@@ -93,8 +107,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
   async kill() {
     clearInterval(this.heartbeatInterval);
-
-    // TODO(kyle): Flush here?
 
     // If this instance is not live, drop the instance schema and remove the metadata row.
     await this.db.transaction().execute(async (tx) => {
@@ -222,6 +234,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     schema,
     tableIds,
     functionIds,
+    tableAccess,
   }: {
     schema: Schema;
     tableIds: TableIds;
@@ -230,78 +243,97 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   }) {
     this.schema = schema;
     this.tableIds = tableIds;
+    this.functionIds = functionIds;
+    this.tableAccess = tableAccess;
 
-    const metadata = await this.db.transaction().execute(async (tx) => {
-      // 1) Acquire an instance ID by inserting a row into the public metadata table.
-      const metadataRow = await tx
-        .insertInto("ponder._metadata")
-        .values({
-          schema: JSON.stringify(this.schema),
-          created_at: BigInt(Date.now()),
-          heartbeat_at: BigInt(Date.now()),
-        })
-        .returningAll()
-        .executeTakeFirst();
+    const { functionMetadata, tableMetadata } = await this.db
+      .transaction()
+      .execute(async (tx) => {
+        // 1) Acquire an instance ID by inserting a row into the public metadata table.
+        const metadataRow = await tx
+          .insertInto("ponder._metadata")
+          .values({
+            schema: JSON.stringify(this.schema),
+            created_at: BigInt(Date.now()),
+            heartbeat_at: BigInt(Date.now()),
+          })
+          .returningAll()
+          .executeTakeFirst();
 
-      // Should not be possible for metadataRow to be undefined. If the insert fails, it will throw.
-      this.instanceId = metadataRow!.instance_id;
-      this.instanceSchemaName = `ponder_instance_${this.instanceId}`;
+        // Should not be possible for metadataRow to be undefined. If the insert fails, it will throw.
+        this.instanceId = metadataRow!.instance_id;
+        this.instanceSchemaName = `ponder_instance_${this.instanceId}`;
 
-      // 2) Create the instance schema.
-      await tx.schema
-        .createSchema(this.instanceSchemaName)
-        .ifNotExists()
-        .execute();
+        // 2) Create the instance schema.
+        await tx.schema
+          .createSchema(this.instanceSchemaName)
+          .ifNotExists()
+          .execute();
 
-      this.common.logger.debug({
-        service: "database",
-        msg: `Acquired instance_id (${this.instanceId}), created schema 'ponder_instance_${this.instanceId}'`,
+        this.common.logger.debug({
+          service: "database",
+          msg: `Acquired instance_id (${this.instanceId}), created schema 'ponder_instance_${this.instanceId}'`,
+        });
+
+        // 3) Create tables in the instance schema, copying cached data if available.
+        const tables = Object.entries(this.schema!.tables);
+        await Promise.all(
+          tables.map(async ([tableName, columns]) => {
+            const tableId = this.tableIds![tableName];
+
+            // a) Create a table in the instance schema.
+            await tx.schema
+              .withSchema(this.instanceSchemaName)
+              .createTable(tableName)
+              .$call((builder) =>
+                this.buildColumns(builder, tableName, columns),
+              )
+              .execute();
+
+            // b) Create a table in the cache schema if it doesn't already exist.
+            await tx.schema
+              .withSchema(CACHE_SCHEMA_NAME)
+              .createTable(tableId)
+              .$call((builder) => this.buildColumns(builder, tableId, columns))
+              .ifNotExists()
+              .execute();
+
+            // c) Copy data from the cache table to the new table.
+            await tx.executeQuery(
+              sql`INSERT INTO ${sql.raw(
+                `"${this.instanceSchemaName}"."${tableName}"`,
+              )} SELECT * FROM ${sql.raw(
+                `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
+              )}`.compile(tx),
+            );
+          }),
+        );
+
+        const functionIds_ = Object.values(functionIds);
+
+        // Get the functionMetadata for the data that we (maybe) copied over from the cache.
+        const functionMetadata =
+          functionIds_.length === 0
+            ? []
+            : await tx
+                .selectFrom("ponder_cache.function_metadata")
+                .selectAll()
+                .where("function_id", "in", functionIds_)
+                .execute();
+
+        const tableIds_ = Object.values(tableIds);
+
+        const tableMetadata =
+          tableIds_.length === 0
+            ? []
+            : await tx
+                .selectFrom("ponder_cache.table_metadata")
+                .selectAll()
+                .where("table_id", "in", tableIds_)
+                .execute();
+
+        return { functionMetadata, tableMetadata };
       });
-
-      // 3) Create tables in the instance schema, copying cached data if available.
-      const tables = Object.entries(this.schema!.tables);
-      await Promise.all(
-        tables.map(async ([tableName, columns]) => {
-          const tableId = this.tableIds![tableName];
-
-          // a) Create a table in the instance schema.
-          await tx.schema
-            .withSchema(this.instanceSchemaName)
-            .createTable(tableName)
-            .$call((builder) => this.buildColumns(builder, tableName, columns))
-            .execute();
-
-          // b) Create a table in the cache schema if it doesn't already exist.
-          await tx.schema
-            .withSchema(CACHE_SCHEMA_NAME)
-            .createTable(tableId)
-            .$call((builder) => this.buildColumns(builder, tableId, columns))
-            .ifNotExists()
-            .execute();
-
-          // c) Copy data from the cache table to the new table.
-          await tx.executeQuery(
-            sql`INSERT INTO ${sql.raw(
-              `"${this.instanceSchemaName}"."${tableName}"`,
-            )} SELECT * FROM ${sql.raw(
-              `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
-            )}`.compile(tx),
-          );
-        }),
-      );
-
-      const functionIds_ = Object.values(functionIds);
-      if (functionIds_.length === 0) return [];
-
-      // Get the metadata for the data that we (maybe) copied over from the cache.
-      const metadata = await tx
-        .selectFrom("ponder_cache.function_metadata")
-        .selectAll()
-        .where("function_id", "in", functionIds_)
-        .execute();
-
-      return metadata;
-    });
 
     this.heartbeatInterval = setInterval(async () => {
       const updatedRow = await this.db
@@ -316,8 +348,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       });
     }, HEARTBEAT_INTERVAL_MS);
 
-    this.metadata = metadata.map((m) => ({
+    this.functionMetadata = functionMetadata.map((m) => ({
       functionId: m.function_id,
+      functionName: m.function_name,
       fromCheckpoint: m.from_checkpoint
         ? decodeCheckpoint(m.from_checkpoint)
         : null,
@@ -333,32 +366,19 @@ export class PostgresDatabaseService implements BaseDatabaseService {
      * the instance tables to the checkpoint saved in the metadata after copying from the cache.
      * In other words, metadata checkpoints are always <= actual rows in the corresponding table.
      */
-    // for (const tableName of Object.keys(schema.tables)) {
-    //   const indexingFunctionKeys = tableAccess.access
-    //     .filter((t) => t.access === "write" && t.table === tableName)
-    //     .map((t) => t.indexingFunctionKey);
 
-    //   const tableMetadata = dedupe(indexingFunctionKeys).map((key) =>
-    //     this.metadata.find((m) => m.functionId === functionIds[key]),
-    //   );
-
-    //   if (tableMetadata.some((m) => m === undefined)) continue;
-
-    //   const checkpoints = tableMetadata.map((m) => m!.toCheckpoint);
-
-    //   if (checkpoints.length === 0) continue;
-
-    //   const tableCheckpoint = checkpointMax(...checkpoints);
-
-    //   await revertTable(
-    //     this.db.withSchema(this.instanceSchemaName),
-    //     tableName,
-    //     tableCheckpoint,
-    //   );
-    // }
+    await Promise.all(
+      tableMetadata.map((m) => {
+        return revertTable(
+          this.db.withSchema(this.instanceSchemaName),
+          m.table_name,
+          decodeCheckpoint(m.to_checkpoint),
+        );
+      }),
+    );
   }
 
-  async flush(metadata: Metadata[]): Promise<void> {
+  async flush(metadata: FunctionMetadata[]): Promise<void> {
     await this.db.transaction().execute(async (tx) => {
       const tables = Object.entries(this.schema!.tables);
 
@@ -391,8 +411,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         }),
       );
 
-      const newMetadata = metadata.map((m) => ({
+      const newFunctionMetadata = metadata.map((m) => ({
         function_id: m.functionId,
+        function_name: m.functionName,
         from_checkpoint: m.fromCheckpoint
           ? encodeCheckpoint(m.fromCheckpoint)
           : null,
@@ -401,11 +422,56 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       }));
 
       await Promise.all(
-        newMetadata.map(async (metadata) => {
+        newFunctionMetadata.map(async (metadata) => {
           await tx
             .insertInto("ponder_cache.function_metadata")
             .values(metadata)
             .onConflict((oc) => oc.column("function_id").doUpdateSet(metadata))
+            .execute();
+        }),
+      );
+
+      const newTableMetadata: Omit<
+        PonderCoreSchema["ponder_cache.table_metadata"],
+        "schema"
+      >[] = [];
+
+      const inverseTableAccess = getTableAccessInverse(this.tableAccess!);
+
+      for (const [tableName, tableId] of Object.entries(this.tableIds!)) {
+        const checkpoints: Checkpoint[] = [];
+
+        // Table checkpoint is the max checkpoint of all the functions that write to the table
+        for (const { indexingFunctionKey, storeMethod } of inverseTableAccess[
+          tableName
+        ] ?? []) {
+          if (isWriteStoreMethod(storeMethod)) {
+            const checkpoint = metadata.find(
+              (m) => m.functionId === indexingFunctionKey,
+            )?.toCheckpoint;
+            if (checkpoint !== undefined) checkpoints.push(checkpoint);
+          }
+        }
+
+        newTableMetadata.push({
+          table_name: tableName,
+          table_id: tableId,
+          to_checkpoint:
+            checkpoints.length === 0
+              ? encodeCheckpoint(zeroCheckpoint)
+              : encodeCheckpoint(checkpointMax(...checkpoints)),
+        });
+      }
+
+      await Promise.all(
+        newTableMetadata.map(async (metadata) => {
+          await tx
+            .insertInto("ponder_cache.table_metadata")
+            .values({
+              ...metadata,
+              schema: JSON.stringify(this.schema!.tables[metadata.table_name]),
+            })
+            .onConflict((oc) => oc.column("table_id").doUpdateSet(metadata))
             .execute();
         }),
       );
