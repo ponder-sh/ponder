@@ -1,6 +1,6 @@
 import { createSchema } from "@/schema/schema.js";
 import { expect, test } from "vitest";
-import { buildOrderByConditions } from "./sort.js";
+import { buildOrderByConditions, reverseOrderByConditions } from "./sort.js";
 
 const schema = createSchema((p) => ({
   PetKind: p.createEnum(["CAT", "DOG"]),
@@ -86,4 +86,34 @@ test("buildOrderByConditions throws for invalid order direction", () => {
       table: schema.tables.Pet,
     }),
   ).toThrow("Invalid sort direction. Got 'aaaaasc', expected 'asc' or 'desc'");
+});
+
+test("reverseOrderByConditions reverses with one condition", () => {
+  const conditions = buildOrderByConditions({
+    orderBy: undefined,
+    table: schema.tables.Pet,
+  });
+
+  expect(conditions).toEqual([["id", "asc"]]);
+
+  const reversedConditions = reverseOrderByConditions(conditions);
+  expect(reversedConditions).toEqual([["id", "desc"]]);
+});
+
+test("reverseOrderByConditions reverses with two conditions", () => {
+  const conditions = buildOrderByConditions({
+    orderBy: { names: "desc" },
+    table: schema.tables.Pet,
+  });
+
+  expect(conditions).toEqual([
+    ["names", "desc"],
+    ["id", "desc"],
+  ]);
+
+  const reversedConditions = reverseOrderByConditions(conditions);
+  expect(reversedConditions).toEqual([
+    ["names", "asc"],
+    ["id", "asc"],
+  ]);
 });
