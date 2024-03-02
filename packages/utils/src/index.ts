@@ -7,3 +7,6 @@ export {
   type ParseGetLogsErrorReturnType,
   parseGetLogsError,
 } from "./parseGetLogsError/index.js";
+export type { Queue } from "./queue.js";
+export { createConcurrencyQueue } from "./concurrencyQueue.js";
+export { createFrequencyQueue } from "./frequencyQueue.js";
