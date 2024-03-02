@@ -116,3 +116,7 @@ jobs:
 
       - name: Test
         run: pnpm --filter utils test
+        env:
+          RPC_URL_ALCHEMY_1: ${{ secrets.RPC_URL_ALCHEMY_1 }}
+          RPC_URL_INFURA_1: ${{ secrets.RPC_URL_INFURA_1 }}
+          RPC_URL_QUICKNODE_1: ${{ secrets.RPC_URL_QUICKNODE_1 }}
