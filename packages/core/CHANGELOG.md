@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.2.15
+
+### Patch Changes
+
+- [#685](https://github.com/ponder-sh/ponder/pull/685) [`27ba293e402304eb3de50177ecb46a430b8ced9d`](https://github.com/ponder-sh/ponder/commit/27ba293e402304eb3de50177ecb46a430b8ced9d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed race condition in sync event debounce logic.
+
 ## 0.2.14
 
 ### Patch Changes
