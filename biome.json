@@ -36,7 +36,8 @@
       },
       "suspicious": {
         "noExplicitAny": "off",
-        "noAssignInExpressions": "off"
+        "noAssignInExpressions": "off",
+        "noConfusingVoidType": "off"
       },
       "complexity": {
         "noForEach": "off",
