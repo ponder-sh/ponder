@@ -1,8 +1,8 @@
 import path from "path";
 import url from "url";
 import { expect, test } from "vitest";
+import schema from "./_test/ponder.schema.js";
 import { getTableAccess } from "./getTableAccess.js";
-import schema from "./test/ponder.schema.js";
 
 const tableNames = Object.keys(schema.tables);
 const indexingFunctionKeys = ["C:Event1", "C:Event2", "C:Event3"];
