@@ -1,0 +1,24 @@
+name: Utils
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  test-get-logs:
+    name: Test parseGetLogsError
+    runs-on: "ubuntu-latest"
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["Node 18", "Node 20"]
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Test
+        run:  pnpm --filter utils test src/parseGetLogsError 
