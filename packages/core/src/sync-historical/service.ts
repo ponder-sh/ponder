@@ -832,7 +832,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
 
     if (newBlockCheckpoint) {
-      this.debouncedEmitCheckpoint({
+      this.debouncedEmitCheckpoint.callback({
         blockTimestamp: newBlockCheckpoint.blockTimestamp,
         chainId: this.network.chainId,
         blockNumber: newBlockCheckpoint.blockNumber,

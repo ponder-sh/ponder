@@ -12,7 +12,7 @@ test("basic", () => {
     tableNames,
     indexingFunctionKeys,
     filePaths: [
-      path.join(url.fileURLToPath(import.meta.url), "..", "test", "basic.ts"),
+      path.join(url.fileURLToPath(import.meta.url), "..", "_test", "basic.ts"),
     ],
   });
 
@@ -39,10 +39,10 @@ test("helper function", () => {
       path.join(
         url.fileURLToPath(import.meta.url),
         "..",
-        "test",
+        "_test",
         "helperFunc.ts",
       ),
-      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+      path.join(url.fileURLToPath(import.meta.url), "..", "_test", "util.ts"),
     ],
   });
 
@@ -76,10 +76,10 @@ test.skip("helper rename", () => {
       path.join(
         url.fileURLToPath(import.meta.url),
         "..",
-        "test",
+        "_test",
         "helperFuncRename.ts",
       ),
-      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+      path.join(url.fileURLToPath(import.meta.url), "..", "_test", "util.ts"),
     ],
   });
 
@@ -106,7 +106,7 @@ test("renamed variable", () => {
       path.join(
         url.fileURLToPath(import.meta.url),
         "..",
-        "test",
+        "_test",
         "renameVar.ts",
       ),
     ],
@@ -129,10 +129,10 @@ test("helper class", () => {
       path.join(
         url.fileURLToPath(import.meta.url),
         "..",
-        "test",
+        "_test",
         "helperClass.ts",
       ),
-      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+      path.join(url.fileURLToPath(import.meta.url), "..", "_test", "util.ts"),
     ],
   });
 
@@ -149,10 +149,10 @@ test("helper object", () => {
       path.join(
         url.fileURLToPath(import.meta.url),
         "..",
-        "test",
+        "_test",
         "helperObject.ts",
       ),
-      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+      path.join(url.fileURLToPath(import.meta.url), "..", "_test", "util.ts"),
     ],
   });
 
@@ -169,10 +169,10 @@ test("nested helper functions", () => {
       path.join(
         url.fileURLToPath(import.meta.url),
         "..",
-        "test",
+        "_test",
         "helperNest.ts",
       ),
-      path.join(url.fileURLToPath(import.meta.url), "..", "test", "util.ts"),
+      path.join(url.fileURLToPath(import.meta.url), "..", "_test", "util.ts"),
     ],
   });
   expect(tableAccess["C:Event1"]).toStrictEqual([

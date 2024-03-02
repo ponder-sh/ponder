@@ -36,10 +36,12 @@ export const createRequestQueue = ({
 
   return {
     ...requestQueue,
-    request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
+    request: async <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
       params: TParameters,
     ) => {
-      return requestQueue.add(params);
+      const add = await requestQueue.add(params);
+
+      return add;
     },
   } as RequestQueue;
 };

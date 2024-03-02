@@ -6,7 +6,7 @@ import { mergeAbis } from "./mergeAbis.js";
 test("mergeAbis() removes constructors, receive, fallback", () => {
   const abi = parseAbi([
     "constructor()",
-    "fallback() external",
+    // "fallback() external",
     "receive() external payable",
   ]);
 

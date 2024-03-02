@@ -16,8 +16,8 @@ export function debounce<param extends unknown[], returnType>(
       if (!timeoutSet) {
         timeoutSet = true;
         timeout = setTimeout(() => {
-          fun(...args);
           timeoutSet = false;
+          fun(...args);
         }, ms);
       }
     },

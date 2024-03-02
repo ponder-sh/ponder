@@ -34,13 +34,18 @@ export const createFrequencyQueue = <returnType, parameter = void>({
     if (Math.floor(_timestamp / 1_000) !== timestamp) {
       requests = 0;
       timestamp = Math.floor(_timestamp / 1_000);
-
-      if (timer) clearTimeout(timer);
-      timer = undefined;
     }
 
+    if (timer) return;
+
     if (requests >= frequency) {
-      if (!timer) timer = setTimeout(next, 1_000 - (_timestamp % 1_000));
+      timer = setTimeout(
+        () => {
+          timer = undefined;
+          next();
+        },
+        1_000 - (_timestamp % 1_000),
+      );
       return;
     }
 
@@ -64,8 +69,6 @@ export const createFrequencyQueue = <returnType, parameter = void>({
             idlePromiseWithResolvers.resolve();
             idlePromiseWithResolvers.completed = true;
           }
-
-          process.nextTick(next);
         });
 
       if (emptyPromiseWithResolvers !== undefined && queue.length === 0) {
