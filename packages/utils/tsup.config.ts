@@ -4,7 +4,7 @@ export default defineConfig({
   name: "@ponder/utils",
   entry: ["src/index.ts"],
   outDir: "dist",
-  format: ["esm"],
+  format: ["esm", "cjs"],
   sourcemap: true,
   dts: true,
   clean: true,
