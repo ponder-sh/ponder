@@ -1,0 +1,4 @@
+dist/
+.ponder/
+generated/
+.env.local

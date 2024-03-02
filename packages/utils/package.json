@@ -1,0 +1,20 @@
+{
+  "name": "@ponder/utils",
+  "version": "0.0.0",
+  "description": "",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ponder-sh/ponder",
+    "directory": "packages/utils"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "tsup": "^8.0.1",
+    "vitest": "^1.0.2"
+  }
+}
