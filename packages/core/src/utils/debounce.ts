@@ -10,28 +10,27 @@ export function debounce<param extends unknown[], returnType>(
   fun: (...x: param) => returnType,
 ) {
   let lastTimestamp = 0;
-  let args: param | undefined;
+  let args: param;
+  let timeoutSet = false;
 
   return (..._args: param) => {
-    if (Date.now() > lastTimestamp + ms) {
-      lastTimestamp = Date.now();
-
-      fun(..._args);
-      args = undefined;
-    } else {
-      if (args === undefined) {
-        // No timeout is set
-        setTimeout(
-          () => {
-            fun(...args!);
-            args = undefined;
-          },
-          lastTimestamp + ms - Date.now(),
-        );
-      }
-
+    if (timeoutSet) {
       args = _args;
+    } else if (Date.now() >= lastTimestamp + ms) {
       lastTimestamp = Date.now();
+      fun(..._args);
+    } else {
+      args = _args;
+      timeoutSet = true;
+
+      setTimeout(
+        () => {
+          lastTimestamp = Date.now();
+          fun(...args);
+          timeoutSet = false;
+        },
+        lastTimestamp + ms - Date.now(),
+      );
     }
   };
 }
