@@ -1,4 +1,4 @@
-import { assertType, expect, test } from "vitest";
+import { assertType, expect, test, vi } from "vitest";
 import { createConcurrencyQueue } from "./concurrencyQueue.js";
 import { promiseWithResolvers } from "./promiseWithResolvers.js";
 
@@ -224,9 +224,11 @@ test("onEmpty twice", async () => {
 });
 
 test("concurrency", () => {
+  const func = vi.fn(() => Promise.resolve());
+
   const queue = createConcurrencyQueue({
     concurrency: 2,
-    worker: () => Promise.resolve(),
+    worker: func,
   });
 
   queue.add();
@@ -238,6 +240,7 @@ test("concurrency", () => {
   queue.pause();
 
   expect(queue.size()).toBe(2);
+  expect(func).toHaveBeenCalledTimes(2);
 });
 
 test("event loop", async () => {

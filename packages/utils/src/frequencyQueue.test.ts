@@ -1,4 +1,4 @@
-import { assertType, expect, test } from "vitest";
+import { assertType, expect, test, vi } from "vitest";
 import { createFrequencyQueue } from "./frequencyQueue.js";
 import { promiseWithResolvers } from "./promiseWithResolvers.js";
 
@@ -243,9 +243,11 @@ test("onEmpty twice", async () => {
 });
 
 test("frequency", async () => {
+  const func = vi.fn(() => Promise.resolve());
+
   const queue = createFrequencyQueue({
     frequency: 2,
-    worker: () => Promise.resolve(),
+    worker: func,
   });
 
   queue.add();
@@ -256,10 +258,12 @@ test("frequency", async () => {
   queue.start();
 
   expect(queue.size()).toBe(2);
+  expect(func).toHaveBeenCalledTimes(2);
 
   await new Promise((resolve) => setTimeout(resolve, 1_000));
 
   expect(queue.size()).toBe(0);
+  expect(func).toHaveBeenCalledTimes(4);
 });
 
 test.todo("event loop");
