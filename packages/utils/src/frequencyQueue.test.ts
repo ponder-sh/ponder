@@ -260,7 +260,7 @@ test("frequency", async () => {
   expect(queue.size()).toBe(2);
   expect(func).toHaveBeenCalledTimes(2);
 
-  await new Promise((resolve) => setTimeout(resolve, 1_000));
+  await new Promise((resolve) => setTimeout(resolve, 1_010));
 
   expect(queue.size()).toBe(0);
   expect(func).toHaveBeenCalledTimes(4);

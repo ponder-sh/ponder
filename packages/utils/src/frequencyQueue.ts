@@ -38,17 +38,6 @@ export const createFrequencyQueue = <returnType, parameter = void>({
 
     if (timer) return;
 
-    if (requests >= frequency) {
-      timer = setTimeout(
-        () => {
-          timer = undefined;
-          next();
-        },
-        1_000 - (_timestamp % 1_000),
-      );
-      return;
-    }
-
     while (requests < frequency && queue.length > 0) {
       const { parameter, resolve, reject } = queue.shift()!;
 
@@ -75,6 +64,17 @@ export const createFrequencyQueue = <returnType, parameter = void>({
         emptyPromiseWithResolvers.resolve();
         emptyPromiseWithResolvers.completed = true;
       }
+    }
+
+    if (requests >= frequency) {
+      timer = setTimeout(
+        () => {
+          timer = undefined;
+          next();
+        },
+        1_000 - (_timestamp % 1_000),
+      );
+      return;
     }
   };
 
