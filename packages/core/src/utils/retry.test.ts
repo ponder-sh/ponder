@@ -75,5 +75,3 @@ test("throws error", async () => {
   expect(i).toBe(4);
   expect(rejected).toBe(true);
 });
-
-test.todo("cancel returns early");

@@ -22,9 +22,8 @@ export const retry = <returnType>(
 
   const process = async () => {
     for (let i = 0; i < retries + 1; i++) {
+      if (canceled) return;
       try {
-        if (canceled) return;
-
         const out = await callback();
         resolve(out);
         return;
