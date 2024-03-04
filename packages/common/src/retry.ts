@@ -1,4 +1,4 @@
-import { promiseWithResolvers } from "@ponder/utils";
+import { promiseWithResolvers } from "./promiseWithResolvers.js";
 
 export const retry = <returnType>(
   callback: () => Promise<returnType>,

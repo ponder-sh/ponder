@@ -11,7 +11,6 @@ import {
 import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import { debounce } from "@/utils/debounce.js";
 import { Emittery } from "@/utils/emittery.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
@@ -25,6 +24,7 @@ import {
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
+import { debounce } from "@ponder/common";
 import {
   type ParseGetLogsErrorParameters,
   parseGetLogsError,

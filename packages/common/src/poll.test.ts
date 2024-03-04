@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
+import { wait } from "../../core/src/utils/wait.js";
 import { poll } from "./poll.js";
-import { wait } from "./wait.js";
 
 test("poll", async () => {
   const fn = vi.fn(() => {});

@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
+import { wait } from "../../core/src/utils/wait.js";
 import { debounce } from "./debounce.js";
-import { wait } from "./wait.js";
 
 test("invoke function after timeout", async () => {
   const fun = vi.fn(() => {});

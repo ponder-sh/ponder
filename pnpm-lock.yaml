@@ -487,6 +487,21 @@ importers:
         specifier: ^5.3.2
         version: 5.3.3
 
+  packages/common:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.24
+        version: 20.11.24
+      dotenv:
+        specifier: ^16.3.1
+        version: 16.3.1
+      tsup:
+        specifier: ^8.0.1
+        version: 8.0.1(typescript@5.0.4)
+      vitest:
+        specifier: ^1.0.2
+        version: 1.1.1(@types/node@20.11.24)
+
   packages/core:
     dependencies:
       '@ast-grep/napi':
@@ -495,9 +510,6 @@ importers:
       '@babel/code-frame':
         specifier: ^7.23.4
         version: 7.23.5
-      '@ponder/utils':
-        specifier: workspace:*
-        version: link:../utils
       abitype:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.0.4)
@@ -592,6 +604,12 @@ importers:
         specifier: ^4.3.1
         version: 4.3.1(typescript@5.0.4)(vite@5.0.10)
     devDependencies:
+      '@ponder/common':
+        specifier: workspace:*
+        version: link:../common
+      '@ponder/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@types/babel__code-frame':
         specifier: ^7.0.6
         version: 7.0.6

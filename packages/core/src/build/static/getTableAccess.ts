@@ -1,4 +1,5 @@
 import type { StoreMethod } from "@/types/model.js";
+import { dedupe } from "@ponder/common";
 import { getHelperFunctions } from "./getHelperFunctions.js";
 import { getIndexingFunctions } from "./getIndexingFunctions.js";
 import { getTableReferences } from "./getTableReferences.js";
@@ -132,19 +133,10 @@ export const getTableAccess = ({
   const dedupedTableAccess: TableAccess = {};
 
   for (const indexingFunctionKey of Object.keys(tableAccess)) {
-    dedupedTableAccess[indexingFunctionKey] = [];
-    const seen = new Set<string>();
-
-    for (const { storeMethod, tableName } of tableAccess[indexingFunctionKey]) {
-      const key = `${tableName}_${storeMethod}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        dedupedTableAccess[indexingFunctionKey].push({
-          tableName,
-          storeMethod,
-        });
-      }
-    }
+    dedupedTableAccess[indexingFunctionKey] = dedupe(
+      tableAccess[indexingFunctionKey],
+      ({ tableName, storeMethod }) => `${tableName}_${storeMethod}`,
+    );
   }
 
   return dedupedTableAccess;

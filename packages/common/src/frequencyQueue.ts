@@ -4,16 +4,20 @@ import {
 } from "./promiseWithResolvers.js";
 import type { InnerQueue, Queue } from "./queue.js";
 
-export const createConcurrencyQueue = <returnType, parameter = void>({
-  concurrency,
+export const createFrequencyQueue = <returnType, taskType = void>({
+  frequency,
   worker,
 }: {
-  concurrency: number;
-  worker: (arg: parameter) => Promise<returnType>;
-}): Queue<returnType, parameter> => {
-  let queue = new Array<InnerQueue<returnType, parameter>[number]>();
+  frequency: number;
+  worker: (task: taskType) => Promise<returnType>;
+}): Queue<returnType, taskType> => {
+  let queue = new Array<InnerQueue<returnType, taskType>[number]>();
   let pending = 0;
+  let timestamp = 0;
+  let requests = 0;
   let isStarted = false;
+
+  let timer: NodeJS.Timeout | undefined;
 
   let emptyPromiseWithResolvers:
     | (PromiseWithResolvers<void> & { completed: boolean })
@@ -25,12 +29,22 @@ export const createConcurrencyQueue = <returnType, parameter = void>({
   const next = () => {
     if (!isStarted) return;
 
-    while (pending < concurrency && queue.length > 0) {
-      const { parameter, resolve, reject } = queue.shift()!;
+    const _timestamp = Date.now();
 
+    if (Math.floor(_timestamp / 1_000) !== timestamp) {
+      requests = 0;
+      timestamp = Math.floor(_timestamp / 1_000);
+    }
+
+    if (timer) return;
+
+    while (requests < frequency && queue.length > 0) {
+      const { task, resolve, reject } = queue.shift()!;
+
+      requests++;
       pending++;
 
-      worker(parameter)
+      worker(task)
         .then(resolve)
         .catch(reject)
         .finally(() => {
@@ -44,14 +58,23 @@ export const createConcurrencyQueue = <returnType, parameter = void>({
             idlePromiseWithResolvers.resolve();
             idlePromiseWithResolvers.completed = true;
           }
-
-          process.nextTick(next);
         });
 
       if (emptyPromiseWithResolvers !== undefined && queue.length === 0) {
         emptyPromiseWithResolvers.resolve();
         emptyPromiseWithResolvers.completed = true;
       }
+    }
+
+    if (requests >= frequency) {
+      timer = setTimeout(
+        () => {
+          timer = undefined;
+          next();
+        },
+        1_000 - (_timestamp % 1_000),
+      );
+      return;
     }
   };
 
@@ -61,16 +84,18 @@ export const createConcurrencyQueue = <returnType, parameter = void>({
       new Promise<number>((resolve) =>
         process.nextTick(() => resolve(pending)),
       ),
-    add: (task: parameter) => {
+    add: (task: taskType) => {
       const { promise, resolve, reject } = promiseWithResolvers<returnType>();
-      queue.push({ parameter: task, resolve, reject });
+      queue.push({ task, resolve, reject });
 
       next();
 
       return promise;
     },
     clear: () => {
-      queue = new Array<InnerQueue<returnType, parameter>[number]>();
+      queue = new Array<InnerQueue<returnType, taskType>[number]>();
+      clearTimeout(timer);
+      timer = undefined;
     },
     isStarted: () => isStarted,
     start: () => {
@@ -108,5 +133,5 @@ export const createConcurrencyQueue = <returnType, parameter = void>({
       }
       return emptyPromiseWithResolvers.promise;
     },
-  } as Queue<returnType, parameter>;
+  } as Queue<returnType, taskType>;
 };

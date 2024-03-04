@@ -1,13 +1,13 @@
-export type InnerQueue<returnType, parameter> = {
-  parameter: parameter;
+export type InnerQueue<returnType, taskType> = {
+  task: taskType;
   resolve: (arg: returnType) => void;
   reject: (error: Error) => void;
 }[];
 
-export type Queue<returnType, parameter> = {
+export type Queue<returnType, taskType> = {
   size: () => number;
   pending: () => Promise<number>;
-  add: (task: parameter) => Promise<returnType>;
+  add: (task: taskType) => Promise<returnType>;
   clear: () => void;
   isStarted: () => boolean;
   start: () => void;

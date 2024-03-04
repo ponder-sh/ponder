@@ -39,6 +39,6 @@
 
     // File path alias support
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"], "@ponder/utils":["../utils/dist"] }
+    "paths": { "@/*": ["src/*"] },
   }
 }
