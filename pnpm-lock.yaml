@@ -510,6 +510,9 @@ importers:
       '@babel/code-frame':
         specifier: ^7.23.4
         version: 7.23.5
+      '@ponder/utils':
+        specifier: workspace:*
+        version: link:../utils
       abitype:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.0.4)
@@ -607,9 +610,6 @@ importers:
       '@ponder/common':
         specifier: workspace:*
         version: link:../common
-      '@ponder/utils':
-        specifier: workspace:*
-        version: link:../utils
       '@types/babel__code-frame':
         specifier: ^7.0.6
         version: 7.0.6
