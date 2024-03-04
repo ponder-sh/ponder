@@ -427,7 +427,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
-          .where("effectiveToCheckpoint", "=", "latest")
+          .where("effective_to", "=", "latest")
           .executeTakeFirst();
         if (!latestRow)
           throw new Error(
@@ -544,12 +544,12 @@ export class SqliteIndexingStore implements IndexingStore {
 
             // If the update would be applied to a record other than the latest
             // record, throw an error.
-            if (latestRow.effectiveFromCheckpoint > encodedCheckpoint)
+            if (latestRow.effective_from > encodedCheckpoint)
               throw new Error(
-                `Cannot update ${tableName} record with ID ${encodedId} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effectiveFromCheckpoint}. Hint: Did you forget to await the promise returned by a store method?`,
+                `Cannot update ${tableName} record with ID ${encodedId} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effective_from}. Hint: Did you forget to await the promise returned by a store method?`,
               );
 
-            // If the latest version has the same effectiveFrom timestamp as the update,
+            // If the latest version has the same effective_from timestamp as the update,
             // this update is occurring within the same block/second. Update in place.
             if (latestRow.effective_from === encodedCheckpoint) {
               return await tx
@@ -570,7 +570,7 @@ export class SqliteIndexingStore implements IndexingStore {
               .set({ effective_to: encodedCheckpoint })
               .execute();
             return tx
-              .insertInto(versionedTableName)
+              .insertInto(tableName)
               .values({
                 ...latestRow,
                 ...updateRow,
@@ -643,9 +643,9 @@ export class SqliteIndexingStore implements IndexingStore {
 
         // If the update would be applied to a record other than the latest
         // record, throw an error.
-        if (latestRow.effectiveFromCheckpoint > encodedCheckpoint)
+        if (latestRow.effective_from > encodedCheckpoint)
           throw new Error(
-            `Cannot update ${tableName} record with ID ${id} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effectiveFromCheckpoint}. Hint: Did you forget to await the promise returned by a store method?`,
+            `Cannot update ${tableName} record with ID ${id} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effective_from}. Hint: Did you forget to await the promise returned by a store method?`,
           );
 
         // If the latest version has the same effective_from as the update,
@@ -669,7 +669,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .set({ effective_to: encodedCheckpoint })
           .execute();
         return tx
-          .insertInto(versionedTableName)
+          .insertInto(tableName)
           .values({
             ...latestRow,
             ...updateRow,
