@@ -1,83 +1,87 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { debounce } from "./debounce.js";
 import { wait } from "./wait.js";
 
 test("invokes function right away", () => {
-  let i = 0;
-  const set = (_i: number) => {
-    i = _i;
-  };
-  const d = debounce(0, set);
+  const fun = vi.fn(() => {});
+  const d = debounce(0, fun);
 
-  d(1);
-  expect(i).toBe(1);
+  d();
+
+  expect(fun).toHaveBeenCalledTimes(1);
 });
 
-test("invokes function after interval passes", async () => {
-  let i = 0;
-  const set = (_i: number) => {
-    i = _i;
-  };
-  const d = debounce(0, set);
+test("invoke function after timeout", async () => {
+  const fun = vi.fn(() => {});
+  const d = debounce(10, fun);
 
-  d(1);
+  d();
+  d();
 
-  await wait(1);
+  expect(fun).toHaveBeenCalledTimes(1);
 
-  d(2);
-  expect(i).toBe(2);
+  await wait(20);
+
+  expect(fun).toHaveBeenCalledTimes(2);
 });
 
-test("sets timeout to run after interval", async () => {
-  let i = 0;
-  const increment = (_i: number) => {
-    i = _i;
-  };
-  const d = debounce(1, increment);
+test("skips invocation during timeout", async () => {
+  const fun = vi.fn(() => {});
+  const d = debounce(10, fun);
 
-  d(1);
+  d();
+  d();
+  d();
+  d();
+  d();
 
-  d(2);
+  await wait(20);
 
-  await wait(1);
-
-  expect(i).toBe(2);
+  expect(fun).toHaveBeenCalledTimes(2);
 });
 
 test("updates arguments during timeout", async () => {
-  let i = 0;
-  const set = (_i: number) => {
-    i = _i;
-  };
-  const d = debounce(1, set);
+  const fun = vi.fn((n: number) => {
+    n;
+  });
+  const d = debounce(10, fun);
 
   d(1);
-
   d(2);
   d(3);
   d(4);
-  d(1);
+  d(5);
 
-  await wait(1);
+  await wait(20);
 
-  expect(i).toBe(1);
+  expect(fun).toHaveBeenCalledTimes(2);
+  expect(fun).toHaveBeenCalledWith(1);
+  expect(fun).toHaveBeenCalledWith(5);
 });
 
-test("invokes function once per interval", async () => {
-  let i = 0;
-  const increment = () => {
-    i++;
-  };
-  const d = debounce(1, increment);
+test("sets last timestamp after immediate invocation", async () => {
+  const fun = vi.fn(() => {});
+  const d = debounce(10, fun);
 
   d();
 
+  await wait(20);
+
   d();
-  d();
+
+  expect(fun).toHaveBeenCalledTimes(2);
+});
+
+test("sets last timestamp after timeout", async () => {
+  const fun = vi.fn(() => {});
+  const d = debounce(10, fun);
+
   d();
   d();
 
-  await wait(1);
+  await wait(25);
 
-  expect(i).toBe(2);
+  d();
+
+  expect(fun).toHaveBeenCalledTimes(3);
 });

@@ -111,7 +111,7 @@ test("create() throws on unique constraint violation even if checkpoint is diffe
     tableName: "Pet",
     checkpoint: createCheckpoint(10),
     id: "id1",
-    data: { name: "Skip", age: 12 },
+    data: { name: "Skip" },
   });
 
   await expect(() =>
@@ -136,7 +136,7 @@ test("create() respects optional fields", async (context) => {
     tableName: "Pet",
     checkpoint: createCheckpoint(10),
     id: "id1",
-    data: { name: "Skip" },
+    data: { name: "Skip", kind: "CAT" },
   });
 
   const instance = await indexingStore.findUnique({
@@ -160,12 +160,12 @@ test("create() accepts enums", async (context) => {
     tableName: "Pet",
     checkpoint: createCheckpoint(10),
     id: "id1",
-    data: { name: "Skip", kind: "CAT" },
+    data: { name: "Skip", bigAge: 100n },
   });
 
   const instance = await indexingStore.findUnique({
     tableName: "Pet",
-    checkpoint: createCheckpoint(11),
+    checkpoint: createCheckpoint(10),
     id: "id1",
   });
 
@@ -202,7 +202,7 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
     tableName: "Pet",
     checkpoint: createCheckpoint(10),
     id: "id1",
-    data: { name: "Skip", bigAge: 100n },
+    data: { name: "Skip", kind: "CAT" },
   });
 
   const instance = await indexingStore.findUnique({

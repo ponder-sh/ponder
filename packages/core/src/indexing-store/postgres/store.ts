@@ -343,31 +343,40 @@ export class PostgresIndexingStore implements IndexingStore {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db
-        .insertInto(tableName)
-        .values({
-          ...createRow,
-          effective_from: encodedCheckpoint,
-          effective_to: "latest",
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+      .insertInto(tableName)
+      .values({
+        ...createRow,
+        effective_from: encodedCheckpoint,
+        effective_to: "latest",
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-      return decodeRow(row, table, "postgres");
-    });
+        return decodeRow(row, table, "postgres");
+      } catch (err) {
+        const error = err as Error;
+    throw error.message.includes("violates unique constraint")
+      ? new Error(
+          `Cannot create ${tableName} record with ID ${id} because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using ${tableName}.upsert().`,
+        )
+      : error;
   };
+}
+)
+}
 
-  createMany = async ({
-    tableName,
-    checkpoint,
-    data,
-  }: {
-    tableName: string;
-    checkpoint: Checkpoint;
-    data: Row[];
-  }) => {
-    const table = this.schema.tables[tableName];
+createMany = async ({
+  tableName,
+  checkpoint,
+  data,
+}: {
+  tableName: string;
+  checkpoint: Checkpoint;
+  data: Row[];
+}) => {
+  const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "createMany", tableName }, async () => {
+  return this.wrap({ method: "createMany", tableName }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const createRows = data.map((d) => ({
         ...encodeRow({ ...d }, table, "postgres"),
@@ -379,351 +388,361 @@ export class PostgresIndexingStore implements IndexingStore {
       for (let i = 0, len = createRows.length; i < len; i += MAX_BATCH_SIZE)
         chunkedRows.push(createRows.slice(i, i + MAX_BATCH_SIZE));
 
-      const rows = await Promise.all(
-        chunkedRows.map((c) =>
-          this.db.insertInto(tableName).values(c).returningAll().execute(),
-        ),
-      );
+        const rows = await Promise.all(
+          chunkedRows.map((c) =>
+            this.db.insertInto(tableName).values(c).returningAll().execute(),
+          ),
+        );
 
-      return rows.flat().map((row) => decodeRow(row, table, "postgres"));
-    });
-  };
+        return rows.flat().map((row) => decodeRow(row, table, "postgres"));
+      } catch (err) {
+        const error = err as Error;
+  throw error.message.includes("violates unique constraint")
+    ? new Error(
+        `Cannot createMany ${tableName} records because one or more records already exist (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method?`,
+      )
+    : error;
+};
+})
+}
 
-  update = async ({
-    tableName,
-    checkpoint,
-    id,
-    data = {},
-  }: {
-    tableName: string;
-    checkpoint: Checkpoint;
-    id: string | number | bigint;
-    data?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
-  }) => {
-    const table = this.schema.tables[tableName];
+update = async ({
+  tableName,
+  checkpoint,
+  id,
+  data = {},
+}: {
+  tableName: string;
+  checkpoint: Checkpoint;
+  id: string | number | bigint;
+  data?:
+    | Partial<Omit<Row, "id">>
+    | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+}) => {
+  const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "update", tableName }, async () => {
-      const formattedId = encodeValue(id, table.id, "postgres");
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+  return this.wrap({ method: "update", tableName }, async () => {
+    const formattedId = encodeValue(id, table.id, "postgres");
+    const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const row = await this.db.transaction().execute(async (tx) => {
-        // Find the latest version of this instance.
-        const latestRow = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", formattedId)
-          .where("effective_to", "=", "latest")
-          .executeTakeFirstOrThrow();
+    const row = await this.db.transaction().execute(async (tx) => {
+      // Find the latest version of this instance.
+      const latestRow = await tx
+        .selectFrom(tableName)
+        .selectAll()
+        .where("id", "=", formattedId)
+        .where("effective_to", "=", "latest")
+        .executeTakeFirst();
+      if (!latestRow)
+        throw new Error(
+          `Cannot update ${tableName} record with ID ${id} because no existing record was found with that ID. Consider using ${tableName}.upsert(), or create the record before updating it. Hint: Did you forget to await the promise returned by a store method?`,
+        );
 
-        // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof encodeRow>;
-        if (typeof data === "function") {
-          const current = decodeRow(latestRow, table, "postgres");
-          const updateObject = data({ current });
-          updateRow = encodeRow({ id, ...updateObject }, table, "postgres");
-        } else {
-          updateRow = encodeRow({ id, ...data }, table, "postgres");
-        }
+      // If the user passed an update function, call it with the current instance.
+      let updateRow: ReturnType<typeof encodeRow>;
+      if (typeof data === "function") {
+        const current = decodeRow(latestRow, table, "postgres");
+        const updateObject = data({ current });
+        updateRow = encodeRow({ id, ...updateObject }, table, "postgres");
+      } else {
+        updateRow = encodeRow({ id, ...data }, table, "postgres");
+      }
 
-        // If the update would be applied to a record other than the latest
-        // record, throw an error.
-        if (latestRow.effective_from > encodedCheckpoint) {
-          throw new Error("Cannot update a record in the past");
-        }
+      // If the update would be applied to a record other than the latest
+      // record, throw an error.
+      if (latestRow.effectiveFromCheckpoint > encodedCheckpoint)
+        throw new Error(
+          `Cannot update ${tableName} record with ID ${id} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effectiveFromCheckpoint}. Hint: Did you forget to await the promise returned by a store method?`,
+        );
 
-        // If the latest version has the same effective_from as the update,
-        // this update is occurring within the same indexing function. Update in place.
-        if (latestRow.effective_from === encodedCheckpoint) {
-          return await tx
-            .updateTable(tableName)
-            .set(updateRow)
-            .where("id", "=", formattedId)
-            .where("effective_from", "=", encodedCheckpoint)
-            .returningAll()
-            .executeTakeFirstOrThrow();
-        }
-
-        // If the latest version has an earlier effective_from than the update,
-        // we need to update the latest version AND insert a new version.
-        await tx
+      // If the latest version has the same effective_from as the update,
+      // this update is occurring within the same indexing function. Update in place.
+      if (latestRow.effective_from === encodedCheckpoint) {
+        return await tx
           .updateTable(tableName)
+          .set(updateRow)
           .where("id", "=", formattedId)
-          .where("effective_to", "=", "latest")
-          .set({ effective_to: encodedCheckpoint })
-          .execute();
-        const row = await tx
-          .insertInto(tableName)
-          .values({
-            ...latestRow,
-            ...updateRow,
-            effective_from: encodedCheckpoint,
-            effective_to: "latest",
-          })
+          .where("effective_from", "=", encodedCheckpoint)
           .returningAll()
           .executeTakeFirstOrThrow();
+      }
 
-        return row;
-      });
-
-      const result = decodeRow(row, table, "postgres");
-
-      return result;
+      // If the latest version has an earlier effective_from than the update,
+      // we need to update the latest version AND insert a new version.
+      await tx
+        .updateTable(tableName)
+        .where("id", "=", formattedId)
+        .where("effective_to", "=", "latest")
+        .set({ effective_to: encodedCheckpoint })
+        .execute();
+      return await tx
+        .insertInto(tableName)
+        .values({
+          ...latestRow,
+          ...updateRow,
+          effective_from: encodedCheckpoint,
+          effective_to: "latest",
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
     });
-  };
 
-  updateMany = async ({
-    tableName,
-    checkpoint,
-    where,
-    data = {},
-  }: {
-    tableName: string;
-    checkpoint: Checkpoint;
-    where: WhereInput<any>;
-    data?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
-  }) => {
-    const table = this.schema.tables[tableName];
+    const result = decodeRow(row, table, "postgres");
 
-    return this.wrap({ method: "updateMany", tableName }, async () => {
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+    return result;
+  });
+};
 
-      const rows = await this.db.transaction().execute(async (tx) => {
-        // Get all IDs that match the filter.
-        let query = tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("effective_to", "=", "latest");
+updateMany = async ({
+  tableName,
+  checkpoint,
+  where,
+  data = {},
+}: {
+  tableName: string;
+  checkpoint: Checkpoint;
+  where: WhereInput<any>;
+  data?:
+    | Partial<Omit<Row, "id">>
+    | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+}) => {
+  const table = this.schema.tables[tableName];
 
-        if (where) {
-          query = query.where((eb) =>
-            buildWhereConditions({
-              eb,
-              where,
-              table,
-              encoding: "postgres",
-            }),
-          );
-        }
+  return this.wrap({ method: "updateMany", tableName }, async () => {
+    const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-        const latestRows = await query.execute();
+    const rows = await this.db.transaction().execute(async (tx) => {
+      // Get all IDs that match the filter.
+      let query = tx
+        .selectFrom(tableName)
+        .selectAll()
+        .where("effective_to", "=", "latest");
 
-        // TODO: This is probably incredibly slow. Ideally, we'd do most of this in the database.
-        return await Promise.all(
-          latestRows.map(async (latestRow) => {
-            const formattedId = latestRow.id;
-
-            // If the user passed an update function, call it with the current instance.
-            let updateRow: ReturnType<typeof encodeRow>;
-            if (typeof data === "function") {
-              const current = decodeRow(latestRow, table, "postgres");
-              const updateObject = data({ current });
-              updateRow = encodeRow(updateObject, table, "postgres");
-            } else {
-              updateRow = encodeRow(data, table, "postgres");
-            }
-
-            // If the update would be applied to a record other than the latest
-            // record, throw an error.
-            if (latestRow.effective_from > encodedCheckpoint) {
-              throw new Error("Cannot update a record in the past");
-            }
-
-            // If the latest version has the same effectiveFrom timestamp as the update,
-            // this update is occurring within the same block/second. Update in place.
-            if (latestRow.effective_from === encodedCheckpoint) {
-              return await tx
-                .updateTable(tableName)
-                .set(updateRow)
-                .where("id", "=", formattedId)
-                .where("effective_from", "=", encodedCheckpoint)
-                .returningAll()
-                .executeTakeFirstOrThrow();
-            }
-
-            // If the latest version has an earlier effective_from than the update,
-            // we need to update the latest version AND insert a new version.
-            await tx
-              .updateTable(tableName)
-              .where("id", "=", formattedId)
-              .where("effective_to", "=", "latest")
-              .set({ effective_to: encodedCheckpoint })
-              .execute();
-            const row = await tx
-              .insertInto(tableName)
-              .values({
-                ...latestRow,
-                ...updateRow,
-                effective_from: encodedCheckpoint,
-                effective_to: "latest",
-              })
-              .returningAll()
-              .executeTakeFirstOrThrow();
-
-            return row;
+      if (where) {
+        query = query.where((eb) =>
+          buildWhereConditions({
+            eb,
+            where,
+            table,
+            encoding: "postgres",
           }),
         );
-      });
+      }
 
-      return rows.map((row) => decodeRow(row, table, "postgres"));
-    });
-  };
+      const latestRows = await query.execute();
 
-  upsert = async ({
-    tableName,
-    checkpoint,
-    id,
-    create = {},
-    update = {},
-  }: {
-    tableName: string;
-    checkpoint: Checkpoint;
-    id: string | number | bigint;
-    create?: Omit<Row, "id">;
-    update?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
-  }) => {
-    const table = this.schema.tables[tableName];
+      // TODO: This is probably incredibly slow. Ideally, we'd do most of this in the database.
+      return await Promise.all(
+        latestRows.map(async (latestRow) => {
+          const encodedId = latestRow.id;
 
-    return this.wrap({ method: "upsert", tableName }, async () => {
-      const formattedId = encodeValue(id, table.id, "postgres");
-      const createRow = encodeRow({ id, ...create }, table, "postgres");
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+          // If the user passed an update function, call it with the current instance.
+          let updateRow: ReturnType<typeof encodeRow>;
+          if (typeof data === "function") {
+            const current = decodeRow(latestRow, table, "postgres");
+            const updateObject = data({ current });
+            updateRow = encodeRow(updateObject, table, "postgres");
+          } else {
+            updateRow = encodeRow(data, table, "postgres");
+          }
 
-      const row = await this.db.transaction().execute(async (tx) => {
-        // Find the latest version of this instance.
-        const latestRow = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", formattedId)
-          .where("effective_to", "=", "latest")
-          .executeTakeFirst();
+          // If the update would be applied to a record other than the latest
+          // record, throw an error.
+          if (latestRow.effectiveFromCheckpoint > encodedCheckpoint)
+            throw new Error(
+              `Cannot update ${tableName} record with ID ${encodedId} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effectiveFromCheckpoint}. Hint: Did you forget to await the promise returned by a store method?`,
+            );
 
-        // If there is no latest version, insert a new version using the create data.
-        if (latestRow === undefined) {
+          // If the latest version has the same effectiveFrom timestamp as the update,
+          // this update is occurring within the same block/second. Update in place.
+          if (latestRow.effective_from === encodedCheckpoint) {
+            return await tx
+              .updateTable(tableName)
+              .set(updateRow)
+              .where("id", "=", encodedId)
+              .where("effective_from", "=", encodedCheckpoint)
+              .returningAll()
+              .executeTakeFirstOrThrow();
+          }
+
+          // If the latest version has an earlier effective_from than the update,
+          // we need to update the latest version AND insert a new version.
+          await tx
+            .updateTable(tableName)
+            .where("id", "=", encodedId)
+            .where("effective_to", "=", "latest")
+            .set({ effective_to: encodedCheckpoint })
+            .execute();
           return await tx
             .insertInto(tableName)
             .values({
-              ...createRow,
+              ...latestRow,
+              ...updateRow,
               effective_from: encodedCheckpoint,
               effective_to: "latest",
             })
             .returningAll()
             .executeTakeFirstOrThrow();
-        }
+        }),
+      );
+    });
 
-        // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof encodeRow>;
-        if (typeof update === "function") {
-          const current = decodeRow(latestRow, table, "postgres");
-          const updateObject = update({ current });
-          updateRow = encodeRow({ id, ...updateObject }, table, "postgres");
-        } else {
-          updateRow = encodeRow({ id, ...update }, table, "postgres");
-        }
+    return rows.map((row) => decodeRow(row, table, "postgres"));
+  });
+};
 
-        // If the update would be applied to a record other than the latest
-        // record, throw an error.
-        if (latestRow.effective_from > encodedCheckpoint) {
-          throw new Error("Cannot update a record in the past");
-        }
+upsert = async ({
+  tableName,
+  checkpoint,
+  id,
+  create = {},
+  update = {},
+}: {
+  tableName: string;
+  checkpoint: Checkpoint;
+  id: string | number | bigint;
+  create?: Omit<Row, "id">;
+  update?:
+    | Partial<Omit<Row, "id">>
+    | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+}) => {
+  const table = this.schema.tables[tableName];
 
-        // If the latest version has the same effective_from as the update,
-        // this update is occurring within the same indexing function. Update in place.
-        if (latestRow.effective_from === encodedCheckpoint) {
-          return await tx
-            .updateTable(tableName)
-            .set(updateRow)
-            .where("id", "=", formattedId)
-            .where("effective_from", "=", encodedCheckpoint)
-            .returningAll()
-            .executeTakeFirstOrThrow();
-        }
+  return this.wrap({ method: "upsert", tableName }, async () => {
+    const formattedId = encodeValue(id, table.id, "postgres");
+    const createRow = encodeRow({ id, ...create }, table, "postgres");
+    const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-        // If the latest version has an earlier effective_from than the update,
-        // we need to update the latest version AND insert a new version.
-        await tx
-          .updateTable(tableName)
-          .where("id", "=", formattedId)
-          .where("effective_to", "=", "latest")
-          .set({ effective_to: encodedCheckpoint })
-          .execute();
-        const row = await tx
+    const row = await this.db.transaction().execute(async (tx) => {
+      // Find the latest version of this instance.
+      const latestRow = await tx
+        .selectFrom(tableName)
+        .selectAll()
+        .where("id", "=", formattedId)
+        .where("effective_to", "=", "latest")
+        .executeTakeFirst();
+
+      // If there is no latest version, insert a new version using the create data.
+      if (latestRow === undefined) {
+        return await tx
           .insertInto(tableName)
           .values({
-            ...latestRow,
-            ...updateRow,
+            ...createRow,
             effective_from: encodedCheckpoint,
             effective_to: "latest",
           })
           .returningAll()
           .executeTakeFirstOrThrow();
+      }
 
-        return row;
-      });
+      // If the user passed an update function, call it with the current instance.
+      let updateRow: ReturnType<typeof encodeRow>;
+      if (typeof update === "function") {
+        const current = decodeRow(latestRow, table, "postgres");
+        const updateObject = update({ current });
+        updateRow = encodeRow({ id, ...updateObject }, table, "postgres");
+      } else {
+        updateRow = encodeRow({ id, ...update }, table, "postgres");
+      }
 
-      return decodeRow(row, table, "postgres");
-    });
-  };
+      // If the update would be applied to a record other than the latest
+      // record, throw an error.
+      if (latestRow.effectiveFromCheckpoint > encodedCheckpoint)
+        throw new Error(
+          `Cannot update ${tableName} record with ID ${id} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effectiveFromCheckpoint}. Hint: Did you forget to await the promise returned by a store method?`,
+        );
 
-  delete = async ({
-    tableName,
-    checkpoint,
-    id,
-  }: {
-    tableName: string;
-    checkpoint: Checkpoint;
-    id: string | number | bigint;
-  }) => {
-    const table = this.schema.tables[tableName];
-
-    return this.wrap({ method: "delete", tableName }, async () => {
-      const formattedId = encodeValue(id, table.id, "postgres");
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
-      const isDeleted = await this.db.transaction().execute(async (tx) => {
-        // If the latest version has effective_from equal to current checkpoint,
-        // this row was created within the same indexing function, and we can delete it.
-        let deletedRow = await tx
-          .deleteFrom(tableName)
+      // If the latest version has the same effective_from as the update,
+      // this update is occurring within the same indexing function. Update in place.
+      if (latestRow.effective_from === encodedCheckpoint) {
+        return await tx
+          .updateTable(tableName)
+          .set(updateRow)
           .where("id", "=", formattedId)
           .where("effective_from", "=", encodedCheckpoint)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+      }
+
+      // If the latest version has an earlier effective_from than the update,
+      // we need to update the latest version AND insert a new version.
+      await tx
+        .updateTable(tableName)
+        .where("id", "=", formattedId)
+        .where("effective_to", "=", "latest")
+        .set({ effective_to: encodedCheckpoint })
+        .execute();
+      return await tx
+        .insertInto(tableName)
+        .values({
+          ...latestRow,
+          ...updateRow,
+          effective_from: encodedCheckpoint,
+          effective_to: "latest",
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    });
+
+    return decodeRow(row, table, "postgres");
+  });
+};
+
+delete = async ({
+  tableName,
+  checkpoint,
+  id,
+}: {
+  tableName: string;
+  checkpoint: Checkpoint;
+  id: string | number | bigint;
+}) => {
+  const table = this.schema.tables[tableName];
+
+  return this.wrap({ method: "delete", tableName }, async () => {
+    const formattedId = encodeValue(id, table.id, "postgres");
+    const encodedCheckpoint = encodeCheckpoint(checkpoint);
+    const isDeleted = await this.db.transaction().execute(async (tx) => {
+      // If the latest version has effective_from equal to current checkpoint,
+      // this row was created within the same indexing function, and we can delete it.
+      let deletedRow = await tx
+        .deleteFrom(tableName)
+        .where("id", "=", formattedId)
+        .where("effective_from", "=", encodedCheckpoint)
+        .where("effective_to", "=", "latest")
+        .returning(["id"])
+        .executeTakeFirst();
+
+      // If we did not take the shortcut above, update the latest record
+      // setting effective_to to the current checkpoint.
+      if (!deletedRow) {
+        deletedRow = await tx
+          .updateTable(tableName)
+          .set({ effective_to: encodedCheckpoint })
+          .where("id", "=", formattedId)
           .where("effective_to", "=", "latest")
           .returning(["id"])
           .executeTakeFirst();
+      }
 
-        // If we did not take the shortcut above, update the latest record
-        // setting effective_to to the current checkpoint.
-        if (!deletedRow) {
-          deletedRow = await tx
-            .updateTable(tableName)
-            .set({ effective_to: encodedCheckpoint })
-            .where("id", "=", formattedId)
-            .where("effective_to", "=", "latest")
-            .returning(["id"])
-            .executeTakeFirst();
-        }
-
-        return !!deletedRow;
-      });
-
-      return isDeleted;
+      return !!deletedRow;
     });
-  };
 
-  private wrap = async <T>(
-    options: { method: string; tableName?: string },
-    fn: () => Promise<T>,
-  ) => {
-    const start = performance.now();
-    const result = await fn();
-    this.common.metrics.ponder_indexing_store_method_duration.observe(
-      { method: options.method, table: options.tableName },
-      performance.now() - start,
-    );
-    return result;
-  };
+    return isDeleted;
+  });
+};
+
+private
+wrap = async <T>(
+  options: { method: string; tableName?: string },
+  fn: () => Promise<T>,
+) => {
+  const start = performance.now();
+  const result = await fn();
+  this.common.metrics.ponder_indexing_store_method_duration.observe(
+    { method: options.method, table: options.tableName },
+    performance.now() - start,
+  );
+  return result;
+};
 }
