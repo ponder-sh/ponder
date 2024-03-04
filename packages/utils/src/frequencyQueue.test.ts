@@ -266,8 +266,6 @@ test("frequency", async () => {
   expect(func).toHaveBeenCalledTimes(4);
 });
 
-test.todo("event loop");
-
 test("parameter type", () => {
   const queue = createFrequencyQueue({
     frequency: 1,

@@ -1,11 +1,9 @@
-import { wait } from "./wait.js";
-
 // Adapted from viem.
 // https://github.com/wagmi-dev/viem/blob/38422ac7617022761ee7aa87310dd89adb34573c/src/utils/poll.ts
 
 type PollOptions = {
-  // Whether or not to emit when the polling starts.
-  emitOnBegin?: boolean;
+  // Whether or not to invoke the callback when the polling starts.
+  invokeOnStart?: boolean;
   // The interval (in ms).
   interval: number;
 };
@@ -13,28 +11,19 @@ type PollOptions = {
 /**
  * @description Polls a function at a specified interval.
  */
-export function poll(
-  fn: ({ unpoll }: { unpoll: () => void }) => Promise<unknown> | unknown,
-  { emitOnBegin, interval }: PollOptions,
-) {
-  let active = true;
+export const poll = (
+  fn: () => Promise<unknown> | unknown,
+  { invokeOnStart, interval }: PollOptions,
+) => {
+  let cancelled = false;
 
-  const unwatch = () => (active = false);
+  if (invokeOnStart) fn();
+  const timeout = setInterval(() => {
+    if (!cancelled) fn();
+  }, interval);
 
-  const watch = async () => {
-    if (emitOnBegin) await fn({ unpoll: unwatch });
-    await wait(interval);
-
-    const poll = async () => {
-      if (!active) return;
-      await fn({ unpoll: unwatch });
-      await wait(interval);
-      poll();
-    };
-
-    poll();
+  return () => {
+    cancelled = true;
+    clearInterval(timeout);
   };
-  watch();
-
-  return unwatch;
-}
+};

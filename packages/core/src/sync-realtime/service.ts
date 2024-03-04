@@ -213,12 +213,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     // TODO: Subscriptions
-    this.unpoll = poll(
-      async () => {
-        await this.process();
-      },
-      { emitOnBegin: false, interval: this.network.pollingInterval },
-    );
+    this.unpoll = poll(this.process, {
+      invokeOnStart: true,
+      interval: this.network.pollingInterval,
+    });
   };
 
   kill = () => {

@@ -10,3 +10,4 @@ export {
 export type { Queue } from "./queue.js";
 export { createConcurrencyQueue } from "./concurrencyQueue.js";
 export { createFrequencyQueue } from "./frequencyQueue.js";
+export { type MergeAbis, mergeAbis } from "./mergeAbis.js";

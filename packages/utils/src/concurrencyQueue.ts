@@ -56,7 +56,6 @@ export const createConcurrencyQueue = <returnType, parameter = void>({
   };
 
   return {
-    queue,
     size: () => queue.length,
     pending: () =>
       new Promise<number>((resolve) =>

@@ -2,6 +2,7 @@ import type { Network } from "@/config/networks.js";
 import type { MetricsService } from "@/metrics/service.js";
 import { type Queue, createFrequencyQueue } from "@ponder/utils";
 import { type EIP1193Parameters, type PublicRpcSchema } from "viem";
+import { startClock } from "./timer.js";
 
 type RequestReturnType<
   method extends EIP1193Parameters<PublicRpcSchema>["method"],
@@ -24,11 +25,27 @@ export type RequestQueue = Omit<
  */
 export const createRequestQueue = ({
   network,
+  metrics,
 }: { network: Network; metrics: MetricsService }): RequestQueue => {
   const requestQueue = createFrequencyQueue({
     frequency: network.maxRequestsPerSecond,
-    worker: (task: EIP1193Parameters<PublicRpcSchema>) => {
-      return network.transport.request(task);
+    worker: (task: {
+      request: EIP1193Parameters<PublicRpcSchema>;
+      stopClockLag: () => number;
+    }) => {
+      metrics.ponder_rpc_request_lag.observe(
+        { method: task.request.method, network: network.name },
+        task.stopClockLag(),
+      );
+
+      const stopClock = startClock();
+
+      return network.transport.request(task.request).finally(() => {
+        metrics.ponder_rpc_request_duration.observe(
+          { method: task.request.method, network: network.name },
+          stopClock(),
+        );
+      });
     },
   });
 
@@ -36,12 +53,12 @@ export const createRequestQueue = ({
 
   return {
     ...requestQueue,
-    request: async <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
+    request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
       params: TParameters,
     ) => {
-      const add = await requestQueue.add(params);
+      const stopClockLag = startClock();
 
-      return add;
+      return requestQueue.add({ request: params, stopClockLag });
     },
   } as RequestQueue;
 };

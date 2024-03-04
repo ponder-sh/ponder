@@ -5,7 +5,6 @@ export type InnerQueue<returnType, parameter> = {
 }[];
 
 export type Queue<returnType, parameter> = {
-  queue: InnerQueue<returnType, parameter>;
   size: () => number;
   pending: () => Promise<number>;
   add: (task: parameter) => Promise<returnType>;

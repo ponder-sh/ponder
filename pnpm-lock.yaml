@@ -709,6 +709,9 @@ importers:
       '@types/node':
         specifier: ^20.11.24
         version: 20.11.24
+      abitype:
+        specifier: ^1.0.1
+        version: 1.0.1(typescript@5.0.4)
       dotenv:
         specifier: ^16.3.1
         version: 16.3.1
@@ -4669,6 +4672,20 @@ packages:
         optional: true
     dependencies:
       typescript: 5.3.3
+
+  /abitype@1.0.1(typescript@5.0.4):
+    resolution: {integrity: sha512-HyHCfBwNYvHPGWsdv5PiKj8b1LnZUCuALyUWg5iP/wbK8FpdmTI4Qk9CYzjNgmsWwRw5j/DCruOltrnUGQdBeQ==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+      zod: ^3 >=3.22.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+      zod:
+        optional: true
+    dependencies:
+      typescript: 5.0.4
+    dev: true
 
   /abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
