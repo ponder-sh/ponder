@@ -31,13 +31,13 @@ import { wait } from "@/utils/wait.js";
 
 import { startClock } from "@/utils/timer.js";
 import type { SyncStore } from "../store.js";
-import type { BigIntText } from "./format.js";
+import type { BigIntText } from "./encoding.js";
 import {
   type SyncStoreTables,
   rpcToSqliteBlock,
   rpcToSqliteLog,
   rpcToSqliteTransaction,
-} from "./format.js";
+} from "./encoding.js";
 import { migrationProvider } from "./migrations.js";
 
 export class SqliteSyncStore implements SyncStore {

@@ -33,7 +33,7 @@ import {
   rpcToPostgresBlock,
   rpcToPostgresLog,
   rpcToPostgresTransaction,
-} from "./format.js";
+} from "./encoding.js";
 import { migrationProvider, moveLegacyTables } from "./migrations.js";
 
 export class PostgresSyncStore implements SyncStore {
