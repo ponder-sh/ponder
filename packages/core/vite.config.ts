@@ -6,6 +6,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@ponder/common": path.resolve(__dirname, "../common/src"),
+      "@ponder/utils": path.resolve(__dirname, "../utils/src"),
     },
   },
   test: {
