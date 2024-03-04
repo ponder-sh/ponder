@@ -42,10 +42,9 @@ import { migrationProvider } from "./migrations.js";
 
 export class SqliteSyncStore implements SyncStore {
   kind = "sqlite" as const;
-  private common: Common;
 
+  private common: Common;
   db: Kysely<SyncStoreTables>;
-  migrator: Migrator;
 
   constructor({
     common,
@@ -59,17 +58,17 @@ export class SqliteSyncStore implements SyncStore {
           common.metrics.ponder_sqlite_query_count?.inc({ kind: "sync" });
       },
     });
-
-    this.migrator = new Migrator({
-      db: this.db,
-      provider: migrationProvider,
-    });
   }
 
   migrateUp = async () => {
     const stopClock = startClock();
 
-    const { error } = await this.migrator.migrateToLatest();
+    const migrator = new Migrator({
+      db: this.db,
+      provider: migrationProvider,
+    });
+
+    const { error } = await migrator.migrateToLatest();
     if (error) throw error;
 
     this.record("migrateUp", stopClock());

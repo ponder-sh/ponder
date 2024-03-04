@@ -34,13 +34,14 @@ import {
   rpcToPostgresLog,
   rpcToPostgresTransaction,
 } from "./format.js";
-import { migrationProvider } from "./migrations.js";
+import { migrationProvider, moveLegacyTables } from "./migrations.js";
 
 export class PostgresSyncStore implements SyncStore {
-  common: Common;
   kind = "postgres" as const;
+
+  private common: Common;
+  private schemaName: string;
   db: Kysely<SyncStoreTables>;
-  migrator: Migrator;
 
   constructor({
     common,
@@ -48,6 +49,7 @@ export class PostgresSyncStore implements SyncStore {
     schemaName,
   }: { common: Common; pool: Pool; schemaName: string }) {
     this.common = common;
+    this.schemaName = schemaName;
     this.db = new Kysely<SyncStoreTables>({
       dialect: new PostgresDialect({ pool }),
       log(event) {
@@ -56,17 +58,25 @@ export class PostgresSyncStore implements SyncStore {
         }
       },
     }).withPlugin(new WithSchemaPlugin(schemaName));
-
-    this.migrator = new Migrator({
-      db: this.db,
-      provider: migrationProvider,
-      migrationTableSchema: schemaName,
-    });
   }
 
   migrateUp = async () => {
     const stopClock = startClock();
-    const { error } = await this.migrator.migrateToLatest();
+
+    // TODO: Probably remove this at 1.0 to speed up startup time.
+    await moveLegacyTables({
+      common: this.common,
+      db: this.db,
+      newSchemaName: this.schemaName,
+    });
+
+    const migrator = new Migrator({
+      db: this.db,
+      provider: migrationProvider,
+      migrationTableSchema: this.schemaName,
+    });
+
+    const { error } = await migrator.migrateToLatest();
     if (error) throw error;
 
     this.record("migrateUp", stopClock());
