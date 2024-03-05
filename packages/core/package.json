@@ -78,7 +78,6 @@
     "vite-tsconfig-paths": "^4.3.1"
   },
   "devDependencies": {
-    "@ponder/common": "workspace:*",
     "@types/babel__code-frame": "^7.0.6",
     "@types/better-sqlite3": "^7.6.8",
     "@types/cors": "^2.8.17",
@@ -94,6 +93,9 @@
     "supertest": "^6.3.3",
     "tsup": "^8.0.1",
     "vitest": "^1.0.2"
+  },
+  "imports": {
+    "@ponder/common": "../common/index.ts"
   },
   "engines": {
     "node": ">=18.14"
