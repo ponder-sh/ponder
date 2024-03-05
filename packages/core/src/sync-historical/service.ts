@@ -11,7 +11,6 @@ import {
 import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import { debounce } from "@/utils/debounce.js";
 import { Emittery } from "@/utils/emittery.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
@@ -25,21 +24,24 @@ import {
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
+import { debounce } from "@ponder/common";
+import {
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
+} from "@ponder/utils";
 import {
   type Address,
   BlockNotFoundError,
   type Hash,
   type Hex,
   type RpcBlock,
+  RpcError,
   type RpcLog,
+  hexToBigInt,
   hexToNumber,
   numberToHex,
   toHex,
 } from "viem";
-import {
-  type LogFilterError,
-  getLogFilterRetryRanges,
-} from "./getLogFilterRetryRanges.js";
 import { validateHistoricalBlockRange } from "./validateHistoricalBlockRange.js";
 
 const HISTORICAL_CHECKPOINT_EMIT_INTERVAL = 500;
@@ -832,7 +834,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
 
     if (newBlockCheckpoint) {
-      this.debouncedEmitCheckpoint({
+      this.debouncedEmitCheckpoint.call({
         blockTimestamp: newBlockCheckpoint.blockTimestamp,
         chainId: this.network.chainId,
         blockNumber: newBlockCheckpoint.blockNumber,
@@ -952,37 +954,52 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     fromBlock: Hex;
     toBlock: Hex;
   }): Promise<RpcLog[]> => {
+    const _params: GetLogsRetryHelperParameters["params"] = [
+      {
+        fromBlock: params.fromBlock,
+        toBlock: params.toBlock,
+
+        topics: params.topics,
+        address: params.address
+          ? Array.isArray(params.address)
+            ? params.address.map((a) => toLowerCase(a))
+            : toLowerCase(params.address)
+          : undefined,
+      },
+    ];
+
     try {
       return this.requestQueue.request({
         method: "eth_getLogs",
-        params: [
-          {
-            fromBlock: params.fromBlock,
-            toBlock: params.toBlock,
-
-            topics: params.topics,
-            address: params.address
-              ? Array.isArray(params.address)
-                ? params.address.map((a) => toLowerCase(a))
-                : toLowerCase(params.address)
-              : undefined,
-          },
-        ],
+        params: _params,
       });
     } catch (err) {
-      const retryRanges = getLogFilterRetryRanges(
-        err as LogFilterError,
-        params.fromBlock,
-        params.toBlock,
-      );
+      const getLogsErrorResponse = getLogsRetryHelper({
+        params: _params,
+        error: err as RpcError,
+      });
+
+      if (!getLogsErrorResponse.shouldRetry) throw err;
+
+      this.common.logger.debug({
+        service: "historical",
+        msg: `eth_getLogs request failed, retrying with ranges: [${getLogsErrorResponse.ranges
+          .map(
+            ({ fromBlock, toBlock }) =>
+              `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(
+                toBlock,
+              ).toString()}]`,
+          )
+          .join(", ")}].`,
+      });
 
       return Promise.all(
-        retryRanges.map(([from, to]) =>
+        getLogsErrorResponse.ranges.map(({ fromBlock, toBlock }) =>
           this._eth_getLogs({
-            fromBlock: from,
-            toBlock: to,
-            topics: params.topics,
-            address: params.address,
+            topics: _params[0].topics,
+            address: _params[0].address,
+            fromBlock,
+            toBlock,
           }),
         ),
       ).then((l) => l.flat());

@@ -59,7 +59,7 @@ jobs:
       fail-fast: false
       matrix:
         database: [Postgres, SQLite]
-        node-version: ["Node 18", "Node 20"]
+        node-version: ["Node 20"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -87,7 +87,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ["Node 18", "Node 20"]
+        node-version: ["Node 20"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -99,3 +99,78 @@ jobs:
         run: pnpm --filter create-ponder test
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+
+  test-common:
+    name: Test [common]
+    runs-on: "ubuntu-latest"
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime-version: ["Node", "Bun"]
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Install Node
+        if: ${{ matrix.runtime-version == 'Node' }}
+        uses: actions/setup-node@v3
+        with:
+          cache: pnpm
+          node-version: latest
+      
+      - name: Install Bun
+        if: ${{ matrix.runtime-version == 'Bun' }}
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: Test Node
+        if: ${{ matrix.runtime-version == 'Node' }}
+        run: cd packages/common && pnpm test:typecheck
+
+      - name: Test Bun
+        if: ${{ matrix.runtime-version == 'Bun' }}
+        run: cd packages/common && bun test
+
+
+  test-utils:
+    name: Test [utils]
+    runs-on: "ubuntu-latest"
+    strategy:
+      fail-fast: false
+      matrix: 
+        viem-version: ['1', '2']
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Install Node
+        uses: actions/setup-node@v3
+        with:
+          cache: pnpm
+          node-version: latest
+
+      - name: Install dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - run: pnpm add -D -w viem@${{ matrix.viem-version }}
+
+      - name: Test
+        run: pnpm --filter utils test
+        env:
+          RPC_URL_ALCHEMY_1: ${{ secrets.RPC_URL_ALCHEMY_1 }}
+          RPC_URL_INFURA_1: ${{ secrets.RPC_URL_INFURA_1 }}
+          RPC_URL_QUICKNODE_1: ${{ secrets.RPC_URL_QUICKNODE_1 }}

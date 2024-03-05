@@ -44,6 +44,7 @@
   "dependencies": {
     "@ast-grep/napi": "^0.19.3",
     "@babel/code-frame": "^7.23.4",
+    "@ponder/utils": "workspace:*",
     "abitype": "^0.10.2",
     "async-mutex": "^0.4.0",
     "better-sqlite3": "^9.1.1",
@@ -92,6 +93,9 @@
     "supertest": "^6.3.3",
     "tsup": "^8.0.1",
     "vitest": "^1.0.2"
+  },
+  "imports": {
+    "@ponder/common": "../common/index.ts"
   },
   "engines": {
     "node": ">=18.14"
