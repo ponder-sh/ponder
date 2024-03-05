@@ -1,6 +1,6 @@
 import type { Network } from "@/config/networks.js";
 import type { MetricsService } from "@/metrics/service.js";
-import { type Queue, createFrequencyQueue } from "@ponder/common";
+import { type Queue, createQueue } from "@ponder/common";
 import { type EIP1193Parameters, type PublicRpcSchema } from "viem";
 import { startClock } from "./timer.js";
 
@@ -27,8 +27,9 @@ export const createRequestQueue = ({
   network,
   metrics,
 }: { network: Network; metrics: MetricsService }): RequestQueue => {
-  const requestQueue = createFrequencyQueue({
+  const requestQueue = createQueue({
     frequency: network.maxRequestsPerSecond,
+    concurrency: Math.ceil(network.maxRequestsPerSecond / 4),
     worker: (task: {
       request: EIP1193Parameters<PublicRpcSchema>;
       stopClockLag: () => number;
