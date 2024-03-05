@@ -145,14 +145,28 @@ jobs:
     runs-on: "ubuntu-latest"
     strategy:
       fail-fast: false
-      matrix:
-        node-version: ["Node 20"]
+      matrix: 
+        viem-version: ['1', '2']
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
 
-      - name: Setup
-        uses: ./.github/actions/setup
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Install Node
+        uses: actions/setup-node@v3
+        with:
+          cache: pnpm
+          node-version: latest
+
+      - name: Install dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - run: pnpm add -D -w viem@${{ matrix.viem-version }}
 
       - name: Test
         run: pnpm --filter utils test
