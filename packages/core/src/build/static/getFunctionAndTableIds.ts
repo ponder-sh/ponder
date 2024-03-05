@@ -2,7 +2,7 @@ import crypto from "crypto";
 import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
-import { dedupe } from "@/utils/dedupe.js";
+import { dedupe } from "@ponder/common";
 import type { IndexingFunctions } from "../functions/functions.js";
 import {
   type TableAccess,
