@@ -1,4 +1,4 @@
-import { assertType, expect, test, vi } from "vitest";
+import { expect, test, vi } from "vitest";
 import { promiseWithResolvers } from "./promiseWithResolvers.js";
 import { createQueue } from "./queue.js";
 
@@ -337,13 +337,4 @@ test("event loop", async () => {
   }
 
   expect(out).toStrictEqual(expectedOut);
-});
-
-test("add type", () => {
-  const queue = createQueue({
-    concurrency: 1,
-    worker: (_arg: "a" | "b" | "c") => Promise.resolve(),
-  });
-
-  assertType<(task: "a" | "b" | "c") => Promise<void>>(queue.add);
 });

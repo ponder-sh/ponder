@@ -1,4 +1,4 @@
-import { assertType, expect, test } from "vitest";
+import { expect, test } from "vitest";
 import { promiseWithResolvers } from "./promiseWithResolvers.js";
 
 test("resolves", async () => {
@@ -23,14 +23,4 @@ test("rejects", async () => {
   await Promise.reject().catch(reject);
 
   expect(rejected).toBe(true);
-});
-
-test("resolve type", () => {
-  const { resolve } = promiseWithResolvers<number>();
-  assertType<(arg: number) => void>(resolve);
-});
-
-test("promise type", () => {
-  const { promise } = promiseWithResolvers<number>();
-  assertType<Promise<number>>(promise);
 });

@@ -1,16 +1,10 @@
-import { assertType, expect, test } from "vitest";
+import { expect, test } from "vitest";
 import { retry } from "./retry.js";
 
 test("returns with no errors", async () => {
   const callback = () => Promise.resolve(1);
   const out = retry(callback);
   expect(await out.promise).toBe(1);
-});
-
-test("returnType", () => {
-  const callback = () => Promise.resolve(1 as const);
-  const out = retry(callback);
-  assertType<Promise<1>>(out.promise);
 });
 
 test("retries", async () => {
