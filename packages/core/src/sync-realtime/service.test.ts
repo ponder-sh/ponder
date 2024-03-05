@@ -42,10 +42,35 @@ test("setup() returns block numbers", async (context) => {
   await cleanup();
 });
 
+test("start() emits sync complete if no realtime contracts", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumbers = await getBlockNumbers();
+
+  const service = new RealtimeSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    sources: [
+      { ...sources[0], endBlock: blockNumbers.finalizedBlockNumber - 1 },
+    ],
+    requestQueue: requestQueues[0],
+  });
+
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await service.setup();
+  service.start();
+
+  expect(emitSpy).toHaveBeenCalledWith("syncComplete");
+
+  service.kill();
+  await cleanup();
+});
+
 test("start() sync realtime data with traversal method", async (context) => {
   const { common, networks, requestQueues, sources, erc20 } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-
   const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({

@@ -8,7 +8,7 @@ import {
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
+import { type Checkpoint } from "@/utils/checkpoint.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { Emittery } from "@/utils/emittery.js";
 import { poll } from "@/utils/poll.js";
@@ -39,6 +39,7 @@ type RealtimeSyncEvents = {
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
   idle: undefined;
   fatal: undefined;
+  syncComplete: undefined;
 };
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
@@ -191,7 +192,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   start = () => {
     // If an endBlock is specified for every event source on this network, and the
-    // latest end blcock is less than the finalized block number, we can stop here.
+    // latest end block is less than the finalized block number, we can stop here.
     // The service won't poll for new blocks and won't emit any events.
     const endBlocks = this.sources.map((f) => f.endBlock);
     if (
@@ -205,10 +206,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         msg: `No realtime contracts (network=${this.network.name})`,
       });
 
-      this.emit("realtimeCheckpoint", {
-        ...maxCheckpoint,
-        chainId: this.network.chainId,
-      });
+      this.emit("syncComplete");
 
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },

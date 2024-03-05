@@ -113,12 +113,7 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
@@ -129,6 +124,9 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
     chainId: optimism.chainId,
     blockTimestamp: 5,
   });
+
+  service.handleRealtimeSyncComplete(mainnet10);
+  service.handleRealtimeSyncComplete(optimism5);
 
   service.handleNewHistoricalCheckpoint(mainnet10);
   service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
@@ -261,9 +259,8 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
   service.handleNewRealtimeCheckpoint(optimism27);
   service.handleNewRealtimeCheckpoint(mainnet25);
 
-  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet10);
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet25);
-  expect(emitSpy).toHaveBeenCalledTimes(2);
+  expect(emitSpy).toHaveBeenCalledTimes(1);
   expect(service.historicalSyncCompletedAt).toBe(12);
 
   await cleanup();
@@ -409,8 +406,8 @@ test("resetCheckpoints resets the checkpoint states", async (context) => {
     blockTimestamp: 5,
   });
 
-  service.handleNewRealtimeCheckpoint(mainnet2);
-  service.handleNewHistoricalCheckpoint(mainnet3);
+  service.handleNewRealtimeCheckpoint(mainnet3);
+  service.handleNewHistoricalCheckpoint(mainnet2);
   service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
 
   service.handleNewRealtimeCheckpoint(optimism5);

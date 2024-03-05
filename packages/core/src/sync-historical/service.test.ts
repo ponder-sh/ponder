@@ -486,13 +486,8 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   service.start();
   await service.onIdle();
 
-  expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
-    blockTimestamp: expect.any(Number),
-    chainId: 1,
-    blockNumber: expect.any(Number),
-  });
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
-  expect(emitSpy).toHaveBeenCalledTimes(2);
+  expect(emitSpy).toHaveBeenCalledTimes(1);
 
   service.kill();
   await service.onIdle();
