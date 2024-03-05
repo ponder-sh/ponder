@@ -30,6 +30,7 @@ import {
   sql,
 } from "kysely";
 import type { Pool, PoolConfig } from "pg";
+import prometheus from "prom-client";
 import type { BaseDatabaseService, FunctionMetadata } from "../service.js";
 import { type PonderCoreSchema, migrationProvider } from "./migrations.js";
 
@@ -88,12 +89,13 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.db = new Kysely<PonderCoreSchema>({
       dialect: new PostgresDialect({ pool: this.adminPool }),
       log(event) {
-        if (event.level === "error") console.log(event);
         if (event.level === "query") {
-          common.metrics.ponder_postgres_query_count?.inc({ kind: "indexing" });
+          common.metrics.ponder_postgres_query_count.inc({ pool: "admin" });
         }
       },
     });
+
+    this.registerMetrics();
   }
 
   getIndexingStoreConfig() {
@@ -594,6 +596,65 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     );
 
     return builder;
+  }
+
+  // private wrap = async <T>(
+  //   options: { method: string },
+  //   fn: () => Promise<T>,
+  // ) => {
+  //   const start = performance.now();
+  //   const result = await retry(fn, {});
+  //   this.common.metrics.ponder_database_operation_duration.observe(
+  //     { method: options.method },
+  //     performance.now() - start,
+  //   );
+  //   return result;
+  // };
+
+  private registerMetrics() {
+    const service = this;
+    this.common.metrics.ponder_postgres_query_count = new prometheus.Counter({
+      name: "ponder_postgres_query_count",
+      help: "Number of queries submitted to the database",
+      labelNames: ["pool"] as const,
+      registers: [this.common.metrics.registry],
+    });
+    this.common.metrics.ponder_postgres_idle_connection_count =
+      new prometheus.Gauge({
+        name: "ponder_postgres_idle_connection_count",
+        help: "Number of idle connections in the pool",
+        labelNames: ["pool"] as const,
+        registers: [this.common.metrics.registry],
+        collect() {
+          this.set({ pool: "indexing" }, service.indexingPool.idleCount);
+          this.set({ pool: "sync" }, service.syncPool.idleCount);
+          this.set({ pool: "admin" }, service.adminPool.idleCount);
+        },
+      });
+    this.common.metrics.ponder_postgres_total_connection_count =
+      new prometheus.Gauge({
+        name: "ponder_postgres_total_connection_count",
+        help: "Total number of connections in the pool",
+        labelNames: ["pool"] as const,
+        registers: [this.common.metrics.registry],
+        collect() {
+          this.set({ pool: "indexing" }, service.indexingPool.totalCount);
+          this.set({ pool: "sync" }, service.syncPool.totalCount);
+          this.set({ pool: "admin" }, service.adminPool.totalCount);
+        },
+      });
+    this.common.metrics.ponder_postgres_request_queue_count =
+      new prometheus.Gauge({
+        name: "ponder_postgres_request_queue_count",
+        help: "Number of query requests waiting for an available connection",
+        labelNames: ["pool"] as const,
+        registers: [this.common.metrics.registry],
+        collect() {
+          this.set({ pool: "indexing" }, service.indexingPool.waitingCount);
+          this.set({ pool: "sync" }, service.syncPool.waitingCount);
+          this.set({ pool: "admin" }, service.adminPool.waitingCount);
+        },
+      });
   }
 }
 

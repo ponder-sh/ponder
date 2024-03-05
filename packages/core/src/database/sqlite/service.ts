@@ -29,6 +29,7 @@ import {
   WithSchemaPlugin,
   sql,
 } from "kysely";
+import prometheus from "prom-client";
 import type { BaseDatabaseService, FunctionMetadata } from "../service.js";
 import { type PonderCoreSchema, migrationProvider } from "./migrations.js";
 
@@ -73,12 +74,13 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.db = new Kysely({
       dialect: new SqliteDialect({ database: this.sqliteDatabase }),
       log(event) {
-        if (event.level === "error") console.log(event);
         if (event.level === "query") {
-          common.metrics.ponder_sqlite_query_count?.inc({ kind: "indexing" });
+          common.metrics.ponder_sqlite_query_count?.inc({ database: "admin" });
         }
       },
     });
+
+    this.registerMetrics();
   }
 
   getIndexingStoreConfig(): { database: SqliteDatabase } {
@@ -390,6 +392,28 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     );
 
     return builder;
+  }
+
+  // private wrap = async <T>(
+  //   options: { method: string },
+  //   fn: () => Promise<T>,
+  // ) => {
+  //   const start = performance.now();
+  //   const result = await retry(fn, {});
+  //   this.common.metrics.ponder_database_operation_duration.observe(
+  //     { method: options.method },
+  //     performance.now() - start,
+  //   );
+  //   return result;
+  // };
+
+  private registerMetrics() {
+    this.common.metrics.ponder_sqlite_query_count = new prometheus.Counter({
+      name: "ponder_sqlite_query_count",
+      help: "Number of queries submitted to the database",
+      labelNames: ["database"] as const,
+      registers: [this.common.metrics.registry],
+    });
   }
 }
 
