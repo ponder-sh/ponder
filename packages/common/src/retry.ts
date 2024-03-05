@@ -6,10 +6,12 @@ export const retry = <returnType>(
     retries = 3,
     timeout = 100,
     exponential = true,
+    onRetry,
   }: {
     retries?: number;
     timeout?: number;
     exponential?: boolean;
+    onRetry?: (error: any, duration: number) => void;
   } = { retries: 3, timeout: 100, exponential: true },
 ): { promise: Promise<returnType>; cancel: () => void } => {
   const { promise, resolve, reject } = promiseWithResolvers<returnType>();
@@ -35,12 +37,13 @@ export const retry = <returnType>(
 
         if (canceled) return;
 
-        await new Promise((_resolve) => {
-          timer = setTimeout(
-            _resolve,
-            exponential ? timeout * 2 ** i : timeout,
-          );
-        });
+        if (i < retries) {
+          const duration = exponential ? timeout * 2 ** i : timeout;
+          onRetry?.(_error, duration);
+          await new Promise((_resolve) => {
+            timer = setTimeout(_resolve, duration);
+          });
+        }
       }
     }
     reject(error);
