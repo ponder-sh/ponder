@@ -943,6 +943,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
       }
     } else {
       state.tasksLoadedFromCheckpoint = state.tasksLoadedToCheckpoint;
+
+      this.emitCheckpoint();
     }
 
     // Update lastEventCheckpoint
