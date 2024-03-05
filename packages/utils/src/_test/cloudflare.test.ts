@@ -1,12 +1,12 @@
-import { RpcError, numberToHex } from "viem";
+import { RpcRequestError, numberToHex } from "viem";
 import { expect, test } from "vitest";
-import { parseGetLogsError } from "../parseGetLogsError.js";
+import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
 
-const request = getRequest("https://rpc.ankr.com/eth");
-const maxBlockRange = 3000n;
+const request = getRequest("https://cloudflare-eth.com");
+const maxBlockRange = 799n;
 
-test("ankr success", async () => {
+test("cloudflare success", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
@@ -18,10 +18,10 @@ test("ankr success", async () => {
     ],
   });
 
-  expect(logs).toHaveLength(13);
+  expect(logs).toHaveLength(7);
 });
 
-test("ankr block range", async () => {
+test("cloudflare block range", async () => {
   const params: Params = [
     {
       fromBlock: numberToHex(fromBlock),
@@ -34,11 +34,11 @@ test("ankr block range", async () => {
     params,
   }).catch((error) => error);
 
-  expect(error).toBeInstanceOf(RpcError);
+  expect(error).toBeInstanceOf(RpcRequestError);
 
-  const retry = parseGetLogsError({
+  const retry = getLogsRetryHelper({
     params,
-    error: error,
+    error,
   });
 
   expect(retry).toStrictEqual({

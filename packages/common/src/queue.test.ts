@@ -301,6 +301,11 @@ test("frequency", async () => {
   expect(func).toHaveBeenCalledTimes(4);
 });
 
+/**
+ * Two queues running at the same time should alternate between events.
+ * One queue running all its event in a row would mean the event loop
+ * is being "starved".
+ */
 test("event loop", async () => {
   const out: number[] = [];
 

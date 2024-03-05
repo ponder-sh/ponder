@@ -1,6 +1,6 @@
 import { LimitExceededRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
-import { parseGetLogsError } from "../parseGetLogsError.js";
+import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, WETH, fromBlock, getRequest } from "./utils.js";
 
 const request = getRequest(process.env.RPC_URL_INFURA_1!);
@@ -40,7 +40,7 @@ test("infura", async () => {
 
   expect(error).toBeInstanceOf(LimitExceededRpcError);
 
-  const retry = parseGetLogsError({
+  const retry = getLogsRetryHelper({
     params,
     error,
   });

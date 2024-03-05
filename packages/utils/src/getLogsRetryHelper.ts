@@ -11,7 +11,7 @@ import {
   numberToHex,
 } from "viem";
 
-export type ParseGetLogsErrorParameters = {
+export type GetLogsRetryHelperParameters = {
   error: RpcError;
   params: [
     {
@@ -23,7 +23,7 @@ export type ParseGetLogsErrorParameters = {
   ];
 };
 
-export type ParseGetLogsErrorReturnType =
+export type GetLogsRetryHelperReturnType =
   | {
       shouldRetry: true;
       /** Suggested values to use for (fromBlock, toBlock) in follow-up eth_getLogs requests. */
@@ -35,10 +35,10 @@ export type ParseGetLogsErrorReturnType =
       ranges?: never;
     };
 
-export const parseGetLogsError = ({
+export const getLogsRetryHelper = ({
   params,
   error,
-}: ParseGetLogsErrorParameters): ParseGetLogsErrorReturnType => {
+}: GetLogsRetryHelperParameters): GetLogsRetryHelperReturnType => {
   // Cloudflare
   if (
     error instanceof RpcRequestError &&
@@ -194,7 +194,7 @@ export const parseGetLogsError = ({
 const chunk = ({
   params,
   range,
-}: { params: ParseGetLogsErrorParameters["params"]; range: bigint }) => {
+}: { params: GetLogsRetryHelperParameters["params"]; range: bigint }) => {
   const ranges: { fromBlock: Hex; toBlock: Hex }[] = [];
 
   const fromBlock = hexToBigInt(params[0].fromBlock);

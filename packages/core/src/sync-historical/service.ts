@@ -26,8 +26,8 @@ import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { debounce } from "@ponder/common";
 import {
-  type ParseGetLogsErrorParameters,
-  parseGetLogsError,
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
 } from "@ponder/utils";
 import {
   type Address,
@@ -37,6 +37,7 @@ import {
   type RpcBlock,
   RpcError,
   type RpcLog,
+  hexToBigInt,
   hexToNumber,
   numberToHex,
   toHex,
@@ -833,7 +834,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
 
     if (newBlockCheckpoint) {
-      this.debouncedEmitCheckpoint.callback({
+      this.debouncedEmitCheckpoint.call({
         blockTimestamp: newBlockCheckpoint.blockTimestamp,
         chainId: this.network.chainId,
         blockNumber: newBlockCheckpoint.blockNumber,
@@ -953,7 +954,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     fromBlock: Hex;
     toBlock: Hex;
   }): Promise<RpcLog[]> => {
-    const _params: ParseGetLogsErrorParameters["params"] = [
+    const _params: GetLogsRetryHelperParameters["params"] = [
       {
         fromBlock: params.fromBlock,
         toBlock: params.toBlock,
@@ -973,12 +974,24 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         params: _params,
       });
     } catch (err) {
-      const getLogsErrorResponse = parseGetLogsError({
+      const getLogsErrorResponse = getLogsRetryHelper({
         params: _params,
         error: err as RpcError,
       });
 
       if (!getLogsErrorResponse.shouldRetry) throw err;
+
+      this.common.logger.debug({
+        service: "historical",
+        msg: `eth_getLogs request failed, retrying with ranges: [${getLogsErrorResponse.ranges
+          .map(
+            ({ fromBlock, toBlock }) =>
+              `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(
+                toBlock,
+              ).toString()}]`,
+          )
+          .join(", ")}].`,
+      });
 
       return Promise.all(
         getLogsErrorResponse.ranges.map(({ fromBlock, toBlock }) =>

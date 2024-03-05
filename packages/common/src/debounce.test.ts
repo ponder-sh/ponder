@@ -4,9 +4,9 @@ import { debounce } from "./debounce.js";
 
 test("invoke function after timeout", async () => {
   const fun = vi.fn(() => {});
-  const { callback } = debounce(10, fun);
+  const { call } = debounce(10, fun);
 
-  callback();
+  call();
 
   expect(fun).toHaveBeenCalledTimes(0);
 
@@ -17,13 +17,13 @@ test("invoke function after timeout", async () => {
 
 test("skips invocation during timeout", async () => {
   const fun = vi.fn(() => {});
-  const { callback } = debounce(10, fun);
+  const { call } = debounce(10, fun);
 
-  callback();
-  callback();
-  callback();
-  callback();
-  callback();
+  call();
+  call();
+  call();
+  call();
+  call();
 
   await wait(20);
 
@@ -34,13 +34,13 @@ test("updates arguments during timeout", async () => {
   const fun = vi.fn((n: number) => {
     n;
   });
-  const { callback } = debounce(10, fun);
+  const { call } = debounce(10, fun);
 
-  callback(1);
-  callback(2);
-  callback(3);
-  callback(4);
-  callback(5);
+  call(1);
+  call(2);
+  call(3);
+  call(4);
+  call(5);
 
   await wait(20);
 
@@ -50,9 +50,9 @@ test("updates arguments during timeout", async () => {
 
 test("cancel", async () => {
   const fun = vi.fn(() => {});
-  const { callback, cancel } = debounce(10, fun);
+  const { call, cancel } = debounce(10, fun);
 
-  callback();
+  call();
   cancel();
 
   expect(fun).toHaveBeenCalledTimes(0);

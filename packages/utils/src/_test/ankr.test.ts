@@ -1,12 +1,12 @@
-import { HttpRequestError, numberToHex } from "viem";
+import { RpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
-import { parseGetLogsError } from "../parseGetLogsError.js";
+import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
 
-const request = getRequest(process.env.RPC_URL_QUICKNODE_1!);
-const maxBlockRange = 10000n;
+const request = getRequest("https://rpc.ankr.com/eth");
+const maxBlockRange = 3000n;
 
-test("quicknode success", async () => {
+test("ankr success", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
@@ -18,10 +18,10 @@ test("quicknode success", async () => {
     ],
   });
 
-  expect(logs).toHaveLength(49);
+  expect(logs).toHaveLength(13);
 });
 
-test("quicknode block range", async () => {
+test("ankr block range", async () => {
   const params: Params = [
     {
       fromBlock: numberToHex(fromBlock),
@@ -34,9 +34,9 @@ test("quicknode block range", async () => {
     params,
   }).catch((error) => error);
 
-  expect(error).toBeInstanceOf(HttpRequestError);
+  expect(error).toBeInstanceOf(RpcError);
 
-  const retry = parseGetLogsError({
+  const retry = getLogsRetryHelper({
     params,
     error: error,
   });

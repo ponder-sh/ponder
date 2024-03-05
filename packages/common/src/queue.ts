@@ -35,6 +35,25 @@ export const createQueue = <returnType, taskType = void>({
   | { concurrency: number; frequency?: never }
   | { concurrency?: never; frequency: number }
 )): Queue<returnType, taskType> => {
+  // Input validation
+  if (concurrency === undefined && frequency === undefined) {
+    throw Error(
+      "Invalid queue configuration, must specify either 'concurrency' or 'frequency'.",
+    );
+  }
+
+  if (concurrency !== undefined && concurrency <= 0) {
+    throw Error(
+      `Invalid value for queue 'concurrency' option. Got ${concurrency}, expected a number greater than zero.`,
+    );
+  }
+
+  if (frequency !== undefined && frequency <= 0) {
+    throw Error(
+      `Invalid value for queue 'frequency' option. Got ${frequency}, expected a number greater than zero.`,
+    );
+  }
+
   let queue = new Array<InnerQueue<returnType, taskType>[number]>();
   let pending = 0;
   let timestamp = 0;

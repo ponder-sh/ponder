@@ -1,6 +1,6 @@
 import { RpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
-import { parseGetLogsError } from "../parseGetLogsError.js";
+import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, WETH, fromBlock, getRequest } from "./utils.js";
 
 const request = getRequest(process.env.RPC_URL_ALCHEMY_1!);
@@ -56,7 +56,7 @@ test("alchemy", async () => {
 
   expect(error).toBeInstanceOf(RpcError);
 
-  const retry = parseGetLogsError({
+  const retry = getLogsRetryHelper({
     params,
     error,
   });

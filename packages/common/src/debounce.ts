@@ -1,23 +1,25 @@
 /**
- * Creates a debounced function that waits "ms" milliseconds before being called.
+ * Creates a debounced function that waits ms milliseconds between invocations.
+ * If the function is called multiple times between invocations, the latest
+ * arguments passed to the function will be used.
  */
 export function debounce<param extends unknown[], returnType>(
   ms: number,
-  fun: (...x: param) => returnType,
+  fn: (...x: param) => returnType,
 ) {
   let args: param;
   let timeoutSet = false;
   let timeout: NodeJS.Timeout;
 
   return {
-    callback: (..._args: param) => {
+    call: (..._args: param) => {
       args = _args;
 
       if (!timeoutSet) {
         timeoutSet = true;
         timeout = setTimeout(() => {
           timeoutSet = false;
-          fun(...args);
+          fn(...args);
         }, ms);
       }
     },

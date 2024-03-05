@@ -1,6 +1,6 @@
 import { InvalidParamsRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
-import { parseGetLogsError } from "../parseGetLogsError.js";
+import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, WETH, fromBlock, getRequest } from "./utils.js";
 
 const request = getRequest("https://1.rpc.thirdweb.com");
@@ -37,7 +37,7 @@ test("thirdweb response size", async () => {
 
   expect(error).toBeInstanceOf(InvalidParamsRpcError);
 
-  const retry = parseGetLogsError({
+  const retry = getLogsRetryHelper({
     params,
     error,
   });
@@ -65,7 +65,7 @@ test("thirdweb block range", async () => {
 
   expect(error).toBeInstanceOf(InvalidParamsRpcError);
 
-  const retry = parseGetLogsError({
+  const retry = getLogsRetryHelper({
     params,
     error,
   });

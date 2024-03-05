@@ -1,12 +1,12 @@
-import { RpcRequestError, numberToHex } from "viem";
+import { HttpRequestError, numberToHex } from "viem";
 import { expect, test } from "vitest";
-import { parseGetLogsError } from "../parseGetLogsError.js";
+import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
 
-const request = getRequest("https://cloudflare-eth.com");
-const maxBlockRange = 799n;
+const request = getRequest(process.env.RPC_URL_QUICKNODE_1!);
+const maxBlockRange = 10000n;
 
-test("cloudflare success", async () => {
+test("quicknode success", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
@@ -18,10 +18,10 @@ test("cloudflare success", async () => {
     ],
   });
 
-  expect(logs).toHaveLength(7);
+  expect(logs).toHaveLength(49);
 });
 
-test("cloudflare block range", async () => {
+test("quicknode block range", async () => {
   const params: Params = [
     {
       fromBlock: numberToHex(fromBlock),
@@ -34,11 +34,11 @@ test("cloudflare block range", async () => {
     params,
   }).catch((error) => error);
 
-  expect(error).toBeInstanceOf(RpcRequestError);
+  expect(error).toBeInstanceOf(HttpRequestError);
 
-  const retry = parseGetLogsError({
+  const retry = getLogsRetryHelper({
     params,
-    error,
+    error: error,
   });
 
   expect(retry).toStrictEqual({
