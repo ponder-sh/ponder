@@ -607,9 +607,6 @@ importers:
         specifier: ^4.3.1
         version: 4.3.1(typescript@5.0.4)(vite@5.0.10)
     devDependencies:
-      '@ponder/common':
-        specifier: workspace:*
-        version: link:../common
       '@types/babel__code-frame':
         specifier: ^7.0.6
         version: 7.0.6
