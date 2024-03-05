@@ -98,7 +98,7 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
   await cleanup();
 });
 
-test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final historical sync is complete", async (context) => {
+test("handleHistoricalSyncComplete sets historicalSyncCompletedAt", async (context) => {
   const { common } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -117,8 +117,8 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
     blockTimestamp: 5,
   });
 
-  service.handleRealtimeSyncComplete(mainnet10);
-  service.handleRealtimeSyncComplete(optimism5);
+  service.handleNewRealtimeCheckpoint(mainnet10);
+  service.handleNewRealtimeCheckpoint(optimism5);
 
   service.handleNewHistoricalCheckpoint(mainnet10);
   service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
@@ -215,6 +215,10 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
     chainId: mainnet.chainId,
     blockTimestamp: 10,
   });
+  const mainnet20 = createCheckpoint({
+    chainId: mainnet.chainId,
+    blockTimestamp: 20,
+  });
   const mainnet25 = createCheckpoint({
     chainId: mainnet.chainId,
     blockTimestamp: 25,
@@ -223,22 +227,38 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
     chainId: optimism.chainId,
     blockTimestamp: 12,
   });
+  const optimism22 = createCheckpoint({
+    chainId: optimism.chainId,
+    blockTimestamp: 22,
+  });
   const optimism27 = createCheckpoint({
     chainId: optimism.chainId,
     blockTimestamp: 27,
   });
 
-  service.handleNewHistoricalCheckpoint(optimism12);
-  service.handleHistoricalSyncComplete({ chainId: optimism.chainId });
+  service.handleNewRealtimeCheckpoint(mainnet20);
+  service.handleNewRealtimeCheckpoint(optimism22);
 
+  expect(emitSpy).toHaveBeenCalledTimes(0);
+
+  service.handleNewHistoricalCheckpoint(optimism12);
   service.handleNewHistoricalCheckpoint(mainnet10);
+
+  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet10);
+  expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  service.handleHistoricalSyncComplete({ chainId: optimism.chainId });
   service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
+
+  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet20);
+  expect(emitSpy).toHaveBeenCalledTimes(2);
 
   service.handleNewRealtimeCheckpoint(optimism27);
   service.handleNewRealtimeCheckpoint(mainnet25);
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet25);
-  expect(emitSpy).toHaveBeenCalledTimes(1);
+  expect(emitSpy).toHaveBeenCalledTimes(3);
+
   expect(service.historicalSyncCompletedAt).toBe(12);
 
   await cleanup();

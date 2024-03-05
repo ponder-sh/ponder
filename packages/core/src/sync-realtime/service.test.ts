@@ -42,7 +42,7 @@ test("setup() returns block numbers", async (context) => {
   await cleanup();
 });
 
-test("start() emits sync complete if no realtime contracts", async (context) => {
+test("start() emits checkpoint at finality block even if no realtime contracts", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
@@ -62,7 +62,12 @@ test("start() emits sync complete if no realtime contracts", async (context) => 
   await service.setup();
   service.start();
 
-  expect(emitSpy).toHaveBeenCalledWith("syncComplete");
+  expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    blockNumber: blockNumbers.finalizedBlockNumber,
+    // Anvil messes with the block timestamp for blocks mined locally.
+    blockTimestamp: expect.any(Number),
+    chainId: 1,
+  });
 
   service.kill();
   await cleanup();

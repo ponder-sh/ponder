@@ -628,12 +628,6 @@ export class Ponder {
         this.syncGatewayService.handleReorg(checkpoint);
       });
 
-      realtime.on("syncComplete", () => {
-        this.syncGatewayService.handleRealtimeSyncComplete({
-          chainId: network.chainId,
-        });
-      });
-
       realtime.on("fatal", async () => {
         this.common.logger.fatal({
           service: "app",

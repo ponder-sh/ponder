@@ -39,7 +39,6 @@ type RealtimeSyncEvents = {
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
   idle: undefined;
   fatal: undefined;
-  syncComplete: undefined;
 };
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
@@ -187,6 +186,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       blockNumber: this.finalizedBlock.number,
     });
 
+    this.emit("realtimeCheckpoint", {
+      blockTimestamp: this.finalizedBlock.timestamp,
+      chainId: this.network.chainId,
+      blockNumber: this.finalizedBlock.number,
+    });
+
     return { latestBlockNumber, finalizedBlockNumber };
   };
 
@@ -196,23 +201,16 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // The service won't poll for new blocks and won't emit any events.
     const endBlocks = this.sources.map((f) => f.endBlock);
     if (
-      endBlocks.every(
-        (endBlock) =>
-          endBlock !== undefined && endBlock < this.finalizedBlock.number,
-      )
+      endBlocks.every((b) => b !== undefined && b < this.finalizedBlock.number)
     ) {
       this.common.logger.warn({
         service: "realtime",
         msg: `No realtime contracts (network=${this.network.name})`,
       });
-
-      this.emit("syncComplete");
-
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },
         0,
       );
-
       return;
     }
 

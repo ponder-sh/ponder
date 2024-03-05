@@ -51,7 +51,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     number,
     {
       isHistoricalSyncComplete: boolean;
-      isRealtimeSyncComplete: boolean;
       historicalCheckpoint: Checkpoint;
       realtimeCheckpoint: Checkpoint;
       finalityCheckpoint: Checkpoint;
@@ -87,7 +86,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
       const { chainId } = network;
       this.networkCheckpoints[chainId] = {
         isHistoricalSyncComplete: false,
-        isRealtimeSyncComplete: false,
         historicalCheckpoint: zeroCheckpoint,
         realtimeCheckpoint: zeroCheckpoint,
         finalityCheckpoint: zeroCheckpoint,
@@ -188,11 +186,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     this.emit("reorg", checkpoint);
   };
 
-  handleRealtimeSyncComplete = ({ chainId }: { chainId: number }) => {
-    this.networkCheckpoints[chainId].isRealtimeSyncComplete = true;
-    this.recalculateCheckpoint();
-  };
-
   /** Resets global checkpoints as well as the network checkpoint for the specified chain ID.
    *  Keeps previous checkpoint values for other networks.
    *
@@ -204,7 +197,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     this.historicalSyncCompletedAt = 0;
     this.networkCheckpoints[chainId] = {
       isHistoricalSyncComplete: false,
-      isRealtimeSyncComplete: false,
       historicalCheckpoint: zeroCheckpoint,
       realtimeCheckpoint: zeroCheckpoint,
       finalityCheckpoint: zeroCheckpoint,
@@ -212,16 +204,13 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   };
 
   private recalculateCheckpoint = () => {
-    // If the realtime sync is complete, use the historical checkpoint
-    // Realtime sync is happening. If the historical sync is complete, use the realtime checkpoint
-    // Realtime sync is happening. If the historical sync is not complete, use the historical checkpoint
-    const checkpoints = Object.values(this.networkCheckpoints).map((n) => {
-      if (n.isRealtimeSyncComplete) return n.historicalCheckpoint;
-      if (n.isHistoricalSyncComplete) return n.realtimeCheckpoint;
-      return n.historicalCheckpoint;
-    });
-
-    const newCheckpoint = checkpointMin(...checkpoints);
+    const newCheckpoint = checkpointMin(
+      ...Object.values(this.networkCheckpoints).map((n) =>
+        n.isHistoricalSyncComplete
+          ? n.realtimeCheckpoint
+          : n.historicalCheckpoint,
+      ),
+    );
 
     if (isCheckpointGreaterThan(newCheckpoint, this.checkpoint)) {
       this.checkpoint = newCheckpoint;
