@@ -1,8 +1,9 @@
 import path from "node:path";
 import type { Common } from "@/Ponder.js";
-import type {
-  FunctionIds,
-  TableIds,
+import {
+  type FunctionIds,
+  HASH_VERSION,
+  type TableIds,
 } from "@/build/static/getFunctionAndTableIds.js";
 import {
   type TableAccess,
@@ -268,6 +269,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       const newFunctionMetadata = metadata.map((m) => ({
         function_id: m.functionId,
         function_name: m.functionName,
+        hash_version: HASH_VERSION,
         from_checkpoint: m.fromCheckpoint
           ? encodeCheckpoint(m.fromCheckpoint)
           : null,
@@ -310,6 +312,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         newTableMetadata.push({
           table_name: tableName,
           table_id: tableId,
+          hash_version: HASH_VERSION,
           to_checkpoint:
             checkpoints.length === 0
               ? encodeCheckpoint(zeroCheckpoint)

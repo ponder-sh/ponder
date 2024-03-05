@@ -10,7 +10,7 @@ import {
   isWriteStoreMethod,
 } from "./getTableAccess.js";
 
-const VERSION = 1;
+export const HASH_VERSION = 1;
 
 export type FunctionIds = { [func: string]: string };
 export type TableIds = { [table: string]: string };
@@ -202,7 +202,7 @@ const resolveSchema = (
 const hashIdentifier = (schema: Omit<Identifier, "version">) => {
   return crypto
     .createHash("sha256")
-    .update(JSON.stringify({ ...schema, version: VERSION }))
+    .update(JSON.stringify({ ...schema, version: HASH_VERSION }))
     .digest("hex")
     .slice(0, 10);
 };

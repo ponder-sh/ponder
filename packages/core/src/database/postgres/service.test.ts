@@ -64,11 +64,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       "kysely_migration_lock",
       "function_metadata",
       "table_metadata",
-    ]);
-
-    // Public schema and public metadata table was created
-    expect(await getTableNames(database.db, "ponder")).toStrictEqual([
-      "_metadata",
+      "instance_metadata",
     ]);
 
     await database.reset({
@@ -84,6 +80,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       "kysely_migration_lock",
       "function_metadata",
       "table_metadata",
+      "instance_metadata",
       "0xPet",
       "0xPerson",
     ]);
@@ -95,11 +92,12 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     // Row was inserted to public metadata
     const { rows: metadataRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder._metadata`.compile(database.db),
+      sql`SELECT * FROM ponder_cache.instance_metadata`.compile(database.db),
     );
     expect(metadataRows).toEqual([
       {
         created_at: expect.any(Number),
+        hash_version: 1,
         heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: null,
@@ -363,11 +361,12 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     // Public metadata row was updated to include "published_at"
     const { rows: metadataRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder._metadata`.compile(database.db),
+      sql`SELECT * FROM ponder_cache.instance_metadata`.compile(database.db),
     );
     expect(metadataRows).toEqual([
       {
         created_at: expect.any(Number),
+        hash_version: 1,
         heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: expect.any(Number),
@@ -412,13 +411,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     ]);
 
     const { rows: firstMetadataRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder._metadata ORDER BY instance_id asc`.compile(
+      sql`SELECT * FROM ponder_cache.instance_metadata ORDER BY instance_id asc`.compile(
         database.db,
       ),
     );
     expect(firstMetadataRows).toEqual([
       {
         created_at: expect.any(Number),
+        hash_version: 1,
         heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: null,
@@ -426,6 +426,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       },
       {
         created_at: expect.any(Number),
+        hash_version: 1,
         heartbeat_at: expect.any(Number),
         instance_id: 2,
         published_at: expect.any(Number),
@@ -443,13 +444,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     // Public metadata row was updated to include "published_at"
     const { rows: metadataRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder._metadata ORDER BY instance_id asc`.compile(
+      sql`SELECT * FROM ponder_cache.instance_metadata ORDER BY instance_id asc`.compile(
         database.db,
       ),
     );
     expect(metadataRows).toEqual([
       {
         created_at: expect.any(Number),
+        hash_version: 1,
         heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: expect.any(Number),
@@ -457,6 +459,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       },
       {
         created_at: expect.any(Number),
+        hash_version: 1,
         heartbeat_at: expect.any(Number),
         instance_id: 2,
         published_at: expect.any(Number),
@@ -561,6 +564,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
+        hash_version: 1,
         to_checkpoint: encodeCheckpoint(zeroCheckpoint),
         event_count: 3,
       },
@@ -571,12 +575,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
+        hash_version: 1,
         table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         schema: expect.any(Object),
       },
       {
+        hash_version: 1,
         table_id: "0xPerson",
         table_name: "Person",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
@@ -681,6 +687,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
+        hash_version: 1,
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         event_count: 6,
       },
@@ -691,12 +698,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
+        hash_version: 1,
         table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         schema: expect.any(Object),
       },
       {
+        hash_version: 1,
         table_id: "0xPerson",
         table_name: "Person",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
@@ -787,7 +796,6 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       {
         functionId: "0xfunction",
         functionName: "function",
-
         fromCheckpoint: null,
         toCheckpoint: maxCheckpoint,
         eventCount: 6,
@@ -809,6 +817,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
+        hash_version: 1,
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         event_count: 6,
       },
@@ -816,6 +825,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction1",
         function_name: "function1",
         from_checkpoint: null,
+        hash_version: 1,
         to_checkpoint: encodeCheckpoint(zeroCheckpoint),
         event_count: 0,
       },
@@ -826,12 +836,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
+        hash_version: 1,
         table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
         schema: expect.any(Object),
       },
       {
+        hash_version: 1,
         table_id: "0xPerson",
         table_name: "Person",
         to_checkpoint: encodeCheckpoint(maxCheckpoint),
@@ -926,6 +938,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction1",
         function_name: "function1",
         from_checkpoint: null,
+        hash_version: 1,
         to_checkpoint: encodeCheckpoint(createCheckpoint(4)),
         event_count: 3,
       },
@@ -933,6 +946,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction2",
         function_name: "function2",
         from_checkpoint: null,
+        hash_version: 1,
         to_checkpoint: encodeCheckpoint(createCheckpoint(5)),
         event_count: 3,
       },
@@ -940,6 +954,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction3",
         function_name: "function3",
         from_checkpoint: null,
+        hash_version: 1,
         to_checkpoint: encodeCheckpoint(createCheckpoint(12)),
         event_count: 3,
       },
@@ -950,12 +965,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
+        hash_version: 1,
         table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(createCheckpoint(5)),
         schema: expect.any(Object),
       },
       {
+        hash_version: 1,
         table_id: "0xPerson",
         table_name: "Person",
         to_checkpoint: encodeCheckpoint(createCheckpoint(12)),

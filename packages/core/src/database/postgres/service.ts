@@ -1,7 +1,8 @@
 import type { Common } from "@/Ponder.js";
-import type {
-  FunctionIds,
-  TableIds,
+import {
+  type FunctionIds,
+  HASH_VERSION,
+  type TableIds,
 } from "@/build/static/getFunctionAndTableIds.js";
 import {
   type TableAccess,
@@ -111,7 +112,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     // If this instance is not live, drop the instance schema and remove the metadata row.
     await this.db.transaction().execute(async (tx) => {
       const liveInstanceRow = await tx
-        .selectFrom("ponder._metadata")
+        .selectFrom("ponder_cache.instance_metadata")
         .select(["instance_id"])
         .where("published_at", "is not", null)
         .orderBy("published_at", "desc")
@@ -132,7 +133,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         .cascade()
         .execute();
       await tx
-        .deleteFrom("ponder._metadata")
+        .deleteFrom("ponder_cache.instance_metadata")
         .where("instance_id", "=", this.instanceId)
         .execute();
 
@@ -148,13 +149,13 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   }
 
   async setup() {
-    // 1) Create the core cache schema if it doesn't exist.
-    await this.db.schema
-      .createSchema(CACHE_SCHEMA_NAME)
-      .ifNotExists()
-      .execute();
+    // 1) Create the schemas if they don't exist.
+    await Promise.all([
+      this.db.schema.createSchema(CACHE_SCHEMA_NAME).ifNotExists().execute(),
+      this.db.schema.createSchema(PUBLIC_SCHEMA_NAME).ifNotExists().execute(),
+    ]);
 
-    // 2) Run cache schema migrations.
+    // 2) Run migrations.
     const migrator = new Migrator({
       db: this.db.withPlugin(new WithSchemaPlugin(CACHE_SCHEMA_NAME)),
       provider: migrationProvider,
@@ -163,71 +164,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     const result = await migrator.migrateToLatest();
     if (result.error) throw result.error;
 
-    // 3) Create public schema and metadata table if they don't exist.
-    // TODO: Determine if these can happen in the migration.
-    await this.db.schema
-      .createSchema(PUBLIC_SCHEMA_NAME)
-      .ifNotExists()
-      .execute();
-    await this.db.schema
-      .createTable("ponder._metadata")
-      .addColumn("instance_id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
-      .addColumn("schema", "jsonb", (col) => col.notNull())
-      .addColumn("created_at", "bigint", (col) => col.notNull())
-      .addColumn("heartbeat_at", "bigint", (col) => col.notNull())
-      .addColumn("published_at", "bigint")
-      .ifNotExists()
-      .execute();
-
-    // 4) Drop schemas for stale instances, excluding the live instance (even if it's stale).
-    await this.db.transaction().execute(async (tx) => {
-      const liveInstanceRow = await tx
-        .selectFrom("ponder._metadata")
-        .selectAll()
-        .where("published_at", "is not", null)
-        .orderBy("published_at", "desc")
-        .limit(1)
-        .executeTakeFirst();
-
-      if (liveInstanceRow) {
-        const liveInstanceAge = formatEta(
-          Date.now() - Number(liveInstanceRow.heartbeat_at),
-        );
-        this.common.logger.debug({
-          service: "database",
-          msg: `Another instance (${liveInstanceRow.instance_id}) is live, last heartbeat ${liveInstanceAge} ago`,
-        });
-      }
-
-      let query = tx
-        .deleteFrom("ponder._metadata")
-        .returning(["instance_id"])
-        .where("heartbeat_at", "<", BigInt(Date.now() - INSTANCE_TIMEOUT_MS));
-      if (liveInstanceRow)
-        query = query.where("instance_id", "!=", liveInstanceRow.instance_id);
-      const staleInstanceIdRows = await query.execute();
-      const staleInstanceIds = staleInstanceIdRows.map((r) => r.instance_id);
-
-      if (staleInstanceIds.length > 0) {
-        await Promise.all(
-          staleInstanceIds.map((instanceId) =>
-            tx.schema
-              .dropSchema(`ponder_instance_${instanceId}`)
-              .ifExists()
-              .cascade()
-              .execute(),
-          ),
-        );
-
-        const s = staleInstanceIds.length > 1 ? "s" : "";
-        this.common.logger.debug({
-          service: "database",
-          msg: `Dropped stale schema${s} for old instance${s} (${staleInstanceIds.join(
-            ", ",
-          )})`,
-        });
-      }
-    });
+    // 3) Drop schemas for stale instances, excluding the live instance (even if it's stale).
+    await this.dropStaleInstanceSchemas();
   }
 
   async reset({
@@ -251,8 +189,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       .execute(async (tx) => {
         // 1) Acquire an instance ID by inserting a row into the public metadata table.
         const metadataRow = await tx
-          .insertInto("ponder._metadata")
+          .insertInto("ponder_cache.instance_metadata")
           .values({
+            hash_version: HASH_VERSION,
             schema: JSON.stringify(this.schema),
             created_at: BigInt(Date.now()),
             heartbeat_at: BigInt(Date.now()),
@@ -337,7 +276,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
     this.heartbeatInterval = setInterval(async () => {
       const updatedRow = await this.db
-        .updateTable("ponder._metadata")
+        .updateTable("ponder_cache.instance_metadata")
         .where("instance_id", "=", this.instanceId)
         .set({ heartbeat_at: BigInt(Date.now()) })
         .returning(["heartbeat_at"])
@@ -414,6 +353,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       const newFunctionMetadata = metadata.map((m) => ({
         function_id: m.functionId,
         function_name: m.functionName,
+        hash_version: HASH_VERSION,
         from_checkpoint: m.fromCheckpoint
           ? encodeCheckpoint(m.fromCheckpoint)
           : null,
@@ -454,8 +394,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         }
 
         newTableMetadata.push({
-          table_name: tableName,
           table_id: tableId,
+          table_name: tableName,
+          hash_version: HASH_VERSION,
           to_checkpoint:
             checkpoints.length === 0
               ? encodeCheckpoint(maxCheckpoint)
@@ -470,6 +411,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             .values({
               ...metadata,
               schema: JSON.stringify(this.schema!.tables[metadata.table_name]),
+              hash_version: HASH_VERSION,
             })
             .onConflict((oc) => oc.column("table_id").doUpdateSet(metadata))
             .execute();
@@ -482,7 +424,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     await this.db.transaction().execute(async (tx) => {
       // 1) Get the schema of the current live instance.
       const liveInstanceRow = await tx
-        .selectFrom("ponder._metadata")
+        .selectFrom("ponder_cache.instance_metadata")
         .selectAll()
         .where("published_at", "is not", null)
         .orderBy("published_at", "desc")
@@ -542,10 +484,61 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
       // 4) Set "published_at" for this instance.
       await tx
-        .updateTable("ponder._metadata")
+        .updateTable("ponder_cache.instance_metadata")
         .where("instance_id", "=", this.instanceId)
         .set({ published_at: BigInt(Date.now()) })
         .execute();
+    });
+  }
+
+  private async dropStaleInstanceSchemas() {
+    await this.db.transaction().execute(async (tx) => {
+      const liveInstanceRow = await tx
+        .selectFrom("ponder_cache.instance_metadata")
+        .selectAll()
+        .where("published_at", "is not", null)
+        .orderBy("published_at", "desc")
+        .limit(1)
+        .executeTakeFirst();
+
+      if (liveInstanceRow) {
+        const liveInstanceAge = formatEta(
+          Date.now() - Number(liveInstanceRow.heartbeat_at),
+        );
+        this.common.logger.debug({
+          service: "database",
+          msg: `Another instance (${liveInstanceRow.instance_id}) is live, last heartbeat ${liveInstanceAge} ago`,
+        });
+      }
+
+      let query = tx
+        .deleteFrom("ponder_cache.instance_metadata")
+        .returning(["instance_id"])
+        .where("heartbeat_at", "<", BigInt(Date.now() - INSTANCE_TIMEOUT_MS));
+      if (liveInstanceRow)
+        query = query.where("instance_id", "!=", liveInstanceRow.instance_id);
+      const staleInstanceIdRows = await query.execute();
+      const staleInstanceIds = staleInstanceIdRows.map((r) => r.instance_id);
+
+      if (staleInstanceIds.length > 0) {
+        await Promise.all(
+          staleInstanceIds.map((instanceId) =>
+            tx.schema
+              .dropSchema(`ponder_instance_${instanceId}`)
+              .ifExists()
+              .cascade()
+              .execute(),
+          ),
+        );
+
+        const s = staleInstanceIds.length > 1 ? "s" : "";
+        this.common.logger.debug({
+          service: "database",
+          msg: `Dropped stale schema${s} for old instance${s} (${staleInstanceIds.join(
+            ", ",
+          )})`,
+        });
+      }
     });
   }
 
