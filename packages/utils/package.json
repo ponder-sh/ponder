@@ -1,0 +1,53 @@
+{
+  "name": "@ponder/utils",
+  "version": "0.0.0",
+  "description": "",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "typings": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/*.tsbuildinfo",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!src/**/*.bench.ts",
+    "!src/**/_test/**/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ponder-sh/ponder",
+    "directory": "packages/utils"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.4",
+    "viem": ">=1.16"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "abitype": "^1.0.1",
+    "dotenv": "^16.3.1",
+    "tsup": "^8.0.1",
+    "vitest": "^1.0.2"
+  }
+}

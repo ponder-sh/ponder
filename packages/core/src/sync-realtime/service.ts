@@ -9,11 +9,10 @@ import {
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { type Checkpoint } from "@/utils/checkpoint.js";
-import { dedupe } from "@/utils/dedupe.js";
 import { Emittery } from "@/utils/emittery.js";
-import { poll } from "@/utils/poll.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
+import { dedupe, poll } from "@ponder/common";
 import {
   type Address,
   BlockNotFoundError,
@@ -215,12 +214,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     // TODO: Subscriptions
-    this.unpoll = poll(
-      async () => {
-        await this.process();
-      },
-      { emitOnBegin: false, interval: this.network.pollingInterval },
-    );
+    this.unpoll = poll(this.process, {
+      invokeOnStart: true,
+      interval: this.network.pollingInterval,
+    });
   };
 
   kill = () => {

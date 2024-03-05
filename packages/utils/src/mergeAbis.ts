@@ -1,8 +1,7 @@
-import type { Abi } from "abitype";
-import type { AbiItem } from "viem";
+import type { Abi, AbiItem } from "viem";
 import { formatAbiItem } from "viem/utils";
 
-export type MergeAbi<
+type MergeAbi<
   TBase extends Abi,
   TInsert extends Abi,
 > = TInsert extends readonly [
@@ -16,7 +15,7 @@ export type MergeAbi<
     : MergeAbi<TBase, Rest>
   : TBase;
 
-type MergeAbis<
+export type MergeAbis<
   TAbis extends readonly Abi[],
   TMerged extends Abi = [],
 > = TAbis extends readonly [
@@ -38,7 +37,7 @@ export const mergeAbis = <const TAbis extends readonly Abi[]>(abis: TAbis) => {
   for (const abi of abis) {
     for (const item of abi) {
       // Don't add a duplicate items
-      // if item is constructor or already in merged, don't add it
+      // if item is constructor, receive, fallback, or already in merged, don't add it
       if (
         item.type !== "constructor" &&
         item.type !== "receive" &&

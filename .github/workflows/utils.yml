@@ -1,0 +1,42 @@
+name: Utils
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  test-get-logs:
+    name: Test parseGetLogsError
+    runs-on: "ubuntu-latest"
+    strategy:
+      fail-fast: false
+      matrix: 
+        viem-version: ['1', '2']
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Install Node
+        uses: actions/setup-node@v3
+        with:
+          cache: pnpm
+          node-version: latest
+
+      - name: Install dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - run: pnpm add -D -w viem@${{ matrix.viem-version }}
+
+      - name: Test
+        run:  pnpm --filter utils test src/parseGetLogsError 
+        env:
+          RPC_URL_ALCHEMY_1: ${{ secrets.RPC_URL_ALCHEMY_1 }}
+          RPC_URL_INFURA_1: ${{ secrets.RPC_URL_INFURA_1 }}
+          RPC_URL_QUICKNODE_1: ${{ secrets.RPC_URL_QUICKNODE_1 }}

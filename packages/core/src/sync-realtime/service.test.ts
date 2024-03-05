@@ -150,7 +150,7 @@ test("start() sync realtime data with batch method", async (context) => {
   await service.setup();
   service.start();
 
-  await testClient.mine({ blocks: 8 });
+  await testClient.mine({ blocks: 10 });
 
   service.process();
   await service.onIdle();
@@ -181,7 +181,7 @@ test("start() sync realtime data with batch method", async (context) => {
   });
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    blockNumber: blockNumbers.latestBlockNumber + 8,
+    blockNumber: blockNumbers.latestBlockNumber + 10,
     // Anvil messes with the block timestamp for blocks mined locally.
     blockTimestamp: expect.any(Number),
     chainId: 1,
@@ -277,7 +277,7 @@ test("start() insert logFilterInterval records with batch method", async (contex
   await service.setup();
   service.start();
 
-  await testClient.mine({ blocks: 8 });
+  await testClient.mine({ blocks: 10 });
 
   service.process();
   await service.onIdle();
@@ -289,11 +289,11 @@ test("start() insert logFilterInterval records with batch method", async (contex
     logFilter: sources[0].criteria,
   });
   expect(logFilterIntervals).toMatchObject([
-    [blockNumbers.finalizedBlockNumber + 1, blockNumbers.latestBlockNumber - 2],
+    [blockNumbers.finalizedBlockNumber + 1, blockNumbers.latestBlockNumber],
   ]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    blockNumber: blockNumbers.latestBlockNumber - 2,
+    blockNumber: blockNumbers.latestBlockNumber,
     blockTimestamp: expect.any(Number),
     chainId: 1,
   });

@@ -4,6 +4,7 @@
   "commit": false,
   "fixed": [["@ponder/core", "create-ponder", "eslint-config-ponder"]],
   "ignore": [
+    "@ponder/common",
     "ponder-examples-feature-factory",
     "ponder-examples-feature-filter",
     "ponder-examples-feature-multichain",

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { StoreMethod } from "@/types/model.js";
+import { dedupe } from "@ponder/common";
 import { getHelperFunctions } from "./getHelperFunctions.js";
 import { getIndexingFunctions } from "./getIndexingFunctions.js";
 import { getNodeHash } from "./getNodeHash.js";
@@ -165,22 +166,12 @@ export const getTableAccess = ({
 
   for (const indexingFunctionKey of Object.keys(tableAccess)) {
     dedupedTableAccess[indexingFunctionKey] = {
-      access: [],
       hash: tableAccess[indexingFunctionKey].hash,
+      access: dedupe(
+        tableAccess[indexingFunctionKey].access,
+        (a) => `${a.tableName}_${a.storeMethod}`,
+      ),
     };
-    const seen = new Set<string>();
-
-    for (const { storeMethod, tableName } of tableAccess[indexingFunctionKey]
-      .access) {
-      const key = `${tableName}_${storeMethod}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        dedupedTableAccess[indexingFunctionKey].access.push({
-          tableName,
-          storeMethod,
-        });
-      }
-    }
   }
 
   return dedupedTableAccess;
