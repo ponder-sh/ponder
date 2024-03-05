@@ -54,28 +54,35 @@ const graphqlSchema = buildGqlSchema(schema);
 export const setup = async ({
   context,
   options = {
-    hasCompletedHistoricalIndexing: true,
+    isDatabasePublished: true,
     registerDevRoutes: false,
   },
 }: {
   context: TestContext;
   options?: {
-    hasCompletedHistoricalIndexing: boolean;
+    isDatabasePublished: boolean;
     registerDevRoutes: boolean;
   };
 }) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-    tableIds: getTableIds(schema),
-  });
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    {
+      schema,
+      tableIds: getTableIds(schema),
+    },
+  );
 
-  const service = new ServerService({ common: context.common, indexingStore });
+  const service = new ServerService({
+    common: context.common,
+    indexingStore,
+    database,
+  });
   service.setup({ registerDevRoutes: options.registerDevRoutes });
   await service.start();
   service.reloadGraphqlSchema({ graphqlSchema });
 
-  if (options.hasCompletedHistoricalIndexing) {
-    service.setIsHistoricalIndexingComplete();
+  if (options.isDatabasePublished) {
+    database.isPublished = true;
   }
 
   const gql = async (query: string) =>
@@ -157,6 +164,7 @@ export const setup = async ({
 
   return {
     service,
+    database,
     cleanup,
     gql,
     indexingStore,
@@ -1445,10 +1453,10 @@ test("serves singular entity versioned at specified timestamp", async (context) 
 });
 
 test("responds with appropriate status code pre and post historical sync", async (context) => {
-  const { service, cleanup, gql, createTestEntity } = await setup({
+  const { service, database, cleanup, gql, createTestEntity } = await setup({
     context,
     options: {
-      hasCompletedHistoricalIndexing: false,
+      isDatabasePublished: false,
       registerDevRoutes: false,
     },
   });
@@ -1470,7 +1478,7 @@ test("responds with appropriate status code pre and post historical sync", async
   expect(response.statusCode).toBe(503);
 
   // Set the historical sync flag to true
-  service.setIsHistoricalIndexingComplete();
+  database.isPublished = true;
 
   response = await gql(`
     testEntitys {
@@ -1565,7 +1573,7 @@ test("/admin/reload emits chainIds in reload event", async (context) => {
   const { service, cleanup } = await setup({
     context,
     options: {
-      hasCompletedHistoricalIndexing: false,
+      isDatabasePublished: false,
       registerDevRoutes: true,
     },
   });
@@ -1589,7 +1597,7 @@ test("/admin/reload fails with non-integer chain IDs", async (context) => {
   const { service, cleanup } = await setup({
     context,
     options: {
-      hasCompletedHistoricalIndexing: false,
+      isDatabasePublished: false,
       registerDevRoutes: true,
     },
   });
@@ -1611,7 +1619,7 @@ test("/admin/reload does not exist if dev routes aren't registered", async (cont
   const { service, cleanup } = await setup({
     context,
     options: {
-      hasCompletedHistoricalIndexing: false,
+      isDatabasePublished: false,
       registerDevRoutes: false,
     },
   });

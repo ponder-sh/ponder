@@ -128,7 +128,7 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt", async (conte
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", optimism5);
   expect(emitSpy).toHaveBeenCalledTimes(1);
-  expect(service.historicalSyncCompletedAt).toBe(10);
+  expect(service.isHistoricalSyncComplete).toBe(true);
 
   await cleanup();
 });
@@ -259,7 +259,7 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet25);
   expect(emitSpy).toHaveBeenCalledTimes(3);
 
-  expect(service.historicalSyncCompletedAt).toBe(12);
+  expect(service.isHistoricalSyncComplete).toBe(true);
 
   await cleanup();
 });
@@ -394,13 +394,13 @@ test("resetCheckpoints resets the checkpoint states", async (context) => {
   service.handleHistoricalSyncComplete({ chainId: optimism.chainId });
 
   expect(service.checkpoint).toBe(mainnet3);
-  expect(service.historicalSyncCompletedAt).toBe(4);
+  expect(service.isHistoricalSyncComplete).toBe(true);
 
   service.resetCheckpoints({ chainId: mainnet.chainId });
 
   expect(service.checkpoint).toBe(zeroCheckpoint);
   expect(service.finalityCheckpoint).toBe(zeroCheckpoint);
-  expect(service.historicalSyncCompletedAt).toBe(0);
+  expect(service.isHistoricalSyncComplete).toBe(false);
 
   await cleanup();
 });
