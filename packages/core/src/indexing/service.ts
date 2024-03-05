@@ -948,35 +948,28 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
 
     // Update lastEventCheckpoint
-    if (state.lastEventCheckpoint === undefined) {
-      state.lastEventCheckpoint = lastCheckpoint ?? toCheckpoint;
+    if (lastCheckpoint !== undefined) {
+      if (state.lastEventCheckpoint === undefined) {
+        state.lastEventCheckpoint = lastCheckpoint;
+
+        this.logCachedProgress(key);
+      } else {
+        state.lastEventCheckpoint = checkpointMax(
+          lastCheckpoint,
+          state.lastEventCheckpoint,
+        );
+      }
 
       this.updateTotalSeconds(key);
       this.updateCompletedSeconds(key);
-
-      this.emitCheckpoint();
-      this.logCachedProgress(key);
-    } else {
-      state.lastEventCheckpoint = checkpointMax(
-        lastCheckpoint ?? toCheckpoint,
-        state.lastEventCheckpoint,
-      );
     }
-
-    this.updateTotalSeconds(key);
   };
 
   private emitCheckpoint = () => {
     const checkpoint = checkpointMin(
-      ...Object.values(this.indexingFunctionStates).map((state) =>
-        state.lastEventCheckpoint !== undefined &&
-        isCheckpointGreaterThanOrEqualTo(
-          state.tasksProcessedToCheckpoint,
-          state.lastEventCheckpoint,
-        )
-          ? this.syncGatewayService.checkpoint
-          : state.tasksProcessedToCheckpoint,
-      ),
+      ...Object.keys(this.indexingFunctionStates).map((key) => {
+        return this.getStateCheckpoint(key);
+      }),
     );
 
     this.emit("eventsProcessed", { toCheckpoint: checkpoint });
@@ -989,17 +982,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const indexingFunctionMetadata = Object.entries(
       this.indexingFunctionStates,
     ).map(([indexingFunctionKey, state]) => {
-      const processedCheckpoint =
-        state.lastEventCheckpoint &&
-        isCheckpointEqual(
-          state.tasksProcessedToCheckpoint,
-          state.lastEventCheckpoint,
-        )
-          ? this.syncGatewayService.checkpoint
-          : state.tasksProcessedToCheckpoint;
+      const stateCheckpoint = this.getStateCheckpoint(indexingFunctionKey);
 
       const toCheckpoint = checkpointMin(
-        processedCheckpoint,
+        stateCheckpoint,
         this.syncGatewayService.finalityCheckpoint,
       );
 
@@ -1191,7 +1177,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.common.metrics.ponder_indexing_completed_seconds.set(
       { event: `${state.contractName}:${state.eventName}` },
       Math.min(
-        state.tasksProcessedToCheckpoint.blockTimestamp,
+        state.tasksLoadedFromCheckpoint.blockTimestamp,
         state.lastEventCheckpoint.blockTimestamp,
       ) - state.firstEventCheckpoint.blockTimestamp,
     );
@@ -1222,17 +1208,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     )) {
       if (key === indexingFunctionKey) continue;
 
-      if (
-        state.lastEventCheckpoint &&
-        isCheckpointGreaterThanOrEqualTo(
-          state.tasksLoadedToCheckpoint,
-          state.lastEventCheckpoint,
-        ) &&
-        isCheckpointGreaterThanOrEqualTo(
-          state.tasksLoadedToCheckpoint,
-          this.syncGatewayService.checkpoint,
-        )
-      ) {
+      if (this.isIndexingFunctionFullLoaded(indexingFunctionKey)) {
         totalBatchSize -= state.loadedTasks.length;
         unfinishedCount -= 1;
       }
@@ -1272,18 +1248,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const emptyKey = Object.keys(this.indexingFunctionStates).find((key) => {
       const state = this.indexingFunctionStates[key];
 
-      const isFinished =
-        state.lastEventCheckpoint &&
-        isCheckpointGreaterThanOrEqualTo(
-          state.tasksLoadedToCheckpoint,
-          state.lastEventCheckpoint,
-        ) &&
-        isCheckpointGreaterThanOrEqualTo(
-          state.tasksLoadedToCheckpoint,
-          this.syncGatewayService.checkpoint,
-        );
-
-      return state.loadedTasks.length === 0 && !isFinished;
+      return (
+        state.loadedTasks.length === 0 &&
+        !this.isIndexingFunctionFullLoaded(key)
+      );
     });
 
     if (emptyKey === undefined) return [];
@@ -1295,24 +1263,46 @@ export class IndexingService extends Emittery<IndexingEvents> {
     for (const [indexingFunctionKey, state] of Object.entries(
       this.indexingFunctionStates,
     )) {
-      const isFinished =
-        state.lastEventCheckpoint &&
-        isCheckpointGreaterThanOrEqualTo(
-          state.tasksLoadedToCheckpoint,
-          state.lastEventCheckpoint,
-        ) &&
-        isCheckpointGreaterThanOrEqualTo(
-          state.tasksLoadedToCheckpoint,
-          this.syncGatewayService.checkpoint,
-        );
-
       if (!state.lastEventCheckpoint) loadKeys.push(indexingFunctionKey);
-      else if (!isFinished && state.loadedTasks.length < minBatchSize) {
+      else if (
+        !this.isIndexingFunctionFullLoaded(indexingFunctionKey) &&
+        state.loadedTasks.length < minBatchSize
+      ) {
         loadKeys.push(indexingFunctionKey);
       }
     }
 
     return loadKeys;
+  };
+
+  /**
+   * Returns true is all known events have been processed or loaded.
+   */
+  private isIndexingFunctionFullLoaded = (key: string): boolean => {
+    const state = this.indexingFunctionStates[key];
+
+    if (state.lastEventCheckpoint === undefined) return false;
+    // Function is loaded when the "loadedToCheckpoint" is greater than
+    // the "lastEventCheckpoint" and the "syncGatewayService.checkpoint"
+    return (
+      isCheckpointGreaterThanOrEqualTo(
+        state.tasksLoadedToCheckpoint,
+        state.lastEventCheckpoint,
+      ) &&
+      isCheckpointGreaterThanOrEqualTo(
+        state.tasksLoadedToCheckpoint,
+        this.syncGatewayService.checkpoint,
+      )
+    );
+  };
+
+  /** Returns the most generous checkpoint possible for an indexing function. */
+  private getStateCheckpoint = (key: string): Checkpoint => {
+    const state = this.indexingFunctionStates[key];
+
+    return state.loadedTasks.length === 0
+      ? state.tasksLoadedToCheckpoint
+      : state.tasksProcessedToCheckpoint;
   };
 
   private onTableAccess =

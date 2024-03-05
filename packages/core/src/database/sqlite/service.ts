@@ -51,6 +51,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   tableAccess?: TableAccess;
 
   functionMetadata: FunctionMetadata[] = undefined!;
+  isPublished = false;
 
   constructor({
     common,
@@ -335,8 +336,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     });
   }
 
-  // No-op.
-  async publish() {}
+  async publish() {
+    this.isPublished = true;
+  }
 
   private buildColumns(
     builder: CreateTableBuilder<string>,

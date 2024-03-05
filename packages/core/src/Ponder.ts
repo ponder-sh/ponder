@@ -184,6 +184,7 @@ export class Ponder {
     this.serverService = new ServerService({
       common: this.common,
       indexingStore: this.indexingStore,
+      database: this.database,
     });
 
     this.serverService.setup({ registerDevRoutes: false });
@@ -386,6 +387,7 @@ export class Ponder {
     this.serverService = new ServerService({
       common: this.common,
       indexingStore: this.indexingStore,
+      database: this.database,
     });
 
     this.codegenService = new CodegenService({ common: this.common });
@@ -646,21 +648,27 @@ export class Ponder {
       await this.indexingService.processEvents();
     });
 
-    this.indexingService.on("eventsProcessed", async ({ toCheckpoint }) => {
-      if (this.serverService.isHistoricalIndexingComplete) return;
-      // If a batch of events are processed AND the historical sync is complete AND
-      // the new toTimestamp is greater than the historical sync completion timestamp,
-      // historical event processing is complete, and the server should begin responding as healthy.
+    this.indexingService.onSerial(
+      "eventsProcessed",
+      async ({ toCheckpoint }) => {
+        if (this.database.isPublished) return;
+        // If a batch of events are processed AND the historical sync is complete AND
+        // the new toTimestamp is greater than the historical sync completion timestamp,
+        // historical event processing is complete, and the server should begin responding as healthy.
 
-      if (
-        this.syncGatewayService.historicalSyncCompletedAt !== undefined &&
-        toCheckpoint.blockTimestamp >=
-          this.syncGatewayService.historicalSyncCompletedAt
-      ) {
-        this.serverService.setIsHistoricalIndexingComplete();
-        await this.database.publish();
-      }
-    });
+        if (
+          this.syncGatewayService.isHistoricalSyncComplete &&
+          toCheckpoint.blockTimestamp >=
+            this.syncGatewayService.finalityCheckpoint.blockTimestamp
+        ) {
+          await this.database.publish();
+          this.common.logger.info({
+            service: "server",
+            msg: "Started responding as healthy",
+          });
+        }
+      },
+    );
 
     this.indexingService.on("error", async () => {
       this.uiService.ui.indexingError = true;

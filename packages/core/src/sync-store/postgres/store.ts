@@ -974,6 +974,7 @@ export class PostgresSyncStore implements SyncStore {
           "blocks.number as block_number",
           "logs.logIndex as log_logIndex",
         ])
+        .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
         .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
         .orderBy("blocks.timestamp", "desc")
         .orderBy("logs.chainId", "desc")

@@ -66,6 +66,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   tableAccess?: TableAccess;
 
   functionMetadata: FunctionMetadata[] = undefined!;
+  isPublished = false;
 
   constructor({
     common,
@@ -489,6 +490,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         .set({ published_at: BigInt(Date.now()) })
         .execute();
     });
+
+    this.isPublished = true;
   }
 
   private async dropStaleInstanceSchemas() {

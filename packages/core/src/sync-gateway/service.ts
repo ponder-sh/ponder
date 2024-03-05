@@ -4,7 +4,6 @@ import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import {
   type Checkpoint,
-  checkpointMax,
   checkpointMin,
   isCheckpointGreaterThan,
   zeroCheckpoint,
@@ -45,6 +44,8 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   checkpoint: Checkpoint;
   // Minimum finalized timestamp (across all networks).
   finalityCheckpoint: Checkpoint;
+  // Is historical sync complete across all networks.
+  isHistoricalSyncComplete = false;
 
   // Per-network event timestamp checkpoints.
   private networkCheckpoints: Record<
@@ -56,9 +57,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
       finalityCheckpoint: Checkpoint;
     }
   >;
-
-  // Timestamp at which the historical sync was completed (across all networks).
-  historicalSyncCompletedAt?: number;
 
   metrics: SyncGatewayMetrics;
 
@@ -151,10 +149,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     // If every network has completed the historical sync, set the metric.
     const networkCheckpoints = Object.values(this.networkCheckpoints);
     if (networkCheckpoints.every((n) => n.isHistoricalSyncComplete)) {
-      const maxHistoricalCheckpoint = checkpointMax(
-        ...networkCheckpoints.map((n) => n.historicalCheckpoint),
-      );
-      this.historicalSyncCompletedAt = maxHistoricalCheckpoint.blockTimestamp;
+      this.isHistoricalSyncComplete = true;
       this.common.logger.debug({
         service: "gateway",
         msg: "Completed historical sync across all networks",
@@ -194,7 +189,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   resetCheckpoints = ({ chainId }: { chainId: number }) => {
     this.checkpoint = zeroCheckpoint;
     this.finalityCheckpoint = zeroCheckpoint;
-    this.historicalSyncCompletedAt = 0;
+    this.isHistoricalSyncComplete = false;
     this.networkCheckpoints[chainId] = {
       isHistoricalSyncComplete: false,
       historicalCheckpoint: zeroCheckpoint,
