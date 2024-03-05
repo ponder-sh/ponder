@@ -32,13 +32,13 @@ import {
   isCheckpointGreaterThanOrEqualTo,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { dedupe } from "@/utils/dedupe.js";
 import { Emittery } from "@/utils/emittery.js";
 import { formatPercentage } from "@/utils/format.js";
 import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
+import { dedupe } from "@ponder/common";
 import type { AbiEvent } from "abitype";
 import { E_CANCELED, Mutex } from "async-mutex";
 import { type Hex, decodeEventLog } from "viem";

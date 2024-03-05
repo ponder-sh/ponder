@@ -43,8 +43,11 @@ export class SqliteIndexingStore implements IndexingStore {
     this.db = new Kysely({
       dialect: new SqliteDialect({ database }),
       log(event) {
-        if (event.level === "query")
-          common.metrics.ponder_sqlite_query_count?.inc({ kind: "indexing" });
+        if (event.level === "query") {
+          common.metrics.ponder_sqlite_query_count.inc({
+            database: "indexing",
+          });
+        }
       },
     });
   }

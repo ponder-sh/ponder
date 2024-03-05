@@ -54,7 +54,7 @@ export class PostgresSyncStore implements SyncStore {
       dialect: new PostgresDialect({ pool }),
       log(event) {
         if (event.level === "query") {
-          common.metrics.ponder_postgres_query_count?.inc({ kind: "sync" });
+          common.metrics.ponder_postgres_query_count.inc({ pool: "sync" });
         }
       },
     }).withPlugin(new WithSchemaPlugin(schemaName));
