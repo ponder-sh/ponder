@@ -523,14 +523,6 @@ export class Ponder {
       },
     );
 
-    /**
-     * 1) Pause/reset the indexing service.
-     * 2) Reset the database.
-     * 3) Start everything.
-     *
-     *
-     */
-
     this.buildService.onSerial(
       "newSchema",
       async ({ schema, graphqlSchema, tableIds, functionIds }) => {
