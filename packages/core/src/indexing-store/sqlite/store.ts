@@ -1,9 +1,9 @@
 import type { Common } from "@/Ponder.js";
+import { NonRetryableError, StoreError } from "@/errors/base.js";
 import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
-import { retry } from "@ponder/common";
 import { Kysely, SqliteDialect } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
 import {
@@ -160,13 +160,13 @@ export class SqliteIndexingStore implements IndexingStore {
       const orderDirection = orderByConditions[0][1];
 
       if (limit > MAX_LIMIT) {
-        throw new Error(
+        throw new StoreError(
           `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
         );
       }
 
       if (after !== null && before !== null) {
-        throw new Error("Cannot specify both before and after cursors.");
+        throw new StoreError("Cannot specify both before and after cursors.");
       }
 
       let startCursor = null;
@@ -357,7 +357,7 @@ export class SqliteIndexingStore implements IndexingStore {
       } catch (err) {
         const error = err as Error;
         throw error.message.includes("UNIQUE constraint failed")
-          ? new Error(
+          ? new StoreError(
               `Cannot create ${tableName} record with ID ${id} because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using ${tableName}.upsert().`,
             )
           : error;
@@ -399,7 +399,7 @@ export class SqliteIndexingStore implements IndexingStore {
       } catch (err) {
         const error = err as Error;
         throw error.message.includes("UNIQUE constraint failed")
-          ? new Error(
+          ? new StoreError(
               `Cannot createMany ${tableName} records because one or more records already exist (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method?`,
             )
           : error;
@@ -435,7 +435,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .where("effective_to", "=", "latest")
           .executeTakeFirst();
         if (!latestRow)
-          throw new Error(
+          throw new StoreError(
             `Cannot update ${tableName} record with ID ${id} because no existing record was found with that ID. Consider using ${tableName}.upsert(), or create the record before updating it. Hint: Did you forget to await the promise returned by a store method?`,
           );
 
@@ -452,7 +452,7 @@ export class SqliteIndexingStore implements IndexingStore {
         // If the update would be applied to a record other than the latest
         // record, throw an error.
         if (latestRow.effective_from > encodedCheckpoint)
-          throw new Error(
+          throw new StoreError(
             `Cannot update ${tableName} record with ID ${id} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effective_from}. Hint: Did you forget to await the promise returned by a store method?`,
           );
 
@@ -550,7 +550,7 @@ export class SqliteIndexingStore implements IndexingStore {
             // If the update would be applied to a record other than the latest
             // record, throw an error.
             if (latestRow.effective_from > encodedCheckpoint)
-              throw new Error(
+              throw new StoreError(
                 `Cannot update ${tableName} record with ID ${encodedId} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effective_from}. Hint: Did you forget to await the promise returned by a store method?`,
               );
 
@@ -649,7 +649,7 @@ export class SqliteIndexingStore implements IndexingStore {
         // If the update would be applied to a record other than the latest
         // record, throw an error.
         if (latestRow.effective_from > encodedCheckpoint)
-          throw new Error(
+          throw new StoreError(
             `Cannot update ${tableName} record with ID ${id} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effective_from}. Hint: Did you forget to await the promise returned by a store method?`,
           );
 
@@ -738,29 +738,49 @@ export class SqliteIndexingStore implements IndexingStore {
     options: { method: string },
     fn: () => Promise<T>,
   ) => {
-    try {
-      const endClock = startClock();
-      const { promise } = retry(fn, {
-        onRetry: (error, duration) => {
+    const endClock = startClock();
+    const RETRY_COUNT = 3;
+    const BASE_DURATION = 25;
+
+    let error: any;
+    let hasError = false;
+
+    for (let i = 0; i < RETRY_COUNT + 1; i++) {
+      try {
+        const result = await fn();
+        this.common.metrics.ponder_database_method_duration.observe(
+          { service: "indexing", method: options.method },
+          endClock(),
+        );
+        return result;
+      } catch (_error) {
+        if (_error instanceof NonRetryableError) {
+          throw _error;
+        }
+
+        if (!hasError) {
+          hasError = true;
+          error = _error;
+        }
+
+        if (i < RETRY_COUNT) {
+          const duration = BASE_DURATION * 2 ** i;
           this.common.logger.warn({
             service: "database",
             msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-            error,
           });
-        },
-      });
-      const result = await promise;
-      this.common.metrics.ponder_database_method_duration.observe(
-        { service: "indexing", method: options.method },
-        endClock(),
-      );
-      return result;
-    } catch (e) {
-      this.common.metrics.ponder_database_method_error_total.inc({
-        service: "indexing",
-        method: options.method,
-      });
-      throw e;
+          await new Promise((_resolve) => {
+            setTimeout(_resolve, duration);
+          });
+        }
+      }
     }
+
+    this.common.metrics.ponder_database_method_error_total.inc({
+      service: "indexing",
+      method: options.method,
+    });
+
+    throw error;
   };
 }

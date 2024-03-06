@@ -17,6 +17,7 @@ import {
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import type { DatabaseService, FunctionMetadata } from "@/database/service.js";
+import { NonRetryableError } from "@/errors/base.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
@@ -622,6 +623,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
       } catch (error_) {
         const error = error_ as Error & { meta: string };
 
+        if (error_ instanceof NonRetryableError) i = 3;
+
         if (i === 3) {
           this.isPaused = true;
           this.queue!.pause();
@@ -735,6 +738,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
         break;
       } catch (error_) {
         const error = error_ as Error & { meta?: string };
+
+        if (error_ instanceof NonRetryableError) i = 3;
 
         if (i === 3) {
           this.isPaused = true;

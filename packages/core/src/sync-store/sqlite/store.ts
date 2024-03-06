@@ -1,3 +1,18 @@
+import type { Common } from "@/Ponder.js";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import { NonRetryableError } from "@/errors/base.js";
+import type { Block, Log, Transaction } from "@/types/eth.js";
+import type { NonNull } from "@/types/utils.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
+import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
+import {
+  buildFactoryFragments,
+  buildLogFilterFragments,
+} from "@/utils/fragments.js";
+import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
+import { range } from "@/utils/range.js";
+import { type SqliteDatabase } from "@/utils/sqlite.js";
+import { startClock } from "@/utils/timer.js";
 import {
   type ExpressionBuilder,
   Kysely,
@@ -13,22 +28,6 @@ import {
   type RpcTransaction,
   checksumAddress,
 } from "viem";
-
-import type { Common } from "@/Ponder.js";
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import type { Block, Log, Transaction } from "@/types/eth.js";
-import type { NonNull } from "@/types/utils.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
-import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
-import {
-  buildFactoryFragments,
-  buildLogFilterFragments,
-} from "@/utils/fragments.js";
-import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
-import { range } from "@/utils/range.js";
-import { type SqliteDatabase } from "@/utils/sqlite.js";
-import { startClock } from "@/utils/timer.js";
-import { retry } from "@ponder/common";
 import type { SyncStore } from "../store.js";
 import type { BigIntText } from "./encoding.js";
 import {
@@ -1280,30 +1279,50 @@ export class SqliteSyncStore implements SyncStore {
     options: { method: string },
     fn: () => Promise<T>,
   ) => {
-    try {
-      const endClock = startClock();
-      const { promise } = retry(fn, {
-        onRetry: (error, duration) => {
+    const endClock = startClock();
+    const RETRY_COUNT = 3;
+    const BASE_DURATION = 100;
+
+    let error: any;
+    let hasError = false;
+
+    for (let i = 0; i < RETRY_COUNT + 1; i++) {
+      try {
+        const result = await fn();
+        this.common.metrics.ponder_database_method_duration.observe(
+          { service: "sync", method: options.method },
+          endClock(),
+        );
+        return result;
+      } catch (_error) {
+        if (_error instanceof NonRetryableError) {
+          throw _error;
+        }
+
+        if (!hasError) {
+          hasError = true;
+          error = _error;
+        }
+
+        if (i < RETRY_COUNT) {
+          const duration = BASE_DURATION * 2 ** i;
           this.common.logger.warn({
             service: "database",
             msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-            error,
           });
-        },
-      });
-      const result = await promise;
-      this.common.metrics.ponder_database_method_duration.observe(
-        { service: "sync", method: options.method },
-        endClock(),
-      );
-      return result;
-    } catch (e) {
-      this.common.metrics.ponder_database_method_error_total.inc({
-        service: "sync",
-        method: options.method,
-      });
-      throw e;
+          await new Promise((_resolve) => {
+            setTimeout(_resolve, duration);
+          });
+        }
+      }
     }
+
+    this.common.metrics.ponder_database_method_error_total.inc({
+      service: "sync",
+      method: options.method,
+    });
+
+    throw error;
   };
 }
 

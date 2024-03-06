@@ -9,6 +9,7 @@ import {
   getTableAccessInverse,
   isWriteStoreMethod,
 } from "@/build/static/getTableAccess.js";
+import { NonRetryableError } from "@/errors/base.js";
 import { revertTable } from "@/indexing-store/utils/revert.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
@@ -22,7 +23,6 @@ import {
 import { formatEta } from "@/utils/format.js";
 import { createPool } from "@/utils/pg.js";
 import { startClock } from "@/utils/timer.js";
-import { retry } from "@ponder/common";
 import {
   CreateTableBuilder,
   Kysely,
@@ -620,30 +620,50 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     options: { method: string },
     fn: () => Promise<T>,
   ) => {
-    try {
-      const endClock = startClock();
-      const { promise } = retry(fn, {
-        onRetry: (error, duration) => {
+    const endClock = startClock();
+    const RETRY_COUNT = 3;
+    const BASE_DURATION = 100;
+
+    let error: any;
+    let hasError = false;
+
+    for (let i = 0; i < RETRY_COUNT + 1; i++) {
+      try {
+        const result = await fn();
+        this.common.metrics.ponder_database_method_duration.observe(
+          { service: "admin", method: options.method },
+          endClock(),
+        );
+        return result;
+      } catch (_error) {
+        if (_error instanceof NonRetryableError) {
+          throw _error;
+        }
+
+        if (!hasError) {
+          hasError = true;
+          error = _error;
+        }
+
+        if (i < RETRY_COUNT) {
+          const duration = BASE_DURATION * 2 ** i;
           this.common.logger.warn({
             service: "database",
             msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-            error,
           });
-        },
-      });
-      const result = await promise;
-      this.common.metrics.ponder_database_method_duration.observe(
-        { service: "admin", method: options.method },
-        endClock(),
-      );
-      return result;
-    } catch (e) {
-      this.common.metrics.ponder_database_method_error_total.inc({
-        service: "admin",
-        method: options.method,
-      });
-      throw e;
+          await new Promise((_resolve) => {
+            setTimeout(_resolve, duration);
+          });
+        }
+      }
     }
+
+    this.common.metrics.ponder_database_method_error_total.inc({
+      service: "admin",
+      method: options.method,
+    });
+
+    throw error;
   };
 
   private registerMetrics() {
