@@ -35,5 +35,6 @@
 
     // Skip type checking for node modules
     "skipLibCheck": true,
-  }
+    "paths": { "@ponder/common": ["../common/src/index.ts"], }
+  },
 }

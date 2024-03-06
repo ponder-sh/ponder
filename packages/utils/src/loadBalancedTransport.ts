@@ -1,7 +1,7 @@
 import { type Transport, type TransportConfig, createTransport } from "viem";
 
 /**
- * Load balanced transport for Viem spreading requests between child transports using a round robin algorithm.
+ * @description Creates a load balanced transport that spreads requests between child transports using a round robin algorithm.
  */
 export const loadBalancedTransport = (_transports: Transport[]): Transport => {
   return ({ chain, retryCount, timeout }) => {

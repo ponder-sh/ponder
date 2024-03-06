@@ -49,5 +49,8 @@
     "dotenv": "^16.3.1",
     "tsup": "^8.0.1",
     "vitest": "^1.0.2"
+  },
+  "imports": {
+    "@ponder/common": "../common/index.ts"
   }
 }
