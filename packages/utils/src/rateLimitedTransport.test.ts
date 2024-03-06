@@ -14,7 +14,10 @@ const createMockTransport = () => {
 test("sends a request", async () => {
   const { request, mockTransport } = createMockTransport();
 
-  const transport = rateLimitedTransport(mockTransport, 1)({});
+  const transport = rateLimitedTransport(mockTransport, {
+    requestsPerSecond: 1,
+    browser: false,
+  })({});
 
   const response = transport.request({ method: "eth_chainId" });
 
@@ -26,7 +29,10 @@ test("sends a request", async () => {
 test("limits request rate", async () => {
   const mock = createMockTransport();
 
-  const transport = rateLimitedTransport(mock.mockTransport, 1)({});
+  const transport = rateLimitedTransport(mock.mockTransport, {
+    requestsPerSecond: 1,
+    browser: false,
+  })({});
 
   const response1 = transport.request({ method: "eth_chainId" });
   const response2 = transport.request({ method: "eth_chainId" });

@@ -7,6 +7,7 @@ test("add resolves", async () => {
     concurrency: 1,
     frequency: 1,
     initialStart: true,
+    browser: false,
     worker: () => Promise.resolve(1),
   });
 
@@ -21,6 +22,7 @@ test("add rejects", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     worker: () => Promise.reject(),
   });
 
@@ -39,6 +41,7 @@ test("size", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -58,6 +61,7 @@ test("pending", async () => {
     concurrency: 1,
     frequency: 1,
     initialStart: true,
+    browser: false,
     worker: () => promise,
   });
 
@@ -74,6 +78,7 @@ test("clear", () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -89,6 +94,7 @@ test("clear", () => {
 test("clear timer", async () => {
   const queue = createQueue({
     frequency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -109,6 +115,7 @@ test("isStarted", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -123,6 +130,7 @@ test("initial start", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     initialStart: true,
     worker: () => Promise.resolve(),
   });
@@ -138,6 +146,7 @@ test("start", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -158,6 +167,7 @@ test("pause", () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     initialStart: true,
     worker: () => Promise.resolve(),
   });
@@ -169,10 +179,13 @@ test("pause", () => {
   expect(queue.size()).toBe(1);
 });
 
+test.todo("restart");
+
 test("onIdle short loop", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -182,6 +195,7 @@ test("onIdle short loop", async () => {
 test("onIdle", async () => {
   const queue = createQueue({
     concurrency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -198,6 +212,7 @@ test("onIdle twice", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -222,6 +237,7 @@ test("onEmpty short loop", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -232,6 +248,7 @@ test("onEmpty", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -248,6 +265,7 @@ test("onEmpty twice", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    browser: false,
     worker: () => Promise.resolve(),
   });
 
@@ -274,6 +292,7 @@ test("concurrency", async () => {
   const queue = createQueue({
     concurrency: 2,
     frequency: 5,
+    browser: false,
     worker: func,
   });
 
@@ -295,6 +314,7 @@ test("frequency", async () => {
   const queue = createQueue({
     frequency: 2,
     concurrency: 5,
+    browser: false,
     worker: func,
   });
 
@@ -324,6 +344,7 @@ test("event loop", async () => {
 
   const queue1 = createQueue({
     concurrency: 1,
+    browser: false,
     worker: () => {
       out.push(1);
       return Promise.resolve();
@@ -332,6 +353,7 @@ test("event loop", async () => {
 
   const queue2 = createQueue({
     concurrency: 1,
+    browser: false,
     worker: () => {
       out.push(2);
       return Promise.resolve();
@@ -361,6 +383,7 @@ test("update parameters", async () => {
   const queue = createQueue({
     concurrency: 2,
     frequency: 5,
+    browser: false,
     worker: func,
   });
 
