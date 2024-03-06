@@ -43,17 +43,14 @@ export class MetricsService {
     "method" | "path" | "status"
   >;
 
-  ponder_sync_store_method_duration: prometheus.Histogram<"method">;
-  ponder_indexing_store_method_duration: prometheus.Histogram<
-    "table" | "method"
-  >;
+  ponder_database_method_duration: prometheus.Histogram<"service" | "method">;
+  ponder_database_method_error_total: prometheus.Counter<"service" | "method">;
 
-  ponder_postgres_idle_connection_count: prometheus.Gauge<"pool"> = null!;
-  ponder_postgres_total_connection_count: prometheus.Gauge<"pool"> = null!;
-  ponder_postgres_request_queue_count: prometheus.Gauge<"pool"> = null!;
-  ponder_postgres_query_count: prometheus.Counter<"pool"> = null!;
+  ponder_postgres_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
+  ponder_postgres_query_queue_size: prometheus.Gauge<"pool"> = null!;
+  ponder_postgres_query_total: prometheus.Counter<"pool"> = null!;
 
-  ponder_sqlite_query_count: prometheus.Counter<"database"> = null!;
+  ponder_sqlite_query_total: prometheus.Counter<"database"> = null!;
 
   constructor() {
     this.registry = new prometheus.Registry();
@@ -184,18 +181,17 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    this.ponder_sync_store_method_duration = new prometheus.Histogram({
-      name: "ponder_sync_store_method_duration",
-      help: "Duration of database operations in the sync store",
-      labelNames: ["method"] as const,
+    this.ponder_database_method_duration = new prometheus.Histogram({
+      name: "ponder_database_method_duration",
+      help: "Duration of database operations",
+      labelNames: ["service", "method"] as const,
       buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
-    this.ponder_indexing_store_method_duration = new prometheus.Histogram({
-      name: "ponder_indexing_store_method_duration",
-      help: "Duration of database operations in the sync store",
-      labelNames: ["table", "method"] as const,
-      buckets: httpRequestBucketsInMs,
+    this.ponder_database_method_error_total = new prometheus.Counter({
+      name: "ponder_database_method_error_total",
+      help: "Total number of errors encountered during database operations",
+      labelNames: ["service", "method"] as const,
       registers: [this.registry],
     });
   }

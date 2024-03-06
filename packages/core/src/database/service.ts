@@ -24,9 +24,7 @@ export interface BaseDatabaseService {
   functionMetadata: FunctionMetadata[];
   isPublished: boolean;
 
-  setup(): Promise<void>;
-
-  reset({
+  setup({
     schema,
     tableIds,
     functionIds,

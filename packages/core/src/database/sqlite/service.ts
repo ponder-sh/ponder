@@ -21,6 +21,8 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
+import { startClock } from "@/utils/timer.js";
+import { retry } from "@ponder/common";
 import {
   CreateTableBuilder,
   Kysely,
@@ -76,7 +78,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       dialect: new SqliteDialect({ database: this.sqliteDatabase }),
       log(event) {
         if (event.level === "query") {
-          common.metrics.ponder_sqlite_query_count?.inc({ database: "admin" });
+          common.metrics.ponder_sqlite_query_total.inc({ database: "admin" });
         }
       },
     });
@@ -94,41 +96,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     return { database: syncDatabase };
   }
 
-  async setup() {
-    // 1) Run cache database migrations.
-    const migrator = new Migrator({
-      db: this.db.withPlugin(new WithSchemaPlugin(CACHE_DB_NAME)),
-      provider: migrationProvider,
-    });
-    const result = await migrator.migrateToLatest();
-    if (result.error) throw result.error;
-
-    // 2) Drop any existing tables in the public database.
-    const existingTableRows = await this.db.executeQuery<{ name: string }>(
-      sql`SELECT name FROM sqlite_master WHERE type='table'`.compile(this.db),
-    );
-    const existingTableNames = existingTableRows.rows.map((row) => row.name);
-
-    if (existingTableNames.length > 0) {
-      await this.db.transaction().execute(async (tx) => {
-        await Promise.all(
-          existingTableNames.map((tableName) =>
-            tx.schema.dropTable(tableName).ifExists().execute(),
-          ),
-        );
-      });
-
-      const s = existingTableNames.length > 1 ? "s" : "";
-      this.common.logger.debug({
-        service: "database",
-        msg: `Dropped stale table${s} from ponder.db (${existingTableNames.join(
-          ", ",
-        )})`,
-      });
-    }
-  }
-
-  async reset({
+  async setup({
     schema,
     tableIds,
     functionIds,
@@ -144,202 +112,248 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.functionIds = functionIds;
     this.tableAccess = tableAccess;
 
-    const { functionMetadata, tableMetadata } = await this.db
-      .transaction()
-      .execute(async (tx) => {
-        // 3) Create tables in the instance schema, copying cached data if available.
-        const tables = Object.entries(this.schema!.tables);
-        await Promise.all(
-          tables.map(async ([tableName, columns]) => {
-            const tableId = this.tableIds![tableName];
-
-            // a) Create a table in the instance schema.
-            await tx.schema
-              .createTable(tableName)
-              .$call((builder) =>
-                this.buildColumns(builder, tableName, columns),
-              )
-              .execute();
-
-            // b) Create a table in the cache schema if it doesn't already exist.
-            await tx.schema
-              .withSchema(CACHE_DB_NAME)
-              .createTable(tableId)
-              .$call((builder) => this.buildColumns(builder, tableId, columns))
-              .ifNotExists()
-              .execute();
-
-            // c) Copy data from the cache table to the new table.
-            await tx.executeQuery(
-              sql`INSERT INTO "${sql.raw(tableName)}" SELECT * FROM ${sql.raw(
-                `"${CACHE_DB_NAME}"."${tableId}"`,
-              )}`.compile(tx),
-            );
-          }),
-        );
-
-        const functionIds_ = Object.values(functionIds);
-
-        // Get the functionMetadata for the data that we (maybe) copied over from the cache.
-        const functionMetadata =
-          functionIds_.length === 0
-            ? []
-            : await tx
-                .selectFrom("ponder_cache.function_metadata")
-                .selectAll()
-                .where("function_id", "in", functionIds_)
-                .execute();
-
-        const tableIds_ = Object.values(tableIds);
-
-        const tableMetadata =
-          tableIds_.length === 0
-            ? []
-            : await tx
-                .selectFrom("ponder_cache.table_metadata")
-                .selectAll()
-                .where("table_id", "in", tableIds_)
-                .execute();
-
-        return { functionMetadata, tableMetadata };
+    return this.wrap({ method: "setup" }, async () => {
+      // 1) Run cache database migrations.
+      const migrator = new Migrator({
+        db: this.db.withPlugin(new WithSchemaPlugin(CACHE_DB_NAME)),
+        provider: migrationProvider,
       });
+      const result = await migrator.migrateToLatest();
+      if (result.error) throw result.error;
 
-    this.functionMetadata = functionMetadata.map((m) => ({
-      functionId: m.function_id,
-      functionName: m.function_name,
-      fromCheckpoint: m.from_checkpoint
-        ? decodeCheckpoint(m.from_checkpoint)
-        : null,
-      toCheckpoint: decodeCheckpoint(m.to_checkpoint),
-      eventCount: m.event_count,
-    }));
+      // 2) Drop any existing tables in the public database.
+      const existingTableRows = await this.db.executeQuery<{ name: string }>(
+        sql`SELECT name FROM sqlite_master WHERE type='table'`.compile(this.db),
+      );
+      const existingTableNames = existingTableRows.rows.map((row) => row.name);
 
-    /**
-     * 4) Truncate cache tables to match metadata checkpoints.
-     *
-     * It's possible for the cache tables to contain more data than the metadata indicates.
-     * To avoid copying unfinalized data left over from a previous instance, we must revert
-     * the instance tables to the checkpoint saved in the metadata after copying from the cache.
-     * In other words, metadata checkpoints are always <= actual rows in the corresponding table.
-     */
-
-    await Promise.all(
-      tableMetadata.map((m) => {
-        return revertTable(
-          this.db,
-          m.table_name,
-          decodeCheckpoint(m.to_checkpoint),
-        );
-      }),
-    );
-  }
-
-  async kill() {
-    await this.db.destroy();
-  }
-
-  async flush(metadata: FunctionMetadata[]): Promise<void> {
-    await this.db.transaction().execute(async (tx) => {
-      const tables = Object.entries(this.schema!.tables);
-
-      await Promise.all(
-        tables.map(async ([tableName, columns]) => {
-          const tableId = this.tableIds![tableName];
-
-          // 1) Drop existing cache table.
-          await tx.schema
-            .withSchema(CACHE_DB_NAME)
-            .dropTable(tableId)
-            .ifExists()
-            .execute();
-
-          // 2) Create new empty cache table.
-          await tx.schema
-            .withSchema(CACHE_DB_NAME)
-            .createTable(tableId)
-            .$call((builder) => this.buildColumns(builder, tableId, columns))
-            .execute();
-
-          // 3) Copy data from current indexing table to new cache table.
-          await tx.executeQuery(
-            sql`INSERT INTO ${sql.raw(
-              `"${CACHE_DB_NAME}"."${tableId}"`,
-            )} SELECT * FROM "${sql.raw(tableName)}"`.compile(tx),
+      if (existingTableNames.length > 0) {
+        await this.db.transaction().execute(async (tx) => {
+          await Promise.all(
+            existingTableNames.map((tableName) =>
+              tx.schema.dropTable(tableName).ifExists().execute(),
+            ),
           );
-        }),
-      );
+        });
 
-      const newFunctionMetadata = metadata.map((m) => ({
-        function_id: m.functionId,
-        function_name: m.functionName,
-        hash_version: HASH_VERSION,
-        from_checkpoint: m.fromCheckpoint
-          ? encodeCheckpoint(m.fromCheckpoint)
-          : null,
-        to_checkpoint: encodeCheckpoint(m.toCheckpoint),
-        event_count: m.eventCount,
-      }));
-
-      await Promise.all(
-        newFunctionMetadata.map(async (metadata) => {
-          await tx
-            .insertInto("ponder_cache.function_metadata")
-            .values(metadata)
-            .onConflict((oc) => oc.column("function_id").doUpdateSet(metadata))
-            .execute();
-        }),
-      );
-
-      const newTableMetadata: Omit<
-        PonderCoreSchema["ponder_cache.table_metadata"],
-        "schema"
-      >[] = [];
-
-      const inverseTableAccess = getTableAccessInverse(this.tableAccess!);
-
-      for (const [tableName, tableId] of Object.entries(this.tableIds!)) {
-        const checkpoints: Checkpoint[] = [];
-
-        // Table checkpoint is the max checkpoint of all the functions that write to the table
-        for (const { indexingFunctionKey, storeMethod } of inverseTableAccess[
-          tableName
-        ] ?? []) {
-          if (isWriteStoreMethod(storeMethod)) {
-            const checkpoint = metadata.find(
-              (m) => m.functionId === indexingFunctionKey,
-            )?.toCheckpoint;
-            if (checkpoint !== undefined) checkpoints.push(checkpoint);
-          }
-        }
-
-        newTableMetadata.push({
-          table_name: tableName,
-          table_id: tableId,
-          hash_version: HASH_VERSION,
-          to_checkpoint:
-            checkpoints.length === 0
-              ? encodeCheckpoint(zeroCheckpoint)
-              : encodeCheckpoint(checkpointMax(...checkpoints)),
+        const s = existingTableNames.length > 1 ? "s" : "";
+        this.common.logger.debug({
+          service: "database",
+          msg: `Dropped stale table${s} from ponder.db (${existingTableNames.join(
+            ", ",
+          )})`,
         });
       }
 
+      // 4) Create the instance schema and tables.
+      const { functionMetadata, tableMetadata } = await this.db
+        .transaction()
+        .execute(async (tx) => {
+          // 3) Create tables in the instance schema, copying cached data if available.
+          const tables = Object.entries(this.schema!.tables);
+          await Promise.all(
+            tables.map(async ([tableName, columns]) => {
+              const tableId = this.tableIds![tableName];
+
+              // a) Create a table in the instance schema.
+              await tx.schema
+                .createTable(tableName)
+                .$call((builder) =>
+                  this.buildColumns(builder, tableName, columns),
+                )
+                .execute();
+
+              // b) Create a table in the cache schema if it doesn't already exist.
+              await tx.schema
+                .withSchema(CACHE_DB_NAME)
+                .createTable(tableId)
+                .$call((builder) =>
+                  this.buildColumns(builder, tableId, columns),
+                )
+                .ifNotExists()
+                .execute();
+
+              // c) Copy data from the cache table to the new table.
+              await tx.executeQuery(
+                sql`INSERT INTO "${sql.raw(tableName)}" SELECT * FROM ${sql.raw(
+                  `"${CACHE_DB_NAME}"."${tableId}"`,
+                )}`.compile(tx),
+              );
+            }),
+          );
+
+          const functionIds_ = Object.values(functionIds);
+
+          // Get the functionMetadata for the data that we (maybe) copied over from the cache.
+          const functionMetadata =
+            functionIds_.length === 0
+              ? []
+              : await tx
+                  .selectFrom("ponder_cache.function_metadata")
+                  .selectAll()
+                  .where("function_id", "in", functionIds_)
+                  .execute();
+
+          const tableIds_ = Object.values(tableIds);
+
+          const tableMetadata =
+            tableIds_.length === 0
+              ? []
+              : await tx
+                  .selectFrom("ponder_cache.table_metadata")
+                  .selectAll()
+                  .where("table_id", "in", tableIds_)
+                  .execute();
+
+          return { functionMetadata, tableMetadata };
+        });
+
+      this.functionMetadata = functionMetadata.map((m) => ({
+        functionId: m.function_id,
+        functionName: m.function_name,
+        fromCheckpoint: m.from_checkpoint
+          ? decodeCheckpoint(m.from_checkpoint)
+          : null,
+        toCheckpoint: decodeCheckpoint(m.to_checkpoint),
+        eventCount: m.event_count,
+      }));
+
+      /**
+       * 4) Truncate cache tables to match metadata checkpoints.
+       *
+       * It's possible for the cache tables to contain more data than the metadata indicates.
+       * To avoid copying unfinalized data left over from a previous instance, we must revert
+       * the instance tables to the checkpoint saved in the metadata after copying from the cache.
+       * In other words, metadata checkpoints are always <= actual rows in the corresponding table.
+       */
       await Promise.all(
-        newTableMetadata.map(async (metadata) => {
-          await tx
-            .insertInto("ponder_cache.table_metadata")
-            .values({
-              ...metadata,
-              schema: JSON.stringify(this.schema!.tables[metadata.table_name]),
-            })
-            .onConflict((oc) => oc.column("table_id").doUpdateSet(metadata))
-            .execute();
+        tableMetadata.map((m) => {
+          return revertTable(
+            this.db,
+            m.table_name,
+            decodeCheckpoint(m.to_checkpoint),
+          );
         }),
       );
     });
   }
 
+  async kill() {
+    await this.wrap({ method: "kill" }, async () => {
+      await this.db.destroy();
+    });
+  }
+
+  async flush(metadata: FunctionMetadata[]): Promise<void> {
+    return this.wrap({ method: "flush" }, async () => {
+      await this.db.transaction().execute(async (tx) => {
+        const tables = Object.entries(this.schema!.tables);
+
+        await Promise.all(
+          tables.map(async ([tableName, columns]) => {
+            const tableId = this.tableIds![tableName];
+
+            // 1) Drop existing cache table.
+            await tx.schema
+              .withSchema(CACHE_DB_NAME)
+              .dropTable(tableId)
+              .ifExists()
+              .execute();
+
+            // 2) Create new empty cache table.
+            await tx.schema
+              .withSchema(CACHE_DB_NAME)
+              .createTable(tableId)
+              .$call((builder) => this.buildColumns(builder, tableId, columns))
+              .execute();
+
+            // 3) Copy data from current indexing table to new cache table.
+            await tx.executeQuery(
+              sql`INSERT INTO ${sql.raw(
+                `"${CACHE_DB_NAME}"."${tableId}"`,
+              )} SELECT * FROM "${sql.raw(tableName)}"`.compile(tx),
+            );
+          }),
+        );
+
+        const newFunctionMetadata = metadata.map((m) => ({
+          function_id: m.functionId,
+          function_name: m.functionName,
+          hash_version: HASH_VERSION,
+          from_checkpoint: m.fromCheckpoint
+            ? encodeCheckpoint(m.fromCheckpoint)
+            : null,
+          to_checkpoint: encodeCheckpoint(m.toCheckpoint),
+          event_count: m.eventCount,
+        }));
+
+        await Promise.all(
+          newFunctionMetadata.map(async (metadata) => {
+            await tx
+              .insertInto("ponder_cache.function_metadata")
+              .values(metadata)
+              .onConflict((oc) =>
+                oc.column("function_id").doUpdateSet(metadata),
+              )
+              .execute();
+          }),
+        );
+
+        const newTableMetadata: Omit<
+          PonderCoreSchema["ponder_cache.table_metadata"],
+          "schema"
+        >[] = [];
+
+        const inverseTableAccess = getTableAccessInverse(this.tableAccess!);
+
+        for (const [tableName, tableId] of Object.entries(this.tableIds!)) {
+          const checkpoints: Checkpoint[] = [];
+
+          // Table checkpoint is the max checkpoint of all the functions that write to the table
+          for (const { indexingFunctionKey, storeMethod } of inverseTableAccess[
+            tableName
+          ] ?? []) {
+            if (isWriteStoreMethod(storeMethod)) {
+              const checkpoint = metadata.find(
+                (m) => m.functionId === indexingFunctionKey,
+              )?.toCheckpoint;
+              if (checkpoint !== undefined) checkpoints.push(checkpoint);
+            }
+          }
+
+          newTableMetadata.push({
+            table_name: tableName,
+            table_id: tableId,
+            hash_version: HASH_VERSION,
+            to_checkpoint:
+              checkpoints.length === 0
+                ? encodeCheckpoint(zeroCheckpoint)
+                : encodeCheckpoint(checkpointMax(...checkpoints)),
+          });
+        }
+
+        await Promise.all(
+          newTableMetadata.map(async (metadata) => {
+            await tx
+              .insertInto("ponder_cache.table_metadata")
+              .values({
+                ...metadata,
+                schema: JSON.stringify(
+                  this.schema!.tables[metadata.table_name],
+                ),
+              })
+              .onConflict((oc) => oc.column("table_id").doUpdateSet(metadata))
+              .execute();
+          }),
+        );
+      });
+    });
+  }
+
   async publish() {
-    this.isPublished = true;
+    return this.wrap({ method: "publish" }, async () => {
+      this.isPublished = true;
+    });
   }
 
   private buildColumns(
@@ -396,22 +410,42 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     return builder;
   }
 
-  // private wrap = async <T>(
-  //   options: { method: string },
-  //   fn: () => Promise<T>,
-  // ) => {
-  //   const start = performance.now();
-  //   const result = await retry(fn, {});
-  //   this.common.metrics.ponder_database_operation_duration.observe(
-  //     { method: options.method },
-  //     performance.now() - start,
-  //   );
-  //   return result;
-  // };
+  private wrap = async <T>(
+    options: { method: string },
+    fn: () => Promise<T>,
+  ) => {
+    try {
+      const endClock = startClock();
+      const { promise } = retry(fn, {
+        onRetry: (error, duration) => {
+          this.common.logger.warn({
+            service: "database",
+            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
+            error,
+          });
+        },
+      });
+      const result = await promise;
+      this.common.metrics.ponder_database_method_duration.observe(
+        { service: "admin", method: options.method },
+        endClock(),
+      );
+      return result;
+    } catch (e) {
+      this.common.metrics.ponder_database_method_error_total.inc({
+        service: "admin",
+        method: options.method,
+      });
+      throw e;
+    }
+  };
 
   private registerMetrics() {
-    this.common.metrics.ponder_sqlite_query_count = new prometheus.Counter({
-      name: "ponder_sqlite_query_count",
+    this.common.metrics.registry.removeSingleMetric(
+      "ponder_sqlite_query_total",
+    );
+    this.common.metrics.ponder_sqlite_query_total = new prometheus.Counter({
+      name: "ponder_sqlite_query_total",
       help: "Number of queries submitted to the database",
       labelNames: ["database"] as const,
       registers: [this.common.metrics.registry],

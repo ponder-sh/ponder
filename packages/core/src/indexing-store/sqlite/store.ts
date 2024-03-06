@@ -2,6 +2,8 @@ import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
+import { startClock } from "@/utils/timer.js";
+import { retry } from "@ponder/common";
 import { Kysely, SqliteDialect } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
 import {
@@ -44,7 +46,7 @@ export class SqliteIndexingStore implements IndexingStore {
       dialect: new SqliteDialect({ database }),
       log(event) {
         if (event.level === "query") {
-          common.metrics.ponder_sqlite_query_count.inc({
+          common.metrics.ponder_sqlite_query_total.inc({
             database: "indexing",
           });
         }
@@ -80,7 +82,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "findUnique", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.findUnique` }, async () => {
       const encodedId = encodeValue(id, table.id, "sqlite");
 
       let query = this.db
@@ -128,7 +130,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "findMany", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.findMany` }, async () => {
       let query = this.db.selectFrom(tableName).selectAll();
 
       if (checkpoint === "latest") {
@@ -337,7 +339,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "create", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.create` }, async () => {
       const createRow = encodeRow({ id, ...data }, table, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -374,7 +376,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "createMany", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.createMany` }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const createRows = data.map((d) => ({
         ...encodeRow({ ...d }, table, "sqlite"),
@@ -420,7 +422,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "update", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.update` }, async () => {
       const encodedId = encodeValue(id, table.id, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -507,7 +509,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "updateMany", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.updateMany` }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const rows = await this.db.transaction().execute(async (tx) => {
@@ -607,7 +609,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "upsert", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.upsert` }, async () => {
       const encodedId = encodeValue(id, table.id, "sqlite");
       const createRow = encodeRow({ id, ...create }, table, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
@@ -698,7 +700,7 @@ export class SqliteIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "delete", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.delete` }, async () => {
       const encodedId = encodeValue(id, table.id, "sqlite");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -733,15 +735,32 @@ export class SqliteIndexingStore implements IndexingStore {
   };
 
   private wrap = async <T>(
-    options: { method: string; tableName?: string },
+    options: { method: string },
     fn: () => Promise<T>,
   ) => {
-    const start = performance.now();
-    const result = await fn();
-    this.common.metrics.ponder_indexing_store_method_duration.observe(
-      { method: options.method, table: options.tableName },
-      performance.now() - start,
-    );
-    return result;
+    try {
+      const endClock = startClock();
+      const { promise } = retry(fn, {
+        onRetry: (error, duration) => {
+          this.common.logger.warn({
+            service: "database",
+            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
+            error,
+          });
+        },
+      });
+      const result = await promise;
+      this.common.metrics.ponder_database_method_duration.observe(
+        { service: "indexing", method: options.method },
+        endClock(),
+      );
+      return result;
+    } catch (e) {
+      this.common.metrics.ponder_database_method_error_total.inc({
+        service: "indexing",
+        method: options.method,
+      });
+      throw e;
+    }
   };
 }

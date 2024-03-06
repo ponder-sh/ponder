@@ -165,8 +165,7 @@ export class Ponder {
       poolConfig: this.databaseConfig.poolConfig,
     });
     this.database = database;
-    await this.database.setup();
-    await this.database.reset({
+    await this.database.setup({
       schema: this.schema,
       tableIds: this.tableIds,
       functionIds: this.functionIds,
@@ -270,8 +269,7 @@ export class Ponder {
       });
       this.database = database;
 
-      await database.setup();
-      await this.database.reset({
+      await this.database.setup({
         schema: this.schema,
         tableIds: this.tableIds,
         functionIds: this.functionIds,
@@ -299,8 +297,7 @@ export class Ponder {
       });
       this.database = database;
 
-      await database.setup();
-      await this.database.reset({
+      await this.database.setup({
         schema: this.schema,
         tableIds: this.tableIds,
         functionIds: this.functionIds,
@@ -536,7 +533,7 @@ export class Ponder {
         this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
         this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
-        await this.database.reset({
+        await this.database.setup({
           schema,
           tableIds,
           functionIds,
@@ -564,7 +561,7 @@ export class Ponder {
         this.tableIds = tableIds;
         this.functionIds = functionIds;
 
-        await this.database.reset({
+        await this.database.setup({
           schema: this.schema,
           tableIds,
           functionIds,

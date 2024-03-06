@@ -109,9 +109,9 @@ export async function setupIsolatedDatabase(context: TestContext) {
   }
 }
 
-type DatabaseServiceReset = Parameters<DatabaseService["reset"]>[0];
+type DatabaseServiceSetup = Parameters<DatabaseService["setup"]>[0];
 const defaultSchema = createSchema(() => ({}));
-const defaultDatabaseServiceReset: DatabaseServiceReset = {
+const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
   schema: defaultSchema,
   tableIds: getTableIds(defaultSchema),
   functionIds: {},
@@ -120,17 +120,14 @@ const defaultDatabaseServiceReset: DatabaseServiceReset = {
 
 export async function setupDatabaseServices(
   context: TestContext,
-  overrides: Partial<DatabaseServiceReset> = {},
+  overrides: Partial<DatabaseServiceSetup> = {},
 ): Promise<{
   database: DatabaseService;
   syncStore: SyncStore;
   indexingStore: IndexingStore;
   cleanup: () => Promise<void>;
 }> {
-  const config = {
-    ...defaultDatabaseServiceReset,
-    ...overrides,
-  };
+  const config = { ...defaultDatabaseServiceSetup, ...overrides };
 
   if (context.databaseConfig.kind === "sqlite") {
     const database = new SqliteDatabaseService({
@@ -138,8 +135,7 @@ export async function setupDatabaseServices(
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup();
-    await database.reset(config);
+    await database.setup(config);
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
     const indexingStore = new SqliteIndexingStore({
@@ -165,8 +161,7 @@ export async function setupDatabaseServices(
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset(config);
+    await database.setup(config);
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
     const indexingStore = new PostgresIndexingStore({

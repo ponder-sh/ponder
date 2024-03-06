@@ -21,6 +21,8 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool } from "@/utils/pg.js";
+import { startClock } from "@/utils/timer.js";
+import { retry } from "@ponder/common";
 import {
   CreateTableBuilder,
   Kysely,
@@ -59,7 +61,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
   private instanceId: number = null!;
   private instanceSchemaName: string = null!;
-  private heartbeatInterval: NodeJS.Timeout = null!;
+  private heartbeatInterval?: NodeJS.Timeout;
 
   schema?: Schema;
   tableIds?: TableIds;
@@ -91,7 +93,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       dialect: new PostgresDialect({ pool: this.adminPool }),
       log(event) {
         if (event.level === "query") {
-          common.metrics.ponder_postgres_query_count.inc({ pool: "admin" });
+          common.metrics.ponder_postgres_query_total.inc({ pool: "admin" });
         }
       },
     });
@@ -109,69 +111,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     return { pool: this.syncPool, schemaName: pluginSchemaName };
   }
 
-  async kill() {
-    clearInterval(this.heartbeatInterval);
-
-    // If this instance is not live, drop the instance schema and remove the metadata row.
-    await this.db.transaction().execute(async (tx) => {
-      const liveInstanceRow = await tx
-        .selectFrom("ponder_cache.instance_metadata")
-        .select(["instance_id"])
-        .where("published_at", "is not", null)
-        .orderBy("published_at", "desc")
-        .limit(1)
-        .executeTakeFirst();
-
-      if (liveInstanceRow?.instance_id === this.instanceId) {
-        this.common.logger.debug({
-          service: "database",
-          msg: `Current instance (${this.instanceId}) is live, not dropping schema 'ponder_instance_${this.instanceId}'`,
-        });
-        return;
-      }
-
-      await tx.schema
-        .dropSchema(this.instanceSchemaName)
-        .ifExists()
-        .cascade()
-        .execute();
-      await tx
-        .deleteFrom("ponder_cache.instance_metadata")
-        .where("instance_id", "=", this.instanceId)
-        .execute();
-
-      this.common.logger.debug({
-        service: "database",
-        msg: `Dropped schema for current instance (${this.instanceId})`,
-      });
-    });
-
-    await this.adminPool.end();
-    await this.indexingPool.end();
-    await this.syncPool.end();
-  }
-
-  async setup() {
-    // 1) Create the schemas if they don't exist.
-    await Promise.all([
-      this.db.schema.createSchema(CACHE_SCHEMA_NAME).ifNotExists().execute(),
-      this.db.schema.createSchema(PUBLIC_SCHEMA_NAME).ifNotExists().execute(),
-    ]);
-
-    // 2) Run migrations.
-    const migrator = new Migrator({
-      db: this.db.withPlugin(new WithSchemaPlugin(CACHE_SCHEMA_NAME)),
-      provider: migrationProvider,
-      migrationTableSchema: CACHE_SCHEMA_NAME,
-    });
-    const result = await migrator.migrateToLatest();
-    if (result.error) throw result.error;
-
-    // 3) Drop schemas for stale instances, excluding the live instance (even if it's stale).
-    await this.dropStaleInstanceSchemas();
-  }
-
-  async reset({
+  async setup({
     schema,
     tableIds,
     functionIds,
@@ -187,310 +127,385 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.functionIds = functionIds;
     this.tableAccess = tableAccess;
 
-    const { functionMetadata, tableMetadata } = await this.db
-      .transaction()
-      .execute(async (tx) => {
-        // 1) Acquire an instance ID by inserting a row into the public metadata table.
-        const metadataRow = await tx
-          .insertInto("ponder_cache.instance_metadata")
-          .values({
-            hash_version: HASH_VERSION,
-            schema: JSON.stringify(this.schema),
-            created_at: BigInt(Date.now()),
-            heartbeat_at: BigInt(Date.now()),
-          })
-          .returningAll()
+    await this.wrap({ method: "setup" }, async () => {
+      // 1) Create the schemas if they don't exist.
+      await Promise.all([
+        this.db.schema.createSchema(CACHE_SCHEMA_NAME).ifNotExists().execute(),
+        this.db.schema.createSchema(PUBLIC_SCHEMA_NAME).ifNotExists().execute(),
+      ]);
+
+      // 2) Run migrations.
+      const migrator = new Migrator({
+        db: this.db.withPlugin(new WithSchemaPlugin(CACHE_SCHEMA_NAME)),
+        provider: migrationProvider,
+        migrationTableSchema: CACHE_SCHEMA_NAME,
+      });
+      const result = await migrator.migrateToLatest();
+      if (result.error) throw result.error;
+
+      // 3) Drop schemas for stale instances, excluding the live instance (even if it's stale).
+      await this.dropStaleInstanceSchemas();
+
+      // 4) Create the instance schema and tables.
+      const { functionMetadata, tableMetadata } = await this.db
+        .transaction()
+        .execute(async (tx) => {
+          // 1) Acquire an instance ID by inserting a row into the public metadata table.
+          const metadataRow = await tx
+            .insertInto("ponder_cache.instance_metadata")
+            .values({
+              hash_version: HASH_VERSION,
+              schema: JSON.stringify(this.schema),
+              created_at: BigInt(Date.now()),
+              heartbeat_at: BigInt(Date.now()),
+            })
+            .returningAll()
+            .executeTakeFirst();
+
+          // Should not be possible for metadataRow to be undefined. If the insert fails, it will throw.
+          this.instanceId = metadataRow!.instance_id;
+          this.instanceSchemaName = `ponder_instance_${this.instanceId}`;
+
+          // 2) Create the instance schema.
+          await tx.schema
+            .createSchema(this.instanceSchemaName)
+            .ifNotExists()
+            .execute();
+
+          this.common.logger.debug({
+            service: "database",
+            msg: `Acquired instance_id (${this.instanceId}), created schema 'ponder_instance_${this.instanceId}'`,
+          });
+
+          // 3) Create tables in the instance schema, copying cached data if available.
+          const tables = Object.entries(this.schema!.tables);
+          await Promise.all(
+            tables.map(async ([tableName, columns]) => {
+              const tableId = this.tableIds![tableName];
+
+              // a) Create a table in the instance schema.
+              await tx.schema
+                .withSchema(this.instanceSchemaName)
+                .createTable(tableName)
+                .$call((builder) =>
+                  this.buildColumns(builder, tableName, columns),
+                )
+                .execute();
+
+              // b) Create a table in the cache schema if it doesn't already exist.
+              await tx.schema
+                .withSchema(CACHE_SCHEMA_NAME)
+                .createTable(tableId)
+                .$call((builder) =>
+                  this.buildColumns(builder, tableId, columns),
+                )
+                .ifNotExists()
+                .execute();
+
+              // c) Copy data from the cache table to the new table.
+              await tx.executeQuery(
+                sql`INSERT INTO ${sql.raw(
+                  `${this.instanceSchemaName}."${tableName}"`,
+                )} (SELECT * FROM ${sql.raw(
+                  `${CACHE_SCHEMA_NAME}."${tableId}"`,
+                )})`.compile(tx),
+              );
+            }),
+          );
+
+          const functionIds_ = Object.values(functionIds);
+
+          // Get the functionMetadata for the data that we (maybe) copied over from the cache.
+          const functionMetadata =
+            functionIds_.length === 0
+              ? []
+              : await tx
+                  .selectFrom("ponder_cache.function_metadata")
+                  .selectAll()
+                  .where("function_id", "in", functionIds_)
+                  .execute();
+
+          const tableIds_ = Object.values(tableIds);
+
+          const tableMetadata =
+            tableIds_.length === 0
+              ? []
+              : await tx
+                  .selectFrom("ponder_cache.table_metadata")
+                  .selectAll()
+                  .where("table_id", "in", tableIds_)
+                  .execute();
+
+          return { functionMetadata, tableMetadata };
+        });
+
+      this.heartbeatInterval = setInterval(async () => {
+        const updatedRow = await this.db
+          .updateTable("ponder_cache.instance_metadata")
+          .where("instance_id", "=", this.instanceId)
+          .set({ heartbeat_at: BigInt(Date.now()) })
+          .returning(["heartbeat_at"])
           .executeTakeFirst();
-
-        // Should not be possible for metadataRow to be undefined. If the insert fails, it will throw.
-        this.instanceId = metadataRow!.instance_id;
-        this.instanceSchemaName = `ponder_instance_${this.instanceId}`;
-
-        // 2) Create the instance schema.
-        await tx.schema
-          .createSchema(this.instanceSchemaName)
-          .ifNotExists()
-          .execute();
-
         this.common.logger.debug({
           service: "database",
-          msg: `Acquired instance_id (${this.instanceId}), created schema 'ponder_instance_${this.instanceId}'`,
+          msg: `Updated heartbeat timestamp to ${updatedRow?.heartbeat_at} (instance_id=${this.instanceId})`,
         });
+      }, HEARTBEAT_INTERVAL_MS);
 
-        // 3) Create tables in the instance schema, copying cached data if available.
-        const tables = Object.entries(this.schema!.tables);
-        await Promise.all(
-          tables.map(async ([tableName, columns]) => {
-            const tableId = this.tableIds![tableName];
-
-            // a) Create a table in the instance schema.
-            await tx.schema
-              .withSchema(this.instanceSchemaName)
-              .createTable(tableName)
-              .$call((builder) =>
-                this.buildColumns(builder, tableName, columns),
-              )
-              .execute();
-
-            // b) Create a table in the cache schema if it doesn't already exist.
-            await tx.schema
-              .withSchema(CACHE_SCHEMA_NAME)
-              .createTable(tableId)
-              .$call((builder) => this.buildColumns(builder, tableId, columns))
-              .ifNotExists()
-              .execute();
-
-            // c) Copy data from the cache table to the new table.
-            await tx.executeQuery(
-              sql`INSERT INTO ${sql.raw(
-                `${this.instanceSchemaName}."${tableName}"`,
-              )} (SELECT * FROM ${sql.raw(
-                `${CACHE_SCHEMA_NAME}."${tableId}"`,
-              )})`.compile(tx),
-            );
-          }),
-        );
-
-        const functionIds_ = Object.values(functionIds);
-
-        // Get the functionMetadata for the data that we (maybe) copied over from the cache.
-        const functionMetadata =
-          functionIds_.length === 0
-            ? []
-            : await tx
-                .selectFrom("ponder_cache.function_metadata")
-                .selectAll()
-                .where("function_id", "in", functionIds_)
-                .execute();
-
-        const tableIds_ = Object.values(tableIds);
-
-        const tableMetadata =
-          tableIds_.length === 0
-            ? []
-            : await tx
-                .selectFrom("ponder_cache.table_metadata")
-                .selectAll()
-                .where("table_id", "in", tableIds_)
-                .execute();
-
-        return { functionMetadata, tableMetadata };
-      });
-
-    this.heartbeatInterval = setInterval(async () => {
-      const updatedRow = await this.db
-        .updateTable("ponder_cache.instance_metadata")
-        .where("instance_id", "=", this.instanceId)
-        .set({ heartbeat_at: BigInt(Date.now()) })
-        .returning(["heartbeat_at"])
-        .executeTakeFirst();
-      this.common.logger.debug({
-        service: "database",
-        msg: `Updated heartbeat timestamp to ${updatedRow?.heartbeat_at} (instance_id=${this.instanceId})`,
-      });
-    }, HEARTBEAT_INTERVAL_MS);
-
-    this.functionMetadata = functionMetadata.map((m) => ({
-      functionId: m.function_id,
-      functionName: m.function_name,
-      fromCheckpoint: m.from_checkpoint
-        ? decodeCheckpoint(m.from_checkpoint)
-        : null,
-      toCheckpoint: decodeCheckpoint(m.to_checkpoint),
-      eventCount: m.event_count,
-    }));
-
-    /**
-     * 4) Truncate cache tables to match metadata checkpoints.
-     *
-     * It's possible for the cache tables to contain more data than the metadata indicates.
-     * To avoid copying unfinalized data left over from a previous instance, we must revert
-     * the instance tables to the checkpoint saved in the metadata after copying from the cache.
-     * In other words, metadata checkpoints are always <= actual rows in the corresponding table.
-     */
-
-    await Promise.all(
-      tableMetadata.map((m) => {
-        return revertTable(
-          this.db.withSchema(this.instanceSchemaName),
-          m.table_name,
-          decodeCheckpoint(m.to_checkpoint),
-        );
-      }),
-    );
-  }
-
-  async flush(metadata: FunctionMetadata[]): Promise<void> {
-    await this.db.transaction().execute(async (tx) => {
-      const tables = Object.entries(this.schema!.tables);
-
-      await Promise.all(
-        tables.map(async ([tableName, columns]) => {
-          const tableId = this.tableIds![tableName];
-
-          // 1) Drop existing cache table.
-          await tx.schema
-            .withSchema(CACHE_SCHEMA_NAME)
-            .dropTable(tableId)
-            .ifExists()
-            .execute();
-
-          // 2) Create new empty cache table.
-          await tx.schema
-            .withSchema(CACHE_SCHEMA_NAME)
-            .createTable(tableId)
-            .$call((builder) => this.buildColumns(builder, tableId, columns))
-            .execute();
-
-          // 3) Copy data from current indexing table to new cache table.
-          await tx.executeQuery(
-            sql`INSERT INTO ${sql.raw(
-              `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
-            )} SELECT * FROM ${sql.raw(
-              `"${this.instanceSchemaName}"."${tableName}"`,
-            )}`.compile(tx),
-          );
-        }),
-      );
-
-      const newFunctionMetadata = metadata.map((m) => ({
-        function_id: m.functionId,
-        function_name: m.functionName,
-        hash_version: HASH_VERSION,
-        from_checkpoint: m.fromCheckpoint
-          ? encodeCheckpoint(m.fromCheckpoint)
+      this.functionMetadata = functionMetadata.map((m) => ({
+        functionId: m.function_id,
+        functionName: m.function_name,
+        fromCheckpoint: m.from_checkpoint
+          ? decodeCheckpoint(m.from_checkpoint)
           : null,
-        to_checkpoint: encodeCheckpoint(m.toCheckpoint),
-        event_count: m.eventCount,
+        toCheckpoint: decodeCheckpoint(m.to_checkpoint),
+        eventCount: m.event_count,
       }));
 
-      await Promise.all(
-        newFunctionMetadata.map(async (metadata) => {
-          await tx
-            .insertInto("ponder_cache.function_metadata")
-            .values(metadata)
-            .onConflict((oc) => oc.column("function_id").doUpdateSet(metadata))
-            .execute();
-        }),
-      );
-
-      const newTableMetadata: Omit<
-        PonderCoreSchema["ponder_cache.table_metadata"],
-        "schema"
-      >[] = [];
-
-      const inverseTableAccess = getTableAccessInverse(this.tableAccess!);
-
-      for (const [tableName, tableId] of Object.entries(this.tableIds!)) {
-        const checkpoints: Checkpoint[] = [];
-
-        // Table checkpoint is the max checkpoint of all the functions that write to the table
-        for (const { indexingFunctionKey, storeMethod } of inverseTableAccess[
-          tableName
-        ] ?? []) {
-          if (isWriteStoreMethod(storeMethod)) {
-            const checkpoint = metadata.find(
-              (m) => m.functionName === indexingFunctionKey,
-            )?.toCheckpoint;
-            if (checkpoint !== undefined) checkpoints.push(checkpoint);
-          }
-        }
-
-        newTableMetadata.push({
-          table_id: tableId,
-          table_name: tableName,
-          hash_version: HASH_VERSION,
-          to_checkpoint:
-            checkpoints.length === 0
-              ? encodeCheckpoint(maxCheckpoint)
-              : encodeCheckpoint(checkpointMax(...checkpoints)),
-        });
-      }
+      /**
+       * 4) Truncate cache tables to match metadata checkpoints.
+       *
+       * It's possible for the cache tables to contain more data than the metadata indicates.
+       * To avoid copying unfinalized data left over from a previous instance, we must revert
+       * the instance tables to the checkpoint saved in the metadata after copying from the cache.
+       * In other words, metadata checkpoints are always <= actual rows in the corresponding table.
+       */
 
       await Promise.all(
-        newTableMetadata.map(async (metadata) => {
-          await tx
-            .insertInto("ponder_cache.table_metadata")
-            .values({
-              ...metadata,
-              schema: JSON.stringify(this.schema!.tables[metadata.table_name]),
-              hash_version: HASH_VERSION,
-            })
-            .onConflict((oc) => oc.column("table_id").doUpdateSet(metadata))
-            .execute();
+        tableMetadata.map((m) => {
+          return revertTable(
+            this.db.withSchema(this.instanceSchemaName),
+            m.table_name,
+            decodeCheckpoint(m.to_checkpoint),
+          );
         }),
       );
     });
   }
 
-  async publish() {
-    await this.db.transaction().execute(async (tx) => {
-      // 1) Get the schema of the current live instance.
-      const liveInstanceRow = await tx
-        .selectFrom("ponder_cache.instance_metadata")
-        .selectAll()
-        .where("published_at", "is not", null)
-        .orderBy("published_at", "desc")
-        .limit(1)
-        .executeTakeFirst();
+  async kill() {
+    await this.wrap({ method: "kill" }, async () => {
+      clearInterval(this.heartbeatInterval);
 
-      // 2) If there is a published instance, drop its views from the public schema.
-      if (liveInstanceRow !== undefined) {
-        if (liveInstanceRow.instance_id === this.instanceId) {
-          throw new Error(
-            "Invariant violation: Attempted to publish twice within one process.",
-          );
+      // If this instance is not live, drop the instance schema and remove the metadata row.
+      await this.db.transaction().execute(async (tx) => {
+        const liveInstanceRow = await tx
+          .selectFrom("ponder_cache.instance_metadata")
+          .select(["instance_id"])
+          .where("published_at", "is not", null)
+          .orderBy("published_at", "desc")
+          .limit(1)
+          .executeTakeFirst();
+
+        if (liveInstanceRow?.instance_id === this.instanceId) {
+          this.common.logger.debug({
+            service: "database",
+            msg: `Current instance (${this.instanceId}) is live, not dropping schema 'ponder_instance_${this.instanceId}'`,
+          });
+          return;
         }
 
-        const liveTableNames = Object.keys(liveInstanceRow.schema.tables);
+        await tx.schema
+          .dropSchema(this.instanceSchemaName)
+          .ifExists()
+          .cascade()
+          .execute();
+        await tx
+          .deleteFrom("ponder_cache.instance_metadata")
+          .where("instance_id", "=", this.instanceId)
+          .execute();
+
+        this.common.logger.debug({
+          service: "database",
+          msg: `Dropped schema for current instance (${this.instanceId})`,
+        });
+      });
+
+      await this.adminPool.end();
+      await this.indexingPool.end();
+      await this.syncPool.end();
+    });
+  }
+
+  async flush(metadata: FunctionMetadata[]): Promise<void> {
+    await this.wrap({ method: "flush" }, async () => {
+      await this.db.transaction().execute(async (tx) => {
+        const tables = Object.entries(this.schema!.tables);
 
         await Promise.all(
-          liveTableNames.map((tableName) =>
-            tx.schema
+          tables.map(async ([tableName, columns]) => {
+            const tableId = this.tableIds![tableName];
+
+            // 1) Drop existing cache table.
+            await tx.schema
+              .withSchema(CACHE_SCHEMA_NAME)
+              .dropTable(tableId)
+              .ifExists()
+              .execute();
+
+            // 2) Create new empty cache table.
+            await tx.schema
+              .withSchema(CACHE_SCHEMA_NAME)
+              .createTable(tableId)
+              .$call((builder) => this.buildColumns(builder, tableId, columns))
+              .execute();
+
+            // 3) Copy data from current indexing table to new cache table.
+            await tx.executeQuery(
+              sql`INSERT INTO ${sql.raw(
+                `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
+              )} SELECT * FROM ${sql.raw(
+                `"${this.instanceSchemaName}"."${tableName}"`,
+              )}`.compile(tx),
+            );
+          }),
+        );
+
+        const newFunctionMetadata = metadata.map((m) => ({
+          function_id: m.functionId,
+          function_name: m.functionName,
+          hash_version: HASH_VERSION,
+          from_checkpoint: m.fromCheckpoint
+            ? encodeCheckpoint(m.fromCheckpoint)
+            : null,
+          to_checkpoint: encodeCheckpoint(m.toCheckpoint),
+          event_count: m.eventCount,
+        }));
+
+        await Promise.all(
+          newFunctionMetadata.map(async (metadata) => {
+            await tx
+              .insertInto("ponder_cache.function_metadata")
+              .values(metadata)
+              .onConflict((oc) =>
+                oc.column("function_id").doUpdateSet(metadata),
+              )
+              .execute();
+          }),
+        );
+
+        const newTableMetadata: Omit<
+          PonderCoreSchema["ponder_cache.table_metadata"],
+          "schema"
+        >[] = [];
+
+        const inverseTableAccess = getTableAccessInverse(this.tableAccess!);
+
+        for (const [tableName, tableId] of Object.entries(this.tableIds!)) {
+          const checkpoints: Checkpoint[] = [];
+
+          // Table checkpoint is the max checkpoint of all the functions that write to the table
+          for (const { indexingFunctionKey, storeMethod } of inverseTableAccess[
+            tableName
+          ] ?? []) {
+            if (isWriteStoreMethod(storeMethod)) {
+              const checkpoint = metadata.find(
+                (m) => m.functionName === indexingFunctionKey,
+              )?.toCheckpoint;
+              if (checkpoint !== undefined) checkpoints.push(checkpoint);
+            }
+          }
+
+          newTableMetadata.push({
+            table_id: tableId,
+            table_name: tableName,
+            hash_version: HASH_VERSION,
+            to_checkpoint:
+              checkpoints.length === 0
+                ? encodeCheckpoint(maxCheckpoint)
+                : encodeCheckpoint(checkpointMax(...checkpoints)),
+          });
+        }
+
+        await Promise.all(
+          newTableMetadata.map(async (metadata) => {
+            await tx
+              .insertInto("ponder_cache.table_metadata")
+              .values({
+                ...metadata,
+                schema: JSON.stringify(
+                  this.schema!.tables[metadata.table_name],
+                ),
+                hash_version: HASH_VERSION,
+              })
+              .onConflict((oc) => oc.column("table_id").doUpdateSet(metadata))
+              .execute();
+          }),
+        );
+      });
+    });
+  }
+
+  async publish() {
+    await this.wrap({ method: "publish" }, async () => {
+      await this.db.transaction().execute(async (tx) => {
+        // 1) Get the schema of the current live instance.
+        const liveInstanceRow = await tx
+          .selectFrom("ponder_cache.instance_metadata")
+          .selectAll()
+          .where("published_at", "is not", null)
+          .orderBy("published_at", "desc")
+          .limit(1)
+          .executeTakeFirst();
+
+        // 2) If there is a published instance, drop its views from the public schema.
+        if (liveInstanceRow !== undefined) {
+          if (liveInstanceRow.instance_id === this.instanceId) {
+            throw new Error(
+              "Invariant violation: Attempted to publish twice within one process.",
+            );
+          }
+
+          const liveTableNames = Object.keys(liveInstanceRow.schema.tables);
+
+          await Promise.all(
+            liveTableNames.map((tableName) =>
+              tx.schema
+                .withSchema(PUBLIC_SCHEMA_NAME)
+                .dropView(tableName)
+                .execute(),
+            ),
+          );
+
+          this.common.logger.debug({
+            service: "database",
+            msg: `Dropped ${liveTableNames.length} views from 'ponder' belonging to previous instance (${liveInstanceRow.instance_id})`,
+          });
+        }
+
+        // 3) Create views for this instance in the public schema.
+        const tables = Object.entries(this.schema!.tables);
+        await Promise.all(
+          tables.map(async ([tableName, columns]) => {
+            const viewColumnNames = Object.entries(columns)
+              .filter(([, c]) => !isOneColumn(c) && !isManyColumn(c))
+              .map(([name]) => name);
+            await tx.schema
               .withSchema(PUBLIC_SCHEMA_NAME)
-              .dropView(tableName)
-              .execute(),
-          ),
+              .createView(tableName)
+              .as(
+                (tx as Kysely<any>)
+                  .withSchema(this.instanceSchemaName)
+                  .selectFrom(tableName)
+                  .select(viewColumnNames)
+                  .where("effective_to", "=", "latest"),
+              )
+              .execute();
+          }),
         );
 
         this.common.logger.debug({
           service: "database",
-          msg: `Dropped ${liveTableNames.length} views from 'ponder' belonging to previous instance (${liveInstanceRow.instance_id})`,
+          msg: `Created ${tables.length} views in 'ponder' belonging to current instance (${this.instanceId})`,
         });
-      }
 
-      // 3) Create views for this instance in the public schema.
-      const tables = Object.entries(this.schema!.tables);
-      await Promise.all(
-        tables.map(async ([tableName, columns]) => {
-          const viewColumnNames = Object.entries(columns)
-            .filter(([, c]) => !isOneColumn(c) && !isManyColumn(c))
-            .map(([name]) => name);
-          await tx.schema
-            .withSchema(PUBLIC_SCHEMA_NAME)
-            .createView(tableName)
-            .as(
-              (tx as Kysely<any>)
-                .withSchema(this.instanceSchemaName)
-                .selectFrom(tableName)
-                .select(viewColumnNames)
-                .where("effective_to", "=", "latest"),
-            )
-            .execute();
-        }),
-      );
-
-      this.common.logger.debug({
-        service: "database",
-        msg: `Created ${tables.length} views in 'ponder' belonging to current instance (${this.instanceId})`,
+        // 4) Set "published_at" for this instance.
+        await tx
+          .updateTable("ponder_cache.instance_metadata")
+          .where("instance_id", "=", this.instanceId)
+          .set({ published_at: BigInt(Date.now()) })
+          .execute();
       });
-
-      // 4) Set "published_at" for this instance.
-      await tx
-        .updateTable("ponder_cache.instance_metadata")
-        .where("instance_id", "=", this.instanceId)
-        .set({ published_at: BigInt(Date.now()) })
-        .execute();
     });
 
     this.isPublished = true;
@@ -601,54 +616,90 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     return builder;
   }
 
-  // private wrap = async <T>(
-  //   options: { method: string },
-  //   fn: () => Promise<T>,
-  // ) => {
-  //   const start = performance.now();
-  //   const result = await retry(fn, {});
-  //   this.common.metrics.ponder_database_operation_duration.observe(
-  //     { method: options.method },
-  //     performance.now() - start,
-  //   );
-  //   return result;
-  // };
+  private wrap = async <T>(
+    options: { method: string },
+    fn: () => Promise<T>,
+  ) => {
+    try {
+      const endClock = startClock();
+      const { promise } = retry(fn, {
+        onRetry: (error, duration) => {
+          this.common.logger.warn({
+            service: "database",
+            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
+            error,
+          });
+        },
+      });
+      const result = await promise;
+      this.common.metrics.ponder_database_method_duration.observe(
+        { service: "admin", method: options.method },
+        endClock(),
+      );
+      return result;
+    } catch (e) {
+      this.common.metrics.ponder_database_method_error_total.inc({
+        service: "admin",
+        method: options.method,
+      });
+      throw e;
+    }
+  };
 
   private registerMetrics() {
     const service = this;
-    this.common.metrics.ponder_postgres_query_count = new prometheus.Counter({
-      name: "ponder_postgres_query_count",
-      help: "Number of queries submitted to the database",
+
+    this.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_query_total",
+    );
+    this.common.metrics.ponder_postgres_query_total = new prometheus.Counter({
+      name: "ponder_postgres_query_total",
+      help: "Total number of queries submitted to the database",
       labelNames: ["pool"] as const,
       registers: [this.common.metrics.registry],
     });
-    this.common.metrics.ponder_postgres_idle_connection_count =
-      new prometheus.Gauge({
-        name: "ponder_postgres_idle_connection_count",
-        help: "Number of idle connections in the pool",
-        labelNames: ["pool"] as const,
+
+    this.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_pool_connections",
+    );
+    this.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_pool_connections",
+        help: "Number of connections in the pool",
+        labelNames: ["pool", "kind"] as const,
         registers: [this.common.metrics.registry],
         collect() {
-          this.set({ pool: "indexing" }, service.indexingPool.idleCount);
-          this.set({ pool: "sync" }, service.syncPool.idleCount);
-          this.set({ pool: "admin" }, service.adminPool.idleCount);
+          this.set(
+            { pool: "indexing", kind: "idle" },
+            service.indexingPool.idleCount,
+          );
+          this.set({ pool: "sync", kind: "idle" }, service.syncPool.idleCount);
+          this.set(
+            { pool: "admin", kind: "idle" },
+            service.adminPool.idleCount,
+          );
+          this.set(
+            { pool: "indexing", kind: "total" },
+            service.indexingPool.totalCount,
+          );
+          this.set(
+            { pool: "sync", kind: "total" },
+            service.syncPool.totalCount,
+          );
+          this.set(
+            { pool: "admin", kind: "total" },
+            service.adminPool.totalCount,
+          );
         },
-      });
-    this.common.metrics.ponder_postgres_total_connection_count =
-      new prometheus.Gauge({
-        name: "ponder_postgres_total_connection_count",
-        help: "Total number of connections in the pool",
-        labelNames: ["pool"] as const,
-        registers: [this.common.metrics.registry],
-        collect() {
-          this.set({ pool: "indexing" }, service.indexingPool.totalCount);
-          this.set({ pool: "sync" }, service.syncPool.totalCount);
-          this.set({ pool: "admin" }, service.adminPool.totalCount);
-        },
-      });
-    this.common.metrics.ponder_postgres_request_queue_count =
-      new prometheus.Gauge({
-        name: "ponder_postgres_request_queue_count",
+      },
+    );
+
+    this.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_query_queue_size",
+    );
+    this.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_query_queue_size",
         help: "Number of query requests waiting for an available connection",
         labelNames: ["pool"] as const,
         registers: [this.common.metrics.registry],
@@ -657,7 +708,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           this.set({ pool: "sync" }, service.syncPool.waitingCount);
           this.set({ pool: "admin" }, service.adminPool.waitingCount);
         },
-      });
+      },
+    );
   }
 }
 

@@ -1,6 +1,8 @@
 import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
+import { startClock } from "@/utils/timer.js";
+import { retry } from "@ponder/common";
 import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
 import type { Pool } from "pg";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
@@ -47,7 +49,7 @@ export class PostgresIndexingStore implements IndexingStore {
       dialect: new PostgresDialect({ pool }),
       log(event) {
         if (event.level === "query") {
-          common.metrics.ponder_postgres_query_count.inc({ pool: "indexing" });
+          common.metrics.ponder_postgres_query_total.inc({ pool: "indexing" });
         }
       },
     }).withPlugin(new WithSchemaPlugin(schemaName));
@@ -81,7 +83,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "findUnique", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.findUnique` }, async () => {
       const formattedId = encodeValue(id, table.id, "postgres");
 
       let query = this.db
@@ -129,7 +131,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "findMany", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.findMany` }, async () => {
       let query = this.db.selectFrom(tableName).selectAll();
 
       if (checkpoint === "latest") {
@@ -339,7 +341,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "create", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.create` }, async () => {
       const createRow = encodeRow({ id, ...data }, table, "postgres");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -377,7 +379,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "createMany", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.createMany` }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const createRows = data.map((d) => ({
         ...encodeRow({ ...d }, table, "postgres"),
@@ -423,7 +425,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "update", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.update` }, async () => {
       const formattedId = encodeValue(id, table.id, "postgres");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -510,7 +512,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "updateMany", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.updateMany` }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const rows = await this.db.transaction().execute(async (tx) => {
@@ -610,7 +612,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "upsert", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.upsert` }, async () => {
       const formattedId = encodeValue(id, table.id, "postgres");
       const createRow = encodeRow({ id, ...create }, table, "postgres");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
@@ -701,7 +703,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: "delete", tableName }, async () => {
+    return this.wrap({ method: `${tableName}.delete` }, async () => {
       const formattedId = encodeValue(id, table.id, "postgres");
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const isDeleted = await this.db.transaction().execute(async (tx) => {
@@ -735,15 +737,32 @@ export class PostgresIndexingStore implements IndexingStore {
   };
 
   private wrap = async <T>(
-    options: { method: string; tableName?: string },
+    options: { method: string },
     fn: () => Promise<T>,
   ) => {
-    const start = performance.now();
-    const result = await fn();
-    this.common.metrics.ponder_indexing_store_method_duration.observe(
-      { method: options.method, table: options.tableName },
-      performance.now() - start,
-    );
-    return result;
+    try {
+      const endClock = startClock();
+      const { promise } = retry(fn, {
+        onRetry: (error, duration) => {
+          this.common.logger.warn({
+            service: "database",
+            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
+            error,
+          });
+        },
+      });
+      const result = await promise;
+      this.common.metrics.ponder_database_method_duration.observe(
+        { service: "indexing", method: options.method },
+        endClock(),
+      );
+      return result;
+    } catch (e) {
+      this.common.metrics.ponder_database_method_error_total.inc({
+        service: "indexing",
+        method: options.method,
+      });
+      throw e;
+    }
   };
 }

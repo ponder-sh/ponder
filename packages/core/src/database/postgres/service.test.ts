@@ -56,25 +56,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-
-    // Cache schema and cache metadata tables were created
-    expect(await getTableNames(database.db, "ponder_cache")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "function_metadata",
-      "table_metadata",
-      "instance_metadata",
-    ]);
-
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
       tableAccess: {},
     });
 
-    // Instance tables were created in the cache schema
+    // Cache database, metadata tables, and cache tables were created
     expect(await getTableNames(database.db, "ponder_cache")).toStrictEqual([
       "kysely_migration",
       "kysely_migration_lock",
@@ -118,8 +107,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: { function: "0xfunction" },
@@ -165,8 +153,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await databaseTwo.setup();
-    await databaseTwo.reset({
+    await databaseTwo.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: { function: "0xfunction" },
@@ -199,8 +186,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -287,8 +273,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await databaseTwo.setup();
-    await databaseTwo.reset({
+    await databaseTwo.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -343,8 +328,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -384,8 +368,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -396,8 +379,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
     });
-    await databaseTwo.setup();
-    await databaseTwo.reset({
+    await databaseTwo.setup({
       schema: schemaTwo,
       tableIds: getTableIds(schemaTwo),
       functionIds: {},
@@ -478,8 +460,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -502,8 +483,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -605,8 +585,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -728,8 +707,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -866,8 +844,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -990,8 +967,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -1020,8 +996,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -1059,8 +1034,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -1073,8 +1047,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await otherDatabase.setup();
-    await otherDatabase.reset({
+    await otherDatabase.setup({
       schema: schemaTwo,
       tableIds: getTableIds(schemaTwo),
       functionIds: {},

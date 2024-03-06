@@ -56,24 +56,14 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup();
-
-    // Cache database and metadata tables were created
-    expect(await getTableNames(database.db, "ponder_cache")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "function_metadata",
-      "table_metadata",
-    ]);
-
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
       tableAccess: {},
     });
 
-    // Instance tables were created in the cache schema
+    // Cache database, metadata tables, and cache tables were created
     expect(await getTableNames(database.db, "ponder_cache")).toStrictEqual([
       "kysely_migration",
       "kysely_migration_lock",
@@ -96,8 +86,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -116,12 +105,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       "Person",
     ]);
 
-    await databaseTwo.setup();
-
-    // Existing tables were deleted
-    expect(await getTableNames(databaseTwo.db)).toStrictEqual([]);
-
-    await databaseTwo.reset({
+    await databaseTwo.setup({
       schema: schemaTwo,
       tableIds: getTableIds(schemaTwo),
       functionIds: {},
@@ -145,8 +129,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -167,8 +150,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -245,8 +227,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -343,8 +324,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
@@ -456,8 +436,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup();
-    await database.reset({
+    await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
