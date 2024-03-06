@@ -329,6 +329,15 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
   async flush(metadata: FunctionMetadata[]): Promise<void> {
     await this.wrap({ method: "flush" }, async () => {
+      this.common.logger.debug({
+        service: "database",
+        msg: `Starting flush for instance '${
+          this.instanceId
+        }' with table IDs [${Object.values(this.tableIds!).join(
+          ", ",
+        )}] and function IDs [${Object.values(this.functionIds!).join(", ")}]`,
+      });
+
       await this.db.transaction().execute(async (tx) => {
         const tables = Object.entries(this.schema!.tables);
 
@@ -432,6 +441,13 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               .execute();
           }),
         );
+
+        this.common.logger.debug({
+          service: "database",
+          msg: `Finished flush for instance '${this.instanceId}'`,
+        });
+        console.log("newFunctionMetadata", newFunctionMetadata);
+        console.log("newTableMetadata", newTableMetadata);
       });
     });
   }
