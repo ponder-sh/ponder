@@ -16,6 +16,8 @@ export const rateLimitedTransport = (
 
     const queue = createQueue({
       frequency: requestsPerSecond,
+      concurrency: Math.ceil(requestsPerSecond / 4),
+      initialStart: true,
       worker: (body: {
         method: string;
         params?: unknown;
@@ -23,8 +25,6 @@ export const rateLimitedTransport = (
         return transport.request(body);
       },
     });
-
-    queue.start();
 
     return createTransport({
       key: "rate",

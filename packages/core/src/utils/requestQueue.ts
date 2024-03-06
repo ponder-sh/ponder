@@ -30,6 +30,7 @@ export const createRequestQueue = ({
   const requestQueue = createQueue({
     frequency: network.maxRequestsPerSecond,
     concurrency: Math.ceil(network.maxRequestsPerSecond / 4),
+    initialStart: true,
     worker: (task: {
       request: EIP1193Parameters<PublicRpcSchema>;
       stopClockLag: () => number;
@@ -49,8 +50,6 @@ export const createRequestQueue = ({
       });
     },
   });
-
-  requestQueue.start();
 
   return {
     ...requestQueue,

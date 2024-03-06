@@ -6,10 +6,9 @@ test("add resolves", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    initialStart: true,
     worker: () => Promise.resolve(1),
   });
-
-  queue.start();
 
   const promise = queue.add();
 
@@ -27,7 +26,7 @@ test("add rejects", async () => {
 
   const promise = queue.add();
 
-  queue.start();
+  await queue.start();
 
   await promise.catch(() => {
     rejected = true;
@@ -36,7 +35,7 @@ test("add rejects", async () => {
   expect(rejected).toBe(true);
 });
 
-test("size", () => {
+test("size", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
@@ -47,7 +46,7 @@ test("size", () => {
 
   expect(queue.size()).toBe(1);
 
-  queue.start();
+  await queue.start();
 
   expect(queue.size()).toBe(0);
 });
@@ -58,10 +57,9 @@ test("pending", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    initialStart: true,
     worker: () => promise,
   });
-
-  queue.start();
 
   queue.add();
 
@@ -98,7 +96,7 @@ test("clear timer", async () => {
   queue.add();
   queue.add();
 
-  queue.start();
+  await queue.start();
   queue.clear();
 
   await queue.onIdle();
@@ -107,7 +105,7 @@ test("clear timer", async () => {
   expect(await queue.pending()).toBe(0);
 });
 
-test("isStarted", () => {
+test("isStarted", async () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
@@ -116,9 +114,24 @@ test("isStarted", () => {
 
   expect(queue.isStarted()).toBe(false);
 
-  queue.start();
+  await queue.start();
 
   expect(queue.isStarted()).toBe(true);
+});
+
+test("initial start", async () => {
+  const queue = createQueue({
+    concurrency: 1,
+    frequency: 1,
+    initialStart: true,
+    worker: () => Promise.resolve(),
+  });
+
+  expect(queue.isStarted()).toBe(true);
+
+  await queue.add();
+
+  expect(queue.size()).toBe(0);
 });
 
 test("start", async () => {
@@ -132,7 +145,7 @@ test("start", async () => {
 
   expect(queue.size()).toBe(1);
 
-  queue.start();
+  await queue.start();
 
   expect(queue.isStarted()).toBe(true);
 
@@ -145,10 +158,10 @@ test("pause", () => {
   const queue = createQueue({
     concurrency: 1,
     frequency: 1,
+    initialStart: true,
     worker: () => Promise.resolve(),
   });
 
-  queue.start();
   queue.pause();
 
   queue.add();
@@ -176,7 +189,7 @@ test("onIdle", async () => {
 
   const promise = queue.onIdle();
 
-  queue.start();
+  await queue.start();
 
   await promise;
 });
@@ -192,7 +205,7 @@ test("onIdle twice", async () => {
 
   queue.onIdle();
 
-  queue.start();
+  await queue.start();
 
   queue.pause();
 
@@ -200,7 +213,7 @@ test("onIdle twice", async () => {
 
   const promise = queue.onIdle();
 
-  queue.start();
+  await queue.start();
 
   await promise;
 });
@@ -226,7 +239,7 @@ test("onEmpty", async () => {
 
   const promise = queue.onEmpty();
 
-  queue.start();
+  await queue.start();
 
   await promise;
 });
@@ -242,7 +255,7 @@ test("onEmpty twice", async () => {
 
   queue.onEmpty();
 
-  queue.start();
+  await queue.start();
 
   queue.pause();
 
@@ -250,12 +263,12 @@ test("onEmpty twice", async () => {
 
   const promise = queue.onEmpty();
 
-  queue.start();
+  await queue.start();
 
   await promise;
 });
 
-test("concurrency", () => {
+test("concurrency", async () => {
   const func = vi.fn(() => Promise.resolve());
 
   const queue = createQueue({
@@ -269,7 +282,7 @@ test("concurrency", () => {
   queue.add();
   queue.add();
 
-  queue.start();
+  await queue.start();
   queue.pause();
 
   expect(queue.size()).toBe(2);
@@ -290,7 +303,7 @@ test("frequency", async () => {
   queue.add();
   queue.add();
 
-  queue.start();
+  await queue.start();
 
   expect(queue.size()).toBe(2);
   expect(func).toHaveBeenCalledTimes(2);
@@ -330,9 +343,7 @@ test("event loop", async () => {
     queue2.add();
   }
 
-  queue1.start();
-  queue2.start();
-
+  await Promise.all([queue1.start(), queue2.start()]);
   await Promise.all([queue1.onIdle(), queue2.onIdle()]);
 
   const expectedOut: number[] = [];
@@ -342,4 +353,35 @@ test("event loop", async () => {
   }
 
   expect(out).toStrictEqual(expectedOut);
+});
+
+test("update parameters", async () => {
+  const func = vi.fn(() => Promise.resolve());
+
+  const queue = createQueue({
+    concurrency: 2,
+    frequency: 5,
+    worker: func,
+  });
+
+  queue.add();
+  queue.add();
+  queue.add();
+  queue.add();
+  queue.add();
+  queue.add();
+
+  await queue.start();
+  queue.pause();
+
+  expect(queue.size()).toBe(4);
+  expect(func).toHaveBeenCalledTimes(2);
+
+  queue.setParameters({ concurrency: 4 });
+
+  await queue.start();
+  queue.pause();
+
+  expect(queue.size()).toBe(0);
+  expect(func).toHaveBeenCalledTimes(6);
 });
