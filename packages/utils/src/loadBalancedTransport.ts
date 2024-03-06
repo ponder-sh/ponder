@@ -1,7 +1,10 @@
-import { type Transport, createTransport } from "viem";
+import { type Transport, type TransportConfig, createTransport } from "viem";
 
+/**
+ * Load balanced transport for Viem spreading requests between child transports using a round robin algorithm.
+ */
 export const loadBalancedTransport = (_transports: Transport[]): Transport => {
-  return ({ chain, retryCount, timeout, pollingInterval }) => {
+  return ({ chain, retryCount, timeout }) => {
     const transports = _transports.map((t) =>
       chain === undefined
         ? t({ retryCount: 0, timeout })
@@ -17,11 +20,11 @@ export const loadBalancedTransport = (_transports: Transport[]): Transport => {
         const response = transports[index++]!.request(body);
         if (index === transports.length) index = 0;
 
-        return response as Promise<any>;
+        return response;
       },
-      // retryCount,
-      // timeout,
+      retryCount,
+      timeout,
       type: "load-balance",
-    });
+    } as TransportConfig);
   };
 };
