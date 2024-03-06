@@ -14,9 +14,15 @@ import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { dedupe, poll } from "@ponder/common";
 import {
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
+} from "@ponder/utils";
+import {
   type Address,
   BlockNotFoundError,
   type Hex,
+  RpcError,
+  hexToBigInt,
   hexToNumber,
   numberToHex,
 } from "viem";
@@ -682,18 +688,52 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private _eth_getLogs = (params: {
     fromBlock: Hex;
     toBlock: Hex;
-  }): Promise<RealtimeLog[]> =>
-    this.requestQueue.request({
-      method: "eth_getLogs",
-      params: [
-        {
-          fromBlock: params.fromBlock,
-          toBlock: params.toBlock,
-          address: this.address,
-          topics: [this.eventSelectors],
-        },
-      ],
-    }) as Promise<RealtimeLog[]>;
+  }): Promise<RealtimeLog[]> => {
+    const _params: GetLogsRetryHelperParameters["params"] = [
+      {
+        fromBlock: params.fromBlock,
+        toBlock: params.toBlock,
+
+        address: this.address,
+        topics: [this.eventSelectors],
+      },
+    ];
+
+    try {
+      return this.requestQueue.request({
+        method: "eth_getLogs",
+        params: _params,
+      }) as Promise<RealtimeLog[]>;
+    } catch (err) {
+      const getLogsErrorResponse = getLogsRetryHelper({
+        params: _params,
+        error: err as RpcError,
+      });
+
+      if (!getLogsErrorResponse.shouldRetry) throw err;
+
+      this.common.logger.debug({
+        service: "historical",
+        msg: `eth_getLogs request failed, retrying with ranges: [${getLogsErrorResponse.ranges
+          .map(
+            ({ fromBlock, toBlock }) =>
+              `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(
+                toBlock,
+              ).toString()}]`,
+          )
+          .join(", ")}].`,
+      });
+
+      return Promise.all(
+        getLogsErrorResponse.ranges.map(({ fromBlock, toBlock }) =>
+          this._eth_getLogs({
+            fromBlock,
+            toBlock,
+          }),
+        ),
+      ).then((l) => l.flat());
+    }
+  };
 
   private insertRealtimeBlocks = async ({
     logs,
