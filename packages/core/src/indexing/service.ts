@@ -283,18 +283,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
       return;
 
     this.isPaused = true;
-    this.queue?.pause();
+    await this.queue?.onIdle();
+    this.isPaused = false;
+    await this.flush();
 
     this.loadingMutex.cancel();
-
-    this.queue?.clear();
-    await this.queue?.onIdle();
 
     this.isSetupStarted = false;
 
     clearInterval(this.flushInterval);
-
-    await this.flush();
 
     this.common.metrics.ponder_indexing_completed_events.reset();
 
@@ -317,17 +314,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.flushInterval = setInterval(async () => {
       if (this.isFlushIntervalExec) return;
       this.isFlushIntervalExec = true;
+
       this.isPaused = true;
-      this.queue?.pause();
-
-      await this.flush();
-
+      await this.queue?.onIdle();
       this.isPaused = false;
-      this.queue?.start();
+      await this.flush();
 
       this.processEvents();
       this.isFlushIntervalExec = false;
-    }, 10_000);
+    }, 120_000);
   };
 
   /**
@@ -390,8 +385,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
   handleReorg = async (safeCheckpoint: Checkpoint) => {
-    if (this.isPaused) return;
-
     await this.loadingMutex.runExclusive(async () => {
       try {
         const hasProcessedInvalidEvents = Object.values(
@@ -511,6 +504,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
    *    all previous dependent tasks are complete.
    */
   enqueueLogEventTasks = () => {
+    if (this.isPaused) return;
+
     for (const key of Object.keys(this.indexingFunctionStates)) {
       const state = this.indexingFunctionStates[key];
       const tasks = state.loadedTasks;
@@ -581,6 +576,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
   };
 
   private executeSetupTask = async (task: SetupTask) => {
+    if (this.isPaused) return;
+
     const data = task.data;
 
     const fullEventName = `${data.contractName}:setup`;
@@ -592,8 +589,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
           service: "indexing",
           msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
         });
-
-        if (this.isPaused) return;
 
         // Running user code here!
         await indexingFunction({
@@ -663,8 +658,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     for (let i = 0; i < 4; i++) {
       try {
-        if (this.isPaused) return;
-
         this.common.logger.trace({
           service: "indexing",
           msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
@@ -776,8 +769,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
       }
     }
 
-    if (this.isPaused) return;
-
     await this.loadingMutex.runExclusive(async () => {
       const loadKeys = this.getLoadKeys();
 
@@ -785,8 +776,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         loadKeys.map((key) => this.loadIndexingFunctionTasks(key)),
       );
     });
-
-    if (this.isPaused) return;
 
     this.enqueueLogEventTasks();
   };
@@ -984,24 +973,26 @@ export class IndexingService extends Emittery<IndexingEvents> {
   };
 
   private flush = async () => {
-    const indexingFunctionMetadata = Object.entries(
-      this.indexingFunctionStates,
-    ).map(([indexingFunctionKey, state]) => {
-      const stateCheckpoint = this.getStateCheckpoint(indexingFunctionKey);
+    const indexingFunctionMetadata = Object.entries(this.indexingFunctionStates)
+      .map(([indexingFunctionKey, state]) => {
+        const stateCheckpoint = this.getStateCheckpoint(indexingFunctionKey);
 
-      const toCheckpoint = checkpointMin(
-        stateCheckpoint,
-        this.syncGatewayService.finalityCheckpoint,
+        const toCheckpoint = checkpointMin(
+          stateCheckpoint,
+          this.syncGatewayService.finalityCheckpoint,
+        );
+
+        return {
+          functionId: this.functionIds![indexingFunctionKey],
+          functionName: indexingFunctionKey,
+          fromCheckpoint: state.firstEventCheckpoint ?? null,
+          toCheckpoint,
+          eventCount: state.eventCount,
+        };
+      })
+      .filter(
+        ({ toCheckpoint }) => !isCheckpointEqual(toCheckpoint, zeroCheckpoint),
       );
-
-      return {
-        functionId: this.functionIds![indexingFunctionKey],
-        functionName: indexingFunctionKey,
-        fromCheckpoint: state.firstEventCheckpoint ?? null,
-        toCheckpoint,
-        eventCount: state.eventCount,
-      };
-    });
 
     const setupFunctionMetadata = Object.entries(this.setupFunctionStates)
       .map(([setupFunctionKey, state]) =>

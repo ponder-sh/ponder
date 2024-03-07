@@ -18,7 +18,6 @@ import {
   checkpointMax,
   decodeCheckpoint,
   encodeCheckpoint,
-  maxCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool } from "@/utils/pg.js";
@@ -271,6 +270,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
        * In other words, metadata checkpoints are always <= actual rows in the corresponding table.
        */
 
+      // TODO(kyle) functionMetadata.fromCheckpoint and functionMetadata.eventCount inconsistent
+
       await Promise.all(
         tableMetadata.map((m) => {
           return revertTable(
@@ -415,15 +416,14 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             }
           }
 
-          newTableMetadata.push({
-            table_id: tableId,
-            table_name: tableName,
-            hash_version: HASH_VERSION,
-            to_checkpoint:
-              checkpoints.length === 0
-                ? encodeCheckpoint(maxCheckpoint)
-                : encodeCheckpoint(checkpointMax(...checkpoints)),
-          });
+          if (checkpoints.length > 0) {
+            newTableMetadata.push({
+              table_id: tableId,
+              table_name: tableName,
+              hash_version: HASH_VERSION,
+              to_checkpoint: encodeCheckpoint(checkpointMax(...checkpoints)),
+            });
+          }
         }
 
         await Promise.all(
