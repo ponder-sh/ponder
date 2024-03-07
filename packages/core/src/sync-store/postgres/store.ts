@@ -232,28 +232,25 @@ export class PostgresSyncStore implements SyncStore {
       .where("chainId", "=", chainId)
       .execute();
 
-    const intervalsByFragment = intervals.reduce(
+    const intervalsByFragmentId = intervals.reduce(
       (acc, cur) => {
-        const { fragmentId, ...rest } = cur;
-        acc[fragmentId] ||= [];
-        acc[fragmentId].push(rest);
+        const { fragmentId, startBlock, endBlock } = cur;
+        (acc[fragmentId] ||= []).push([Number(startBlock), Number(endBlock)]);
         return acc;
       },
-      {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>,
+      {} as Record<string, [number, number][]>,
     );
 
-    const fragmentIntervals = fragments.map((f) => {
-      return (intervalsByFragment[f.id] ?? []).map(
-        (r) =>
-          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number],
-      );
-    });
-
-    const intersectIntervals = intervalIntersectionMany(fragmentIntervals);
+    const intervalsForEachFragment = fragments.map((f) =>
+      intervalUnion(intervalsByFragmentId[f.id] ?? []),
+    );
+    const intervalsSharedByAllFragments = intervalIntersectionMany(
+      intervalsForEachFragment,
+    );
 
     this.record("getLogFilterIntervals", stopClock());
 
-    return intersectIntervals;
+    return intervalsSharedByAllFragments;
   };
 
   insertFactoryChildAddressLogs = async ({
@@ -505,7 +502,7 @@ export class PostgresSyncStore implements SyncStore {
       intervalsForEachFragment,
     );
 
-    this.record("getLogFilterIntervals", stopClock());
+    this.record("getFactoryLogFilterIntervals", stopClock());
 
     return intervalsSharedByAllFragments;
   };
