@@ -108,9 +108,7 @@ export const getNetworkAndSources = async (
   common: Common,
 ) => {
   const config = getConfig(addresses);
-  const { networks, sources } = await buildNetworksAndSources({
-    config,
-  });
+  const { networks, sources } = await buildNetworksAndSources({ config });
   const mainnet = { ...networks[0], finalityBlockCount: 4 };
   const requestQueue = createRequestQueue({
     network: networks[0],

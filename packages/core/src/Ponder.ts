@@ -98,7 +98,7 @@ export class Ponder {
       });
     }
 
-    const success = await this.setupBuildService();
+    const success = await this.setupBuildService({ watch: true });
     if (!success) return;
 
     this.common.telemetry.record({
@@ -127,7 +127,7 @@ export class Ponder {
     syncStore?: SyncStore;
     indexingStore?: IndexingStore;
   } = {}) {
-    const success = await this.setupBuildService();
+    const success = await this.setupBuildService({ watch: false });
     if (!success) return;
 
     this.common.telemetry.record({
@@ -146,7 +146,7 @@ export class Ponder {
   }
 
   async serve() {
-    const success = await this.setupBuildService();
+    const success = await this.setupBuildService({ watch: false });
     if (!success) return;
 
     this.common.telemetry.record({
@@ -191,7 +191,7 @@ export class Ponder {
   }
 
   async codegen() {
-    const success = await this.setupBuildService();
+    const success = await this.setupBuildService({ watch: false });
     if (!success) return;
 
     this.codegenService = new CodegenService({ common: this.common });
@@ -206,7 +206,7 @@ export class Ponder {
     await this.common.telemetry.kill();
   }
 
-  private async setupBuildService() {
+  private async setupBuildService({ watch }: { watch: boolean }) {
     this.common.logger.debug({
       service: "app",
       msg: `Started using config file: ${path.relative(
@@ -216,7 +216,7 @@ export class Ponder {
     });
 
     // Initialize the Vite server and Vite Node runner.
-    await this.buildService.setup();
+    await this.buildService.setup({ watch });
 
     // Build and load dependencies so that we can create initial versions of all services.
     // If any are undefined, there was an error in config, schema, or indexing functions.
