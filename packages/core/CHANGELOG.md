@@ -1,5 +1,17 @@
 # @ponder/core
 
+## 0.2.17
+
+### Patch Changes
+
+- [#694](https://github.com/ponder-sh/ponder/pull/694) [`9e0c0f73c2066b623c21d4027a8cf11c7d6381be`](https://github.com/ponder-sh/ponder/commit/9e0c0f73c2066b623c21d4027a8cf11c7d6381be) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where contracts that specify multiple addresses or use a custom filter with multiple events would not be cached properly during the sync.
+
+- [#696](https://github.com/ponder-sh/ponder/pull/696) [`aaf015730aa82398c1e407bd6eeaea145284feb6`](https://github.com/ponder-sh/ponder/commit/aaf015730aa82398c1e407bd6eeaea145284feb6) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where including a contract that specified an `endBlock` would sometimes stall the sync.
+
+- [#696](https://github.com/ponder-sh/ponder/pull/696) [`aaf015730aa82398c1e407bd6eeaea145284feb6`](https://github.com/ponder-sh/ponder/commit/aaf015730aa82398c1e407bd6eeaea145284feb6) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the build service would watch for file changes and execute user code even when using `ponder start`, `ponder serve`, or `ponder codegen`.
+
+- [#694](https://github.com/ponder-sh/ponder/pull/694) [`9e0c0f73c2066b623c21d4027a8cf11c7d6381be`](https://github.com/ponder-sh/ponder/commit/9e0c0f73c2066b623c21d4027a8cf11c7d6381be) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where `NaN` was an allowed value for `startBlock` and `endBlock`. Now, `NaN` values are coerced to `0` and `undefined` respectively.
+
 ## 0.2.16
 
 ### Patch Changes
