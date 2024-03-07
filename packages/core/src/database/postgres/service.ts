@@ -446,8 +446,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           service: "database",
           msg: `Finished flush for instance '${this.instanceId}'`,
         });
-        console.log("newFunctionMetadata", newFunctionMetadata);
-        console.log("newTableMetadata", newTableMetadata);
       });
     });
   }
