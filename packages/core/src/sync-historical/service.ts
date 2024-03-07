@@ -779,12 +779,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       for (const [fromBlock, toBlock] of factoryLogFilterChunks) {
         this.queue.addTask(
-          {
-            kind: "FACTORY_LOG_FILTER",
-            factory,
-            fromBlock,
-            toBlock,
-          },
+          { kind: "FACTORY_LOG_FILTER", factory, fromBlock, toBlock },
           { priority: Number.MAX_SAFE_INTEGER - fromBlock },
         );
       }
@@ -886,16 +881,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   };
 
   private enqueueBlockTasks = () => {
+    // If a source has an endBlock and is completed, its checkpoint
+    // will be equal to its endBlock. This poses a problem if other sources
+    // don't have an endBlock and are still in progress, because this value
+    // will get "stuck" at the endBlock. To avoid this, filter out any sources
+    // that have no more required intervals.
     const blockTasksCanBeEnqueuedTo = Math.min(
-      ...Object.values(this.logFilterProgressTrackers).map((i) =>
-        i.getCheckpoint(),
-      ),
-      ...Object.values(this.factoryChildAddressProgressTrackers).map((i) =>
-        i.getCheckpoint(),
-      ),
-      ...Object.values(this.factoryLogFilterProgressTrackers).map((i) =>
-        i.getCheckpoint(),
-      ),
+      ...[
+        ...Object.values(this.logFilterProgressTrackers),
+        ...Object.values(this.factoryChildAddressProgressTrackers),
+        ...Object.values(this.factoryLogFilterProgressTrackers),
+      ]
+        .filter((i) => i.getRequired().length > 0)
+        .map((i) => i.getCheckpoint()),
     );
 
     if (blockTasksCanBeEnqueuedTo > this.blockTasksEnqueuedCheckpoint) {
@@ -910,7 +908,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           {
             kind: "BLOCK",
             blockNumber,
-
             callbacks: this.blockCallbacks[blockNumber],
           },
           { priority: Number.MAX_SAFE_INTEGER - blockNumber },

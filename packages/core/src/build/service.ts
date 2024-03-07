@@ -77,7 +77,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     this.common = common;
   }
 
-  async setup() {
+  async setup({ watch }: { watch: boolean }) {
     const viteLogger = {
       warnedMessages: new Set<string>(),
       loggedErrors: new WeakSet<Error>(),
@@ -126,6 +126,10 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       resolveId: (id, importer) =>
         this.viteNodeServer.resolveId(id, importer, "ssr"),
     });
+
+    // If watch is false (`ponder start` or `ponder serve`),
+    // don't register  any event handlers on the watcher.
+    if (watch === false) return;
 
     const handleFileChange = async (files_: string[]) => {
       const files = files_.map(

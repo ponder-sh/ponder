@@ -24,10 +24,7 @@ const options = {
 test("buildConfig() builds topics for multiple events", async () => {
   const config = createConfig({
     networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http("http://127.0.0.1:8545"),
-      },
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -52,10 +49,7 @@ test("buildConfig() builds topics for multiple events", async () => {
 test("buildConfig() handles overloaded event signatures and combines topics", async () => {
   const config = createConfig({
     networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http("http://127.0.0.1:8545"),
-      },
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       BaseRegistrartImplementation: {
@@ -82,14 +76,8 @@ test("buildConfig() handles overloaded event signatures and combines topics", as
 test("buildConfig() creates a source for each network for multi-network contracts", async () => {
   const config = createConfig({
     networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http("http://127.0.0.1:8545"),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http("http://127.0.0.1:8545"),
-      },
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -107,10 +95,7 @@ test("buildConfig() creates a source for each network for multi-network contract
 test("buildConfig() builds topics for event with args", async () => {
   const config = createConfig({
     networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http("http://127.0.0.1:8545"),
-      },
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -141,10 +126,7 @@ test("buildConfig() builds topics for event with args", async () => {
 test("buildConfig() builds topics for event with unnamed parameters", async () => {
   const config = createConfig({
     networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http("http://127.0.0.1:8545"),
-      },
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -173,10 +155,7 @@ test("buildConfig() builds topics for event with unnamed parameters", async () =
 test("buildConfig() overrides default values with network-specific values", async () => {
   const config = createConfig({
     networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http("http://127.0.0.1:8545"),
-      },
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -203,10 +182,7 @@ test("buildConfig() overrides default values with network-specific values", asyn
 test("buildConfig() handles network name shortcut", async () => {
   const config = createConfig({
     networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http("http://127.0.0.1:8545"),
-      },
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -394,4 +370,42 @@ test("buildConfig() validates address length", async () => {
   expect(result.error?.message).toBe(
     "Validation failed: Invalid length for address '0x000000000001'. Got 14, expected 42 characters.",
   );
+});
+
+test("buildNetworksAndSources() coerces NaN startBlock to 0", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      a: {
+        network: { mainnet: {} },
+        abi: [event0, event1],
+        startBlock: NaN,
+      },
+    },
+  });
+
+  const { sources } = await buildNetworksAndSources({ config });
+
+  expect(sources[0].startBlock).toBe(0);
+});
+
+test("buildNetworksAndSources() coerces NaN endBlock to undefined", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      a: {
+        network: { mainnet: {} },
+        abi: [event0, event1],
+        endBlock: NaN,
+      },
+    },
+  });
+
+  const { sources } = await buildNetworksAndSources({ config });
+
+  expect(sources[0].endBlock).toBe(undefined);
 });
