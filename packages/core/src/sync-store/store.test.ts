@@ -307,6 +307,50 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async ({
   ]);
 });
 
+test("getLogFilterIntervals merges overlapping intervals that both match a filter", async ({
+  syncStore,
+  sources,
+}) => {
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertLogFilterInterval({
+    chainId: 1,
+    logFilter: { topics: [["0xc", "0xd"], null, null, null] },
+    ...rpcData.block1,
+    interval: { startBlock: 0n, endBlock: 50n },
+  });
+
+  // Broad criteria only includes broad intervals.
+  let logFilterIntervals = await syncStore.getLogFilterIntervals({
+    chainId: 1,
+    logFilter: {
+      address: "0xaddress",
+      topics: [["0xc"], null, null, null],
+    },
+  });
+  expect(logFilterIntervals).toMatchObject([[0, 50]]);
+
+  await syncStore.insertLogFilterInterval({
+    chainId: 1,
+    logFilter: {
+      address: "0xaddress",
+      topics: [["0xc"], null, null, null],
+    },
+    ...rpcData.block1,
+    interval: { startBlock: 0n, endBlock: 100n },
+  });
+
+  logFilterIntervals = await syncStore.getLogFilterIntervals({
+    chainId: 1,
+    logFilter: {
+      address: "0xaddress",
+      topics: [["0xc"], null, null, null],
+    },
+  });
+
+  expect(logFilterIntervals).toMatchObject([[0, 100]]);
+});
+
 test("insertFactoryChildAddressLogs inserts logs", async ({
   syncStore,
   sources,
