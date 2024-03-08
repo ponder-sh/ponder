@@ -117,7 +117,84 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.kill();
   });
 
-  test.todo("setup with cache hit");
+  test("setup with cache hit", async (context) => {
+    if (context.databaseConfig.kind !== "sqlite") return;
+    const database = new SqliteDatabaseService({
+      common: context.common,
+      directory: context.databaseConfig.directory,
+    });
+
+    await database.setup({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: { function: "0xfunction" },
+      tableAccess: {},
+    });
+
+    const indexingStoreConfig = database.getIndexingStoreConfig();
+    const indexingStore = new SqliteIndexingStore({
+      common: context.common,
+      ...indexingStoreConfig,
+      schema,
+    });
+
+    await indexingStore.createMany({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(1),
+      data: [
+        { id: "11", name: "Fido", age: 3, kind: "DOG" },
+        { id: "12", name: "Fido", age: 3, kind: "DOG" },
+        { id: "13", name: "Fido", age: 3, kind: "DOG" },
+      ],
+    });
+
+    await database.flush([
+      {
+        functionId: "0xfunction",
+        functionName: "function",
+        fromCheckpoint: null,
+        toCheckpoint: createCheckpoint(1),
+        eventCount: 3,
+      },
+    ]);
+
+    const { rows: instancePetRows1 } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
+    );
+    expect(instancePetRows1).toHaveLength(3);
+
+    await database.kill();
+
+    const databaseTwo = new SqliteDatabaseService({
+      common: context.common,
+      directory: context.databaseConfig.directory,
+    });
+
+    await databaseTwo.setup({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: { function: "0xfunction" },
+      tableAccess: {},
+    });
+
+    const { rows: instancePetRows } = await databaseTwo.db.executeQuery(
+      sql`SELECT * FROM "Pet"`.compile(databaseTwo.db),
+    );
+
+    expect(instancePetRows).length(3);
+
+    expect(databaseTwo.functionMetadata).toStrictEqual([
+      {
+        functionId: "0xfunction",
+        functionName: "function",
+        fromCheckpoint: null,
+        toCheckpoint: createCheckpoint(1),
+        eventCount: 3,
+      },
+    ]);
+
+    await databaseTwo.kill();
+  });
 
   test("publish is a no-op", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
