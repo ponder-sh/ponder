@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.2.18
+
+### Patch Changes
+
+- [#697](https://github.com/ponder-sh/ponder/pull/697) [`de06d68328a53edd8b15f8e6c2c2b2368df16457`](https://github.com/ponder-sh/ponder/commit/de06d68328a53edd8b15f8e6c2c2b2368df16457) Thanks [@0xOlias](https://github.com/0xOlias)! - Upgraded viem to 2.7.20.
+
 ## 0.2.17
 
 ## 0.2.16
