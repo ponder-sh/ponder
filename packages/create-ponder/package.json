@@ -1,6 +1,6 @@
 {
   "name": "create-ponder",
-  "version": "0.2.16",
+  "version": "0.2.18",
   "type": "module",
   "description": "A CLI tool to create Ponder apps",
   "license": "MIT",
@@ -32,7 +32,7 @@
     "prompts": "^2.4.2",
     "update-check": "^1.5.4",
     "validate-npm-package-name": "^5.0.0",
-    "viem": "^2.0.10",
+    "viem": "^2.7.20",
     "yaml": "^2.3.4"
   },
   "devDependencies": {

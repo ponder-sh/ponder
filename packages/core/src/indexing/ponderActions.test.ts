@@ -78,3 +78,40 @@ test("readContract()", async (context) => {
 
   expect(totalSupply).toBe(parseEther("1"));
 });
+
+test("readContract() accepts user-provided block number", async (context) => {
+  const balance = await getClient().then((client) =>
+    client.readContract({
+      abi: erc20ABI,
+      functionName: "totalSupply",
+      address: context.erc20.address,
+      blockNumber: 1n,
+    }),
+  );
+
+  expect(balance).toBe(parseEther("0"));
+});
+
+test("readContract() uses event block number if not provided by user", async (context) => {
+  const balance = await getClient().then((client) =>
+    client.readContract({
+      abi: erc20ABI,
+      functionName: "totalSupply",
+      address: context.erc20.address,
+    }),
+  );
+
+  expect(balance).toBe(parseEther("1"));
+});
+
+test("readContract() uses event block number if not provided by user", async (context) => {
+  const balance = await getClient().then((client) =>
+    client.readContract({
+      abi: erc20ABI,
+      functionName: "totalSupply",
+      address: context.erc20.address,
+    }),
+  );
+
+  expect(balance).toBe(parseEther("1"));
+});

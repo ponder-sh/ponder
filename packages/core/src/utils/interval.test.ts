@@ -82,6 +82,20 @@ test("intervalUnion removes duplicate intervals", () => {
   expect(result).toEqual([[1, 6]]);
 });
 
+test("intervalUnion does not mutate inputs", () => {
+  const intervals = [
+    [3, 5],
+    [1, 2],
+    [4, 6],
+  ] satisfies [number, number][];
+  const originalIntervals = JSON.parse(JSON.stringify(intervals));
+
+  intervalUnion(intervals);
+
+  // Asserting that the original intervals array has not been modified
+  expect(intervals).toEqual(originalIntervals);
+});
+
 test("intervalIntersection handles empty input", () => {
   const result = intervalIntersection([], []);
   expect(result).toEqual([]);
