@@ -839,25 +839,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const fromCheckpoint = state.tasksLoadedToCheckpoint;
     const toCheckpoint = this.syncGatewayService.checkpoint;
 
-    if (
-      tasks.length > 0 ||
-      isCheckpointGreaterThanOrEqualTo(fromCheckpoint, toCheckpoint)
-    ) {
-      if (state.lastEventCheckpoint === undefined) {
-        // Note: This is the path for a fully cached indexing function.
-
-        state.lastEventCheckpoint = this.syncGatewayService.checkpoint;
-
-        this.updateTotalSeconds(key);
-        this.updateCompletedSeconds(key);
-
-        this.emitCheckpoint();
-        this.logCachedProgress(key);
-      }
-
-      return;
-    }
-
     const taskBatchSize = this.calculateTaskBatchSize(key);
 
     const sourcesHasFactory = state.sources.some(sourceIsFactory);
@@ -960,17 +941,35 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }
 
     // Update lastEventCheckpoint
-    if (lastCheckpoint !== undefined) {
-      if (state.lastEventCheckpoint === undefined) {
-        state.lastEventCheckpoint = lastCheckpoint;
+    if (
+      lastCheckpoint === undefined &&
+      state.lastEventCheckpoint === undefined
+    ) {
+      // Fully cached path, first load
+      state.lastEventCheckpoint = toCheckpoint;
 
-        this.logCachedProgress(key);
-      } else {
-        state.lastEventCheckpoint = checkpointMax(
-          lastCheckpoint,
-          state.lastEventCheckpoint,
-        );
-      }
+      this.logCachedProgress(key);
+      this.updateTotalSeconds(key);
+      this.updateCompletedSeconds(key);
+    } else if (
+      lastCheckpoint !== undefined &&
+      state.lastEventCheckpoint === undefined
+    ) {
+      // Partially cached path, first load
+      state.lastEventCheckpoint = lastCheckpoint;
+
+      this.logCachedProgress(key);
+      this.updateTotalSeconds(key);
+      this.updateCompletedSeconds(key);
+    } else if (
+      lastCheckpoint !== undefined &&
+      state.lastEventCheckpoint !== undefined
+    ) {
+      // Subsequent loads
+      state.lastEventCheckpoint = checkpointMax(
+        lastCheckpoint,
+        state.lastEventCheckpoint,
+      );
 
       this.updateTotalSeconds(key);
       this.updateCompletedSeconds(key);
