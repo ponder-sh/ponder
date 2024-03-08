@@ -289,10 +289,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 )} SELECT * FROM "${sql.raw(tableName)}"`.compile(tx),
               );
             } else {
-              const newTableMaxCheckpoint = newTableMetadata.find(
-                (t) => t.table_id === tableId,
-              )?.to_checkpoint;
-
               // Update effective_to of overwritten rows
               await tx.executeQuery(
                 sql`WITH earliest_new_records AS (SELECT id, MIN(effective_from) as new_effective_to FROM "${sql.raw(
@@ -309,6 +305,10 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                   tx,
                 ),
               );
+
+              const newTableMaxCheckpoint = newTableMetadata.find(
+                (t) => t.table_id === tableId,
+              )?.to_checkpoint;
 
               if (newTableMaxCheckpoint) {
                 // Insert new rows into cache

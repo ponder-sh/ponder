@@ -357,7 +357,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             const tableId = this.tableIds![tableName];
 
             const tableMetadata = await tx
-
               .selectFrom("ponder_cache.table_metadata")
               .select("to_checkpoint")
               .where("table_id", "=", tableId)
@@ -372,6 +371,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 )}"."${sql.raw(tableName)}"`.compile(tx),
               );
             } else {
+              // Update effective_to of overwritten rows
               await tx.executeQuery(
                 sql`WITH earliest_new_records AS (SELECT id, MIN(effective_from) as new_effective_to FROM "${sql.raw(
                   this.instanceSchemaName,
@@ -383,41 +383,47 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                   tableId,
                 )}" SET effective_to = earliest_new_records.new_effective_to FROM earliest_new_records WHERE "${sql.raw(
                   CACHE_SCHEMA_NAME,
-                )}"."${sql.raw(tableId)}".id = earliest_new_records.id`.compile(
+                )}"."${sql.raw(
+                  tableId,
+                )}".id = earliest_new_records.id AND effective_to = 'latest'`.compile(
                   tx,
                 ),
               );
 
-              const maxCheckpoint = newTableMetadata.find(
+              const newTableMaxCheckpoint = newTableMetadata.find(
                 (t) => t.table_id === tableId,
-              )!.to_checkpoint;
+              )?.to_checkpoint;
 
-              await tx.executeQuery(
-                sql`INSERT INTO ${sql.raw(
-                  `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
-                )} SELECT * FROM "${sql.raw(
-                  this.instanceSchemaName,
-                )}"."${sql.raw(tableName)}" WHERE "effective_from" > '${sql.raw(
-                  tableMetadata.to_checkpoint,
-                )}' AND "effective_from" <= '${sql.raw(
-                  maxCheckpoint,
-                )}'`.compile(tx),
-              );
+              if (newTableMaxCheckpoint) {
+                await tx.executeQuery(
+                  sql`INSERT INTO ${sql.raw(
+                    `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
+                  )} SELECT * FROM "${sql.raw(
+                    this.instanceSchemaName,
+                  )}"."${sql.raw(
+                    tableName,
+                  )}" WHERE "effective_from" > '${sql.raw(
+                    tableMetadata.to_checkpoint,
+                  )}' AND "effective_from" <= '${sql.raw(
+                    newTableMaxCheckpoint,
+                  )}'`.compile(tx),
+                );
 
-              /**
-               * Truncate cache tables to match metadata checkpoints.
-               *
-               * It's possible for the cache tables to contain more data than the metadata indicates.
-               * To avoid copying unfinalized data left over from a previous instance, we must revert
-               * the instance tables to the checkpoint saved in the metadata after copying from the cache.
-               */
+                /**
+                 * Truncate cache tables to match metadata checkpoints.
+                 *
+                 * It's possible for the cache tables to contain more data than the metadata indicates.
+                 * To avoid copying unfinalized data left over from a previous instance, we must revert
+                 * the instance tables to the checkpoint saved in the metadata after copying from the cache.
+                 */
 
-              await tx
-                .withSchema(CACHE_SCHEMA_NAME)
-                .updateTable(tableId)
-                .set({ effective_to: "latest" })
-                .where("effective_to", ">", maxCheckpoint)
-                .execute();
+                await tx
+                  .withSchema(CACHE_SCHEMA_NAME)
+                  .updateTable(tableId)
+                  .set({ effective_to: "latest" })
+                  .where("effective_to", ">", newTableMaxCheckpoint)
+                  .execute();
+              }
             }
           }),
         );

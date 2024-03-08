@@ -285,7 +285,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.isPaused = true;
     await this.queue?.onIdle();
     this.isPaused = false;
-    // await this.flush();
+    await this.flush();
 
     this.loadingMutex.cancel();
 
@@ -977,13 +977,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
       .map(([indexingFunctionKey, state]) => {
         const stateCheckpoint = this.getStateCheckpoint(indexingFunctionKey);
 
-        console.log({
-          indexingFunctionKey,
-          stateCheckpoint,
-          processedTo: state.tasksProcessedToCheckpoint,
-          loadedTo: state.tasksLoadedToCheckpoint,
-        });
-
         const toCheckpoint = checkpointMin(
           stateCheckpoint,
           this.syncGatewayService.finalityCheckpoint,
@@ -1303,12 +1296,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private getStateCheckpoint = (key: string): Checkpoint => {
     const state = this.indexingFunctionStates[key];
 
-    // console.log(state.loadedTasks.length)
-
-    // return state.loadedTasks.length === 0
-    //   ? state.tasksLoadedToCheckpoint
-    //   :
-    return state.tasksProcessedToCheckpoint;
+    return state.loadedTasks.length === 0
+      ? state.tasksLoadedToCheckpoint
+      : state.tasksProcessedToCheckpoint;
   };
 
   private onTableAccess =

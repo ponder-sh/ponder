@@ -611,7 +611,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.kill();
   });
 
-  test("flush updates cache tables with [kevin]", async (context) => {
+  test("flush updates cache tables when multiple versions of same id", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,
