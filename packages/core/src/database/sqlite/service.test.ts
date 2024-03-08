@@ -611,6 +611,111 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.kill();
   });
 
+  test("flush updates cache tables with [kevin]", async (context) => {
+    if (context.databaseConfig.kind !== "sqlite") return;
+    const database = new SqliteDatabaseService({
+      common: context.common,
+      directory: context.databaseConfig.directory,
+    });
+
+    await database.setup({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
+    });
+
+    const indexingStoreConfig = database.getIndexingStoreConfig();
+    const indexingStore = new SqliteIndexingStore({
+      common: context.common,
+      ...indexingStoreConfig,
+      schema,
+    });
+    await indexingStore.createMany({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(1),
+      data: [
+        { id: "1", name: "Fido", age: 3, kind: "DOG" },
+        { id: "2", name: "Fido", age: 3, kind: "DOG" },
+        { id: "3", name: "Fido", age: 3, kind: "DOG" },
+      ],
+    });
+
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(2),
+      id: "1",
+      data: { name: "Fido", age: 4, kind: "DOG" },
+    });
+
+    await database.flush([
+      {
+        functionId: "0xfunction",
+        functionName: "function",
+        fromCheckpoint: null,
+        toCheckpoint: createCheckpoint(2),
+        eventCount: 3,
+      },
+    ]);
+
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(3),
+      id: "2",
+      data: { name: "Fido", age: 4, kind: "DOG" },
+    });
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(3),
+      id: "1",
+      data: { name: "Fido", age: 5, kind: "DOG" },
+    });
+
+    console.log("before");
+
+    await database.flush([
+      {
+        functionId: "0xfunction",
+        functionName: "function",
+        fromCheckpoint: null,
+        toCheckpoint: createCheckpoint(3),
+        eventCount: 4,
+      },
+    ]);
+
+    const { rows: metadataRowsAfter } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
+    );
+    expect(metadataRowsAfter).toStrictEqual([
+      {
+        function_id: "0xfunction",
+        function_name: "function",
+        from_checkpoint: null,
+        hash_version: 1,
+        to_checkpoint: encodeCheckpoint(createCheckpoint(3)),
+        event_count: 4,
+      },
+    ]);
+
+    const { rows: petRowsAfter } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
+    );
+
+    expect(petRowsAfter).length(6);
+
+    await database.kill();
+  });
+
   test("flush with table checkpoints", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
