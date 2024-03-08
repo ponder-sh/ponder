@@ -1,6 +1,6 @@
 import type { Transport } from "viem";
 import { expect, test, vi } from "vitest";
-import { loadBalancedTransport } from "./loadBalancedTransport.js";
+import { loadBalance } from "./loadBalance.js";
 
 const createMockTransport = () => {
   const request = vi.fn(() => Promise.resolve("hi"));
@@ -14,7 +14,7 @@ const createMockTransport = () => {
 test("sends a request", async () => {
   const { request, mockTransport } = createMockTransport();
 
-  const transport = loadBalancedTransport([mockTransport])({});
+  const transport = loadBalance([mockTransport])({});
 
   await transport.request({ method: "eth_chainId" });
 
@@ -25,10 +25,7 @@ test("splits requests between transports", async () => {
   const mock1 = createMockTransport();
   const mock2 = createMockTransport();
 
-  const transport = loadBalancedTransport([
-    mock1.mockTransport,
-    mock2.mockTransport,
-  ])({});
+  const transport = loadBalance([mock1.mockTransport, mock2.mockTransport])({});
 
   await transport.request({ method: "eth_chainId" });
   await transport.request({ method: "eth_chainId" });

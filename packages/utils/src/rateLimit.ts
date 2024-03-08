@@ -4,7 +4,7 @@ import { type Transport, type TransportConfig, createTransport } from "viem";
 /**
  * @description Creates a rate limited transport that throttles request throughput.
  */
-export const rateLimitedTransport = (
+export const rateLimit = (
   _transport: Transport,
   {
     requestsPerSecond,
@@ -31,13 +31,13 @@ export const rateLimitedTransport = (
     });
 
     return createTransport({
-      key: "rate",
-      name: "Rate limited transport",
+      key: "rateLimit",
+      name: "Rate Limit",
       request: (body) => {
         return queue.add(body);
       },
       retryCount,
-      type: "rate-limit",
+      type: "rateLimit",
     } as TransportConfig);
   };
 };

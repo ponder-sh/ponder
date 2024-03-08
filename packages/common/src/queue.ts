@@ -77,7 +77,7 @@ export const createQueue = <returnType, taskType = void>({
 > => {
   validateParameters(_parameters);
 
-  let parameters: Pick<
+  const parameters: Pick<
     CreateQueueParameters<unknown, unknown>,
     "frequency" | "concurrency"
   > = _parameters;
@@ -238,7 +238,13 @@ export const createQueue = <returnType, taskType = void>({
     },
     setParameters: (_parameters) => {
       validateParameters(_parameters);
-      parameters = _parameters;
+
+      if ("frequency" in _parameters) {
+        parameters.frequency = _parameters.frequency;
+      }
+      if ("concurrency" in _parameters) {
+        parameters.concurrency = _parameters.concurrency;
+      }
     },
   } as Queue<returnType, taskType>;
 };

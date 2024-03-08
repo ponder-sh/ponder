@@ -1,6 +1,6 @@
 import type { Transport } from "viem";
 import { expect, test, vi } from "vitest";
-import { rateLimitedTransport } from "./rateLimitedTransport.js";
+import { rateLimit } from "./rateLimit.js";
 
 const createMockTransport = () => {
   const request = vi.fn(() => Promise.resolve("hi"));
@@ -14,7 +14,7 @@ const createMockTransport = () => {
 test("sends a request", async () => {
   const { request, mockTransport } = createMockTransport();
 
-  const transport = rateLimitedTransport(mockTransport, {
+  const transport = rateLimit(mockTransport, {
     requestsPerSecond: 1,
     browser: false,
   })({});
@@ -29,7 +29,7 @@ test("sends a request", async () => {
 test("limits request rate", async () => {
   const mock = createMockTransport();
 
-  const transport = rateLimitedTransport(mock.mockTransport, {
+  const transport = rateLimit(mock.mockTransport, {
     requestsPerSecond: 1,
     browser: false,
   })({});

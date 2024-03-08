@@ -5,6 +5,6 @@ export type { Virtual } from "@/types/virtual.js";
 export {
   type MergeAbis,
   mergeAbis,
-  loadBalancedTransport,
-  rateLimitedTransport,
+  loadBalance,
+  rateLimit,
 } from "@ponder/utils";

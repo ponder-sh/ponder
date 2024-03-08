@@ -400,7 +400,7 @@ test("update parameters", async () => {
   expect(queue.size()).toBe(4);
   expect(func).toHaveBeenCalledTimes(2);
 
-  queue.setParameters({ concurrency: 4 });
+  queue.setParameters({ concurrency: undefined, frequency: 8 });
 
   await queue.start();
   queue.pause();

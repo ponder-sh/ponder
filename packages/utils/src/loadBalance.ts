@@ -3,7 +3,7 @@ import { type Transport, type TransportConfig, createTransport } from "viem";
 /**
  * @description Creates a load balanced transport that spreads requests between child transports using a round robin algorithm.
  */
-export const loadBalancedTransport = (_transports: Transport[]): Transport => {
+export const loadBalance = (_transports: Transport[]): Transport => {
   return ({ chain, retryCount, timeout }) => {
     const transports = _transports.map((t) =>
       chain === undefined
@@ -14,8 +14,8 @@ export const loadBalancedTransport = (_transports: Transport[]): Transport => {
     let index = 0;
 
     return createTransport({
-      key: "load",
-      name: "Load balanced transport",
+      key: "loadBalance",
+      name: "Load Balance",
       request: (body) => {
         const response = transports[index++]!.request(body);
         if (index === transports.length) index = 0;
@@ -24,7 +24,7 @@ export const loadBalancedTransport = (_transports: Transport[]): Transport => {
       },
       retryCount,
       timeout,
-      type: "load-balance",
+      type: "loadBalance",
     } as TransportConfig);
   };
 };
