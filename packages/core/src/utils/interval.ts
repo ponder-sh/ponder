@@ -20,10 +20,14 @@ export function intervalSum(intervals: [number, number][]) {
  * @param intervals List of numeric intervals to find the union of.
  * @returns Union of the intervals, represented as a list of intervals.
  */
-export function intervalUnion(intervals: [number, number][]) {
-  if (intervals.length === 0) return [];
+export function intervalUnion(intervals_: [number, number][]) {
+  if (intervals_.length === 0) return [];
 
-  // Sort intervals based on the left end
+  // Create copies to avoid mutating the originals.
+  const intervals = intervals_.map(
+    (interval) => [...interval] as [number, number],
+  );
+  // Sort intervals based on the left end.
   intervals.sort((a, b) => a[0] - b[0]);
 
   const result: [number, number][] = [];
@@ -88,7 +92,7 @@ export function intervalIntersection(
  *
  * @param list1 First list of numeric intervals.
  * @param list2 Second list of numeric intervals.
- * @returns Difference of the intervals, represented as a list of intervals.
+ * @returns Intersection of the intervals, represented as a list of intervals.
  */
 export function intervalIntersectionMany(lists: [number, number][][]) {
   if (lists.length === 0) return [];

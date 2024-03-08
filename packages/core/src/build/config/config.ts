@@ -148,6 +148,15 @@ export async function buildConfig({
         );
       }
 
+      const startBlockMaybeNan = contract.startBlock ?? 0;
+      const startBlock = Number.isNaN(startBlockMaybeNan)
+        ? 0
+        : startBlockMaybeNan;
+      const endBlockMaybeNan = contract.endBlock;
+      const endBlock = Number.isNaN(endBlockMaybeNan)
+        ? undefined
+        : endBlockMaybeNan;
+
       // Single network case.
       if (typeof contract.network === "string") {
         return {
@@ -160,8 +169,8 @@ export async function buildConfig({
           factory: "factory" in contract ? contract.factory : undefined,
           filter: contract.filter,
 
-          startBlock: contract.startBlock ?? 0,
-          endBlock: contract.endBlock,
+          startBlock,
+          endBlock,
           maxBlockRange: contract.maxBlockRange,
         };
       }
@@ -173,24 +182,36 @@ export async function buildConfig({
       // Multiple networks case.
       return Object.entries(contract.network)
         .filter((n): n is [string, DefinedNetworkOverride] => !!n[1])
-        .map(([networkName, overrides]) => ({
-          id: `${contractName}_${networkName}`,
-          contractName,
-          networkName,
-          abi: contract.abi,
+        .map(([networkName, overrides]) => {
+          const startBlockMaybeNan =
+            overrides.startBlock ?? contract.startBlock ?? 0;
+          const startBlock = Number.isNaN(startBlockMaybeNan)
+            ? 0
+            : startBlockMaybeNan;
+          const endBlockMaybeNan = overrides.endBlock ?? contract.endBlock;
+          const endBlock = Number.isNaN(endBlockMaybeNan)
+            ? undefined
+            : endBlockMaybeNan;
 
-          address:
-            ("address" in overrides ? overrides?.address : undefined) ??
-            ("address" in contract ? contract.address : undefined),
-          factory:
-            ("factory" in overrides ? overrides.factory : undefined) ??
-            ("factory" in contract ? contract.factory : undefined),
-          filter: overrides.filter ?? contract.filter,
+          return {
+            id: `${contractName}_${networkName}`,
+            contractName,
+            networkName,
+            abi: contract.abi,
 
-          startBlock: overrides.startBlock ?? contract.startBlock ?? 0,
-          endBlock: overrides.endBlock ?? contract.endBlock,
-          maxBlockRange: overrides.maxBlockRange ?? contract.maxBlockRange,
-        }));
+            address:
+              ("address" in overrides ? overrides?.address : undefined) ??
+              ("address" in contract ? contract.address : undefined),
+            factory:
+              ("factory" in overrides ? overrides.factory : undefined) ??
+              ("factory" in contract ? contract.factory : undefined),
+            filter: overrides.filter ?? contract.filter,
+
+            startBlock,
+            endBlock,
+            maxBlockRange: overrides.maxBlockRange ?? contract.maxBlockRange,
+          };
+        });
     })
     // Second, build and validate the factory or log filter.
     .map((rawContract) => {

@@ -214,30 +214,22 @@ export class SqliteSyncStore implements SyncStore {
         .where("chainId", "=", chainId)
         .execute();
 
-      const intervalsByFragment = intervals.reduce(
+      const intervalsByFragmentId = intervals.reduce(
         (acc, cur) => {
-          const { fragmentId, ...rest } = cur;
-          acc[fragmentId] ||= [];
-          acc[fragmentId].push({
-            startBlock: decodeToBigInt(rest.startBlock),
-            endBlock: decodeToBigInt(rest.endBlock),
-          });
+          const { fragmentId, startBlock, endBlock } = cur;
+          (acc[fragmentId] ||= []).push([
+            Number(decodeToBigInt(startBlock)),
+            Number(decodeToBigInt(endBlock)),
+          ]);
           return acc;
         },
-        {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>,
+        {} as Record<string, [number, number][]>,
       );
 
-      const fragmentIntervals = fragments.map((f) => {
-        return (intervalsByFragment[f.id] ?? []).map(
-          (r) =>
-            [Number(r.startBlock), Number(r.endBlock)] satisfies [
-              number,
-              number,
-            ],
-        );
-      });
-
-      return intervalIntersectionMany(fragmentIntervals);
+      const intervalsForEachFragment = fragments.map((f) =>
+        intervalUnion(intervalsByFragmentId[f.id] ?? []),
+      );
+      return intervalIntersectionMany(intervalsForEachFragment);
     });
   };
 
@@ -461,30 +453,19 @@ export class SqliteSyncStore implements SyncStore {
         .where("chainId", "=", chainId)
         .execute();
 
-      const intervalsByFragment = intervals.reduce(
+      const intervalsByFragmentId = intervals.reduce(
         (acc, cur) => {
-          const { fragmentId, ...rest } = cur;
-          acc[fragmentId] ||= [];
-          acc[fragmentId].push({
-            startBlock: decodeToBigInt(rest.startBlock),
-            endBlock: decodeToBigInt(rest.endBlock),
-          });
+          const { fragmentId, startBlock, endBlock } = cur;
+          (acc[fragmentId] ||= []).push([Number(startBlock), Number(endBlock)]);
           return acc;
         },
-        {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>,
+        {} as Record<string, [number, number][]>,
       );
 
-      const fragmentIntervals = fragments.map((f) => {
-        return (intervalsByFragment[f.id] ?? []).map(
-          (r) =>
-            [Number(r.startBlock), Number(r.endBlock)] satisfies [
-              number,
-              number,
-            ],
-        );
-      });
-
-      return intervalIntersectionMany(fragmentIntervals);
+      const intervalsForEachFragment = fragments.map((f) =>
+        intervalUnion(intervalsByFragmentId[f.id] ?? []),
+      );
+      return intervalIntersectionMany(intervalsForEachFragment);
     });
   };
 
