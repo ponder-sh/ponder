@@ -265,7 +265,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             const tableId = this.tableIds![tableName];
 
             const tableMetadata = await tx
-              .withSchema(CACHE_DB_NAME)
               .selectFrom("ponder_cache.table_metadata")
               .select("to_checkpoint")
               .where("table_id", "=", tableId)
@@ -279,13 +278,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               );
             } else {
               await tx.executeQuery(
-                sql`WITH earliest_new_records AS (SELECT id, effective_from as new_effective_to FROM "${sql.raw(
+                sql`WITH earliest_new_records AS (SELECT id, MIN(effective_from) as new_effective_to FROM "${sql.raw(
                   tableName,
                 )}" WHERE effective_from > '${sql.raw(
                   tableMetadata.to_checkpoint,
-                )}' GROUP BY id ORDER BY effective_from ASC) UPDATE "${sql.raw(
-                  CACHE_DB_NAME,
-                )}"."${sql.raw(
+                )}' GROUP BY id) UPDATE "${sql.raw(CACHE_DB_NAME)}"."${sql.raw(
                   tableId,
                 )}" SET effective_to = earliest_new_records.new_effective_to FROM earliest_new_records WHERE "${sql.raw(
                   CACHE_DB_NAME,
@@ -346,7 +343,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           ] ?? []) {
             if (isWriteStoreMethod(storeMethod)) {
               const checkpoint = metadata.find(
-                (m) => m.functionId === indexingFunctionKey,
+                (m) => m.functionName === indexingFunctionKey,
               )?.toCheckpoint;
               if (checkpoint !== undefined) checkpoints.push(checkpoint);
             }

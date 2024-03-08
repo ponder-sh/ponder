@@ -343,31 +343,51 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         const tables = Object.entries(this.schema!.tables);
 
         await Promise.all(
-          tables.map(async ([tableName, columns]) => {
+          tables.map(async ([tableName]) => {
             const tableId = this.tableIds![tableName];
 
-            // 1) Drop existing cache table.
-            await tx.schema
-              .withSchema(CACHE_SCHEMA_NAME)
-              .dropTable(tableId)
-              .ifExists()
-              .execute();
+            const tableMetadata = await tx
 
-            // 2) Create new empty cache table.
-            await tx.schema
-              .withSchema(CACHE_SCHEMA_NAME)
-              .createTable(tableId)
-              .$call((builder) => this.buildColumns(builder, tableId, columns))
-              .execute();
+              .selectFrom("ponder_cache.table_metadata")
+              .select("to_checkpoint")
+              .where("table_id", "=", tableId)
+              .executeTakeFirst();
 
-            // 3) Copy data from current indexing table to new cache table.
-            await tx.executeQuery(
-              sql`INSERT INTO ${sql.raw(
-                `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
-              )} SELECT * FROM ${sql.raw(
-                `"${this.instanceSchemaName}"."${tableName}"`,
-              )}`.compile(tx),
-            );
+            if (tableMetadata === undefined) {
+              await tx.executeQuery(
+                sql`INSERT INTO ${sql.raw(
+                  `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
+                )} SELECT * FROM "${sql.raw(
+                  this.instanceSchemaName,
+                )}"."${sql.raw(tableName)}"`.compile(tx),
+              );
+            } else {
+              await tx.executeQuery(
+                sql`WITH earliest_new_records AS (SELECT id, MIN(effective_from) as new_effective_to FROM "${sql.raw(
+                  this.instanceSchemaName,
+                )}"."${sql.raw(tableName)}" WHERE effective_from > '${sql.raw(
+                  tableMetadata.to_checkpoint,
+                )}' GROUP BY id) UPDATE "${sql.raw(
+                  CACHE_SCHEMA_NAME,
+                )}"."${sql.raw(
+                  tableId,
+                )}" SET effective_to = earliest_new_records.new_effective_to FROM earliest_new_records WHERE "${sql.raw(
+                  CACHE_SCHEMA_NAME,
+                )}"."${sql.raw(tableId)}".id = earliest_new_records.id`.compile(
+                  tx,
+                ),
+              );
+
+              await tx.executeQuery(
+                sql`INSERT INTO ${sql.raw(
+                  `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
+                )} SELECT * FROM "${sql.raw(
+                  this.instanceSchemaName,
+                )}"."${sql.raw(tableName)}" WHERE "effective_from" > '${sql.raw(
+                  tableMetadata.to_checkpoint,
+                )}'`.compile(tx),
+              );
+            }
           }),
         );
 

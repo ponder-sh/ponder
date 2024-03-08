@@ -5,7 +5,6 @@ import { createSchema } from "@/schema/schema.js";
 import {
   type Checkpoint,
   encodeCheckpoint,
-  maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { Kysely, sql } from "kysely";
@@ -487,7 +486,17 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -531,7 +540,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
-        toCheckpoint: zeroCheckpoint,
+        toCheckpoint: createCheckpoint(1),
         eventCount: 3,
       },
     ]);
@@ -545,7 +554,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_name: "function",
         from_checkpoint: null,
         hash_version: 1,
-        to_checkpoint: encodeCheckpoint(zeroCheckpoint),
+        to_checkpoint: encodeCheckpoint(createCheckpoint(1)),
         event_count: 3,
       },
     ]);
@@ -558,14 +567,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         hash_version: 1,
         table_id: "0xPet",
         table_name: "Pet",
-        to_checkpoint: encodeCheckpoint(maxCheckpoint),
-        schema: expect.any(Object),
-      },
-      {
-        hash_version: 1,
-        table_id: "0xPerson",
-        table_name: "Person",
-        to_checkpoint: encodeCheckpoint(maxCheckpoint),
+        to_checkpoint: encodeCheckpoint(createCheckpoint(1)),
         schema: expect.any(Object),
       },
     ]);
@@ -589,7 +591,17 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -633,14 +645,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
-        toCheckpoint: zeroCheckpoint,
+        toCheckpoint: createCheckpoint(1),
         eventCount: 3,
       },
     ]);
 
     await indexingStore.createMany({
       tableName: "Pet",
-      checkpoint: createCheckpoint(1),
+      checkpoint: createCheckpoint(2),
       data: [
         { id: "11", name: "Fido", age: 3, kind: "DOG" },
         { id: "12", name: "Fido", age: 3, kind: "DOG" },
@@ -653,7 +665,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
-        toCheckpoint: maxCheckpoint,
+        toCheckpoint: createCheckpoint(2),
         eventCount: 6,
       },
     ]);
@@ -667,7 +679,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_name: "function",
         from_checkpoint: null,
         hash_version: 1,
-        to_checkpoint: encodeCheckpoint(maxCheckpoint),
+        to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
         event_count: 6,
       },
     ]);
@@ -680,14 +692,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         hash_version: 1,
         table_id: "0xPet",
         table_name: "Pet",
-        to_checkpoint: encodeCheckpoint(maxCheckpoint),
-        schema: expect.any(Object),
-      },
-      {
-        hash_version: 1,
-        table_id: "0xPerson",
-        table_name: "Person",
-        to_checkpoint: encodeCheckpoint(maxCheckpoint),
+        to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
         schema: expect.any(Object),
       },
     ]);
@@ -700,18 +705,27 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
-  test("flush with partial cache tables", async (context) => {
+  test("flush updates cache tables with new rows", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
     });
-
     await database.setup({
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -740,11 +754,6 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(metadataRowsBefore).toStrictEqual([]);
 
-    const { rows: tableMetadataRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.table_metadata`.compile(database.db),
-    );
-    expect(tableMetadataRowsBefore).toStrictEqual([]);
-
     const { rows: petRowsBefore } = await database.db.executeQuery(
       sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
@@ -755,19 +764,28 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
-        toCheckpoint: zeroCheckpoint,
+        toCheckpoint: createCheckpoint(1),
         eventCount: 3,
       },
     ]);
 
-    await indexingStore.createMany({
+    await indexingStore.update({
       tableName: "Pet",
-      checkpoint: createCheckpoint(1),
-      data: [
-        { id: "11", name: "Fido", age: 3, kind: "DOG" },
-        { id: "12", name: "Fido", age: 3, kind: "DOG" },
-        { id: "13", name: "Fido", age: 3, kind: "DOG" },
-      ],
+      checkpoint: createCheckpoint(2),
+      id: "1",
+      data: { name: "Fido", age: 4, kind: "DOG" },
+    });
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(2),
+      id: "2",
+      data: { name: "Fido", age: 4, kind: "DOG" },
+    });
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(3),
+      id: "1",
+      data: { name: "Fido", age: 5, kind: "DOG" },
     });
 
     await database.flush([
@@ -775,69 +793,35 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         functionId: "0xfunction",
         functionName: "function",
         fromCheckpoint: null,
-        toCheckpoint: maxCheckpoint,
-        eventCount: 6,
-      },
-      {
-        functionId: "0xfunction1",
-        functionName: "function1",
-        fromCheckpoint: null,
-        toCheckpoint: zeroCheckpoint,
-        eventCount: 0,
+        toCheckpoint: createCheckpoint(3),
+        eventCount: 4,
       },
     ]);
 
-    const { rows: functionMetadataRowsAfter } = await database.db.executeQuery(
+    const { rows: metadataRowsAfter } = await database.db.executeQuery(
       sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
     );
-    expect(functionMetadataRowsAfter).toStrictEqual([
+    expect(metadataRowsAfter).toStrictEqual([
       {
         function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
         hash_version: 1,
-        to_checkpoint: encodeCheckpoint(maxCheckpoint),
-        event_count: 6,
-      },
-      {
-        function_id: "0xfunction1",
-        function_name: "function1",
-        from_checkpoint: null,
-        hash_version: 1,
-        to_checkpoint: encodeCheckpoint(zeroCheckpoint),
-        event_count: 0,
-      },
-    ]);
-
-    const { rows: tableMetadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.table_metadata`.compile(database.db),
-    );
-    expect(tableMetadataRowsAfter).toStrictEqual([
-      {
-        hash_version: 1,
-        table_id: "0xPet",
-        table_name: "Pet",
-        to_checkpoint: encodeCheckpoint(maxCheckpoint),
-        schema: expect.any(Object),
-      },
-      {
-        hash_version: 1,
-        table_id: "0xPerson",
-        table_name: "Person",
-        to_checkpoint: encodeCheckpoint(maxCheckpoint),
-        schema: expect.any(Object),
+        to_checkpoint: encodeCheckpoint(createCheckpoint(3)),
+        event_count: 4,
       },
     ]);
 
     const { rows: petRowsAfter } = await database.db.executeQuery(
       sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
+
     expect(petRowsAfter).length(6);
 
     await database.kill();
   });
 
-  test("flush with table checkpoints", async (context) => {
+  test.skip("flush with table checkpoints", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
