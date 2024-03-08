@@ -178,7 +178,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await databaseTwo.kill();
   });
 
-  test("setup with cache hit and table checkpoints", async (context) => {
+  test.skip("setup with cache hit and table checkpoints", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,

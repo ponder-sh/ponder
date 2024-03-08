@@ -11,7 +11,6 @@ import {
   isWriteStoreMethod,
 } from "@/build/static/getTableAccess.js";
 import { NonRetryableError } from "@/errors/base.js";
-import { revertTable } from "@/indexing-store/utils/revert.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
@@ -147,7 +146,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       }
 
       // 4) Create the instance schema and tables.
-      const { functionMetadata, tableMetadata } = await this.db
+      const { functionMetadata } = await this.db
         .transaction()
         .execute(async (tx) => {
           // 3) Create tables in the instance schema, copying cached data if available.
@@ -195,18 +194,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                   .where("function_id", "in", functionIds_)
                   .execute();
 
-          const tableIds_ = Object.values(tableIds);
-
-          const tableMetadata =
-            tableIds_.length === 0
-              ? []
-              : await tx
-                  .selectFrom("ponder_cache.table_metadata")
-                  .selectAll()
-                  .where("table_id", "in", tableIds_)
-                  .execute();
-
-          return { functionMetadata, tableMetadata };
+          return { functionMetadata };
         });
 
       this.functionMetadata = functionMetadata.map((m) => ({
@@ -218,24 +206,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         toCheckpoint: decodeCheckpoint(m.to_checkpoint),
         eventCount: m.event_count,
       }));
-
-      /**
-       * 4) Truncate cache tables to match metadata checkpoints.
-       *
-       * It's possible for the cache tables to contain more data than the metadata indicates.
-       * To avoid copying unfinalized data left over from a previous instance, we must revert
-       * the instance tables to the checkpoint saved in the metadata after copying from the cache.
-       * In other words, metadata checkpoints are always <= actual rows in the corresponding table.
-       */
-      await Promise.all(
-        tableMetadata.map((m) => {
-          return revertTable(
-            this.db,
-            m.table_name,
-            decodeCheckpoint(m.to_checkpoint),
-          );
-        }),
-      );
     });
   }
 
@@ -247,6 +217,50 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   }
 
   async flush(metadata: FunctionMetadata[]): Promise<void> {
+    const newFunctionMetadata = metadata.map((m) => ({
+      function_id: m.functionId,
+      function_name: m.functionName,
+      hash_version: HASH_VERSION,
+      from_checkpoint: m.fromCheckpoint
+        ? encodeCheckpoint(m.fromCheckpoint)
+        : null,
+      to_checkpoint: encodeCheckpoint(m.toCheckpoint),
+      event_count: m.eventCount,
+    }));
+
+    const newTableMetadata: Omit<
+      PonderCoreSchema["ponder_cache.table_metadata"],
+      "schema"
+    >[] = [];
+
+    const inverseTableAccess = getTableAccessInverse(this.tableAccess!);
+
+    for (const [tableName, tableId] of Object.entries(this.tableIds!)) {
+      const checkpoints: Checkpoint[] = [];
+
+      // Table checkpoint is the max checkpoint of all the functions that write to the table
+      for (const { indexingFunctionKey, storeMethod } of inverseTableAccess[
+        tableName
+      ] ?? []) {
+        if (isWriteStoreMethod(storeMethod)) {
+          const checkpoint = metadata.find(
+            (m) => m.functionName === indexingFunctionKey,
+          )?.toCheckpoint;
+          if (checkpoint !== undefined) checkpoints.push(checkpoint);
+        }
+      }
+
+      newTableMetadata.push({
+        table_name: tableName,
+        table_id: tableId,
+        hash_version: HASH_VERSION,
+        to_checkpoint:
+          checkpoints.length === 0
+            ? encodeCheckpoint(zeroCheckpoint)
+            : encodeCheckpoint(checkpointMax(...checkpoints)),
+      });
+    }
+
     return this.wrap({ method: "flush" }, async () => {
       this.common.logger.debug({
         service: "database",
@@ -277,6 +291,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 )} SELECT * FROM "${sql.raw(tableName)}"`.compile(tx),
               );
             } else {
+              // Update effective_to of overwritten rows
               await tx.executeQuery(
                 sql`WITH earliest_new_records AS (SELECT id, MIN(effective_from) as new_effective_to FROM "${sql.raw(
                   tableName,
@@ -291,6 +306,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 ),
               );
 
+              const maxCheckpoint = newTableMetadata.find(
+                (t) => t.table_id === tableId,
+              )!.to_checkpoint;
+
+              // Insert new rows into cache
               await tx.executeQuery(
                 sql`INSERT INTO ${sql.raw(
                   `"${CACHE_DB_NAME}"."${tableId}"`,
@@ -298,22 +318,28 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                   tableName,
                 )}" WHERE "effective_from" > '${sql.raw(
                   tableMetadata.to_checkpoint,
+                )}' AND "effective_from" <= '${sql.raw(
+                  maxCheckpoint,
                 )}'`.compile(tx),
               );
+
+              /**
+               * Truncate cache tables to match metadata checkpoints.
+               *
+               * It's possible for the cache tables to contain more data than the metadata indicates.
+               * To avoid copying unfinalized data left over from a previous instance, we must revert
+               * the instance tables to the checkpoint saved in the metadata after copying from the cache.
+               */
+
+              await tx
+                .withSchema(CACHE_DB_NAME)
+                .updateTable(tableId)
+                .set({ effective_to: "latest" })
+                .where("effective_to", ">", maxCheckpoint)
+                .execute();
             }
           }),
         );
-
-        const newFunctionMetadata = metadata.map((m) => ({
-          function_id: m.functionId,
-          function_name: m.functionName,
-          hash_version: HASH_VERSION,
-          from_checkpoint: m.fromCheckpoint
-            ? encodeCheckpoint(m.fromCheckpoint)
-            : null,
-          to_checkpoint: encodeCheckpoint(m.toCheckpoint),
-          event_count: m.eventCount,
-        }));
 
         await Promise.all(
           newFunctionMetadata.map(async (metadata) => {
@@ -321,44 +347,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               .insertInto("ponder_cache.function_metadata")
               .values(metadata)
               .onConflict((oc) =>
-                oc.column("function_id").doUpdateSet(metadata),
+                oc.column("function_id").doUpdateSet(metadata as any),
               )
               .execute();
           }),
         );
-
-        const newTableMetadata: Omit<
-          PonderCoreSchema["ponder_cache.table_metadata"],
-          "schema"
-        >[] = [];
-
-        const inverseTableAccess = getTableAccessInverse(this.tableAccess!);
-
-        for (const [tableName, tableId] of Object.entries(this.tableIds!)) {
-          const checkpoints: Checkpoint[] = [];
-
-          // Table checkpoint is the max checkpoint of all the functions that write to the table
-          for (const { indexingFunctionKey, storeMethod } of inverseTableAccess[
-            tableName
-          ] ?? []) {
-            if (isWriteStoreMethod(storeMethod)) {
-              const checkpoint = metadata.find(
-                (m) => m.functionName === indexingFunctionKey,
-              )?.toCheckpoint;
-              if (checkpoint !== undefined) checkpoints.push(checkpoint);
-            }
-          }
-
-          newTableMetadata.push({
-            table_name: tableName,
-            table_id: tableId,
-            hash_version: HASH_VERSION,
-            to_checkpoint:
-              checkpoints.length === 0
-                ? encodeCheckpoint(zeroCheckpoint)
-                : encodeCheckpoint(checkpointMax(...checkpoints)),
-          });
-        }
 
         await Promise.all(
           newTableMetadata.map(async (metadata) => {
@@ -370,7 +363,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                   this.schema!.tables[metadata.table_name],
                 ),
               })
-              .onConflict((oc) => oc.column("table_id").doUpdateSet(metadata))
+              .onConflict((oc) =>
+                oc.column("table_id").doUpdateSet(metadata as any),
+              )
               .execute();
           }),
         );

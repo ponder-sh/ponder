@@ -10,7 +10,6 @@ import {
   isWriteStoreMethod,
 } from "@/build/static/getTableAccess.js";
 import { NonRetryableError } from "@/errors/base.js";
-import { revertTable } from "@/indexing-store/utils/revert.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
@@ -146,7 +145,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       await this.dropStaleInstanceSchemas();
 
       // 4) Create the instance schema and tables.
-      const { functionMetadata, tableMetadata } = await this.db
+      const { functionMetadata } = await this.db
         .transaction()
         .execute(async (tx) => {
           // 1) Acquire an instance ID by inserting a row into the public metadata table.
@@ -224,18 +223,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                   .where("function_id", "in", functionIds_)
                   .execute();
 
-          const tableIds_ = Object.values(tableIds);
-
-          const tableMetadata =
-            tableIds_.length === 0
-              ? []
-              : await tx
-                  .selectFrom("ponder_cache.table_metadata")
-                  .selectAll()
-                  .where("table_id", "in", tableIds_)
-                  .execute();
-
-          return { functionMetadata, tableMetadata };
+          return { functionMetadata };
         });
 
       this.heartbeatInterval = setInterval(async () => {
@@ -260,27 +248,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         toCheckpoint: decodeCheckpoint(m.to_checkpoint),
         eventCount: m.event_count,
       }));
-
-      /**
-       * 4) Truncate cache tables to match metadata checkpoints.
-       *
-       * It's possible for the cache tables to contain more data than the metadata indicates.
-       * To avoid copying unfinalized data left over from a previous instance, we must revert
-       * the instance tables to the checkpoint saved in the metadata after copying from the cache.
-       * In other words, metadata checkpoints are always <= actual rows in the corresponding table.
-       */
-
-      // TODO(kyle) functionMetadata.fromCheckpoint and functionMetadata.eventCount inconsistent
-
-      await Promise.all(
-        tableMetadata.map((m) => {
-          return revertTable(
-            this.db.withSchema(this.instanceSchemaName),
-            m.table_name,
-            decodeCheckpoint(m.to_checkpoint),
-          );
-        }),
-      );
     });
   }
 
@@ -329,6 +296,49 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   }
 
   async flush(metadata: FunctionMetadata[]): Promise<void> {
+    const newFunctionMetadata = metadata.map((m) => ({
+      function_id: m.functionId,
+      function_name: m.functionName,
+      hash_version: HASH_VERSION,
+      from_checkpoint: m.fromCheckpoint
+        ? encodeCheckpoint(m.fromCheckpoint)
+        : null,
+      to_checkpoint: encodeCheckpoint(m.toCheckpoint),
+      event_count: m.eventCount,
+    }));
+
+    const newTableMetadata: Omit<
+      PonderCoreSchema["ponder_cache.table_metadata"],
+      "schema"
+    >[] = [];
+
+    const inverseTableAccess = getTableAccessInverse(this.tableAccess!);
+
+    for (const [tableName, tableId] of Object.entries(this.tableIds!)) {
+      const checkpoints: Checkpoint[] = [];
+
+      // Table checkpoint is the max checkpoint of all the functions that write to the table
+      for (const { indexingFunctionKey, storeMethod } of inverseTableAccess[
+        tableName
+      ] ?? []) {
+        if (isWriteStoreMethod(storeMethod)) {
+          const checkpoint = metadata.find(
+            (m) => m.functionName === indexingFunctionKey,
+          )?.toCheckpoint;
+          if (checkpoint !== undefined) checkpoints.push(checkpoint);
+        }
+      }
+
+      if (checkpoints.length > 0) {
+        newTableMetadata.push({
+          table_id: tableId,
+          table_name: tableName,
+          hash_version: HASH_VERSION,
+          to_checkpoint: encodeCheckpoint(checkpointMax(...checkpoints)),
+        });
+      }
+    }
+
     await this.wrap({ method: "flush" }, async () => {
       this.common.logger.debug({
         service: "database",
@@ -378,6 +388,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 ),
               );
 
+              const maxCheckpoint = newTableMetadata.find(
+                (t) => t.table_id === tableId,
+              )!.to_checkpoint;
+
               await tx.executeQuery(
                 sql`INSERT INTO ${sql.raw(
                   `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
@@ -385,22 +399,28 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                   this.instanceSchemaName,
                 )}"."${sql.raw(tableName)}" WHERE "effective_from" > '${sql.raw(
                   tableMetadata.to_checkpoint,
+                )}' AND "effective_from" <= '${sql.raw(
+                  maxCheckpoint,
                 )}'`.compile(tx),
               );
+
+              /**
+               * Truncate cache tables to match metadata checkpoints.
+               *
+               * It's possible for the cache tables to contain more data than the metadata indicates.
+               * To avoid copying unfinalized data left over from a previous instance, we must revert
+               * the instance tables to the checkpoint saved in the metadata after copying from the cache.
+               */
+
+              await tx
+                .withSchema(CACHE_SCHEMA_NAME)
+                .updateTable(tableId)
+                .set({ effective_to: "latest" })
+                .where("effective_to", ">", maxCheckpoint)
+                .execute();
             }
           }),
         );
-
-        const newFunctionMetadata = metadata.map((m) => ({
-          function_id: m.functionId,
-          function_name: m.functionName,
-          hash_version: HASH_VERSION,
-          from_checkpoint: m.fromCheckpoint
-            ? encodeCheckpoint(m.fromCheckpoint)
-            : null,
-          to_checkpoint: encodeCheckpoint(m.toCheckpoint),
-          event_count: m.eventCount,
-        }));
 
         await Promise.all(
           newFunctionMetadata.map(async (metadata) => {
@@ -408,43 +428,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               .insertInto("ponder_cache.function_metadata")
               .values(metadata)
               .onConflict((oc) =>
-                oc.column("function_id").doUpdateSet(metadata),
+                oc.column("function_id").doUpdateSet(metadata as any),
               )
               .execute();
           }),
         );
-
-        const newTableMetadata: Omit<
-          PonderCoreSchema["ponder_cache.table_metadata"],
-          "schema"
-        >[] = [];
-
-        const inverseTableAccess = getTableAccessInverse(this.tableAccess!);
-
-        for (const [tableName, tableId] of Object.entries(this.tableIds!)) {
-          const checkpoints: Checkpoint[] = [];
-
-          // Table checkpoint is the max checkpoint of all the functions that write to the table
-          for (const { indexingFunctionKey, storeMethod } of inverseTableAccess[
-            tableName
-          ] ?? []) {
-            if (isWriteStoreMethod(storeMethod)) {
-              const checkpoint = metadata.find(
-                (m) => m.functionName === indexingFunctionKey,
-              )?.toCheckpoint;
-              if (checkpoint !== undefined) checkpoints.push(checkpoint);
-            }
-          }
-
-          if (checkpoints.length > 0) {
-            newTableMetadata.push({
-              table_id: tableId,
-              table_name: tableName,
-              hash_version: HASH_VERSION,
-              to_checkpoint: encodeCheckpoint(checkpointMax(...checkpoints)),
-            });
-          }
-        }
 
         await Promise.all(
           newTableMetadata.map(async (metadata) => {
@@ -457,7 +445,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 ),
                 hash_version: HASH_VERSION,
               })
-              .onConflict((oc) => oc.column("table_id").doUpdateSet(metadata))
+              .onConflict((oc) =>
+                oc.column("table_id").doUpdateSet(metadata as any),
+              )
               .execute();
           }),
         );

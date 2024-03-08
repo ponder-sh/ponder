@@ -69,4 +69,10 @@ export type PonderCoreSchema = {
     heartbeat_at: bigint;
     published_at: bigint | null;
   };
+} & {
+  [tableId: string]: {
+    id: unknown;
+    effective_from: string;
+    effective_to: string;
+  };
 };

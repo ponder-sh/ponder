@@ -55,4 +55,10 @@ export type PonderCoreSchema = {
     to_checkpoint: string;
     schema: JSONColumnType<Schema>;
   };
+} & {
+  [tableId: string]: {
+    id: unknown;
+    effective_from: string;
+    effective_to: string;
+  };
 };
