@@ -681,8 +681,6 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       data: { name: "Fido", age: 5, kind: "DOG" },
     });
 
-    console.log("before");
-
     await database.flush([
       {
         functionId: "0xfunction",
