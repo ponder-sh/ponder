@@ -580,6 +580,101 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
+  test("flush with no new rows", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+    });
+
+    await database.setup({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
+    });
+
+    const indexingStoreConfig = database.getIndexingStoreConfig();
+    const indexingStore = new PostgresIndexingStore({
+      common: context.common,
+      ...indexingStoreConfig,
+      schema,
+    });
+    await indexingStore.createMany({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(1),
+      data: [
+        { id: "1", name: "Fido", age: 3, kind: "DOG" },
+        { id: "2", name: "Fido", age: 3, kind: "DOG" },
+        { id: "3", name: "Fido", age: 3, kind: "DOG" },
+      ],
+    });
+
+    await database.flush([
+      {
+        functionId: "0xfunction",
+        functionName: "function",
+        fromCheckpoint: null,
+        toCheckpoint: createCheckpoint(1),
+        eventCount: 3,
+      },
+    ]);
+
+    await database.flush([
+      {
+        functionId: "0xfunction",
+        functionName: "function",
+        fromCheckpoint: null,
+        toCheckpoint: createCheckpoint(2),
+        eventCount: 3,
+      },
+    ]);
+
+    const { rows: functionMetadataRowsAfter } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
+    );
+    expect(functionMetadataRowsAfter).toStrictEqual([
+      {
+        function_id: "0xfunction",
+        function_name: "function",
+        from_checkpoint: null,
+        hash_version: 1,
+        to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
+        event_count: 3,
+      },
+    ]);
+
+    const { rows: tableMetadataRowsAfter } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache.table_metadata`.compile(database.db),
+    );
+    expect(tableMetadataRowsAfter).toStrictEqual([
+      {
+        hash_version: 1,
+        table_id: "0xPet",
+        table_name: "Pet",
+        to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
+        schema: expect.any(Object),
+      },
+    ]);
+
+    const { rows: petRowsAfter } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
+    );
+    expect(petRowsAfter).length(3);
+
+    await database.kill();
+  });
+
   test("flush with existing cache tables", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
@@ -821,7 +916,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
-  test.skip("flush with table checkpoints", async (context) => {
+  test("flush with table checkpoints", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
@@ -940,6 +1035,122 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         schema: expect.any(Object),
       },
     ]);
+
+    await database.kill();
+  });
+
+  test("flush with truncated tables", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+    });
+    await database.setup({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
+    });
+
+    const indexingStoreConfig = database.getIndexingStoreConfig();
+    const indexingStore = new PostgresIndexingStore({
+      common: context.common,
+      ...indexingStoreConfig,
+      schema,
+    });
+    await indexingStore.createMany({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(1),
+      data: [
+        { id: "1", name: "Fido", age: 3, kind: "DOG" },
+        { id: "2", name: "Fido", age: 3, kind: "DOG" },
+        { id: "3", name: "Fido", age: 3, kind: "DOG" },
+      ],
+    });
+
+    const { rows: instancePetRows } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_instance_1."Pet"`.compile(database.db),
+    );
+    expect(instancePetRows).toHaveLength(3);
+
+    const { rows: metadataRowsBefore } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
+    );
+    expect(metadataRowsBefore).toStrictEqual([]);
+
+    const { rows: petRowsBefore } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
+    );
+    expect(petRowsBefore).toStrictEqual([]);
+
+    await database.flush([
+      {
+        functionId: "0xfunction",
+        functionName: "function",
+        fromCheckpoint: null,
+        toCheckpoint: createCheckpoint(1),
+        eventCount: 3,
+      },
+    ]);
+
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(2),
+      id: "1",
+      data: { name: "Fido", age: 4, kind: "DOG" },
+    });
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(2),
+      id: "2",
+      data: { name: "Fido", age: 4, kind: "DOG" },
+    });
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(3),
+      id: "1",
+      data: { name: "Fido", age: 5, kind: "DOG" },
+    });
+
+    await database.flush([
+      {
+        functionId: "0xfunction",
+        functionName: "function",
+        fromCheckpoint: null,
+        toCheckpoint: createCheckpoint(2),
+        eventCount: 4,
+      },
+    ]);
+
+    const { rows: metadataRowsAfter } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
+    );
+    expect(metadataRowsAfter).toStrictEqual([
+      {
+        function_id: "0xfunction",
+        function_name: "function",
+        from_checkpoint: null,
+        hash_version: 1,
+        to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
+        event_count: 4,
+      },
+    ]);
+
+    const { rows: petRowsAfter } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
+    );
+
+    expect(petRowsAfter).length(5);
 
     await database.kill();
   });
