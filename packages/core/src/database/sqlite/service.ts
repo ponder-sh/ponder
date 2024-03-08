@@ -261,29 +261,49 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         const tables = Object.entries(this.schema!.tables);
 
         await Promise.all(
-          tables.map(async ([tableName, columns]) => {
+          tables.map(async ([tableName]) => {
             const tableId = this.tableIds![tableName];
 
-            // 1) Drop existing cache table.
-            await tx.schema
+            const tableMetadata = await tx
               .withSchema(CACHE_DB_NAME)
-              .dropTable(tableId)
-              .ifExists()
-              .execute();
+              .selectFrom("ponder_cache.table_metadata")
+              .select("to_checkpoint")
+              .where("table_id", "=", tableId)
+              .executeTakeFirst();
 
-            // 2) Create new empty cache table.
-            await tx.schema
-              .withSchema(CACHE_DB_NAME)
-              .createTable(tableId)
-              .$call((builder) => this.buildColumns(builder, tableId, columns))
-              .execute();
+            if (tableMetadata === undefined) {
+              await tx.executeQuery(
+                sql`INSERT INTO ${sql.raw(
+                  `"${CACHE_DB_NAME}"."${tableId}"`,
+                )} SELECT * FROM "${sql.raw(tableName)}"`.compile(tx),
+              );
+            } else {
+              await tx.executeQuery(
+                sql`WITH earliest_new_records AS (SELECT id, effective_from as new_effective_to FROM "${sql.raw(
+                  tableName,
+                )}" WHERE effective_from > '${sql.raw(
+                  tableMetadata.to_checkpoint,
+                )}' GROUP BY id ORDER BY effective_from ASC) UPDATE "${sql.raw(
+                  CACHE_DB_NAME,
+                )}"."${sql.raw(
+                  tableId,
+                )}" SET effective_to = earliest_new_records.new_effective_to FROM earliest_new_records WHERE "${sql.raw(
+                  CACHE_DB_NAME,
+                )}"."${sql.raw(tableId)}".id = earliest_new_records.id`.compile(
+                  tx,
+                ),
+              );
 
-            // 3) Copy data from current indexing table to new cache table.
-            await tx.executeQuery(
-              sql`INSERT INTO ${sql.raw(
-                `"${CACHE_DB_NAME}"."${tableId}"`,
-              )} SELECT * FROM "${sql.raw(tableName)}"`.compile(tx),
-            );
+              await tx.executeQuery(
+                sql`INSERT INTO ${sql.raw(
+                  `"${CACHE_DB_NAME}"."${tableId}"`,
+                )} SELECT * FROM "${sql.raw(
+                  tableName,
+                )}" WHERE "effective_from" > '${sql.raw(
+                  tableMetadata.to_checkpoint,
+                )}'`.compile(tx),
+              );
+            }
           }),
         );
 

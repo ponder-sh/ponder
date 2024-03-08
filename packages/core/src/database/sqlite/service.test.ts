@@ -154,7 +154,17 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -231,7 +241,17 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -270,14 +290,14 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
         functionId: "function",
         functionName: "0xfunction",
         fromCheckpoint: null,
-        toCheckpoint: zeroCheckpoint,
+        toCheckpoint: createCheckpoint(1),
         eventCount: 3,
       },
     ]);
 
     await indexingStore.createMany({
       tableName: "Pet",
-      checkpoint: createCheckpoint(1),
+      checkpoint: createCheckpoint(2),
       data: [
         { id: "11", name: "Fido", age: 3, kind: "DOG" },
         { id: "12", name: "Fido", age: 3, kind: "DOG" },
@@ -290,7 +310,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
         functionId: "function",
         functionName: "0xfunction",
         fromCheckpoint: null,
-        toCheckpoint: maxCheckpoint,
+        toCheckpoint: createCheckpoint(3),
         eventCount: 6,
       },
     ]);
@@ -304,7 +324,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
         function_name: "0xfunction",
         from_checkpoint: null,
         hash_version: 1,
-        to_checkpoint: encodeCheckpoint(maxCheckpoint),
+        to_checkpoint: encodeCheckpoint(createCheckpoint(3)),
         event_count: 6,
       },
     ]);
@@ -312,6 +332,124 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     const { rows: petRowsAfter } = await database.db.executeQuery(
       sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
     );
+
+    expect(petRowsAfter).length(6);
+
+    await database.kill();
+  });
+
+  test("flush updates cache tables with new rows", async (context) => {
+    if (context.databaseConfig.kind !== "sqlite") return;
+    const database = new SqliteDatabaseService({
+      common: context.common,
+      directory: context.databaseConfig.directory,
+    });
+
+    await database.setup({
+      schema: schema,
+      tableIds: getTableIds(schema),
+      functionIds: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
+    });
+
+    const indexingStoreConfig = database.getIndexingStoreConfig();
+    const indexingStore = new SqliteIndexingStore({
+      common: context.common,
+      ...indexingStoreConfig,
+      schema,
+    });
+    await indexingStore.createMany({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(1),
+      data: [
+        { id: "1", name: "Fido", age: 3, kind: "DOG" },
+        { id: "2", name: "Fido", age: 3, kind: "DOG" },
+        { id: "3", name: "Fido", age: 3, kind: "DOG" },
+      ],
+    });
+
+    const { rows: instancePetRows } = await database.db.executeQuery(
+      sql`SELECT * FROM "Pet"`.compile(database.db),
+    );
+    expect(instancePetRows).toHaveLength(3);
+
+    const { rows: metadataRowsBefore } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
+    );
+    expect(metadataRowsBefore).toStrictEqual([]);
+
+    const { rows: petRowsBefore } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
+    );
+    expect(petRowsBefore).toStrictEqual([]);
+
+    await database.flush([
+      {
+        functionId: "function",
+        functionName: "0xfunction",
+        fromCheckpoint: null,
+        toCheckpoint: createCheckpoint(1),
+        eventCount: 3,
+      },
+    ]);
+
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(2),
+      id: "1",
+      data: { name: "Fido", age: 4, kind: "DOG" },
+    });
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(2),
+      id: "2",
+      data: { name: "Fido", age: 4, kind: "DOG" },
+    });
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(3),
+      id: "1",
+      data: { name: "Fido", age: 5, kind: "DOG" },
+    });
+
+    await database.flush([
+      {
+        functionId: "function",
+        functionName: "0xfunction",
+        fromCheckpoint: null,
+        toCheckpoint: createCheckpoint(3),
+        eventCount: 4,
+      },
+    ]);
+
+    const { rows: metadataRowsAfter } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
+    );
+    expect(metadataRowsAfter).toStrictEqual([
+      {
+        function_id: "function",
+        function_name: "0xfunction",
+        from_checkpoint: null,
+        hash_version: 1,
+        to_checkpoint: encodeCheckpoint(createCheckpoint(3)),
+        event_count: 4,
+      },
+    ]);
+
+    const { rows: petRowsAfter } = await database.db.executeQuery(
+      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
+    );
+
     expect(petRowsAfter).length(6);
 
     await database.kill();
@@ -328,7 +466,17 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: {},
-      tableAccess: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
@@ -367,14 +515,14 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
         functionId: "function",
         functionName: "function",
         fromCheckpoint: null,
-        toCheckpoint: zeroCheckpoint,
+        toCheckpoint: createCheckpoint(1),
         eventCount: 3,
       },
     ]);
 
     await indexingStore.createMany({
       tableName: "Pet",
-      checkpoint: createCheckpoint(1),
+      checkpoint: createCheckpoint(2),
       data: [
         { id: "11", name: "Fido", age: 3, kind: "DOG" },
         { id: "12", name: "Fido", age: 3, kind: "DOG" },
@@ -387,7 +535,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
         functionId: "function",
         functionName: "0xfunction",
         fromCheckpoint: null,
-        toCheckpoint: maxCheckpoint,
+        toCheckpoint: createCheckpoint(3),
         eventCount: 6,
       },
       {
@@ -408,7 +556,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
         function_name: "0xfunction",
         from_checkpoint: null,
         hash_version: 1,
-        to_checkpoint: encodeCheckpoint(maxCheckpoint),
+        to_checkpoint: encodeCheckpoint(createCheckpoint(3)),
         event_count: 6,
       },
       {
