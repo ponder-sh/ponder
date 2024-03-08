@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.2.18
+
+### Patch Changes
+
+- [#698](https://github.com/ponder-sh/ponder/pull/698) [`e57f10dbf08f78e6569f35c7d0b47dce6ff480ce`](https://github.com/ponder-sh/ponder/commit/e57f10dbf08f78e6569f35c7d0b47dce6ff480ce) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for specifying a custom `blockNumber` in `context.client` actions.
+
 ## 0.2.17
 
 ### Patch Changes
