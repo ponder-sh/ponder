@@ -362,14 +362,32 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               .where("table_id", "=", tableId)
               .executeTakeFirst();
 
+            // new to_checkpoint of the table. Table may contain some rows that need to be truncated.
+            const newTableToCheckpoint = newTableMetadata.find(
+              (t) => t.table_id === tableId,
+            )?.to_checkpoint;
+            if (newTableToCheckpoint === undefined) return;
+
             if (tableMetadata === undefined) {
               await tx.executeQuery(
                 sql`INSERT INTO ${sql.raw(
                   `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
                 )} SELECT * FROM "${sql.raw(
                   this.instanceSchemaName,
-                )}"."${sql.raw(tableName)}"`.compile(tx),
+                )}"."${sql.raw(
+                  tableName,
+                )}" WHERE "effective_from" <= '${sql.raw(
+                  newTableToCheckpoint,
+                )}'`.compile(tx),
               );
+
+              // Truncate cache tables to match metadata.
+              await tx
+                .withSchema(CACHE_SCHEMA_NAME)
+                .updateTable(tableId)
+                .set({ effective_to: "latest" })
+                .where("effective_to", ">", newTableToCheckpoint)
+                .execute();
             } else {
               // Update effective_to of overwritten rows
               await tx.executeQuery(
@@ -390,40 +408,32 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 ),
               );
 
-              const newTableMaxCheckpoint = newTableMetadata.find(
-                (t) => t.table_id === tableId,
-              )?.to_checkpoint;
+              await tx.executeQuery(
+                sql`INSERT INTO ${sql.raw(
+                  `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
+                )} SELECT * FROM "${sql.raw(
+                  this.instanceSchemaName,
+                )}"."${sql.raw(tableName)}" WHERE "effective_from" > '${sql.raw(
+                  tableMetadata.to_checkpoint,
+                )}' AND "effective_from" <= '${sql.raw(
+                  newTableToCheckpoint,
+                )}'`.compile(tx),
+              );
 
-              if (newTableMaxCheckpoint) {
-                await tx.executeQuery(
-                  sql`INSERT INTO ${sql.raw(
-                    `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
-                  )} SELECT * FROM "${sql.raw(
-                    this.instanceSchemaName,
-                  )}"."${sql.raw(
-                    tableName,
-                  )}" WHERE "effective_from" > '${sql.raw(
-                    tableMetadata.to_checkpoint,
-                  )}' AND "effective_from" <= '${sql.raw(
-                    newTableMaxCheckpoint,
-                  )}'`.compile(tx),
-                );
+              /**
+               * Truncate cache tables to match metadata checkpoints.
+               *
+               * It's possible for the cache tables to contain more data than the metadata indicates.
+               * To avoid copying unfinalized data left over from a previous instance, we must revert
+               * the instance tables to the checkpoint saved in the metadata after copying from the cache.
+               */
 
-                /**
-                 * Truncate cache tables to match metadata checkpoints.
-                 *
-                 * It's possible for the cache tables to contain more data than the metadata indicates.
-                 * To avoid copying unfinalized data left over from a previous instance, we must revert
-                 * the instance tables to the checkpoint saved in the metadata after copying from the cache.
-                 */
-
-                await tx
-                  .withSchema(CACHE_SCHEMA_NAME)
-                  .updateTable(tableId)
-                  .set({ effective_to: "latest" })
-                  .where("effective_to", ">", newTableMaxCheckpoint)
-                  .execute();
-              }
+              await tx
+                .withSchema(CACHE_SCHEMA_NAME)
+                .updateTable(tableId)
+                .set({ effective_to: "latest" })
+                .where("effective_to", ">", newTableToCheckpoint)
+                .execute();
             }
           }),
         );
