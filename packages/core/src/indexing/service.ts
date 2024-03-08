@@ -38,6 +38,7 @@ import { formatPercentage } from "@/utils/format.js";
 import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
+import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { dedupe } from "@ponder/common";
 import type { AbiEvent } from "abitype";
@@ -581,6 +582,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const data = task.data;
 
     const fullEventName = `${data.contractName}:setup`;
+    const metricLabels = { network: data.networkName, event: fullEventName };
+
     const indexingFunction = this.indexingFunctions![data.contractName].setup;
 
     for (let i = 0; i < 4; i++) {
@@ -589,6 +592,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
           service: "indexing",
           msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
         });
+
+        const endClock = startClock();
 
         // Running user code here!
         await indexingFunction({
@@ -603,20 +608,25 @@ export class IndexingService extends Emittery<IndexingEvents> {
           },
         });
 
+        this.common.metrics.ponder_indexing_function_duration.observe(
+          metricLabels,
+          endClock(),
+        );
+
         this.common.logger.trace({
           service: "indexing",
           msg: `Completed indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
         });
 
-        const labels = {
-          network: data.networkName,
-          event: `${data.contractName}:setup`,
-        };
-        this.common.metrics.ponder_indexing_completed_events.inc(labels);
+        this.common.metrics.ponder_indexing_completed_events.inc(metricLabels);
 
         break;
       } catch (error_) {
         const error = error_ as Error & { meta: string };
+
+        this.common.metrics.ponder_indexing_function_error_total.inc(
+          metricLabels,
+        );
 
         if (error_ instanceof NonRetryableError) i = 3;
 
@@ -652,6 +662,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const data = task.data;
 
     const fullEventName = `${data.contractName}:${data.eventName}`;
+    const metricLabels = { network: data.networkName, event: fullEventName };
 
     const indexingFunction =
       this.indexingFunctions![data.contractName][data.eventName];
@@ -662,6 +673,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
           service: "indexing",
           msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
         });
+
+        const endClock = startClock();
 
         // Running user code here!
         await indexingFunction({
@@ -679,6 +692,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
             contracts: this.getContracts(data.checkpoint),
           },
         });
+
+        this.common.metrics.ponder_indexing_function_duration.observe(
+          metricLabels,
+          endClock(),
+        );
 
         const state = this.indexingFunctionStates[fullEventName];
 
@@ -720,17 +738,17 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         this.updateCompletedSeconds(fullEventName);
 
-        const labels = {
-          network: data.networkName,
-          event: `${data.contractName}:${data.eventName}`,
-        };
-        this.common.metrics.ponder_indexing_completed_events.inc(labels);
+        this.common.metrics.ponder_indexing_completed_events.inc(metricLabels);
 
         state.eventCount++;
 
         break;
       } catch (error_) {
         const error = error_ as Error & { meta?: string };
+
+        this.common.metrics.ponder_indexing_function_error_total.inc(
+          metricLabels,
+        );
 
         if (error_ instanceof NonRetryableError) i = 3;
 

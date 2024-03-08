@@ -29,8 +29,12 @@ export class MetricsService {
   ponder_indexing_total_seconds: prometheus.Gauge<"event">;
   ponder_indexing_completed_seconds: prometheus.Gauge<"event">;
   ponder_indexing_completed_events: prometheus.Gauge<"network" | "event">;
+
   ponder_indexing_completed_timestamp: prometheus.Gauge;
   ponder_indexing_has_error: prometheus.Gauge;
+
+  ponder_indexing_function_duration: prometheus.Histogram<"network" | "event">;
+  ponder_indexing_function_error_total: prometheus.Counter<"network" | "event">;
 
   ponder_server_port: prometheus.Gauge;
   ponder_server_request_size: prometheus.Histogram<
@@ -55,10 +59,7 @@ export class MetricsService {
   constructor() {
     this.registry = new prometheus.Registry();
 
-    prometheus.collectDefaultMetrics({
-      register: this.registry,
-      prefix: "ponder_default_",
-    });
+    prometheus.collectDefaultMetrics({ register: this.registry });
 
     this.ponder_rpc_request_duration = new prometheus.Histogram({
       name: "ponder_rpc_request_duration",
@@ -151,6 +152,19 @@ export class MetricsService {
     this.ponder_indexing_has_error = new prometheus.Gauge({
       name: "ponder_indexing_has_error",
       help: "Boolean (0 or 1) indicating if an error was encountered while running user code",
+      registers: [this.registry],
+    });
+    this.ponder_indexing_function_duration = new prometheus.Histogram({
+      name: "ponder_indexing_function_duration",
+      help: "Duration of indexing function execution",
+      labelNames: ["network", "event"] as const,
+      buckets: httpRequestBucketsInMs,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_function_error_total = new prometheus.Counter({
+      name: "ponder_indexing_function_error_total",
+      help: "Total number of errors encountered during indexing function execution",
+      labelNames: ["network", "event"] as const,
       registers: [this.registry],
     });
 
