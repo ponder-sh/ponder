@@ -335,11 +335,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     let hasReorg = false;
 
-    if (
-      (blockMovesFinality &&
-        !this.isChainConsistent([this.finalizedBlock, ...this.blocks])) ||
-      syncResult.reorg
-    ) {
+    if (blockMovesFinality || syncResult.reorg) {
       hasReorg = await this.reconcileReorg(latestBlockNumber);
     }
 
@@ -364,7 +360,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         msg: `Finalized new block ${newFinalizedBlock?.number} (network=${this.network.name})`,
       });
 
-      // Note: double check this
       if (newFinalizedBlock) {
         this.blocks = this.blocks.filter(
           (block) => block.number > newFinalizedBlock.number,
@@ -441,10 +436,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // Probability of a log in a block
     const pLog = Math.min(this.lastLogsPerBlock, 1);
 
-    const batchCost =
-      75 +
-      16 * numBlocks * pLog +
-      75 * Math.min(1, numBlocks / this.network.finalityBlockCount);
+    const batchCost = 75 + 16 * numBlocks * pLog;
 
     // Probability of no logs in the range of blocks
     const pNoLogs = (1 - pLog) ** numBlocks;

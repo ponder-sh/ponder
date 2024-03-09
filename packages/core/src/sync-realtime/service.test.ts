@@ -57,7 +57,7 @@ test("start() sync realtime data with traversal method", async (context) => {
   service.process();
   await service.onIdle();
 
-  expect(determineSpy).toHaveReturnedWith("traverse");
+  expect(determineSpy).toHaveLastReturnedWith("traverse");
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
@@ -117,7 +117,7 @@ test("start() sync realtime data with batch method", async (context) => {
   service.process();
   await service.onIdle();
 
-  expect(determineSpy).toHaveReturnedWith("batch");
+  expect(determineSpy).toHaveLastReturnedWith("batch");
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
@@ -183,7 +183,7 @@ test("start() insert logFilterInterval records with traversal method", async (co
   service.process();
   await service.onIdle();
 
-  expect(determineSpy).toHaveReturnedWith("traverse");
+  expect(determineSpy).toHaveLastReturnedWith("traverse");
 
   await simulate({
     erc20Address: erc20.address,
@@ -193,7 +193,7 @@ test("start() insert logFilterInterval records with traversal method", async (co
   service.process();
   await service.onIdle();
 
-  expect(determineSpy).toHaveReturnedWith("traverse");
+  expect(determineSpy).toHaveLastReturnedWith("batch");
 
   await simulate({
     erc20Address: erc20.address,
@@ -203,23 +203,23 @@ test("start() insert logFilterInterval records with traversal method", async (co
   service.process();
   await service.onIdle();
 
-  expect(determineSpy).toHaveReturnedWith("traverse");
+  expect(determineSpy).toHaveLastReturnedWith("batch");
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[0].chainId,
     logFilter: sources[0].criteria,
   });
   expect(logFilterIntervals).toMatchObject([
-    [blockNumbers.finalizedBlockNumber + 1, blockNumbers.latestBlockNumber + 2],
+    [blockNumbers.finalizedBlockNumber + 1, blockNumbers.latestBlockNumber + 1],
   ]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    blockNumber: blockNumbers.latestBlockNumber + 2,
+    blockNumber: blockNumbers.latestBlockNumber + 1,
     blockTimestamp: expect.any(Number),
     chainId: 1,
   });
 
-  expect(requestSpy).toHaveBeenCalledTimes(0);
+  expect(requestSpy).toHaveBeenCalledTimes(1);
 
   service.kill();
 });
@@ -248,7 +248,7 @@ test("start() insert logFilterInterval records with batch method", async (contex
   service.process();
   await service.onIdle();
 
-  expect(determineSpy).toHaveReturnedWith("batch");
+  expect(determineSpy).toHaveLastReturnedWith("batch");
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[0].chainId,
