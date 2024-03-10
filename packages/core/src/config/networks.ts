@@ -106,7 +106,7 @@ export function getFinalityBlockCount({ chainId }: { chainId: number }) {
       finalityBlockCount = 5;
       break;
     default:
-      finalityBlockCount = 5;
+      finalityBlockCount = 15;
   }
 
   return finalityBlockCount;
