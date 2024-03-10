@@ -128,7 +128,7 @@ ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
 });
 ```
 
-See the [create & update entities](https://ponder.sh/guides/create-update-entities) docs for a detailed guide on writing indexing functions.
+See the [create & update records](https://ponder.sh/docs/guides/create-update-records) docs for a detailed guide on writing indexing functions.
 
 ### 6. Query the GraphQL API
 
