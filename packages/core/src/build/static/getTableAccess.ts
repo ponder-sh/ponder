@@ -206,7 +206,9 @@ export const getTableAccessForTable = ({
 }: { tableAccess: TableAccess; tableName: string }) => {
   const tableAccessInverse = getTableAccessInverse(tableAccess);
 
-  return tableAccessInverse[tableName];
+  return tableAccessInverse[tableName] === undefined
+    ? []
+    : tableAccessInverse[tableName];
 };
 
 export const isReadStoreMethod = (storeMethod: StoreMethod): boolean => {
