@@ -389,7 +389,13 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
     blockTimestamp: expect.any(Number),
     chainId: 1,
-    blockNumber: blockNumbers.latestBlockNumber - 2,
+    blockNumber: blockNumbers.latestBlockNumber,
+  });
+
+  expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
+    blockTimestamp: expect.any(Number),
+    chainId: 1,
+    blockNumber: blockNumbers.latestBlockNumber,
   });
 
   const blocksAfterReorg = await syncStore.db

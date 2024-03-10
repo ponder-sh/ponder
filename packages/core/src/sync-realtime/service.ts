@@ -442,6 +442,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const pNoLogs = (1 - pLog) ** numBlocks;
     const traverseCost = 16 * numBlocks + 75 * (1 - pNoLogs);
 
+    // TODO(kyle)
     return batchCost > traverseCost ? "traverse" : "batch";
   };
 
@@ -596,7 +597,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
      * If the divergence occurred at index 0, check for deep re-org.
      */
     const handleReorg = async (nonMatchingIndex: number) => {
-      if (nonMatchingIndex === 0) {
+      const ancestorBlockNumber = localLogs[nonMatchingIndex].blockNumber - 1;
+      const commonAncestor = this.blocks.findLast(
+        (b) => b.number <= ancestorBlockNumber,
+      );
+
+      if (commonAncestor === undefined) {
         const hasDeepReorg = await this.reconcileDeepReorg(latestBlockNumber);
 
         if (hasDeepReorg) return;
@@ -621,11 +627,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           msg: `Detected ${depth}-block reorg with common ancestor ${this.finalizedBlock.number} (network=${this.network.name})`,
         });
       } else {
-        const ancestorBlockHash = localLogs[nonMatchingIndex - 1].blockHash;
-        const commonAncestor = this.blocks.find(
-          (block) => block.hash === ancestorBlockHash,
-        )!;
-
         this.blocks = this.blocks.filter(
           (block) => block.number <= commonAncestor.number,
         );
