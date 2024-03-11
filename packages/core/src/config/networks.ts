@@ -88,8 +88,8 @@ export function getFinalityBlockCount({ chainId }: { chainId: number }) {
       break;
     // Optimism.
     case 10:
-    case 238:
     case 420:
+    case 81457:
       finalityBlockCount = 60;
       break;
     // Polygon.
