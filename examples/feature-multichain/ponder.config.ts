@@ -64,7 +64,7 @@ export default createConfig({
         },
         arbitrum: {
           address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-          startBlock: Number(latestBlockArbitrum.number) - 50,
+          startBlock: Number(latestBlockArbitrum.number) - 240,
         },
         polygon: {
           address: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
