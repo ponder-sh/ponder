@@ -331,7 +331,21 @@ export async function buildConfig({
       } satisfies LogFilter;
     });
 
-  return { databaseConfig, networks, sources, logs };
+  // Filter out any networks that don't have any sources registered.
+  const networksWithSources = networks.filter((network) => {
+    const hasSources = sources.some(
+      (source) => source.networkName === network.name,
+    );
+    if (!hasSources) {
+      logs.push({
+        level: "warn",
+        msg: `No contracts registered for network '${network.name}'`,
+      });
+    }
+    return hasSources;
+  });
+
+  return { databaseConfig, networks: networksWithSources, sources, logs };
 }
 
 export async function safeBuildConfig({

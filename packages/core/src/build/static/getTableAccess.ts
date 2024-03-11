@@ -30,7 +30,6 @@ export const getTableAccess = ({
   filePaths,
 }: {
   tableNames: string[];
-  indexingFunctionKeys: string[];
   filePaths: string[];
 }) => {
   const tableAccess = {} as TableAccess;
@@ -218,3 +217,20 @@ export const isReadStoreMethod = (storeMethod: StoreMethod): boolean => {
 export const isWriteStoreMethod = (storeMethod: StoreMethod): boolean => {
   return storeMethodAccess[storeMethod].some((s) => s === "write");
 };
+
+export function safeGetTableAccess({
+  tableNames,
+  filePaths,
+}: {
+  tableNames: string[];
+  filePaths: string[];
+}) {
+  try {
+    const result = getTableAccess({ tableNames, filePaths });
+    return { success: true, data: result } as const;
+  } catch (error_) {
+    const error = error_ as Error;
+    error.stack = undefined;
+    return { success: false, error } as const;
+  }
+}

@@ -196,17 +196,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.buildSourceById();
 
-    this.getNetwork = buildNetwork({
-      networks,
-    });
-    this.getClient = buildClient({
-      networks,
-      requestQueues,
-      syncStore,
-    });
-    this.getContracts = buildContracts({
-      sources,
-    });
+    this.getNetwork = buildNetwork({ networks });
+    this.getClient = buildClient({ networks, requestQueues, syncStore });
+    this.getContracts = buildContracts({ sources });
 
     this.loadingMutex = new Mutex();
   }

@@ -28,36 +28,39 @@ import { parseViteNodeError } from "./stacktrace.js";
 import {
   type FunctionIds,
   type TableIds,
-  getFunctionAndTableIds,
+  safeGetFunctionAndTableIds,
 } from "./static/getFunctionAndTableIds.js";
-import { type TableAccess, getTableAccess } from "./static/getTableAccess.js";
+import {
+  type TableAccess,
+  safeGetTableAccess,
+} from "./static/getTableAccess.js";
 
 type BuildServiceEvents = {
-  // Note: Should new config ever trigger a re-analyze?
-  newConfig: {
+  reload: {
+    kind: "config" | "schema" | "indexingFunctions";
+    // Config
     databaseConfig: DatabaseConfig;
     sources: Source[];
     networks: Network[];
-    tableIds: TableIds;
-    functionIds: FunctionIds;
-  };
-  newIndexingFunctions: {
+    // Schema
+    schema: Schema;
+    graphqlSchema: GraphQLSchema;
+    // Indexing functions
     indexingFunctions: IndexingFunctions;
+    // Static analysis
     tableAccess: TableAccess;
     tableIds: TableIds;
     functionIds: FunctionIds;
   };
-  newSchema: {
-    schema: Schema;
-    graphqlSchema: GraphQLSchema;
-    tableIds: TableIds;
-    functionIds: FunctionIds;
+  error: {
+    kind: "config" | "schema" | "indexingFunctions";
+    error: Error;
   };
-  error: { kind: "config" | "schema" | "indexingFunctions"; error: Error };
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
   private common: Common;
+  private indexingFunctionRegex: RegExp;
 
   private viteDevServer: ViteDevServer = undefined!;
   private viteNodeServer: ViteNodeServer = undefined!;
@@ -67,14 +70,25 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   // Maintain the latest version of built user code to support validation.
   // Note that `networks` and `schema` are not currently needed for validation.
+  private databaseConfig?: DatabaseConfig;
+  private networks?: Network[];
   private sources?: Source[];
   private schema?: Schema;
+  private graphqlSchema?: GraphQLSchema;
   private indexingFunctions?: IndexingFunctions;
   private tableAccess?: TableAccess;
+  private tableIds?: TableIds;
+  private functionIds?: FunctionIds;
 
   constructor({ common }: { common: Common }) {
     super();
     this.common = common;
+    this.indexingFunctionRegex = new RegExp(
+      `^${this.common.options.srcDir.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&",
+      )}/.*\\.(js|ts)$`,
+    );
   }
 
   async setup({ watch }: { watch: boolean }) {
@@ -154,22 +168,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         const validationResult = this.validate();
         const analyzeResult = this.analyze();
 
-        if (
-          configResult.success &&
-          validationResult.success &&
-          analyzeResult.success
-        ) {
-          this.emit("newConfig", {
-            databaseConfig: configResult.databaseConfig,
-            networks: configResult.networks,
-            sources: configResult.sources,
-            functionIds: analyzeResult.functionIds,
-            tableIds: analyzeResult.tableIds,
-          });
-        } else {
-          const error = configResult.error ?? (validationResult.error as Error);
+        const error =
+          configResult.error ?? validationResult.error ?? analyzeResult.error;
+
+        if (error) {
           this.common.logger.error({ service: "build", error });
           this.emit("error", { kind: "config", error });
+          return;
         }
       }
 
@@ -178,33 +183,19 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         const validationResult = this.validate();
         const analyzeResult = this.analyze();
 
-        if (
-          schemaResult.success &&
-          validationResult.success &&
-          analyzeResult.success
-        ) {
-          this.emit("newSchema", {
-            ...schemaResult,
-            tableIds: analyzeResult.tableIds,
-            functionIds: analyzeResult.functionIds,
-          });
-        } else {
-          const error = schemaResult.error ?? (validationResult.error as Error);
+        const error =
+          schemaResult.error ?? validationResult.error ?? analyzeResult.error;
+
+        if (error) {
           this.common.logger.error({ service: "build", error });
           this.emit("error", { kind: "schema", error });
+          return;
         }
       }
 
-      const indexingFunctionRegex = new RegExp(
-        `^${this.common.options.srcDir.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          "\\$&",
-        )}/.*\\.(js|ts)$`,
-      );
       const indexingFunctionFiles = invalidated.filter((file) =>
-        indexingFunctionRegex.test(file),
+        this.indexingFunctionRegex.test(file),
       );
-
       if (indexingFunctionFiles.length > 0) {
         const indexingFunctionsResult = await this.loadIndexingFunctions({
           files: indexingFunctionFiles,
@@ -213,25 +204,31 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         const parseResult = this.parse();
         const analyzeResult = this.analyze();
 
-        if (
-          indexingFunctionsResult.success &&
-          validationResult.success &&
-          parseResult.success &&
-          analyzeResult.success
-        ) {
-          this.emit("newIndexingFunctions", {
-            ...indexingFunctionsResult,
-            tableAccess: parseResult.tableAccess,
-            tableIds: analyzeResult.tableIds,
-            functionIds: analyzeResult.functionIds,
-          });
-        } else {
-          const error =
-            indexingFunctionsResult.error ?? (validationResult.error as Error);
+        const error =
+          indexingFunctionsResult.error ??
+          validationResult.error ??
+          parseResult.error ??
+          analyzeResult.error;
+
+        if (error) {
           this.common.logger.error({ service: "build", error });
           this.emit("error", { kind: "indexingFunctions", error });
+          return;
         }
       }
+
+      this.emit("reload", {
+        kind: "config",
+        databaseConfig: this.databaseConfig!,
+        sources: this.sources!,
+        networks: this.networks!,
+        schema: this.schema!,
+        graphqlSchema: this.graphqlSchema!,
+        indexingFunctions: this.indexingFunctions!,
+        tableAccess: this.tableAccess!,
+        tableIds: this.tableIds!,
+        functionIds: this.functionIds!,
+      });
     };
 
     // TODO: Consider handling "add" and "unlink" events too.
@@ -280,15 +277,18 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return { error: indexingFunctionsResult.error } as const;
 
     const validationResult = this.validate();
-    const parseResult = this.parse();
-    const analyzeResult = this.analyze();
-
-    if (!validationResult.success)
+    if (validationResult.error)
       return { error: validationResult.error } as const;
+    const parseResult = this.parse();
+    if (parseResult.error) return { error: parseResult.error } as const;
+    const analyzeResult = this.analyze();
+    if (analyzeResult.error) return { error: analyzeResult.error } as const;
 
     const { databaseConfig, sources, networks } = configResult;
     const { schema, graphqlSchema } = schemaResult;
     const { indexingFunctions } = indexingFunctionsResult;
+    const { tableAccess } = parseResult;
+    const { tableIds, functionIds } = analyzeResult;
 
     return {
       databaseConfig,
@@ -297,9 +297,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       schema,
       graphqlSchema,
       indexingFunctions,
-      tableAccess: parseResult.tableAccess!,
-      tableIds: analyzeResult.tableIds!,
-      functionIds: analyzeResult.functionIds!,
+      tableAccess,
+      tableIds,
+      functionIds,
     };
   }
 
@@ -324,6 +324,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     const { databaseConfig, sources, networks } = buildResult.data;
+    this.databaseConfig = databaseConfig;
+    this.networks = networks;
     this.sources = sources;
 
     return { success: true, databaseConfig, sources, networks } as const;
@@ -347,6 +349,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
     // TODO: Probably move this elsewhere. Also, handle errors.
     const graphqlSchema = buildGqlSchema(buildResult.data.schema);
+    this.graphqlSchema = graphqlSchema;
 
     return { success: true, schema, graphqlSchema } as const;
   }
@@ -437,26 +440,24 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   private parse() {
     if (!this.rawIndexingFunctions || !this.schema || !this.sources)
-      return { success: false } as const;
+      return {
+        success: false,
+        error: new Error(
+          "Invariant violation: BuildService.parse() called before config, schema, or indexing functions were built.",
+        ),
+      } as const;
 
     const tableNames = Object.keys(this.schema.tables);
     const filePaths = Object.keys(this.rawIndexingFunctions);
-    const indexingFunctionKeys = Object.values(
-      this.rawIndexingFunctions,
-    ).flatMap((indexingFunctions) => indexingFunctions.map((x) => x.name));
 
-    const tableAccess = getTableAccess({
-      tableNames,
-      filePaths,
-      indexingFunctionKeys,
-    });
+    const result = safeGetTableAccess({ tableNames, filePaths });
+    if (!result.success) {
+      return { success: false, error: result.error } as const;
+    }
 
-    this.tableAccess = tableAccess;
+    this.tableAccess = result.data;
 
-    return {
-      success: true,
-      tableAccess,
-    } as const;
+    return { success: true, tableAccess: result.data } as const;
   }
 
   private analyze() {
@@ -466,20 +467,27 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       !this.sources ||
       !this.indexingFunctions
     )
-      return { success: false } as const;
+      return {
+        success: false,
+        error: new Error(
+          "Invariant violation: BuildService.analyze() called before config, schema, or indexing functions were built.",
+        ),
+      } as const;
 
-    const ids = getFunctionAndTableIds({
+    const result = safeGetFunctionAndTableIds({
       sources: this.sources,
       tableAccess: this.tableAccess,
       schema: this.schema,
       indexingFunctions: this.indexingFunctions,
     });
+    if (!result.success) {
+      return { success: false, error: result.error } as const;
+    }
 
-    return {
-      success: true,
-      tableIds: ids.tableIds,
-      functionIds: ids.functionIds,
-    } as const;
+    this.tableIds = result.data.tableIds;
+    this.functionIds = result.data.functionIds;
+
+    return { success: true, ...result.data } as const;
   }
 
   private async executeFile(file: string) {

@@ -206,3 +206,29 @@ const hashIdentifier = (schema: Omit<Identifier, "version">) => {
     .digest("hex")
     .slice(0, 10);
 };
+
+export function safeGetFunctionAndTableIds({
+  sources,
+  tableAccess,
+  schema,
+  indexingFunctions,
+}: {
+  sources: Source[];
+  schema: Schema;
+  tableAccess: TableAccess;
+  indexingFunctions: IndexingFunctions;
+}) {
+  try {
+    const result = getFunctionAndTableIds({
+      sources,
+      schema,
+      tableAccess,
+      indexingFunctions,
+    });
+    return { success: true, data: result } as const;
+  } catch (error_) {
+    const error = error_ as Error;
+    error.stack = undefined;
+    return { success: false, error } as const;
+  }
+}

@@ -218,7 +218,7 @@ export class MetricsService {
     return await this.registry.metrics();
   }
 
-  async resetMetrics() {
+  resetMetrics() {
     this.registry.resetMetrics();
   }
 }
