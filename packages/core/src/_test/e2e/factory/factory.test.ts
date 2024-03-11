@@ -1,10 +1,6 @@
 import { rmSync } from "node:fs";
 import { Ponder } from "@/Ponder.js";
-import {
-  setupAnvil,
-  setupIndexingStore,
-  setupSyncStore,
-} from "@/_test/setup.js";
+import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
@@ -12,9 +8,8 @@ import { range } from "@/utils/range.js";
 import request from "supertest";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
-beforeEach((context) => setupIndexingStore(context));
+beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 const gql = async (ponder: Ponder, query: string) => {
   const response = await request(ponder.serverService.app)
@@ -55,10 +50,7 @@ test("factory", async (context) => {
   }
 
   const ponder = new Ponder({ options: testOptions });
-  await ponder.start({
-    syncStore: context.syncStore,
-    indexingStore: context.indexingStore,
-  });
+  await ponder.start(context.databaseConfig);
 
   await onAllEventsIndexed(ponder);
 

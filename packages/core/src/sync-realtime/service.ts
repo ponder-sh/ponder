@@ -8,7 +8,7 @@ import {
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
+import { type Checkpoint } from "@/utils/checkpoint.js";
 import { Emittery } from "@/utils/emittery.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -186,35 +186,37 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       finalizedBlockNumber,
     ).then(realtimeBlockToLightBlock);
 
+    this.emit("finalityCheckpoint", {
+      blockTimestamp: this.finalizedBlock.timestamp,
+      chainId: this.network.chainId,
+      blockNumber: this.finalizedBlock.number,
+    });
+
+    this.emit("realtimeCheckpoint", {
+      blockTimestamp: this.finalizedBlock.timestamp,
+      chainId: this.network.chainId,
+      blockNumber: this.finalizedBlock.number,
+    });
+
     return { latestBlockNumber, finalizedBlockNumber };
   };
 
   start = () => {
     // If an endBlock is specified for every event source on this network, and the
-    // latest end blcock is less than the finalized block number, we can stop here.
+    // latest end block is less than the finalized block number, we can stop here.
     // The service won't poll for new blocks and won't emit any events.
     const endBlocks = this.sources.map((f) => f.endBlock);
     if (
-      endBlocks.every(
-        (endBlock) =>
-          endBlock !== undefined && endBlock < this.finalizedBlock.number,
-      )
+      endBlocks.every((b) => b !== undefined && b < this.finalizedBlock.number)
     ) {
       this.common.logger.warn({
         service: "realtime",
         msg: `No realtime contracts (network=${this.network.name})`,
       });
-
-      this.emit("realtimeCheckpoint", {
-        ...maxCheckpoint,
-        chainId: this.network.chainId,
-      });
-
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },
         0,
       );
-
       return;
     }
 

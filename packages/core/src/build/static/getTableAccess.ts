@@ -1,15 +1,21 @@
+import crypto from "node:crypto";
 import type { StoreMethod } from "@/types/model.js";
 import { dedupe } from "@ponder/common";
 import { getHelperFunctions } from "./getHelperFunctions.js";
 import { getIndexingFunctions } from "./getIndexingFunctions.js";
+import { getNodeHash } from "./getNodeHash.js";
 import { getTableReferences } from "./getTableReferences.js";
 import { parseFiles } from "./parseFiles.js";
+import { storeMethodAccess } from "./storeMethodAccess.js";
 
 export type TableAccess = {
   [indexingFunctionKey: string]: {
-    tableName: string;
-    storeMethod: StoreMethod;
-  }[];
+    access: {
+      tableName: string;
+      storeMethod: StoreMethod;
+    }[];
+    hash: string;
+  };
 };
 
 type HelperFunctionAccess = {
@@ -24,7 +30,6 @@ export const getTableAccess = ({
   filePaths,
 }: {
   tableNames: string[];
-  indexingFunctionKeys: string[];
   filePaths: string[];
 }) => {
   const tableAccess = {} as TableAccess;
@@ -38,17 +43,14 @@ export const getTableAccess = ({
     tableName: ReturnType<typeof getTableReferences>[number]["tableName"];
     indexingFunctionKey: string;
   }) => {
-    if (tableAccess[indexingFunctionKey] === undefined)
-      tableAccess[indexingFunctionKey] = [];
-
     if (tableName.matched) {
-      tableAccess[indexingFunctionKey].push({
+      tableAccess[indexingFunctionKey].access.push({
         tableName: tableName.table,
         storeMethod,
       });
     } else {
       for (const tableName of tableNames) {
-        tableAccess[indexingFunctionKey].push({
+        tableAccess[indexingFunctionKey].access.push({
           tableName,
           storeMethod,
         });
@@ -74,6 +76,13 @@ export const getTableAccess = ({
         functionName,
       });
     }
+  }
+
+  // Helper function hashes
+  const helperFunctionHashes: { [functionName: string]: string } = {};
+  for (const { functionName, bodyNode } of helperFunctions) {
+    const hash = getNodeHash(bodyNode);
+    helperFunctionHashes[functionName] = hash;
   }
 
   // Nested helper functions
@@ -109,6 +118,15 @@ export const getTableAccess = ({
       tableNames,
     });
 
+    // Initialize table access
+    tableAccess[indexingFunctionKey] = {
+      access: [],
+      hash: "",
+    };
+
+    const hash = getNodeHash(callbackNode);
+    const _helperFunctionHashes: string[] = [];
+
     // Helper function invocation
     for (const {
       functionName,
@@ -119,9 +137,22 @@ export const getTableAccess = ({
         callbackNode.find(`${functionName}`) ||
         callbackNode.find(`$$$.${functionName}`)
       ) {
+        _helperFunctionHashes.push(helperFunctionHashes[functionName]!);
+
         addToTableAccess({ storeMethod, tableName, indexingFunctionKey });
       }
     }
+
+    // Add hash
+    tableAccess[indexingFunctionKey].hash = crypto
+      .createHash("sha256")
+      .update(
+        JSON.stringify({
+          hash,
+          helperFunctions: _helperFunctionHashes,
+        }),
+      )
+      .digest("hex");
 
     // Store method invocation
     for (const { storeMethod, tableName } of tableReferences) {
@@ -133,11 +164,73 @@ export const getTableAccess = ({
   const dedupedTableAccess: TableAccess = {};
 
   for (const indexingFunctionKey of Object.keys(tableAccess)) {
-    dedupedTableAccess[indexingFunctionKey] = dedupe(
-      tableAccess[indexingFunctionKey],
-      ({ tableName, storeMethod }) => `${tableName}_${storeMethod}`,
-    );
+    dedupedTableAccess[indexingFunctionKey] = {
+      hash: tableAccess[indexingFunctionKey].hash,
+      access: dedupe(
+        tableAccess[indexingFunctionKey].access,
+        (a) => `${a.tableName}_${a.storeMethod}`,
+      ),
+    };
   }
 
   return dedupedTableAccess;
 };
+
+export const getTableAccessInverse = (tableAccess: TableAccess) => {
+  const tableAccessInverse: {
+    [tableName: string]: {
+      indexingFunctionKey: string;
+      storeMethod: StoreMethod;
+    }[];
+  } = {};
+
+  for (const [indexingFunctionKey, { access }] of Object.entries(tableAccess)) {
+    for (const { tableName, storeMethod } of access) {
+      if (tableAccessInverse[tableName] === undefined)
+        tableAccessInverse[tableName] = [];
+
+      tableAccessInverse[tableName].push({
+        indexingFunctionKey,
+        storeMethod,
+      });
+    }
+  }
+
+  return tableAccessInverse;
+};
+
+export const getTableAccessForTable = ({
+  tableAccess,
+  tableName,
+}: { tableAccess: TableAccess; tableName: string }) => {
+  const tableAccessInverse = getTableAccessInverse(tableAccess);
+
+  return tableAccessInverse[tableName] === undefined
+    ? []
+    : tableAccessInverse[tableName];
+};
+
+export const isReadStoreMethod = (storeMethod: StoreMethod): boolean => {
+  return storeMethodAccess[storeMethod].some((s) => s === "read");
+};
+
+export const isWriteStoreMethod = (storeMethod: StoreMethod): boolean => {
+  return storeMethodAccess[storeMethod].some((s) => s === "write");
+};
+
+export function safeGetTableAccess({
+  tableNames,
+  filePaths,
+}: {
+  tableNames: string[];
+  filePaths: string[];
+}) {
+  try {
+    const result = getTableAccess({ tableNames, filePaths });
+    return { success: true, data: result } as const;
+  } catch (error_) {
+    const error = error_ as Error;
+    error.stack = undefined;
+    return { success: false, error } as const;
+  }
+}

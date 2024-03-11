@@ -1,0 +1,147 @@
+---
+title: "Query the database"
+description: "How to query the Ponder database"
+---
+
+import { Callout, FileTree, Steps } from "nextra/components";
+
+# Query the database
+
+If the GraphQL API doesn't meet your needs, you can query the SQL database directly.
+
+## TL;DR
+
+1. **Your app creates a Postgres [view](https://www.postgresqltutorial.com/postgresql-views/) for each table in `ponder.schema.ts`**. The views are created in a _database_ schema named `ponder`.
+
+2. **All data is read-only**. You cannot insert or update rows manually – only within indexing functions.
+
+3. **You can run custom SQL queries** and can join Ponder data with other tables in the database.
+
+```sql
+SELECT COUNT(*) FROM ponder.accounts WHERE balance > 5000;
+
+SELECT user_id, balance
+FROM users
+  JOIN ponder.accounts ON users.eth_address = accounts.address
+WHERE users.name LIKE 'Bo%';
+```
+
+
+4. **Redeployments are complex**. External software that relies on custom SQL queries must take care to avoid downtime during healthcheck-based redeployments.
+
+## Column types
+
+### Postgres
+
+| Schema column type | Postgres column type | Notes                                   |
+| :----------------- | :--------------------- | :-------------------------------------- |
+| `p.string(){:ts}`  | `TEXT`                 |                                         |
+| `p.hex(){:ts}`     | `BYTEA{:sql}`          |                                         |
+| `p.int(){:ts}`     | `INTEGER{:sql}`        |                                         |
+| `p.bigint(){:ts}`  | `NUMERIC(78, 0){:sql}` | Fits EVM `uint256{:solidity}`           |
+| `p.float(){:ts}`   | `TEXT`                 |                                         |
+| `p.boolean(){:ts}` | `INTEGER{:sql}`        | `0` is `false{:ts}`, `1` is `true{:ts}` |
+
+### SQLite
+
+| Schema column type | SQLite column type  | Notes                                          |
+| :----------------- | :------------------ | :--------------------------------------------- |
+| `p.string(){:ts}`  | `TEXT`              |                                                |
+| `p.hex(){:ts}`     | `BLOB{:sql}`        |                                                |
+| `p.int(){:ts}`     | `INTEGER{:sql}`     |                                                |
+| `p.bigint(){:ts}`  | `VARCHAR(79){:sql}` | Custom encoding, fits EVM `uint256{:solidity}` |
+| `p.float(){:ts}`   | `TEXT`              |                                                |
+| `p.boolean(){:ts}` | `INTEGER{:sql}`     | `0` is `false{:ts}`, `1` is `true{:ts}`        |
+
+#### Bigint encoding
+
+SQLite does not natively support integers larger than 8 bytes. To safely store and compares large integers (such as 32-byte EVM `uint256{:solidity}` values) in SQLite, Ponder uses a custom encoding. Here is a TypeScript implementation.
+
+```ts
+/**
+ * Converts a integer into a 33-byte string (sign byte followed by 32-byte value).
+ * Used as the storage encoding for EVM uint256 and int256 types to enable ordering
+ * using SQLite's default collation (memcmp).
+ *
+ * @param value Integer to be encoded.
+ * @returns 33-byte Buffer representing the encoded integer.
+ */
+export function encodeAsText(value: bigint | number | Hex) {
+  if (typeof value === "string" || typeof value === "number")
+    value = BigInt(value);
+
+  if (value > EVM_MAX_UINT)
+    throw new Error(`Value cannot be greater than EVM_MAX_UINT (${value})`);
+  if (value < EVM_MIN_INT)
+    throw new Error(`Value cannot be less than EVM_MIN_INT (${value})`);
+
+  const signChar = value >= 0n ? "0" : "-";
+
+  // If the value is negative, add the minimum integer to it.
+  if (value < 0n) value = value - EVM_MIN_INT;
+
+  const chars = value.toString(10);
+
+  // Pad the hex string with leading zeros and add the sign byte.
+  return signChar + chars.padStart(78, "0");
+}
+
+/**
+ * Converts an encoded 33-byte string (sign byte followed by 32-byte value) into a BigInt.
+ * Used as the storage encoding for EVM uint256 and int256 types to enable ordering
+ * using SQLite's default collation (memcmp).
+ *
+ * @param value Integer to be encoded.
+ * @returns 33-byte string representing the encoded integer.
+ */
+export function decodeToBigInt(text: string) {
+  if (typeof text === "bigint") return text;
+
+  const signChar = text.at(0);
+  let valueChars = text.substring(1).replace(/^0+/, "");
+  // If the value is 0, valueChars will be an empty string.
+  if (valueChars.length === 0) valueChars = "0";
+  let value = BigInt(valueChars);
+
+  // If the sign byte is negative, invert the value
+  if (signChar === "-") value = value + EVM_MIN_INT;
+
+  return value;
+}
+```
+
+## Zero downtime deployments
+
+This section is included to answer advanced questions about zero-downtime deployments as it pertains to direct SQL.
+
+If you deploy a new version of your app that updates the database schema, you should first ensure that any downstream services are compatible with both the old and new schema. As soon as the instance running the new version becomes healthy, it will replace the views in `ponder` using the new schema.
+
+### Instance states
+
+A Ponder instance can be in one of the following states (as it pertains to the database):
+
+<Steps>
+
+#### Starting up
+
+On start up, the instance inserts a new row into the `ponder_cache.instance_metadata` table and acquires an **instance ID**. Then, it creates a new private database schema with the name ``    `ponder_instance_${instanceId}`{:ts}``. Finally, it creates tables in that schema according to `ponder.schema.ts` and begins inserting indexed data into them.
+
+#### Healthy
+
+When the instance has finished indexing historical events, it creates (or updates) database views in the `ponder` schema that point at the tables in its private schema. At this moment, the server also starts returning `200` responses at the healthcheck path (`/health`).
+
+#### Live
+
+After it becomes healthy, the instance continues indexing as you would expect. As long as the instance remains live, the views in `ponder` will continue to serve the latest available data.
+
+#### Replaced
+
+If a different instance (using the same database) starts up and becomes healthy, the current instance gets replaced. The new instance will update the views in `ponder` to point to its tables.
+
+#### Shutting down
+
+If the instance is still live, it will exit immediately on shutdown and leave the views in `ponder` pointing at its schema. So, you can safely shut down a live instance and run queries against the (now static) data. The next instance that becomes healthy will replace the views.
+
+If the instance has been replaced, it will attempt to drop its ``    `ponder_instance_${instanceId}`{:ts}`` schema before exiting to avoid cluttering the database with stale data. If this process fails, the next instance that connects to the same database will drop the stale schema when it starts up.
+
+</Steps>

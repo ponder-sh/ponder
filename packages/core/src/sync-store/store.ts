@@ -1,17 +1,14 @@
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import type { Kysely, Migrator } from "kysely";
+import type { Kysely } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 export interface SyncStore {
   kind: "sqlite" | "postgres";
   db: Kysely<any>;
-  migrator: Migrator;
 
   migrateUp(): Promise<void>;
-
-  kill(): Promise<void>;
 
   /**
    * Insert a list of logs & associated transactions matching a given log filter

@@ -1,3 +1,4 @@
+import type { Common } from "@/Ponder.js";
 import type { Kysely } from "kysely";
 import { type Migration, type MigrationProvider, sql } from "kysely";
 
@@ -439,3 +440,91 @@ class StaticMigrationProvider implements MigrationProvider {
 }
 
 export const migrationProvider = new StaticMigrationProvider();
+
+export async function moveLegacyTables({
+  common,
+  db,
+  newSchemaName,
+}: {
+  common: Common;
+  db: Kysely<any>;
+  newSchemaName: string;
+}) {
+  // If the database has ponder migration tables present in the public schema,
+  // move them to the new schema.
+  let hasLegacyMigrations = false;
+  try {
+    const { rows } = await db.executeQuery<{ name: string }>(
+      sql`SELECT * FROM public.kysely_migration LIMIT 1`.compile(db),
+    );
+    if (rows[0]?.name === "2023_05_15_0_initial") hasLegacyMigrations = true;
+  } catch (e) {
+    const error = e as Error;
+    if (!error.message.includes("does not exist")) throw error;
+  }
+
+  if (!hasLegacyMigrations) return;
+
+  common.logger.warn({
+    service: "database",
+    msg: "Detected legacy sync migrations. Moving tables from 'public' schema to 'ponder_sync'.",
+  });
+
+  async function moveOrDeleteTable(tableName: string) {
+    try {
+      await db.schema
+        .alterTable(`public.${tableName}`)
+        .setSchema(newSchemaName)
+        .execute();
+    } catch (e) {
+      const error = e as Error;
+      switch (error.message) {
+        case `relation "${tableName}" already exists in schema "${newSchemaName}"`: {
+          await db.schema
+            .dropTable(`public.${tableName}`)
+            .execute()
+            // Ignore errors if this fails.
+            .catch(() => {});
+          break;
+        }
+        case `relation "public.${tableName}" does not exist`: {
+          break;
+        }
+        default: {
+          common.logger.warn({
+            service: "database",
+            msg: `Failed to migrate table "${tableName}" to "ponder_sync" schema: ${error.message}`,
+          });
+        }
+      }
+    }
+
+    common.logger.warn({
+      service: "database",
+      msg: `Successfully moved 'public.${tableName}' table to 'ponder_sync' schema.`,
+    });
+  }
+
+  const tableNames = [
+    "kysely_migration",
+    "kysely_migration_lock",
+    "blocks",
+    "logs",
+    "transactions",
+    "rpcRequestResults",
+    // Note that logFilterIntervals has a constraint that uses logFilters,
+    // so the order here matters. Same story with factoryLogFilterIntervals.
+    "logFilterIntervals",
+    "logFilters",
+    "factoryLogFilterIntervals",
+    "factories",
+    // Old ones that are no longer being used, but should still be moved
+    // so that older migrations work as expected.
+    "contractReadResults",
+    "logFilterCachedRanges",
+  ];
+
+  for (const tableName of tableNames) {
+    await moveOrDeleteTable(tableName);
+  }
+}

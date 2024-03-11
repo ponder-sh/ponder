@@ -1,19 +1,16 @@
-import { setupContext, setupIndexingStore } from "@/_test/setup.js";
+import { setupContext } from "@/_test/setup.js";
 import { type TestContext, bench } from "vitest";
 import { setup as serverSetup } from "./service.test.js";
 
 let context: TestContext;
-let teardownIndexing: () => Promise<void>;
 let server: Awaited<ReturnType<typeof serverSetup>>;
 
 const setup = async () => {
   context = {} as TestContext;
   setupContext(context);
 
-  teardownIndexing = await setupIndexingStore(context);
-  server = await serverSetup({
-    common: context.common,
-    indexingStore: context.indexingStore,
+  const server = await serverSetup({
+    context,
   });
 
   for (let i = 0; i < 100; i++) {
@@ -22,8 +19,8 @@ const setup = async () => {
 };
 
 const teardown = async () => {
-  await teardownIndexing();
   await server.service.kill();
+  await server.cleanup();
 };
 
 bench(

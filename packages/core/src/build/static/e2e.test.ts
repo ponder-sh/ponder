@@ -5,36 +5,27 @@ import schema from "./_test/ponder.schema.js";
 import { getTableAccess } from "./getTableAccess.js";
 
 const tableNames = Object.keys(schema.tables);
-const indexingFunctionKeys = ["C:Event1", "C:Event2", "C:Event3"];
 
 test("basic", () => {
   const tableAccess = getTableAccess({
     tableNames,
-    indexingFunctionKeys,
     filePaths: [
       path.join(url.fileURLToPath(import.meta.url), "..", "_test", "basic.ts"),
     ],
   });
 
-  expect(tableAccess["C:Event1"]).toStrictEqual([
-    {
-      tableName: "Table1",
-      storeMethod: "upsert",
-    },
+  expect(tableAccess["C:Event1"].access).toStrictEqual([
+    { tableName: "Table1", storeMethod: "upsert" },
   ]);
 
-  expect(tableAccess["C:Event2"]).toStrictEqual([
-    {
-      tableName: "Table1",
-      storeMethod: "upsert",
-    },
+  expect(tableAccess["C:Event2"].access).toStrictEqual([
+    { tableName: "Table1", storeMethod: "upsert" },
   ]);
 });
 
 test("helper function", () => {
   const tableAccess = getTableAccess({
     tableNames,
-    indexingFunctionKeys,
     filePaths: [
       path.join(
         url.fileURLToPath(import.meta.url),
@@ -46,21 +37,21 @@ test("helper function", () => {
     ],
   });
 
-  expect(tableAccess["C:Event1"]).toStrictEqual([
+  expect(tableAccess["C:Event1"].access).toStrictEqual([
     {
       tableName: "Table1",
       storeMethod: "upsert",
     },
   ]);
 
-  expect(tableAccess["C:Event2"]).toStrictEqual([
+  expect(tableAccess["C:Event2"].access).toStrictEqual([
     {
       tableName: "Table1",
       storeMethod: "upsert",
     },
   ]);
 
-  expect(tableAccess["C:Event3"]).toStrictEqual([
+  expect(tableAccess["C:Event3"].access).toStrictEqual([
     {
       tableName: "Table1",
       storeMethod: "upsert",
@@ -71,7 +62,6 @@ test("helper function", () => {
 test.skip("helper rename", () => {
   const tableAccess = getTableAccess({
     tableNames,
-    indexingFunctionKeys,
     filePaths: [
       path.join(
         url.fileURLToPath(import.meta.url),
@@ -101,7 +91,6 @@ test.skip("helper rename", () => {
 test("renamed variable", () => {
   const tableAccess = getTableAccess({
     tableNames,
-    indexingFunctionKeys,
     filePaths: [
       path.join(
         url.fileURLToPath(import.meta.url),
@@ -114,7 +103,7 @@ test("renamed variable", () => {
 
   // Unable to match on a table name, so fall back to all table names
 
-  expect(tableAccess["C:Event2"]).toStrictEqual([
+  expect(tableAccess["C:Event2"].access).toStrictEqual([
     { tableName: "Table1", storeMethod: "upsert" },
     { tableName: "Table2", storeMethod: "upsert" },
     { tableName: "Table3", storeMethod: "upsert" },
@@ -124,7 +113,6 @@ test("renamed variable", () => {
 test("helper class", () => {
   const tableAccess = getTableAccess({
     tableNames,
-    indexingFunctionKeys,
     filePaths: [
       path.join(
         url.fileURLToPath(import.meta.url),
@@ -136,7 +124,7 @@ test("helper class", () => {
     ],
   });
 
-  expect(tableAccess["C:Event1"]).toStrictEqual([
+  expect(tableAccess["C:Event1"].access).toStrictEqual([
     { tableName: "Table1", storeMethod: "upsert" },
   ]);
 });
@@ -144,7 +132,6 @@ test("helper class", () => {
 test("helper object", () => {
   const tableAccess = getTableAccess({
     tableNames,
-    indexingFunctionKeys,
     filePaths: [
       path.join(
         url.fileURLToPath(import.meta.url),
@@ -156,7 +143,7 @@ test("helper object", () => {
     ],
   });
 
-  expect(tableAccess["C:Event1"]).toStrictEqual([
+  expect(tableAccess["C:Event1"].access).toStrictEqual([
     { tableName: "Table1", storeMethod: "upsert" },
   ]);
 });
@@ -164,7 +151,6 @@ test("helper object", () => {
 test("nested helper functions", () => {
   const tableAccess = getTableAccess({
     tableNames,
-    indexingFunctionKeys,
     filePaths: [
       path.join(
         url.fileURLToPath(import.meta.url),
@@ -175,7 +161,7 @@ test("nested helper functions", () => {
       path.join(url.fileURLToPath(import.meta.url), "..", "_test", "util.ts"),
     ],
   });
-  expect(tableAccess["C:Event1"]).toStrictEqual([
+  expect(tableAccess["C:Event1"].access).toStrictEqual([
     { tableName: "Table1", storeMethod: "upsert" },
   ]);
 });

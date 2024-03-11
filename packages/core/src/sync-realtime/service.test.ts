@@ -1,4 +1,8 @@
-import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
+import {
+  setupAnvil,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { publicClient, testClient } from "@/_test/utils.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
@@ -7,7 +11,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { RealtimeSyncService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
+beforeEach((context) => setupIsolatedDatabase(context));
 
 const getBlockNumbers = () =>
   publicClient.getBlockNumber().then((b) => ({
@@ -17,8 +21,8 @@ const getBlockNumbers = () =>
   }));
 
 test("setup() returns block numbers", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues } = context;
-
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
@@ -33,12 +37,45 @@ test("setup() returns block numbers", async (context) => {
 
   expect(latestBlockNumber).toBe(blockNumbers.latestBlockNumber);
   expect(finalizedBlockNumber).toBe(blockNumbers.finalizedBlockNumber);
+
+  service.kill();
+  await cleanup();
+});
+
+test("start() emits checkpoint at finality block even if no realtime contracts", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumbers = await getBlockNumbers();
+
+  const service = new RealtimeSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    sources: [
+      { ...sources[0], endBlock: blockNumbers.finalizedBlockNumber - 1 },
+    ],
+    requestQueue: requestQueues[0],
+  });
+
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await service.setup();
+  service.start();
+
+  expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    blockNumber: blockNumbers.finalizedBlockNumber,
+    // Anvil messes with the block timestamp for blocks mined locally.
+    blockTimestamp: expect.any(Number),
+    chainId: 1,
+  });
+
+  service.kill();
+  await cleanup();
 });
 
 test("start() sync realtime data with traversal method", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues, erc20 } =
-    context;
-
+  const { common, networks, requestQueues, sources, erc20 } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
@@ -90,11 +127,12 @@ test("start() sync realtime data with traversal method", async (context) => {
   });
 
   service.kill();
+  await cleanup();
 });
 
 test("start() sync realtime data with batch method", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues, erc20 } =
-    context;
+  const { common, networks, requestQueues, sources, erc20 } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const blockNumbers = await getBlockNumbers();
 
@@ -150,18 +188,12 @@ test("start() sync realtime data with batch method", async (context) => {
   });
 
   service.kill();
+  await cleanup();
 });
 
 test("start() insert logFilterInterval records with traversal method", async (context) => {
-  const {
-    common,
-    syncStore,
-    sources,
-    networks,
-    requestQueues,
-    erc20,
-    factory,
-  } = context;
+  const { common, networks, requestQueues, sources, erc20, factory } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const blockNumbers = await getBlockNumbers();
 
@@ -222,10 +254,12 @@ test("start() insert logFilterInterval records with traversal method", async (co
   expect(requestSpy).toHaveBeenCalledTimes(1);
 
   service.kill();
+  await cleanup();
 });
 
 test("start() insert logFilterInterval records with batch method", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues } = context;
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const blockNumbers = await getBlockNumbers();
 
@@ -265,10 +299,12 @@ test("start() insert logFilterInterval records with batch method", async (contex
   });
 
   service.kill();
+  await cleanup();
 });
 
 test("start() retries on error", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues } = context;
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const service = new RealtimeSyncService({
     common,
@@ -294,10 +330,12 @@ test("start() retries on error", async (context) => {
   expect(insertBlockSpy).toHaveBeenCalledTimes(2);
 
   service.kill();
+  await cleanup();
 });
 
 test("start() emits fatal error", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues } = context;
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const service = new RealtimeSyncService({
     common,
@@ -324,18 +362,12 @@ test("start() emits fatal error", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("fatal");
 
   service.kill();
+  await cleanup();
 });
 
 test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
-  const {
-    common,
-    syncStore,
-    sources,
-    networks,
-    requestQueues,
-    erc20,
-    factory,
-  } = context;
+  const { common, networks, requestQueues, sources, erc20, factory } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const blockNumbers = await getBlockNumbers();
 
@@ -410,18 +442,12 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   ]);
 
   service.kill();
+  await cleanup();
 });
 
 test("emits deepReorg event after deep reorg", async (context) => {
-  const {
-    common,
-    syncStore,
-    sources,
-    networks,
-    requestQueues,
-    erc20,
-    factory,
-  } = context;
+  const { common, networks, requestQueues, sources, erc20, factory } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const service = new RealtimeSyncService({
     common,
@@ -468,11 +494,12 @@ test("emits deepReorg event after deep reorg", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("fatal");
 
   service.kill();
+  await cleanup();
 });
 
 test("start() sync realtime data with factory sources", async (context) => {
-  const { common, syncStore, sources, networks, requestQueues, factory } =
-    context;
+  const { common, networks, requestQueues, sources, factory } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const blockNumbers = await getBlockNumbers();
 
@@ -501,4 +528,5 @@ test("start() sync realtime data with factory sources", async (context) => {
   expect(childContractAddresses).toMatchObject([toLowerCase(factory.pair)]);
 
   service.kill();
+  await cleanup();
 });

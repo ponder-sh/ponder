@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.3.0
+
+### Minor Changes
+
+- [#640](https://github.com/ponder-sh/ponder/pull/640) [`81d4a9bb537fa2611656e0c708724390acb79f3a`](https://github.com/ponder-sh/ponder/commit/81d4a9bb537fa2611656e0c708724390acb79f3a) Thanks [@kyscott18](https://github.com/kyscott18)! - Direct SQL. Public indexing tables (to be accessed directly) are created in the 'ponder' schema. Cached indexing tables are created in the 'ponder_cache' schema. Added migration script to move sync tables from 'public' to 'ponder_sync' schema. Private indexing tables use a numeric suffix like `ponder_instance_2' and are created/removed automatically. Please see the direct SQL docs for more information (https://ponder.sh/docs/guides/query-the-database).
+
+### Patch Changes
+
+- [#640](https://github.com/ponder-sh/ponder/pull/640) [`81d4a9bb537fa2611656e0c708724390acb79f3a`](https://github.com/ponder-sh/ponder/commit/81d4a9bb537fa2611656e0c708724390acb79f3a) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved database error retry behavior.
+
 ## 0.2.18
 
 ### Patch Changes
