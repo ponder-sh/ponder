@@ -38,6 +38,7 @@ const ADMIN_POOL_SIZE = 3;
 
 const PUBLIC_SCHEMA_NAME = "ponder";
 const CACHE_SCHEMA_NAME = "ponder_cache";
+const SYNC_SCHEMA_NAME = "ponder_sync";
 
 const HEARTBEAT_INTERVAL_MS = 10 * 1_000; // 10 seconds
 const INSTANCE_TIMEOUT_MS = 60 * 1_000; // 1 minute
@@ -104,9 +105,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   }
 
   async getSyncStoreConfig() {
-    const pluginSchemaName = "ponder_sync";
-    await this.db.schema.createSchema(pluginSchemaName).ifNotExists().execute();
-    return { pool: this.syncPool, schemaName: pluginSchemaName };
+    await this.db.schema.createSchema(SYNC_SCHEMA_NAME).ifNotExists().execute();
+    return { pool: this.syncPool, schemaName: SYNC_SCHEMA_NAME };
   }
 
   async setup({

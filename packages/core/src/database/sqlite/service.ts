@@ -35,6 +35,7 @@ import { type PonderCoreSchema, migrationProvider } from "./migrations.js";
 
 const PUBLIC_DB_NAME = "ponder";
 const CACHE_DB_NAME = "ponder_cache";
+const SYNC_DB_NAME = "ponder_sync";
 
 export class SqliteDatabaseService implements BaseDatabaseService {
   kind = "sqlite" as const;
@@ -90,7 +91,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   }
 
   getSyncStoreConfig(): { database: SqliteDatabase } {
-    const syncDbPath = path.join(this.directory, "ponder_sync.db");
+    const syncDbPath = path.join(this.directory, `${SYNC_DB_NAME}.db`);
     this.syncDatabase = createSqliteDatabase(syncDbPath);
     return { database: this.syncDatabase };
   }
@@ -158,7 +159,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               await tx.schema
                 .createTable(tableName)
                 .$call((builder) =>
-                  this.buildColumns(builder, tableName, columns),
+                  this.buildColumns(
+                    builder,
+                    `_versioned_${tableName}`,
+                    columns,
+                  ),
                 )
                 .execute();
 
