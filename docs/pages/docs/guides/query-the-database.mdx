@@ -13,7 +13,9 @@ If the GraphQL API doesn't meet your needs, you can query the SQL database direc
 
 1. **Your app creates a Postgres [view](https://www.postgresqltutorial.com/postgresql-views/) for each table in `ponder.schema.ts`**. The views are created in a _database_ schema named `ponder`.
 
-2. **You can run custom SQL queries** and can join Ponder data with other tables in the database.
+2. **All data is read-only**. You cannot insert or update rows manually – only within indexing functions.
+
+3. **You can run custom SQL queries** and can join Ponder data with other tables in the database.
 
 ```sql
 SELECT COUNT(*) FROM ponder.accounts WHERE balance > 5000;
@@ -24,7 +26,6 @@ FROM users
 WHERE users.name LIKE 'Bo%';
 ```
 
-3. **All data is read-only**. You cannot insert or update rows manually – only within indexing functions.
 
 4. **Redeployments are complex**. External software that relies on custom SQL queries must take care to avoid downtime during healthcheck-based redeployments.
 
@@ -109,66 +110,11 @@ export function decodeToBigInt(text: string) {
 }
 ```
 
-
-
-```ts
-ponder
-  _metadata
-  accounts
-  transfers
-
-ponder_1
-  5c3826a2dd82
-  608f879d8c12
-
-ponder_84
-  5c3826a2dd82
-  608f879d8c12
-  9d8c12608f87
-
-ponder_cache
-  _function_metadata
-  _table_metadata
-  5c3826a2dd82
-  608f879d8c12
-  9d8c12608f87
-  ...
-
-ponder_sync
-  logs
-  blocks
-  transactions
-  rpc_request_results
-  log_filters
-  ...
-```
-
 ## Zero downtime deployments
 
-This section is included to answer advanced questions about zero-downtime deployments.
+This section is included to answer advanced questions about zero-downtime deployments as it pertains to direct SQL.
 
-Definitions:
-1. instance - A Node.js process running `ponder dev` or `ponder start`
-
-
-### Metadata table
-
-The `ponder._metadata` table contains a record of each Ponder instance that connects to the database.
-
-The metadata table also includes useful information about each instance:
-- The schema that the instance used (as a JSON object)
-- The indexing progress checkpoint 
-- `created_at` and `heartbeat_at` timestamps
-
-
-```sql filename="Metadata table"
-CREATE TABLE ponder.metadata (
-  instance_id int autoincrement,
-  metadata jsonb,
-  heartbeat_at bigint;
-  created_at bigint;
-);
-```
+If you deploy a new version of your app that updates the database schema, you should first ensure that any downstream services are compatible with both the old and new schema. As soon as the instance running the new version becomes healthy, it will replace the views in `ponder` using the new schema.
 
 ### Instance states
 
@@ -178,7 +124,7 @@ A Ponder instance can be in one of the following states (as it pertains to the d
 
 #### Starting up
 
-On start up, the instance inserts a new row into the `ponder._metadata` table and acquires an **instance ID**. Then, it creates a new private database schema with the name ``    `ponder_${instanceId}`{:ts}``. Finally, it creates tables in that schema according to `ponder.schema.ts` and begins inserting indexed data into them.
+On start up, the instance inserts a new row into the `ponder_cache.instance_metadata` table and acquires an **instance ID**. Then, it creates a new private database schema with the name ``    `ponder_instance_${instanceId}`{:ts}``. Finally, it creates tables in that schema according to `ponder.schema.ts` and begins inserting indexed data into them.
 
 #### Healthy
 
@@ -196,6 +142,6 @@ If a different instance (using the same database) starts up and becomes healthy,
 
 If the instance is still live, it will exit immediately on shutdown and leave the views in `ponder` pointing at its schema. So, you can safely shut down a live instance and run queries against the (now static) data. The next instance that becomes healthy will replace the views.
 
-If the instance has been replaced, it will attempt to drop its ``    `ponder_${instanceId}`{:ts}`` schema before exiting to avoid cluttering the database with stale data. If this process fails, the next instance that connects to the same database will drop the stale schema when it starts up.
+If the instance has been replaced, it will attempt to drop its ``    `ponder_instance_${instanceId}`{:ts}`` schema before exiting to avoid cluttering the database with stale data. If this process fails, the next instance that connects to the same database will drop the stale schema when it starts up.
 
 </Steps>
