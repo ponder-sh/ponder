@@ -241,6 +241,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
   };
 
+  /**
+   * Possible states of process
+   *
+   * 1) Nothing is being processed
+   * 2) Processing block, no follow up invocation
+   * 3) Processing block, follow up invocation
+   */
   process = async () => {
     if (this.isProcessingBlock) {
       this.isProcessBlockQueued = true;
@@ -251,8 +258,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     for (let i = 0; i < 4; i++) {
       try {
+        console.log("in");
         const block = await this._eth_getBlockByNumber("latest");
         await this.handleNewBlock(block);
+        console.log("out");
         break;
       } catch (error_) {
         const error = error_ as Error;
@@ -274,7 +283,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     if (this.isProcessBlockQueued) {
       this.isProcessBlockQueued = false;
-      await this.process();
+      this.process();
     } else {
       this.emit("idle");
     }
@@ -442,8 +451,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const pNoLogs = (1 - pLog) ** numBlocks;
     const traverseCost = 16 * numBlocks + 75 * (1 - pNoLogs);
 
-    // TODO(kyle)
-    return batchCost > traverseCost ? "traverse" : "batch";
+    return batchCost >= traverseCost ? "traverse" : "batch";
   };
 
   private syncTraverse = async (
@@ -601,6 +609,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       const commonAncestor = this.blocks.findLast(
         (b) => b.number <= ancestorBlockNumber,
       );
+
+      console.log({
+        mismatchedLogBlock: localLogs[nonMatchingIndex].blockNumber,
+        commonAncestor: commonAncestor?.number,
+        final: this.finalizedBlock.number,
+        latest: latestBlockNumber,
+      });
 
       if (commonAncestor === undefined) {
         const hasDeepReorg = await this.reconcileDeepReorg(latestBlockNumber);

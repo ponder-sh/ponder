@@ -54,13 +54,13 @@ export default createConfig({
       network: {
         mainnet: {
           address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-          startBlock: Number(latestBlockMainnet.number) - 50,
+          startBlock: Number(latestBlockMainnet.number) - 32,
         },
         base: {
-          startBlock: Number(latestBlockBase.number) - 50,
+          startBlock: Number(latestBlockBase.number) - 60,
         },
         optimism: {
-          startBlock: Number(latestBlockOptimism.number) - 50,
+          startBlock: Number(latestBlockOptimism.number) - 60,
         },
         arbitrum: {
           address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
