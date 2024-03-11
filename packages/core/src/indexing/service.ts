@@ -831,6 +831,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const fromCheckpoint = state.tasksLoadedToCheckpoint;
     const toCheckpoint = this.syncGatewayService.checkpoint;
 
+    if (
+      isCheckpointGreaterThanOrEqualTo(fromCheckpoint, toCheckpoint) &&
+      state.lastEventCheckpoint !== undefined
+    ) {
+      return;
+    }
+
     const taskBatchSize = this.calculateTaskBatchSize(key);
 
     const sourcesHasFactory = state.sources.some(sourceIsFactory);

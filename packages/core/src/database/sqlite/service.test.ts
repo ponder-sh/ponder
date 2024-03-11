@@ -128,7 +128,17 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema: schema,
       tableIds: getTableIds(schema),
       functionIds: { function: "0xfunction" },
-      tableAccess: {},
+      tableAccess: {
+        function: {
+          access: [
+            {
+              storeMethod: "create",
+              tableName: "Pet",
+            },
+          ],
+          hash: "",
+        },
+      },
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
