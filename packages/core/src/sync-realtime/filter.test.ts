@@ -146,7 +146,7 @@ test("filterLogs handles two logFilters, one topic each", async () => {
         topics: [null, zeroHash, null, null],
       },
       {
-        topics: [null, null, toLowerCase(BobHex), null],
+        topics: [null, null, BobHex, null],
       },
     ],
   });
