@@ -27,21 +27,31 @@ import {
 
 import type { Prettify } from "@/types/utils.js";
 
+type BlockOptions =
+  | {
+      cache?: undefined;
+      blockNumber?: undefined;
+    }
+  | {
+      cache: "immutable";
+      blockNumber?: undefined;
+    }
+  | {
+      cache?: undefined;
+      blockNumber: bigint;
+    };
+
 export type PonderActions = {
   getBalance: (
-    args: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> & {
-      cache?: "immutable";
-    },
+    args: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> & BlockOptions,
   ) => Promise<GetBalanceReturnType>;
   getBytecode: (
-    args: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> & {
-      cache?: "immutable";
-    },
+    args: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> &
+      BlockOptions,
   ) => Promise<GetBytecodeReturnType>;
   getStorageAt: (
-    args: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> & {
-      cache?: "immutable";
-    },
+    args: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> &
+      BlockOptions,
   ) => Promise<GetStorageAtReturnType>;
   multicall: <
     TContracts extends ContractFunctionConfig[],
@@ -50,9 +60,8 @@ export type PonderActions = {
     args: Omit<
       MulticallParameters<TContracts, TAllowFailure>,
       "blockTag" | "blockNumber"
-    > & {
-      cache?: "immutable";
-    },
+    > &
+      BlockOptions,
   ) => Promise<MulticallReturnType<TContracts, TAllowFailure>>;
   readContract: <
     const TAbi extends Abi | readonly unknown[],
@@ -61,9 +70,8 @@ export type PonderActions = {
     args: Omit<
       ReadContractParameters<TAbi, TFunctionName>,
       "blockTag" | "blockNumber"
-    > & {
-      cache?: "immutable";
-    },
+    > &
+      BlockOptions,
   ) => Promise<ReadContractReturnType<TAbi, TFunctionName>>;
 };
 
@@ -85,49 +93,57 @@ export const ponderActions =
   ): PonderActions => ({
     getBalance: ({
       cache,
+      blockNumber: userBlockNumber,
       ...args
-    }: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> & {
-      cache?: "immutable";
-    }): Promise<GetBalanceReturnType> =>
+    }: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetBalanceReturnType> =>
       viemGetBalance(client, {
         ...args,
-        ...(cache === "immutable" ? { blockTag: "latest" } : { blockNumber }),
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? blockNumber }),
       }),
     getBytecode: ({
       cache,
+      blockNumber: userBlockNumber,
       ...args
-    }: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> & {
-      cache?: "immutable";
-    }): Promise<GetBytecodeReturnType> =>
+    }: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetBytecodeReturnType> =>
       viemGetBytecode(client, {
         ...args,
-        ...(cache === "immutable" ? { blockTag: "latest" } : { blockNumber }),
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? blockNumber }),
       }),
     getStorageAt: ({
       cache,
+      blockNumber: userBlockNumber,
       ...args
-    }: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> & {
-      cache?: "immutable";
-    }): Promise<GetStorageAtReturnType> =>
+    }: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetStorageAtReturnType> =>
       viemGetStorageAt(client, {
         ...args,
-        ...(cache === "immutable" ? { blockTag: "latest" } : { blockNumber }),
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? blockNumber }),
       }),
     multicall: <
       TContracts extends ContractFunctionConfig[],
       TAllowFailure extends boolean = true,
     >({
       cache,
+      blockNumber: userBlockNumber,
       ...args
     }: Omit<
       MulticallParameters<TContracts, TAllowFailure>,
       "blockTag" | "blockNumber"
-    > & {
-      cache?: "immutable";
-    }): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
+    > &
+      BlockOptions): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
       viemMulticall(client, {
         ...args,
-        ...(cache === "immutable" ? { blockTag: "latest" } : { blockNumber }),
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? blockNumber }),
       }),
     // @ts-ignore
     readContract: <
@@ -135,15 +151,17 @@ export const ponderActions =
       TFunctionName extends string,
     >({
       cache,
+      blockNumber: userBlockNumber,
       ...args
     }: Omit<
       ReadContractParameters<TAbi, TFunctionName>,
       "blockTag" | "blockNumber"
-    > & {
-      cache?: "immutable";
-    }): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
+    > &
+      BlockOptions): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
       viemReadContract(client, {
         ...args,
-        ...(cache === "immutable" ? { blockTag: "latest" } : { blockNumber }),
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? blockNumber }),
       } as ReadContractParameters<TAbi, TFunctionName>),
   });
