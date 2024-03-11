@@ -203,7 +203,7 @@ test("start() insert logFilterInterval records with traversal method", async (co
   service.process();
   await service.onIdle();
 
-  expect(determineSpy).toHaveLastReturnedWith("batch");
+  expect(determineSpy).toHaveLastReturnedWith("traverse");
 
   const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: sources[0].chainId,
