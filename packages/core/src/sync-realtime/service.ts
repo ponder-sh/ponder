@@ -35,6 +35,7 @@ import {
   type RealtimeLog,
   realtimeBlockToLightBlock,
   realtimeLogToLightLog,
+  sortLogs,
 } from "./format.js";
 
 type RealtimeSyncEvents = {
@@ -258,10 +259,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     for (let i = 0; i < 4; i++) {
       try {
-        console.log("in");
         const block = await this._eth_getBlockByNumber("latest");
         await this.handleNewBlock(block);
-        console.log("out");
         break;
       } catch (error_) {
         const error = error_ as Error;
@@ -504,10 +503,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     if (canSkipGetLogs) return { blocks: newBlocks, logs: [], reorg: false };
 
-    const logs = await this._eth_getLogs({
+    const _logs = await this._eth_getLogs({
       fromBlock: numberToHex(latestLocalBlockNumber + 1),
       toBlock: numberToHex(newBlockNumber),
     });
+    const logs = sortLogs(_logs);
 
     const matchedLogs = await this.getMatchedLogs(
       logs,
@@ -550,10 +550,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
 
     // Get logs
-    const logs = await this._eth_getLogs({
+    const _logs = await this._eth_getLogs({
       fromBlock: numberToHex(latestLocalBlockNumber + 1),
       toBlock: newBlock.number,
     });
+    const logs = sortLogs(_logs);
 
     const matchedLogs = await this.getMatchedLogs(
       logs,
@@ -585,10 +586,18 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    * @returns True if a re-org has occurred.
    */
   reconcileReorg = async (latestBlockNumber: number) => {
-    const logs = await this._eth_getLogs({
+    this.common.logger.trace({
+      service: "realtime",
+      msg: `Checking logs for inconsistencies for blocks [${
+        this.finalizedBlock.number + 1
+      }, ${latestBlockNumber}]`,
+    });
+
+    const _logs = await this._eth_getLogs({
       fromBlock: numberToHex(this.finalizedBlock.number + 1),
       toBlock: numberToHex(latestBlockNumber),
     });
+    const logs = sortLogs(_logs);
 
     const matchedLogs = await this.getMatchedLogs(
       logs,
@@ -609,13 +618,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       const commonAncestor = this.blocks.findLast(
         (b) => b.number <= ancestorBlockNumber,
       );
-
-      console.log({
-        mismatchedLogBlock: localLogs[nonMatchingIndex].blockNumber,
-        commonAncestor: commonAncestor?.number,
-        final: this.finalizedBlock.number,
-        latest: latestBlockNumber,
-      });
 
       if (commonAncestor === undefined) {
         const hasDeepReorg = await this.reconcileDeepReorg(latestBlockNumber);
@@ -671,7 +673,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     let i = 0;
     for (; i < localLogs.length && i < matchedLogs.length; i++) {
       const lightMatchedLog = realtimeLogToLightLog(matchedLogs[i]);
-      if (lightMatchedLog.blockHash !== localLogs[i].blockHash) {
+      if (
+        lightMatchedLog.blockHash !== localLogs[i].blockHash ||
+        lightMatchedLog.logIndex !== localLogs[i].logIndex
+      ) {
         handleReorg(i);
         return true;
       }
