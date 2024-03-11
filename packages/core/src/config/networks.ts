@@ -86,11 +86,6 @@ export function getFinalityBlockCount({ chainId }: { chainId: number }) {
     case 11155111:
       finalityBlockCount = 32;
       break;
-    // Optimism.
-    case 10:
-    case 420:
-      finalityBlockCount = 5;
-      break;
     // Polygon.
     case 137:
     case 80001:
@@ -98,15 +93,14 @@ export function getFinalityBlockCount({ chainId }: { chainId: number }) {
       break;
     // Arbitrum.
     case 42161:
+    case 42170:
+    case 421611:
     case 421613:
-      finalityBlockCount = 40;
-      break;
-    // Zora.
-    case 7777777:
-      finalityBlockCount = 5;
+      finalityBlockCount = 240;
       break;
     default:
-      finalityBlockCount = 5;
+      // Assume a 2-second block time, e.g. OP stack chains.
+      finalityBlockCount = 30;
   }
 
   return finalityBlockCount;

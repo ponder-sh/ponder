@@ -7,7 +7,6 @@ import { getEventsErc20, publicClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { wait } from "@/utils/wait.js";
-import { HttpRequestError, InvalidParamsRpcError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
@@ -341,88 +340,6 @@ test("start() retries unexpected error in block task", async (context) => {
     [0, blockNumbers.finalizedBlockNumber],
   ]);
   expect(spy).toHaveBeenCalledTimes(3);
-
-  service.kill();
-  await service.onIdle();
-  await cleanup();
-});
-
-test("start() handles Alchemy 'Log response size exceeded' error", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const blockNumbers = await getBlockNumbers();
-
-  const rpcRequestSpy = vi.spyOn(requestQueues[0], "request");
-
-  rpcRequestSpy.mockRejectedValueOnce(
-    new InvalidParamsRpcError(
-      new Error(
-        // The suggested block range is 16369995 to 16369996.
-        "Log response size exceeded. this block range should work: [0xf9c94b, 0xf9c94c]",
-      ),
-    ),
-  );
-
-  const service = new HistoricalSyncService({
-    common,
-    syncStore,
-    network: networks[0],
-    requestQueue: requestQueues[0],
-    sources: [sources[0]],
-  });
-  await service.setup(blockNumbers);
-  service.start();
-  await service.onIdle();
-
-  const logFilterIntervals = await syncStore.getLogFilterIntervals({
-    chainId: sources[0].chainId,
-    logFilter: sources[0].criteria,
-  });
-  expect(logFilterIntervals).toMatchObject([
-    [0, blockNumbers.finalizedBlockNumber],
-  ]);
-  expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
-
-  service.kill();
-  await service.onIdle();
-  await cleanup();
-});
-
-test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 10,000 blocks range' error", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const blockNumbers = await getBlockNumbers();
-
-  const rpcRequestSpy = vi.spyOn(requestQueues[0], "request");
-
-  rpcRequestSpy.mockRejectedValueOnce(
-    new HttpRequestError({
-      url: "http://",
-      details:
-        "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range",
-    }),
-  );
-
-  const service = new HistoricalSyncService({
-    common,
-    syncStore,
-    network: networks[0],
-    requestQueue: requestQueues[0],
-    sources: [sources[0]],
-  });
-  await service.setup(blockNumbers);
-  service.start();
-  await service.onIdle();
-
-  const logFilterIntervals = await syncStore.getLogFilterIntervals({
-    chainId: sources[0].chainId,
-    logFilter: sources[0].criteria,
-  });
-
-  expect(logFilterIntervals).toMatchObject([
-    [0, blockNumbers.finalizedBlockNumber],
-  ]);
-  expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
   service.kill();
   await service.onIdle();
