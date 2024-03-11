@@ -106,11 +106,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private syncStore: SyncStore;
   private network: Network;
   private requestQueue: RequestQueue;
-
-  /**
-   * Service configuration. Will eventually be reloadable.
-   */
-  private finalizedBlockNumber: number = null!;
   private sources: Source[];
 
   /**
@@ -181,8 +176,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // Initialize state variables. Required when restarting the service.
     this.isShuttingDown = false;
     this.blockTasksEnqueuedCheckpoint = 0;
-
-    this.finalizedBlockNumber = finalizedBlockNumber;
 
     await Promise.all(
       this.sources.map(async (source) => {
@@ -470,15 +463,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }, 10_000);
 
     // Edge case: If there are no tasks in the queue, this means the entire
-    // requested range was cached, so the sync is complete. However, we still
-    // need to emit the historicalCheckpoint event with some timestamp. It should
-    // be safe to use the current timestamp.
+    // requested range was cached, so the sync is complete.
     if (this.queue.size === 0) {
-      this.emit("historicalCheckpoint", {
-        blockTimestamp: Math.round(Date.now() / 1000),
-        chainId: this.network.chainId,
-        blockNumber: this.finalizedBlockNumber,
-      });
       clearInterval(this.progressLogInterval);
       this.emit("syncComplete");
       this.common.logger.info({
@@ -632,7 +618,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       fromBlock: toHex(fromBlock),
       toBlock: toHex(toBlock),
     });
-
     const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
 
     for (const logInterval of logIntervals) {

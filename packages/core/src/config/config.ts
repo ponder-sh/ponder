@@ -17,8 +17,8 @@ export type BlockConfig = {
 type DatabaseConfig =
   | {
       kind: "sqlite";
-      /** Path to SQLite database file. Default: `".ponder/store"`. */
-      filename?: string;
+      /** Directory path to use for SQLite database files. Default: `".ponder/sqlite"`. */
+      directory?: string;
     }
   | {
       kind: "postgres";

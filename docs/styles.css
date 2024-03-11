@@ -64,6 +64,18 @@
   }
 }
 
+/* NEXTRA STEPS H4 SUPPORT */
+.nextra-steps h4 {
+  counter-increment: step;
+  &:before {
+    @apply absolute w-[33px] h-[33px];
+    @apply border-4 border-[#ffffff] dark:border-[#111111] bg-gray-100 dark:bg-neutral-800;
+    @apply rounded-full text-neutral-400 text-base font-normal text-center -indent-px;
+    @apply mt-[-1px] ml-[-41px];
+    content: counter(step);
+  }
+}
+
 /* LINK OVERRIDES */
 ._underline {
   text-decoration-line: none;

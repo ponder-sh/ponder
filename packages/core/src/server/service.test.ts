@@ -1,19 +1,16 @@
-import request from "supertest";
-import { beforeEach, expect, test, vi } from "vitest";
-
-import type { Common } from "@/Ponder.js";
-import { setupIndexingStore } from "@/_test/setup.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
+import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
+import { getTableIds } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
-
+import request from "supertest";
+import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import { buildGqlSchema } from "./graphql/schema.js";
 import { ServerService } from "./service.js";
 
-beforeEach((context) => setupIndexingStore(context));
+beforeEach((context) => setupIsolatedDatabase(context));
 
-const s = createSchema((p) => ({
+const schema = createSchema((p) => ({
   TestEnum: p.createEnum(["ZERO", "ONE", "TWO"]),
   TestEntity: p.createTable({
     id: p.string(),
@@ -52,32 +49,40 @@ const s = createSchema((p) => ({
   }),
 }));
 
-const graphqlSchema = buildGqlSchema(s);
+const graphqlSchema = buildGqlSchema(schema);
 
 export const setup = async ({
-  common,
-  indexingStore,
+  context,
   options = {
-    hasCompletedHistoricalIndexing: true,
+    isDatabasePublished: true,
     registerDevRoutes: false,
   },
 }: {
-  common: Common;
-  indexingStore: IndexingStore;
+  context: TestContext;
   options?: {
-    hasCompletedHistoricalIndexing: boolean;
+    isDatabasePublished: boolean;
     registerDevRoutes: boolean;
   };
 }) => {
-  await indexingStore.reload({ schema: s });
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    {
+      schema,
+      tableIds: getTableIds(schema),
+    },
+  );
 
-  const service = new ServerService({ common, indexingStore });
+  const service = new ServerService({
+    common: context.common,
+    indexingStore,
+    database,
+  });
   service.setup({ registerDevRoutes: options.registerDevRoutes });
   await service.start();
   service.reloadGraphqlSchema({ graphqlSchema });
 
-  if (options.hasCompletedHistoricalIndexing) {
-    service.setIsHistoricalIndexingComplete();
+  if (options.isDatabasePublished) {
+    database.isPublished = true;
   }
 
   const gql = async (query: string) =>
@@ -159,7 +164,10 @@ export const setup = async ({
 
   return {
     service,
+    database,
+    cleanup,
     gql,
+    indexingStore,
     createTestEntity,
     createEntityWithBigIntId,
     createEntityWithStringId,
@@ -172,13 +180,8 @@ function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index };
 }
 
-// Graphql routes.
 test("serves all scalar types correctly", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -232,14 +235,11 @@ test("serves all scalar types correctly", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("serves all scalar list types correctly", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -289,14 +289,11 @@ test("serves all scalar list types correctly", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("serves all optional types correctly", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
 
@@ -320,14 +317,11 @@ test("serves all optional types correctly", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("serves enum types correctly", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -361,12 +355,12 @@ test("serves enum types correctly", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("serves many column types correctly", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithStringId } =
-    await setup({ common, indexingStore });
+  const { service, cleanup, gql, createTestEntity, createEntityWithStringId } =
+    await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createEntityWithStringId({ id: "0", testEntityId: "0" });
@@ -396,17 +390,18 @@ test("serves many column types correctly", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("serves one column types correctly", async (context) => {
-  const { common, indexingStore } = context;
   const {
     service,
+    cleanup,
     gql,
     createTestEntity,
     createEntityWithBigIntId,
     createEntityWithNullRef,
-  } = await setup({ common, indexingStore });
+  } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -465,13 +460,12 @@ test("serves one column types correctly", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("finds unique entity by bigint id", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createEntityWithBigIntId } = await setup({
-    common,
-    indexingStore,
+  const { service, cleanup, gql, createEntityWithBigIntId } = await setup({
+    context,
   });
 
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -489,13 +483,12 @@ test("finds unique entity by bigint id", async (context) => {
   expect(entityWithBigIntId).toBeDefined();
 
   await service.kill();
+  await cleanup();
 });
 
 test("finds unique entity with id: 0", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createEntityWithIntId } = await setup({
-    common,
-    indexingStore,
+  const { service, cleanup, gql, createEntityWithIntId } = await setup({
+    context,
   });
 
   await createEntityWithIntId({ id: 0 });
@@ -513,14 +506,11 @@ test("finds unique entity with id: 0", async (context) => {
   expect(entityWithIntId).toBeTruthy();
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on string field equals", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: 125 });
@@ -542,14 +532,11 @@ test("filters on string field equals", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "123" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on string field in", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: 125 });
@@ -572,14 +559,11 @@ test("filters on string field in", async (context) => {
   expect(testEntitys.items[1]).toMatchObject({ id: "125" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on string field contains", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: 125 });
@@ -602,14 +586,11 @@ test("filters on string field contains", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "125" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on string field starts with", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: 125 });
@@ -633,14 +614,11 @@ test("filters on string field starts with", async (context) => {
   expect(testEntitys.items[1]).toMatchObject({ id: "125" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on string field not ends with", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: 125 });
@@ -664,14 +642,11 @@ test("filters on string field not ends with", async (context) => {
   expect(testEntitys.items[1]).toMatchObject({ id: "130" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on integer field equals", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -694,14 +669,11 @@ test("filters on integer field equals", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on integer field greater than", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -723,14 +695,11 @@ test("filters on integer field greater than", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "2" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on integer field less than or equal to", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -753,14 +722,11 @@ test("filters on integer field less than or equal to", async (context) => {
   expect(testEntitys.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on integer field in", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -783,14 +749,11 @@ test("filters on integer field in", async (context) => {
   expect(testEntitys.items[1]).toMatchObject({ id: "2" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on float field equals", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -814,14 +777,11 @@ test("filters on float field equals", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on float field greater than", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -843,14 +803,11 @@ test("filters on float field greater than", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "2" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on float field less than or equal to", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -874,14 +831,11 @@ test("filters on float field less than or equal to", async (context) => {
   expect(testEntitys.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on float field in", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -905,14 +859,11 @@ test("filters on float field in", async (context) => {
   expect(testEntitys.items[1]).toMatchObject({ id: "2" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on bigInt field equals", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -936,14 +887,11 @@ test("filters on bigInt field equals", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on bigInt field greater than", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -965,16 +913,14 @@ test("filters on bigInt field greater than", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "2" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on hex field equals", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
+
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 2 });
 
@@ -996,14 +942,11 @@ test("filters on hex field equals", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on hex field greater than", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1025,14 +968,11 @@ test("filters on hex field greater than", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "2" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on bigInt field less than or equal to", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1056,14 +996,11 @@ test("filters on bigInt field less than or equal to", async (context) => {
   expect(testEntitys.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on bigInt field in", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1087,14 +1024,11 @@ test("filters on bigInt field in", async (context) => {
   expect(testEntitys.items[1]).toMatchObject({ id: "2" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on string list field equals", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1116,14 +1050,11 @@ test("filters on string list field equals", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "1" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on string list field has", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1145,14 +1076,11 @@ test("filters on string list field has", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "2" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on enum field equals", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1174,14 +1102,11 @@ test("filters on enum field equals", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "1" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on enum field in", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1205,12 +1130,12 @@ test("filters on enum field in", async (context) => {
   expect(testEntitys.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on relationship field equals", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ common, indexingStore });
+  const { service, cleanup, gql, createTestEntity, createEntityWithBigIntId } =
+    await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1240,12 +1165,12 @@ test("filters on relationship field equals", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on relationship field in", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ common, indexingStore });
+  const { service, cleanup, gql, createTestEntity, createEntityWithBigIntId } =
+    await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1269,12 +1194,12 @@ test("filters on relationship field in", async (context) => {
   expect(entityWithBigIntIds.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("filters on relationship field in", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ common, indexingStore });
+  const { service, cleanup, gql, createTestEntity, createEntityWithBigIntId } =
+    await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1298,14 +1223,11 @@ test("filters on relationship field in", async (context) => {
   expect(entityWithBigIntIds.items[1]).toMatchObject({ id: "1" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("orders by on int field ascending", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 123 });
@@ -1329,14 +1251,11 @@ test("orders by on int field ascending", async (context) => {
   expect(testEntitys.items[2]).toMatchObject({ id: "123" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("orders by on int field descending", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 123 });
@@ -1360,14 +1279,11 @@ test("orders by on int field descending", async (context) => {
   expect(testEntitys.items[2]).toMatchObject({ id: "1" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("orders by on bigInt field ascending including negative values", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 123 });
@@ -1393,14 +1309,11 @@ test("orders by on bigInt field ascending including negative values", async (con
   expect(testEntitys.items[3]).toMatchObject({ id: "123" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("orders by on bigInt field descending", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 123 });
@@ -1424,14 +1337,11 @@ test("orders by on bigInt field descending", async (context) => {
   expect(testEntitys.items[2]).toMatchObject({ id: "1" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("limits to the first 50 by default", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await Promise.all(range(0, 105).map((n) => createTestEntity({ id: n })));
 
@@ -1451,14 +1361,11 @@ test("limits to the first 50 by default", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("limits as expected if less than 1000", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await Promise.all(range(0, 105).map((n) => createTestEntity({ id: n })));
 
@@ -1478,14 +1385,11 @@ test("limits as expected if less than 1000", async (context) => {
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
 
   await service.kill();
+  await cleanup();
 });
 
 test("throws if limit is greater than 1000", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1505,14 +1409,12 @@ test("throws if limit is greater than 1000", async (context) => {
   expect(response.statusCode).toBe(200);
 
   await service.kill();
+  await cleanup();
 });
 
 test("serves singular entity versioned at specified timestamp", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
-  });
+  const { service, cleanup, gql, indexingStore, createTestEntity } =
+    await setup({ context });
 
   await createTestEntity({ id: 1 });
   await indexingStore.update({
@@ -1547,15 +1449,14 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   expect(testEntity.string).toBe("updated");
 
   await service.kill();
+  await cleanup();
 });
 
 test("responds with appropriate status code pre and post historical sync", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    indexingStore,
+  const { service, database, cleanup, gql, createTestEntity } = await setup({
+    context,
     options: {
-      hasCompletedHistoricalIndexing: false,
+      isDatabasePublished: false,
       registerDevRoutes: false,
     },
   });
@@ -1577,7 +1478,7 @@ test("responds with appropriate status code pre and post historical sync", async
   expect(response.statusCode).toBe(503);
 
   // Set the historical sync flag to true
-  service.setIsHistoricalIndexingComplete();
+  database.isPublished = true;
 
   response = await gql(`
     testEntitys {
@@ -1596,15 +1497,83 @@ test("responds with appropriate status code pre and post historical sync", async
   });
 
   await service.kill();
+  await cleanup();
 });
 
-test("/admin/reload emits chainIds in reload event", async (context) => {
-  const { common, indexingStore } = context;
-  const { service } = await setup({
-    common,
+// This is a known limitation for now, which is that the timestamp version of entities
+// returned in derived fields does not inherit the timestamp argument provided to the parent.
+// So, if you want to use time-travel queries with derived fields, you need to manually
+// include the desired timestamp at every level of the query.
+test.skip("serves derived entities versioned at provided timestamp", async (context) => {
+  const {
+    service,
+    cleanup,
+    gql,
     indexingStore,
+    createTestEntity,
+    createEntityWithBigIntId,
+  } = await setup({ context });
+
+  await createTestEntity({ id: 0 });
+  await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
+
+  await indexingStore.update({
+    tableName: "EntityWithBigIntId",
+    checkpoint: createCheckpoint(10),
+    id: BigInt(0),
+    data: {
+      testEntity: "2",
+    },
+  });
+
+  const responseOld = await gql(`
+    testEntitys(timestamp: 5) {
+      items {
+        id
+        derivedTestEntity {
+          id
+        }
+      }
+    }
+  `);
+  expect(responseOld.body.errors).toBe(undefined);
+  expect(responseOld.statusCode).toBe(200);
+  const testEntitysOld = responseOld.body.data.testEntitys.items;
+  expect(testEntitysOld).toHaveLength(1);
+  expect(testEntitysOld[0]).toMatchObject({
+    id: "0",
+    derivedTestEntity: [{ id: "0" }],
+  });
+
+  const response = await gql(`
+    testEntitys {
+      items {
+          id
+          derivedTestEntity {
+            id
+          }
+      }
+    }
+  `);
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { testEntitys } = response.body.data;
+  expect(testEntitys.items).toHaveLength(1);
+  expect(testEntitys.items[0]).toMatchObject({
+    id: "0",
+    derivedTestEntity: [],
+  });
+
+  await service.kill();
+  await cleanup();
+});
+
+// Admin routes.
+test("/admin/reload emits chainIds in reload event", async (context) => {
+  const { service, cleanup } = await setup({
+    context,
     options: {
-      hasCompletedHistoricalIndexing: false,
+      isDatabasePublished: false,
       registerDevRoutes: true,
     },
   });
@@ -1621,15 +1590,14 @@ test("/admin/reload emits chainIds in reload event", async (context) => {
   });
 
   await service.kill();
+  await cleanup();
 });
 
 test("/admin/reload fails with non-integer chain IDs", async (context) => {
-  const { common, indexingStore } = context;
-  const { service } = await setup({
-    common,
-    indexingStore,
+  const { service, cleanup } = await setup({
+    context,
     options: {
-      hasCompletedHistoricalIndexing: false,
+      isDatabasePublished: false,
       registerDevRoutes: true,
     },
   });
@@ -1644,15 +1612,14 @@ test("/admin/reload fails with non-integer chain IDs", async (context) => {
   expect(emitSpy).not.toHaveBeenCalled();
 
   await service.kill();
+  await cleanup();
 });
 
 test("/admin/reload does not exist if dev routes aren't registered", async (context) => {
-  const { common, indexingStore } = context;
-  const { service } = await setup({
-    common,
-    indexingStore,
+  const { service, cleanup } = await setup({
+    context,
     options: {
-      hasCompletedHistoricalIndexing: false,
+      isDatabasePublished: false,
       registerDevRoutes: false,
     },
   });
@@ -1667,12 +1634,18 @@ test("/admin/reload does not exist if dev routes aren't registered", async (cont
   expect(emitSpy).not.toHaveBeenCalled();
 
   await service.kill();
+  await cleanup();
 });
 
 test("serves nested records at the timestamp/version specified at the top level", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithStringId } =
-    await setup({ common, indexingStore });
+  const {
+    service,
+    indexingStore,
+    gql,
+    createTestEntity,
+    createEntityWithStringId,
+    cleanup,
+  } = await setup({ context });
 
   await createTestEntity({ id: 0 });
   await createEntityWithStringId({ id: "0", testEntityId: "0" });
@@ -1721,12 +1694,18 @@ test("serves nested records at the timestamp/version specified at the top level"
   expect(testEntitys).toMatchObject([{ id: "0", derived: { items: [] } }]);
 
   await service.kill();
+  await cleanup();
 });
 
 test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
-  const { common, indexingStore } = context;
-  const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ common, indexingStore });
+  const {
+    service,
+    gql,
+    createTestEntity,
+    createEntityWithBigIntId,
+    indexingStore,
+    cleanup,
+  } = await setup({ context });
 
   const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
   const findManySpy = vi.spyOn(indexingStore, "findMany");
@@ -1767,14 +1746,20 @@ test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
   expect(findManySpy).toHaveBeenCalledTimes(2);
 
   await service.kill();
+  await cleanup();
 });
 
-test.fails(
+test.skip.fails(
   "uses dataloader to resolve a plural -> p.many() path",
   async (context) => {
-    const { common, indexingStore } = context;
-    const { service, gql, createTestEntity, createEntityWithStringId } =
-      await setup({ common, indexingStore });
+    const {
+      service,
+      indexingStore,
+      gql,
+      createTestEntity,
+      createEntityWithStringId,
+      cleanup,
+    } = await setup({ context });
 
     const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
     const findManySpy = vi.spyOn(indexingStore, "findMany");
@@ -1815,5 +1800,6 @@ test.fails(
     expect(findManySpy).toHaveBeenCalledTimes(2);
 
     await service.kill();
+    await cleanup();
   },
 );

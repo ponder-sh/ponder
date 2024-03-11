@@ -18,5 +18,6 @@ export default defineConfig({
         maxThreads: 4,
       },
     },
+    sequence: { hooks: "stack" },
   },
 });

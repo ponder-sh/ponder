@@ -10,6 +10,7 @@ import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
 
 import type { Common } from "@/Ponder.js";
+import type { DatabaseService } from "@/database/service.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { buildLoaderCache } from "./graphql/loaders.js";
@@ -23,24 +24,26 @@ export class ServerService extends Emittery<ServerEvents> {
 
   private common: Common;
   private indexingStore: IndexingStore;
+  private database: DatabaseService;
 
   private port: number;
   private terminate?: () => Promise<void>;
   private graphqlMiddleware?: Handler;
 
-  isHistoricalIndexingComplete = false;
-
   constructor({
     common,
     indexingStore,
+    database,
   }: {
     common: Common;
     indexingStore: IndexingStore;
+    database: DatabaseService;
   }) {
     super();
 
     this.common = common;
     this.indexingStore = indexingStore;
+    this.database = database;
     this.app = express();
 
     // This gets updated to the resolved port if the requested port is in use.
@@ -125,15 +128,6 @@ export class ServerService extends Emittery<ServerEvents> {
     });
   }
 
-  setIsHistoricalIndexingComplete() {
-    this.isHistoricalIndexingComplete = true;
-
-    this.common.logger.info({
-      service: "server",
-      msg: "Started responding as healthy",
-    });
-  }
-
   // Route handlers.
   private handleMetrics(): Handler {
     return async (req, res) => {
@@ -152,7 +146,7 @@ export class ServerService extends Emittery<ServerEvents> {
 
   private handleHealthGet(): Handler {
     return (_, res) => {
-      if (this.isHistoricalIndexingComplete) {
+      if (this.database.isPublished) {
         return res.status(200).send();
       }
 
@@ -183,7 +177,7 @@ export class ServerService extends Emittery<ServerEvents> {
 
       // While waiting for historical indexing to complete, we want to respond back
       // with an error to prevent the requester from accepting incomplete data.
-      if (shouldWaitForHistoricalSync && !this.isHistoricalIndexingComplete) {
+      if (shouldWaitForHistoricalSync && !this.database.isPublished) {
         // Respond back with a similar runtime query error as the GraphQL package.
         // https://github.com/graphql/express-graphql/blob/3fab4b1e016cd27655f3b013f65a6b1344520d01/src/index.ts#L397-L400
         const errors = [
