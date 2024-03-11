@@ -372,7 +372,7 @@ test("buildConfig() validates address length", async () => {
   );
 });
 
-test("buildNetworksAndSources() coerces NaN startBlock to 0", async () => {
+test("buildConfig() coerces NaN startBlock to 0", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -386,12 +386,12 @@ test("buildNetworksAndSources() coerces NaN startBlock to 0", async () => {
     },
   });
 
-  const { sources } = await buildNetworksAndSources({ config });
+  const { sources } = await buildConfig({ config, options });
 
   expect(sources[0].startBlock).toBe(0);
 });
 
-test("buildNetworksAndSources() coerces NaN endBlock to undefined", async () => {
+test("buildConfig() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -405,7 +405,7 @@ test("buildNetworksAndSources() coerces NaN endBlock to undefined", async () => 
     },
   });
 
-  const { sources } = await buildNetworksAndSources({ config });
+  const { sources } = await buildConfig({ config, options });
 
   expect(sources[0].endBlock).toBe(undefined);
 });
