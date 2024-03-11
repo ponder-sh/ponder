@@ -8,7 +8,7 @@ export const rateLimit = (
   _transport: Transport,
   {
     requestsPerSecond,
-    browser,
+    browser = true,
   }: { requestsPerSecond: number; browser?: boolean },
 ): Transport => {
   return ({ chain, retryCount, timeout }) => {
