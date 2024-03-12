@@ -1,5 +1,14 @@
 # @ponder/core
 
+## 0.3.2
+
+### Patch Changes
+
+- [#692](https://github.com/ponder-sh/ponder/pull/692) [`5d6b541dd4a3bda979d26bb38754b77209674a98`](https://github.com/ponder-sh/ponder/commit/5d6b541dd4a3bda979d26bb38754b77209674a98) Thanks [@kyscott18](https://github.com/kyscott18)! - Re-exported `rateLimit` and `loadBalance` from `@ponder/utils`.
+
+- Updated dependencies [[`5d6b541dd4a3bda979d26bb38754b77209674a98`](https://github.com/ponder-sh/ponder/commit/5d6b541dd4a3bda979d26bb38754b77209674a98)]:
+  - @ponder/utils@0.1.0
+
 ## 0.3.1
 
 ### Patch Changes

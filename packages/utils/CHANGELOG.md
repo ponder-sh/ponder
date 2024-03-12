@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.1.0
+
+### Minor Changes
+
+- [#692](https://github.com/ponder-sh/ponder/pull/692) [`5d6b541dd4a3bda979d26bb38754b77209674a98`](https://github.com/ponder-sh/ponder/commit/5d6b541dd4a3bda979d26bb38754b77209674a98) Thanks [@kyscott18](https://github.com/kyscott18)! - Added two new viem transports. `rateLimit` for throttling the frequency of requests and `loadBalance` for distributing requests between multiple child transports.
+
 ## 0.0.1
 
 ### Patch Changes
