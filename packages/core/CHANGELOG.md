@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.3.1
+
+### Patch Changes
+
+- [#701](https://github.com/ponder-sh/ponder/pull/701) [`bcc52adabc888cf476107a8074b6bdcb28d6e7c7`](https://github.com/ponder-sh/ponder/commit/bcc52adabc888cf476107a8074b6bdcb28d6e7c7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed bugs where the realtime sync would: incorrectly report reorgs with a very large depth, call `eth_getLogs` with `fromBlock > toBlock`, and skip events if the RPC returned logs out of order. Improved realtime sync debug logging.
+
 ## 0.3.0
 
 ### Minor Changes
