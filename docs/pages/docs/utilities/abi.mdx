@@ -1,0 +1,49 @@
+---
+title: "ABI Utilities"
+description: "API reference for ABI utility functions."
+---
+
+import { Callout } from "nextra/components";
+
+# ABI utilities
+
+## Merge ABIs
+
+The `mergeAbis` utility function combines multiple ABIs into one, removing duplicates if necessary. It works at runtime and at the type-level.
+
+### Usage in Ponder
+
+Use `mergeAbis` to maintain type safety when combining multiple ABIs for a single contract. This is especially useful for proxy contracts that have had several different implementation ABIs.
+
+For convenience, `@ponder/core` re-exports `mergeAbis` from `@ponder/utils`.
+
+```ts filename="ponder.config.ts" {1,14}
+import { createConfig, mergeAbis } from "@ponder/core";
+import { http } from "viem";
+
+import { ERC1967ProxyAbi } from "./abis/ERC1967Proxy";
+import { NameRegistryAbi } from "./abis/NameRegistry";
+import { NameRegistry2Abi } from "./abis/NameRegistry2";
+
+export default createConfig({
+  networks: {
+    goerli: { chainId: 5, transport: http(process.env.PONDER_RPC_URL_5) },
+  },
+  contracts: {
+    FarcasterNameRegistry: {
+      abi: mergeAbis([ERC1967ProxyAbi, NameRegistryAbi, NameRegistry2Abi]),
+      network: "goerli",
+      address: "0xe3Be01D99bAa8dB9905b33a3cA391238234B79D1",
+      startBlock: 7648795,
+    },
+  },
+});
+```
+
+### Parameters
+
+#### ABIs
+
+Type: `Abi[]` (required)
+
+A list of ABIs to merge.

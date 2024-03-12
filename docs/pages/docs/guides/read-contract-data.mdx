@@ -9,7 +9,7 @@ import { Callout } from "nextra/components";
 
 Ideally, smart contracts emit event logs containing all the data you need to build your application. In practice, developers often forget to include certain event logs, or omit them as a gas optimization. In some cases, you can address these gaps by reading data directly from a contract.
 
-Ponder natively supports this pattern by injecting a custom [Viem Client](https://viem.sh/docs/clients/intro.html) into the indexing function context. This modified client automatically caches RPC requests and supports several RPC methods including `eth_call`, `multicall`, `eth_getStorageAt`, and `eth_getBytecode`.
+Ponder natively supports this pattern by injecting a custom [Viem Client](https://viem.sh/docs/clients/intro.html) into the indexing function context. This modified client automatically caches RPC requests and supports several RPC methods including `eth_call`, `multicall`, `eth_getStorageAt`, and `eth_getCode`.
 
 ## Basic example
 

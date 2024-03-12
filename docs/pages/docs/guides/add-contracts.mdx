@@ -9,7 +9,7 @@ import { Callout } from "nextra/components";
 
 To add a new contract to your app, use the `contracts` field in `ponder.config.ts`. Ponder fetches raw blockchain data (event logs) for each contract you add, and passes that data to the indexing functions you write.
 
-This guide explains how each contract configuration field works, and suggests patterns for common use cases. See also the `ponder.config.ts` [API reference](/api-reference/config) page.
+This guide explains how each contract configuration field works, and suggests patterns for common use cases. See also the `ponder.config.ts` [API reference](/docs/api-reference/config) page.
 
 ## Contract name
 
@@ -80,7 +80,7 @@ export default createConfig({
 
 ### Multiple ABIs
 
-It's occasionally useful to provide multiple ABIs for one contract, like when defining a proxy/upgradable contract that has gone through multiple implementation contracts. The `mergeAbis` function exported by `@ponder/core` safely removes duplicate ABI items and maintains strict types.
+It's occasionally useful to provide multiple ABIs for one contract, like when defining a proxy/upgradable contract that has gone through multiple implementation contracts. The [`mergeAbis`](/docs/utilities/abi) utility function safely removes duplicate ABI items and maintains strict types.
 
 ```ts filename="ponder.config.ts" {1,14}
 import { createConfig, mergeAbis } from "@ponder/core";
@@ -385,7 +385,7 @@ event ChildCreated(ChildContract child);
 
 ### Proxy & upgradable contracts
 
-To index a proxy/upgradable contract, use the proxy contract address in the `address` field. Then, be sure to include the ABIs of all implementation contracts that the proxy has ever had. The implementation ABIs are required to properly identify and decode all historical event logs. To add multiple ABIs safely, use the [`mergeAbis`](/guides/add-contracts#multiple-abis) utility function.
+To index a proxy/upgradable contract, use the proxy contract address in the `address` field. Then, be sure to include the ABIs of all implementation contracts that the proxy has ever had. The implementation ABIs are required to properly identify and decode all historical event logs. To add multiple ABIs safely, use the [`mergeAbis`](/docs/utilities/abi) utility function.
 
 <Callout>
 Tip: On Etherscan, there is a link to the current implementation contract on the **Contract → Read as Proxy** tab. You can copy all the implementation ABIs as text and paste them into `.ts` files.

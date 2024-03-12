@@ -13,7 +13,7 @@ import { Steps, Tabs, Callout } from "nextra/components";
 
 <Callout type="info">
   If the contract you're indexing has already been deployed, use the [Etherscan
-  contract link template](/api-reference/create-ponder#etherscan-contract-link).
+  contract link template](/docs/api-reference/create-ponder#etherscan-contract-link).
 </Callout>
 
 {/* prettier-ignore */}
@@ -35,7 +35,7 @@ npm create ponder@latest
 </Tabs.Tab>
 </Tabs>
 
-You will be asked for a project name, and if you are using a [template](/api-reference/create-ponder#templates) (recommended). Then, it will create a project directory, install dependencies, and initialize a git repository.
+You will be asked for a project name, and if you are using a [template](/docs/api-reference/create-ponder#templates) (recommended). Then, it will create a project directory, install dependencies, and initialize a git repository.
 
 ### Start the development server
 
@@ -90,7 +90,7 @@ export default createSchema((p) => ({
 }));
 ```
 
-See [Design your schema](/guides/design-your-schema) for a detailed guide on schema design.
+See [Design your schema](/docs/guides/design-your-schema) for a detailed guide on schema design.
 
 ### Write indexing functions
 
@@ -113,7 +113,7 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
 });
 ```
 
-See [Create & update records](/guides/create-update-records) for a detailed guide on writing indexing functions.
+See [Create & update records](/docs/guides/create-update-records) for a detailed guide on writing indexing functions.
 
 ### Query the GraphQL API
 
