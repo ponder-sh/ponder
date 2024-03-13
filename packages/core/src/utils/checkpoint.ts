@@ -19,6 +19,7 @@ const EXECUTION_INDEX_DIGITS = 16;
 
 export const encodeCheckpoint = (checkpoint: Checkpoint) => {
   const { blockTimestamp, chainId, blockNumber, logIndex } = checkpoint;
+
   const result =
     blockTimestamp.toString().padStart(BLOCK_TIMESTAMP_DIGITS, "0") +
     chainId.toString().padStart(CHAIN_ID_DIGITS, "0") +
@@ -37,6 +38,30 @@ export const encodeCheckpoint = (checkpoint: Checkpoint) => {
     throw new Error(`Invalid stringified checkpoint: ${result}`);
 
   return result;
+};
+
+export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
+  let offset = 0;
+
+  const blockTimestamp = +checkpoint.slice(
+    offset,
+    offset + BLOCK_TIMESTAMP_DIGITS,
+  );
+  offset += BLOCK_TIMESTAMP_DIGITS;
+
+  const chainId = +checkpoint.slice(offset, offset + CHAIN_ID_DIGITS);
+  offset += CHAIN_ID_DIGITS;
+
+  const blockNumber = +checkpoint.slice(offset, offset + BLOCK_NUMBER_DIGITS);
+  offset += BLOCK_NUMBER_DIGITS;
+
+  let logIndex: number | undefined = Number(
+    checkpoint.slice(offset, offset + EXECUTION_INDEX_DIGITS),
+  );
+
+  if (logIndex > Number.MAX_SAFE_INTEGER) logIndex = undefined;
+
+  return { blockTimestamp, chainId, blockNumber, logIndex };
 };
 
 export const zeroCheckpoint: Checkpoint = {

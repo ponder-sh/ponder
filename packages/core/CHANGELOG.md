@@ -1,5 +1,36 @@
 # @ponder/core
 
+## 0.3.2
+
+### Patch Changes
+
+- [#692](https://github.com/ponder-sh/ponder/pull/692) [`5d6b541dd4a3bda979d26bb38754b77209674a98`](https://github.com/ponder-sh/ponder/commit/5d6b541dd4a3bda979d26bb38754b77209674a98) Thanks [@kyscott18](https://github.com/kyscott18)! - Re-exported `rateLimit` and `loadBalance` from `@ponder/utils`.
+
+- Updated dependencies [[`5d6b541dd4a3bda979d26bb38754b77209674a98`](https://github.com/ponder-sh/ponder/commit/5d6b541dd4a3bda979d26bb38754b77209674a98)]:
+  - @ponder/utils@0.1.0
+
+## 0.3.1
+
+### Patch Changes
+
+- [#701](https://github.com/ponder-sh/ponder/pull/701) [`bcc52adabc888cf476107a8074b6bdcb28d6e7c7`](https://github.com/ponder-sh/ponder/commit/bcc52adabc888cf476107a8074b6bdcb28d6e7c7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed bugs where the realtime sync would: incorrectly report reorgs with a very large depth, call `eth_getLogs` with `fromBlock > toBlock`, and skip events if the RPC returned logs out of order. Improved realtime sync debug logging.
+
+## 0.3.0
+
+### Minor Changes
+
+- [#640](https://github.com/ponder-sh/ponder/pull/640) [`81d4a9bb537fa2611656e0c708724390acb79f3a`](https://github.com/ponder-sh/ponder/commit/81d4a9bb537fa2611656e0c708724390acb79f3a) Thanks [@kyscott18](https://github.com/kyscott18)! - Direct SQL. Public indexing tables (to be accessed directly) are created in the 'ponder' schema. Cached indexing tables are created in the 'ponder_cache' schema. Added migration script to move sync tables from 'public' to 'ponder_sync' schema. Private indexing tables use a numeric suffix like `ponder_instance_2' and are created/removed automatically. Please see the direct SQL docs for more information (https://ponder.sh/docs/guides/query-the-database).
+
+### Patch Changes
+
+- [#640](https://github.com/ponder-sh/ponder/pull/640) [`81d4a9bb537fa2611656e0c708724390acb79f3a`](https://github.com/ponder-sh/ponder/commit/81d4a9bb537fa2611656e0c708724390acb79f3a) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved database error retry behavior.
+
+## 0.2.18
+
+### Patch Changes
+
+- [#698](https://github.com/ponder-sh/ponder/pull/698) [`e57f10dbf08f78e6569f35c7d0b47dce6ff480ce`](https://github.com/ponder-sh/ponder/commit/e57f10dbf08f78e6569f35c7d0b47dce6ff480ce) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for specifying a custom `blockNumber` in `context.client` actions.
+
 ## 0.2.17
 
 ### Patch Changes

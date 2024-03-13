@@ -1,6 +1,10 @@
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 
-import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
+import {
+  setupAnvil,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 
 import {
   type Checkpoint,
@@ -11,7 +15,7 @@ import {
 import { SyncGateway } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
+beforeEach((context) => setupIsolatedDatabase(context));
 
 function getMultichainNetworksAndSources(context: TestContext) {
   const mainnet = context.networks[0];
@@ -35,16 +39,13 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): Checkpoint {
 }
 
 test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
@@ -60,19 +61,18 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet10);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
@@ -94,20 +94,18 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", optimism5);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
-test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final historical sync is complete", async (context) => {
-  const { common, syncStore } = context;
+test("handleHistoricalSyncComplete sets historicalSyncCompletedAt", async (context) => {
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
@@ -119,6 +117,9 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
     blockTimestamp: 5,
   });
 
+  service.handleNewRealtimeCheckpoint(mainnet10);
+  service.handleNewRealtimeCheckpoint(optimism5);
+
   service.handleNewHistoricalCheckpoint(mainnet10);
   service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
 
@@ -127,20 +128,19 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", optimism5);
   expect(emitSpy).toHaveBeenCalledTimes(1);
-  expect(service.historicalSyncCompletedAt).toBe(10);
+  expect(service.isHistoricalSyncComplete).toBe(true);
+
+  await cleanup();
 });
 
 test("handleNewHistoricalCheckpoint emits new checkpoint when other chain is completed", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
@@ -164,20 +164,18 @@ test("handleNewHistoricalCheckpoint emits new checkpoint when other chain is com
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", optimism12);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
@@ -199,25 +197,27 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet10);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is complete", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
     chainId: mainnet.chainId,
     blockTimestamp: 10,
+  });
+  const mainnet20 = createCheckpoint({
+    chainId: mainnet.chainId,
+    blockTimestamp: 20,
   });
   const mainnet25 = createCheckpoint({
     chainId: mainnet.chainId,
@@ -227,38 +227,51 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
     chainId: optimism.chainId,
     blockTimestamp: 12,
   });
+  const optimism22 = createCheckpoint({
+    chainId: optimism.chainId,
+    blockTimestamp: 22,
+  });
   const optimism27 = createCheckpoint({
     chainId: optimism.chainId,
     blockTimestamp: 27,
   });
 
-  service.handleNewHistoricalCheckpoint(optimism12);
-  service.handleHistoricalSyncComplete({ chainId: optimism.chainId });
+  service.handleNewRealtimeCheckpoint(mainnet20);
+  service.handleNewRealtimeCheckpoint(optimism22);
 
+  expect(emitSpy).toHaveBeenCalledTimes(0);
+
+  service.handleNewHistoricalCheckpoint(optimism12);
   service.handleNewHistoricalCheckpoint(mainnet10);
+
+  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet10);
+  expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  service.handleHistoricalSyncComplete({ chainId: optimism.chainId });
   service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
+
+  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet20);
+  expect(emitSpy).toHaveBeenCalledTimes(2);
 
   service.handleNewRealtimeCheckpoint(optimism27);
   service.handleNewRealtimeCheckpoint(mainnet25);
 
-  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet10);
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", mainnet25);
-  expect(emitSpy).toHaveBeenCalledTimes(2);
-  expect(service.historicalSyncCompletedAt).toBe(12);
+  expect(emitSpy).toHaveBeenCalledTimes(3);
+
+  expect(service.isHistoricalSyncComplete).toBe(true);
+
+  await cleanup();
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet15 = createCheckpoint({
@@ -275,20 +288,18 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) 
 
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", optimism12);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequent event is earlier", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet15 = createCheckpoint({
@@ -310,20 +321,18 @@ test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequ
 
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", optimism12);
   expect(emitSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent event is later", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet15 = createCheckpoint({
@@ -346,19 +355,18 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent even
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", optimism12);
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", mainnet15);
   expect(emitSpy).toHaveBeenCalledTimes(2);
+
+  await cleanup();
 });
 
 test("resetCheckpoints resets the checkpoint states", async (context) => {
-  const { common, syncStore } = context;
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const { networks } = getMultichainNetworksAndSources(context);
   const [mainnet, optimism] = networks;
 
-  const service = new SyncGateway({
-    common,
-    syncStore,
-    networks,
-  });
+  const service = new SyncGateway({ common, syncStore, networks });
 
   const mainnet2 = createCheckpoint({
     chainId: mainnet.chainId,
@@ -377,8 +385,8 @@ test("resetCheckpoints resets the checkpoint states", async (context) => {
     blockTimestamp: 5,
   });
 
-  service.handleNewRealtimeCheckpoint(mainnet2);
-  service.handleNewHistoricalCheckpoint(mainnet3);
+  service.handleNewRealtimeCheckpoint(mainnet3);
+  service.handleNewHistoricalCheckpoint(mainnet2);
   service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
 
   service.handleNewRealtimeCheckpoint(optimism5);
@@ -386,11 +394,13 @@ test("resetCheckpoints resets the checkpoint states", async (context) => {
   service.handleHistoricalSyncComplete({ chainId: optimism.chainId });
 
   expect(service.checkpoint).toBe(mainnet3);
-  expect(service.historicalSyncCompletedAt).toBe(4);
+  expect(service.isHistoricalSyncComplete).toBe(true);
 
   service.resetCheckpoints({ chainId: mainnet.chainId });
 
   expect(service.checkpoint).toBe(zeroCheckpoint);
   expect(service.finalityCheckpoint).toBe(zeroCheckpoint);
-  expect(service.historicalSyncCompletedAt).toBe(0);
+  expect(service.isHistoricalSyncComplete).toBe(false);
+
+  await cleanup();
 });

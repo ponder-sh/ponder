@@ -96,8 +96,106 @@
       },
       "gridPos": {
         "h": 11,
-        "w": 12,
+        "w": 8,
         "x": 0,
+        "y": 1
+      },
+      "id": 123144,
+      "interval": "5s",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "histogram_quantile(0.9, max by(le, method) (increase(ponder_database_method_duration_bucket{service=\"admin\"}[$__rate_interval])))",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "{{method}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Admin method duration (p90)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "log": 2,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 8,
+        "x": 8,
         "y": 1
       },
       "id": 123142,
@@ -122,7 +220,7 @@
           },
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "histogram_quantile(0.9, max by(le, method) (increase(ponder_sync_store_method_duration_bucket{method!=\"migrateUp\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.9, max by(le, method) (increase(ponder_database_method_duration_bucket{service=\"sync\"}[$__rate_interval])))",
           "hide": false,
           "instant": false,
           "legendFormat": "{{method}}",
@@ -131,6 +229,298 @@
         }
       ],
       "title": "Sync store method duration (p90)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "log": 2,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "id": 123143,
+      "interval": "5s",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "histogram_quantile(0.9, max by(le, method) (increase(ponder_database_method_duration_bucket{service=\"indexing\"}[$__rate_interval])))",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "{{method}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Indexing method duration (p90)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "description": "Rate of queries submitted to the database",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 8,
+        "x": 0,
+        "y": 12
+      },
+      "id": 123145,
+      "interval": "5s",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "sum by(pool) (rate(ponder_postgres_query_total[$__rate_interval]))",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "[Postgres] Query rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "description": "Number of query requests waiting for an available connection",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 8,
+        "x": 8,
+        "y": 12
+      },
+      "id": 123147,
+      "interval": "5s",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "sum by(pool) (rate(ponder_postgres_query_queue_size[$__rate_interval]))",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "[Postgres] Queue size",
       "type": "timeseries"
     },
     {
@@ -186,18 +576,17 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "ms"
+          }
         },
         "overrides": []
       },
       "gridPos": {
         "h": 11,
-        "w": 12,
-        "x": 12,
-        "y": 1
+        "w": 8,
+        "x": 16,
+        "y": 12
       },
-      "id": 123143,
+      "id": 123146,
       "interval": "5s",
       "options": {
         "legend": {
@@ -219,15 +608,15 @@
           },
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "histogram_quantile(0.9, max by(le, method, table) (increase(ponder_indexing_store_method_duration_bucket{method!=\"reload\"}[$__rate_interval])))",
+          "expr": "sum by(database) (rate(ponder_sqlite_query_total[$__rate_interval]))",
           "hide": false,
           "instant": false,
-          "legendFormat": "{{table}}.{{method}}()",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Indexing store method duration (p90)",
+      "title": "[SQLite] Query rate",
       "type": "timeseries"
     },
     {
@@ -236,7 +625,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 23
       },
       "id": 123130,
       "panels": [],
@@ -246,7 +635,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Prometheus"
+        "uid": "PBFA97CFB590B2093"
       },
       "fieldConfig": {
         "defaults": {
@@ -267,10 +656,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 3,
-        "w": 6,
+        "h": 12,
+        "w": 4,
         "x": 0,
-        "y": 13
+        "y": 24
       },
       "id": 123128,
       "interval": "1s",
@@ -278,7 +667,78 @@
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
-        "orientation": "auto",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "editorMode": "builder",
+          "expr": "ponder_realtime_latest_block_number",
+          "instant": false,
+          "legendFormat": "{{network}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Latest block number",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 500
+              },
+              {
+                "color": "orange",
+                "value": 2000
+              },
+              {
+                "color": "red",
+                "value": 5000
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 7,
+        "x": 8,
+        "y": 24
+      },
+      "id": 123135,
+      "interval": "1s",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "vertical",
         "reduceOptions": {
           "calcs": ["lastNotNull"],
           "fields": "",
@@ -294,14 +754,17 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "ponder_realtime_latest_block_number{network=\"$networks\"}",
+          "exemplar": false,
+          "expr": "histogram_quantile(0.95, ponder_realtime_rpc_request_duration_bucket)",
+          "format": "time_series",
           "instant": false,
-          "legendFormat": "Block number",
+          "interval": "",
+          "legendFormat": "{{method}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Latest block number",
+      "title": "RPC request duration (p95)",
       "type": "stat"
     },
     {
@@ -341,7 +804,7 @@
         "h": 4,
         "w": 7,
         "x": 17,
-        "y": 13
+        "y": 24
       },
       "id": 123132,
       "interval": "1s",
@@ -406,7 +869,7 @@
         "h": 3,
         "w": 6,
         "x": 0,
-        "y": 16
+        "y": 36
       },
       "id": 123129,
       "interval": "1s",
@@ -441,86 +904,12 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 500
-              },
-              {
-                "color": "orange",
-                "value": 2000
-              },
-              {
-                "color": "red",
-                "value": 5000
-              }
-            ]
-          },
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 7,
-        "x": 17,
-        "y": 17
-      },
-      "id": 123135,
-      "interval": "1s",
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "vertical",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "Prometheus"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "histogram_quantile(0.95, ponder_realtime_rpc_request_duration_bucket)",
-          "format": "time_series",
-          "instant": false,
-          "interval": "",
-          "legendFormat": "{{method}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "RPC request duration (p95)",
-      "type": "stat"
-    },
-    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 21
+        "y": 39
       },
       "id": 123126,
       "panels": [],
@@ -530,7 +919,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Prometheus"
+        "uid": "PBFA97CFB590B2093"
       },
       "fieldConfig": {
         "defaults": {
@@ -555,7 +944,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 22
+        "y": 40
       },
       "id": 123124,
       "interval": "1s",
@@ -574,15 +963,13 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Prometheus"
+            "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "sum(ponder_historical_task_completed{network=\"$networks\"}) / sum(ponder_historical_task_total{network=\"$networks\"})",
-          "format": "time_series",
+          "expr": "ponder_historical_completed_blocks / ponder_historical_total_blocks",
           "hide": false,
           "instant": false,
-          "legendFormat": "{{kind}}",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
@@ -628,7 +1015,7 @@
         "h": 4,
         "w": 7,
         "x": 17,
-        "y": 22
+        "y": 40
       },
       "id": 123133,
       "interval": "1s",
@@ -702,7 +1089,7 @@
         "h": 4,
         "w": 7,
         "x": 17,
-        "y": 26
+        "y": 44
       },
       "id": 123134,
       "interval": "1s",
@@ -745,7 +1132,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 48
       },
       "id": 123136,
       "panels": [],
@@ -814,7 +1201,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 31
+        "y": 49
       },
       "id": 123137,
       "interval": "1s",
@@ -936,7 +1323,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 31
+        "y": 49
       },
       "id": 123138,
       "interval": "1s",
@@ -1053,7 +1440,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 39
+        "y": 57
       },
       "id": 123139,
       "interval": "3s",
@@ -1148,7 +1535,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 39
+        "y": 57
       },
       "id": 123140,
       "interval": "1s",
@@ -1189,34 +1576,7 @@
   "style": "dark",
   "tags": [],
   "templating": {
-    "list": [
-      {
-        "current": {
-          "selected": true,
-          "text": ["mainnet"],
-          "value": ["mainnet"]
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "definition": "label_values(network)",
-        "hide": 0,
-        "includeAll": false,
-        "multi": true,
-        "name": "networks",
-        "options": [],
-        "query": {
-          "query": "label_values(network)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 2,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "type": "query"
-      }
-    ]
+    "list": []
   },
   "time": {
     "from": "now-5m",
@@ -1243,6 +1603,6 @@
   "timezone": "browser",
   "title": "Ponder",
   "uid": "c9256f5e-776b-48bd-ae68-b0ed508c8ceb",
-  "version": 48,
+  "version": 57,
   "weekStart": ""
 }

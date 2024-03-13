@@ -1,5 +1,3 @@
-import type { DatabaseConfig } from "@/config/database.js";
-import type { Pool } from "pg";
 import prometheus from "prom-client";
 
 const httpRequestBucketsInMs = [
@@ -13,7 +11,7 @@ const httpRequestSizeInBytes = [
 ];
 
 export class MetricsService {
-  private registry: prometheus.Registry;
+  registry: prometheus.Registry;
 
   ponder_rpc_request_duration: prometheus.Histogram<"network" | "method">;
   ponder_rpc_request_lag: prometheus.Histogram<"network" | "method">;
@@ -31,8 +29,12 @@ export class MetricsService {
   ponder_indexing_total_seconds: prometheus.Gauge<"event">;
   ponder_indexing_completed_seconds: prometheus.Gauge<"event">;
   ponder_indexing_completed_events: prometheus.Gauge<"network" | "event">;
+
   ponder_indexing_completed_timestamp: prometheus.Gauge;
   ponder_indexing_has_error: prometheus.Gauge;
+
+  ponder_indexing_function_duration: prometheus.Histogram<"network" | "event">;
+  ponder_indexing_function_error_total: prometheus.Counter<"network" | "event">;
 
   ponder_server_port: prometheus.Gauge;
   ponder_server_request_size: prometheus.Histogram<
@@ -45,25 +47,19 @@ export class MetricsService {
     "method" | "path" | "status"
   >;
 
-  ponder_sync_store_method_duration: prometheus.Histogram<"method">;
-  ponder_indexing_store_method_duration: prometheus.Histogram<
-    "table" | "method"
-  >;
+  ponder_database_method_duration: prometheus.Histogram<"service" | "method">;
+  ponder_database_method_error_total: prometheus.Counter<"service" | "method">;
 
-  ponder_postgres_idle_connection_count: prometheus.Counter = null!;
-  ponder_postgres_total_connection_count: prometheus.Counter = null!;
-  ponder_postgres_request_queue_count: prometheus.Counter = null!;
-  ponder_postgres_query_count: prometheus.Counter = null!;
+  ponder_postgres_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
+  ponder_postgres_query_queue_size: prometheus.Gauge<"pool"> = null!;
+  ponder_postgres_query_total: prometheus.Counter<"pool"> = null!;
 
-  ponder_sqlite_query_count: prometheus.Counter = null!;
+  ponder_sqlite_query_total: prometheus.Counter<"database"> = null!;
 
   constructor() {
     this.registry = new prometheus.Registry();
 
-    prometheus.collectDefaultMetrics({
-      register: this.registry,
-      prefix: "ponder_default_",
-    });
+    prometheus.collectDefaultMetrics({ register: this.registry });
 
     this.ponder_rpc_request_duration = new prometheus.Histogram({
       name: "ponder_rpc_request_duration",
@@ -158,6 +154,19 @@ export class MetricsService {
       help: "Boolean (0 or 1) indicating if an error was encountered while running user code",
       registers: [this.registry],
     });
+    this.ponder_indexing_function_duration = new prometheus.Histogram({
+      name: "ponder_indexing_function_duration",
+      help: "Duration of indexing function execution",
+      labelNames: ["network", "event"] as const,
+      buckets: httpRequestBucketsInMs,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_function_error_total = new prometheus.Counter({
+      name: "ponder_indexing_function_error_total",
+      help: "Total number of errors encountered during indexing function execution",
+      labelNames: ["network", "event"] as const,
+      registers: [this.registry],
+    });
 
     this.ponder_server_port = new prometheus.Gauge({
       name: "ponder_server_port",
@@ -186,71 +195,19 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    this.ponder_sync_store_method_duration = new prometheus.Histogram({
-      name: "ponder_sync_store_method_duration",
-      help: "Duration of database operations in the sync store",
-      labelNames: ["method"] as const,
+    this.ponder_database_method_duration = new prometheus.Histogram({
+      name: "ponder_database_method_duration",
+      help: "Duration of database operations",
+      labelNames: ["service", "method"] as const,
       buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
-    this.ponder_indexing_store_method_duration = new prometheus.Histogram({
-      name: "ponder_indexing_store_method_duration",
-      help: "Duration of database operations in the sync store",
-      labelNames: ["table", "method"] as const,
-      buckets: httpRequestBucketsInMs,
+    this.ponder_database_method_error_total = new prometheus.Counter({
+      name: "ponder_database_method_error_total",
+      help: "Total number of errors encountered during database operations",
+      labelNames: ["service", "method"] as const,
       registers: [this.registry],
     });
-  }
-
-  registerDatabaseMetrics(database: DatabaseConfig) {
-    if (database.sync.kind === "postgres") {
-      this.registry.removeSingleMetric("ponder_postgres_query_count");
-      this.ponder_postgres_query_count = new prometheus.Counter({
-        name: "ponder_postgres_query_count",
-        help: "Number of queries executed by Postgres",
-        labelNames: ["kind"] as const,
-        registers: [this.registry],
-      });
-
-      const pool = database.sync.pool as unknown as Pool;
-      this.registry.removeSingleMetric("ponder_postgres_idle_connection_count");
-      this.ponder_postgres_idle_connection_count = new prometheus.Gauge({
-        name: "ponder_postgres_idle_connection_count",
-        help: "Number of idle connections in the pool",
-        registers: [this.registry],
-        collect() {
-          this.set(pool.idleCount);
-        },
-      });
-      this.registry.removeSingleMetric(
-        "ponder_postgres_total_connection_count",
-      );
-      this.ponder_postgres_total_connection_count = new prometheus.Gauge({
-        name: "ponder_postgres_total_connection_count",
-        help: "Total number of connections in the pool",
-        registers: [this.registry],
-        collect() {
-          this.set(pool.totalCount);
-        },
-      });
-      this.registry.removeSingleMetric("ponder_postgres_request_queue_count");
-      this.ponder_postgres_request_queue_count = new prometheus.Gauge({
-        name: "ponder_postgres_request_queue_count",
-        help: "Number of transaction or query requests waiting for an available connection",
-        registers: [this.registry],
-        collect() {
-          this.set(pool.waitingCount);
-        },
-      });
-    } else {
-      this.registry.removeSingleMetric("ponder_sqlite_query_count");
-      this.ponder_sqlite_query_count = new prometheus.Counter({
-        name: "ponder_sqlite_query_count",
-        help: "Number of queries executed by SQLite",
-        labelNames: ["kind"] as const,
-        registers: [this.registry],
-      });
-    }
   }
 
   /**
@@ -261,7 +218,7 @@ export class MetricsService {
     return await this.registry.metrics();
   }
 
-  async resetMetrics() {
+  resetMetrics() {
     this.registry.resetMetrics();
   }
 }

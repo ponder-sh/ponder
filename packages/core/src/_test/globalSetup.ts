@@ -1,6 +1,6 @@
-import { createPool } from "@/utils/pg.js";
 import { startProxy } from "@viem/anvil";
 import dotenv from "dotenv";
+import { Pool } from "pg";
 
 export default async function () {
   dotenv.config({ path: ".env.local" });
@@ -15,27 +15,18 @@ export default async function () {
   let cleanupDatabase: () => Promise<void>;
   if (process.env.DATABASE_URL) {
     cleanupDatabase = async () => {
-      const pool = createPool({ connectionString: process.env.DATABASE_URL! });
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-      const schemaRows = await pool.query(`
-        SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname ~ '^vitest_pool_';
+      const databaseRows = await pool.query(`
+        SELECT datname FROM pg_database WHERE datname LIKE 'vitest_%';
       `);
-      const schemas = schemaRows.rows.map((r) => r.nspname) as string[];
+      const databases = databaseRows.rows.map((r) => r.datname) as string[];
 
-      for (const schema of schemas) {
-        const tableRows = await pool.query(`
-          SELECT table_name FROM information_schema.tables WHERE table_schema = '${schema}'
-        `);
-        const tables = tableRows.rows.map((r) => r.table_name) as string[];
-
-        for (const table of tables) {
-          await pool.query(
-            `DROP TABLE IF EXISTS "${schema}"."${table}" CASCADE`,
-          );
-        }
-        await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-        console.log(`Dropped ${tables.length} tables from schema "${schema}".`);
-      }
+      await Promise.all(
+        databases.map((databaseName) =>
+          pool.query(`DROP DATABASE "${databaseName}"`),
+        ),
+      );
 
       await pool.end();
     };

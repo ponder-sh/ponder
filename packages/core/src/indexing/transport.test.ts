@@ -1,16 +1,21 @@
+import {
+  setupAnvil,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
+import { anvil, publicClient } from "@/_test/utils.js";
 import type { Transport } from "viem";
 import { getFunctionSelector, toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
-
-import { setupAnvil, setupSyncStore } from "@/_test/setup.js";
-import { anvil, publicClient } from "@/_test/utils.js";
-
 import { ponderTransport } from "./transport.js";
 
 beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupSyncStore(context));
+beforeEach((context) => setupIsolatedDatabase(context));
 
-test("default", ({ syncStore, requestQueues }) => {
+test("default", async (context) => {
+  const { requestQueues } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
   const transport = ponderTransport({
     requestQueue: requestQueues[0],
     syncStore,
@@ -33,9 +38,13 @@ test("default", ({ syncStore, requestQueues }) => {
       "value": undefined,
     }
   `);
+
+  await cleanup();
 });
 
-test("eth_call", async ({ syncStore, erc20, requestQueues }) => {
+test("eth_call", async (context) => {
+  const { erc20, requestQueues } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
@@ -91,9 +100,13 @@ test("eth_call", async ({ syncStore, erc20, requestQueues }) => {
   expect(response3).toBeDefined();
 
   expect(getSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
-test("eth_getBalance", async ({ syncStore, erc20, requestQueues }) => {
+test("eth_getBalance", async (context) => {
+  const { erc20, requestQueues } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
@@ -131,9 +144,13 @@ test("eth_getBalance", async ({ syncStore, erc20, requestQueues }) => {
   expect(response3).toBeDefined();
 
   expect(getSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
-test("eth_getStorageAt", async ({ syncStore, erc20, requestQueues }) => {
+test("eth_getStorageAt", async (context) => {
+  const { erc20, requestQueues } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
@@ -171,9 +188,13 @@ test("eth_getStorageAt", async ({ syncStore, erc20, requestQueues }) => {
   expect(response3).toBeDefined();
 
   expect(getSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
-test("eth_getCode", async ({ syncStore, erc20, requestQueues }) => {
+test("eth_getCode", async (context) => {
+  const { erc20, requestQueues } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = ponderTransport({
@@ -211,9 +232,13 @@ test("eth_getCode", async ({ syncStore, erc20, requestQueues }) => {
   expect(response3).toBeDefined();
 
   expect(getSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
 });
 
-test("fallback method", async ({ syncStore, requestQueues }) => {
+test("fallback method", async (context) => {
+  const { requestQueues } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const transport = ponderTransport({
     requestQueue: requestQueues[0],
     syncStore,
@@ -222,4 +247,6 @@ test("fallback method", async ({ syncStore, requestQueues }) => {
   });
 
   expect(await transport.request({ method: "eth_blockNumber" })).toBeDefined();
+
+  await cleanup();
 });

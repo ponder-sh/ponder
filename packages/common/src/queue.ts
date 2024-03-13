@@ -15,27 +15,38 @@ export type Queue<returnType, taskType> = {
   add: (task: taskType) => Promise<returnType>;
   clear: () => void;
   isStarted: () => boolean;
-  start: () => void;
+  start: () => Promise<void>;
   pause: () => void;
   onIdle: () => Promise<void>;
   onEmpty: () => Promise<void>;
+  setParameters: (
+    parameters: Pick<
+      CreateQueueParameters<unknown, unknown>,
+      "frequency" | "concurrency"
+    >,
+  ) => void;
 };
 
-export const createQueue = <returnType, taskType = void>({
-  concurrency,
-  frequency,
-  worker,
-}: {
+export type CreateQueueParameters<returnType, taskType> = {
   worker: (task: taskType) => Promise<returnType>;
+  initialStart?: boolean;
+  browser?: boolean;
 } & (
   | {
       concurrency: number;
       frequency: number;
     }
-  | { concurrency: number; frequency?: never }
-  | { concurrency?: never; frequency: number }
-)): Queue<returnType, taskType> => {
-  // Input validation
+  | { concurrency: number; frequency?: undefined }
+  | { concurrency?: undefined; frequency: number }
+);
+
+const validateParameters = ({
+  concurrency,
+  frequency,
+}: Pick<
+  CreateQueueParameters<unknown, unknown>,
+  "frequency" | "concurrency"
+>) => {
   if (concurrency === undefined && frequency === undefined) {
     throw Error(
       "Invalid queue configuration, must specify either 'concurrency' or 'frequency'.",
@@ -53,12 +64,28 @@ export const createQueue = <returnType, taskType = void>({
       `Invalid value for queue 'frequency' option. Got ${frequency}, expected a number greater than zero.`,
     );
   }
+};
 
+export const createQueue = <returnType, taskType = void>({
+  worker,
+  initialStart = false,
+  browser = true,
+  ..._parameters
+}: CreateQueueParameters<returnType, taskType>): Queue<
+  returnType,
+  taskType
+> => {
+  validateParameters(_parameters);
+
+  const parameters: Pick<
+    CreateQueueParameters<unknown, unknown>,
+    "frequency" | "concurrency"
+  > = _parameters;
   let queue = new Array<InnerQueue<returnType, taskType>[number]>();
   let pending = 0;
   let timestamp = 0;
   let requests = 0;
-  let isStarted = false;
+  let isStarted = initialStart;
 
   let timer: NodeJS.Timeout | undefined;
 
@@ -82,8 +109,12 @@ export const createQueue = <returnType, taskType = void>({
     if (timer) return;
 
     while (
-      (frequency !== undefined ? requests < frequency : true) &&
-      (concurrency !== undefined ? pending < concurrency : true) &&
+      (parameters.frequency !== undefined
+        ? requests < parameters.frequency
+        : true) &&
+      (parameters.concurrency !== undefined
+        ? pending < parameters.concurrency
+        : true) &&
       queue.length > 0
     ) {
       const { task, resolve, reject } = queue.shift()!;
@@ -106,7 +137,7 @@ export const createQueue = <returnType, taskType = void>({
             idlePromiseWithResolvers.completed = true;
           }
 
-          process.nextTick(next);
+          browser ? next() : process.nextTick(next);
         });
 
       if (emptyPromiseWithResolvers !== undefined && queue.length === 0) {
@@ -115,7 +146,10 @@ export const createQueue = <returnType, taskType = void>({
       }
     }
 
-    if (frequency !== undefined && requests >= frequency) {
+    if (
+      parameters.frequency !== undefined &&
+      requests >= parameters.frequency
+    ) {
       timer = setTimeout(
         () => {
           timer = undefined;
@@ -129,10 +163,17 @@ export const createQueue = <returnType, taskType = void>({
 
   return {
     size: () => queue.length,
-    pending: () =>
-      new Promise<number>((resolve) =>
-        process.nextTick(() => resolve(pending)),
-      ),
+    pending: () => {
+      if (browser) {
+        return new Promise<number>((resolve) =>
+          setTimeout(() => resolve(pending)),
+        );
+      } else {
+        return new Promise<number>((resolve) =>
+          setImmediate(() => resolve(pending)),
+        );
+      }
+    },
     add: (task: taskType) => {
       const { promise, resolve, reject } = promiseWithResolvers<returnType>();
       queue.push({ task, resolve, reject });
@@ -148,8 +189,21 @@ export const createQueue = <returnType, taskType = void>({
     },
     isStarted: () => isStarted,
     start: () => {
-      isStarted = true;
-      next();
+      if (browser) {
+        return new Promise<number>((resolve) =>
+          setTimeout(() => resolve(pending)),
+        ).then(() => {
+          isStarted = true;
+          next();
+        });
+      } else {
+        return new Promise<number>((resolve) =>
+          process.nextTick(() => resolve(pending)),
+        ).then(() => {
+          isStarted = true;
+          next();
+        });
+      }
     },
     pause: () => {
       isStarted = false;
@@ -181,6 +235,16 @@ export const createQueue = <returnType, taskType = void>({
         };
       }
       return emptyPromiseWithResolvers.promise;
+    },
+    setParameters: (_parameters) => {
+      validateParameters(_parameters);
+
+      if ("frequency" in _parameters) {
+        parameters.frequency = _parameters.frequency;
+      }
+      if ("concurrency" in _parameters) {
+        parameters.concurrency = _parameters.concurrency;
+      }
     },
   } as Queue<returnType, taskType>;
 };

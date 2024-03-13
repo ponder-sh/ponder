@@ -74,7 +74,7 @@ export default createConfig({
 
 <Callout>
   This is a low-level API reference. For an approachable overview & recipes, see
-  the [Add contracts](/guides/add-contracts) guide.
+  the [Add contracts](/docs/guides/add-contracts) guide.
 </Callout>
 
 The `contracts` field is an object where each key is a contract name containing that contract's configuration. Ponder will sync & index contract data according to the options you provide.
@@ -134,7 +134,7 @@ export default createConfig({
 
 Ponder uses a SQL database to cache blockchain data and store indexed data. In development, Ponder uses a SQLite database located at `.ponder/store`. In production, Ponder works best with a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ either the `DATABASE_PRIVATE_URL` or `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with that connection string. If both `DATABASE_PRIVATE_URL` and `DATABASE_URL` are present, `DATABASE_PRIVATE_URL` will be used.
 
-See [Deploy to production](/guides/production) for more details.
+See [Deploy to production](/docs/guides/production) for more details.
 
 | field                |           type           |                                                                                                                |
 | :------------------- | :----------------------: | :------------------------------------------------------------------------------------------------------------- |

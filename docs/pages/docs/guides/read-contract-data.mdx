@@ -9,7 +9,7 @@ import { Callout } from "nextra/components";
 
 Ideally, smart contracts emit event logs containing all the data you need to build your application. In practice, developers often forget to include certain event logs, or omit them as a gas optimization. In some cases, you can address these gaps by reading data directly from a contract.
 
-Ponder natively supports this pattern by injecting a custom [Viem Client](https://viem.sh/docs/clients/intro.html) into the indexing function context. This modified client automatically caches RPC requests and supports several RPC methods including `eth_call`, `multicall`, `eth_getStorageAt`, and `eth_getBytecode`.
+Ponder natively supports this pattern by injecting a custom [Viem Client](https://viem.sh/docs/clients/intro.html) into the indexing function context. This modified client automatically caches RPC requests and supports several RPC methods including `eth_call`, `multicall`, `eth_getStorageAt`, and `eth_getCode`.
 
 ## Basic example
 
@@ -70,6 +70,109 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 ```
 
 </div>
+
+## Client
+
+The `context.client` object is a custom [Viem Client](https://viem.sh/docs/clients/intro.html) that caches requests by block number.
+
+<Callout type="warning">
+  **_Do not manually set up a viem Client._** If `context.client` is not working
+  for you, please open a GitHub issue or send a message to the chat. We'd like
+  to understand and accommodate your workflow.
+</Callout>
+
+<div className="code-columns">
+
+```ts filename="src/index.ts"
+// Don't do this! ❌ ❌ ❌
+import { createPublicClient, getContract, http } from "viem";
+
+const publicClient = createPublicClient({
+  transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+});
+
+const Blitmap = getContract({
+  address: "0x8d04...D3Ff63",
+  abi: blitmapAbi,
+  publicClient,
+});
+
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const tokenUri = await Blitmap.read.tokenURI(event.args.tokenId);
+});
+```
+
+```ts filename="src/index.ts"
+// Do this instead. ✅ ✅ ✅
+
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const tokenUri = await context.client.readContract({
+    abi: context.contracts.Blitmap.abi,
+    address: context.contracts.Blitmap.address,
+    method: "tokenUri",
+    args: [event.args.tokenId],
+  });
+});
+```
+
+</div>
+
+### Transport
+
+The custom client uses the transport you specify in `ponder.config.ts`.
+
+### Supported actions
+
+| name         | description                                               | Viem docs                                                         |
+| :----------- | :-------------------------------------------------------- | :---------------------------------------------------------------- |
+| readContract | Returns the result of a read-only function on a contract. | [readContract](https://viem.sh/docs/contract/readContract.html)   |
+| multicall    | Similar to readContract, but batches requests.            | [multicall](https://viem.sh/docs/contract/multicall.html)         |
+| getBalance   | Returns the balance of an address in wei.                 | [getBalance](https://viem.sh/docs/actions/public/getBalance.html) |
+| getBytecode  | Returns the bytecode at an address.                       | [getBytecode](https://viem.sh/docs/contract/getBytecode.html)     |
+| getStorageAt | Returns the value from a storage slot at a given address. | [getStorageAt](https://viem.sh/docs/contract/getStorageAt.html)   |
+
+### Block number
+
+By default, the `blockNumber` option is set to the block number of the current event (`event.block.number`).
+
+```ts filename="src/index.ts" {8-9}
+import { ponder } from "@/generated";
+
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const totalSupply = await context.client.readContract({
+    abi: context.contracts.Blitmap.abi,
+    address: context.contracts.Blitmap.address,
+    functionName: "totalSupply",
+    // This is set automatically, no need to include it youself.
+    // blockNumber: event.block.number,
+  });
+});
+```
+
+You can also specify a `blockNumber` to read data at a specific block height. It will still be cached.
+
+```ts filename="src/index.ts" {8}
+import { ponder } from "@/generated";
+
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const totalSupply = await context.client.readContract({
+    abi: context.contracts.Blitmap.abi,
+    address: context.contracts.Blitmap.address,
+    functionName: "totalSupply",
+    blockNumber: 15439123n,
+  });
+});
+```
+
+<Callout>
+  The `blockTag` option is not supported by custom client actions.
+</Callout>
+
+
+
+### Caching
+
+To speed up indexing and avoid unnecessary RPC requests, all method calls are cached. When an indexing function calls a method with a specific set of arguments for the first time, it will make an RPC request. Any subsequent calls to the same method with the same arguments will be served from the cache.
 
 ## Contract addresses & ABIs
 
@@ -203,72 +306,6 @@ ponder.on("AaveToken:Mint", async ({ event, context }) => {
 
   const usdValue = priceData.answer * event.args.amount;
   // ...
-});
-```
-
-</div>
-
-## Client
-
-The `context.client` object is a custom [Viem Client](https://viem.sh/docs/clients/intro.html).
-
-### Supported actions
-
-| name         | description                                               | Viem docs                                                         |
-| :----------- | :-------------------------------------------------------- | :---------------------------------------------------------------- |
-| readContract | Returns the result of a read-only function on a contract. | [readContract](https://viem.sh/docs/contract/readContract.html)   |
-| multicall    | Similar to readContract, but batches requests.            | [multicall](https://viem.sh/docs/contract/multicall.html)         |
-| getBalance   | Returns the balance of an address in wei.                 | [getBalance](https://viem.sh/docs/actions/public/getBalance.html) |
-| getBytecode  | Returns the bytecode at an address.                       | [getBytecode](https://viem.sh/docs/contract/getBytecode.html)     |
-| getStorageAt | Returns the value from a storage slot at a given address. | [getStorageAt](https://viem.sh/docs/contract/getStorageAt.html)   |
-
-### Block number
-
-The `blockNumber`/`blockTag` RPC request parameter is automatically set to the block number of the current event (`event.block.number`). It's not possible to override this behavior.
-
-For contract-specific [`"setup"` events](/docs/api-reference/indexing-functions), the contract's `startBlock` is used.
-
-### Caching
-
-To speed up indexing and avoid unnecessary RPC requests, all method calls are cached. When an indexing function calls a method with a specific set of arguments for the first time, it will make an RPC request. Any subsequent calls to the same method with the same arguments will be served from the cache.
-
-<Callout type="warning">
-  **_Do not manually set up a viem Client._** If `context.client` is not working
-  for you, please open a GitHub issue or send a message to the chat. We'd like
-  to understand and accommodate your workflow.
-</Callout>
-
-<div className="code-columns">
-
-```ts filename="src/index.ts"
-// Don't do this! ❌ ❌ ❌
-import { createPublicClient, getContract, http } from "viem";
-
-const publicClient = createPublicClient({
-  transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
-});
-
-const Blitmap = getContract({
-  address: "0x8d04...D3Ff63",
-  abi: blitmapAbi,
-  publicClient,
-});
-
-ponder.on("Blitmap:Mint", async ({ event, context }) => {
-  const tokenUri = await Blitmap.read.tokenURI(event.args.tokenId);
-});
-```
-
-```ts filename="src/index.ts"
-// Do this instead. ✅ ✅ ✅
-
-ponder.on("Blitmap:Mint", async ({ event, context }) => {
-  const tokenUri = await context.client.readContract({
-    abi: context.contracts.Blitmap.abi,
-    address: context.contracts.Blitmap.address,
-    method: "tokenUri",
-    args: [event.args.tokenId],
-  });
 });
 ```
 

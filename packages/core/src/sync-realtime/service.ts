@@ -8,15 +8,21 @@ import {
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
+import { type Checkpoint } from "@/utils/checkpoint.js";
 import { Emittery } from "@/utils/emittery.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { dedupe, poll } from "@ponder/common";
 import {
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
+} from "@ponder/utils";
+import {
   type Address,
   BlockNotFoundError,
   type Hex,
+  RpcError,
+  hexToBigInt,
   hexToNumber,
   numberToHex,
 } from "viem";
@@ -29,6 +35,7 @@ import {
   type RealtimeLog,
   realtimeBlockToLightBlock,
   realtimeLogToLightLog,
+  sortLogs,
 } from "./format.js";
 
 type RealtimeSyncEvents = {
@@ -159,7 +166,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.common.logger.info({
       service: "realtime",
-      msg: `Fetched latest block at ${latestBlockNumber} (network=${this.network.name})`,
+      msg: `Fetched latest block ${latestBlockNumber} (network=${this.network.name})`,
     });
 
     this.common.metrics.ponder_realtime_is_connected.set(
@@ -179,35 +186,37 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       finalizedBlockNumber,
     ).then(realtimeBlockToLightBlock);
 
+    this.emit("finalityCheckpoint", {
+      blockTimestamp: this.finalizedBlock.timestamp,
+      chainId: this.network.chainId,
+      blockNumber: this.finalizedBlock.number,
+    });
+
+    this.emit("realtimeCheckpoint", {
+      blockTimestamp: this.finalizedBlock.timestamp,
+      chainId: this.network.chainId,
+      blockNumber: this.finalizedBlock.number,
+    });
+
     return { latestBlockNumber, finalizedBlockNumber };
   };
 
   start = () => {
     // If an endBlock is specified for every event source on this network, and the
-    // latest end blcock is less than the finalized block number, we can stop here.
+    // latest end block is less than the finalized block number, we can stop here.
     // The service won't poll for new blocks and won't emit any events.
     const endBlocks = this.sources.map((f) => f.endBlock);
     if (
-      endBlocks.every(
-        (endBlock) =>
-          endBlock !== undefined && endBlock < this.finalizedBlock.number,
-      )
+      endBlocks.every((b) => b !== undefined && b < this.finalizedBlock.number)
     ) {
       this.common.logger.warn({
         service: "realtime",
         msg: `No realtime contracts (network=${this.network.name})`,
       });
-
-      this.emit("realtimeCheckpoint", {
-        ...maxCheckpoint,
-        chainId: this.network.chainId,
-      });
-
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },
         0,
       );
-
       return;
     }
 
@@ -235,6 +244,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
   };
 
+  /**
+   * Possible states of process
+   *
+   * 1) Nothing is being processed
+   * 2) Processing block, no follow up invocation
+   * 3) Processing block, follow up invocation
+   */
   process = async () => {
     if (this.isProcessingBlock) {
       this.isProcessBlockQueued = true;
@@ -299,6 +315,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     const sync = this.determineSyncPath(newBlock);
+
+    this.common.logger.debug({
+      service: "realtime",
+      msg: `Syncing new block ${hexToNumber(
+        newBlock.number,
+      )} with ${sync} method (network=${this.network.name})`,
+    });
+
     const syncResult =
       sync === "traverse"
         ? await this.syncTraverse(newBlock)
@@ -321,11 +345,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     let hasReorg = false;
 
-    if (
-      (blockMovesFinality &&
-        !this.isChainConsistent([this.finalizedBlock, ...this.blocks])) ||
-      syncResult.reorg
-    ) {
+    if (blockMovesFinality || syncResult.reorg) {
       hasReorg = await this.reconcileReorg(latestBlockNumber);
     }
 
@@ -345,7 +365,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           block.number <= latestBlockNumber - this.network.finalityBlockCount,
       );
 
-      // Note: double check this
       if (newFinalizedBlock) {
         this.blocks = this.blocks.filter(
           (block) => block.number > newFinalizedBlock.number,
@@ -422,16 +441,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // Probability of a log in a block
     const pLog = Math.min(this.lastLogsPerBlock, 1);
 
-    const batchCost =
-      75 +
-      16 * numBlocks * pLog +
-      75 * Math.min(1, numBlocks / this.network.finalityBlockCount);
+    const batchCost = 75 + 16 * numBlocks * pLog;
 
     // Probability of no logs in the range of blocks
     const pNoLogs = (1 - pLog) ** numBlocks;
     const traverseCost = 16 * numBlocks + 75 * (1 - pNoLogs);
 
-    return batchCost > traverseCost ? "traverse" : "batch";
+    return batchCost >= traverseCost ? "traverse" : "batch";
   };
 
   private syncTraverse = async (
@@ -446,6 +462,18 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const newBlockNumber = hexToNumber(newBlock.number);
 
     const missingBlockRange = range(latestLocalBlockNumber + 1, newBlockNumber);
+
+    if (latestLocalBlockNumber >= newBlockNumber) {
+      return { reorg: true };
+    }
+
+    this.common.logger.trace({
+      service: "realtime",
+      msg: `Requesting blocks from ${
+        latestLocalBlockNumber + 1
+      } to ${newBlockNumber} (network=${this.network.name})`,
+    });
+
     const newBlocks = await Promise.all(
       missingBlockRange.map(this._eth_getBlockByNumber),
     );
@@ -470,39 +498,83 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           }),
       );
 
+    if (canSkipGetLogs) {
+      this.common.logger.debug({
+        service: "realtime",
+        msg: `Skipping eth_getLogs call because of logs bloom filter result (network=${this.network.name}`,
+      });
+    }
+
     if (canSkipGetLogs) return { blocks: newBlocks, logs: [], reorg: false };
 
-    const logs = await this._eth_getLogs({
+    this.common.logger.trace({
+      service: "realtime",
+      msg: `Requesting logs from ${
+        latestLocalBlockNumber + 1
+      } to ${newBlockNumber} (network=${this.network.name})`,
+    });
+
+    const _logs = await this._eth_getLogs({
       fromBlock: numberToHex(latestLocalBlockNumber + 1),
       toBlock: numberToHex(newBlockNumber),
     });
+    const logs = sortLogs(_logs);
 
     const matchedLogs = await this.getMatchedLogs(
       logs,
       BigInt(newBlockNumber),
       true,
     );
+
+    if (matchedLogs.length === 0) {
+      this.common.logger.warn({
+        service: "realtime",
+        msg: `False positive logs bloom filter result for blocks from ${
+          latestLocalBlockNumber + 1
+        } to ${newBlockNumber} (network=${this.network.name})`,
+      });
+    }
+
+    this.common.logger.debug({
+      service: "realtime",
+      msg: `Found ${matchedLogs.length} matched logs (network=${this.network.name})`,
+    });
 
     return { blocks: newBlocks, logs: matchedLogs, reorg: false };
   };
 
   private syncBatch = async (
     newBlock: RealtimeBlock,
-  ): Promise<{
-    blocks: RealtimeBlock[];
-    logs: RealtimeLog[];
-    reorg: false;
-  }> => {
+  ): Promise<
+    | {
+        blocks: RealtimeBlock[];
+        logs: RealtimeLog[];
+        reorg: boolean;
+      }
+    | { reorg: true }
+  > => {
     const latestLocalBlock = this.getLatestLocalBlock();
     const latestLocalBlockNumber = latestLocalBlock.number;
 
     const newBlockNumber = hexToNumber(newBlock.number);
 
+    if (latestLocalBlockNumber >= newBlockNumber) {
+      return { reorg: true };
+    }
+
+    this.common.logger.trace({
+      service: "realtime",
+      msg: `Requesting logs from ${
+        latestLocalBlockNumber + 1
+      } to ${newBlockNumber} (network=${this.network.name})`,
+    });
+
     // Get logs
-    const logs = await this._eth_getLogs({
+    const _logs = await this._eth_getLogs({
       fromBlock: numberToHex(latestLocalBlockNumber + 1),
       toBlock: newBlock.number,
     });
+    const logs = sortLogs(_logs);
 
     const matchedLogs = await this.getMatchedLogs(
       logs,
@@ -510,10 +582,22 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       true,
     );
 
+    this.common.logger.debug({
+      service: "realtime",
+      msg: `Found ${matchedLogs.length} matched logs (network=${this.network.name})`,
+    });
+
     // Get blocks
     const missingBlockNumbers = dedupe(
       matchedLogs.map((log) => log.blockNumber!),
     ).filter((b) => b !== newBlock.number);
+
+    this.common.logger.trace({
+      service: "realtime",
+      msg: `Requesting blocks [${missingBlockNumbers.join(", ")}] (network=${
+        this.network.name
+      })`,
+    });
 
     const blocks = await Promise.all(
       missingBlockNumbers.map(this._eth_getBlockByNumber),
@@ -529,10 +613,18 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    * @returns True if a re-org has occurred.
    */
   reconcileReorg = async (latestBlockNumber: number) => {
-    const logs = await this._eth_getLogs({
+    this.common.logger.debug({
+      service: "realtime",
+      msg: `Checking logs for inconsistencies for blocks from ${
+        this.finalizedBlock.number + 1
+      } to ${latestBlockNumber} (network=${this.network.name})`,
+    });
+
+    const _logs = await this._eth_getLogs({
       fromBlock: numberToHex(this.finalizedBlock.number + 1),
       toBlock: numberToHex(latestBlockNumber),
     });
+    const logs = sortLogs(_logs);
 
     const matchedLogs = await this.getMatchedLogs(
       logs,
@@ -549,7 +641,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
      * If the divergence occurred at index 0, check for deep re-org.
      */
     const handleReorg = async (nonMatchingIndex: number) => {
-      if (nonMatchingIndex === 0) {
+      const ancestorBlockNumber = localLogs[nonMatchingIndex].blockNumber - 1;
+      const commonAncestor = this.blocks.findLast(
+        (b) => b.number <= ancestorBlockNumber,
+      );
+
+      if (commonAncestor === undefined) {
         const hasDeepReorg = await this.reconcileDeepReorg(latestBlockNumber);
 
         if (hasDeepReorg) return;
@@ -574,11 +671,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           msg: `Detected ${depth}-block reorg with common ancestor ${this.finalizedBlock.number} (network=${this.network.name})`,
         });
       } else {
-        const ancestorBlockHash = localLogs[nonMatchingIndex - 1].blockHash;
-        const commonAncestor = this.blocks.find(
-          (block) => block.hash === ancestorBlockHash,
-        )!;
-
         this.blocks = this.blocks.filter(
           (block) => block.number <= commonAncestor.number,
         );
@@ -608,21 +700,33 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     let i = 0;
     for (; i < localLogs.length && i < matchedLogs.length; i++) {
       const lightMatchedLog = realtimeLogToLightLog(matchedLogs[i]);
-      if (lightMatchedLog.blockHash !== localLogs[i].blockHash) {
-        handleReorg(i);
+      if (
+        lightMatchedLog.blockHash !== localLogs[i].blockHash ||
+        lightMatchedLog.logIndex !== localLogs[i].logIndex
+      ) {
+        await handleReorg(i);
         return true;
       }
     }
 
     if (localLogs.length !== matchedLogs.length) {
-      handleReorg(i);
+      await handleReorg(i);
       return true;
     }
 
     // If there are no logs to compare, must make sure a deep re-org didn't occur.
     if (localLogs.length === 0) {
       return await this.reconcileDeepReorg(latestBlockNumber);
-    } else return false;
+    }
+
+    this.common.logger.debug({
+      service: "realtime",
+      msg: `No logs incosistencies found for blocks from ${
+        this.finalizedBlock.number + 1
+      } to ${latestBlockNumber} (network=${this.network.name})`,
+    });
+
+    return false;
   };
 
   /**
@@ -682,18 +786,51 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private _eth_getLogs = (params: {
     fromBlock: Hex;
     toBlock: Hex;
-  }): Promise<RealtimeLog[]> =>
-    this.requestQueue.request({
-      method: "eth_getLogs",
-      params: [
-        {
-          fromBlock: params.fromBlock,
-          toBlock: params.toBlock,
-          address: this.address,
-          topics: [this.eventSelectors],
-        },
-      ],
-    }) as Promise<RealtimeLog[]>;
+  }): Promise<RealtimeLog[]> => {
+    const _params: GetLogsRetryHelperParameters["params"] = [
+      {
+        fromBlock: params.fromBlock,
+        toBlock: params.toBlock,
+        address: this.address,
+        topics: [this.eventSelectors],
+      },
+    ];
+
+    try {
+      return this.requestQueue.request({
+        method: "eth_getLogs",
+        params: _params,
+      }) as Promise<RealtimeLog[]>;
+    } catch (err) {
+      const getLogsErrorResponse = getLogsRetryHelper({
+        params: _params,
+        error: err as RpcError,
+      });
+
+      if (!getLogsErrorResponse.shouldRetry) throw err;
+
+      this.common.logger.debug({
+        service: "historical",
+        msg: `eth_getLogs request failed, retrying with ranges: [${getLogsErrorResponse.ranges
+          .map(
+            ({ fromBlock, toBlock }) =>
+              `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(
+                toBlock,
+              ).toString()}]`,
+          )
+          .join(", ")}].`,
+      });
+
+      return Promise.all(
+        getLogsErrorResponse.ranges.map(({ fromBlock, toBlock }) =>
+          this._eth_getLogs({
+            fromBlock,
+            toBlock,
+          }),
+        ),
+      ).then((l) => l.flat());
+    }
+  };
 
   private insertRealtimeBlocks = async ({
     logs,
