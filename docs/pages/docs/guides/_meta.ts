@@ -7,5 +7,6 @@ export default {
   "read-contract-data": "Read contract data",
   "query-the-graphql-api": "Query the GraphQL API",
   "query-the-database": "Query the database",
+  "caching-and-concurrency": "Caching & concurrency",
   production: "Deploy to production",
 };
