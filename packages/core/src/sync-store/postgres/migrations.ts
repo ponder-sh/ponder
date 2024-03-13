@@ -431,6 +431,14 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_03_13_0_nullable_block_columns_sha3uncles": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("sha3Uncles", (col) => col.dropNotNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
