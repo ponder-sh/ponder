@@ -3,6 +3,7 @@ import { NonRetryableError, StoreError } from "@/errors/base.js";
 import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";
+import { WithTablePrefixPlugin } from "@/utils/withTablePrefixPlugin.js";
 import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
 import type { Pool } from "pg";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
@@ -20,7 +21,6 @@ import {
 } from "../utils/sort.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
-
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
 
@@ -34,13 +34,15 @@ export class PostgresIndexingStore implements IndexingStore {
   constructor({
     common,
     pool,
-    schemaName,
     schema,
+    schemaName,
+    tablePrefix,
   }: {
     common: Common;
     pool: Pool;
-    schemaName: string;
     schema: Schema;
+    schemaName: string;
+    tablePrefix?: string;
   }) {
     this.common = common;
     this.schema = schema;
@@ -52,7 +54,13 @@ export class PostgresIndexingStore implements IndexingStore {
           common.metrics.ponder_postgres_query_total.inc({ pool: "indexing" });
         }
       },
-    }).withPlugin(new WithSchemaPlugin(schemaName));
+      plugins: [
+        // Note that the order here matters. Our table prefix plugin seems to
+        // override the schema if applied after the schema plugin.
+        ...(tablePrefix ? [new WithTablePrefixPlugin(tablePrefix)] : []),
+        new WithSchemaPlugin(schemaName),
+      ],
+    });
   }
 
   /**

@@ -4,6 +4,7 @@ import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
+import { WithTablePrefixPlugin } from "@/utils/withTablePrefixPlugin.js";
 import { Kysely, SqliteDialect } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
 import {
@@ -20,7 +21,6 @@ import {
 } from "../utils/sort.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
-
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
 
@@ -35,10 +35,12 @@ export class SqliteIndexingStore implements IndexingStore {
     common,
     database,
     schema,
+    tablePrefix,
   }: {
     common: Common;
     database: SqliteDatabase;
     schema: Schema;
+    tablePrefix: string;
   }) {
     this.common = common;
     this.schema = schema;
@@ -51,7 +53,7 @@ export class SqliteIndexingStore implements IndexingStore {
           });
         }
       },
-    });
+    }).withPlugin(new WithTablePrefixPlugin(tablePrefix));
   }
 
   /**
