@@ -12,6 +12,7 @@ import { type Checkpoint } from "@/utils/checkpoint.js";
 import { Emittery } from "@/utils/emittery.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
+import { wait } from "@/utils/wait.js";
 import { dedupe, poll } from "@ponder/common";
 import {
   type GetLogsRetryHelperParameters,
@@ -277,6 +278,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         });
 
         if (i === 3) this.emit("fatal");
+        else {
+          const duration = 250 * 2 ** i;
+          await wait(duration);
+        }
       }
     }
 
@@ -589,7 +594,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // Get blocks
     const missingBlockNumbers = dedupe(
-      matchedLogs.map((log) => log.blockNumber!),
+      matchedLogs.map((log) => log.blockNumber),
     ).filter((b) => b !== newBlock.number);
 
     this.common.logger.trace({
@@ -640,11 +645,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
      * Common ancestor is the block directly before the logs diverge.
      * If the divergence occurred at index 0, check for deep re-org.
      */
-    const handleReorg = async (nonMatchingIndex: number) => {
-      const ancestorBlockNumber = localLogs[nonMatchingIndex].blockNumber - 1;
-      const commonAncestor = this.blocks.findLast(
-        (b) => b.number <= ancestorBlockNumber,
-      );
+    const handleReorg = async (localSafeBlockNumber: number | undefined) => {
+      const commonAncestor =
+        localSafeBlockNumber === undefined
+          ? undefined
+          : this.blocks.findLast((b) => b.number <= localSafeBlockNumber);
 
       if (commonAncestor === undefined) {
         const hasDeepReorg = await this.reconcileDeepReorg(latestBlockNumber);
@@ -704,13 +709,17 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         lightMatchedLog.blockHash !== localLogs[i].blockHash ||
         lightMatchedLog.logIndex !== localLogs[i].logIndex
       ) {
-        await handleReorg(i);
+        await handleReorg(localLogs[i].blockNumber - 1);
         return true;
       }
     }
 
     if (localLogs.length !== matchedLogs.length) {
-      await handleReorg(i);
+      await handleReorg(
+        localLogs.length === 0
+          ? undefined
+          : localLogs[localLogs.length - 1].blockNumber - 1,
+      );
       return true;
     }
 
@@ -773,9 +782,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         method: "eth_getBlockByNumber",
         params: [typeof block === "number" ? numberToHex(block) : block, true],
       })
-      .then((block) => {
-        if (!block) throw new BlockNotFoundError({});
-        return block as RealtimeBlock;
+      .then((_block) => {
+        if (!_block)
+          throw new BlockNotFoundError(
+            block === "latest"
+              ? {}
+              : {
+                  blockNumber:
+                    typeof block === "number"
+                      ? BigInt(block)
+                      : hexToBigInt(block),
+                },
+          );
+        return _block as RealtimeBlock;
       });
 
   /**
