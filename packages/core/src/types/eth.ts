@@ -34,7 +34,7 @@ export type Block = {
   /** Root of the this block’s receipts trie */
   receiptsRoot: Hex;
   /** SHA3 of the uncles data in this block */
-  sha3Uncles: Hash;
+  sha3Uncles: Hash | null;
   /** Size of this block in bytes */
   size: bigint;
   /** Root of this block’s final state trie */

@@ -26,7 +26,7 @@ type BlocksTable = {
   number: BigIntText;
   parentHash: Hash;
   receiptsRoot: Hex;
-  sha3Uncles: Hash;
+  sha3Uncles: Hash | null;
   size: BigIntText;
   stateRoot: Hash;
   timestamp: BigIntText;
@@ -57,7 +57,7 @@ export function rpcToSqliteBlock(
     number: encodeAsText(block.number!),
     parentHash: block.parentHash,
     receiptsRoot: block.receiptsRoot,
-    sha3Uncles: block.sha3Uncles,
+    sha3Uncles: block.sha3Uncles ?? null,
     size: encodeAsText(block.size),
     stateRoot: block.stateRoot,
     timestamp: encodeAsText(block.timestamp),

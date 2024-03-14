@@ -23,7 +23,7 @@ type BlocksTable = {
   number: bigint;
   parentHash: Hash;
   receiptsRoot: Hex;
-  sha3Uncles: Hash;
+  sha3Uncles: Hash | null;
   size: bigint;
   stateRoot: Hash;
   timestamp: bigint;
@@ -52,7 +52,7 @@ export function rpcToPostgresBlock(
     number: BigInt(block.number!),
     parentHash: block.parentHash,
     receiptsRoot: block.receiptsRoot,
-    sha3Uncles: block.sha3Uncles,
+    sha3Uncles: block.sha3Uncles ?? null,
     size: BigInt(block.size),
     stateRoot: block.stateRoot,
     timestamp: BigInt(block.timestamp),
