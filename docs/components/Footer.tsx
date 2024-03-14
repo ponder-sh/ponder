@@ -43,7 +43,7 @@ export function Footer() {
                 Resources
               </h4>
               <Link
-                href="/docs/getting-started"
+                href="/docs/getting-started/new-project"
                 className="mb-3 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
               >
                 Documentation

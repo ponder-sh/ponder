@@ -46,7 +46,7 @@ export function Home() {
                     "flex-grow md:px-10 text-neutral-50 bg-ponder hover:bg-ponder-200/90",
                   ])}
                 >
-                  <Link href="/docs/getting-started">Get started</Link>
+                  <Link href="/docs/getting-started/new-project">Get started</Link>
                 </Slot>
                 <Slot
                   className={cn([

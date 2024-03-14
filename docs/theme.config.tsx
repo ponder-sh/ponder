@@ -41,7 +41,7 @@ const config: DocsThemeConfig = {
   },
   docsRepositoryBase: "https://github.com/ponder-sh/ponder/tree/main/docs",
   sidebar: {
-    defaultMenuCollapseLevel: 2,
+    defaultMenuCollapseLevel: 1,
   },
   editLink: {
     content: "Edit this page on GitHub →",
