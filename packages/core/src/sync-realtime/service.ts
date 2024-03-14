@@ -527,7 +527,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     );
 
     if (matchedLogs.length === 0) {
-      this.common.logger.warn({
+      this.common.logger.debug({
         service: "realtime",
         msg: `False positive logs bloom filter result for blocks from ${
           latestLocalBlockNumber + 1
