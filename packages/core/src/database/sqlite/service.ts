@@ -36,6 +36,7 @@ import { type PonderCoreSchema, migrationProvider } from "./migrations.js";
 const PUBLIC_DB_NAME = "ponder";
 const CACHE_DB_NAME = "ponder_cache";
 const SYNC_DB_NAME = "ponder_sync";
+const RAW_TABLE_PREFIX = "_raw_";
 
 export class SqliteDatabaseService implements BaseDatabaseService {
   kind = "sqlite" as const;
@@ -86,8 +87,8 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.registerMetrics();
   }
 
-  getIndexingStoreConfig(): { database: SqliteDatabase } {
-    return { database: this.sqliteDatabase };
+  getIndexingStoreConfig(): { database: SqliteDatabase; tablePrefix: string } {
+    return { database: this.sqliteDatabase, tablePrefix: RAW_TABLE_PREFIX };
   }
 
   getSyncStoreConfig(): { database: SqliteDatabase } {
@@ -121,12 +122,33 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       const result = await migrator.migrateToLatest();
       if (result.error) throw result.error;
 
-      // 2) Drop any existing tables in the public database.
+      // 2) Drop any existing views and tables in the public database.
+      const existingViewRows = await this.db.executeQuery<{ name: string }>(
+        sql`SELECT name FROM sqlite_master WHERE type='view'`.compile(this.db),
+      );
+      const existingViewNames = existingViewRows.rows.map((row) => row.name);
+      if (existingViewNames.length > 0) {
+        await this.db.transaction().execute(async (tx) => {
+          await Promise.all(
+            existingViewNames.map((tableName) =>
+              tx.schema.dropView(tableName).ifExists().execute(),
+            ),
+          );
+        });
+
+        const s = existingViewNames.length > 1 ? "s" : "";
+        this.common.logger.debug({
+          service: "database",
+          msg: `Dropped stale table${s} from ponder.db (${existingViewNames.join(
+            ", ",
+          )})`,
+        });
+      }
+
       const existingTableRows = await this.db.executeQuery<{ name: string }>(
         sql`SELECT name FROM sqlite_master WHERE type='table'`.compile(this.db),
       );
       const existingTableNames = existingTableRows.rows.map((row) => row.name);
-
       if (existingTableNames.length > 0) {
         await this.db.transaction().execute(async (tx) => {
           await Promise.all(
@@ -134,14 +156,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               tx.schema.dropTable(tableName).ifExists().execute(),
             ),
           );
-        });
-
-        const s = existingTableNames.length > 1 ? "s" : "";
-        this.common.logger.debug({
-          service: "database",
-          msg: `Dropped stale table${s} from ponder.db (${existingTableNames.join(
-            ", ",
-          )})`,
         });
       }
 
@@ -154,20 +168,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           await Promise.all(
             tables.map(async ([tableName, columns]) => {
               const tableId = this.tableIds![tableName];
+              const viewColumnNames = Object.entries(columns)
+                .filter(([, c]) => !isOneColumn(c) && !isManyColumn(c))
+                .map(([name]) => name);
 
-              // a) Create a table in the instance schema.
-              await tx.schema
-                .createTable(tableName)
-                .$call((builder) =>
-                  this.buildColumns(
-                    builder,
-                    `_versioned_${tableName}`,
-                    columns,
-                  ),
-                )
-                .execute();
-
-              // b) Create a table in the cache schema if it doesn't already exist.
+              // a) Create a table in the cache schema if it doesn't already exist.
               await tx.schema
                 .withSchema(CACHE_DB_NAME)
                 .createTable(tableId)
@@ -177,9 +182,34 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 .ifNotExists()
                 .execute();
 
-              // c) Copy data from the cache table to the new table.
+              // b) Create a table in the public schema.
+              await tx.schema
+                .createTable(`${RAW_TABLE_PREFIX}${tableName}`)
+                .$call((builder) =>
+                  this.buildColumns(
+                    builder,
+                    `${RAW_TABLE_PREFIX}${tableName}`,
+                    columns,
+                  ),
+                )
+                .execute();
+
+              // c) Create the latest view in the public schema.
+              await tx.schema
+                .createView(tableName)
+                .as(
+                  (tx as Kysely<any>)
+                    .selectFrom(`${RAW_TABLE_PREFIX}${tableName}`)
+                    .select(viewColumnNames)
+                    .where("effective_to", "=", "latest"),
+                )
+                .execute();
+
+              // d) Copy data from the cache table to the new table.
               await tx.executeQuery(
-                sql`INSERT INTO "${sql.raw(tableName)}" SELECT * FROM ${sql.raw(
+                sql`INSERT INTO "${sql.raw(
+                  `${RAW_TABLE_PREFIX}${tableName}`,
+                )}" SELECT * FROM ${sql.raw(
                   `"${CACHE_DB_NAME}"."${tableId}"`,
                 )}`.compile(tx),
               );
@@ -299,7 +329,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 sql`INSERT INTO ${sql.raw(
                   `"${CACHE_DB_NAME}"."${tableId}"`,
                 )} SELECT * FROM "${sql.raw(
-                  tableName,
+                  `${RAW_TABLE_PREFIX}${tableName}`,
                 )}" WHERE "effective_from" <= '${sql.raw(
                   newTableToCheckpoint,
                 )}'`.compile(tx),
@@ -316,7 +346,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               // Update effective_to of overwritten rows
               await tx.executeQuery(
                 sql`WITH earliest_new_records AS (SELECT id, MIN(effective_from) as new_effective_to FROM "${sql.raw(
-                  tableName,
+                  `${RAW_TABLE_PREFIX}${tableName}`,
                 )}" WHERE effective_from > '${sql.raw(
                   tableMetadata.to_checkpoint,
                 )}' GROUP BY id) UPDATE "${sql.raw(CACHE_DB_NAME)}"."${sql.raw(
@@ -335,21 +365,13 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 sql`INSERT INTO ${sql.raw(
                   `"${CACHE_DB_NAME}"."${tableId}"`,
                 )} SELECT * FROM "${sql.raw(
-                  tableName,
+                  `${RAW_TABLE_PREFIX}${tableName}`,
                 )}" WHERE "effective_from" > '${sql.raw(
                   tableMetadata.to_checkpoint,
                 )}' AND "effective_from" <= '${sql.raw(
                   newTableToCheckpoint,
                 )}'`.compile(tx),
               );
-
-              /**
-               * Truncate cache tables to match metadata checkpoints.
-               *
-               * It's possible for the cache tables to contain more data than the metadata indicates.
-               * To avoid copying unfinalized data left over from a previous instance, we must revert
-               * the instance tables to the checkpoint saved in the metadata after copying from the cache.
-               */
 
               await tx
                 .withSchema(CACHE_DB_NAME)

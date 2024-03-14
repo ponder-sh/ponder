@@ -72,8 +72,12 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       "0xPerson",
     ]);
 
-    // Instance tables were created in the public schema
-    expect(await getTableNames(database.db)).toStrictEqual(["Pet", "Person"]);
+    // Instance tables and views were created in the public schema
+    expect(await getTableNames(database.db)).toStrictEqual([
+      "_raw_Pet",
+      "_raw_Person",
+    ]);
+    expect(await getViewNames(database.db)).toStrictEqual(["Pet", "Person"]);
 
     await database.kill();
   });
@@ -98,11 +102,12 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    // Old tables still exist
+    // Old tables and views still exist
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "Pet",
-      "Person",
+      "_raw_Pet",
+      "_raw_Person",
     ]);
+    expect(await getViewNames(databaseTwo.db)).toStrictEqual(["Pet", "Person"]);
 
     await databaseTwo.setup({
       schema: schemaTwo,
@@ -111,8 +116,12 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       tableAccess: {},
     });
 
-    // New tables were created
-    expect(await getTableNames(databaseTwo.db)).toStrictEqual(["Dog", "Apple"]);
+    // New tables and views were created
+    expect(await getTableNames(databaseTwo.db)).toStrictEqual([
+      "_raw_Dog",
+      "_raw_Apple",
+    ]);
+    expect(await getViewNames(databaseTwo.db)).toStrictEqual(["Dog", "Apple"]);
 
     await databaseTwo.kill();
   });
@@ -984,6 +993,15 @@ async function getTableNames(db: Kysely<any>, schemaName?: string) {
     sql`SELECT name FROM ${sql.raw(
       schemaName ? `${schemaName}.` : "",
     )}sqlite_master WHERE type='table'`.compile(db),
+  );
+  return rows.map((r) => r.name);
+}
+
+async function getViewNames(db: Kysely<any>, schemaName?: string) {
+  const { rows } = await db.executeQuery<{ name: string }>(
+    sql`SELECT name FROM ${sql.raw(
+      schemaName ? `${schemaName}.` : "",
+    )}sqlite_master WHERE type='view'`.compile(db),
   );
   return rows.map((r) => r.name);
 }
