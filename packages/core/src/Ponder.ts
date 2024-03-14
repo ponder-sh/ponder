@@ -138,9 +138,11 @@ export class Ponder {
     await this.start_({ isDev: false });
   }
 
-  async serve() {
+  async serve(databaseConfigOverride?: DatabaseConfig) {
     const success = await this.setupBuildService({ watch: false });
     if (!success) return;
+
+    if (databaseConfigOverride) this.databaseConfig = databaseConfigOverride;
 
     this.common.telemetry.record({
       event: "App Started",
@@ -161,6 +163,7 @@ export class Ponder {
     this.database = database;
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
+
     this.indexingStore = new PostgresIndexingStore({
       common: this.common,
       schema: this.schema,
@@ -418,6 +421,7 @@ export class Ponder {
     await Promise.all([this.buildService.kill(), this.common.telemetry.kill()]);
 
     await this.shutdown();
+    await this.database.kill();
 
     // Now all resources should be cleaned up. The process should exit gracefully.
     this.common.logger.debug({

@@ -8,7 +8,7 @@ import { buildOptions } from "@/config/options.js";
 import { range } from "@/utils/range.js";
 import request from "supertest";
 import { zeroAddress } from "viem";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
@@ -116,4 +116,64 @@ test("erc20", async (context) => {
   });
 
   await ponder.kill();
+});
+
+const shouldSkip = process.env.DATABASE_URL === undefined;
+
+// Fix this once it's easier to have per-command kill functions in Ponder.ts.
+describe.skipIf(shouldSkip)("postgres database", () => {
+  test.todo("ponder serve", async (context) => {
+    const options = buildOptions({
+      cliOptions: { root: "./src/_test/e2e/erc20", config: "ponder.config.ts" },
+    });
+    const testOptions = {
+      ...options,
+      uiEnabled: false,
+      logLevel: "error",
+      telemetryDisabled: true,
+    } as const;
+
+    for (const _ in range(0, 3)) {
+      await simulate({
+        erc20Address: context.erc20.address,
+        factoryAddress: context.factory.address,
+      });
+    }
+
+    const ponder = new Ponder({ options: testOptions });
+    await ponder.start(context.databaseConfig);
+    await onAllEventsIndexed(ponder);
+
+    const ponderServe = new Ponder({ options: testOptions });
+    await ponderServe.serve(context.databaseConfig);
+
+    const accounts = await gql(
+      ponderServe,
+      `
+      accounts {
+        items {
+          id
+          balance
+        }
+      }
+      `,
+    ).then((g) => g.accounts.items);
+
+    expect(accounts).toHaveLength(3);
+    expect(accounts[0]).toMatchObject({
+      id: zeroAddress,
+      balance: (-4 * 10 ** 18).toString(),
+    });
+    expect(accounts[1]).toMatchObject({
+      id: BOB.toLowerCase(),
+      balance: (4 * 10 ** 18).toString(),
+    });
+    expect(accounts[2]).toMatchObject({
+      id: ALICE.toLowerCase(),
+      balance: "0",
+    });
+
+    await ponderServe.kill();
+    await ponder.kill();
+  });
 });
