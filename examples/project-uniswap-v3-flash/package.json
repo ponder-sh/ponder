@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "ponder dev",
     "start": "ponder start",
-    "serve": "ponder serve",
     "codegen": "ponder codegen",
+    "serve": "ponder serve",
     "lint": "eslint .",
     "typecheck": "tsc"
   },

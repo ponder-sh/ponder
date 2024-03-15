@@ -6,6 +6,7 @@
     "dev": "ponder dev",
     "start": "ponder start",
     "codegen": "ponder codegen",
+    "serve": "ponder serve",
     "lint": "eslint .",
     "typecheck": "tsc"
   },
