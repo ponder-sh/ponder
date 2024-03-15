@@ -69,7 +69,6 @@ export function Footer() {
               </h4>
               <Link
                 href="/blog"
-                target="_blank"
                 className="mb-3 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
               >
                 Blog
