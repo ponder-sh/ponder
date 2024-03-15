@@ -15,3 +15,39 @@ This page is still under construction.
 Ponder supports zero-downtime deployments by waiting until all events have been processed before responding as healthy. To support long-running backfills, Ponder apps will begin responding as healthy _before_ the backfill is complete if it exceeds the `maxHealthcheckDuration`. This option defaults 240 seconds (4 minutes), and is configurable using [`options.maxHealthcheckDuration`](/docs/api-reference/config#options).
 
 If you're using Railway, Ponder will set `maxHealthcheckDuration` automatically according to the **Healthcheck Timeout** specified in your app service settings.
+
+## Zero downtime with direct SQL
+
+This section is included to answer advanced questions about zero-downtime deployments as it pertains to direct SQL.
+
+If you deploy a new version of your app that updates the database schema, you should first ensure that any downstream services are compatible with both the old and new schema. As soon as the instance running the new version becomes healthy, it will replace the views in `ponder` using the new schema.
+
+## Instance states
+
+A Ponder instance can be in one of the following states (as it pertains to the database):
+
+<Steps>
+
+### Starting up
+
+On start up, the instance inserts a new row into the `ponder_cache.instance_metadata` table and acquires an **instance ID**. Then, it creates a new private database schema with the name ``    `ponder_instance_${instanceId}`{:ts}``. Finally, it creates tables in that schema according to `ponder.schema.ts` and begins inserting indexed data into them.
+
+### Healthy
+
+When the instance has finished indexing historical events, it creates (or updates) database views in the `ponder` schema that point at the tables in its private schema. At this moment, the server also starts returning `200` responses at the healthcheck path (`/health`).
+
+### Live
+
+After it becomes healthy, the instance continues indexing as you would expect. As long as the instance remains live, the views in `ponder` will continue to serve the latest available data.
+
+### Replaced
+
+If a different instance (using the same database) starts up and becomes healthy, the current instance gets replaced. The new instance will update the views in `ponder` to point to its tables.
+
+### Shutting down
+
+If the instance is still live, it will exit immediately on shutdown and leave the views in `ponder` pointing at its schema. So, you can safely shut down a live instance and run queries against the (now static) data. The next instance that becomes healthy will replace the views.
+
+If the instance has been replaced, it will attempt to drop its ``    `ponder_instance_${instanceId}`{:ts}`` schema before exiting to avoid cluttering the database with stale data. If this process fails, the next instance that connects to the same database will drop the stale schema when it starts up.
+
+</Steps>

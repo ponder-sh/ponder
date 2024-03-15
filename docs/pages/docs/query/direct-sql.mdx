@@ -1,5 +1,5 @@
 ---
-title: "Query the database"
+title: "Direct SQL"
 description: "How to query the Ponder database"
 ---
 
@@ -7,141 +7,238 @@ import { Callout, FileTree, Steps } from "nextra/components";
 
 # Query the database
 
-If the GraphQL API doesn't meet your needs, you can query the SQL database directly.
+This guide explains how to connect to the database (either SQLite or Postgres) and run direct SQL queries.
 
-## TL;DR
+## Overview
 
-1. **Your app creates a Postgres [view](https://www.postgresqltutorial.com/postgresql-views/) for each table in `ponder.schema.ts`**. The views are created in a _database_ schema named `ponder`.
+Here are a few things you can do with direct SQL.
 
-2. **All data is read-only**. You cannot insert or update rows manually – only within indexing functions.
+1. **Connect to the database** using `psql`, `sqlite3`, or a driver for your language of choice like `node-postgres`.
 
-3. **You can run custom SQL queries** and can join Ponder data with other tables in the database.
+2. **Run custom SQL queries** against any table in the `ponder` schema (Postgres) or `ponder.db` file (SQLite).
 
 ```sql
-SELECT COUNT(*) FROM ponder.accounts WHERE balance > 5000;
+SELECT COUNT(*) FROM ponder."Account" WHERE balance > 5000;
+```
 
+3. **Join data with other tables** in your database, including tables that you write to using other software.
+
+```sql
 SELECT user_id, balance
 FROM users
-  JOIN ponder.accounts ON users.eth_address = accounts.address
+  JOIN ponder."Account" ON users.eth_address = "Account".address
 WHERE users.name LIKE 'Bo%';
 ```
 
+With that said, there are also a few important [limitations](#limitations) to be aware of.
 
-4. **Redeployments are complex**. External software that relies on custom SQL queries must take care to avoid downtime during healthcheck-based redeployments.
+### Example schema
 
-## Column types
+For the remainder of this guide, assume that there is a Ponder app running with the following schema.
 
-### Postgres
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
 
-| Schema column type | Postgres column type | Notes                                   |
-| :----------------- | :--------------------- | :-------------------------------------- |
-| `p.string(){:ts}`  | `TEXT`                 |                                         |
-| `p.hex(){:ts}`     | `BYTEA{:sql}`          |                                         |
-| `p.int(){:ts}`     | `INTEGER{:sql}`        |                                         |
-| `p.bigint(){:ts}`  | `NUMERIC(78, 0){:sql}` | Fits EVM `uint256{:solidity}`           |
-| `p.float(){:ts}`   | `TEXT`                 |                                         |
-| `p.boolean(){:ts}` | `INTEGER{:sql}`        | `0` is `false{:ts}`, `1` is `true{:ts}` |
-
-### SQLite
-
-| Schema column type | SQLite column type  | Notes                                          |
-| :----------------- | :------------------ | :--------------------------------------------- |
-| `p.string(){:ts}`  | `TEXT`              |                                                |
-| `p.hex(){:ts}`     | `BLOB{:sql}`        |                                                |
-| `p.int(){:ts}`     | `INTEGER{:sql}`     |                                                |
-| `p.bigint(){:ts}`  | `VARCHAR(79){:sql}` | Custom encoding, fits EVM `uint256{:solidity}` |
-| `p.float(){:ts}`   | `TEXT`              |                                                |
-| `p.boolean(){:ts}` | `INTEGER{:sql}`     | `0` is `false{:ts}`, `1` is `true{:ts}`        |
-
-#### Bigint encoding
-
-SQLite does not natively support integers larger than 8 bytes. To safely store and compares large integers (such as 32-byte EVM `uint256{:solidity}` values) in SQLite, Ponder uses a custom encoding. Here is a TypeScript implementation.
-
-```ts
-/**
- * Converts a integer into a 33-byte string (sign byte followed by 32-byte value).
- * Used as the storage encoding for EVM uint256 and int256 types to enable ordering
- * using SQLite's default collation (memcmp).
- *
- * @param value Integer to be encoded.
- * @returns 33-byte Buffer representing the encoded integer.
- */
-export function encodeAsText(value: bigint | number | Hex) {
-  if (typeof value === "string" || typeof value === "number")
-    value = BigInt(value);
-
-  if (value > EVM_MAX_UINT)
-    throw new Error(`Value cannot be greater than EVM_MAX_UINT (${value})`);
-  if (value < EVM_MIN_INT)
-    throw new Error(`Value cannot be less than EVM_MIN_INT (${value})`);
-
-  const signChar = value >= 0n ? "0" : "-";
-
-  // If the value is negative, add the minimum integer to it.
-  if (value < 0n) value = value - EVM_MIN_INT;
-
-  const chars = value.toString(10);
-
-  // Pad the hex string with leading zeros and add the sign byte.
-  return signChar + chars.padStart(78, "0");
-}
-
-/**
- * Converts an encoded 33-byte string (sign byte followed by 32-byte value) into a BigInt.
- * Used as the storage encoding for EVM uint256 and int256 types to enable ordering
- * using SQLite's default collation (memcmp).
- *
- * @param value Integer to be encoded.
- * @returns 33-byte string representing the encoded integer.
- */
-export function decodeToBigInt(text: string) {
-  if (typeof text === "bigint") return text;
-
-  const signChar = text.at(0);
-  let valueChars = text.substring(1).replace(/^0+/, "");
-  // If the value is 0, valueChars will be an empty string.
-  if (valueChars.length === 0) valueChars = "0";
-  let value = BigInt(valueChars);
-
-  // If the sign byte is negative, invert the value
-  if (signChar === "-") value = value + EVM_MIN_INT;
-
-  return value;
-}
+export default createSchema((p) => ({
+  Account: p.createTable({
+    id: p.hex(),
+    balance: p.bigint(),
+    isOwner: p.boolean(),
+  }),
+  TransferEvent: p.createTable({
+    id: p.string(),
+    amount: p.bigint(),
+    timestamp: p.int(),
+    fromId: p.hex().references("Account.id"),
+    toId: p.hex().references("Account.id"),
+  }),
+}));
 ```
 
-## Zero downtime deployments
+## Postgres
 
-This section is included to answer advanced questions about zero-downtime deployments as it pertains to direct SQL.
+For each table you define in `ponder.schema.ts`, Ponder creates a [view](https://www.postgresqltutorial.com/postgresql-views/) in the `ponder` schema. For most use cases, you can treat these views just like normal tables.
 
-If you deploy a new version of your app that updates the database schema, you should first ensure that any downstream services are compatible with both the old and new schema. As soon as the instance running the new version becomes healthy, it will replace the views in `ponder` using the new schema.
+<Callout type="info">
+  **What's this view nonsense? Why can't I access the actual tables?** TL;DR,
+  views are the best way for Ponder to offer zero-downtime during schema
+  migrations. For more information, check out the [zero downtime
+  deployments](/docs/production/zero-downtime) guide.
+</Callout>
 
-### Instance states
+Ponder also creates a few other internal schemas that you can safely ignore, including `ponder_cache`, `ponder_sync`, and `ponder_instance_{number}`.
 
-A Ponder instance can be in one of the following states (as it pertains to the database):
+### Connect with `psql`
+
+To get oriented, connect to the database using `psql` and run a few test queries. First, make sure that you have `psql` installed ([guide](https://www.timescale.com/blog/how-to-install-psql-on-mac-ubuntu-debian-windows/)).
 
 <Steps>
 
-#### Starting up
+#### Connection string
 
-On start up, the instance inserts a new row into the `ponder_cache.instance_metadata` table and acquires an **instance ID**. Then, it creates a new private database schema with the name ``    `ponder_instance_${instanceId}`{:ts}``. Finally, it creates tables in that schema according to `ponder.schema.ts` and begins inserting indexed data into them.
+Connect using the same connection string that your Ponder app uses (the `DATABASE_URL` environment variable).
 
-#### Healthy
+```bash filename="shell"
+psql 'postgresql://username:password@localhost:5432/your_database'
+```
 
-When the instance has finished indexing historical events, it creates (or updates) database views in the `ponder` schema that point at the tables in its private schema. At this moment, the server also starts returning `200` responses at the healthcheck path (`/health`).
+#### List `ponder` views
 
-#### Live
+Use the `\dv` command with a pattern to list all views in the `ponder` schema.
 
-After it becomes healthy, the instance continues indexing as you would expect. As long as the instance remains live, the views in `ponder` will continue to serve the latest available data.
+```bash filename="psql"
+\dv ponder.*
+```
 
-#### Replaced
+```plaintext filename="psql (result)"
+                List of relations
+ Schema |        Name        | Type |  Owner
+--------+--------------------+------+----------
+ ponder | Account            | view | username
+ ponder | TransferEvent      | view | username
+ ponder | _raw_Account       | view | username
+ ponder | _raw_TransferEvent | view | username
+```
 
-If a different instance (using the same database) starts up and becomes healthy, the current instance gets replaced. The new instance will update the views in `ponder` to point to its tables.
+The views prefixed with `_raw_` contain the entire versioned history of each record. The views without the prefix (`Account{:ts}` and `TransferEvent{:ts}`) contain the latest version of each record. In most cases, you should use the latest views.
 
-#### Shutting down
+#### Select rows
 
-If the instance is still live, it will exit immediately on shutdown and leave the views in `ponder` pointing at its schema. So, you can safely shut down a live instance and run queries against the (now static) data. The next instance that becomes healthy will replace the views.
+Select a few `Account` rows.
 
-If the instance has been replaced, it will attempt to drop its ``    `ponder_instance_${instanceId}`{:ts}`` schema before exiting to avoid cluttering the database with stale data. If this process fails, the next instance that connects to the same database will drop the stale schema when it starts up.
+```sql filename="psql"
+SELECT * FROM ponder."Account" LIMIT 5;
+```
+
+```plaintext filename="psql (result)"
+                     id                     |         balance         | isOwner
+--------------------------------------------+-------------------------+---------
+ \x4620550c97fe6fd67bd6d91b3e64c57af2a74d54 |  5211039914681545623679 |       0
+ \xab9b81aadd04e7cf16057f0fa492729ad61d70be | 20000000000000000000000 |       0
+ \xd23c95145bcfd53d184919b2bcec125a83128fc2 |   586759351492948713448 |       0
+ \x823b92d6a4b2aed4b15675c7917c9f922ea8adad | 10000000000000000000000 |       0
+ \x0de9abbbbeeb15cb446c3daaaab128d15a16c220 | 60000000000000000000000 |       0
+```
+
+Note that the `id` column uses the `p.hex(){:ts}` column type in `ponder.schema.ts`, which corresponds to the Postgres `BYTEA{:sql}` data type. See the [column types](#column-types) section for more details.
+
+#### Aggregate data
+
+Find the total number of transfers sent to each account.
+
+```sql filename="psql"
+SELECT "toId", COUNT(*) AS transfer_count
+FROM ponder."TransferEvent"
+GROUP BY "toId"
+ORDER BY transfer_count DESC
+LIMIT 5;
+```
+
+```plaintext filename="psql (result)"
+                   toId                     | transfer_count
+--------------------------------------------+----------------
+ \x5d752f322befb038991579972e912b02f61a3dda |           2342
+ \x1337f7970e8399ccbc625647fce58a9dada5aa66 |            313
+ \x9726041047644626468922598128349778349982 |            306
+ \x27239549dd40e1d60f5b80b0c4196923745b1fd2 |            256
+ \x450638daf0caedbdd9f8cb4a41fa1b24788b123e |            238
+(5 rows)
+
+```
 
 </Steps>
+
+### Column types
+
+These are the Postgres data types corresponding to each `ponder.schema.ts` column type.
+
+| Schema column type | Postgres column type   | Notes                                                     |
+| :----------------- | :--------------------- | :-------------------------------------------------------- |
+| `p.string(){:ts}`  | `TEXT`                 |                                                           |
+| `p.hex(){:ts}`     | `BYTEA{:sql}`          |                                                           |
+| `p.int(){:ts}`     | `INTEGER{:sql}`        |                                                           |
+| `p.bigint(){:ts}`  | `NUMERIC(78, 0){:sql}` | Supports EVM `uint256{:solidity}` and `int256{:solidity}` |
+| `p.float(){:ts}`   | `TEXT`                 |                                                           |
+| `p.boolean(){:ts}` | `INTEGER{:sql}`        | `0` is `false{:ts}`, `1` is `true{:ts}`                   |
+
+## SQLite
+
+For each table you define in `ponder.schema.ts`, Ponder creates a table in the `.ponder/sqlite/ponder.db` database file. You can connect to the database using the `sqlite3` command-line tool or a driver for your language of choice like `sqlite3` for Node.js.
+
+Ponder also creates two other database files in that directory (`ponder_cache.db` and `ponder_sync.db`). You can safely ignore them.
+
+### Connect with `sqlite3`
+
+To get oriented, it's recommended to connect to the database using `sqlite3` and run a few test queries. First, make sure that you have `sqlite3` installed. You probably already do, but here's a [guide](https://www.sqlitetutorial.net/download-install-sqlite/).
+
+<Steps>
+
+#### File path
+
+Connect using an absolute file path to the `.ponder/sqlite/ponder.db` file in your project directory.
+
+```bash filename="shell"
+sqlite3 /workspace/my-app/.ponder/sqlite/ponder.db
+```
+
+#### List `ponder` views
+
+Use the `.tables` command to list all tables in the database.
+
+```bash filename="sqlite3"
+.tables
+```
+
+```plaintext filename="sqlite3 (result)"
+Account             ApprovalEvent       _raw_Account        _raw_ApprovalEvent
+Allowance           TransferEvent       _raw_Allowance      _raw_TransferEvent
+```
+
+The tables prefixed with `_raw_` contain the entire versioned history of each record. The tables without the prefix (`Account{:ts}` and `TransferEvent{:ts}`) contain the latest version of each record. In most cases, you should use the latest views.
+
+#### Select rows
+
+Select a few `Account` rows.
+
+```sql filename="sqlite3"
+SELECT * FROM "Account" LIMIT 5;
+```
+
+```plaintext filename="sqlite3 (result)"
+???\???<0???%d??|0000000000000000000000000000000000000000000000000000000010000000000000000000000|0
+&?{,Vj'z??0?&??r|0000000000000000000000000000000000000000000000000000000010000000000000000000000|0
+h???^?ݎ|0000000000000000000000000000000000000000000000000000000050000000000000000000000|0
+=|0000000000000000000000000000000000000000000000000000000020000000000000000000000|0
+??'?O?z??II?)??(??|0000000000000000000000000000000000000000000000000000000050000000000000000000000|0
+```
+
+Clearly, `sqlite3` results are not as easy on the eyes as `psql`. The `id` and `balance` columns are encoded as `BLOB{:sql}` and `VARCHAR(79){:sql}` respectively. See the [column types](#column-types-1) section for more details.
+
+</Steps>
+
+### Column types
+
+These are the Postgres data types corresponding to each `ponder.schema.ts` column type.
+
+| Schema column type | SQLite column type  | Notes                                                                       |
+| :----------------- | :------------------ | :-------------------------------------------------------------------------- |
+| `p.string(){:ts}`  | `TEXT`              |                                                                             |
+| `p.hex(){:ts}`     | `BLOB{:sql}`        |                                                                             |
+| `p.int(){:ts}`     | `INTEGER{:sql}`     |                                                                             |
+| `p.bigint(){:ts}`  | `VARCHAR(79){:sql}` | Supports EVM `uint256{:solidity}` and `int256{:solidity}` (custom encoding) |
+| `p.float(){:ts}`   | `TEXT`              |                                                                             |
+| `p.boolean(){:ts}` | `INTEGER{:sql}`     | `0` is `false{:ts}`, `1` is `true{:ts}`                                     |
+
+#### SQLite bigint encoding
+
+SQLite does not natively support integers larger than 8 bytes. To safely store and compare large integers (such as 32-byte EVM `uint256{:solidity}` values) in SQLite, we designed an encoding that uses `VARCHAR(79){:sql}` and takes advantage of SQLite's native lexicographic sort. [Here is the reference implementation](https://github.com/ponder-sh/ponder/blob/main/packages/core/src/utils/encoding.ts) used by Ponder internally.
+
+## Limitations
+
+To safely reconcile chain reorganizations and manage indexing error retries, Ponder imposes a few important constraints on database usage.
+
+1. **Indexed data is read-only**. All writes _must_ happen within indexing function code through the Store API (e.g. `context.db.Account.upsert(){:ts}`). If you modify Ponder-managed tables any other way, the database will be corrupted and you will encounter undefined behavior.
+
+2. **Internal tables must not be modified**. Ponder creates and maintains 3-5 schemas (Postgres) or database files (SQLite) for internal use. They are all prefixed with `ponder_`. Do not modify, drop, or read from them.
+
+3. **Redeployments are nuanced**. Apps that rely on direct SQL must take care during schema migrations. For more details, see the [zero downtime deployments](#zero-downtime-deployments) guide.
