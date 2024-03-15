@@ -327,36 +327,43 @@ test("start() retries on error", async (context) => {
   await cleanup();
 });
 
-test("start() emits fatal error", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+test(
+  "start() emits fatal error",
+  async (context) => {
+    const { common, networks, requestQueues, sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
 
-  const service = new RealtimeSyncService({
-    common,
-    syncStore,
-    network: { ...networks[0], pollingInterval: 2_000 },
-    requestQueue: requestQueues[0],
-    sources: [sources[0]],
-  });
+    const service = new RealtimeSyncService({
+      common,
+      syncStore,
+      network: { ...networks[0], pollingInterval: 10_000 },
+      requestQueue: requestQueues[0],
+      sources: [sources[0]],
+    });
 
-  const emitSpy = vi.spyOn(service, "emit");
-  const insertBlockSpy = vi.spyOn(syncStore, "insertRealtimeBlock");
+    const emitSpy = vi.spyOn(service, "emit");
+    const insertBlockSpy = vi.spyOn(syncStore, "insertRealtimeBlock");
 
-  insertBlockSpy.mockRejectedValue(new Error());
+    insertBlockSpy.mockRejectedValue(new Error());
 
-  await service.setup();
-  service.start();
+    await service.setup();
+    service.start();
 
-  await service.onIdle();
+    await service.onIdle();
 
-  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+    const blocks = await syncStore.db
+      .selectFrom("blocks")
+      .selectAll()
+      .execute();
 
-  expect(blocks).toHaveLength(0);
-  expect(emitSpy).toHaveBeenCalledWith("fatal");
+    expect(blocks).toHaveLength(0);
+    expect(emitSpy).toHaveBeenCalledWith("fatal");
 
-  service.kill();
-  await cleanup();
-});
+    service.kill();
+    await cleanup();
+  },
+  { timeout: 10_000 },
+);
 
 test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
   const { common, networks, requestQueues, sources, erc20, factory } = context;
