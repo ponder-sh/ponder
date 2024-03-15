@@ -651,6 +651,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           ? undefined
           : this.blocks.findLast((b) => b.number <= localSafeBlockNumber);
 
+      this.common.logger.trace({
+        service: "realtime",
+        msg: `Found common ancestor block ${commonAncestor?.number} (network=${this.network.name})`,
+      });
+
       if (commonAncestor === undefined) {
         const hasDeepReorg = await this.reconcileDeepReorg(latestBlockNumber);
 
@@ -784,16 +789,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       })
       .then((_block) => {
         if (!_block)
-          throw new BlockNotFoundError(
-            block === "latest"
-              ? {}
-              : {
-                  blockNumber:
-                    typeof block === "number"
-                      ? BigInt(block)
-                      : hexToBigInt(block),
-                },
-          );
+          throw new BlockNotFoundError({
+            blockNumber: block as any,
+          });
         return _block as RealtimeBlock;
       });
 
