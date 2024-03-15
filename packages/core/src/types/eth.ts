@@ -69,15 +69,15 @@ export type Transaction = Prettify<
     /** Unique number identifying this transaction */
     nonce: number;
     /** ECDSA signature r */
-    r: Hex;
+    r: Hex | null;
     /** ECDSA signature s */
-    s: Hex;
+    s: Hex | null;
     /** Transaction recipient or `null` if deploying a contract */
     to: Address | null;
     /** Index of this transaction in the block */
     transactionIndex: number;
     /** ECDSA recovery ID */
-    v: bigint;
+    v: bigint | null;
     /** Value in wei sent with this transaction */
     value: bigint;
   } & (

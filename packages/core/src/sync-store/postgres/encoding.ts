@@ -69,11 +69,11 @@ type TransactionsTable = {
   hash: Hash;
   input: Hex;
   nonce: number;
-  r: Hex;
-  s: Hex;
+  r: Hex | null;
+  s: Hex | null;
   to: Address | null;
   transactionIndex: number;
-  v: bigint;
+  v: bigint | null;
   value: bigint;
 
   type: Hex;
@@ -108,13 +108,13 @@ export function rpcToPostgresTransaction(
       ? BigInt(transaction.maxPriorityFeePerGas)
       : null,
     nonce: hexToNumber(transaction.nonce),
-    r: transaction.r,
-    s: transaction.s,
+    r: transaction.r ?? null,
+    s: transaction.s ?? null,
     to: transaction.to ? toLowerCase(transaction.to) : null,
     transactionIndex: Number(transaction.transactionIndex),
     type: transaction.type ?? "0x0",
     value: BigInt(transaction.value),
-    v: BigInt(transaction.v),
+    v: transaction.v ? BigInt(transaction.v) : null,
   };
 }
 
