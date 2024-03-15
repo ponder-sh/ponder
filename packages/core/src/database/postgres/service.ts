@@ -39,6 +39,7 @@ const ADMIN_POOL_SIZE = 3;
 const PUBLIC_SCHEMA_NAME = "ponder";
 const CACHE_SCHEMA_NAME = "ponder_cache";
 const SYNC_SCHEMA_NAME = "ponder_sync";
+const RAW_TABLE_PREFIX = "_raw_";
 
 const HEARTBEAT_INTERVAL_MS = 10 * 1_000; // 10 seconds
 const INSTANCE_TIMEOUT_MS = 60 * 1_000; // 1 minute
@@ -420,14 +421,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 )}'`.compile(tx),
               );
 
-              /**
-               * Truncate cache tables to match metadata checkpoints.
-               *
-               * It's possible for the cache tables to contain more data than the metadata indicates.
-               * To avoid copying unfinalized data left over from a previous instance, we must revert
-               * the instance tables to the checkpoint saved in the metadata after copying from the cache.
-               */
-
               await tx
                 .withSchema(CACHE_SCHEMA_NAME)
                 .updateTable(tableId)
@@ -496,20 +489,16 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             );
           }
 
-          const liveTableNames = Object.keys(liveInstanceRow.schema.tables);
-
-          await Promise.all(
-            liveTableNames.map((tableName) =>
-              tx.schema
-                .withSchema(PUBLIC_SCHEMA_NAME)
-                .dropView(tableName)
-                .execute(),
-            ),
-          );
+          await tx.schema
+            .dropSchema(PUBLIC_SCHEMA_NAME)
+            .ifExists()
+            .cascade()
+            .execute();
+          await tx.schema.createSchema(PUBLIC_SCHEMA_NAME).execute();
 
           this.common.logger.debug({
             service: "database",
-            msg: `Dropped ${liveTableNames.length} views from 'ponder' belonging to previous instance (${liveInstanceRow.instance_id})`,
+            msg: `Dropped 'ponder' schema created by previous live instance (${liveInstanceRow.instance_id})`,
           });
         }
 
@@ -531,12 +520,26 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                   .where("effective_to", "=", "latest"),
               )
               .execute();
+            await tx.schema
+              .withSchema(PUBLIC_SCHEMA_NAME)
+              .createView(`${RAW_TABLE_PREFIX}${tableName}`)
+              .as(
+                (tx as Kysely<any>)
+                  .withSchema(this.instanceSchemaName)
+                  .selectFrom(tableName)
+                  .selectAll(),
+              )
+              .execute();
           }),
         );
 
         this.common.logger.debug({
           service: "database",
-          msg: `Created ${tables.length} views in 'ponder' belonging to current instance (${this.instanceId})`,
+          msg: `Created ${
+            tables.length * 2
+          } views in 'ponder' belonging to current instance (${
+            this.instanceId
+          })`,
         });
 
         // 4) Set "published_at" for this instance.

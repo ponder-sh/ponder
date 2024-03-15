@@ -138,9 +138,11 @@ export class Ponder {
     await this.start_({ isDev: false });
   }
 
-  async serve() {
+  async serve(databaseConfigOverride?: DatabaseConfig) {
     const success = await this.setupBuildService({ watch: false });
     if (!success) return;
+
+    if (databaseConfigOverride) this.databaseConfig = databaseConfigOverride;
 
     this.common.telemetry.record({
       event: "App Started",
@@ -159,18 +161,15 @@ export class Ponder {
       poolConfig: this.databaseConfig.poolConfig,
     });
     this.database = database;
-    await this.database.setup({
-      schema: this.schema,
-      tableIds: this.tableIds,
-      functionIds: this.functionIds,
-      tableAccess: this.tableAccess,
-    });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
+
     this.indexingStore = new PostgresIndexingStore({
       common: this.common,
       schema: this.schema,
-      ...indexingStoreConfig,
+      pool: indexingStoreConfig.pool,
+      schemaName: "ponder",
+      tablePrefix: "_raw_",
     });
 
     this.serverService = new ServerService({
@@ -181,10 +180,6 @@ export class Ponder {
 
     this.serverService.setup({ registerDevRoutes: false });
     await this.serverService.start();
-
-    // TODO: Make this less hacky. This was a quick way to make the schema available
-    // to the findUnique and findMany functions without having to change the API.
-    this.indexingStore.schema = this.schema;
 
     this.serverService.reloadGraphqlSchema({
       graphqlSchema: this.graphqlSchema,

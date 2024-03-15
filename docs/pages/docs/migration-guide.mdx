@@ -7,9 +7,23 @@ import { FileTree, Steps } from "nextra/components";
 import { Callout } from "nextra/components";
 import Architecture from "../../public/architecture.svg";
 
-# Migration guide 🚧
+# Migration guide
 
-This page is under construction.
+## 0.3.0
+
+No breaking API changes.
+
+### Moved SQLite directory
+
+**Note:** This release busted the SQLite sync cache.
+
+The SQLite database was moved from the `.ponder/store` directory to `.ponder/sqlite`. The old `.ponder/store` directory will still be used by older versions.
+
+### Moved Postgres sync tables
+
+Similar to SQLite, the sync tables for Postgres were moved from the `public` schema to `ponder_sync`. Now, Ponder does not use the `public` schema whatsoever.
+
+This change did NOT bust the sync cache; the tables were actually moved. This process emits some `WARN`-level logs that you should see after upgrading.
 
 ## 0.2.0
 
@@ -19,7 +33,7 @@ Removed `p.bytes()` in favor of a new `p.hex()` primitive column type. `p.hex()`
 
 ### Cursor pagination
 
-Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method. See the [GraphQL pagination docs](/docs/guides/query-the-graphql-api#pagination) for more details.
+Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method. See the [GraphQL pagination docs](/docs/query/graphql#pagination) for more details.
 
 ## 0.1.0
 

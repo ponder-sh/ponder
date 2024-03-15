@@ -46,7 +46,7 @@ export function Home() {
                     "flex-grow md:px-10 text-neutral-50 bg-ponder hover:bg-ponder-200/90",
                   ])}
                 >
-                  <Link href="/docs/getting-started">Get started</Link>
+                  <Link href="/docs/getting-started/new-project">Get started</Link>
                 </Slot>
                 <Slot
                   className={cn([
@@ -55,7 +55,7 @@ export function Home() {
                     "text-neutral-900 dark:text-neutral-50 bg-white bg-opacity-20 hover:bg-opacity-30",
                   ])}
                 >
-                  <Link href="/blog/introducing-ponder">Why Ponder?</Link>
+                  <Link href="/docs/why-ponder">Why Ponder?</Link>
                 </Slot>
               </div>
               <div className="flex flex-row justify-center">

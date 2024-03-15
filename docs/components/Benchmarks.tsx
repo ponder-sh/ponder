@@ -1,17 +1,23 @@
 import Link from "next/link";
-
+import * as React from "react";
 import { Card, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 import GraphLogo from "../public/graph.svg";
 
-export function Benchmarks({ flat = false }: { flat?: boolean }) {
+const Benchmarks = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & { flat?: boolean }
+>(({ className, flat = false, ...props }, ref) => {
   return (
     <Card
+      ref={ref}
       className={cn([
         "w-full flex flex-col justify-between md:flex-row gap-8 mb-8",
         flat ? "rounded-none md:rounded-lg" : "",
+        className,
       ])}
+      {...props}
     >
       <div className="flex flex-col lg:flex-row w-full">
         <div className="flex flex-col flex-grow lg:border-r border-neutral-200 dark:border-neutral-50/20">
@@ -96,4 +102,7 @@ export function Benchmarks({ flat = false }: { flat?: boolean }) {
       </div>
     </Card>
   );
-}
+});
+Benchmarks.displayName = "Benchmarks";
+
+export { Benchmarks };

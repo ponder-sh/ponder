@@ -208,6 +208,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(await getViewNames(database.db, "ponder")).toStrictEqual([
       "Pet",
       "Person",
+      "_raw_Pet",
+      "_raw_Person",
     ]);
 
     // Public metadata row was updated to include "published_at"
@@ -257,6 +259,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(await getViewNames(database.db, "ponder")).toStrictEqual([
       "Dog",
       "Apple",
+      "_raw_Dog",
+      "_raw_Apple",
     ]);
 
     const { rows: firstMetadataRows } = await database.db.executeQuery(
@@ -289,6 +293,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(await getViewNames(database.db, "ponder")).toStrictEqual([
       "Pet",
       "Person",
+      "_raw_Pet",
+      "_raw_Person",
     ]);
 
     // Public metadata row was updated to include "published_at"
@@ -1187,6 +1193,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(await getViewNames(tempDb.db, "ponder")).toStrictEqual([
       "Pet",
       "Person",
+      "_raw_Pet",
+      "_raw_Person",
     ]);
 
     await tempDb.db.destroy();
@@ -1236,6 +1244,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(await getViewNames(tempDb.db, "ponder")).toStrictEqual([
       "Dog",
       "Apple",
+      "_raw_Dog",
+      "_raw_Apple",
     ]);
 
     await tempDb.db.destroy();

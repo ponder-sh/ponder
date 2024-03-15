@@ -4,7 +4,6 @@ description: "A blog post introducing Ponder, a new open-source framework for cr
 image: "https://ponder.sh/introducing.png"
 ---
 
-import { Bleed } from "nextra-theme-docs";
 import { Benchmarks } from "@/components/Benchmarks";
 
 # Introducing Ponder
@@ -57,7 +56,7 @@ It’s so hard to run a subgraph locally that devs often deploy to the hosted se
 
 **Ponder is designed from the ground up for local development**. The dev server has hot reloading for every file in your project and descriptive error logs that keep you unblocked.
 
-<Bleed>![Ponder dev server hot reloading](/hot-reloading.gif)</Bleed>
+![Ponder dev server hot reloading](/hot-reloading.gif)
 
 Ponder’s type safety and editor autocomplete is very thorough, and works without any codegen or build step. If your code passes the type checker, it will usually run without error.
 
@@ -69,9 +68,7 @@ Long feedback loops are the kiss of death for developer productivity, and unfort
 
 **Ponder is fast and lean.** In our initial benchmarks, Ponder indexed an ERC20 contract ~10x faster than the Graph Node from a cold start and 15x faster fully cached.
 
-<Bleed>
-  <Benchmarks flat />
-</Bleed>
+<Benchmarks flat className="mt-6"/>
 
 Ponder also used fewer resources — 35x less disk space and 35% fewer RPC credits.
 
@@ -85,7 +82,7 @@ There’s still a lot of room for improvement — we’ve really only scratched 
 
 To get started, open up the [docs](https://ponder.sh) and run `npm create ponder`.
 
-- [Documentation](/docs/getting-started)
+- [Documentation](/docs/getting-started/new-project)
 - [GitHub repo ↗](https://github.com/ponder-sh/ponder)
 - [Telegram chat ↗](https://t.me/ponder_sh)
 - [Twitter ↗](https://x.com/ponder_sh)

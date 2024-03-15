@@ -63,12 +63,9 @@ Options:
 
 ## serve
 
-<Callout type="warning">
-  The `ponder serve` command is still experimental and it's behavior may change without notice. Do not rely on it for production usage.
-</Callout>
-
 Start the app in server-only mode. This option can be used to horizontally scale the GraphQL API in production.
 
+- Only works with Postgres.
 - Project files are built once on startup, and file changes are ignored.
 - The sync and indexing engines is disabled.
 - The GraphQL API server runs as normal, serving data from the connected database.
