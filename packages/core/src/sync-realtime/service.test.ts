@@ -91,7 +91,7 @@ test("start() sync realtime data with traversal method", async (context) => {
 
   await service.setup();
   service.start();
-  service.process();
+
   await service.onIdle();
 
   expect(determineSpy).toHaveLastReturnedWith("traverse");
@@ -148,11 +148,9 @@ test("start() sync realtime data with batch method", async (context) => {
   const determineSpy = vi.spyOn(service, "determineSyncPath");
 
   await service.setup();
+  await testClient.mine({ blocks: 10 });
   service.start();
 
-  await testClient.mine({ blocks: 10 });
-
-  service.process();
   await service.onIdle();
 
   expect(determineSpy).toHaveLastReturnedWith("batch");
@@ -212,7 +210,6 @@ test("start() insert logFilterInterval records with traversal method", async (co
   await service.setup();
   service.start();
 
-  service.process();
   await service.onIdle();
 
   expect(determineSpy).toHaveLastReturnedWith("traverse");
@@ -275,11 +272,9 @@ test("start() insert logFilterInterval records with batch method", async (contex
   const determineSpy = vi.spyOn(service, "determineSyncPath");
 
   await service.setup();
-  service.start();
-
   await testClient.mine({ blocks: 10 });
 
-  service.process();
+  service.start();
   await service.onIdle();
 
   expect(determineSpy).toHaveLastReturnedWith("batch");
@@ -289,11 +284,11 @@ test("start() insert logFilterInterval records with batch method", async (contex
     logFilter: sources[0].criteria,
   });
   expect(logFilterIntervals).toMatchObject([
-    [blockNumbers.finalizedBlockNumber + 1, blockNumbers.latestBlockNumber],
+    [blockNumbers.finalizedBlockNumber + 1, blockNumbers.latestBlockNumber - 2],
   ]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    blockNumber: blockNumbers.latestBlockNumber,
+    blockNumber: blockNumbers.latestBlockNumber - 2,
     blockTimestamp: expect.any(Number),
     chainId: 1,
   });
@@ -321,7 +316,6 @@ test("start() retries on error", async (context) => {
   await service.setup();
   service.start();
 
-  service.process();
   await service.onIdle();
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
@@ -340,7 +334,7 @@ test("start() emits fatal error", async (context) => {
   const service = new RealtimeSyncService({
     common,
     syncStore,
-    network: networks[0],
+    network: { ...networks[0], pollingInterval: 2_000 },
     requestQueue: requestQueues[0],
     sources: [sources[0]],
   });
@@ -353,7 +347,6 @@ test("start() emits fatal error", async (context) => {
   await service.setup();
   service.start();
 
-  service.process();
   await service.onIdle();
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
@@ -387,7 +380,6 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   await service.setup();
   service.start();
 
-  service.process();
   await service.onIdle();
 
   await simulate({
@@ -465,7 +457,6 @@ test("emits deepReorg event after deep reorg", async (context) => {
   await service.setup();
   service.start();
 
-  service.process();
   await service.onIdle();
 
   await simulate({
@@ -513,7 +504,6 @@ test("start() sync realtime data with factory sources", async (context) => {
 
   await service.setup();
   service.start();
-  service.process();
   await service.onIdle();
 
   const iterator = syncStore.getFactoryChildAddresses({
