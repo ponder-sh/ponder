@@ -1,5 +1,21 @@
 # @ponder/core
 
+## 0.3.3
+
+### Patch Changes
+
+- [#709](https://github.com/ponder-sh/ponder/pull/709) [`eebb173d42307df060e348fea78ba2dffdfdd2b1`](https://github.com/ponder-sh/ponder/commit/eebb173d42307df060e348fea78ba2dffdfdd2b1) Thanks [@d-mooers](https://github.com/d-mooers)! - Made block.sha3Uncles column nullable
+
+- [#693](https://github.com/ponder-sh/ponder/pull/693) [`a8b2a59ba565a01d46cbde115b6a163c626afc41`](https://github.com/ponder-sh/ponder/commit/a8b2a59ba565a01d46cbde115b6a163c626afc41) Thanks [@jaylmiller](https://github.com/jaylmiller)! - Fixed a regression that may have caused bugs related to indexing progress or event ordering.
+
+- [#711](https://github.com/ponder-sh/ponder/pull/711) [`8d12d0a23a88ccef4d6a20d5f1e8590798c1004e`](https://github.com/ponder-sh/ponder/commit/8d12d0a23a88ccef4d6a20d5f1e8590798c1004e) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for `ponder serve` a new CLI command that runs the GraphQL API server as a standalone process. This is useful for horizontally scaling the API layer of a Ponder app. See the [horizontal scaling](https://ponder.sh/docs/production/horizontal-scaling) docs for more information.
+
+- [#710](https://github.com/ponder-sh/ponder/pull/710) [`9b0824b120b86dcceb73edc1f562d77ba3af36c3`](https://github.com/ponder-sh/ponder/commit/9b0824b120b86dcceb73edc1f562d77ba3af36c3) Thanks [@kyscott18](https://github.com/kyscott18)! - Moved "false positive logs bloom filter result" from warn to debug log level.
+
+- [#713](https://github.com/ponder-sh/ponder/pull/713) [`e858c0e6c5faebdc35e2715be5f170073add6259`](https://github.com/ponder-sh/ponder/commit/e858c0e6c5faebdc35e2715be5f170073add6259) Thanks [@kyscott18](https://github.com/kyscott18)! - Allowed for null r, s, and v transaction properties, which is possible on zkSync.
+
+- [#711](https://github.com/ponder-sh/ponder/pull/711) [`8d12d0a23a88ccef4d6a20d5f1e8590798c1004e`](https://github.com/ponder-sh/ponder/commit/8d12d0a23a88ccef4d6a20d5f1e8590798c1004e) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where SQLite raw tables were not prefixed with "_raw_". Note that upgrading to this version changes the SQLite database structure to be incompatible with prior versions.
+
 ## 0.3.2
 
 ### Patch Changes
