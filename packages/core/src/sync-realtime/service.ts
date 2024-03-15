@@ -259,8 +259,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     this.isProcessingBlock = true;
+    this.isProcessBlockQueued = false;
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       try {
         const block = await this._eth_getBlockByNumber("latest");
         await this.handleNewBlock(block);
@@ -277,7 +278,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           network: this.network.name,
         });
 
-        if (i === 3) this.emit("fatal");
+        if (i === 5) this.emit("fatal");
         else {
           const duration = 250 * 2 ** i;
           await wait(duration);
