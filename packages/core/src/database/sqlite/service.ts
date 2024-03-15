@@ -122,47 +122,42 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       const result = await migrator.migrateToLatest();
       if (result.error) throw result.error;
 
-      // 2) Drop any existing views and tables in the public database.
-      const existingViewRows = await this.db.executeQuery<{ name: string }>(
-        sql`SELECT name FROM sqlite_master WHERE type='view'`.compile(this.db),
-      );
-      const existingViewNames = existingViewRows.rows.map((row) => row.name);
-      if (existingViewNames.length > 0) {
-        await this.db.transaction().execute(async (tx) => {
-          await Promise.all(
-            existingViewNames.map((tableName) =>
-              tx.schema.dropView(tableName).ifExists().execute(),
-            ),
-          );
-        });
-
-        const s = existingViewNames.length > 1 ? "s" : "";
-        this.common.logger.debug({
-          service: "database",
-          msg: `Dropped stale table${s} from ponder.db (${existingViewNames.join(
-            ", ",
-          )})`,
-        });
-      }
-
-      const existingTableRows = await this.db.executeQuery<{ name: string }>(
-        sql`SELECT name FROM sqlite_master WHERE type='table'`.compile(this.db),
-      );
-      const existingTableNames = existingTableRows.rows.map((row) => row.name);
-      if (existingTableNames.length > 0) {
-        await this.db.transaction().execute(async (tx) => {
-          await Promise.all(
-            existingTableNames.map((tableName) =>
-              tx.schema.dropTable(tableName).ifExists().execute(),
-            ),
-          );
-        });
-      }
-
-      // 4) Create the instance schema and tables.
       const { functionMetadata } = await this.db
         .transaction()
         .execute(async (tx) => {
+          // 2) Drop any existing views and tables in the public database.
+          const oldViewRows = await tx.executeQuery<{ name: string }>(
+            sql`SELECT name FROM sqlite_master WHERE type='view'`.compile(tx),
+          );
+          const oldViewNames = oldViewRows.rows.map((row) => row.name);
+          if (oldViewNames.length > 0) {
+            await Promise.all(
+              oldViewNames.map((viewName) =>
+                tx.schema.dropView(viewName).ifExists().execute(),
+              ),
+            );
+            this.common.logger.debug({
+              service: "database",
+              msg: `Dropped stale table${
+                oldViewNames.length > 1 ? "s" : ""
+              } from ponder.db (${oldViewNames.join(", ")})`,
+            });
+          }
+
+          const oldTableRows = await tx.executeQuery<{
+            name: string;
+          }>(
+            sql`SELECT name FROM sqlite_master WHERE type='table'`.compile(tx),
+          );
+          const oldTableNames = oldTableRows.rows.map((row) => row.name);
+          if (oldTableNames.length > 0) {
+            await Promise.all(
+              oldTableNames.map((tableName) =>
+                tx.schema.dropTable(tableName).ifExists().execute(),
+              ),
+            );
+          }
+
           // 3) Create tables in the instance schema, copying cached data if available.
           const tables = Object.entries(this.schema!.tables);
           await Promise.all(
