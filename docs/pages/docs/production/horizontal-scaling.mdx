@@ -14,8 +14,6 @@ If the GraphQL API experiences high request volume, it contends with the indexin
 
 To solve this, you can use the `ponder serve` command to horizontally scale the API layer. `ponder serve` is similar to `ponder start`, but only runs the GraphQL server. It doesn't run the indexing or sync engines.
 
-Here's a simple diagram:
-
 ```mermaid
 graph LR
   A[Clients]
@@ -35,7 +33,9 @@ graph LR
   F <--> G
 ```
 
-## Railway
+<Callout type="info">At this time, `ponder serve` only works with Postgres. SQLite is not supported.</Callout>
+
+## Railway Replicas
 
 Railway makes it easy to horizontally scale `ponder serve` instances using their [Replicas](https://docs.railway.app/reference/scaling#horizontal-scaling-with-replicas) feature. This feature uses Railway's proxy to distribute incoming requests across multiple instances of your service using a round-robin strategy.
 
