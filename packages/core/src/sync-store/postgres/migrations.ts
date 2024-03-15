@@ -439,6 +439,22 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_03_14_0_nullable_transaction_rsv": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("transactions")
+        .alterColumn("r", (col) => col.dropNotNull())
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .alterColumn("s", (col) => col.dropNotNull())
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .alterColumn("v", (col) => col.dropNotNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

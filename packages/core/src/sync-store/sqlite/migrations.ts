@@ -430,23 +430,62 @@ const migrations: Record<string, Migration> = {
   },
   "2024_03_13_0_nullable_block_columns_sha3uncles": {
     async up(db: Kysely<any>) {
-      await db.schema
-        .alterTable("blocks")
-        .addColumn("sha3Uncles_temp_null", "varchar(66)")
-        .execute();
-      await db
-        .updateTable("blocks")
-        .set((eb: any) => ({
-          sha3Uncles_temp_null: eb.selectFrom("blocks").select("sha3Uncles"),
-        }))
-        .execute();
-      await db.schema.alterTable("blocks").dropColumn("sha3Uncles").execute();
-      await db.schema
-        .alterTable("blocks")
-        .renameColumn("sha3Uncles_temp_null", "sha3Uncles")
-        .execute();
+      await columnDropNotNull({
+        db,
+        table: "blocks",
+        column: "sha3Uncles",
+        columnType: "varchar(66)",
+      });
     },
   },
+  "2024_03_14_0_nullable_transaction_rsv": {
+    async up(db: Kysely<any>) {
+      await columnDropNotNull({
+        db,
+        table: "transactions",
+        column: "r",
+        columnType: "varchar(66)",
+      });
+      await columnDropNotNull({
+        db,
+        table: "transactions",
+        column: "s",
+        columnType: "varchar(66)",
+      });
+      await columnDropNotNull({
+        db,
+        table: "transactions",
+        column: "v",
+        columnType: "varchar(79)",
+      });
+    },
+  },
+};
+
+const columnDropNotNull = async ({
+  db,
+  table,
+  column,
+  columnType,
+}: {
+  db: Kysely<any>;
+  table: string;
+  column: string;
+  columnType: Parameters<
+    ReturnType<Kysely<any>["schema"]["alterTable"]>["addColumn"]
+  >[1];
+}) => {
+  const tempName = `${column}_temp_null`;
+
+  await db.schema.alterTable(table).addColumn(tempName, columnType).execute();
+  await db
+    .updateTable(table)
+    .set((eb: any) => ({
+      [tempName]: eb.selectFrom(table).select(column),
+    }))
+    .execute();
+  await db.schema.alterTable(table).dropColumn(column).execute();
+  await db.schema.alterTable(table).renameColumn(tempName, column).execute();
 };
 
 class StaticMigrationProvider implements MigrationProvider {
