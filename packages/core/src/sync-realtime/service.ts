@@ -801,7 +801,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    *
    * Note: Consider handling different error types and retry the request if applicable.
    */
-  private _eth_getLogs = (params: {
+  private _eth_getLogs = async (params: {
     fromBlock: Hex;
     toBlock: Hex;
   }): Promise<RealtimeLog[]> => {
@@ -815,10 +815,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     ];
 
     try {
-      return this.requestQueue.request({
-        method: "eth_getLogs",
-        params: _params,
-      }) as Promise<RealtimeLog[]>;
+      return await this.requestQueue
+        .request({
+          method: "eth_getLogs",
+          params: _params,
+        })
+        .then((l) => l as RealtimeLog[]);
     } catch (err) {
       const getLogsErrorResponse = getLogsRetryHelper({
         params: _params,

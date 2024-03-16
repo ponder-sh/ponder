@@ -930,7 +930,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    * Helper function for "eth_getLogs" rpc request.
    * Handles different error types and retries the request if applicable.
    */
-  private _eth_getLogs = (params: {
+  private _eth_getLogs = async (params: {
     address?: Address | Address[];
     topics?: Topics;
     fromBlock: Hex;
@@ -951,7 +951,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     ];
 
     try {
-      return this.requestQueue.request({
+      return await this.requestQueue.request({
         method: "eth_getLogs",
         params: _params,
       });
