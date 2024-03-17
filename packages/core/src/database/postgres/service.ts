@@ -9,7 +9,7 @@ import {
   getTableAccessInverse,
   isWriteStoreMethod,
 } from "@/build/static/getTableAccess.js";
-import { NonRetryableError } from "@/errors/base.js";
+import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {

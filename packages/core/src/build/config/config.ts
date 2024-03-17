@@ -1,4 +1,5 @@
 import path from "node:path";
+import type { Options } from "@/common/options.js";
 import { buildAbiEvents, buildTopics } from "@/config/abi.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
@@ -10,7 +11,6 @@ import {
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
-import type { Options } from "@/config/options.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import parse from "pg-connection-string";

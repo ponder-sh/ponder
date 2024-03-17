@@ -1,6 +1,6 @@
 import type { Common } from "@/Ponder.js";
+import { NonRetryableError } from "@/common/errors.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import { NonRetryableError } from "@/errors/base.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";

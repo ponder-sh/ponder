@@ -4,7 +4,7 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { onAllEventsIndexed } from "@/_test/utils.js";
-import { buildOptions } from "@/config/options.js";
+import { buildOptions } from "@/common/options.js";
 import { range } from "@/utils/range.js";
 import request from "supertest";
 import { zeroAddress } from "viem";

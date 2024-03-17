@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Ponder } from "@/Ponder.js";
-import { buildOptions } from "@/config/options.js";
+import { buildOptions } from "@/common/options.js";
 import { cac } from "cac";
 import dotenv from "dotenv";
 import pc from "picocolors";

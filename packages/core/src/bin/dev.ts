@@ -1,24 +1,24 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { type BuildResult, BuildService } from "@/build/service.js";
-import { CodegenService } from "@/codegen/service.js";
+import { codegen } from "@/common/codegen.js";
+import { LoggerService } from "@/common/logger.js";
+import { MetricsService } from "@/common/metrics.js";
+import { type Options } from "@/common/options.js";
+import { TelemetryService } from "@/common/telemetry.js";
 import { type DatabaseConfig } from "@/config/database.js";
-import { type Options } from "@/config/options.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
-import { type IndexingStore } from "@/indexing-store/store.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
 import { IndexingService } from "@/indexing/service.js";
-import { LoggerService } from "@/logger/service.js";
-import { MetricsService } from "@/metrics/service.js";
 import { ServerService } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
-import { type SyncStore } from "@/sync-store/store.js";
+import type { SyncStore } from "@/sync-store/store.js";
 import { SyncService } from "@/sync/service.js";
-import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
 import { createQueue } from "@ponder/common";
 
@@ -256,9 +256,7 @@ async function start({
   await serverService.start();
   serverService.reloadGraphqlSchema({ graphqlSchema });
 
-  const codegenService = new CodegenService({ common });
-  codegenService.generateGraphqlSchemaFile({ graphqlSchema });
-  codegenService.generatePonderEnv();
+  codegen({ common, graphqlSchema });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 

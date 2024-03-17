@@ -1,7 +1,6 @@
 import type { Common } from "@/Ponder.js";
+import { getHistoricalSyncStats } from "@/common/metrics.js";
 import type { Source } from "@/config/sources.js";
-import { getHistoricalSyncStats } from "@/metrics/utils.js";
-
 import { type UiState, buildUiState, setupInkApp } from "./app.js";
 
 export class UiService {

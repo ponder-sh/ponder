@@ -10,6 +10,7 @@ import {
   isReadStoreMethod,
   isWriteStoreMethod,
 } from "@/build/static/getTableAccess.js";
+import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Source,
@@ -17,7 +18,6 @@ import {
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import type { DatabaseService, FunctionMetadata } from "@/database/service.js";
-import { NonRetryableError } from "@/errors/base.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";

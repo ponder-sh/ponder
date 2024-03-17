@@ -1,5 +1,5 @@
 import type { Common } from "@/Ponder.js";
-import { NonRetryableError, StoreError } from "@/errors/base.js";
+import { NonRetryableError, StoreError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";

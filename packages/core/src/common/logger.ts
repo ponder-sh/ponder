@@ -1,5 +1,4 @@
 import path from "node:path";
-
 import pc from "picocolors";
 import { type LevelWithSilent, type Logger, pino } from "pino";
 
