@@ -33,8 +33,6 @@ type SyncGatewayEvents = {
   hasCompletedHistoricalSync: Checkpoint;
 };
 
-type SyncGatewayMetrics = {};
-
 export class SyncGateway extends Emittery<SyncGatewayEvents> {
   private common: Common;
   private syncStore: SyncStore;
@@ -58,8 +56,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     }
   >;
 
-  metrics: SyncGatewayMetrics;
-
   constructor({
     common,
     syncStore,
@@ -74,7 +70,6 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     this.common = common;
     this.syncStore = syncStore;
     this.networks = networks;
-    this.metrics = {};
 
     this.checkpoint = zeroCheckpoint;
     this.finalityCheckpoint = zeroCheckpoint;
