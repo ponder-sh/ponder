@@ -14,6 +14,7 @@ import {
 } from "../utils/cursor.js";
 import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
 import { buildWhereConditions } from "../utils/filter.js";
+import { isRowEqual } from "../utils/isRowEqual.js";
 import { revertTable } from "../utils/revert.js";
 import {
   buildOrderByConditions,
@@ -458,6 +459,11 @@ export class SqliteIndexingStore implements IndexingStore {
             `Cannot update ${tableName} record with ID ${id} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effective_from}. Hint: Did you forget to await the promise returned by a store method?`,
           );
 
+        // Skip queries if no changes to the original row were made.
+        if (isRowEqual({ originalRow: latestRow, updateRow: updateRow })) {
+          return latestRow;
+        }
+
         // If the latest version has the same effective_from as the update,
         // this update is occurring within the same indexing function. Update in place.
         if (latestRow.effective_from === encodedCheckpoint) {
@@ -555,6 +561,11 @@ export class SqliteIndexingStore implements IndexingStore {
               throw new StoreError(
                 `Cannot update ${tableName} record with ID ${encodedId} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effective_from}. Hint: Did you forget to await the promise returned by a store method?`,
               );
+
+            // Skip queries if no changes to the original row were made.
+            if (isRowEqual({ originalRow: latestRow, updateRow: updateRow })) {
+              return latestRow;
+            }
 
             // If the latest version has the same effective_from timestamp as the update,
             // this update is occurring within the same block/second. Update in place.
@@ -654,6 +665,11 @@ export class SqliteIndexingStore implements IndexingStore {
           throw new StoreError(
             `Cannot update ${tableName} record with ID ${id} at checkpoint ${encodedCheckpoint} because there is a newer version of the record at checkpoint ${latestRow.effective_from}. Hint: Did you forget to await the promise returned by a store method?`,
           );
+
+        // Skip queries if no changes to the original row were made.
+        if (isRowEqual({ originalRow: latestRow, updateRow: updateRow })) {
+          return latestRow;
+        }
 
         // If the latest version has the same effective_from as the update,
         // this update is occurring within the same indexing function. Update in place.
