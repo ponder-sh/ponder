@@ -1,6 +1,6 @@
 import path from "node:path";
-import type { Common } from "@/Ponder.js";
 import { safeBuildSchema } from "@/build/schema/schema.js";
+import type { Common } from "@/common/common.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";

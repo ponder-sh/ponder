@@ -1,4 +1,4 @@
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";

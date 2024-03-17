@@ -1,4 +1,3 @@
-import type { Common } from "@/Ponder.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type {
   FunctionIds,
@@ -10,6 +9,7 @@ import {
   isReadStoreMethod,
   isWriteStoreMethod,
 } from "@/build/static/getTableAccess.js";
+import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import {

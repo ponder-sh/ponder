@@ -1,4 +1,4 @@
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
 import type { Kysely } from "kysely";
 import { type Migration, type MigrationProvider, sql } from "kysely";
 

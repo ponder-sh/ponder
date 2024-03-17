@@ -9,7 +9,7 @@ import { GraphQLError, formatError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
 
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
 import type { DatabaseService } from "@/database/service.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";

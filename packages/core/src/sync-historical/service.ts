@@ -1,4 +1,4 @@
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
 import { getHistoricalSyncStats } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import {

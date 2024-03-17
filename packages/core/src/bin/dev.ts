@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { type BuildResult, BuildService } from "@/build/service.js";
 import { codegen } from "@/common/codegen.js";
+import type { Common } from "@/common/common.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { type Options } from "@/common/options.js";
@@ -21,13 +22,6 @@ import type { SyncStore } from "@/sync-store/store.js";
 import { SyncService } from "@/sync/service.js";
 import { UiService } from "@/ui/service.js";
 import { createQueue } from "@ponder/common";
-
-export type Common = {
-  options: Options;
-  logger: LoggerService;
-  metrics: MetricsService;
-  telemetry: TelemetryService;
-};
 
 export async function devFromCli({
   options,

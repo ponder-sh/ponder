@@ -1,4 +1,4 @@
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";

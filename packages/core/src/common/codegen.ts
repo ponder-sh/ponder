@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
 import type { GraphQLSchema } from "graphql";
 import { printSchema } from "graphql";
 
