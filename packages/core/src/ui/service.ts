@@ -10,8 +10,9 @@ export class UiService {
 
   ui: UiState;
   renderInterval: NodeJS.Timeout;
-  render: () => void;
-  unmount: () => void;
+  render?: () => void;
+  unmount?: () => void;
+  private isKilled = false;
 
   constructor({ common, sources }: { common: Common; sources: Source[] }) {
     this.common = common;
@@ -23,14 +24,10 @@ export class UiService {
       const { render, unmount } = setupInkApp(this.ui);
       this.render = () => render(this.ui);
       this.unmount = unmount;
-    } else {
-      this.render = () => undefined;
-      this.unmount = () => undefined;
     }
 
     this.renderInterval = setInterval(async () => {
       // Historical sync
-
       this.ui.historicalSyncStats = await getHistoricalSyncStats({
         metrics: this.common.metrics,
         sources: this.sources,
@@ -103,16 +100,14 @@ export class UiService {
         .values[0].value;
       this.ui.port = port;
 
-      this.render();
+      if (this.isKilled) return;
+      this.render?.();
     }, 17);
   }
 
-  resetHistoricalState() {
-    this.ui.isHistoricalSyncComplete = false;
-  }
-
   kill() {
+    this.isKilled = true;
     clearInterval(this.renderInterval);
-    this.unmount();
+    this.unmount?.();
   }
 }

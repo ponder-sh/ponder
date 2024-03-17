@@ -111,6 +111,7 @@ export class ServerService extends Emittery<ServerEvents> {
   }
 
   async kill() {
+    this.clearListeners();
     await this.terminate?.();
     this.common.logger.debug({
       service: "server",

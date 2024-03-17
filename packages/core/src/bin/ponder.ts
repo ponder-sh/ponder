@@ -2,13 +2,12 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
+import { Ponder } from "@/Ponder.js";
+import { buildOptions } from "@/config/options.js";
 import { cac } from "cac";
 import dotenv from "dotenv";
 import pc from "picocolors";
-
-import { Ponder } from "@/Ponder.js";
-import { buildOptions } from "@/config/options.js";
+import { devFromCli } from "./dev.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = resolve(__dirname, "../../package.json");
@@ -73,10 +72,12 @@ cli
     const options = buildOptions({ cliOptions });
     const devOptions = { ...options, uiEnabled: true };
 
-    const ponder = new Ponder({ options: devOptions });
-    registerKilledProcessListener(() => ponder.kill());
+    await devFromCli({ options: devOptions });
 
-    await ponder.dev();
+    // const ponder = new Ponder({ options: devOptions });
+    // registerKilledProcessListener(() => ponder.kill());
+
+    // await ponder.dev();
   });
 
 cli

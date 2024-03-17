@@ -8,6 +8,7 @@ import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
 import { buildGqlSchema } from "@/server/graphql/schema.js";
 import { Emittery } from "@/utils/emittery.js";
+import { debounce } from "@ponder/common";
 import { glob } from "glob";
 import { GraphQLSchema } from "graphql";
 import { type ViteDevServer, createServer } from "vite";
@@ -56,6 +57,18 @@ type BuildServiceEvents = {
     kind: "config" | "schema" | "indexingFunctions";
     error: Error;
   };
+};
+
+export type BuildResult = {
+  databaseConfig: DatabaseConfig;
+  networks: Network[];
+  sources: Source[];
+  schema: Schema;
+  graphqlSchema: GraphQLSchema;
+  indexingFunctions: IndexingFunctions;
+  tableAccess: TableAccess;
+  tableIds: TableIds;
+  functionIds: FunctionIds;
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
@@ -234,7 +247,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     // TODO: Consider handling "add" and "unlink" events too.
     // TODO: Debounce, de-duplicate, and batch updates.
 
-    this.viteDevServer.watcher.on("change", async (file) => {
+    const onChange = debounce(25, async (file: string) => {
       const ignoreRegex = new RegExp(
         `^${this.common.options.ponderDir.replace(
           /[.*+?^${}()|[\]\\]/g,
@@ -251,6 +264,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
       await handleFileChange([file]);
     });
+
+    this.viteDevServer.watcher.on("change", onChange.call);
   }
 
   async kill() {
@@ -300,7 +315,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       tableAccess,
       tableIds,
       functionIds,
-    };
+    } satisfies BuildResult;
   }
 
   private async loadConfig() {

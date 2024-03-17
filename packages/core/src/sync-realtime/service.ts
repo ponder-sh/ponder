@@ -45,7 +45,7 @@ type RealtimeSyncEvents = {
   shallowReorg: Checkpoint;
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
   idle: undefined;
-  fatal: undefined;
+  fatal: Error;
 };
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
@@ -278,7 +278,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           network: this.network.name,
         });
 
-        if (i === 5) this.emit("fatal");
+        if (i === 5) this.emit("fatal", error);
         else {
           const duration = 250 * 2 ** i;
           await wait(duration);
@@ -758,14 +758,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         minimumDepth: latestBlockNumber - this.blocks[0].number,
       });
 
-      this.common.logger.warn({
-        service: "realtime",
-        msg: `Unable to reconcile >${
-          latestBlockNumber - this.blocks[0].number
-        }-block reorg (network=${this.network.name})`,
-      });
+      const msg = `Unable to reconcile >${
+        latestBlockNumber - this.blocks[0].number
+      }-block reorg (network=${this.network.name})`;
 
-      this.emit("fatal");
+      this.common.logger.warn({ service: "realtime", msg });
+
+      this.emit("fatal", new Error(msg));
 
       this.blocks = [];
       this.logs = [];
