@@ -1,6 +1,9 @@
 import type { Server } from "node:http";
 import { createServer } from "node:http";
-
+import type { Common } from "@/common/common.js";
+import type { DatabaseService } from "@/database/service.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
+import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { Emittery } from "@/utils/emittery.js";
 import cors from "cors";
 import express, { type Handler } from "express";
@@ -8,11 +11,6 @@ import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { GraphQLError, formatError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
-
-import type { Common } from "@/common/common.js";
-import type { DatabaseService } from "@/database/service.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
-import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { buildLoaderCache } from "./graphql/loaders.js";
 
 type ServerEvents = {

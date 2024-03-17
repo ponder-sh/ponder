@@ -2,7 +2,7 @@ import crypto, { randomUUID } from "crypto";
 import fs from "fs";
 import path from "node:path";
 import os from "os";
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
