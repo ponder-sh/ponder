@@ -42,7 +42,7 @@ export const getLogsRetryHelper = ({
 
     // Cloudflare
     match = sError.match(/Max range: (\d+)/);
-    if (match !== null && match.length === 2) {
+    if (match !== null) {
       const ranges = chunk({ params, range: BigInt(match[1]!) - 1n });
 
       if (isRangeUnchanged(params, ranges)) {
@@ -59,7 +59,7 @@ export const getLogsRetryHelper = ({
     match = sError.match(
       /Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
     )!;
-    if (match !== null && match.length === 3) {
+    if (match !== null) {
       const start = hexToBigInt(`0x${match[1]}`);
       const end = hexToBigInt(`0x${match[2]}`);
       const range = end - start;
@@ -78,7 +78,7 @@ export const getLogsRetryHelper = ({
 
     // Thirdweb
     match = sError.match(/bigger than range limit (\d+)/);
-    if (match !== null && match.length === 2) {
+    if (match !== null) {
       const ranges = chunk({ params, range: BigInt(match[1]!) });
 
       if (isRangeUnchanged(params, ranges)) {
@@ -93,7 +93,7 @@ export const getLogsRetryHelper = ({
 
     // Ankr
     match = sError.match("block range is too wide");
-    if (match !== null && match.length === 1 && error.code === -32600) {
+    if (match !== null && error.code === -32600) {
       const ranges = chunk({ params, range: 3000n });
 
       if (isRangeUnchanged(params, ranges)) {
@@ -110,7 +110,7 @@ export const getLogsRetryHelper = ({
     match = sError.match(
       /this block range should work: \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
     );
-    if (match !== null && match.length === 3) {
+    if (match !== null) {
       const start = hexToBigInt(`0x${match[1]}`);
       const end = hexToBigInt(`0x${match[2]}`);
       const range = end - start;
@@ -128,9 +128,12 @@ export const getLogsRetryHelper = ({
     }
 
     // Quicknode
-    match = sError.match(/eth_getLogs is limited to a 10,000 range/);
-    if (match !== null && match.length === 1) {
-      const ranges = chunk({ params, range: 10_000n });
+    match = sError.match(/eth_getLogs is limited to a ([\d,.]+) range/);
+    if (match !== null) {
+      const ranges = chunk({
+        params,
+        range: BigInt(match[1]!.replace(/[,.]/g, "")),
+      });
 
       if (isRangeUnchanged(params, ranges)) {
         return { shouldRetry: false } as const;
