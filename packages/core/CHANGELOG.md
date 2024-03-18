@@ -1,5 +1,18 @@
 # @ponder/core
 
+## 0.3.4
+
+### Patch Changes
+
+- [#723](https://github.com/ponder-sh/ponder/pull/723) [`84b981ebfed6b6ea4707504da230aaaa7f59515f`](https://github.com/ponder-sh/ponder/commit/84b981ebfed6b6ea4707504da230aaaa7f59515f) Thanks [@kyscott18](https://github.com/kyscott18)! - Relaxed not null constraint for SQLite, which fixes zkSync.
+
+- [#715](https://github.com/ponder-sh/ponder/pull/715) [`7e00af94777690c95cd7936b9ed9978d074b1b95`](https://github.com/ponder-sh/ponder/commit/7e00af94777690c95cd7936b9ed9978d074b1b95) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed issue with too large eth_getLogs calls not always being properly retried.
+
+- [#727](https://github.com/ponder-sh/ponder/pull/727) [`3fca36582ce8e1a7bcd54cbe331a4f8e7d210ec5`](https://github.com/ponder-sh/ponder/commit/3fca36582ce8e1a7bcd54cbe331a4f8e7d210ec5) Thanks [@jaylmiller](https://github.com/jaylmiller)! - Updated datatypes for p.float columns in postgres to double and sqlite to real. Note that this busts the indexing cache
+
+- Updated dependencies [[`fe99c31a100acfc602cc511a15b1f625e034c29e`](https://github.com/ponder-sh/ponder/commit/fe99c31a100acfc602cc511a15b1f625e034c29e)]:
+  - @ponder/utils@0.1.1
+
 ## 0.3.3
 
 ### Patch Changes
