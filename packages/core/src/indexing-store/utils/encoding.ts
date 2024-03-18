@@ -111,9 +111,7 @@ export function encodeValue(
           `Unable to encode ${value} as a hex. Got type '${typeof value}' but expected type '\`0x\${string}\`'.`,
         );
       }
-      return encoding === "postgres"
-        ? Buffer.from(hexToBytes(value))
-        : value.toLowerCase();
+      return Buffer.from(hexToBytes(value));
     } else if (column.type === "int") {
       if (typeof value !== "number") {
         throw new StoreError(
