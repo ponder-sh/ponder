@@ -14,6 +14,7 @@ const schema = createSchema((p) => ({
     age: p.int().optional(),
     bigAge: p.bigint().optional(),
     kind: p.enum("PetKind").optional(),
+    rating: p.float().optional(),
   }),
   Person: p.createTable({
     id: p.string(),
@@ -212,6 +213,30 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
   });
 
   expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
+
+  await cleanup();
+});
+
+test("create() accepts float fields as float and returns as float", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+    tableIds: getTableIds(schema),
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+    data: { name: "Skip", rating: 1.0 },
+  });
+
+  const instance = await indexingStore.findUnique({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+  });
+
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", rating: 1.0 });
 
   await cleanup();
 });
