@@ -16,6 +16,7 @@ export default defineConfig({
     poolOptions: {
       threads: {
         maxThreads: 4,
+        minThreads: 1,
       },
     },
     sequence: { hooks: "stack" },
