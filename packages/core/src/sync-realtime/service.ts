@@ -801,9 +801,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    *
    * Note: Consider handling different error types and retry the request if applicable.
    */
-  private _eth_getLogs = async (params: {
+  private _eth_getLogs = async ({
+    depth = 0,
+    ...params
+  }: {
     fromBlock: Hex;
     toBlock: Hex;
+    depth?: number;
   }): Promise<RealtimeLog[]> => {
     const _params: GetLogsRetryHelperParameters["params"] = [
       {
@@ -827,7 +831,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         error: err as RpcError,
       });
 
-      if (!getLogsErrorResponse.shouldRetry) throw err;
+      if (!getLogsErrorResponse.shouldRetry || depth >= 3) throw err;
 
       this.common.logger.debug({
         service: "historical",
@@ -846,6 +850,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           this._eth_getLogs({
             fromBlock,
             toBlock,
+            depth: depth + 1,
           }),
         ),
       ).then((l) => l.flat());

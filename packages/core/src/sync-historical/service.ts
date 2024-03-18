@@ -930,11 +930,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    * Helper function for "eth_getLogs" rpc request.
    * Handles different error types and retries the request if applicable.
    */
-  private _eth_getLogs = async (params: {
+  private _eth_getLogs = async ({
+    depth = 0,
+    ...params
+  }: {
     address?: Address | Address[];
     topics?: Topics;
     fromBlock: Hex;
     toBlock: Hex;
+    depth?: number;
   }): Promise<RpcLog[]> => {
     const _params: GetLogsRetryHelperParameters["params"] = [
       {
@@ -961,7 +965,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         error: err as RpcError,
       });
 
-      if (!getLogsErrorResponse.shouldRetry) throw err;
+      if (!getLogsErrorResponse.shouldRetry || depth >= 3) throw err;
 
       this.common.logger.debug({
         service: "historical",
@@ -982,6 +986,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             address: _params[0].address,
             fromBlock,
             toBlock,
+            depth: depth + 1,
           }),
         ),
       ).then((l) => l.flat());
