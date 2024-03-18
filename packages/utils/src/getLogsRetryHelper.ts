@@ -39,7 +39,8 @@ export const getLogsRetryHelper = ({
   let match: RegExpMatchArray | null;
 
   // Cloudflare
-  if (sError.match(/Max range: (\d+)/)) {
+  match = sError.match(/Max range: (\d+)/);
+  if (match !== null) {
     const ranges = chunk({ params, range: BigInt(match[1]!) - 1n });
 
     if (isRangeUnchanged(params, ranges)) {
