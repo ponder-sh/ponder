@@ -1009,7 +1009,7 @@ export class SqliteSyncStore implements SyncStore {
             to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
             transactionIndex: Number(row.tx_transactionIndex),
             value: decodeToBigInt(row.tx_value),
-            v: decodeToBigInt(row.tx_v),
+            v: row.tx_v ? decodeToBigInt(row.tx_v) : null,
             ...(row.tx_type === "0x0"
               ? {
                   type: "legacy",
