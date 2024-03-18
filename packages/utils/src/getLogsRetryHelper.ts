@@ -35,125 +35,117 @@ export const getLogsRetryHelper = ({
   params,
   error,
 }: GetLogsRetryHelperParameters): GetLogsRetryHelperReturnType => {
-  // Wrap entire function body in try catch because we are accessing properties of error objects returned by untrusted rpcs
-  try {
-    const sError = JSON.stringify(error);
-    let match: RegExpMatchArray | null;
+  const sError = JSON.stringify(error);
+  let match: RegExpMatchArray | null;
 
-    // Cloudflare
-    match = sError.match(/Max range: (\d+)/);
-    if (match !== null) {
-      const ranges = chunk({ params, range: BigInt(match[1]!) - 1n });
+  // Cloudflare
+  if (sError.match(/Max range: (\d+)/)) {
+    const ranges = chunk({ params, range: BigInt(match[1]!) - 1n });
 
-      if (isRangeUnchanged(params, ranges)) {
-        return { shouldRetry: false } as const;
-      }
-
-      return {
-        shouldRetry: true,
-        ranges,
-      } as const;
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
     }
 
-    // Infura, Thirdweb, zkSync
-    match = sError.match(
-      /Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
-    )!;
-    if (match !== null) {
-      const start = hexToBigInt(`0x${match[1]}`);
-      const end = hexToBigInt(`0x${match[2]}`);
-      const range = end - start;
-
-      const ranges = chunk({ params, range });
-
-      if (isRangeUnchanged(params, ranges)) {
-        return { shouldRetry: false } as const;
-      }
-
-      return {
-        shouldRetry: true,
-        ranges,
-      } as const;
-    }
-
-    // Thirdweb
-    match = sError.match(/bigger than range limit (\d+)/);
-    if (match !== null) {
-      const ranges = chunk({ params, range: BigInt(match[1]!) });
-
-      if (isRangeUnchanged(params, ranges)) {
-        return { shouldRetry: false } as const;
-      }
-
-      return {
-        shouldRetry: true,
-        ranges,
-      } as const;
-    }
-
-    // Ankr
-    match = sError.match("block range is too wide");
-    if (match !== null && error.code === -32600) {
-      const ranges = chunk({ params, range: 3000n });
-
-      if (isRangeUnchanged(params, ranges)) {
-        return { shouldRetry: false } as const;
-      }
-
-      return {
-        shouldRetry: true,
-        ranges,
-      } as const;
-    }
-
-    // Alchemy
-    match = sError.match(
-      /this block range should work: \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
-    );
-    if (match !== null) {
-      const start = hexToBigInt(`0x${match[1]}`);
-      const end = hexToBigInt(`0x${match[2]}`);
-      const range = end - start;
-
-      const ranges = chunk({ params, range });
-
-      if (isRangeUnchanged(params, ranges)) {
-        return { shouldRetry: false } as const;
-      }
-
-      return {
-        shouldRetry: true,
-        ranges,
-      } as const;
-    }
-
-    // Quicknode
-    match = sError.match(/eth_getLogs is limited to a ([\d,.]+) range/);
-    if (match !== null) {
-      const ranges = chunk({
-        params,
-        range: BigInt(match[1]!.replace(/[,.]/g, "")),
-      });
-
-      if (isRangeUnchanged(params, ranges)) {
-        return { shouldRetry: false } as const;
-      }
-
-      return {
-        shouldRetry: true,
-        ranges,
-      } as const;
-    }
-
-    // No match found
     return {
-      shouldRetry: false,
-    } as const;
-  } catch {
-    return {
-      shouldRetry: false,
+      shouldRetry: true,
+      ranges,
     } as const;
   }
+
+  // Infura, Thirdweb, zkSync
+  match = sError.match(
+    /Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
+  )!;
+  if (match !== null) {
+    const start = hexToBigInt(`0x${match[1]}`);
+    const end = hexToBigInt(`0x${match[2]}`);
+    const range = end - start;
+
+    const ranges = chunk({ params, range });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // Thirdweb
+  match = sError.match(/bigger than range limit (\d+)/);
+  if (match !== null) {
+    const ranges = chunk({ params, range: BigInt(match[1]!) });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // Ankr
+  match = sError.match("block range is too wide");
+  if (match !== null && error.code === -32600) {
+    const ranges = chunk({ params, range: 3000n });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // Alchemy
+  match = sError.match(
+    /this block range should work: \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
+  );
+  if (match !== null) {
+    const start = hexToBigInt(`0x${match[1]}`);
+    const end = hexToBigInt(`0x${match[2]}`);
+    const range = end - start;
+
+    const ranges = chunk({ params, range });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // Quicknode
+  match = sError.match(/eth_getLogs is limited to a ([\d,.]+) range/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // No match found
+  return {
+    shouldRetry: false,
+  } as const;
 };
 
 const isRangeUnchanged = (
@@ -164,9 +156,10 @@ const isRangeUnchanged = (
   >["ranges"],
 ) => {
   return (
-    ranges.length === 1 &&
-    ranges[0]!.fromBlock === params[0].fromBlock &&
-    ranges[0]!.toBlock === params[0].toBlock
+    ranges.length === 0 ||
+    (ranges.length === 1 &&
+      ranges[0]!.fromBlock === params[0].fromBlock &&
+      ranges[0]!.toBlock === params[0].toBlock)
   );
 };
 
