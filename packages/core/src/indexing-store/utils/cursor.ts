@@ -1,3 +1,4 @@
+import { StoreError } from "@/errors/base.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
 import type { ExpressionBuilder } from "kysely";
 import type { Row } from "../store.js";
@@ -25,14 +26,14 @@ export function decodeCursor(
 
   // Validate cursor values against order by conditions.
   if (cursorValues.length !== orderByConditions.length) {
-    throw new Error(
+    throw new StoreError(
       `Invalid cursor. Got ${cursorValues.length}, ${orderByConditions.length} conditions`,
     );
   }
 
   for (const [index, [columnName]] of orderByConditions.entries()) {
     if (cursorValues[index][0] !== columnName) {
-      throw new Error(
+      throw new StoreError(
         `Invalid cursor. Got column '${cursorValues[index][0]}' at index ${index}, expected '${columnName}'.`,
       );
     }
@@ -72,7 +73,7 @@ export function buildCursorConditions(
       ]),
     ]);
   } else {
-    throw new Error(
+    throw new StoreError(
       `Invalid cursor. Got ${cursorValues.length} value pairs, expected 1 or 2.`,
     );
   }

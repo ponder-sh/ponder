@@ -1,3 +1,4 @@
+import { StoreError } from "@/errors/base.js";
 import type {
   EnumColumn,
   NonReferenceColumn,
@@ -33,7 +34,7 @@ export function encodeRow(
   for (const [columnName, value] of Object.entries(data)) {
     const column = table[columnName];
     if (!column) {
-      throw Error(
+      throw new StoreError(
         `Invalid record: Column does not exist. Got ${columnName}, expected one of [${Object.keys(
           table,
         )
@@ -63,14 +64,14 @@ export function encodeValue(
 
     if (column.list) {
       if (!Array.isArray(value)) {
-        throw Error(
+        throw new StoreError(
           `Unable to encode ${value} as a list. Got type '${typeof value}' but expected type 'string[]'.`,
         );
       }
 
       return JSON.stringify(value);
     } else if (typeof value !== "string") {
-      throw Error(
+      throw new StoreError(
         `Unable to encode ${value} as an enum. Got type '${typeof value}' but expected type 'string'.`,
       );
     }
@@ -83,7 +84,7 @@ export function encodeValue(
     if (column.list) {
       // Note: We are not checking the types of the list elements.
       if (!Array.isArray(value)) {
-        throw Error(
+        throw new StoreError(
           `Unable to encode ${value} as a list. Got type '${typeof value}' but expected type '${
             scalarToTsType[column.type]
           }[]'.`,
@@ -99,42 +100,44 @@ export function encodeValue(
 
     if (column.type === "string") {
       if (typeof value !== "string") {
-        throw Error(
+        throw new StoreError(
           `Unable to encode ${value} as a string. Got type '${typeof value}' but expected type 'string'.`,
         );
       }
       return value;
     } else if (column.type === "hex") {
       if (typeof value !== "string" || !isHex(value)) {
-        throw Error(
+        throw new StoreError(
           `Unable to encode ${value} as a hex. Got type '${typeof value}' but expected type '\`0x\${string}\`'.`,
         );
       }
-      return Buffer.from(hexToBytes(value));
+      return encoding === "postgres"
+        ? Buffer.from(hexToBytes(value))
+        : value.toLowerCase();
     } else if (column.type === "int") {
       if (typeof value !== "number") {
-        throw Error(
+        throw new StoreError(
           `Unable to encode ${value} as an int. Got type '${typeof value}' but expected type 'number'.`,
         );
       }
       return value;
     } else if (column.type === "float") {
       if (typeof value !== "number") {
-        throw Error(
+        throw new StoreError(
           `Unable to encode ${value} as a float. Got type '${typeof value}' but expected type 'number'.`,
         );
       }
       return value;
     } else if (column.type === "bigint") {
       if (typeof value !== "bigint") {
-        throw Error(
+        throw new StoreError(
           `Unable to encode ${value} as a bigint. Got type '${typeof value}' but expected type 'bigint'.`,
         );
       }
       return encoding === "sqlite" ? encodeAsText(value) : value;
     } else if (column.type === "boolean") {
       if (typeof value !== "boolean") {
-        throw Error(
+        throw new StoreError(
           `Unable to encode ${value} as a boolean. Got type '${typeof value}' but expected type 'boolean'.`,
         );
       }
@@ -142,13 +145,13 @@ export function encodeValue(
     }
 
     // Note: it should be impossible to get to this line
-    throw Error(
+    throw new StoreError(
       `Unable to encode ${value} as type ${column.type}. Please report this issue (https://github.com/ponder-sh/ponder/issues/new)`,
     );
   }
 
   // Column is either "many" or "one"
-  throw Error(
+  throw new StoreError(
     `Unable to encode ${value} into a "${
       column._type === "m" ? "many" : "one"
     }" column. "${

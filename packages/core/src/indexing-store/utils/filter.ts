@@ -1,3 +1,4 @@
+import { StoreError } from "@/errors/base.js";
 import type { Schema } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
 import type {
@@ -92,7 +93,7 @@ export function buildWhereConditions({
   for (const [columnName, rhs] of Object.entries(where)) {
     if (columnName === "AND" || columnName === "OR") {
       if (!Array.isArray(rhs)) {
-        throw new Error(
+        throw new StoreError(
           `Invalid filter. Expected an array for logical operator '${columnName}', got '${rhs}'.`,
         );
       }
@@ -108,7 +109,7 @@ export function buildWhereConditions({
     const column = table[columnName];
 
     if (!column) {
-      throw Error(
+      throw new StoreError(
         `Invalid filter. Column does not exist. Got '${columnName}', expected one of [${Object.keys(
           table,
         )
@@ -119,7 +120,7 @@ export function buildWhereConditions({
     }
 
     if (column._type === "m" || column._type === "o") {
-      throw Error(
+      throw new StoreError(
         `Invalid filter. Cannot filter on virtual column '${columnName}'.`,
       );
     }
@@ -134,7 +135,7 @@ export function buildWhereConditions({
       const allowedConditions =
         filterValidityMap[filterType]?.[column.list ? "list" : "singular"];
       if (!allowedConditions.includes(condition)) {
-        throw new Error(
+        throw new StoreError(
           `Invalid filter condition for column '${columnName}'. Got '${condition}', expected one of [${allowedConditions
             .map((c) => `'${c}'`)
             .join(", ")}]`,

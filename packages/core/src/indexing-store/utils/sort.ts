@@ -1,3 +1,4 @@
+import { StoreError } from "@/errors/base.js";
 import type { Schema } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
 import type { OrderByInput } from "../store.js";
@@ -20,14 +21,14 @@ export function buildOrderByConditions({
 
   const conditions = Object.entries(orderBy);
   if (conditions.length > 1)
-    throw new Error("Invalid sort. Cannot sort by multiple columns.");
+    throw new StoreError("Invalid sort. Cannot sort by multiple columns.");
 
   const [columnName, orderDirection] = conditions[0];
 
   // Validate column name.
   const column = table[columnName];
   if (!column) {
-    throw Error(
+    throw new StoreError(
       `Invalid sort. Column does not exist. Got '${columnName}', expected one of [${Object.keys(
         table,
       )
@@ -37,13 +38,13 @@ export function buildOrderByConditions({
     );
   }
   if (column._type === "m" || column._type === "o") {
-    throw Error(
+    throw new StoreError(
       `Invalid sort. Cannot filter on virtual column '${columnName}'.`,
     );
   }
 
   if (orderDirection === undefined || !["asc", "desc"].includes(orderDirection))
-    throw new Error(
+    throw new StoreError(
       `Invalid sort direction. Got '${orderDirection}', expected 'asc' or 'desc'.`,
     );
 
