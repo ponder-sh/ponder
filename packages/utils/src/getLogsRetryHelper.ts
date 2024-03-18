@@ -1,12 +1,8 @@
 import {
   type Address,
   type Hex,
-  HttpRequestError,
-  InvalidParamsRpcError,
-  LimitExceededRpcError,
   type LogTopic,
   RpcError,
-  RpcRequestError,
   hexToBigInt,
   numberToHex,
 } from "viem";
@@ -41,15 +37,49 @@ export const getLogsRetryHelper = ({
 }: GetLogsRetryHelperParameters): GetLogsRetryHelperReturnType => {
   // Wrap entire function body in try catch because we are accessing properties of error objects returned by untrusted rpcs
   try {
+    const sError = JSON.stringify(error);
+    let match: RegExpMatchArray | null;
+
     // Cloudflare
-    if (
-      error instanceof RpcRequestError &&
-      error.code === -32047 &&
-      error.details?.includes(
-        "Invalid eth_getLogs request. 'fromBlock'-'toBlock' range too large. Max range: 800",
-      )
-    ) {
-      const ranges = chunk({ params, range: 799n });
+    match = sError.match(/Max range: (\d+)/);
+    if (match !== null && match.length === 2) {
+      const ranges = chunk({ params, range: BigInt(match[1]!) - 1n });
+
+      if (isRangeUnchanged(params, ranges)) {
+        return { shouldRetry: false } as const;
+      }
+
+      return {
+        shouldRetry: true,
+        ranges,
+      } as const;
+    }
+
+    // Infura, Thirdweb, zkSync
+    match = sError.match(
+      /Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
+    )!;
+    if (match !== null && match.length === 3) {
+      const start = hexToBigInt(`0x${match[1]}`);
+      const end = hexToBigInt(`0x${match[2]}`);
+      const range = end - start;
+
+      const ranges = chunk({ params, range });
+
+      if (isRangeUnchanged(params, ranges)) {
+        return { shouldRetry: false } as const;
+      }
+
+      return {
+        shouldRetry: true,
+        ranges,
+      } as const;
+    }
+
+    // Thirdweb
+    match = sError.match(/bigger than range limit (\d+)/);
+    if (match !== null && match.length === 2) {
+      const ranges = chunk({ params, range: BigInt(match[1]!) });
 
       if (isRangeUnchanged(params, ranges)) {
         return { shouldRetry: false } as const;
@@ -62,11 +92,8 @@ export const getLogsRetryHelper = ({
     }
 
     // Ankr
-    if (
-      error instanceof RpcError &&
-      error.code === -32600 &&
-      error.details?.startsWith("block range is too wide")
-    ) {
+    match = sError.match("block range is too wide");
+    if (match !== null && match.length === 1 && error.code === -32600) {
       const ranges = chunk({ params, range: 3000n });
 
       if (isRangeUnchanged(params, ranges)) {
@@ -80,42 +107,30 @@ export const getLogsRetryHelper = ({
     }
 
     // Alchemy
-    if (
-      error.code === InvalidParamsRpcError.code &&
-      error.details?.startsWith("Log response size exceeded.")
-    ) {
-      const match = error.details.match(
-        /this block range should work: \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
-      )!;
+    match = sError.match(
+      /this block range should work: \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
+    );
+    if (match !== null && match.length === 3) {
+      const start = hexToBigInt(`0x${match[1]}`);
+      const end = hexToBigInt(`0x${match[2]}`);
+      const range = end - start;
 
-      if (match.length === 3) {
-        const start = hexToBigInt(`0x${match[1]}`);
-        const end = hexToBigInt(`0x${match[2]}`);
-        const range = end - start;
+      const ranges = chunk({ params, range });
 
-        const ranges = chunk({ params, range });
-
-        if (isRangeUnchanged(params, ranges)) {
-          return { shouldRetry: false } as const;
-        }
-
-        return {
-          shouldRetry: true,
-          ranges,
-        } as const;
+      if (isRangeUnchanged(params, ranges)) {
+        return { shouldRetry: false } as const;
       }
+
+      return {
+        shouldRetry: true,
+        ranges,
+      } as const;
     }
 
     // Quicknode
-    if (
-      error instanceof HttpRequestError &&
-      error.details !== undefined &&
-      JSON.parse(error.details)?.code === -32614 &&
-      JSON.parse(error.details)?.message?.includes(
-        "eth_getLogs is limited to a 10,000 range",
-      )
-    ) {
-      const ranges = chunk({ params, range: 10000n });
+    match = sError.match(/eth_getLogs is limited to a 10,000 range/);
+    if (match !== null && match.length === 1) {
+      const ranges = chunk({ params, range: 10_000n });
 
       if (isRangeUnchanged(params, ranges)) {
         return { shouldRetry: false } as const;
@@ -125,126 +140,6 @@ export const getLogsRetryHelper = ({
         shouldRetry: true,
         ranges,
       } as const;
-    }
-
-    // Infura
-    if (
-      error instanceof LimitExceededRpcError &&
-      error.code === -32005 &&
-      (error.cause as any)?.cause?.message?.includes(
-        "query returned more than 10000 results. Try with this block range",
-      )
-    ) {
-      // @ts-ignore
-      const match = error.cause.cause.message.match(
-        /Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
-      )!;
-
-      if (match.length === 3) {
-        const start = hexToBigInt(`0x${match[1]}`);
-        const end = hexToBigInt(`0x${match[2]}`);
-        const range = end - start;
-
-        const ranges = chunk({ params, range });
-
-        if (isRangeUnchanged(params, ranges)) {
-          return { shouldRetry: false } as const;
-        }
-
-        return {
-          shouldRetry: true,
-          ranges,
-        } as const;
-      }
-    }
-
-    // Thirdweb
-    /**
-     * "code": -32602,
-     * "message": "invalid params",
-     * "data": "range 20000 is bigger than range limit 2000"
-     *
-     * "code": -32602,
-     * "message": "invalid params",
-     * "data": "Query returned more than 10000 results. Try with this block range [0x800000, 0x800054]."
-     */
-
-    if (
-      error instanceof InvalidParamsRpcError &&
-      error.code === -32602 &&
-      // @ts-ignore
-      error.cause?.cause?.data?.includes("is bigger than range limit 2000")
-    ) {
-      const ranges = chunk({ params, range: 2000n });
-
-      if (isRangeUnchanged(params, ranges)) {
-        return { shouldRetry: false } as const;
-      }
-
-      return {
-        shouldRetry: true,
-        ranges,
-      } as const;
-    }
-
-    if (
-      error instanceof InvalidParamsRpcError &&
-      error.code === -32602 &&
-      // @ts-ignore
-      error.cause?.cause?.data?.includes(
-        "Query returned more than 10000 results",
-      )
-    ) {
-      // @ts-ignore
-      const match = error.cause.cause.data.match(
-        /Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
-      )!;
-
-      if (match.length === 3) {
-        const start = hexToBigInt(`0x${match[1]}`);
-        const end = hexToBigInt(`0x${match[2]}`);
-        const range = end - start;
-
-        const ranges = chunk({ params, range });
-
-        if (isRangeUnchanged(params, ranges)) {
-          return { shouldRetry: false } as const;
-        }
-
-        return {
-          shouldRetry: true,
-          ranges,
-        } as const;
-      }
-    }
-
-    // zkSync
-    if (
-      error instanceof InvalidParamsRpcError &&
-      error.code === -32602 &&
-      error.details?.includes("Query returned more than 10000 results")
-    ) {
-      // @ts-ignore
-      const match = error.details.match(
-        /Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
-      )!;
-
-      if (match.length === 3) {
-        const start = hexToBigInt(`0x${match[1]}`);
-        const end = hexToBigInt(`0x${match[2]}`);
-        const range = end - start;
-
-        const ranges = chunk({ params, range });
-
-        if (isRangeUnchanged(params, ranges)) {
-          return { shouldRetry: false } as const;
-        }
-
-        return {
-          shouldRetry: true,
-          ranges,
-        } as const;
-      }
     }
 
     // No match found
