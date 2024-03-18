@@ -49,6 +49,10 @@ export const getLogsRetryHelper = ({
   ) {
     const ranges = chunk({ params, range: 799n });
 
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
     return {
       shouldRetry: true,
       ranges,
@@ -62,6 +66,10 @@ export const getLogsRetryHelper = ({
     error.details.startsWith("block range is too wide")
   ) {
     const ranges = chunk({ params, range: 3000n });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
 
     return {
       shouldRetry: true,
@@ -85,6 +93,10 @@ export const getLogsRetryHelper = ({
 
       const ranges = chunk({ params, range });
 
+      if (isRangeUnchanged(params, ranges)) {
+        return { shouldRetry: false } as const;
+      }
+
       return {
         shouldRetry: true,
         ranges,
@@ -101,6 +113,10 @@ export const getLogsRetryHelper = ({
     )
   ) {
     const ranges = chunk({ params, range: 10000n });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
 
     return {
       shouldRetry: true,
@@ -128,6 +144,10 @@ export const getLogsRetryHelper = ({
 
       const ranges = chunk({ params, range });
 
+      if (isRangeUnchanged(params, ranges)) {
+        return { shouldRetry: false } as const;
+      }
+
       return {
         shouldRetry: true,
         ranges,
@@ -154,6 +174,10 @@ export const getLogsRetryHelper = ({
   ) {
     const ranges = chunk({ params, range: 2000n });
 
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
     return {
       shouldRetry: true,
       ranges,
@@ -178,6 +202,10 @@ export const getLogsRetryHelper = ({
 
       const ranges = chunk({ params, range });
 
+      if (isRangeUnchanged(params, ranges)) {
+        return { shouldRetry: false } as const;
+      }
+
       return {
         shouldRetry: true,
         ranges,
@@ -188,7 +216,21 @@ export const getLogsRetryHelper = ({
   // No match found
   return {
     shouldRetry: false,
-  };
+  } as const;
+};
+
+const isRangeUnchanged = (
+  params: GetLogsRetryHelperParameters["params"],
+  ranges: Extract<
+    GetLogsRetryHelperReturnType,
+    { shouldRetry: true }
+  >["ranges"],
+) => {
+  return (
+    ranges.length === 1 &&
+    ranges[0]!.fromBlock === params[0].fromBlock &&
+    ranges[0]!.toBlock === params[0].toBlock
+  );
 };
 
 const chunk = ({
