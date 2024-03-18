@@ -152,14 +152,14 @@ LIMIT 5;
 
 These are the Postgres data types corresponding to each `ponder.schema.ts` column type.
 
-| Schema column type | Postgres column type   | Notes                                                     |
-| :----------------- | :--------------------- | :-------------------------------------------------------- |
-| `p.string(){:ts}`  | `TEXT`                 |                                                           |
-| `p.hex(){:ts}`     | `BYTEA{:sql}`          |                                                           |
-| `p.int(){:ts}`     | `INTEGER{:sql}`        |                                                           |
-| `p.bigint(){:ts}`  | `NUMERIC(78, 0){:sql}` | Supports EVM `uint256{:solidity}` and `int256{:solidity}` |
-| `p.float(){:ts}`   | `TEXT`                 |                                                           |
-| `p.boolean(){:ts}` | `INTEGER{:sql}`        | `0` is `false{:ts}`, `1` is `true{:ts}`                   |
+| Schema column type | Postgres column type          | Notes                                                     |
+| :----------------- | :---------------------------- | :-------------------------------------------------------- |
+| `p.string(){:ts}`  | `TEXT`                        |                                                           |
+| `p.hex(){:ts}`     | `BYTEA{:sql}`                 |                                                           |
+| `p.int(){:ts}`     | `INTEGER{:sql}`               |                                                           |
+| `p.bigint(){:ts}`  | `NUMERIC(78, 0){:sql}`        | Supports EVM `uint256{:solidity}` and `int256{:solidity}` |
+| `p.float(){:ts}`   | `FLOAT8{:sql}`/`DOUBLE{:sql}` |                                                           |
+| `p.boolean(){:ts}` | `INTEGER{:sql}`               | `0` is `false{:ts}`, `1` is `true{:ts}`                   |
 
 ## SQLite
 
@@ -226,7 +226,7 @@ These are the Postgres data types corresponding to each `ponder.schema.ts` colum
 | `p.hex(){:ts}`     | `BLOB{:sql}`        |                                                                             |
 | `p.int(){:ts}`     | `INTEGER{:sql}`     |                                                                             |
 | `p.bigint(){:ts}`  | `VARCHAR(79){:sql}` | Supports EVM `uint256{:solidity}` and `int256{:solidity}` (custom encoding) |
-| `p.float(){:ts}`   | `TEXT`              |                                                                             |
+| `p.float(){:ts}`   | `REAL`              |                                                                             |
 | `p.boolean(){:ts}` | `INTEGER{:sql}`     | `0` is `false{:ts}`, `1` is `true{:ts}`                                     |
 
 #### SQLite bigint encoding
