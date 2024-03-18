@@ -45,7 +45,7 @@ export const getLogsRetryHelper = ({
     if (
       error instanceof RpcRequestError &&
       error.code === -32047 &&
-      error.details.includes(
+      error.details?.includes(
         "Invalid eth_getLogs request. 'fromBlock'-'toBlock' range too large. Max range: 800",
       )
     ) {
@@ -109,6 +109,7 @@ export const getLogsRetryHelper = ({
     // Quicknode
     if (
       error instanceof HttpRequestError &&
+      error.details !== undefined &&
       JSON.parse(error.details)?.code === -32614 &&
       JSON.parse(error.details)?.message?.includes(
         "eth_getLogs is limited to a 10,000 range",
