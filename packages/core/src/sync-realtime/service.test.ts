@@ -431,7 +431,6 @@ test("emits deepReorg event after deep reorg", async (context) => {
 
   expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
     detectedAtBlockNumber: expect.any(Number),
-    minimumDepth: expect.any(Number),
   });
   expect(emitSpy).toHaveBeenCalledWith("fatal");
 

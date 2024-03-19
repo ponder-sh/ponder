@@ -43,7 +43,7 @@ type RealtimeSyncEvents = {
   realtimeCheckpoint: Checkpoint;
   finalityCheckpoint: Checkpoint;
   shallowReorg: Checkpoint;
-  deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
+  deepReorg: { detectedAtBlockNumber: number };
   idle: undefined;
   fatal: undefined;
 };
@@ -682,10 +682,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         blockNumber: commonAncestor.number,
       });
 
-      const depth = latestBlockNumber - commonAncestor.number;
       this.common.logger.warn({
         service: "realtime",
-        msg: `Detected ${depth}-block reorg with common ancestor ${commonAncestor.number} (network=${this.network.name})`,
+        msg: `Detected reorg with common ancestor ${commonAncestor.number} (network=${this.network.name})`,
       });
     };
 
@@ -736,14 +735,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (remoteFinalizedBlock.hash !== this.finalizedBlock.hash) {
       this.emit("deepReorg", {
         detectedAtBlockNumber: latestBlockNumber,
-        minimumDepth: latestBlockNumber - this.blocks[0].number,
       });
 
       this.common.logger.warn({
         service: "realtime",
-        msg: `Unable to reconcile >${
-          latestBlockNumber - this.blocks[0].number
-        }-block reorg (network=${this.network.name})`,
+        msg: `Detected >${this.network.finalityBlockCount} block reorg (network=${this.network.name})`,
       });
 
       this.emit("fatal");
