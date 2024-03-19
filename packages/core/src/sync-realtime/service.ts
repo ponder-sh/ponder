@@ -724,7 +724,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    * Check if deep re-org occured by comparing remote "finalized" block to local.
    */
   private reconcileDeepReorg = async (latestBlockNumber: number) => {
-    // this.common.logger.trace, TODO(kyle)
+    this.common.logger.trace({
+      service: "realtime",
+      msg: `Checking if reorg has occurred before or at block ${this.finalizedBlock.number} (network=${this.network.name})`,
+    });
 
     const remoteFinalizedBlock = await this._eth_getBlockByNumber(
       this.finalizedBlock.number,
