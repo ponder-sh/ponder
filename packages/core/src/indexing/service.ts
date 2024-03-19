@@ -206,12 +206,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.queue?.pause();
     this.queue?.clear();
     this.loadingMutex.cancel();
+
+    await this.flush();
+
     this.common.logger.debug({
       service: "indexing",
       msg: "Killed indexing service",
     });
-
-    await this.flush();
   };
 
   onIdle = () => this.queue!.onIdle();
@@ -247,33 +248,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
       schema: this.schema,
     });
 
-    this.isPaused = true;
-    await this.queue?.onIdle();
-    this.isPaused = false;
-    await this.flush();
-
-    this.loadingMutex.cancel();
-
-    this.isSetupStarted = false;
-
-    clearInterval(this.flushInterval);
-
-    this.common.metrics.ponder_indexing_completed_events.reset();
-
     await this.buildIndexingFunctionStates();
     this.createEventQueue();
-
-    this.common.logger.debug({
-      service: "indexing",
-      msg: "Paused event queue",
-    });
-
-    this.isPaused = false;
-
-    this.common.metrics.ponder_indexing_has_error.set(0);
-    this.common.metrics.ponder_indexing_total_seconds.reset();
-    this.common.metrics.ponder_indexing_completed_seconds.reset();
-    this.common.metrics.ponder_indexing_completed_timestamp.set(0);
 
     this.isFlushIntervalExec = false;
     this.flushInterval = setInterval(async () => {
