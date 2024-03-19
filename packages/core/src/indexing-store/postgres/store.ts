@@ -27,6 +27,7 @@ const MAX_LIMIT = 1_000 as const;
 export class PostgresIndexingStore implements IndexingStore {
   kind = "postgres" as const;
   private common: Common;
+  private isKilled = false;
 
   db: Kysely<any>;
   schema: Schema;
@@ -62,6 +63,10 @@ export class PostgresIndexingStore implements IndexingStore {
       ],
     });
   }
+
+  kill = () => {
+    this.isKilled = true;
+  };
 
   /**
    * Revert any changes that occurred during or after the specified checkpoint.
@@ -764,7 +769,7 @@ export class PostgresIndexingStore implements IndexingStore {
         );
         return result;
       } catch (_error) {
-        if (_error instanceof NonRetryableError) {
+        if (this.isKilled || _error instanceof NonRetryableError) {
           throw _error;
         }
 

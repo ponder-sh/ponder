@@ -42,6 +42,8 @@ export class SqliteSyncStore implements SyncStore {
   kind = "sqlite" as const;
 
   private common: Common;
+  private isKilled = false;
+
   db: Kysely<SyncStoreTables>;
 
   constructor({
@@ -58,6 +60,10 @@ export class SqliteSyncStore implements SyncStore {
       },
     });
   }
+
+  kill = () => {
+    this.isKilled = true;
+  };
 
   migrateUp = async () => {
     return this.wrap({ method: "migrateUp" }, async () => {
@@ -1277,7 +1283,7 @@ export class SqliteSyncStore implements SyncStore {
         );
         return result;
       } catch (_error) {
-        if (_error instanceof NonRetryableError) {
+        if (this.isKilled || _error instanceof NonRetryableError) {
           throw _error;
         }
 

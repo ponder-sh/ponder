@@ -27,6 +27,7 @@ const MAX_LIMIT = 1_000 as const;
 export class SqliteIndexingStore implements IndexingStore {
   kind = "sqlite" as const;
   private common: Common;
+  private isKilled = false;
 
   db: Kysely<any>;
   schema: Schema;
@@ -55,6 +56,10 @@ export class SqliteIndexingStore implements IndexingStore {
       },
     }).withPlugin(new WithTablePrefixPlugin(tablePrefix));
   }
+
+  kill = () => {
+    this.isKilled = true;
+  };
 
   /**
    * Revert any changes that occurred during or after the specified checkpoint.
@@ -756,7 +761,7 @@ export class SqliteIndexingStore implements IndexingStore {
         );
         return result;
       } catch (_error) {
-        if (_error instanceof NonRetryableError) {
+        if (this.isKilled || _error instanceof NonRetryableError) {
           throw _error;
         }
 

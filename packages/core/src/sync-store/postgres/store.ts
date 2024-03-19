@@ -39,9 +39,10 @@ import { migrationProvider, moveLegacyTables } from "./migrations.js";
 
 export class PostgresSyncStore implements SyncStore {
   kind = "postgres" as const;
-
   private common: Common;
   private schemaName: string;
+  private isKilled = false;
+
   db: Kysely<SyncStoreTables>;
 
   constructor({
@@ -60,6 +61,10 @@ export class PostgresSyncStore implements SyncStore {
       },
     }).withPlugin(new WithSchemaPlugin(schemaName));
   }
+
+  kill = () => {
+    this.isKilled = true;
+  };
 
   migrateUp = async () => {
     return this.wrap({ method: "migrateUp" }, async () => {
@@ -1279,7 +1284,7 @@ export class PostgresSyncStore implements SyncStore {
         );
         return result;
       } catch (_error) {
-        if (_error instanceof NonRetryableError) {
+        if (this.isKilled || _error instanceof NonRetryableError) {
           throw _error;
         }
 
