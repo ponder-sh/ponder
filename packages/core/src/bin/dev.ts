@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { type BuildResult, BuildService } from "@/build/service.js";
+import { type Build, type BuildResult, BuildService } from "@/build/service.js";
 import { codegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import { LoggerService } from "@/common/logger.js";
@@ -55,6 +55,9 @@ export async function devFromCli({
   const buildService = new BuildService({ common });
   await buildService.setup({ watch: true });
 
+  // Initialize the UI service.
+  const uiService = new UiService({ common });
+
   // TODO make better
   let cleanup = () => Promise.resolve();
 
@@ -83,8 +86,8 @@ export async function devFromCli({
     await cleanup();
     await buildService.kill();
     await common.telemetry.kill();
+    uiService.kill();
 
-    // Now all resources should be cleaned up. The process should exit gracefully.
     common.logger.fatal({
       service: "process",
       msg: "Finished shutdown sequence, terminating (exit code 0)",
@@ -95,104 +98,86 @@ export async function devFromCli({
 
   process.on("SIGINT", () => shutdown("Received SIGINT"));
   process.on("SIGTERM", () => shutdown("Received SIGINT"));
-  process.on("uncaughtException", (error) => {
-    common.logger.error({ service: "process", error });
+  process.on("uncaughtException", (error: Error) => {
+    common.logger.error({
+      service: "process",
+      msg: "Caught uncaughtException event with error:",
+      error,
+    });
     shutdown("Received uncaughtException");
   });
   process.on("unhandledRejection", (error: Error) => {
-    common.logger.error({ service: "process", error });
+    common.logger.error({
+      service: "process",
+      msg: "Caught unhandledRejection event with error:",
+      error,
+    });
     shutdown("Received unhandledRejection");
   });
 
   // Build and load user code once on startup.
-  const result = await buildService.initialLoad();
-  if (result.error) {
-    common.logger.error({ service: "build", error: result.error });
+  const initialResult = await buildService.initialLoad();
+  if (initialResult.error) {
+    common.logger.error({
+      service: "process",
+      msg: "Failed initial build with error:",
+      error: initialResult.error,
+    });
     await shutdown("Failed intial build");
     return;
   }
-  result.databaseConfig = databaseConfigOverride ?? result.databaseConfig;
+  initialResult.build.databaseConfig =
+    databaseConfigOverride ?? initialResult.build.databaseConfig;
 
   telemetry.record({
     event: "App Started",
     properties: {
       command: "ponder dev",
-      contractCount: result.sources.length,
-      databaseKind: result.databaseConfig.kind,
+      contractCount: initialResult.build.sources.length,
+      databaseKind: initialResult.build.databaseConfig.kind,
     },
   });
 
   const buildQueue = createQueue({
     initialStart: true,
     concurrency: 1,
-    worker: async (
-      task:
-        | { type: "build"; build: BuildResult }
-        | { type: "error"; error: Error },
-    ) => {
+    worker: async (result: BuildResult) => {
       await cleanup();
 
-      if (task.type === "error") {
-        cleanup = () => Promise.resolve();
-      } else {
+      if (result.success) {
+        uiService.reset(result.build.sources);
+        metrics.resetMetrics();
+
         cleanup = await start({
           common,
-          onFatalError: (error) => {
-            common.logger.fatal({ service: "app", error });
+          onFatalError: () => {
             shutdown("Received fatal error");
           },
-          onReloadableError: (error) => {
-            buildQueue.add({ type: "error", error });
+          onIndexingError: (error) => {
+            buildQueue.clear();
+            buildQueue.add({ success: false, error });
           },
-          ...task.build,
+          ...result.build,
         });
+      } else {
+        uiService.setReloadableError();
+        cleanup = () => Promise.resolve();
       }
     },
   });
 
-  buildService.on("reload", async (build) => {
-    buildQueue.add({ type: "build", build });
+  buildService.on("rebuild", (build) => {
+    buildQueue.clear();
+    buildQueue.add(build);
   });
 
-  buildService.on("error", ({ error }) => {
-    buildQueue.add({ type: "error", error });
-  });
-
-  buildQueue.add({ type: "build", build: result });
+  buildQueue.add(initialResult);
 }
-
-/**
- * Two event types
- * - reload
- * -> shuts down previous stuff, runs it again
- *
- * - reloadable error (eg config validation error, indexing error)
- * -> shuts down previous stuff, sets the ui hint, waits for "reload"
- *
- * need to only handle one of these events at at time
- *
- *
- *
- * let isStarting = false
- *
- * on("reload", async () => {
- *  if (isLoading) return
- *  isLoading = true
- *  await start()
- * })
- *
- *
- *
- *
- *
- *
- *
- */
 
 async function start({
   common,
   onFatalError,
-  onReloadableError,
+  onIndexingError,
   databaseConfig,
   networks,
   sources,
@@ -205,8 +190,8 @@ async function start({
 }: {
   common: Common;
   onFatalError: (error: Error) => void;
-  onReloadableError: (error: Error) => void;
-} & BuildResult) {
+  onIndexingError: (error: Error) => void;
+} & Build) {
   let database: DatabaseService;
   let indexingStore: IndexingStore;
   let syncStore: SyncStore;
@@ -243,8 +228,6 @@ async function start({
     await syncStore.migrateUp();
   }
 
-  const uiService = new UiService({ common, sources });
-
   const serverService = new ServerService({ common, indexingStore, database });
   serverService.setup({ registerDevRoutes: true });
   await serverService.start();
@@ -264,10 +247,12 @@ async function start({
   });
 
   const cleanup = async () => {
-    uiService.kill();
     await serverService.kill();
     await syncService.kill();
     await indexingService.kill();
+
+    indexingStore.kill();
+    syncStore.kill();
     await database.kill();
   };
 
@@ -282,7 +267,7 @@ async function start({
 
   syncService.on("fatal", onFatalError);
 
-  indexingService.on("error", onReloadableError);
+  indexingService.on("error", onIndexingError);
 
   indexingService.onSerial("eventsProcessed", async ({ toCheckpoint }) => {
     if (database.isPublished) return;

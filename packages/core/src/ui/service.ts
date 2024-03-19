@@ -1,35 +1,35 @@
 import type { Common } from "@/common/common.js";
 import { getHistoricalSyncStats } from "@/common/metrics.js";
 import type { Source } from "@/config/sources.js";
-import { type UiState, buildUiState, setupInkApp } from "./app.js";
+import { buildUiState, setupInkApp } from "./app.js";
 
 export class UiService {
   private common: Common;
-  private sources: Source[];
 
-  ui: UiState;
-  renderInterval: NodeJS.Timeout;
-  render?: () => void;
-  unmount?: () => void;
+  private ui = buildUiState({ sources: [] });
+  private renderInterval?: NodeJS.Timeout;
+  private render?: () => void;
+  private unmount?: () => void;
   private isKilled = false;
 
-  constructor({ common, sources }: { common: Common; sources: Source[] }) {
+  constructor({ common }: { common: Common }) {
     this.common = common;
-    this.sources = sources;
-
-    this.ui = buildUiState({ sources: this.sources });
 
     if (this.common.options.uiEnabled) {
       const { render, unmount } = setupInkApp(this.ui);
       this.render = () => render(this.ui);
       this.unmount = unmount;
     }
+  }
+
+  reset(sources: Source[]) {
+    this.ui = buildUiState({ sources });
 
     this.renderInterval = setInterval(async () => {
       // Historical sync
       this.ui.historicalSyncStats = await getHistoricalSyncStats({
         metrics: this.common.metrics,
-        sources: this.sources,
+        sources,
       });
 
       const minRate = Math.min(
@@ -49,7 +49,7 @@ export class UiService {
         .filter((n): n is string => typeof n === "string");
       const allNetworks = [
         ...new Set(
-          this.sources
+          sources
             .filter((s) => s.endBlock === undefined)
             .map((s) => s.networkName),
         ),
@@ -102,6 +102,11 @@ export class UiService {
       if (this.isKilled) return;
       this.render?.();
     }, 17);
+  }
+
+  setReloadableError() {
+    this.ui.indexingError = true;
+    this.render?.();
   }
 
   kill() {

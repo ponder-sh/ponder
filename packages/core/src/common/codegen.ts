@@ -51,7 +51,7 @@ export function codegen({
     msg: "Wrote new file at ponder-env.d.ts",
   });
 
-  mkdirSync(common.options.generatedDir);
+  mkdirSync(common.options.generatedDir, { recursive: true });
   writeFileSync(
     path.join(common.options.generatedDir, "schema.graphql"),
     printSchema(graphqlSchema),

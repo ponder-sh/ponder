@@ -8,7 +8,6 @@ import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
 import { buildGqlSchema } from "@/server/graphql/schema.js";
 import { Emittery } from "@/utils/emittery.js";
-import { debounce } from "@ponder/common";
 import { glob } from "glob";
 import { GraphQLSchema } from "graphql";
 import { type ViteDevServer, createServer } from "vite";
@@ -36,39 +35,28 @@ import {
   safeGetTableAccess,
 } from "./static/getTableAccess.js";
 
-type BuildServiceEvents = {
-  reload: {
-    kind: "config" | "schema" | "indexingFunctions";
-    // Config
-    databaseConfig: DatabaseConfig;
-    sources: Source[];
-    networks: Network[];
-    // Schema
-    schema: Schema;
-    graphqlSchema: GraphQLSchema;
-    // Indexing functions
-    indexingFunctions: IndexingFunctions;
-    // Static analysis
-    tableAccess: TableAccess;
-    tableIds: TableIds;
-    functionIds: FunctionIds;
-  };
-  error: {
-    kind: "config" | "schema" | "indexingFunctions";
-    error: Error;
-  };
-};
-
-export type BuildResult = {
+export type Build = {
+  // Config
   databaseConfig: DatabaseConfig;
-  networks: Network[];
   sources: Source[];
+  networks: Network[];
+  // Schema
   schema: Schema;
   graphqlSchema: GraphQLSchema;
+  // Indexing functions
   indexingFunctions: IndexingFunctions;
+  // Static analysis
   tableAccess: TableAccess;
   tableIds: TableIds;
   functionIds: FunctionIds;
+};
+
+export type BuildResult =
+  | { success: true; build: Build }
+  | { success: false; error: Error };
+
+type BuildServiceEvents = {
+  rebuild: BuildResult;
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
@@ -158,21 +146,47 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     // don't register  any event handlers on the watcher.
     if (watch === false) return;
 
-    const handleFileChange = async (files_: string[]) => {
-      const files = files_.map(
-        (file) =>
-          toFilePath(normalizeModuleId(file), this.common.options.rootDir).path,
-      );
+    // Define the directories and files to ignore
+    const ignoredDirs = [
+      this.common.options.generatedDir,
+      this.common.options.ponderDir,
+    ];
+    const ignoredFiles = [
+      path.join(this.common.options.rootDir, "ponder-env.d.ts"),
+      path.join(this.common.options.rootDir, ".env.local"),
+    ];
+
+    const isFileIgnored = (filePath: string) => {
+      const isInIgnoredDir = ignoredDirs.some((dir) => {
+        const rel = path.relative(dir, filePath);
+        return !rel.startsWith("..") && !path.isAbsolute(rel);
+      });
+
+      const isIgnoredFile = ignoredFiles.includes(filePath);
+      return isInIgnoredDir || isIgnoredFile;
+    };
+
+    const onFileChange = async (files_: string[]) => {
+      const files = files_
+        .filter((file) => !isFileIgnored(file))
+        .map(
+          (file) =>
+            toFilePath(normalizeModuleId(file), this.common.options.rootDir)
+              .path,
+        );
 
       // Invalidate all modules that depend on the updated files.
       const invalidated = [
         ...this.viteNodeRunner.moduleCache.invalidateDepTree(files),
       ];
 
+      // If no files were invalidated, no need to reload.
+      if (invalidated.length === 0) return;
+
       this.common.logger.info({
         service: "build",
         msg: `Hot reload ${invalidated
-          .map((f) => path.relative(this.common.options.rootDir, f))
+          .map((f) => `'${path.relative(this.common.options.rootDir, f)}'`)
           .join(", ")}`,
       });
 
@@ -186,7 +200,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
         if (error) {
           this.common.logger.error({ service: "build", error });
-          this.emit("error", { kind: "config", error });
+          this.emit("rebuild", { success: false, error });
           return;
         }
       }
@@ -201,7 +215,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
         if (error) {
           this.common.logger.error({ service: "build", error });
-          this.emit("error", { kind: "schema", error });
+          this.emit("rebuild", { success: false, error });
           return;
         }
       }
@@ -225,47 +239,30 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
         if (error) {
           this.common.logger.error({ service: "build", error });
-          this.emit("error", { kind: "indexingFunctions", error });
+          this.emit("rebuild", { success: false, error });
           return;
         }
       }
 
-      this.emit("reload", {
-        kind: "config",
-        databaseConfig: this.databaseConfig!,
-        sources: this.sources!,
-        networks: this.networks!,
-        schema: this.schema!,
-        graphqlSchema: this.graphqlSchema!,
-        indexingFunctions: this.indexingFunctions!,
-        tableAccess: this.tableAccess!,
-        tableIds: this.tableIds!,
-        functionIds: this.functionIds!,
+      this.emit("rebuild", {
+        success: true,
+        build: {
+          databaseConfig: this.databaseConfig!,
+          sources: this.sources!,
+          networks: this.networks!,
+          schema: this.schema!,
+          graphqlSchema: this.graphqlSchema!,
+          indexingFunctions: this.indexingFunctions!,
+          tableAccess: this.tableAccess!,
+          tableIds: this.tableIds!,
+          functionIds: this.functionIds!,
+        },
       });
     };
 
-    // TODO: Consider handling "add" and "unlink" events too.
-    // TODO: Debounce, de-duplicate, and batch updates.
-
-    const onChange = debounce(25, async (file: string) => {
-      const ignoreRegex = new RegExp(
-        `^${this.common.options.ponderDir.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          "\\$&",
-        )}/.*[^/]$`,
-      );
-      if (
-        ignoreRegex.test(file) ||
-        path.join(this.common.options.generatedDir, "schema.graphql") ===
-          file ||
-        path.join(this.common.options.rootDir, "ponder-env.d.ts") === file
-      )
-        return;
-
-      await handleFileChange([file]);
+    this.viteDevServer.watcher.on("change", async (file) => {
+      await onFileChange([file]);
     });
-
-    this.viteDevServer.watcher.on("change", onChange.call);
   }
 
   async kill() {
@@ -306,15 +303,18 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const { tableIds, functionIds } = analyzeResult;
 
     return {
-      databaseConfig,
-      networks,
-      sources,
-      schema,
-      graphqlSchema,
-      indexingFunctions,
-      tableAccess,
-      tableIds,
-      functionIds,
+      success: true,
+      build: {
+        databaseConfig,
+        networks,
+        sources,
+        schema,
+        graphqlSchema,
+        indexingFunctions,
+        tableAccess,
+        tableIds,
+        functionIds,
+      },
     } satisfies BuildResult;
   }
 
