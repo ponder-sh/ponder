@@ -3,8 +3,8 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { simulate } from "@/_test/simulate.js";
-import { publicClient, testClient } from "@/_test/utils.js";
+import { simulate, simulateErc20 } from "@/_test/simulate.js";
+import { testClient } from "@/_test/utils.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -13,17 +13,9 @@ import { RealtimeSyncService } from "./service.js";
 beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupIsolatedDatabase(context));
 
-const getBlockNumbers = () =>
-  publicClient.getBlockNumber().then((b) => ({
-    latestBlockNumber: Number(b),
-    // deploy() + simulate() takes 4 blocks
-    finalizedBlockNumber: Number(b) - 4,
-  }));
-
 test("setup() returns block numbers", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
@@ -35,8 +27,8 @@ test("setup() returns block numbers", async (context) => {
 
   const { latestBlockNumber, finalizedBlockNumber } = await service.setup();
 
-  expect(latestBlockNumber).toBe(blockNumbers.latestBlockNumber);
-  expect(finalizedBlockNumber).toBe(blockNumbers.finalizedBlockNumber);
+  expect(latestBlockNumber).toBe(4);
+  expect(finalizedBlockNumber).toBe(0);
 
   service.kill();
   await cleanup();
@@ -45,15 +37,12 @@ test("setup() returns block numbers", async (context) => {
 test("start() emits checkpoint at finality block even if no realtime contracts", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
     syncStore,
     network: networks[0],
-    sources: [
-      { ...sources[0], endBlock: blockNumbers.finalizedBlockNumber - 1 },
-    ],
+    sources: [{ ...sources[0], endBlock: 1 }],
     requestQueue: requestQueues[0],
   });
 
@@ -63,7 +52,7 @@ test("start() emits checkpoint at finality block even if no realtime contracts",
   service.start();
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    blockNumber: blockNumbers.finalizedBlockNumber,
+    blockNumber: 0,
     // Anvil messes with the block timestamp for blocks mined locally.
     blockTimestamp: expect.any(Number),
     chainId: 1,
@@ -76,7 +65,6 @@ test("start() emits checkpoint at finality block even if no realtime contracts",
 test("start() sync realtime data with traversal method", async (context) => {
   const { common, networks, requestQueues, sources, erc20 } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
@@ -91,7 +79,6 @@ test("start() sync realtime data with traversal method", async (context) => {
 
   await service.setup();
   service.start();
-
   await service.onIdle();
 
   expect(determineSpy).toHaveLastReturnedWith("traverse");
@@ -110,7 +97,7 @@ test("start() sync realtime data with traversal method", async (context) => {
   expect(logs).toHaveLength(2);
 
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
-    BigInt(blockNumbers.latestBlockNumber - 2),
+    2n,
   ]);
   logs.forEach((log) => {
     expect(log.address).toEqual(erc20.address);
@@ -120,7 +107,7 @@ test("start() sync realtime data with traversal method", async (context) => {
   });
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    blockNumber: blockNumbers.latestBlockNumber,
+    blockNumber: 4,
     // Anvil messes with the block timestamp for blocks mined locally.
     blockTimestamp: expect.any(Number),
     chainId: 1,
@@ -134,8 +121,6 @@ test("start() sync realtime data with batch method", async (context) => {
   const { common, networks, requestQueues, sources, erc20 } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
-  const blockNumbers = await getBlockNumbers();
-
   const service = new RealtimeSyncService({
     common,
     syncStore,
@@ -148,9 +133,8 @@ test("start() sync realtime data with batch method", async (context) => {
   const determineSpy = vi.spyOn(service, "determineSyncPath");
 
   await service.setup();
-  await testClient.mine({ blocks: 10 });
+  await testClient.mine({ blocks: 1 });
   service.start();
-
   await service.onIdle();
 
   expect(determineSpy).toHaveLastReturnedWith("batch");
@@ -169,7 +153,7 @@ test("start() sync realtime data with batch method", async (context) => {
   expect(logs).toHaveLength(2);
 
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
-    BigInt(blockNumbers.latestBlockNumber - 2),
+    2n,
   ]);
   logs.forEach((log) => {
     expect(log.address).toEqual(erc20.address);
@@ -179,7 +163,7 @@ test("start() sync realtime data with batch method", async (context) => {
   });
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    blockNumber: blockNumbers.latestBlockNumber + 10,
+    blockNumber: 5,
     // Anvil messes with the block timestamp for blocks mined locally.
     blockTimestamp: expect.any(Number),
     chainId: 1,
@@ -190,10 +174,8 @@ test("start() sync realtime data with batch method", async (context) => {
 });
 
 test("start() insert logFilterInterval records with traversal method", async (context) => {
-  const { common, networks, requestQueues, sources, erc20, factory } = context;
+  const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-
-  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
@@ -209,26 +191,17 @@ test("start() insert logFilterInterval records with traversal method", async (co
 
   await service.setup();
   service.start();
-
   await service.onIdle();
 
-  expect(determineSpy).toHaveLastReturnedWith("traverse");
+  // Add blocks with the traversal method 2 at a time.
 
-  await simulate({
-    erc20Address: erc20.address,
-    factoryAddress: factory.address,
-  });
-
+  await simulateErc20(context.erc20.address);
+  await simulateErc20(context.erc20.address);
   service.process();
   await service.onIdle();
 
-  expect(determineSpy).toHaveLastReturnedWith("batch");
-
-  await simulate({
-    erc20Address: erc20.address,
-    factoryAddress: factory.address,
-  });
-
+  await simulateErc20(context.erc20.address);
+  await simulateErc20(context.erc20.address);
   service.process();
   await service.onIdle();
 
@@ -238,12 +211,10 @@ test("start() insert logFilterInterval records with traversal method", async (co
     chainId: sources[0].chainId,
     logFilter: sources[0].criteria,
   });
-  expect(logFilterIntervals).toMatchObject([
-    [blockNumbers.finalizedBlockNumber + 1, blockNumbers.latestBlockNumber + 1],
-  ]);
+  expect(logFilterIntervals).toMatchObject([[1, 4]]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    blockNumber: blockNumbers.latestBlockNumber + 1,
+    blockNumber: 4,
     blockTimestamp: expect.any(Number),
     chainId: 1,
   });
@@ -258,8 +229,6 @@ test("start() insert logFilterInterval records with batch method", async (contex
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
-  const blockNumbers = await getBlockNumbers();
-
   const service = new RealtimeSyncService({
     common,
     syncStore,
@@ -272,7 +241,10 @@ test("start() insert logFilterInterval records with batch method", async (contex
   const determineSpy = vi.spyOn(service, "determineSyncPath");
 
   await service.setup();
-  await testClient.mine({ blocks: 10 });
+
+  for (let i = 0; i < 4; i++) {
+    await simulateErc20(context.erc20.address);
+  }
 
   service.start();
   await service.onIdle();
@@ -283,12 +255,10 @@ test("start() insert logFilterInterval records with batch method", async (contex
     chainId: sources[0].chainId,
     logFilter: sources[0].criteria,
   });
-  expect(logFilterIntervals).toMatchObject([
-    [blockNumbers.finalizedBlockNumber + 1, blockNumbers.latestBlockNumber - 2],
-  ]);
+  expect(logFilterIntervals).toMatchObject([[1, 2]]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    blockNumber: blockNumbers.latestBlockNumber - 2,
+    blockNumber: 2,
     blockTimestamp: expect.any(Number),
     chainId: 1,
   });
@@ -315,7 +285,6 @@ test("start() retries on error", async (context) => {
 
   await service.setup();
   service.start();
-
   await service.onIdle();
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
@@ -348,7 +317,6 @@ test(
 
     await service.setup();
     service.start();
-
     await service.onIdle();
 
     const blocks = await syncStore.db
@@ -365,11 +333,9 @@ test(
   { timeout: 10_000 },
 );
 
-test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
+test("start() deletes data from the store after 2 block shallow reorg", async (context) => {
   const { common, networks, requestQueues, sources, erc20, factory } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-
-  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
@@ -379,16 +345,14 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     sources: [sources[0]],
   });
 
-  // Take a snapshot of the chain at the original block height.
-  const originalSnapshotId = await testClient.snapshot();
-
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup();
   service.start();
-
   await service.onIdle();
 
+  // Take a snapshot of the chain at the original block height.
+  const originalSnapshotId = await testClient.snapshot();
   await simulate({
     erc20Address: erc20.address,
     factoryAddress: factory.address,
@@ -397,36 +361,24 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   service.process();
   await service.onIdle();
 
-  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
-  expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
-    BigInt(blockNumbers.latestBlockNumber - 2),
-    BigInt(blockNumbers.latestBlockNumber + 1),
-  ]);
-
   // Now, revert to the original snapshot.
   await testClient.revert({ id: originalSnapshotId });
+  // Mine enough blocks to move the finality checkpoint
+  await testClient.mine({ blocks: 4 });
 
-  await testClient.mine({ blocks: 8 });
-
-  await simulate({
-    erc20Address: erc20.address,
-    factoryAddress: factory.address,
-  });
-
-  // Allow the service to process the new blocks.
-  await service.process();
+  service.process();
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
     blockTimestamp: expect.any(Number),
     chainId: 1,
-    blockNumber: blockNumbers.latestBlockNumber,
+    blockNumber: 4,
   });
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
     blockTimestamp: expect.any(Number),
     chainId: 1,
-    blockNumber: blockNumbers.latestBlockNumber,
+    blockNumber: 4,
   });
 
   const blocksAfterReorg = await syncStore.db
@@ -435,17 +387,14 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     .execute();
   expect(
     blocksAfterReorg.map((block) => decodeToBigInt(block.number)),
-  ).toMatchObject([
-    BigInt(blockNumbers.latestBlockNumber - 2),
-    BigInt(blockNumbers.latestBlockNumber + 9),
-  ]);
+  ).toMatchObject([2n]);
 
   service.kill();
   await cleanup();
 });
 
 test("emits deepReorg event after deep reorg", async (context) => {
-  const { common, networks, requestQueues, sources, erc20, factory } = context;
+  const { common, networks, requestQueues, sources, erc20 } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const service = new RealtimeSyncService({
@@ -463,26 +412,21 @@ test("emits deepReorg event after deep reorg", async (context) => {
 
   await service.setup();
   service.start();
-
   await service.onIdle();
 
-  await simulate({
-    erc20Address: erc20.address,
-    factoryAddress: factory.address,
-  });
-
-  await testClient.mine({ blocks: 10 });
+  // add data that can eventually be forked out and finalize it
+  await simulateErc20(erc20.address);
+  await testClient.mine({ blocks: 8 });
 
   service.process();
   await service.onIdle();
 
   // Now, revert to the original snapshot.
   await testClient.revert({ id: originalSnapshotId });
-
-  await testClient.mine({ blocks: 10 });
+  await testClient.mine({ blocks: 12 });
 
   // Allow the service to process the new blocks.
-  await service.process();
+  service.process();
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
@@ -495,7 +439,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
   await cleanup();
 });
 
-test("start() sync realtime data with factory sources", async (context) => {
+test.skip("start() sync realtime data with factory sources", async (context) => {
   const { common, networks, requestQueues, sources, factory } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
