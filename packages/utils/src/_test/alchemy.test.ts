@@ -40,7 +40,7 @@ test("alchemy success block range", async () => {
   expect(logs).toHaveLength(3773);
 });
 
-test("alchemy", async () => {
+test("alchemy block range", async () => {
   const params: Params = [
     {
       address: WETH,
