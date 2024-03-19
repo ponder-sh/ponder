@@ -42,8 +42,7 @@ import {
 type RealtimeSyncEvents = {
   realtimeCheckpoint: Checkpoint;
   finalityCheckpoint: Checkpoint;
-  shallowReorg: Checkpoint;
-  deepReorg: { detectedAtBlockNumber: number };
+  reorg: Checkpoint;
   idle: undefined;
   fatal: undefined;
 };
@@ -619,12 +618,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    * @returns True if a re-org has occurred.
    */
   reconcileReorg = async (latestBlockNumber: number) => {
-    const hasDeepReorg = await this.reconcileDeepReorg(latestBlockNumber);
+    const hasDeepReorg = await this.validateFinalizedBlock();
     if (hasDeepReorg) return true;
 
     this.common.logger.debug({
       service: "realtime",
-      msg: `Checking logs for inconsistencies for blocks from ${
+      msg: `Validating local chain from block ${
         this.finalizedBlock.number + 1
       } to ${latestBlockNumber} (network=${this.network.name})`,
     });
@@ -676,7 +675,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         fromBlock: BigInt(commonAncestor.number),
       });
 
-      this.emit("shallowReorg", {
+      this.emit("reorg", {
         blockTimestamp: commonAncestor.timestamp,
         chainId: this.network.chainId,
         blockNumber: commonAncestor.number,
@@ -722,24 +721,15 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   /**
    * Check if deep re-org occured by comparing remote "finalized" block to local.
    */
-  private reconcileDeepReorg = async (latestBlockNumber: number) => {
-    this.common.logger.trace({
-      service: "realtime",
-      msg: `Checking if reorg has occurred before or at block ${this.finalizedBlock.number} (network=${this.network.name})`,
-    });
-
+  private validateFinalizedBlock = async () => {
     const remoteFinalizedBlock = await this._eth_getBlockByNumber(
       this.finalizedBlock.number,
     );
 
     if (remoteFinalizedBlock.hash !== this.finalizedBlock.hash) {
-      this.emit("deepReorg", {
-        detectedAtBlockNumber: latestBlockNumber,
-      });
-
       this.common.logger.warn({
         service: "realtime",
-        msg: `Detected >${this.network.finalityBlockCount} block reorg (network=${this.network.name})`,
+        msg: `Detected unrecoverable reorg at block ${this.finalizedBlock.number} with local hash ${this.finalizedBlock.hash} and remote hash ${remoteFinalizedBlock.hash} (network=${this.network.name})`,
       });
 
       this.emit("fatal");
@@ -751,6 +741,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       return true;
     }
+
+    this.common.logger.trace({
+      service: "realtime",
+      msg: `Confirmed local hash matches remote hash at finalized block number ${this.finalizedBlock.number} (network=${this.network.name})`,
+    });
+
     return false;
   };
 

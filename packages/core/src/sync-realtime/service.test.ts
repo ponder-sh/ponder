@@ -333,7 +333,7 @@ test(
   { timeout: 10_000 },
 );
 
-test("start() deletes data from the store after 2 block shallow reorg", async (context) => {
+test("start() deletes data from the store after 2 block reorg", async (context) => {
   const { common, networks, requestQueues, sources, erc20, factory } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -369,7 +369,7 @@ test("start() deletes data from the store after 2 block shallow reorg", async (c
   service.process();
   await service.onIdle();
 
-  expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
+  expect(emitSpy).toHaveBeenCalledWith("reorg", {
     blockTimestamp: expect.any(Number),
     chainId: 1,
     blockNumber: 4,
@@ -393,7 +393,7 @@ test("start() deletes data from the store after 2 block shallow reorg", async (c
   await cleanup();
 });
 
-test("emits deepReorg event after deep reorg", async (context) => {
+test("start() fatal after unrecoverable reorg", async (context) => {
   const { common, networks, requestQueues, sources, erc20 } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -429,9 +429,6 @@ test("emits deepReorg event after deep reorg", async (context) => {
   service.process();
   await service.onIdle();
 
-  expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
-    detectedAtBlockNumber: expect.any(Number),
-  });
   expect(emitSpy).toHaveBeenCalledWith("fatal");
 
   service.kill();
