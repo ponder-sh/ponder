@@ -125,8 +125,8 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
-  // Quicknode, 1rpc
-  match = sError.match(/eth_getLogs is limited to a ([\d,.]+)/);
+  // Quicknode, 1rpc, zkevm
+  match = sError.match(/limited to a ([\d,.]+)/);
   if (match !== null) {
     const ranges = chunk({
       params,
