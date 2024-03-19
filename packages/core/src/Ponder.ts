@@ -510,7 +510,7 @@ export class Ponder {
         this.syncGatewayService.handleNewFinalityCheckpoint(checkpoint);
       });
 
-      realtime.on("shallowReorg", (checkpoint) => {
+      realtime.on("reorg", (checkpoint) => {
         this.syncGatewayService.handleReorg(checkpoint);
       });
 

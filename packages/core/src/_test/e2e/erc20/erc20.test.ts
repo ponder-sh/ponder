@@ -2,7 +2,7 @@ import { rmSync } from "node:fs";
 import { Ponder } from "@/Ponder.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
-import { simulate } from "@/_test/simulate.js";
+import { simulate, simulateErc20 } from "@/_test/simulate.js";
 import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
 import { range } from "@/utils/range.js";
@@ -45,17 +45,11 @@ test("erc20", async (context) => {
     telemetryDisabled: true,
   } as const;
 
-  for (const _ in range(0, 3)) {
-    await simulate({
-      erc20Address: context.erc20.address,
-      factoryAddress: context.factory.address,
-    });
-  }
-
   const ponder = new Ponder({ options: testOptions });
   await ponder.start(context.databaseConfig);
-
-  await onAllEventsIndexed(ponder);
+  if (!ponder.database.isPublished) {
+    await onAllEventsIndexed(ponder, 4);
+  }
 
   let accounts = await gql(
     ponder,
@@ -72,23 +66,20 @@ test("erc20", async (context) => {
   expect(accounts).toHaveLength(3);
   expect(accounts[0]).toMatchObject({
     id: zeroAddress,
-    balance: (-4 * 10 ** 18).toString(),
+    balance: (-1 * 10 ** 18).toString(),
   });
   expect(accounts[1]).toMatchObject({
     id: BOB.toLowerCase(),
-    balance: (4 * 10 ** 18).toString(),
+    balance: (1 * 10 ** 18).toString(),
   });
   expect(accounts[2]).toMatchObject({
     id: ALICE.toLowerCase(),
     balance: "0",
   });
 
-  await simulate({
-    erc20Address: context.erc20.address,
-    factoryAddress: context.factory.address,
-  });
-
-  await onAllEventsIndexed(ponder);
+  const indexedPromise = onAllEventsIndexed(ponder, 5);
+  await simulateErc20(context.erc20.address);
+  await indexedPromise;
 
   accounts = await gql(
     ponder,
@@ -104,11 +95,11 @@ test("erc20", async (context) => {
 
   expect(accounts[0]).toMatchObject({
     id: zeroAddress,
-    balance: (-5 * 10 ** 18).toString(),
+    balance: (-2 * 10 ** 18).toString(),
   });
   expect(accounts[1]).toMatchObject({
     id: BOB.toLowerCase(),
-    balance: (5 * 10 ** 18).toString(),
+    balance: (2 * 10 ** 18).toString(),
   });
   expect(accounts[2]).toMatchObject({
     id: ALICE.toLowerCase(),
@@ -142,7 +133,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const ponder = new Ponder({ options: testOptions });
     await ponder.start(context.databaseConfig);
-    await onAllEventsIndexed(ponder);
+    await onAllEventsIndexed(ponder, 13);
 
     const ponderServe = new Ponder({ options: testOptions });
     await ponderServe.serve(context.databaseConfig);

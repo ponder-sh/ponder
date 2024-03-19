@@ -266,14 +266,12 @@ export const getEventsErc20 = async (sources: Source[]) => {
 };
 
 /**
- * Returns a promise that resolves when all events are processed.
+ * Returns a promise that resolves when events are processed up to a given block.
  */
-export const onAllEventsIndexed = (ponder: Ponder) => {
+export const onAllEventsIndexed = (ponder: Ponder, blockNumber: number) => {
   return new Promise<void>((resolve) => {
     ponder.indexingService.on("eventsProcessed", async ({ toCheckpoint }) => {
-      if (
-        toCheckpoint.blockNumber === Number(await publicClient.getBlockNumber())
-      ) {
+      if (toCheckpoint.blockNumber >= blockNumber) {
         resolve();
       }
     });
