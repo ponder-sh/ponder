@@ -346,7 +346,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     const latestBlockNumber = hexToNumber(newBlock.number);
     const blockMovesFinality =
-      latestBlockNumber >= // TODO(kyle)
+      latestBlockNumber >=
       this.finalizedBlock.number + 2 * this.network.finalityBlockCount;
 
     let hasReorg = false;
