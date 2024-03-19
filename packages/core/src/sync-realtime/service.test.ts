@@ -438,11 +438,9 @@ test("emits deepReorg event after deep reorg", async (context) => {
   await cleanup();
 });
 
-test.skip("start() sync realtime data with factory sources", async (context) => {
+test("start() sync realtime data with factory sources", async (context) => {
   const { common, networks, requestQueues, sources, factory } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-
-  const blockNumbers = await getBlockNumbers();
 
   const service = new RealtimeSyncService({
     common,
@@ -452,6 +450,8 @@ test.skip("start() sync realtime data with factory sources", async (context) => 
     sources,
   });
 
+  const emitSpy = vi.spyOn(service, "emit");
+
   await service.setup();
   service.start();
   await service.onIdle();
@@ -459,13 +459,78 @@ test.skip("start() sync realtime data with factory sources", async (context) => 
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: sources[1].chainId,
     factory: sources[1].criteria,
-    upToBlockNumber: BigInt(blockNumbers.latestBlockNumber),
+    upToBlockNumber: BigInt(4),
   });
 
   const childContractAddresses = [];
   for await (const page of iterator) childContractAddresses.push(...page);
 
   expect(childContractAddresses).toMatchObject([toLowerCase(factory.pair)]);
+
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
+  const transactions = await syncStore.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+
+  const requiredTransactionHashes = new Set(logs.map((l) => l.transactionHash));
+
+  expect(blocks).toHaveLength(2);
+  expect(transactions.length + 1).toEqual(requiredTransactionHashes.size);
+  expect(logs).toHaveLength(4);
+
+  expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
+    2n,
+    4n,
+  ]);
+
+  transactions.forEach((transaction) => {
+    expect(requiredTransactionHashes.has(transaction.hash)).toEqual(true);
+  });
+
+  expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    blockNumber: 4,
+    // Anvil messes with the block timestamp for blocks mined locally.
+    blockTimestamp: expect.any(Number),
+    chainId: 1,
+  });
+
+  service.kill();
+  await cleanup();
+});
+
+test("start() finalize realtime data with factory sources", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const service = new RealtimeSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources,
+  });
+
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await service.setup();
+  await testClient.mine({ blocks: 4 });
+  service.start();
+  await service.onIdle();
+
+  const logFilterIntervals = await syncStore.getFactoryLogFilterIntervals({
+    chainId: sources[1].chainId,
+    factory: sources[1].criteria,
+  });
+  expect(logFilterIntervals).toMatchObject([[1, 4]]);
+
+  expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
+    blockNumber: 4,
+    // Anvil messes with the block timestamp for blocks mined locally.
+    blockTimestamp: expect.any(Number),
+    chainId: 1,
+  });
 
   service.kill();
   await cleanup();
