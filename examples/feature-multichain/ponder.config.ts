@@ -54,7 +54,7 @@ export default createConfig({
       network: {
         mainnet: {
           address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-          startBlock: Number(latestBlockMainnet.number) - 32,
+          startBlock: Number(latestBlockMainnet.number) - 65,
         },
         base: {
           startBlock: Number(latestBlockBase.number) - 60,
@@ -68,7 +68,7 @@ export default createConfig({
         },
         polygon: {
           address: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
-          startBlock: Number(latestBlockPolygon.number) - 100,
+          startBlock: Number(latestBlockPolygon.number) - 200,
         },
       },
     },
