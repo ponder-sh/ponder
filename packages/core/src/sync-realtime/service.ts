@@ -13,7 +13,7 @@ import { Emittery } from "@/utils/emittery.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
-import { dedupe, poll } from "@ponder/common";
+import { poll } from "@ponder/common";
 import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,
@@ -65,8 +65,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   private isProcessingBlock = false;
   private isProcessBlockQueued = false;
-
-  private lastLogsPerBlock = 0;
 
   /** Current finalized block. */
   private finalizedBlock: LightBlock = undefined!;
@@ -319,21 +317,26 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return;
     }
 
-    const sync = this.determineSyncPath(newBlock);
-
     this.common.logger.debug({
       service: "realtime",
-      msg: `Syncing new block ${hexToNumber(
-        newBlock.number,
-      )} with ${sync} method (network=${this.network.name})`,
+      msg: `Syncing new block ${hexToNumber(newBlock.number)} (network=${
+        this.network.name
+      })`,
     });
 
-    const syncResult =
-      sync === "traverse"
-        ? await this.syncTraverse(newBlock)
-        : await this.syncBatch(newBlock);
+    const syncResult = await this.syncTraverse(newBlock);
 
-    if (!syncResult.reorg) {
+    if (syncResult.reorg) {
+      await this.reconcileReorg();
+
+      this.common.metrics.ponder_realtime_reorg_total.inc({
+        network: this.network.name,
+      });
+
+      this.isProcessBlockQueued = true;
+
+      return;
+    } else {
       await this.insertRealtimeBlocks(syncResult);
 
       this.logs.push(...syncResult.logs.map(realtimeLogToLightLog));
@@ -342,27 +345,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
     // and mark data as cached in the store.
-
     const latestBlockNumber = hexToNumber(newBlock.number);
     const blockMovesFinality =
       latestBlockNumber >=
       this.finalizedBlock.number + 2 * this.network.finalityBlockCount;
-
-    let hasReorg = false;
-
-    if (blockMovesFinality || syncResult.reorg) {
-      hasReorg = await this.reconcileReorg(latestBlockNumber);
-    }
-
-    if (hasReorg || syncResult.reorg) {
-      this.common.metrics.ponder_realtime_reorg_total.inc({
-        network: this.network.name,
-      });
-
-      this.isProcessBlockQueued = true;
-
-      return;
-    }
 
     if (blockMovesFinality) {
       const newFinalizedBlock = this.blocks.findLast(
@@ -433,28 +419,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
   };
 
-  /**
-   * Determine which sync algorithm to use.
-   */
-  determineSyncPath = (newBlock: RealtimeBlock): "traverse" | "batch" => {
-    if (this.hasFactorySource) return "batch";
-
-    const latestLocalBlock = this.getLatestLocalBlock();
-
-    const numBlocks = hexToNumber(newBlock.number) - latestLocalBlock.number;
-
-    // Probability of a log in a block
-    const pLog = Math.min(this.lastLogsPerBlock, 1);
-
-    const batchCost = 75 + 16 * numBlocks * pLog;
-
-    // Probability of no logs in the range of blocks
-    const pNoLogs = (1 - pLog) ** numBlocks;
-    const traverseCost = 16 * numBlocks + 75 * (1 - pNoLogs);
-
-    return batchCost >= traverseCost ? "traverse" : "batch";
-  };
-
   private syncTraverse = async (
     newBlock: RealtimeBlock,
   ): Promise<
@@ -485,8 +449,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     newBlocks.push(newBlock);
 
     // Detect re-org
-
-    if (!this.isChainConsistent([latestLocalBlock, ...newBlocks])) {
+    if (!this.isChainConsistent([...this.blocks, ...newBlocks])) {
       return { reorg: true };
     }
 
@@ -548,174 +511,53 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     return { blocks: newBlocks, logs: matchedLogs, reorg: false };
   };
 
-  private syncBatch = async (
-    newBlock: RealtimeBlock,
-  ): Promise<
-    | {
-        blocks: RealtimeBlock[];
-        logs: RealtimeLog[];
-        reorg: boolean;
-      }
-    | { reorg: true }
-  > => {
-    const latestLocalBlock = this.getLatestLocalBlock();
-    const latestLocalBlockNumber = latestLocalBlock.number;
-
-    const newBlockNumber = hexToNumber(newBlock.number);
-
-    if (latestLocalBlockNumber >= newBlockNumber) {
-      return { reorg: true };
-    }
-
-    this.common.logger.trace({
-      service: "realtime",
-      msg: `Requesting logs from ${
-        latestLocalBlockNumber + 1
-      } to ${newBlockNumber} (network=${this.network.name})`,
-    });
-
-    // Get logs
-    const _logs = await this._eth_getLogs({
-      fromBlock: numberToHex(latestLocalBlockNumber + 1),
-      toBlock: newBlock.number,
-    });
-    const logs = sortLogs(_logs);
-
-    const matchedLogs = await this.getMatchedLogs(
-      logs,
-      BigInt(newBlockNumber),
-      true,
-    );
-
-    this.common.logger.debug({
-      service: "realtime",
-      msg: `Found ${matchedLogs.length} matched logs (network=${this.network.name})`,
-    });
-
-    // Get blocks
-    const missingBlockNumbers = dedupe(
-      matchedLogs.map((log) => log.blockNumber),
-    ).filter((b) => b !== newBlock.number);
-
-    this.common.logger.trace({
-      service: "realtime",
-      msg: `Requesting blocks [${missingBlockNumbers.join(", ")}] (network=${
-        this.network.name
-      })`,
-    });
-
-    const blocks = await Promise.all(
-      missingBlockNumbers.map(this._eth_getBlockByNumber),
-    );
-    blocks.push(newBlock);
-
-    return { blocks: blocks, logs: matchedLogs, reorg: false };
-  };
-
   /**
-   * Check if a re-org occurred by comparing remote logs to local.
-   *
-   * @returns True if a re-org has occurred.
+   * Find common ancestor block and evict local blocks and logs that has been reorged out of the chain.
    */
-  reconcileReorg = async (latestBlockNumber: number) => {
+  reconcileReorg = async () => {
     const hasDeepReorg = await this.validateFinalizedBlock();
-    if (hasDeepReorg) return true;
+    if (hasDeepReorg) return;
 
-    this.common.logger.debug({
-      service: "realtime",
-      msg: `Validating local chain from block ${
-        this.finalizedBlock.number + 1
-      } to ${latestBlockNumber} (network=${this.network.name})`,
-    });
+    // Find common ancestor block by requesting remote block until you find one that fits in the local chain.
+    while (this.blocks.length > 0) {
+      const localBlock = this.blocks.pop();
+      const remoteBlock = await this._eth_getBlockByNumber(localBlock!.number);
+      const parent =
+        this.blocks.length === 0
+          ? this.finalizedBlock
+          : this.blocks[this.blocks.length - 1];
 
-    const _logs = await this._eth_getLogs({
-      fromBlock: numberToHex(this.finalizedBlock.number + 1),
-      toBlock: numberToHex(latestBlockNumber),
-    });
-    const logs = sortLogs(_logs);
+      if (parent.hash === remoteBlock.parentHash) {
+        this.common.logger.trace({
+          service: "realtime",
+          msg: `Found common ancestor block ${parent.number} (network=${this.network.name})`,
+        });
 
-    const matchedLogs = await this.getMatchedLogs(
-      logs,
-      BigInt(latestBlockNumber),
-      false,
-    );
+        this.logs = this.logs.filter((log) => log.blockNumber <= parent.number);
 
-    const localLogs = this.logs.filter(
-      (log) => log.blockNumber <= latestBlockNumber,
-    );
+        await this.syncStore.deleteRealtimeData({
+          chainId: this.network.chainId,
+          fromBlock: BigInt(parent.number),
+        });
 
-    /**
-     * Common ancestor is the block directly before the logs diverge.
-     */
-    const handleReorg = async (localSafeBlockNumber: number | undefined) => {
-      let commonAncestor: LightBlock;
+        this.emit("reorg", {
+          blockTimestamp: parent.timestamp,
+          chainId: this.network.chainId,
+          blockNumber: parent.number,
+        });
 
-      if (localSafeBlockNumber === undefined) {
-        commonAncestor = this.finalizedBlock;
-      } else {
-        commonAncestor =
-          this.blocks.findLast((b) => b.number <= localSafeBlockNumber) ??
-          this.finalizedBlock;
-      }
+        this.common.logger.warn({
+          service: "realtime",
+          msg: `Detected reorg with common ancestor ${parent.number} (network=${this.network.name})`,
+        });
 
-      this.common.logger.trace({
-        service: "realtime",
-        msg: `Found common ancestor block ${commonAncestor?.number} (network=${this.network.name})`,
-      });
-
-      this.blocks = this.blocks.filter(
-        (block) => block.number <= commonAncestor.number,
-      );
-      this.logs = this.logs.filter(
-        (log) => log.blockNumber <= commonAncestor.number,
-      );
-
-      await this.syncStore.deleteRealtimeData({
-        chainId: this.network.chainId,
-        fromBlock: BigInt(commonAncestor.number),
-      });
-
-      this.emit("reorg", {
-        blockTimestamp: commonAncestor.timestamp,
-        chainId: this.network.chainId,
-        blockNumber: commonAncestor.number,
-      });
-
-      this.common.logger.warn({
-        service: "realtime",
-        msg: `Detected reorg with common ancestor ${commonAncestor.number} (network=${this.network.name})`,
-      });
-    };
-
-    let i = 0;
-    for (; i < localLogs.length && i < matchedLogs.length; i++) {
-      const lightMatchedLog = realtimeLogToLightLog(matchedLogs[i]);
-      if (
-        lightMatchedLog.blockHash !== localLogs[i].blockHash ||
-        lightMatchedLog.logIndex !== localLogs[i].logIndex
-      ) {
-        await handleReorg(localLogs[i].blockNumber - 1);
-        return true;
+        return;
       }
     }
 
-    if (localLogs.length !== matchedLogs.length) {
-      await handleReorg(
-        localLogs.length === 0
-          ? undefined
-          : localLogs[localLogs.length - 1].blockNumber - 1,
-      );
-      return true;
-    }
-
-    this.common.logger.debug({
-      service: "realtime",
-      msg: `No logs incosistencies found for blocks from ${
-        this.finalizedBlock.number + 1
-      } to ${latestBlockNumber} (network=${this.network.name})`,
-    });
-
-    return false;
+    throw new Error(
+      "Invariant violated: Unable to find common ancestor block in local chain.",
+    );
   };
 
   /**
@@ -860,8 +702,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         )} (network=${this.network.name})`,
       });
     }
-
-    this.lastLogsPerBlock = logs.length / blocks.length;
   };
 
   private getMatchedLogs = async (
