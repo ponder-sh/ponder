@@ -528,6 +528,7 @@ const migrations: Record<string, Migration> = {
         column: "checkpoint",
         columnType: "varchar(75)",
         table: "logs",
+        defaultValue: "".padStart(75, "0"),
       });
     },
   },
@@ -564,6 +565,7 @@ const columnDropNull = async ({
   table,
   column,
   columnType,
+  defaultValue,
 }: {
   db: Kysely<any>;
   table: string;
@@ -571,12 +573,15 @@ const columnDropNull = async ({
   columnType: Parameters<
     ReturnType<Kysely<any>["schema"]["alterTable"]>["addColumn"]
   >[1];
+  defaultValue: any;
 }) => {
   const tempName = `${column}_temp_not_null`;
 
   await db.schema
     .alterTable(table)
-    .addColumn(tempName, columnType, (cb) => cb.notNull())
+    .addColumn(tempName, columnType, (cb) =>
+      cb.notNull().defaultTo(defaultValue),
+    )
     .execute();
   await db
     .updateTable(table)
