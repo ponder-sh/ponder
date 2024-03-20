@@ -1,12 +1,12 @@
-import { LimitExceededRpcError, numberToHex } from "viem";
+import { InvalidParamsRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, WETH, fromBlock, getRequest } from "./utils.js";
 
-const request = getRequest(process.env.RPC_URL_INFURA_1!);
+const request = getRequest("https://eth.llamarpc.com");
 
 test(
-  "infura success",
+  "llamarpc success",
   async () => {
     const logs = await request({
       method: "eth_getLogs",
@@ -24,7 +24,7 @@ test(
   { timeout: 15_000 },
 );
 
-test("infura", async () => {
+test("llamarpc response size", async () => {
   const params: Params = [
     {
       address: WETH,
@@ -38,8 +38,8 @@ test("infura", async () => {
     params,
   }).catch((error) => error);
 
-  expect(error).toBeInstanceOf(LimitExceededRpcError);
-  expect(JSON.stringify(error)).includes("Try with this block range ");
+  expect(error).toBeInstanceOf(InvalidParamsRpcError);
+  expect(JSON.stringify(error)).includes("query exceeds max results 20000");
 
   const retry = getLogsRetryHelper({
     params,
@@ -47,9 +47,9 @@ test("infura", async () => {
   });
 
   expect(retry.shouldRetry).toBe(true);
-  expect(retry.ranges).toHaveLength(8);
+  expect(retry.ranges).toHaveLength(2);
   expect(retry.ranges![0]).toStrictEqual({
-    fromBlock: "0x112a880",
-    toBlock: "0x112a907",
+    fromBlock: numberToHex(fromBlock),
+    toBlock: numberToHex(fromBlock + 500n),
   });
 });

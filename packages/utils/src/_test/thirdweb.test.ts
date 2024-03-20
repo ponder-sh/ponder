@@ -36,6 +36,7 @@ test("thirdweb response size", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(InvalidParamsRpcError);
+  expect(JSON.stringify(error)).includes("Try with this block range ");
 
   const retry = getLogsRetryHelper({
     params,
@@ -64,6 +65,7 @@ test("thirdweb block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(InvalidParamsRpcError);
+  expect(JSON.stringify(error)).includes("is bigger than range limit 2000");
 
   const retry = getLogsRetryHelper({
     params,

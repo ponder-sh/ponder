@@ -37,6 +37,7 @@ test("zksync block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
+  expect(JSON.stringify(error)).includes("Try with this block range ");
 
   const retry = getLogsRetryHelper({
     params,

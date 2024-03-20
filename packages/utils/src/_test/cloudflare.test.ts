@@ -35,6 +35,7 @@ test("cloudflare block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcRequestError);
+  expect(JSON.stringify(error)).includes("Max range: 800");
 
   const retry = getLogsRetryHelper({
     params,
