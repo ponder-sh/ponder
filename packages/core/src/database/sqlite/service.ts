@@ -541,7 +541,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 const scalarToSqlType = {
   boolean: "integer",
   int: "integer",
-  float: "text",
+  float: "real",
   string: "text",
   bigint: "varchar(79)",
   hex: "blob",

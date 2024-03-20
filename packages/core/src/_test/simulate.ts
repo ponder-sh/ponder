@@ -52,11 +52,19 @@ export const deploy = async () => {
 export const simulate = async (
   addresses: Awaited<ReturnType<typeof deploy>>,
 ): Promise<Address> => {
+  await simulateErc20(addresses.erc20Address);
+  const pairAddress = await simulateFactoryDeploy(addresses.factoryAddress);
+  await simulatePairSwap(pairAddress);
+
+  return pairAddress;
+};
+
+export const simulateErc20 = async (erc20Address: Address) => {
   // Mint 1 token to ALICE
   const mintHash = await walletClient.writeContract({
     abi: erc20ABI,
     functionName: "mint",
-    address: addresses.erc20Address,
+    address: erc20Address,
     args: [ALICE, parseEther("1")],
   });
 
@@ -64,7 +72,7 @@ export const simulate = async (
   const transferHash = await walletClient.writeContract({
     abi: erc20ABI,
     functionName: "transfer",
-    address: addresses.erc20Address,
+    address: erc20Address,
     args: [BOB, parseEther("1")],
   });
 
@@ -72,11 +80,15 @@ export const simulate = async (
 
   await publicClient.waitForTransactionReceipt({ hash: mintHash });
   await publicClient.waitForTransactionReceipt({ hash: transferHash });
+};
 
+export const simulateFactoryDeploy = async (
+  factoryAddress: Address,
+): Promise<Address> => {
   const { result, request } = await publicClient.simulateContract({
     abi: factoryABI,
     functionName: "createPair",
-    address: addresses.factoryAddress,
+    address: factoryAddress,
   });
   const createPairHash = await walletClient.writeContract(request);
 
@@ -86,16 +98,18 @@ export const simulate = async (
     hash: createPairHash,
   });
 
+  return result;
+};
+
+export const simulatePairSwap = async (pairAddress: Address) => {
   const swapHash = await walletClient.writeContract({
     abi: pairABI,
     functionName: "swap",
-    address: result,
+    address: pairAddress,
     args: [1n, 2n, ALICE],
   });
 
   await testClient.mine({ blocks: 1 });
 
   await publicClient.waitForTransactionReceipt({ hash: swapHash });
-
-  return result;
 };

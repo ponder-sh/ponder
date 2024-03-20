@@ -42,8 +42,7 @@ import {
 type RealtimeSyncEvents = {
   realtimeCheckpoint: Checkpoint;
   finalityCheckpoint: Checkpoint;
-  shallowReorg: Checkpoint;
-  deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
+  reorg: Checkpoint;
   idle: undefined;
   fatal: Error;
 };
@@ -619,9 +618,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    * @returns True if a re-org has occurred.
    */
   reconcileReorg = async (latestBlockNumber: number) => {
+    const hasDeepReorg = await this.validateFinalizedBlock();
+    if (hasDeepReorg) return true;
+
     this.common.logger.debug({
       service: "realtime",
-      msg: `Checking logs for inconsistencies for blocks from ${
+      msg: `Validating local chain from block ${
         this.finalizedBlock.number + 1
       } to ${latestBlockNumber} (network=${this.network.name})`,
     });
@@ -644,68 +646,45 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     /**
      * Common ancestor is the block directly before the logs diverge.
-     * If the divergence occurred at index 0, check for deep re-org.
      */
     const handleReorg = async (localSafeBlockNumber: number | undefined) => {
-      const commonAncestor =
-        localSafeBlockNumber === undefined
-          ? undefined
-          : this.blocks.findLast((b) => b.number <= localSafeBlockNumber);
+      let commonAncestor: LightBlock;
+
+      if (localSafeBlockNumber === undefined) {
+        commonAncestor = this.finalizedBlock;
+      } else {
+        commonAncestor =
+          this.blocks.findLast((b) => b.number <= localSafeBlockNumber) ??
+          this.finalizedBlock;
+      }
 
       this.common.logger.trace({
         service: "realtime",
         msg: `Found common ancestor block ${commonAncestor?.number} (network=${this.network.name})`,
       });
 
-      if (commonAncestor === undefined) {
-        const hasDeepReorg = await this.reconcileDeepReorg(latestBlockNumber);
+      this.blocks = this.blocks.filter(
+        (block) => block.number <= commonAncestor.number,
+      );
+      this.logs = this.logs.filter(
+        (log) => log.blockNumber <= commonAncestor.number,
+      );
 
-        if (hasDeepReorg) return;
+      await this.syncStore.deleteRealtimeData({
+        chainId: this.network.chainId,
+        fromBlock: BigInt(commonAncestor.number),
+      });
 
-        this.blocks = [];
-        this.logs = [];
+      this.emit("reorg", {
+        blockTimestamp: commonAncestor.timestamp,
+        chainId: this.network.chainId,
+        blockNumber: commonAncestor.number,
+      });
 
-        await this.syncStore.deleteRealtimeData({
-          chainId: this.network.chainId,
-          fromBlock: BigInt(this.finalizedBlock.number),
-        });
-
-        this.emit("shallowReorg", {
-          blockTimestamp: this.finalizedBlock.timestamp,
-          chainId: this.network.chainId,
-          blockNumber: this.finalizedBlock.number,
-        });
-
-        const depth = latestBlockNumber - this.finalizedBlock.number;
-        this.common.logger.warn({
-          service: "realtime",
-          msg: `Detected ${depth}-block reorg with common ancestor ${this.finalizedBlock.number} (network=${this.network.name})`,
-        });
-      } else {
-        this.blocks = this.blocks.filter(
-          (block) => block.number <= commonAncestor.number,
-        );
-        this.logs = this.logs.filter(
-          (log) => log.blockNumber <= commonAncestor.number,
-        );
-
-        await this.syncStore.deleteRealtimeData({
-          chainId: this.network.chainId,
-          fromBlock: BigInt(commonAncestor.number),
-        });
-
-        this.emit("shallowReorg", {
-          blockTimestamp: commonAncestor.timestamp,
-          chainId: this.network.chainId,
-          blockNumber: commonAncestor.number,
-        });
-
-        const depth = latestBlockNumber - commonAncestor.number;
-        this.common.logger.warn({
-          service: "realtime",
-          msg: `Detected ${depth}-block reorg with common ancestor ${commonAncestor.number} (network=${this.network.name})`,
-        });
-      }
+      this.common.logger.warn({
+        service: "realtime",
+        msg: `Detected reorg with common ancestor ${commonAncestor.number} (network=${this.network.name})`,
+      });
     };
 
     let i = 0;
@@ -729,11 +708,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return true;
     }
 
-    // If there are no logs to compare, must make sure a deep re-org didn't occur.
-    if (localLogs.length === 0) {
-      return await this.reconcileDeepReorg(latestBlockNumber);
-    }
-
     this.common.logger.debug({
       service: "realtime",
       msg: `No logs incosistencies found for blocks from ${
@@ -747,21 +721,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   /**
    * Check if deep re-org occured by comparing remote "finalized" block to local.
    */
-  private reconcileDeepReorg = async (latestBlockNumber: number) => {
+  private validateFinalizedBlock = async () => {
     const remoteFinalizedBlock = await this._eth_getBlockByNumber(
       this.finalizedBlock.number,
     );
 
     if (remoteFinalizedBlock.hash !== this.finalizedBlock.hash) {
-      this.emit("deepReorg", {
-        detectedAtBlockNumber: latestBlockNumber,
-        minimumDepth: latestBlockNumber - this.blocks[0].number,
-      });
-
-      const msg = `Unable to reconcile >${
-        latestBlockNumber - this.blocks[0].number
-      }-block reorg (network=${this.network.name})`;
-
+      const msg = `Detected unrecoverable reorg at block ${this.finalizedBlock.number} with local hash ${this.finalizedBlock.hash} and remote hash ${remoteFinalizedBlock.hash} (network=${this.network.name})`;
       this.common.logger.warn({ service: "realtime", msg });
 
       this.emit("fatal", new Error(msg));
@@ -773,6 +739,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       return true;
     }
+
+    this.common.logger.trace({
+      service: "realtime",
+      msg: `Confirmed local hash matches remote hash at finalized block number ${this.finalizedBlock.number} (network=${this.network.name})`,
+    });
+
     return false;
   };
 
@@ -800,7 +772,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
    *
    * Note: Consider handling different error types and retry the request if applicable.
    */
-  private _eth_getLogs = (params: {
+  private _eth_getLogs = async (params: {
     fromBlock: Hex;
     toBlock: Hex;
   }): Promise<RealtimeLog[]> => {
@@ -814,10 +786,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     ];
 
     try {
-      return this.requestQueue.request({
-        method: "eth_getLogs",
-        params: _params,
-      }) as Promise<RealtimeLog[]>;
+      return await this.requestQueue
+        .request({
+          method: "eth_getLogs",
+          params: _params,
+        })
+        .then((l) => l as RealtimeLog[]);
     } catch (err) {
       const getLogsErrorResponse = getLogsRetryHelper({
         params: _params,

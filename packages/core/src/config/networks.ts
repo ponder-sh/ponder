@@ -84,12 +84,12 @@ export function getFinalityBlockCount({ chainId }: { chainId: number }) {
     case 5:
     case 42:
     case 11155111:
-      finalityBlockCount = 32;
+      finalityBlockCount = 65;
       break;
     // Polygon.
     case 137:
     case 80001:
-      finalityBlockCount = 100;
+      finalityBlockCount = 200;
       break;
     // Arbitrum.
     case 42161:
