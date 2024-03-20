@@ -3,12 +3,14 @@ import { expect, test } from "vitest";
 import {
   checkpointMax,
   checkpointMin,
+  decodeCheckpoint,
   encodeCheckpoint,
   isCheckpointEqual,
   isCheckpointGreaterThan,
+  maxCheckpoint,
 } from "./checkpoint.js";
 
-test("encodeCheckpoint produces expected output", () => {
+test("encodeCheckpoint produces expected encoding", () => {
   const checkpoint = {
     blockTimestamp: 1,
     chainId: 1,
@@ -30,6 +32,37 @@ test("encodeCheckpoint produces expected output", () => {
     "1".toString().padStart(16, "0");
 
   expect(encoded).toEqual(expectedEncoding);
+});
+
+test("decodeCheckpoint produces expected object", () => {
+  const encoded =
+    // biome-ignore lint: string concat is more readable than template literal here
+    "1".padStart(10, "0") +
+    "1".toString().padStart(16, "0") +
+    "1".toString().padStart(16, "0") +
+    "1".toString().padStart(16, "0") +
+    "1" +
+    "1".toString().padStart(16, "0");
+
+  const decodedCheckpoint = decodeCheckpoint(encoded);
+
+  const expectedCheckpoint = {
+    blockTimestamp: 1,
+    chainId: 1,
+    blockNumber: 1,
+    eventType: 1,
+    transactionIndex: 1,
+    eventIndex: 1,
+  };
+
+  expect(decodedCheckpoint).toMatchObject(expectedCheckpoint);
+});
+
+test("decodeCheckpoint decodes an encoded maxCheckpoint", () => {
+  const encoded = encodeCheckpoint(maxCheckpoint);
+  const decoded = decodeCheckpoint(encoded);
+
+  expect(decoded).toMatchObject(maxCheckpoint);
 });
 
 test("isCheckpointEqual returns true if checkpoints are the same", () => {
@@ -57,6 +90,28 @@ test("isCheckpointEqual returns false if checkpoints are different", () => {
   const isEqual = isCheckpointEqual(checkpoint, { ...checkpoint, chainId: 2 });
 
   expect(isEqual).toBe(false);
+});
+
+test("isCheckpointGreaterThan compares correctly on blockTimestamp", () => {
+  const checkpointOne = {
+    blockTimestamp: 1,
+    chainId: 1,
+    blockNumber: 1,
+    eventType: 1,
+    transactionIndex: 1,
+    eventIndex: 1,
+  };
+  const checkpointTwo = {
+    blockTimestamp: 2,
+    chainId: 2,
+    blockNumber: 1,
+    eventType: 1,
+    transactionIndex: 1,
+    eventIndex: 1,
+  };
+  const isGreater = isCheckpointGreaterThan(checkpointOne, checkpointTwo);
+
+  expect(isGreater).toBe(false);
 });
 
 test("isCheckpointGreaterThan compares correctly on chainId", () => {

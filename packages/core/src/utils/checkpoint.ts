@@ -83,10 +83,7 @@ export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
   );
   offset += TRANSACTION_INDEX_DIGITS;
 
-  const eventType = +checkpoint.slice(
-    offset,
-    offset + TRANSACTION_INDEX_DIGITS,
-  );
+  const eventType = +checkpoint.slice(offset, offset + EVENT_TYPE_DIGITS);
   offset += EVENT_TYPE_DIGITS;
 
   const eventIndex = +checkpoint.slice(offset, offset + EXECUTION_INDEX_DIGITS);
