@@ -1,4 +1,5 @@
 import type { Common } from "@/Ponder.js";
+import { encodeCheckpoint, eventTypes } from "@/utils/checkpoint.js";
 import type { Kysely } from "kysely";
 import { type Migration, type MigrationProvider, sql } from "kysely";
 
@@ -452,6 +453,73 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .alterTable("transactions")
         .alterColumn("v", (col) => col.dropNotNull())
+        .execute();
+    },
+  },
+  "2024_03_20_0_checkpoint_in_logs_table": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("logs")
+        .addColumn("checkpoint", "numeric(75, 0)")
+        .execute();
+      await db.executeQuery(
+        sql`
+          WITH checkpoint_vals AS (
+            SELECT logs.id, blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex"
+            FROM ponder_sync.logs logs
+            JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
+          )
+          UPDATE ponder_sync.logs
+          SET checkpoint=
+              (lpad(checkpoint_vals.timestamp::text, 10, '0') ||
+              lpad(checkpoint_vals."chainId"::text, 16, '0') ||
+              lpad(checkpoint_vals.number::text, 16, '0') ||
+              lpad(checkpoint_vals."transactionIndex"::text, 16, '0') ||
+              '5' ||
+              lpad(checkpoint_vals."logIndex"::text, 16, '0'))::numeric(75, 0)
+          FROM checkpoint_vals
+          WHERE ponder_sync.logs.id = checkpoint_vals.id;
+        `.compile(db),
+      );
+
+      // sanity check our checkpoint encoding on the first 10 rows of the table
+      const checkRes = await db.executeQuery(
+        sql`
+          SELECT blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex", logs.checkpoint
+          FROM ponder_sync.logs logs
+          JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
+          LIMIT 10
+        `.compile(db),
+      );
+
+      for (const i of checkRes.rows) {
+        const row = i as any;
+        const timestamp: number = row.timestamp;
+        const chainId: number = row.chainId;
+        const blockNumber: number = row.number;
+        const transactionIndex: number = row.transactionIndex;
+        const logIndex: number = row.logIndex;
+        const checkpoint: bigint = row.checkpoint;
+
+        const expected = encodeCheckpoint({
+          blockTimestamp: timestamp,
+          chainId,
+          blockNumber,
+          transactionIndex,
+          eventType: eventTypes.logs,
+          eventIndex: logIndex,
+        });
+
+        if (checkpoint.toString() !== expected) {
+          throw new Error(
+            `data migration failed: expected new checkpoint column to have value ${expected} but got ${checkpoint}`,
+          );
+        }
+      }
+
+      await db.schema
+        .alterTable("logs")
+        .alterColumn("checkpoint", (cb) => cb.setNotNull())
         .execute();
     },
   },
