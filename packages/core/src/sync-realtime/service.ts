@@ -606,7 +606,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       service: "realtime",
       msg: `Validating local chain from block ${
         this.finalizedBlock.number + 1
-      } to ${newFinalizedBlock} (network=${this.network.name})`,
+      } to ${newFinalizedBlock.number} (network=${this.network.name})`,
     });
 
     const _logs = await this._eth_getLogs({
@@ -686,7 +686,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.common.logger.debug({
       service: "realtime",
-      msg: `No logs incosistencies found for blocks from ${
+      msg: `No log incosistencies found for blocks from ${
         this.finalizedBlock.number + 1
       } to ${newFinalizedBlock.number} (network=${this.network.name})`,
     });
