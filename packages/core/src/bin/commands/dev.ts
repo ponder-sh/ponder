@@ -8,8 +8,9 @@ import { TelemetryService } from "@/common/telemetry.js";
 import { UiService } from "@/ui/service.js";
 import { createQueue } from "@ponder/common";
 import dotenv from "dotenv";
-import type { CliOptions } from "./ponder.js";
-import { run, setupShutdown } from "./shared.js";
+import type { CliOptions } from "../ponder.js";
+import { run } from "../utils/run.js";
+import { setupShutdown } from "../utils/shutdown.js";
 
 export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   dotenv.config({ path: ".env.local" });
@@ -36,15 +37,15 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     });
   }
 
-  const metrics = new MetricsService();
-  const telemetry = new TelemetryService({ options });
-  const common = { options, logger, metrics, telemetry };
-
   const configRelPath = path.relative(options.rootDir, options.configFile);
   logger.debug({
     service: "app",
     msg: `Started using config file: ${configRelPath}`,
   });
+
+  const metrics = new MetricsService();
+  const telemetry = new TelemetryService({ options });
+  const common = { options, logger, metrics, telemetry };
 
   const buildService = new BuildService({ common });
   await buildService.setup({ watch: true });
@@ -69,7 +70,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       msg: "Failed initial build with error:",
       error: initialResult.error,
     });
-    return await shutdown("Failed intial build");
+    await shutdown("Failed intial build");
+    return cleanup;
   }
 
   telemetry.record({
@@ -116,4 +118,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   buildQueue.add(initialResult);
+
+  return async () => {
+    buildQueue.pause();
+    await cleanup();
+  };
 }

@@ -1,4 +1,4 @@
-import crypto, { randomUUID } from "crypto";
+import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "node:path";
 import os from "os";
@@ -77,26 +77,23 @@ export function setupContext(context: TestContext) {
  */
 export async function setupIsolatedDatabase(context: TestContext) {
   if (process.env.DATABASE_URL) {
+    const databaseName = `vitest_${process.env.VITEST_POOL_ID ?? 1}`;
+    const databaseUrl = new URL(process.env.DATABASE_URL);
+    databaseUrl.pathname = `/${databaseName}`;
+
+    const poolConfig = { connectionString: databaseUrl.toString() };
+
     const client = new pg.Client({
       connectionString: process.env.DATABASE_URL,
     });
-
     await client.connect();
-
-    const randomSuffix = crypto.randomBytes(10).toString("hex");
-    const databaseName = `vitest_${randomSuffix}`;
-    const databaseUrl = new URL(process.env.DATABASE_URL);
-    databaseUrl.pathname = `/${databaseName}`;
-    const poolConfig = { connectionString: databaseUrl.toString() };
-
+    await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
     await client.query(`CREATE DATABASE "${databaseName}"`);
+    await client.end();
 
     context.databaseConfig = { kind: "postgres", poolConfig };
 
-    return async () => {
-      await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
-      await client.end();
-    };
+    return async () => {};
   } else {
     const tempDir = path.join(os.tmpdir(), randomUUID());
     fs.mkdirSync(tempDir, { recursive: true });

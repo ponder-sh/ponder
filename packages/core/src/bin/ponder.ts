@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cac } from "cac";
-import { codegen } from "./codegen.js";
-import { dev } from "./dev.js";
-import { serve } from "./serve.js";
-import { start } from "./start.js";
+import { codegen } from "./commands/codegen.js";
+import { dev } from "./commands/dev.js";
+import { serve } from "./commands/serve.js";
+import { start } from "./commands/start.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = resolve(__dirname, "../../package.json");

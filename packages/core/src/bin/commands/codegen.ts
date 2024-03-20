@@ -5,8 +5,8 @@ import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { TelemetryService } from "@/common/telemetry.js";
 import dotenv from "dotenv";
-import type { CliOptions } from "./ponder.js";
-import { setupShutdown } from "./shared.js";
+import type { CliOptions } from "../ponder.js";
+import { setupShutdown } from "../utils/shutdown.js";
 
 export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   dotenv.config({ path: ".env.local" });

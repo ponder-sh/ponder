@@ -4,19 +4,17 @@ import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { TelemetryService } from "@/common/telemetry.js";
-import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
-import { ServerService } from "@/server/service.js";
 import dotenv from "dotenv";
-import type { CliOptions } from "./ponder.js";
-import { setupShutdown } from "./shared.js";
+import type { CliOptions } from "../ponder.js";
+import { run } from "../utils/run.js";
+import { setupShutdown } from "../utils/shutdown.js";
 
-export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
+export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   dotenv.config({ path: ".env.local" });
   const options = buildOptions({ cliOptions });
 
   const logger = new LoggerService({
-    level: options.logLevel,
+    level: "silent",
     dir: options.logDir,
   });
 
@@ -46,58 +44,44 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const cleanup = async () => {
     await cleanupReloadable();
-    await buildService.kill();
     await telemetry.kill();
   };
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  // Build and load user code once on startup.
   const initialResult = await buildService.initialLoad();
+  // Once we have the initial build, we can kill the build service.
+  await buildService.kill();
+
   if (initialResult.error) {
     logger.error({
       service: "process",
       msg: "Failed initial build with error:",
       error: initialResult.error,
     });
-    return await shutdown("Failed intial build");
+    await shutdown("Failed intial build");
+    return cleanup;
   }
 
   telemetry.record({
     event: "App Started",
     properties: {
-      command: "ponder serve",
+      command: "ponder start",
       contractCount: initialResult.build.sources.length,
       databaseKind: initialResult.build.databaseConfig.kind,
     },
   });
 
-  const { databaseConfig, schema, graphqlSchema } = initialResult.build;
-
-  if (databaseConfig.kind === "sqlite") {
-    return await shutdown("SQLite is not supported in production mode");
-  }
-
-  const { poolConfig } = databaseConfig;
-  const database = new PostgresDatabaseService({ common, poolConfig });
-
-  const indexingStoreConfig = database.getIndexingStoreConfig();
-  const indexingStore = new PostgresIndexingStore({
+  cleanupReloadable = await run({
     common,
-    schema,
-    pool: indexingStoreConfig.pool,
-    schemaName: "ponder",
-    tablePrefix: "_raw_",
+    build: initialResult.build,
+    onFatalError: () => {
+      shutdown("Received fatal error");
+    },
+    onReloadableError: () => {
+      shutdown("Encountered indexing error");
+    },
   });
 
-  const serverService = new ServerService({ common, indexingStore, database });
-  serverService.setup({ registerDevRoutes: true });
-  await serverService.start();
-  serverService.reloadGraphqlSchema({ graphqlSchema });
-
-  cleanupReloadable = async () => {
-    await serverService.kill();
-    indexingStore.kill();
-    // await database.kill();
-  };
+  return cleanup;
 }
