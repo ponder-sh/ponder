@@ -153,7 +153,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
         this.handleNewFinalityCheckpoint(checkpoint);
       });
 
-      realtime.on("shallowReorg", (checkpoint) => {
+      realtime.on("reorg", (checkpoint) => {
         this.handleReorg(checkpoint);
       });
 

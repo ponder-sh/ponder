@@ -1,4 +1,4 @@
-import { StoreError } from "@/errors/base.js";
+import { StoreError } from "@/common/errors.js";
 import type {
   EnumColumn,
   NonReferenceColumn,
