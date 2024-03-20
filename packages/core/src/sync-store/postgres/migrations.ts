@@ -516,11 +516,6 @@ const migrations: Record<string, Migration> = {
           );
         }
       }
-
-      await db.schema
-        .alterTable("logs")
-        .alterColumn("checkpoint", (cb) => cb.setNotNull())
-        .execute();
     },
   },
 };
