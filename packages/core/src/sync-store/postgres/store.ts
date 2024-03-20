@@ -3,7 +3,11 @@ import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import { NonRetryableError } from "@/errors/base.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  encodeCheckpoint,
+  eventTypes,
+} from "@/utils/checkpoint.js";
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
@@ -906,8 +910,8 @@ export class PostgresSyncStore implements SyncStore {
             "transactions.value as tx_value",
             "transactions.v as tx_v",
           ])
-          .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
-          .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
+          .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
+          .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
           .orderBy("blocks.timestamp", "asc")
           .orderBy("logs.chainId", "asc")
           .orderBy("blocks.number", "asc")
@@ -918,6 +922,11 @@ export class PostgresSyncStore implements SyncStore {
         this.db
           .selectFrom("logs")
           .leftJoin("blocks", "blocks.hash", "logs.blockHash")
+          .innerJoin(
+            "transactions",
+            "transactions.hash",
+            "logs.transactionHash",
+          )
           .where((eb) => {
             const logFilterCmprs =
               logFilters?.map((logFilter) => {
@@ -943,9 +952,10 @@ export class PostgresSyncStore implements SyncStore {
             "logs.chainId as log_chainId",
             "blocks.number as block_number",
             "logs.logIndex as log_logIndex",
+            "transactions.transactionIndex as tx_index",
           ])
-          .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
-          .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
+          .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
+          .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
           .orderBy("blocks.timestamp", "desc")
           .orderBy("logs.chainId", "desc")
           .orderBy("blocks.number", "desc")
@@ -1052,7 +1062,9 @@ export class PostgresSyncStore implements SyncStore {
               blockTimestamp: Number(lastCheckpointRow.block_timestamp!),
               blockNumber: Number(lastCheckpointRow.block_number!),
               chainId: lastCheckpointRow.log_chainId,
-              logIndex: lastCheckpointRow.log_logIndex,
+              transactionIndex: lastCheckpointRow.tx_index,
+              eventType: eventTypes.logs,
+              eventIndex: lastCheckpointRow.log_logIndex,
             } satisfies Checkpoint)
           : undefined;
 
@@ -1064,7 +1076,9 @@ export class PostgresSyncStore implements SyncStore {
           blockTimestamp: Number(lastEventInPage.block.timestamp),
           chainId: lastEventInPage.chainId,
           blockNumber: Number(lastEventInPage.block.number),
-          logIndex: lastEventInPage.log.logIndex,
+          transactionIndex: lastEventInPage.transaction.transactionIndex,
+          eventType: eventTypes.logs,
+          eventIndex: lastEventInPage.log.logIndex,
         } satisfies Checkpoint;
 
         return {
@@ -1083,72 +1097,6 @@ export class PostgresSyncStore implements SyncStore {
       }
     });
   }
-
-  /**
-   * Builds an expression that filters for events that are greater or
-   * less than the provided checkpoint. If the log index is not specific,
-   * the expression will use a block-level granularity.
-   */
-  private buildCheckpointCmprs = (
-    eb: ExpressionBuilder<any, any>,
-    op: ">" | ">=" | "<" | "<=",
-    checkpoint: Checkpoint,
-  ) => {
-    const { and, or } = eb;
-
-    const { blockTimestamp, chainId, blockNumber, logIndex } = checkpoint;
-
-    const operand = op.startsWith(">") ? (">" as const) : ("<" as const);
-    const operandOrEquals = `${operand}=` as const;
-    const isInclusive = op.endsWith("=");
-
-    // If the execution index is not defined, the checkpoint is at block granularity.
-    // Include (or exclude) all events in the block.
-    if (logIndex === undefined) {
-      return and([
-        eb("blocks.timestamp", operandOrEquals, BigInt(blockTimestamp)),
-        or([
-          eb("blocks.timestamp", operand, BigInt(blockTimestamp)),
-          and([
-            eb("logs.chainId", operandOrEquals, chainId),
-            or([
-              eb("logs.chainId", operand, chainId),
-              eb(
-                "blocks.number",
-                isInclusive ? operandOrEquals : operand,
-                BigInt(blockNumber),
-              ),
-            ]),
-          ]),
-        ]),
-      ]);
-    }
-
-    // Otherwise, apply the filter down to the log index.
-    return and([
-      eb("blocks.timestamp", operandOrEquals, BigInt(blockTimestamp)),
-      or([
-        eb("blocks.timestamp", operand, BigInt(blockTimestamp)),
-        and([
-          eb("logs.chainId", operandOrEquals, chainId),
-          or([
-            eb("logs.chainId", operand, chainId),
-            and([
-              eb("blocks.number", operandOrEquals, BigInt(blockNumber)),
-              or([
-                eb("blocks.number", operand, BigInt(blockNumber)),
-                eb(
-                  "logs.logIndex",
-                  isInclusive ? operandOrEquals : operand,
-                  logIndex,
-                ),
-              ]),
-            ]),
-          ]),
-        ]),
-      ]),
-    ]);
-  };
 
   private buildLogFilterCmprs = ({
     eb,

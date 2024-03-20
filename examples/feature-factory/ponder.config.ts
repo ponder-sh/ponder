@@ -9,6 +9,8 @@ const llamaFactoryEvent = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
 
+const endBlock = 4121269 + 100_000;
+
 export default createConfig({
   networks: {
     sepolia: {
@@ -26,6 +28,7 @@ export default createConfig({
         parameter: "llamaCore",
       },
       startBlock: 4121269,
+      endBlock,
     },
     LlamaPolicy: {
       network: "sepolia",
@@ -36,6 +39,7 @@ export default createConfig({
         parameter: "llamaPolicy",
       },
       startBlock: 4121269,
+      endBlock,
     },
   },
 });

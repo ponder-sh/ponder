@@ -28,6 +28,7 @@ import {
   type Checkpoint,
   checkpointMax,
   checkpointMin,
+  eventTypes,
   isCheckpointEqual,
   isCheckpointGreaterThan,
   isCheckpointGreaterThanOrEqualTo,
@@ -719,7 +720,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 : `${num} ${fullEventName} events`
             } (chainId=${data.checkpoint.chainId} block=${
               data.checkpoint.blockNumber
-            } logIndex=${data.checkpoint.logIndex})`,
+            } eventIndex=${data.checkpoint.eventIndex})`,
           });
         }
 
@@ -900,7 +901,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
               blockNumber: Number(event.block.number),
               blockTimestamp: Number(event.block.timestamp),
               chainId: event.chainId,
-              logIndex: event.log.logIndex,
+              transactionIndex: event.transaction.transactionIndex,
+              eventType: eventTypes.logs,
+              eventIndex: event.log.logIndex,
             },
           },
         });
