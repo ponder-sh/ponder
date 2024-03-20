@@ -15,8 +15,8 @@ test("encodeCheckpoint produces expected encoding", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
 
@@ -50,8 +50,8 @@ test("decodeCheckpoint produces expected object", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
 
@@ -70,8 +70,8 @@ test("isCheckpointEqual returns true if checkpoints are the same", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
 
@@ -83,8 +83,8 @@ test("isCheckpointEqual returns false if checkpoints are different", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
   const isEqual = isCheckpointEqual(checkpoint, { ...checkpoint, chainId: 2 });
@@ -97,16 +97,16 @@ test("isCheckpointGreaterThan compares correctly on blockTimestamp", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
   const checkpointTwo = {
     blockTimestamp: 2,
     chainId: 2,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
   const isGreater = isCheckpointGreaterThan(checkpointOne, checkpointTwo);
@@ -119,16 +119,16 @@ test("isCheckpointGreaterThan compares correctly on chainId", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
   const checkpointTwo = {
     blockTimestamp: 1,
     chainId: 2,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
   const isGreater = isCheckpointGreaterThan(checkpointOne, checkpointTwo);
@@ -141,16 +141,16 @@ test("isCheckpointGreaterThan compares correctly on transactionIndex", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 5,
+    eventType: 1,
     eventIndex: 1,
   };
   const checkpointTwo = {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 4,
+    eventType: 1,
     eventIndex: 1,
   };
   const isGreater = isCheckpointGreaterThan(checkpointOne, checkpointTwo);
@@ -163,16 +163,16 @@ test("isCheckpointGreaterThan compares correctly on eventType", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 5,
     transactionIndex: 1,
+    eventType: 5,
     eventIndex: 1,
   };
   const checkpointTwo = {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 4,
     transactionIndex: 1,
+    eventType: 4,
     eventIndex: 1,
   };
   const isGreater = isCheckpointGreaterThan(checkpointOne, checkpointTwo);
@@ -185,16 +185,16 @@ test("isCheckpointGreaterThan compares correctly on eventIndex", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 5,
   };
   const checkpointTwo = {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 4,
   };
   const isGreater = isCheckpointGreaterThan(checkpointOne, checkpointTwo);
@@ -207,16 +207,16 @@ test("isCheckpointGreaterThan compares correctly with multiple values", () => {
     blockTimestamp: 6,
     chainId: 5,
     blockNumber: 9,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 12,
   };
   const checkpointTwo = {
     blockTimestamp: 6,
     chainId: 5,
     blockNumber: 10,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 4,
   };
   const isGreater = isCheckpointGreaterThan(checkpointOne, checkpointTwo);
@@ -229,8 +229,8 @@ test("isCheckpointGreaterThan returns false for equal checkpoints", () => {
     blockTimestamp: 6,
     chainId: 5,
     blockNumber: 9,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 12,
   };
 
@@ -244,8 +244,8 @@ test("checkpointMax returns correct value if only one checkpoint", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
   const max = checkpointMax(checkpointOne);
@@ -258,16 +258,16 @@ test("checkpointMax compares properly on timestamp", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
   const checkpointTwo = {
     blockTimestamp: 2,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
 
@@ -280,24 +280,24 @@ test("checkpointMin compares properly on blockNumber", () => {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
   const checkpointTwo = {
     blockTimestamp: 2,
     chainId: 1,
     blockNumber: 3,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 1,
   };
   const checkpointThree = {
     blockTimestamp: 1,
     chainId: 1,
     blockNumber: 1,
-    eventType: 1,
     transactionIndex: 1,
+    eventType: 1,
     eventIndex: 99,
   };
 
