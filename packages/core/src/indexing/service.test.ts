@@ -8,7 +8,7 @@ import { getEventsErc20, getFunctionIds, getTableIds } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { TableAccess } from "@/build/static/getTableAccess.js";
 import { createSchema } from "@/schema/schema.js";
-import type { SyncGateway } from "@/sync-gateway/service.js";
+import { SyncService } from "@/sync/service.js";
 import {
   type Checkpoint,
   maxCheckpoint,
@@ -88,7 +88,7 @@ function createCheckpoint(index: number): Checkpoint {
 }
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -105,17 +105,17 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     finalityCheckpoint: zeroCheckpoint,
   } as unknown as SyncGateway;
 
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -180,7 +180,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     networks,
     requestQueues,
   });
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -267,7 +267,7 @@ test("processEvent() runs setup functions before log event", async (context) => 
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -321,7 +321,7 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -385,7 +385,7 @@ test("processEvents() orders tasks with self reliance", async (context) => {
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -437,7 +437,7 @@ test("processEvents() model methods insert data into the indexing store", async 
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -488,7 +488,7 @@ test("processEvents() updates metrics", async (context) => {
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -549,7 +549,7 @@ test("processEvents() reads data from a contract", async (context) => {
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions: readContractIndexingFunctions,
     tableAccess,
@@ -603,7 +603,7 @@ test("processEvents() recovers from errors while reading data from a contract", 
   const spy = vi.spyOn(requestQueues[0], "request");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions: readContractIndexingFunctions,
     tableAccess,
@@ -656,7 +656,7 @@ test("processEvents() retries indexing functions", async (context) => {
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -724,7 +724,7 @@ test("processEvents() handles errors", async (context) => {
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -786,7 +786,7 @@ test("processEvents can be called multiple times", async (context) => {
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -837,7 +837,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -849,7 +849,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -898,7 +898,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -953,7 +953,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -1010,7 +1010,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -1079,7 +1079,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -1140,7 +1140,7 @@ test("reset() loads from cache", async (context) => {
     requestQueues,
   });
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,
@@ -1153,7 +1153,7 @@ test("reset() loads from cache", async (context) => {
   await service.kill();
   await service.onIdle();
 
-  await service.reset({
+  await service.start({
     schema,
     indexingFunctions,
     tableAccess,

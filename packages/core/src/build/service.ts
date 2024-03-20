@@ -318,7 +318,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     } satisfies BuildResult;
   }
 
-  private async loadConfig() {
+  async loadConfig() {
     const loadResult = await this.executeFile(this.common.options.configFile);
     if (!loadResult.success) {
       return { success: false, error: loadResult.error } as const;
@@ -346,7 +346,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     return { success: true, databaseConfig, sources, networks } as const;
   }
 
-  private async loadSchema() {
+  async loadSchema() {
     const loadResult = await this.executeFile(this.common.options.schemaFile);
     if (loadResult.error) {
       return { success: false, error: loadResult.error } as const;
@@ -369,7 +369,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     return { success: true, schema, graphqlSchema } as const;
   }
 
-  private async loadIndexingFunctions({ files }: { files: string[] }) {
+  async loadIndexingFunctions({ files }: { files: string[] }) {
     const rawLoadResults = await Promise.all(
       files.map((file) => this.executeFile(file)),
     );

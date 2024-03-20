@@ -33,7 +33,7 @@ declare module "@/generated" {
 }
 `;
 
-export function codegen({
+export function runCodegen({
   common,
   graphqlSchema,
 }: {

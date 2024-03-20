@@ -49,6 +49,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
   private common: Common;
   private poolConfig: PoolConfig;
+
   /**
    * Small pool used by this service for cache management, zero-downtime logic,
    * and to cancel in-flight queries made by other pools on kill
