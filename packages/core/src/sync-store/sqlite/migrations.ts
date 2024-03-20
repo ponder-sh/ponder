@@ -523,10 +523,12 @@ const migrations: Record<string, Migration> = {
         }
       }
 
-      await db.schema
-        .alterTable("logs")
-        .alterColumn("checkpoint", (cb) => cb.setNotNull())
-        .execute();
+      await columnDropNull({
+        db,
+        column: "checkpoint",
+        columnType: "varchar(75)",
+        table: "logs",
+      });
     },
   },
 };
@@ -547,6 +549,35 @@ const columnDropNotNull = async ({
   const tempName = `${column}_temp_null`;
 
   await db.schema.alterTable(table).addColumn(tempName, columnType).execute();
+  await db
+    .updateTable(table)
+    .set((eb: any) => ({
+      [tempName]: eb.selectFrom(table).select(column),
+    }))
+    .execute();
+  await db.schema.alterTable(table).dropColumn(column).execute();
+  await db.schema.alterTable(table).renameColumn(tempName, column).execute();
+};
+
+const columnDropNull = async ({
+  db,
+  table,
+  column,
+  columnType,
+}: {
+  db: Kysely<any>;
+  table: string;
+  column: string;
+  columnType: Parameters<
+    ReturnType<Kysely<any>["schema"]["alterTable"]>["addColumn"]
+  >[1];
+}) => {
+  const tempName = `${column}_temp_not_null`;
+
+  await db.schema
+    .alterTable(table)
+    .addColumn(tempName, columnType, (cb) => cb.notNull())
+    .execute();
   await db
     .updateTable(table)
     .set((eb: any) => ({
