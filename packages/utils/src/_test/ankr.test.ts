@@ -35,6 +35,7 @@ test("ankr block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
+  expect(JSON.stringify(error)).includes("block range is too wide");
 
   const retry = getLogsRetryHelper({
     params,

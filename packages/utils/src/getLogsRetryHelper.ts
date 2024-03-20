@@ -53,7 +53,7 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
-  // Infura, Thirdweb, zkSync
+  // infura, thirdweb, zksync
   match = sError.match(
     /Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
   )!;
@@ -74,7 +74,7 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
-  // Thirdweb
+  // thirdweb
   match = sError.match(/bigger than range limit (\d+)/);
   if (match !== null) {
     const ranges = chunk({ params, range: BigInt(match[1]!) });
@@ -89,7 +89,7 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
-  // Ankr
+  // ankr
   match = sError.match("block range is too wide");
   if (match !== null && error.code === -32600) {
     const ranges = chunk({ params, range: 3000n });
@@ -104,7 +104,7 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
-  // Alchemy
+  // alchemy
   match = sError.match(
     /this block range should work: \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
   );
@@ -125,7 +125,7 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
-  // Quicknode, 1rpc, zkevm
+  // quicknode, 1rpc, zkevm, blast
   match = sError.match(/limited to a ([\d,.]+)/);
   if (match !== null) {
     const ranges = chunk({
@@ -145,6 +145,84 @@ export const getLogsRetryHelper = ({
 
   // 1rpc
   match = sError.match(/response size should not greater than \d+ bytes/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // llamarpc
+  match = sError.match(/query exceeds max results/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // optimism
+  match = sError.match(/backend response too large/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // base
+  match = sError.match(/block range too large/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: 2_000n,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // arbitrum
+  match = sError.match(/logs matched by query exceeds limit of 10000/);
   if (match !== null) {
     const ranges = chunk({
       params,
