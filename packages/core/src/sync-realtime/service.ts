@@ -334,7 +334,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       });
 
       this.isProcessBlockQueued = true;
-
       return;
     } else {
       await this.insertRealtimeBlocks(syncResult);
@@ -354,43 +353,49 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       const newFinalizedBlock = this.blocks.findLast(
         (block) =>
           block.number <= latestBlockNumber - this.network.finalityBlockCount,
+      )!;
+
+      // Check to see if logs are different when re-requested. Degraded rpc providers
+      // have trouble indexing logs near the tip of the chain.
+      const hasLogsInconsistency = await this.validateLogs(newFinalizedBlock);
+      if (hasLogsInconsistency) {
+        this.isProcessBlockQueued = true;
+        return;
+      }
+
+      this.blocks = this.blocks.filter(
+        (block) => block.number > newFinalizedBlock.number,
+      );
+      this.logs = this.logs.filter(
+        (log) => log.blockNumber > newFinalizedBlock.number,
       );
 
-      if (newFinalizedBlock) {
-        this.blocks = this.blocks.filter(
-          (block) => block.number > newFinalizedBlock.number,
-        );
-        this.logs = this.logs.filter(
-          (log) => log.blockNumber > newFinalizedBlock.number,
-        );
+      // TODO: Update this to insert:
+      // 1) Log filter intervals
+      // 2) Factory contract intervals
+      // 3) Child filter intervals
+      await this.syncStore.insertRealtimeInterval({
+        chainId: this.network.chainId,
+        logFilters: this.logFilterSources.map((l) => l.criteria),
+        factories: this.factorySources.map((f) => f.criteria),
+        interval: {
+          startBlock: BigInt(this.finalizedBlock.number + 1),
+          endBlock: BigInt(newFinalizedBlock.number),
+        },
+      });
 
-        // TODO: Update this to insert:
-        // 1) Log filter intervals
-        // 2) Factory contract intervals
-        // 3) Child filter intervals
-        await this.syncStore.insertRealtimeInterval({
-          chainId: this.network.chainId,
-          logFilters: this.logFilterSources.map((l) => l.criteria),
-          factories: this.factorySources.map((f) => f.criteria),
-          interval: {
-            startBlock: BigInt(this.finalizedBlock.number + 1),
-            endBlock: BigInt(newFinalizedBlock.number),
-          },
-        });
+      this.finalizedBlock = newFinalizedBlock;
 
-        this.finalizedBlock = newFinalizedBlock;
+      this.emit("finalityCheckpoint", {
+        blockTimestamp: newFinalizedBlock.timestamp,
+        chainId: this.network.chainId,
+        blockNumber: newFinalizedBlock.number,
+      });
 
-        this.emit("finalityCheckpoint", {
-          blockTimestamp: newFinalizedBlock.timestamp,
-          chainId: this.network.chainId,
-          blockNumber: newFinalizedBlock.number,
-        });
-
-        this.common.logger.debug({
-          service: "realtime",
-          msg: `Updated finality checkpoint to ${newFinalizedBlock.number} (network=${this.network.name})`,
-        });
-      }
+      this.common.logger.debug({
+        service: "realtime",
+        msg: `Updated finality checkpoint to ${newFinalizedBlock.number} (network=${this.network.name})`,
+      });
     }
 
     const newBlockNumber = hexToNumber(newBlock.number);
@@ -587,6 +592,103 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.common.logger.trace({
       service: "realtime",
       msg: `Confirmed local hash matches remote hash at finalized block number ${this.finalizedBlock.number} (network=${this.network.name})`,
+    });
+
+    return false;
+  };
+
+  /**
+   * Check to see if re-requesting logs that we have locally will return a different result.
+   * If this occurs, treat it as a reorg.
+   */
+  private validateLogs = async (newFinalizedBlock: LightBlock) => {
+    this.common.logger.debug({
+      service: "realtime",
+      msg: `Validating local chain from block ${
+        this.finalizedBlock.number + 1
+      } to ${newFinalizedBlock} (network=${this.network.name})`,
+    });
+
+    const _logs = await this._eth_getLogs({
+      fromBlock: numberToHex(this.finalizedBlock.number + 1),
+      toBlock: numberToHex(newFinalizedBlock.number),
+    });
+    const logs = sortLogs(_logs);
+
+    const matchedLogs = await this.getMatchedLogs(
+      logs,
+      BigInt(newFinalizedBlock.number),
+      false,
+    );
+
+    const localLogs = this.logs.filter(
+      (log) => log.blockNumber <= newFinalizedBlock.number,
+    );
+
+    // Evict local logs and blocks, emit reorg.
+    const handleLogsInconsistency = async (
+      localSafeBlockNumber: number | undefined,
+    ) => {
+      let commonAncestor: LightBlock;
+
+      if (localSafeBlockNumber === undefined) {
+        commonAncestor = this.finalizedBlock;
+      } else {
+        commonAncestor =
+          this.blocks.findLast((b) => b.number <= localSafeBlockNumber) ??
+          this.finalizedBlock;
+      }
+
+      this.blocks = this.blocks.filter(
+        (block) => block.number <= commonAncestor.number,
+      );
+      this.logs = this.logs.filter(
+        (log) => log.blockNumber <= commonAncestor.number,
+      );
+
+      await this.syncStore.deleteRealtimeData({
+        chainId: this.network.chainId,
+        fromBlock: BigInt(commonAncestor.number),
+      });
+
+      this.emit("reorg", {
+        blockTimestamp: commonAncestor.timestamp,
+        chainId: this.network.chainId,
+        blockNumber: commonAncestor.number,
+      });
+
+      this.common.logger.warn({
+        service: "realtime",
+        msg: `Detected invalid logs returned by the RPC starting at block ${commonAncestor.number} (network=${this.network.name})`,
+      });
+    };
+
+    let i = 0;
+    for (; i < localLogs.length && i < matchedLogs.length; i++) {
+      const lightMatchedLog = realtimeLogToLightLog(matchedLogs[i]);
+      if (
+        lightMatchedLog.blockHash !== localLogs[i].blockHash ||
+        lightMatchedLog.logIndex !== localLogs[i].logIndex
+      ) {
+        await handleLogsInconsistency(localLogs[i].blockNumber - 1);
+        return true;
+      }
+    }
+
+    if (localLogs.length !== matchedLogs.length) {
+      await handleLogsInconsistency(
+        localLogs.length === 0
+          ? undefined
+          : localLogs[localLogs.length - 1].blockNumber - 1,
+      );
+      return true;
+    }
+
+    this.common.logger.debug({
+      service: "realtime",
+      msg: `No logs incosistencies found for blocks from ${
+        this.finalizedBlock.number + 1
+      } to ${newFinalizedBlock.number} (network=${this.network.name})`,
     });
 
     return false;
