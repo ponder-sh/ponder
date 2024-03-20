@@ -779,7 +779,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 const scalarToSqlType = {
   boolean: "integer",
   int: "integer",
-  float: "text",
+  float: "float8",
   string: "text",
   bigint: "numeric(78, 0)",
   hex: "bytea",

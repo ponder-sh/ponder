@@ -143,6 +143,44 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
+  // Quicknode, 1rpc, zkevm
+  match = sError.match(/limited to a ([\d,.]+)/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // 1rpc
+  match = sError.match(/response size should not greater than \d+ bytes/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
   // No match found
   return {
     shouldRetry: false,

@@ -10,7 +10,7 @@ import {
   isWriteStoreMethod,
 } from "./getTableAccess.js";
 
-export const HASH_VERSION = 1;
+export const HASH_VERSION = 2;
 
 export type FunctionIds = { [func: string]: string };
 export type TableIds = { [table: string]: string };

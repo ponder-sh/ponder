@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.1.1
+
+### Patch Changes
+
+- [#722](https://github.com/ponder-sh/ponder/pull/722) [`fe99c31a100acfc602cc511a15b1f625e034c29e`](https://github.com/ponder-sh/ponder/commit/fe99c31a100acfc602cc511a15b1f625e034c29e) Thanks [@kyscott18](https://github.com/kyscott18)! - Changed getLogsRetryHelper to not retry when the retry range is the same as the original range.
+
 ## 0.1.0
 
 ### Minor Changes

@@ -1,10 +1,9 @@
 import { rmSync } from "node:fs";
 import { Ponder } from "@/Ponder.js";
 import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
-import { simulate } from "@/_test/simulate.js";
+import { simulatePairSwap } from "@/_test/simulate.js";
 import { onAllEventsIndexed } from "@/_test/utils.js";
 import { buildOptions } from "@/config/options.js";
-import { range } from "@/utils/range.js";
 import request from "supertest";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
@@ -42,17 +41,11 @@ test("factory", async (context) => {
     telemetryDisabled: true,
   } as const;
 
-  for (const _ in range(0, 3)) {
-    await simulate({
-      erc20Address: context.erc20.address,
-      factoryAddress: context.factory.address,
-    });
-  }
-
   const ponder = new Ponder({ options: testOptions });
   await ponder.start(context.databaseConfig);
-
-  await onAllEventsIndexed(ponder);
+  if (!ponder.database.isPublished) {
+    await onAllEventsIndexed(ponder, 4);
+  }
 
   let swapEvents = await gql(
     ponder,
@@ -68,14 +61,11 @@ test("factory", async (context) => {
     `,
   ).then((g) => g.swapEvents.items);
 
-  expect(swapEvents).toHaveLength(4);
+  expect(swapEvents).toHaveLength(1);
 
-  await simulate({
-    erc20Address: context.erc20.address,
-    factoryAddress: context.factory.address,
-  });
-
-  await onAllEventsIndexed(ponder);
+  const indexedPromise = onAllEventsIndexed(ponder, 5);
+  await simulatePairSwap(context.factory.pair);
+  await indexedPromise;
 
   swapEvents = await gql(
     ponder,
@@ -91,7 +81,7 @@ test("factory", async (context) => {
     `,
   ).then((g) => g.swapEvents.items);
 
-  expect(swapEvents).toHaveLength(5);
+  expect(swapEvents).toHaveLength(2);
 
   await ponder.kill();
 });
