@@ -24,7 +24,7 @@ test(
   { timeout: 15_000 },
 );
 
-test("infura", async () => {
+test("infura block range", async () => {
   const params: Params = [
     {
       address: WETH,
