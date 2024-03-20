@@ -325,7 +325,7 @@ test(
       .execute();
 
     expect(blocks).toHaveLength(0);
-    expect(emitSpy).toHaveBeenCalledWith("fatal");
+    expect(emitSpy).toHaveBeenCalledWith("fatal", expect.any(Error));
 
     service.kill();
     await cleanup();
@@ -429,7 +429,7 @@ test("start() fatal after unrecoverable reorg", async (context) => {
   service.process();
   await service.onIdle();
 
-  expect(emitSpy).toHaveBeenCalledWith("fatal");
+  expect(emitSpy).toHaveBeenCalledWith("fatal", expect.any(Error));
 
   service.kill();
   await cleanup();
