@@ -12,6 +12,8 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   dotenv.config({ path: ".env.local" });
   const options = buildOptions({ cliOptions });
 
+  // TODO(kevin) should make a helper function for this
+
   const logger = new LoggerService({
     level: options.logLevel,
     dir: options.logDir,
@@ -56,7 +58,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
       msg: "Failed initial build with error:",
       error: initialResult.error,
     });
-    return await shutdown("Failed intial build");
+    return shutdown("Failed intial build");
   }
 
   telemetry.record({

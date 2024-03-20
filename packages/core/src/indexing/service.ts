@@ -251,7 +251,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     await this.buildIndexingFunctionStates();
     this.createEventQueue();
 
-    this.isFlushIntervalExec = false;
     this.flushInterval = setInterval(async () => {
       if (this.isFlushIntervalExec) return;
       this.isFlushIntervalExec = true;

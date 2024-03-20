@@ -194,7 +194,7 @@ export function setupShutdown({
 
   process.on("SIGINT", () => shutdown("Received SIGINT"));
   process.on("SIGQUIT", () => shutdown("Received SIGQUIT"));
-  process.on("SIGTERM", () => shutdown("Received SIGINT"));
+  process.on("SIGTERM", () => shutdown("Received SIGTERM"));
   process.on("uncaughtException", async (error: Error) => {
     common.logger.error({
       service: "process",

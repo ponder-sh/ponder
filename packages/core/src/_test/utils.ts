@@ -1,13 +1,14 @@
-import type { Common, Ponder } from "@/Ponder.js";
 import { buildConfig } from "@/build/config/config.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type {
   FunctionIds,
   TableIds,
 } from "@/build/static/getFunctionAndTableIds.js";
+import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
+import type { SyncService } from "@/sync/service.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import type {
@@ -217,52 +218,49 @@ export const getRawRPCData = async (sources: Source[]) => {
 /**
  * Mock function for `getLogEvents` that specifically returns the event data for the erc20 source.
  */
-export const getEventsErc20 = async (sources: Source[]) => {
+export const getEventsErc20 = async (
+  sources: Source[],
+  toCheckpoint: Checkpoint,
+): ReturnType<SyncService["getEvents"]> => {
   const rpcData = await getRawRPCData(sources);
 
-  const _getEvents = ({ toCheckpoint }: { toCheckpoint: Checkpoint }) => {
-    return {
-      events: [
-        {
-          log: rpcData.block1.logs[0],
-          block: rpcData.block1.block,
-          transaction: rpcData.block1.transactions[0]!,
-        },
-        {
-          log: rpcData.block1.logs[1],
-          block: rpcData.block1.block,
-          transaction: rpcData.block1.transactions[1]!,
-        },
-      ]
-        .map((e) => ({
-          log: formatLog(e.log),
-          block: formatBlock(e.block),
-          transaction: formatTransaction(e.transaction),
-        }))
-        .map(({ log, block, transaction }) => ({
-          sourceId: sources[0].id,
-          chainId: sources[0].chainId,
-          log: {
-            ...log,
-            id: `${log.blockHash}-${toHex(log.logIndex!)}`,
-            address: checksumAddress(log.address),
-          },
-          block: { ...block, miner: checksumAddress(block.miner) },
-          transaction: {
-            ...transaction,
-            from: checksumAddress(transaction.from),
-            to: transaction.to
-              ? checksumAddress(transaction.to)
-              : transaction.to,
-          },
-        })),
-      metadata: {
-        endCheckpoint: toCheckpoint,
+  return {
+    events: [
+      {
+        log: rpcData.block1.logs[0],
+        block: rpcData.block1.block,
+        transaction: rpcData.block1.transactions[0]!,
       },
-    };
-  };
-
-  return _getEvents;
+      {
+        log: rpcData.block1.logs[1],
+        block: rpcData.block1.block,
+        transaction: rpcData.block1.transactions[1]!,
+      },
+    ]
+      .map((e) => ({
+        log: formatLog(e.log),
+        block: formatBlock(e.block),
+        transaction: formatTransaction(e.transaction),
+      }))
+      .map(({ log, block, transaction }) => ({
+        sourceId: sources[0].id,
+        chainId: sources[0].chainId,
+        log: {
+          ...log,
+          id: `${log.blockHash}-${toHex(log.logIndex!)}`,
+          address: checksumAddress(log.address),
+        },
+        block: { ...block, miner: checksumAddress(block.miner) },
+        transaction: {
+          ...transaction,
+          from: checksumAddress(transaction.from),
+          to: transaction.to ? checksumAddress(transaction.to) : transaction.to,
+        },
+      })),
+    lastCheckpoint: toCheckpoint,
+    hasNextPage: true,
+    lastCheckpointInPage: toCheckpoint,
+  } as Awaited<ReturnType<SyncService["getEvents"]>>;
 };
 
 /**

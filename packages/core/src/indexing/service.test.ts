@@ -9,11 +9,7 @@ import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { TableAccess } from "@/build/static/getTableAccess.js";
 import { createSchema } from "@/schema/schema.js";
 import { SyncService } from "@/sync/service.js";
-import {
-  type Checkpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
-} from "@/utils/checkpoint.js";
+import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { decodeEventLog } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { IndexingService } from "./service.js";
@@ -97,15 +93,9 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
-
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
-
   const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
@@ -123,13 +113,15 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     tableIds: getTableIds(schema),
   });
 
-  expect(getEvents).not.toHaveBeenCalled();
+  expect(getEventsSpy).not.toHaveBeenCalled();
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  expect(getEvents).toHaveBeenLastCalledWith(
+  expect(getEventsSpy).toHaveBeenCalledOnce();
+
+  expect(getEventsSpy).toHaveBeenLastCalledWith(
     expect.objectContaining({
       fromCheckpoint: zeroCheckpoint,
       toCheckpoint: checkpoint10,
@@ -137,10 +129,10 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
   );
 
   const checkpoint50 = createCheckpoint(50);
-  syncGatewayService.checkpoint = checkpoint50;
+  syncService.checkpoint = checkpoint50;
   await service.processEvents();
 
-  expect(getEvents).toHaveBeenLastCalledWith(
+  expect(getEventsSpy).toHaveBeenLastCalledWith(
     expect.objectContaining({
       fromCheckpoint: checkpoint10,
       toCheckpoint: checkpoint50,
@@ -153,7 +145,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 });
 
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -162,23 +154,17 @@ test("processEvents() calls indexing functions with correct arguments", async (c
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
   await service.start({
     schema,
@@ -189,10 +175,12 @@ test("processEvents() calls indexing functions with correct arguments", async (c
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
-  await service.processEvents();
+  syncService.checkpoint = checkpoint10;
 
-  const { events } = getEvents({ toCheckpoint: checkpoint10 });
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
+
+  await service.processEvents();
 
   expect(transferIndexingFunction).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -200,12 +188,12 @@ test("processEvents() calls indexing functions with correct arguments", async (c
         name: "Transfer",
         args: decodeEventLog({
           abi: erc20ABI,
-          data: events[1]!.log.data,
-          topics: events[1]!.log.topics,
+          data: events.events[1]!.log.data,
+          topics: events.events[1]!.log.topics,
         }).args,
-        log: events[1].log,
-        block: events[1].block,
-        transaction: events[1].transaction,
+        log: events.events[1].log,
+        block: events.events[1].block,
+        transaction: events.events[1].transaction,
       },
       context: expect.objectContaining({
         db: { TransferEvent: expect.anything(), Supply: expect.anything() },
@@ -239,7 +227,7 @@ test("processEvent() runs setup functions before log event", async (context) => 
     },
   };
 
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -247,24 +235,17 @@ test("processEvent() runs setup functions before log event", async (context) => 
       functionIds: getFunctionIds(indexingFunctions),
       tableIds: getTableIds(schema),
     });
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
-
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   await service.start({
@@ -278,7 +259,10 @@ test("processEvent() runs setup functions before log event", async (context) => 
   service.queue!.concurrency = 1;
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
 
   await service.processEvents();
 
@@ -293,7 +277,7 @@ test("processEvent() runs setup functions before log event", async (context) => 
 });
 
 test("processEvents() orders tasks with no parents or self reliance", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -302,23 +286,17 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   await service.start({
@@ -330,7 +308,10 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
 
   await service.loadIndexingFunctionTasks("Erc20:Transfer");
 
@@ -344,7 +325,7 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
 });
 
 test("processEvents() orders tasks with self reliance", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
 
   const tableAccess: TableAccess = {
     "Erc20:Transfer": {
@@ -366,23 +347,17 @@ test("processEvents() orders tasks with self reliance", async (context) => {
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   await service.start({
@@ -394,7 +369,10 @@ test("processEvents() orders tasks with self reliance", async (context) => {
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
 
   await service.loadIndexingFunctionTasks("Erc20:Transfer");
 
@@ -409,7 +387,7 @@ test("processEvents() orders tasks with self reliance", async (context) => {
 });
 
 test("processEvents() model methods insert data into the indexing store", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -418,23 +396,17 @@ test("processEvents() model methods insert data into the indexing store", async 
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   await service.start({
@@ -446,7 +418,10 @@ test("processEvents() model methods insert data into the indexing store", async 
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
   await service.processEvents();
 
   const { items: transferEvents } = await indexingStore.findMany({
@@ -460,7 +435,7 @@ test("processEvents() model methods insert data into the indexing store", async 
 });
 
 test("processEvents() updates metrics", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -469,23 +444,17 @@ test("processEvents() updates metrics", async (context) => {
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   await service.start({
@@ -497,7 +466,10 @@ test("processEvents() updates metrics", async (context) => {
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
   await service.processEvents();
 
   const totalSecondsMetric = (
@@ -521,7 +493,7 @@ test("processEvents() updates metrics", async (context) => {
 });
 
 test("processEvents() reads data from a contract", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -530,23 +502,17 @@ test("processEvents() reads data from a contract", async (context) => {
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   await service.start({
@@ -558,7 +524,10 @@ test("processEvents() reads data from a contract", async (context) => {
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
   await service.processEvents();
 
   const { items: supplyEvents } = await indexingStore.findMany({
@@ -581,23 +550,17 @@ test("processEvents() recovers from errors while reading data from a contract", 
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   const spy = vi.spyOn(requestQueues[0], "request");
@@ -612,7 +575,10 @@ test("processEvents() recovers from errors while reading data from a contract", 
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
   await service.processEvents();
 
   const { items: supplyEvents } = await indexingStore.findMany({
@@ -626,7 +592,7 @@ test("processEvents() recovers from errors while reading data from a contract", 
 });
 
 test("processEvents() retries indexing functions", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -635,23 +601,17 @@ test("processEvents() retries indexing functions", async (context) => {
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -669,7 +629,10 @@ test("processEvents() retries indexing functions", async (context) => {
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
   await service.processEvents();
 
   expect(transferIndexingFunction).toHaveBeenCalledTimes(3);
@@ -681,7 +644,7 @@ test("processEvents() retries indexing functions", async (context) => {
 });
 
 test("processEvents() handles errors", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
 
   const tableAccess: TableAccess = {
     "Erc20:Transfer": {
@@ -703,23 +666,17 @@ test("processEvents() handles errors", async (context) => {
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -737,7 +694,10 @@ test("processEvents() handles errors", async (context) => {
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
   await service.processEvents();
 
   expect(transferIndexingFunction).toHaveBeenCalledTimes(4);
@@ -749,7 +709,7 @@ test("processEvents() handles errors", async (context) => {
 });
 
 test("processEvents can be called multiple times", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
 
   const setupIndexingFunction = vi.fn(async () => {});
   const indexingFunctions = {
@@ -767,23 +727,17 @@ test("processEvents can be called multiple times", async (context) => {
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   await service.start({
@@ -795,7 +749,10 @@ test("processEvents can be called multiple times", async (context) => {
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
 
   await service.processEvents();
   await service.processEvents();
@@ -808,8 +765,8 @@ test("processEvents can be called multiple times", async (context) => {
   await cleanup();
 });
 
-test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+test("handleReorg() updates ponder_indexing_completed_timestamp metric", async (context) => {
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -818,23 +775,17 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   await service.start({
@@ -846,21 +797,20 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
+
   await service.processEvents();
 
-  await service.start({
-    schema,
-    indexingFunctions,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
+  const checkpoint6 = createCheckpoint(6);
+  await service.handleReorg(checkpoint6);
 
   const latestProcessedTimestampMetricAfterReset = (
     await common.metrics.ponder_indexing_completed_timestamp.get()
   ).values[0].value;
-  expect(latestProcessedTimestampMetricAfterReset).toBe(0);
+  expect(latestProcessedTimestampMetricAfterReset).toBe(6);
 
   await service.kill();
   await service.onIdle();
@@ -868,7 +818,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 });
 
 test("handleReorg() reverts the indexing store", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -877,23 +827,17 @@ test("handleReorg() reverts the indexing store", async (context) => {
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -907,7 +851,11 @@ test("handleReorg() reverts the indexing store", async (context) => {
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
+
   await service.processEvents();
 
   const checkpoint6 = createCheckpoint(6);
@@ -923,7 +871,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -932,23 +880,17 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -966,7 +908,11 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
+
   await service.processEvents();
 
   const checkpoint6 = createCheckpoint(6);
@@ -982,7 +928,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -991,23 +937,17 @@ test("handleReorg() processes the correct range of events after a reorg", async 
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   await service.start({
@@ -1019,10 +959,14 @@ test("handleReorg() processes the correct range of events after a reorg", async 
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
+  syncService.checkpoint = checkpoint10;
+
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
+
   await service.processEvents();
 
-  expect(getEvents).toHaveBeenLastCalledWith(
+  expect(getEventsSpy).toHaveBeenLastCalledWith(
     expect.objectContaining({
       fromCheckpoint: zeroCheckpoint,
       toCheckpoint: checkpoint10,
@@ -1032,13 +976,13 @@ test("handleReorg() processes the correct range of events after a reorg", async 
   // This simulates a scenario where there was a reorg back to 6
   // and the new latest block is 9.
   const checkpoint9 = createCheckpoint(9);
-  syncGatewayService.checkpoint = checkpoint9;
+  syncService.checkpoint = checkpoint9;
 
   const checkpoint6 = createCheckpoint(6);
   await service.handleReorg(checkpoint6);
   await service.processEvents();
 
-  expect(getEvents).toHaveBeenLastCalledWith(
+  expect(getEventsSpy).toHaveBeenLastCalledWith(
     expect.objectContaining({
       fromCheckpoint: checkpoint6,
       toCheckpoint: checkpoint9,
@@ -1050,8 +994,8 @@ test("handleReorg() processes the correct range of events after a reorg", async 
   await cleanup();
 });
 
-test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
+test("reset() loads from cache", async (context) => {
+  const { common, sources, networks } = context;
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
@@ -1060,23 +1004,19 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
       tableIds: getTableIds(schema),
     });
 
-  const getEvents = vi.fn(await getEventsErc20(sources));
+  const flushSpy = vi.spyOn(database, "flush");
 
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: zeroCheckpoint,
-    finalityCheckpoint: zeroCheckpoint,
-  } as unknown as SyncGateway;
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
     database,
-    syncStore,
+    syncService,
     indexingStore,
-    syncGatewayService,
     sources,
     networks,
-    requestQueues,
   });
 
   await service.start({
@@ -1088,78 +1028,16 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   });
 
   const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
-  await service.processEvents();
+  syncService.checkpoint = checkpoint10;
+  syncService.finalityCheckpoint = checkpoint10;
 
-  // This simulates a scenario where there was a reorg back to 6
-  // and the new latest block is 9.
-  const checkpoint9 = createCheckpoint(9);
-  syncGatewayService.checkpoint = checkpoint9;
-
-  const checkpoint6 = createCheckpoint(6);
-  await service.handleReorg(checkpoint6);
-
-  const latestProcessedTimestampMetricAfterReorg = (
-    await common.metrics.ponder_indexing_completed_timestamp.get()
-  ).values[0].value;
-  expect(latestProcessedTimestampMetricAfterReorg).toBe(6);
-
-  await service.kill();
-  await service.onIdle();
-  await cleanup();
-});
-
-test("reset() loads from cache", async (context) => {
-  const { common, sources, networks, requestQueues } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
-    });
-
-  const getEvents = vi.fn(await getEventsErc20(sources));
-
-  const flushSpy = vi.spyOn(database, "flush");
-
-  const syncGatewayService = {
-    getEvents,
-    checkpoint: maxCheckpoint,
-    finalityCheckpoint: maxCheckpoint,
-  } as unknown as SyncGateway;
-
-  const service = new IndexingService({
-    common,
-    database,
-    syncStore,
-    indexingStore,
-    syncGatewayService,
-    sources,
-    networks,
-    requestQueues,
-  });
-
-  await service.start({
-    schema,
-    indexingFunctions,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
+  const events = await getEventsErc20(sources, checkpoint10);
+  getEventsSpy.mockReturnValue(Promise.resolve(events));
 
   await service.processEvents();
 
   await service.kill();
   await service.onIdle();
-
-  await service.start({
-    schema,
-    indexingFunctions,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
 
   expect(flushSpy).toHaveBeenCalledWith([
     {
@@ -1176,7 +1054,5 @@ test("reset() loads from cache", async (context) => {
     },
   ]);
 
-  await service.kill();
-  await service.onIdle();
   await cleanup();
 });
