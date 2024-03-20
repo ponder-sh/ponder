@@ -122,33 +122,15 @@ export const maxCheckpoint: Checkpoint = {
 /**
  * Returns true if two checkpoints are equal.
  */
-export const isCheckpointEqual = (a: Checkpoint, b: Checkpoint) => {
-  return (
-    a.blockTimestamp === b.blockTimestamp &&
-    a.chainId === b.chainId &&
-    a.blockNumber === b.blockNumber &&
-    a.transactionIndex === b.transactionIndex &&
-    a.eventType === b.eventType &&
-    a.eventIndex === b.eventIndex
-  );
-};
+export const isCheckpointEqual = (a: Checkpoint, b: Checkpoint) =>
+  encodeCheckpoint(a) === encodeCheckpoint(b);
 
 /**
  * Returns true if checkpoint a is greater than checkpoint b.
  * Returns false if the checkpoints are equal.
  */
-export const isCheckpointGreaterThan = (a: Checkpoint, b: Checkpoint) => {
-  if (a.blockTimestamp !== b.blockTimestamp)
-    return a.blockTimestamp > b.blockTimestamp;
-  if (a.chainId !== b.chainId) return a.chainId > b.chainId;
-  if (a.blockNumber !== b.blockNumber) return a.blockNumber > b.blockNumber;
-  if (a.transactionIndex !== b.transactionIndex)
-    return a.transactionIndex > b.transactionIndex;
-  if (a.eventType !== b.eventType) return a.eventType > b.eventType;
-  if (a.eventIndex !== b.eventIndex) return a.eventIndex > b.eventIndex;
-  // checkpoints are equal
-  return false;
-};
+export const isCheckpointGreaterThan = (a: Checkpoint, b: Checkpoint) =>
+  encodeCheckpoint(a) > encodeCheckpoint(b);
 
 /**
  * Returns true if checkpoint a is greater than or equal to checkpoint b.
@@ -156,9 +138,7 @@ export const isCheckpointGreaterThan = (a: Checkpoint, b: Checkpoint) => {
 export const isCheckpointGreaterThanOrEqualTo = (
   a: Checkpoint,
   b: Checkpoint,
-) => {
-  return isCheckpointGreaterThan(a, b) || isCheckpointEqual(a, b);
-};
+) => encodeCheckpoint(a) >= encodeCheckpoint(b);
 
 export const checkpointMax = (...checkpoints: Checkpoint[]) =>
   checkpoints.reduce((max, checkpoint) => {
