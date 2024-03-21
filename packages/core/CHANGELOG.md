@@ -1,5 +1,18 @@
 # @ponder/core
 
+## 0.3.5
+
+### Patch Changes
+
+- [#718](https://github.com/ponder-sh/ponder/pull/718) [`bc5e0165c825967e04f6fa3f7a48f53002364c4c`](https://github.com/ponder-sh/ponder/commit/bc5e0165c825967e04f6fa3f7a48f53002364c4c) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed hot reloading bugs. Now, the dev server shuts down the previous instance entirely before starting the new one. This should eliminate warnings and errors regarding use of stale database resources, and ensure that the dev server responds as expected to `SIGINT` (keyboard ctrl+c).
+
+- [#730](https://github.com/ponder-sh/ponder/pull/730) [`2deab640fa5979aa4bab6123a4f7fb7ed2059bec`](https://github.com/ponder-sh/ponder/commit/2deab640fa5979aa4bab6123a4f7fb7ed2059bec) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated block finality for Ethereum and Polygon, fixing some known errors with large reorgs being detected.
+
+- [#718](https://github.com/ponder-sh/ponder/pull/718) [`bc5e0165c825967e04f6fa3f7a48f53002364c4c`](https://github.com/ponder-sh/ponder/commit/bc5e0165c825967e04f6fa3f7a48f53002364c4c) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the process would sometimes not exit when it encountered a fatal error. Now, if there is a fatal error, the process will attempt a graceful shutdown and then exit. If the graceful shutdown does not finish within 5 seconds, the process will forcefully exit with code 1.
+
+- Updated dependencies [[`464a98f1500815739a3384e6b34eb05aaf0c0253`](https://github.com/ponder-sh/ponder/commit/464a98f1500815739a3384e6b34eb05aaf0c0253)]:
+  - @ponder/utils@0.1.2
+
 ## 0.3.4
 
 ### Patch Changes
