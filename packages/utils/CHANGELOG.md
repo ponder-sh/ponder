@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.1.2
+
+### Patch Changes
+
+- [`464a98f1500815739a3384e6b34eb05aaf0c0253`](https://github.com/ponder-sh/ponder/commit/464a98f1500815739a3384e6b34eb05aaf0c0253) Thanks [@kyscott18](https://github.com/kyscott18)! - Added several more chain providers to getLogRetryRanges.
+
 ## 0.1.1
 
 ### Patch Changes
