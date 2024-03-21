@@ -1,7 +1,6 @@
 import type { Server } from "node:http";
 import { createServer } from "node:http";
 import type { Common } from "@/common/common.js";
-import type { DatabaseService } from "@/database/service.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import cors from "cors";
@@ -17,7 +16,7 @@ export class ServerService {
 
   private common: Common;
   private indexingStore: IndexingStore;
-  private database: DatabaseService;
+  private isHealthy = false;
 
   private port: number;
   private terminate?: () => Promise<void>;
@@ -26,15 +25,12 @@ export class ServerService {
   constructor({
     common,
     indexingStore,
-    database,
   }: {
     common: Common;
     indexingStore: IndexingStore;
-    database: DatabaseService;
   }) {
     this.common = common;
     this.indexingStore = indexingStore;
-    this.database = database;
     this.app = express();
 
     // This gets updated to the resolved port if the requested port is in use.
@@ -58,6 +54,10 @@ export class ServerService {
       "/",
       this.handleGraphql({ shouldWaitForHistoricalSync: false }),
     );
+  }
+
+  setIsHealthy(isHealthy: boolean) {
+    this.isHealthy = isHealthy;
   }
 
   async start() {
@@ -133,7 +133,7 @@ export class ServerService {
 
   private handleHealthGet(): Handler {
     return (_, res) => {
-      if (this.database.isPublished) {
+      if (this.isHealthy) {
         return res.status(200).send();
       }
 
@@ -164,7 +164,7 @@ export class ServerService {
 
       // While waiting for historical indexing to complete, we want to respond back
       // with an error to prevent the requester from accepting incomplete data.
-      if (shouldWaitForHistoricalSync && !this.database.isPublished) {
+      if (shouldWaitForHistoricalSync && !this.isHealthy) {
         // Respond back with a similar runtime query error as the GraphQL package.
         // https://github.com/graphql/express-graphql/blob/3fab4b1e016cd27655f3b013f65a6b1344520d01/src/index.ts#L397-L400
         const errors = [

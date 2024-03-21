@@ -70,7 +70,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   tableAccess?: TableAccess;
 
   functionMetadata: FunctionMetadata[] = undefined!;
-  isPublished = false;
 
   constructor({
     common,
@@ -551,8 +550,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           .execute();
       });
     });
-
-    this.isPublished = true;
   }
 
   private async dropStaleInstanceSchemas() {

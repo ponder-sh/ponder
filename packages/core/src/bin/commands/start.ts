@@ -14,7 +14,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
   const logger = new LoggerService({
-    level: "silent",
+    level: options.logLevel,
     dir: options.logDir,
   });
 

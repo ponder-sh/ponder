@@ -93,10 +93,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     tablePrefix: "_raw_",
   });
 
-  const serverService = new ServerService({ common, indexingStore, database });
+  const serverService = new ServerService({ common, indexingStore });
   serverService.setup();
   await serverService.start();
   serverService.reloadGraphqlSchema({ graphqlSchema });
+  serverService.setIsHealthy(true);
 
   cleanupReloadable = async () => {
     await serverService.kill();

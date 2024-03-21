@@ -1198,7 +1198,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     const cache = formatPercentage(Math.max(numerator / denominator, 0));
     this.common.logger.info({
       service: "indexing",
-      msg: `Started indexing ${state.contractName}:${state.eventName} with ${cache} cached.`,
+      msg: `Started indexing ${state.contractName}:${state.eventName} with ${cache} cached`,
     });
   };
 

@@ -55,7 +55,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   tableAccess?: TableAccess;
 
   functionMetadata: FunctionMetadata[] = undefined!;
-  isPublished = false;
 
   constructor({
     common,
@@ -417,7 +416,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
   async publish() {
     return this.wrap({ method: "publish" }, async () => {
-      this.isPublished = true;
+      // no-op
     });
   }
 

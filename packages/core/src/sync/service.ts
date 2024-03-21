@@ -182,6 +182,11 @@ export class SyncService extends Emittery<SyncServiceEvents> {
       error.stack = undefined;
       this.emit("fatal", error);
     }
+
+    // The realtime service emits a finality checkpoint during setup.
+    // By this line, the overall finality checkpoint will be set to the
+    // minimum across all network finality checkpoints.
+    return this.finalityCheckpoint;
   }
 
   async kill() {

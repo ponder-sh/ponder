@@ -13,6 +13,7 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { SyncService } from "@/sync/service.js";
+import { isCheckpointGreaterThanOrEqualTo } from "@/utils/checkpoint.js";
 
 /**
  * Starts the server, sync, and indexing services for the specified build.
@@ -76,7 +77,7 @@ export async function run({
     await syncStore.migrateUp();
   }
 
-  const serverService = new ServerService({ common, indexingStore, database });
+  const serverService = new ServerService({ common, indexingStore });
   serverService.setup();
   await serverService.start();
   serverService.reloadGraphqlSchema({ graphqlSchema });
@@ -107,26 +108,19 @@ export async function run({
 
   indexingService.on("error", onReloadableError);
 
-  indexingService.onSerial("eventsProcessed", async ({ toCheckpoint }) => {
-    if (database.isPublished) return;
-    // If a batch of events are processed AND the historical sync is complete AND
-    // the new toTimestamp is greater than the historical sync completion timestamp,
-    // historical event processing is complete, and the server should begin responding as healthy.
+  const finalizedCheckpoint = await syncService.start();
 
-    if (
-      syncService.isHistoricalSyncComplete &&
-      toCheckpoint.blockTimestamp >=
-        syncService.finalityCheckpoint.blockTimestamp
-    ) {
+  let isHealthy = false;
+  indexingService.onSerial("eventsProcessed", async ({ toCheckpoint }) => {
+    if (isHealthy) return;
+
+    if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
+      isHealthy = true;
       await database.publish();
-      common.logger.info({
-        service: "server",
-        msg: "Started responding as healthy",
-      });
+      serverService.setIsHealthy(true);
+      common.logger.info({ service: "server", msg: "Responding as healthy" });
     }
   });
-
-  await syncService.start();
 
   await indexingService.start({
     indexingFunctions,
