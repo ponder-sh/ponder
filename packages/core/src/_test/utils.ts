@@ -1,3 +1,4 @@
+import { type AddressInfo, createServer } from "node:net";
 import { buildConfig } from "@/build/config/config.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type {
@@ -264,19 +265,6 @@ export const getEventsErc20 = async (
 };
 
 /**
- * Returns a promise that resolves when events are processed up to a given block.
- */
-export const onAllEventsIndexed = (ponder: Ponder, blockNumber: number) => {
-  return new Promise<void>((resolve) => {
-    ponder.indexingService.on("eventsProcessed", async ({ toCheckpoint }) => {
-      if (toCheckpoint.blockNumber >= blockNumber) {
-        resolve();
-      }
-    });
-  });
-};
-
-/**
  * Returns simple function IDs
  */
 export const getFunctionIds = (
@@ -306,3 +294,44 @@ export const getTableIds = (schema: Schema): TableIds => {
 
   return tableIds;
 };
+
+export function getFreePort(): Promise<number> {
+  return new Promise((res) => {
+    const srv = createServer();
+    srv.listen(0, () => {
+      const port = (srv.address() as AddressInfo).port;
+      srv.close(() => res(port));
+    });
+  });
+}
+
+export async function waitForHealthy(port: number) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      reject(new Error("Timed out while waiting for app to become healthy."));
+    }, 5_000);
+    const interval = setInterval(async () => {
+      const response = await fetch(`http://localhost:${port}/health`);
+      if (response.status === 200) {
+        clearTimeout(timeout);
+        clearInterval(interval);
+        resolve(undefined);
+      }
+    }, 20);
+  });
+}
+
+export async function postGraphql(port: number, query: string) {
+  const response = await fetch(`http://localhost:${port}/graphql`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: `query { ${query} }` }),
+  });
+  return response;
+}
+
+export async function getMetrics(port: number) {
+  const response = await fetch(`http://localhost:${port}/metrics`);
+  return await response.text();
+}

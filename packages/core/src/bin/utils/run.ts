@@ -77,7 +77,7 @@ export async function run({
   }
 
   const serverService = new ServerService({ common, indexingStore, database });
-  serverService.setup({ registerDevRoutes: true });
+  serverService.setup();
   await serverService.start();
   serverService.reloadGraphqlSchema({ graphqlSchema });
 

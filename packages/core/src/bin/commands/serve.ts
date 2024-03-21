@@ -46,21 +46,23 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const cleanup = async () => {
     await cleanupReloadable();
-    await buildService.kill();
     await telemetry.kill();
   };
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  // Build and load user code once on startup.
   const initialResult = await buildService.initialLoad();
+  // Once we have the initial build, we can kill the build service.
+  await buildService.kill();
+
   if (initialResult.error) {
     logger.error({
       service: "process",
       msg: "Failed initial build with error:",
       error: initialResult.error,
     });
-    return await shutdown("Failed intial build");
+    await shutdown("Failed intial build");
+    return cleanup;
   }
 
   telemetry.record({
@@ -75,7 +77,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const { databaseConfig, schema, graphqlSchema } = initialResult.build;
 
   if (databaseConfig.kind === "sqlite") {
-    return await shutdown("SQLite is not supported in production mode");
+    await shutdown("The 'ponder serve' command does not support SQLite");
+    return cleanup;
   }
 
   const { poolConfig } = databaseConfig;
@@ -91,13 +94,14 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const serverService = new ServerService({ common, indexingStore, database });
-  serverService.setup({ registerDevRoutes: true });
+  serverService.setup();
   await serverService.start();
   serverService.reloadGraphqlSchema({ graphqlSchema });
 
   cleanupReloadable = async () => {
     await serverService.kill();
     indexingStore.kill();
-    // await database.kill();
   };
+
+  return cleanup;
 }

@@ -77,7 +77,7 @@ export const setup = async ({
     indexingStore,
     database,
   });
-  service.setup({ registerDevRoutes: options.registerDevRoutes });
+  service.setup();
   await service.start();
   service.reloadGraphqlSchema({ graphqlSchema });
 
@@ -1563,75 +1563,6 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
     id: "0",
     derivedTestEntity: [],
   });
-
-  await service.kill();
-  await cleanup();
-});
-
-// Admin routes.
-test("/admin/reload emits chainIds in reload event", async (context) => {
-  const { service, cleanup } = await setup({
-    context,
-    options: {
-      isDatabasePublished: false,
-      registerDevRoutes: true,
-    },
-  });
-
-  const emitSpy = vi.spyOn(service, "emit");
-
-  await request(service.app)
-    .post("/admin/reload")
-    .query({ chainId: "1" })
-    .expect(200);
-
-  expect(emitSpy).toHaveBeenCalledWith("admin:reload", {
-    chainId: 1,
-  });
-
-  await service.kill();
-  await cleanup();
-});
-
-test("/admin/reload fails with non-integer chain IDs", async (context) => {
-  const { service, cleanup } = await setup({
-    context,
-    options: {
-      isDatabasePublished: false,
-      registerDevRoutes: true,
-    },
-  });
-
-  const emitSpy = vi.spyOn(service, "emit");
-
-  await request(service.app)
-    .post("/admin/reload")
-    .query({ chainId: "badchainid" })
-    .expect(400);
-
-  expect(emitSpy).not.toHaveBeenCalled();
-
-  await service.kill();
-  await cleanup();
-});
-
-test("/admin/reload does not exist if dev routes aren't registered", async (context) => {
-  const { service, cleanup } = await setup({
-    context,
-    options: {
-      isDatabasePublished: false,
-      registerDevRoutes: false,
-    },
-  });
-
-  const emitSpy = vi.spyOn(service, "emit");
-
-  await request(service.app)
-    .post("/admin/reload")
-    .query({ chainId: "badchainid" })
-    .expect(404);
-
-  expect(emitSpy).not.toHaveBeenCalled();
 
   await service.kill();
   await cleanup();
