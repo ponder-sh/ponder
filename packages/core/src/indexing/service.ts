@@ -515,10 +515,21 @@ export class IndexingService extends Emittery<IndexingEvents> {
       ) {
         // Case 1
         const taskToEnqueue = tasks.shift()!;
+
+        this.common.logger.trace({
+          service: "indexing",
+          msg: `Enqueing ${key} event (chainId=${taskToEnqueue.data.checkpoint.chainId}, block=${taskToEnqueue.data.checkpoint.blockNumber}, logIndex=${taskToEnqueue.data.checkpoint.logIndex})`,
+        });
+
         this.queue!.addTask(taskToEnqueue);
       } else if (state.parents.length === 0 && !state.isSelfDependent) {
         // Case 2
         for (const task of tasks) {
+          this.common.logger.trace({
+            service: "indexing",
+            msg: `Enqueing ${key} event (chainId=${task.data.checkpoint.chainId}, block=${task.data.checkpoint.blockNumber}, logIndex=${task.data.checkpoint.logIndex})`,
+          });
+
           this.queue!.addTask(task);
         }
         state.loadedTasks = [];
@@ -539,6 +550,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
         ) {
           // Case 3
           const taskToEnqueue = tasks.shift()!;
+
+          this.common.logger.trace({
+            service: "indexing",
+            msg: `Enqueing ${key} event (chainId=${taskToEnqueue.data.checkpoint.chainId}, block=${taskToEnqueue.data.checkpoint.blockNumber}, logIndex=${taskToEnqueue.data.checkpoint.logIndex})`,
+          });
+
           this.queue!.addTask(taskToEnqueue);
         } else if (!state.isSelfDependent) {
           // Case 4
@@ -554,12 +571,22 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           if (maxCheckpointIndex === -1) {
             for (const task of tasks) {
+              this.common.logger.trace({
+                service: "indexing",
+                msg: `Enqueing ${key} event (chainId=${task.data.checkpoint.chainId}, block=${task.data.checkpoint.blockNumber}, logIndex=${task.data.checkpoint.logIndex})`,
+              });
+
               this.queue!.addTask(task);
             }
             state.loadedTasks = [];
           } else {
             const tasksToEnqueue = tasks.splice(0, maxCheckpointIndex);
             for (const task of tasksToEnqueue) {
+              this.common.logger.trace({
+                service: "indexing",
+                msg: `Enqueing ${key} event (chainId=${task.data.checkpoint.chainId}, block=${task.data.checkpoint.blockNumber}, logIndex=${task.data.checkpoint.logIndex})`,
+              });
+
               this.queue!.addTask(task);
             }
           }
@@ -582,7 +609,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       try {
         this.common.logger.trace({
           service: "indexing",
-          msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
+          msg: `Started indexing function (event="${fullEventName}", chainId=${data.checkpoint.chainId})`,
         });
 
         const endClock = startClock();
@@ -607,7 +634,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         this.common.logger.trace({
           service: "indexing",
-          msg: `Completed indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
+          msg: `Completed indexing function (event="${fullEventName}", chainId=${data.checkpoint.chainId})`,
         });
 
         this.common.metrics.ponder_indexing_completed_events.inc(metricLabels);
@@ -631,7 +658,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           this.common.logger.error({
             service: "indexing",
-            msg: `Error while processing "setup" event: ${error.message}`,
+            msg: `Error while processing "setup" event at chainId=${data.checkpoint.chainId}: ${error.message}`,
             error,
           });
 
@@ -640,7 +667,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         } else {
           this.common.logger.warn({
             service: "indexing",
-            msg: `Indexing function failed, retrying... (event=${fullEventName}, error=${error.name}: ${error.message})`,
+            msg: `Indexing function failed, retrying... (event=${fullEventName}, chainId=${data.checkpoint.chainId}, error=${error.name}: ${error.message})`,
           });
           await this.indexingStore.revert({
             checkpoint: data.checkpoint,
@@ -663,7 +690,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       try {
         this.common.logger.trace({
           service: "indexing",
-          msg: `Started indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
+          msg: `Started indexing function (event="${fullEventName}", chainId=${data.checkpoint.chainId}, block=${data.checkpoint.blockNumber}, logIndex=${data.checkpoint.logIndex})`,
         });
 
         const endClock = startClock();
@@ -725,7 +752,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         this.common.logger.trace({
           service: "indexing",
-          msg: `Completed indexing function (event="${fullEventName}", block=${data.checkpoint.blockNumber})`,
+          msg: `Completed indexing function (event="${fullEventName}", chainId=${data.checkpoint.chainId}, block=${data.checkpoint.blockNumber}, logIndex=${data.checkpoint.logIndex})`,
         });
 
         this.updateCompletedSeconds(fullEventName);
@@ -759,7 +786,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           this.common.logger.error({
             service: "indexing",
-            msg: `Error while processing "${fullEventName}" event at block ${data.checkpoint.blockNumber}:`,
+            msg: `Error while processing "${fullEventName}" event at chainId=${data.checkpoint.chainId}, block=${data.checkpoint.blockNumber}, logIndex=${data.checkpoint.logIndex}:`,
             error,
           });
 
@@ -768,9 +795,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
         } else {
           this.common.logger.warn({
             service: "indexing",
-            msg: `Indexing function failed, retrying... (event=${fullEventName}, block=${
-              data.checkpoint.blockNumber
-            }, error=${`${error.name}: ${error.message}`})`,
+            msg: `Indexing function failed, retrying... (event=${fullEventName}, chainId=${
+              data.checkpoint.chainId
+            }, block=${data.checkpoint.blockNumber}, logIndex=${
+              data.checkpoint.logIndex
+            } error=${`${error.name}: ${error.message}`})`,
           });
           await this.indexingStore.revert({
             checkpoint: data.checkpoint,
