@@ -1,6 +1,6 @@
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
+import { NonRetryableError } from "@/common/errors.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import { NonRetryableError } from "@/errors/base.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
@@ -46,6 +46,8 @@ export class SqliteSyncStore implements SyncStore {
   kind = "sqlite" as const;
 
   private common: Common;
+  private isKilled = false;
+
   db: Kysely<SyncStoreTables>;
 
   constructor({
@@ -62,6 +64,10 @@ export class SqliteSyncStore implements SyncStore {
       },
     });
   }
+
+  kill = () => {
+    this.isKilled = true;
+  };
 
   migrateUp = async () => {
     return this.wrap({ method: "migrateUp" }, async () => {
@@ -1271,7 +1277,7 @@ export class SqliteSyncStore implements SyncStore {
         );
         return result;
       } catch (_error) {
-        if (_error instanceof NonRetryableError) {
+        if (this.isKilled || _error instanceof NonRetryableError) {
           throw _error;
         }
 

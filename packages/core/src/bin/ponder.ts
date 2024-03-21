@@ -2,21 +2,17 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
 import { cac } from "cac";
-import dotenv from "dotenv";
-import pc from "picocolors";
-
-import { Ponder } from "@/Ponder.js";
-import { buildOptions } from "@/config/options.js";
+import { codegen } from "./commands/codegen.js";
+import { dev } from "./commands/dev.js";
+import { serve } from "./commands/serve.js";
+import { start } from "./commands/start.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = resolve(__dirname, "../../package.json");
 const packageJson = JSON.parse(
   readFileSync(packageJsonPath, { encoding: "utf8" }),
 );
-
-dotenv.config({ path: ".env.local" });
 
 /**
  * CLI options for `ponder` commands. Note that we don't always use CAC's built-in
@@ -68,15 +64,7 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    validateNodeVersion();
-
-    const options = buildOptions({ cliOptions });
-    const devOptions = { ...options, uiEnabled: true };
-
-    const ponder = new Ponder({ options: devOptions });
-    registerKilledProcessListener(() => ponder.kill());
-
-    await ponder.dev();
+    await dev({ cliOptions });
   });
 
 cli
@@ -100,15 +88,7 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    validateNodeVersion();
-
-    const options = buildOptions({ cliOptions });
-    const startOptions = { ...options, uiEnabled: false };
-
-    const ponder = new Ponder({ options: startOptions });
-    registerKilledProcessListener(() => ponder.kill());
-
-    await ponder.start();
+    await start({ cliOptions });
   });
 
 cli
@@ -132,15 +112,7 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    validateNodeVersion();
-
-    const options = buildOptions({ cliOptions });
-    const devOptions = { ...options, uiEnabled: true };
-
-    const ponder = new Ponder({ options: devOptions });
-    registerKilledProcessListener(() => ponder.kill());
-
-    await ponder.serve();
+    await serve({ cliOptions });
   });
 
 cli
@@ -148,54 +120,7 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    validateNodeVersion();
-
-    const options = buildOptions({ cliOptions });
-    const codegenOptions = {
-      ...options,
-      uiEnabled: false,
-      logLevel: "error" as const,
-    };
-
-    const ponder = new Ponder({ options: codegenOptions });
-    registerKilledProcessListener(() => ponder.kill());
-
-    await ponder.codegen();
+    await codegen({ cliOptions });
   });
 
 cli.parse();
-
-function registerKilledProcessListener(fn: () => Promise<unknown>) {
-  let isKillListenerInProgress = false;
-
-  const listener = async () => {
-    if (isKillListenerInProgress) return;
-    isKillListenerInProgress = true;
-    await fn();
-    process.exit(0);
-  };
-
-  process.on("SIGINT", listener); // CTRL+C
-  process.on("SIGQUIT", listener); // Keyboard quit
-  process.on("SIGTERM", listener); // `kill` command
-}
-
-/**
- * Checks the user's node version at run time. Used in combinatatin with
- * package.json "engine" field to ensure proper use.
- */
-function validateNodeVersion() {
-  const _nodeVersion = process.version.split(".");
-  const nodeVersion = [
-    Number(_nodeVersion[0].slice(1)),
-    Number(_nodeVersion[1]),
-    Number(_nodeVersion[2]),
-  ];
-  if (nodeVersion[0] < 18 || (nodeVersion[0] === 18 && nodeVersion[1] < 14)) {
-    console.log(
-      `Ponder requires ${pc.cyan("Node >=18")}, detected ${process.version}.`,
-    );
-    console.log("");
-    process.exit(1);
-  }
-}

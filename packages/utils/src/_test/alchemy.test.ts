@@ -55,6 +55,7 @@ test("alchemy block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
+  expect(JSON.stringify(error)).includes("this block range should work");
 
   const retry = getLogsRetryHelper({
     params,

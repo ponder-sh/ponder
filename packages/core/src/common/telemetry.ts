@@ -11,8 +11,8 @@ import PQueue from "p-queue";
 import pc from "picocolors";
 import process from "process";
 
-import type { Options } from "@/config/options.js";
-import { getGitRemoteUrl } from "@/telemetry/remote.js";
+import type { Options } from "@/common/options.js";
+import { getGitRemoteUrl } from "@/utils/git.js";
 import { wait } from "@/utils/wait.js";
 
 type TelemetryEvent = {

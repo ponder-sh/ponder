@@ -39,6 +39,9 @@ test("1rpc block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(InvalidInputRpcError);
+  expect(JSON.stringify(error)).includes(
+    "eth_getLogs is limited to a 10000 blocks range",
+  );
 
   const retry = getLogsRetryHelper({
     params,

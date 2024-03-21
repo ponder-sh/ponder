@@ -1,6 +1,6 @@
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
+import { NonRetryableError } from "@/common/errors.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import { NonRetryableError } from "@/errors/base.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
@@ -43,9 +43,10 @@ import { migrationProvider, moveLegacyTables } from "./migrations.js";
 
 export class PostgresSyncStore implements SyncStore {
   kind = "postgres" as const;
-
   private common: Common;
   private schemaName: string;
+  private isKilled = false;
+
   db: Kysely<SyncStoreTables>;
 
   constructor({
@@ -64,6 +65,10 @@ export class PostgresSyncStore implements SyncStore {
       },
     }).withPlugin(new WithSchemaPlugin(schemaName));
   }
+
+  kill = () => {
+    this.isKilled = true;
+  };
 
   migrateUp = async () => {
     return this.wrap({ method: "migrateUp" }, async () => {
@@ -1227,7 +1232,7 @@ export class PostgresSyncStore implements SyncStore {
         );
         return result;
       } catch (_error) {
-        if (_error instanceof NonRetryableError) {
+        if (this.isKilled || _error instanceof NonRetryableError) {
           throw _error;
         }
 

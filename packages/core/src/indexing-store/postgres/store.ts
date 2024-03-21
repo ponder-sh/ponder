@@ -1,5 +1,5 @@
-import type { Common } from "@/Ponder.js";
-import { NonRetryableError, StoreError } from "@/errors/base.js";
+import type { Common } from "@/common/common.js";
+import { NonRetryableError, StoreError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";
@@ -27,6 +27,7 @@ const MAX_LIMIT = 1_000 as const;
 export class PostgresIndexingStore implements IndexingStore {
   kind = "postgres" as const;
   private common: Common;
+  private isKilled = false;
 
   db: Kysely<any>;
   schema: Schema;
@@ -62,6 +63,10 @@ export class PostgresIndexingStore implements IndexingStore {
       ],
     });
   }
+
+  kill = () => {
+    this.isKilled = true;
+  };
 
   /**
    * Revert any changes that occurred during or after the specified checkpoint.
@@ -764,7 +769,7 @@ export class PostgresIndexingStore implements IndexingStore {
         );
         return result;
       } catch (_error) {
-        if (_error instanceof NonRetryableError) {
+        if (this.isKilled || _error instanceof NonRetryableError) {
           throw _error;
         }
 

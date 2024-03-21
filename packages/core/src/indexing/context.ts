@@ -1,12 +1,11 @@
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
-import type { SyncStore } from "@/sync-store/store.js";
+import type { SyncService } from "@/sync/service.js";
 import type { DatabaseModel, StoreMethod } from "@/types/model.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   type Abi,
   type Address,
@@ -14,8 +13,8 @@ import {
   checksumAddress,
   createClient,
 } from "viem";
+import { mainnet } from "viem/chains";
 import { ponderActions } from "./ponderActions.js";
-import { ponderTransport } from "./transport.js";
 
 export type Context = {
   network: { chainId: number; name: string };
@@ -49,23 +48,16 @@ export const buildNetwork = ({ networks }: { networks: Network[] }) => {
 export const buildClient =
   ({
     networks,
-    requestQueues,
-    syncStore,
-  }: {
-    networks: Network[];
-    requestQueues: RequestQueue[];
-    syncStore: SyncStore;
-  }) =>
+    syncService,
+  }: { networks: Network[]; syncService: SyncService }) =>
   (checkpoint: Checkpoint) => {
-    const index = networks.findIndex((n) => n.chainId === checkpoint.chainId);
+    const transport = syncService.getCachedTransport(checkpoint.chainId);
+    const chain =
+      networks.find((n) => n.chainId === checkpoint.chainId)?.chain ?? mainnet;
 
-    return createClient({
-      transport: ponderTransport({
-        requestQueue: requestQueues[index],
-        syncStore,
-      }),
-      chain: networks[index].chain,
-    }).extend(ponderActions(BigInt(checkpoint.blockNumber)));
+    return createClient({ transport, chain }).extend(
+      ponderActions(BigInt(checkpoint.blockNumber)),
+    ) as Client;
   };
 
 export const buildDb =

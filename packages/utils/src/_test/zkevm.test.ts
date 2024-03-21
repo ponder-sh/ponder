@@ -8,7 +8,7 @@ const request = getRequest("https://zkevm-rpc.com");
 const fromBlock = 950_000n;
 const maxBlockRange = 10_000n;
 
-test("zksync success", async () => {
+test("zkevm success", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
@@ -23,7 +23,7 @@ test("zksync success", async () => {
   expect(logs).toHaveLength(35);
 });
 
-test("zksync block range", async () => {
+test("zkevm block range", async () => {
   const params: Params = [
     {
       address: "0xea034fb02eb1808c2cc3adbc15f447b93cbe08e1",
@@ -38,6 +38,9 @@ test("zksync block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
+  expect(JSON.stringify(error)).includes(
+    "logs are limited to a 10000 block range",
+  );
 
   const retry = getLogsRetryHelper({
     params,
