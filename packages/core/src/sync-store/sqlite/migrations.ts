@@ -489,7 +489,14 @@ const migrations: Record<string, Migration> = {
       );
 
       // sanity check our checkpoint encoding on the first 10 rows of the table
-      const checkRes = await db.executeQuery(
+      const checkRes = await db.executeQuery<{
+        timestamp: string;
+        chainId: number;
+        number: string;
+        transactionIndex: number;
+        logIndex: number;
+        checkpoint: string;
+      }>(
         sql`
           SELECT blocks.timestamp, blocks.chainId, blocks.number, logs.transactionIndex, logs.logIndex, logs.checkpoint
           FROM logs
@@ -498,27 +505,19 @@ const migrations: Record<string, Migration> = {
         `.compile(db),
       );
 
-      for (const i of checkRes.rows) {
-        const row = i as any;
-        const timestamp: string = row.timestamp;
-        const chainId: number = row.chainId;
-        const blockNumber: string = row.number;
-        const transactionIndex: number = row.transactionIndex;
-        const logIndex: number = row.logIndex;
-        const checkpoint: string = row.checkpoint;
-
+      for (const row of checkRes.rows) {
         const expected = encodeCheckpoint({
-          blockTimestamp: Number(decodeToBigInt(timestamp)),
-          chainId,
-          blockNumber: Number(decodeToBigInt(blockNumber)),
-          transactionIndex,
+          blockTimestamp: Number(decodeToBigInt(row.timestamp)),
+          chainId: row.chainId,
+          blockNumber: Number(decodeToBigInt(row.number)),
+          transactionIndex: row.transactionIndex,
           eventType: eventTypes.logs,
-          eventIndex: logIndex,
+          eventIndex: row.logIndex,
         });
 
-        if (checkpoint.toString() !== expected) {
+        if (row.checkpoint.toString() !== expected) {
           throw new Error(
-            `data migration failed: expected new checkpoint column to have value ${expected} but got ${checkpoint}`,
+            `data migration failed: expected new checkpoint column to have value ${expected} but got ${row.checkpoint}`,
           );
         }
       }

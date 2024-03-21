@@ -483,7 +483,14 @@ const migrations: Record<string, Migration> = {
       );
 
       // sanity check our checkpoint encoding on the first 10 rows of the table
-      const checkRes = await db.executeQuery(
+      const checkRes = await db.executeQuery<{
+        timestamp: number;
+        chainId: number;
+        number: number;
+        transactionIndex: number;
+        logIndex: number;
+        checkpoint: bigint;
+      }>(
         sql`
           SELECT blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex", logs.checkpoint
           FROM ponder_sync.logs logs
@@ -492,27 +499,19 @@ const migrations: Record<string, Migration> = {
         `.compile(db),
       );
 
-      for (const i of checkRes.rows) {
-        const row = i as any;
-        const timestamp: number = row.timestamp;
-        const chainId: number = row.chainId;
-        const blockNumber: number = row.number;
-        const transactionIndex: number = row.transactionIndex;
-        const logIndex: number = row.logIndex;
-        const checkpoint: bigint = row.checkpoint;
-
+      for (const row of checkRes.rows) {
         const expected = encodeCheckpoint({
-          blockTimestamp: timestamp,
-          chainId,
-          blockNumber,
-          transactionIndex,
+          blockTimestamp: row.timestamp,
+          chainId: row.chainId,
+          blockNumber: row.number,
+          transactionIndex: row.transactionIndex,
           eventType: eventTypes.logs,
-          eventIndex: logIndex,
+          eventIndex: row.logIndex,
         });
 
-        if (checkpoint.toString() !== expected) {
+        if (row.checkpoint.toString() !== expected) {
           throw new Error(
-            `data migration failed: expected new checkpoint column to have value ${expected} but got ${checkpoint}`,
+            `data migration failed: expected new checkpoint column to have value ${expected} but got ${row.checkpoint}`,
           );
         }
       }
