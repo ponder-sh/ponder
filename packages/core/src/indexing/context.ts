@@ -57,7 +57,7 @@ export const buildClient =
 
     return createClient({ transport, chain }).extend(
       ponderActions(BigInt(checkpoint.blockNumber)),
-    );
+    ) as Client;
   };
 
 export const buildDb =
