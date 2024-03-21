@@ -49,7 +49,7 @@ pg.Client.prototype.query = function query(
 export function createPool(config: PoolConfig) {
   return new pg.Pool({
     // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
-    statement_timeout: 100, // 100ms (for test)
+    statement_timeout: 2 * 60 * 1000, // 2 minutes
     ...config,
   });
 }
