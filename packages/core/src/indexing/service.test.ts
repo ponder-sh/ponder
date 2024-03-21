@@ -402,6 +402,12 @@ test("processEvents() orders tasks with self reliance", async (context) => {
 
   expect(service.queue?.size).toBe(1);
 
+  service.processEvents();
+
+  await service.onIdle();
+
+  expect(transferIndexingFunction).toHaveBeenCalledTimes(2);
+
   await service.kill();
   await service.onIdle();
 
