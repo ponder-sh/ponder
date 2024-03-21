@@ -22,7 +22,6 @@ export interface BaseDatabaseService {
   kind: "sqlite" | "postgres";
 
   functionMetadata: FunctionMetadata[];
-  isPublished: boolean;
 
   setup({
     schema,

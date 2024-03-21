@@ -1,7 +1,6 @@
+import type { Options } from "@/common/options.js";
 import { http, getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
-
-import type { Options } from "@/config/options.js";
 import { type Config, createConfig } from "../../config/config.js";
 import { buildConfig, safeBuildConfig } from "./config.js";
 

@@ -1,5 +1,5 @@
+import type { MetricsService } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
-import type { MetricsService } from "@/metrics/service.js";
 import { type Queue, createQueue } from "@ponder/common";
 import { type EIP1193Parameters, type PublicRpcSchema } from "viem";
 import { startClock } from "./timer.js";

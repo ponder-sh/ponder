@@ -1,4 +1,3 @@
-import type { Common } from "@/Ponder.js";
 import {
   type FunctionIds,
   HASH_VERSION,
@@ -9,7 +8,8 @@ import {
   getTableAccessInverse,
   isWriteStoreMethod,
 } from "@/build/static/getTableAccess.js";
-import { NonRetryableError } from "@/errors/base.js";
+import type { Common } from "@/common/common.js";
+import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
@@ -49,6 +49,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
   private common: Common;
   private poolConfig: PoolConfig;
+
   /**
    * Small pool used by this service for cache management, zero-downtime logic,
    * and to cancel in-flight queries made by other pools on kill
@@ -69,7 +70,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   tableAccess?: TableAccess;
 
   functionMetadata: FunctionMetadata[] = undefined!;
-  isPublished = false;
 
   constructor({
     common,
@@ -550,8 +550,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           .execute();
       });
     });
-
-    this.isPublished = true;
   }
 
   private async dropStaleInstanceSchemas() {

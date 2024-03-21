@@ -1,12 +1,15 @@
-import crypto, { randomUUID } from "crypto";
+import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "node:path";
 import os from "os";
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
+import { LoggerService } from "@/common/logger.js";
+import { MetricsService } from "@/common/metrics.js";
+import { buildOptions } from "@/common/options.js";
+import { TelemetryService } from "@/common/telemetry.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
-import { buildOptions } from "@/config/options.js";
 import type { Factory, LogFilter } from "@/config/sources.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService } from "@/database/service.js";
@@ -15,12 +18,9 @@ import { createSchema } from "@/index.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
-import { LoggerService } from "@/logger/service.js";
-import { MetricsService } from "@/metrics/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import { TelemetryService } from "@/telemetry/service.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import pg from "pg";
 import type { Address } from "viem";
@@ -77,26 +77,23 @@ export function setupContext(context: TestContext) {
  */
 export async function setupIsolatedDatabase(context: TestContext) {
   if (process.env.DATABASE_URL) {
+    const databaseName = `vitest_${process.env.VITEST_POOL_ID ?? 1}`;
+    const databaseUrl = new URL(process.env.DATABASE_URL);
+    databaseUrl.pathname = `/${databaseName}`;
+
+    const poolConfig = { connectionString: databaseUrl.toString() };
+
     const client = new pg.Client({
       connectionString: process.env.DATABASE_URL,
     });
-
     await client.connect();
-
-    const randomSuffix = crypto.randomBytes(10).toString("hex");
-    const databaseName = `vitest_${randomSuffix}`;
-    const databaseUrl = new URL(process.env.DATABASE_URL);
-    databaseUrl.pathname = `/${databaseName}`;
-    const poolConfig = { connectionString: databaseUrl.toString() };
-
+    await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
     await client.query(`CREATE DATABASE "${databaseName}"`);
+    await client.end();
 
     context.databaseConfig = { kind: "postgres", poolConfig };
 
-    return async () => {
-      await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
-      await client.end();
-    };
+    return async () => {};
   } else {
     const tempDir = path.join(os.tmpdir(), randomUUID());
     fs.mkdirSync(tempDir, { recursive: true });

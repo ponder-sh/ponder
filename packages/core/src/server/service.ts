@@ -1,30 +1,22 @@
 import type { Server } from "node:http";
 import { createServer } from "node:http";
-
-import { Emittery } from "@/utils/emittery.js";
+import type { Common } from "@/common/common.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
+import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import cors from "cors";
 import express, { type Handler } from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { GraphQLError, formatError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
-
-import type { Common } from "@/Ponder.js";
-import type { DatabaseService } from "@/database/service.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
-import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { buildLoaderCache } from "./graphql/loaders.js";
 
-type ServerEvents = {
-  "admin:reload": { chainId: number };
-};
-
-export class ServerService extends Emittery<ServerEvents> {
+export class ServerService {
   app: express.Express;
 
   private common: Common;
   private indexingStore: IndexingStore;
-  private database: DatabaseService;
+  private isHealthy = false;
 
   private port: number;
   private terminate?: () => Promise<void>;
@@ -33,24 +25,19 @@ export class ServerService extends Emittery<ServerEvents> {
   constructor({
     common,
     indexingStore,
-    database,
   }: {
     common: Common;
     indexingStore: IndexingStore;
-    database: DatabaseService;
   }) {
-    super();
-
     this.common = common;
     this.indexingStore = indexingStore;
-    this.database = database;
     this.app = express();
 
     // This gets updated to the resolved port if the requested port is in use.
     this.port = this.common.options.port;
   }
 
-  setup({ registerDevRoutes }: { registerDevRoutes: boolean }) {
+  setup() {
     // Middleware.
     this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
 
@@ -67,10 +54,10 @@ export class ServerService extends Emittery<ServerEvents> {
       "/",
       this.handleGraphql({ shouldWaitForHistoricalSync: false }),
     );
+  }
 
-    if (registerDevRoutes) {
-      this.app.post("/admin/reload", this.handleAdminReload());
-    }
+  setIsHealthy(isHealthy: boolean) {
+    this.isHealthy = isHealthy;
   }
 
   async start() {
@@ -146,7 +133,7 @@ export class ServerService extends Emittery<ServerEvents> {
 
   private handleHealthGet(): Handler {
     return (_, res) => {
-      if (this.database.isPublished) {
+      if (this.isHealthy) {
         return res.status(200).send();
       }
 
@@ -177,7 +164,7 @@ export class ServerService extends Emittery<ServerEvents> {
 
       // While waiting for historical indexing to complete, we want to respond back
       // with an error to prevent the requester from accepting incomplete data.
-      if (shouldWaitForHistoricalSync && !this.database.isPublished) {
+      if (shouldWaitForHistoricalSync && !this.isHealthy) {
         // Respond back with a similar runtime query error as the GraphQL package.
         // https://github.com/graphql/express-graphql/blob/3fab4b1e016cd27655f3b013f65a6b1344520d01/src/index.ts#L397-L400
         const errors = [
@@ -203,22 +190,6 @@ export class ServerService extends Emittery<ServerEvents> {
           return res.status(200).send();
         default:
           return next();
-      }
-    };
-  }
-
-  private handleAdminReload(): Handler {
-    return async (req, res) => {
-      try {
-        const chainId = parseInt(req.query.chainId as string, 10);
-        if (Number.isNaN(chainId)) {
-          res.status(400).end("chainId must exist and be a valid integer");
-          return;
-        }
-        this.emit("admin:reload", { chainId });
-        res.status(200).end();
-      } catch (error) {
-        res.status(500).end(error);
       }
     };
   }

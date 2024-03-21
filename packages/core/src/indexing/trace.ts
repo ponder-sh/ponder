@@ -1,9 +1,7 @@
 import { readFileSync } from "node:fs";
-
+import type { Options } from "@/common/options.js";
 import { codeFrameColumns } from "@babel/code-frame";
 import { type StackFrame, parse as parseStackTrace } from "stacktrace-parser";
-
-import type { Options } from "@/config/options.js";
 
 export const addUserStackTrace = (error: Error, options: Options) => {
   if (!error.stack) return;

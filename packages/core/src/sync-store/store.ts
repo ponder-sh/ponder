@@ -8,6 +8,8 @@ export interface SyncStore {
   kind: "sqlite" | "postgres";
   db: Kysely<any>;
 
+  kill(): void;
+
   migrateUp(): Promise<void>;
 
   /**

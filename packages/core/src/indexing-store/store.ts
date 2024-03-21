@@ -85,6 +85,8 @@ export interface IndexingStore {
   db: Kysely<any>;
   schema: Schema;
 
+  kill(): void;
+
   revert(options: { checkpoint: Checkpoint }): Promise<void>;
 
   findUnique(options: {

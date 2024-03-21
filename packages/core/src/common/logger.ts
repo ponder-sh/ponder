@@ -1,5 +1,4 @@
 import path from "node:path";
-
 import pc from "picocolors";
 import { type LevelWithSilent, type Logger, pino } from "pino";
 
@@ -64,7 +63,7 @@ export class LoggerService {
   fatal = (options: LogOptions & { error?: Error }) => {
     this.logger.fatal(options);
   };
-  error = (options: LogOptions & { error: Error; msg?: string }) => {
+  error = (options: LogOptions & { error?: Error }) => {
     this.logger.error(options);
   };
   warn = (options: LogOptions & { msg: string }) => {

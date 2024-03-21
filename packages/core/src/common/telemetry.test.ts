@@ -1,6 +1,6 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { TelemetryService } from "@/telemetry/service.js";
+import { TelemetryService } from "@/common/telemetry.js";
 
 const fetchSpy = vi.fn();
 

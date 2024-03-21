@@ -228,10 +228,7 @@ test("start() adds log filter events to sync store", async (context) => {
     ],
   });
 
-  const getEvents = await getEventsErc20(sources);
-  const { events: erc20Events } = getEvents({
-    toCheckpoint: maxCheckpoint,
-  });
+  const { events: erc20Events } = await getEventsErc20(sources, maxCheckpoint);
 
   expect(erc20Events).toMatchObject(events);
 
