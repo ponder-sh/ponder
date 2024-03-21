@@ -61,7 +61,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
       msg: "Failed initial build with error:",
       error: initialResult.error,
     });
-    await shutdown("Failed intial build");
+    await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
@@ -77,7 +77,10 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const { databaseConfig, schema, graphqlSchema } = initialResult.build;
 
   if (databaseConfig.kind === "sqlite") {
-    await shutdown("The 'ponder serve' command does not support SQLite");
+    await shutdown({
+      reason: "The 'ponder serve' command does not support SQLite",
+      code: 1,
+    });
     return cleanup;
   }
 

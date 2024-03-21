@@ -59,7 +59,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
       msg: "Failed initial build with error:",
       error: initialResult.error,
     });
-    await shutdown("Failed intial build");
+    await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
@@ -76,10 +76,10 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     build: initialResult.build,
     onFatalError: () => {
-      shutdown("Received fatal error");
+      shutdown({ reason: "Received fatal error", code: 1 });
     },
     onReloadableError: () => {
-      shutdown("Encountered indexing error");
+      shutdown({ reason: "Encountered indexing error", code: 1 });
     },
   });
 

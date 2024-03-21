@@ -70,7 +70,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       msg: "Failed initial build with error:",
       error: initialResult.error,
     });
-    await shutdown("Failed intial build");
+    await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
@@ -97,7 +97,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           common,
           build: result.build,
           onFatalError: () => {
-            shutdown("Received fatal error");
+            shutdown({ reason: "Received fatal error", code: 1 });
           },
           onReloadableError: (error) => {
             buildQueue.clear();

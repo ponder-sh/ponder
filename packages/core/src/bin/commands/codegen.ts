@@ -50,7 +50,8 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
       msg: "Failed schema build with error:",
       error: schemaResult.error,
     });
-    return await shutdown("Failed schema build");
+    await shutdown({ reason: "Failed schema build", code: 1 });
+    return;
   }
 
   runCodegen({ common, graphqlSchema: schemaResult.graphqlSchema });
@@ -58,5 +59,5 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   logger.info({ service: "codegen", msg: "Wrote ponder-env.d.ts" });
   logger.info({ service: "codegen", msg: "Wrote schema.graphql" });
 
-  shutdown();
+  await shutdown({ reason: "Success", code: 0 });
 }
