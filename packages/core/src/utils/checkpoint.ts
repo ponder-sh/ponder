@@ -29,9 +29,9 @@ export const encodeCheckpoint = (checkpoint: Checkpoint) => {
   const {
     blockTimestamp,
     chainId,
+    blockNumber,
     transactionIndex,
     eventType,
-    blockNumber,
     eventIndex,
   } = checkpoint;
 
