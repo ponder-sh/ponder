@@ -53,37 +53,21 @@ const graphqlSchema = buildGqlSchema(schema);
 
 export const setup = async ({
   context,
-  options = {
-    isDatabasePublished: true,
-    registerDevRoutes: false,
-  },
 }: {
   context: TestContext;
-  options?: {
-    isDatabasePublished: boolean;
-    registerDevRoutes: boolean;
-  };
 }) => {
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    {
-      schema,
-      tableIds: getTableIds(schema),
-    },
-  );
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+    tableIds: getTableIds(schema),
+  });
 
   const service = new ServerService({
     common: context.common,
     indexingStore,
-    database,
   });
   service.setup();
   await service.start();
   service.reloadGraphqlSchema({ graphqlSchema });
-
-  if (options.isDatabasePublished) {
-    database.isPublished = true;
-  }
 
   const gql = async (query: string) =>
     request(service.app)
@@ -115,10 +99,7 @@ export const setup = async ({
   const createEntityWithBigIntId = async ({
     id,
     testEntityId,
-  }: {
-    id: bigint;
-    testEntityId: string;
-  }) => {
+  }: { id: bigint; testEntityId: string }) => {
     await indexingStore.create({
       tableName: "EntityWithBigIntId",
       checkpoint: zeroCheckpoint,
@@ -164,7 +145,6 @@ export const setup = async ({
 
   return {
     service,
-    database,
     cleanup,
     gql,
     indexingStore,
@@ -182,6 +162,8 @@ function createCheckpoint(index: number): Checkpoint {
 
 test("serves all scalar types correctly", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -240,6 +222,7 @@ test("serves all scalar types correctly", async (context) => {
 
 test("serves all scalar list types correctly", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -294,6 +277,7 @@ test("serves all scalar list types correctly", async (context) => {
 
 test("serves all optional types correctly", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
 
@@ -322,6 +306,7 @@ test("serves all optional types correctly", async (context) => {
 
 test("serves enum types correctly", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -361,6 +346,7 @@ test("serves enum types correctly", async (context) => {
 test("serves many column types correctly", async (context) => {
   const { service, cleanup, gql, createTestEntity, createEntityWithStringId } =
     await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createEntityWithStringId({ id: "0", testEntityId: "0" });
@@ -402,6 +388,7 @@ test("serves one column types correctly", async (context) => {
     createEntityWithBigIntId,
     createEntityWithNullRef,
   } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -467,6 +454,7 @@ test("finds unique entity by bigint id", async (context) => {
   const { service, cleanup, gql, createEntityWithBigIntId } = await setup({
     context,
   });
+  service.setIsHealthy(true);
 
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
 
@@ -490,6 +478,7 @@ test("finds unique entity with id: 0", async (context) => {
   const { service, cleanup, gql, createEntityWithIntId } = await setup({
     context,
   });
+  service.setIsHealthy(true);
 
   await createEntityWithIntId({ id: 0 });
 
@@ -511,6 +500,7 @@ test("finds unique entity with id: 0", async (context) => {
 
 test("filters on string field equals", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: 125 });
@@ -537,6 +527,7 @@ test("filters on string field equals", async (context) => {
 
 test("filters on string field in", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: 125 });
@@ -564,6 +555,7 @@ test("filters on string field in", async (context) => {
 
 test("filters on string field contains", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: 125 });
@@ -591,6 +583,7 @@ test("filters on string field contains", async (context) => {
 
 test("filters on string field starts with", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: 125 });
@@ -619,6 +612,7 @@ test("filters on string field starts with", async (context) => {
 
 test("filters on string field not ends with", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: 125 });
@@ -647,6 +641,7 @@ test("filters on string field not ends with", async (context) => {
 
 test("filters on integer field equals", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -674,6 +669,7 @@ test("filters on integer field equals", async (context) => {
 
 test("filters on integer field greater than", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -700,6 +696,7 @@ test("filters on integer field greater than", async (context) => {
 
 test("filters on integer field less than or equal to", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -727,6 +724,7 @@ test("filters on integer field less than or equal to", async (context) => {
 
 test("filters on integer field in", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -754,6 +752,7 @@ test("filters on integer field in", async (context) => {
 
 test("filters on float field equals", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -782,6 +781,7 @@ test("filters on float field equals", async (context) => {
 
 test("filters on float field greater than", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -808,6 +808,7 @@ test("filters on float field greater than", async (context) => {
 
 test("filters on float field less than or equal to", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -836,6 +837,7 @@ test("filters on float field less than or equal to", async (context) => {
 
 test("filters on float field in", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -864,6 +866,7 @@ test("filters on float field in", async (context) => {
 
 test("filters on bigInt field equals", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -892,6 +895,7 @@ test("filters on bigInt field equals", async (context) => {
 
 test("filters on bigInt field greater than", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -918,6 +922,7 @@ test("filters on bigInt field greater than", async (context) => {
 
 test("filters on hex field equals", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
 
@@ -947,6 +952,7 @@ test("filters on hex field equals", async (context) => {
 
 test("filters on hex field greater than", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -973,6 +979,7 @@ test("filters on hex field greater than", async (context) => {
 
 test("filters on bigInt field less than or equal to", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1001,6 +1008,7 @@ test("filters on bigInt field less than or equal to", async (context) => {
 
 test("filters on bigInt field in", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1029,6 +1037,7 @@ test("filters on bigInt field in", async (context) => {
 
 test("filters on string list field equals", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1055,6 +1064,7 @@ test("filters on string list field equals", async (context) => {
 
 test("filters on string list field has", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1081,6 +1091,7 @@ test("filters on string list field has", async (context) => {
 
 test("filters on enum field equals", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1107,6 +1118,7 @@ test("filters on enum field equals", async (context) => {
 
 test("filters on enum field in", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1136,6 +1148,7 @@ test("filters on enum field in", async (context) => {
 test("filters on relationship field equals", async (context) => {
   const { service, cleanup, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1171,6 +1184,7 @@ test("filters on relationship field equals", async (context) => {
 test("filters on relationship field in", async (context) => {
   const { service, cleanup, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1200,6 +1214,7 @@ test("filters on relationship field in", async (context) => {
 test("filters on relationship field in", async (context) => {
   const { service, cleanup, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1228,6 +1243,7 @@ test("filters on relationship field in", async (context) => {
 
 test("orders by on int field ascending", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 123 });
@@ -1256,6 +1272,7 @@ test("orders by on int field ascending", async (context) => {
 
 test("orders by on int field descending", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 123 });
@@ -1284,6 +1301,7 @@ test("orders by on int field descending", async (context) => {
 
 test("orders by on bigInt field ascending including negative values", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 123 });
@@ -1314,6 +1332,7 @@ test("orders by on bigInt field ascending including negative values", async (con
 
 test("orders by on bigInt field descending", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 123 });
@@ -1342,6 +1361,7 @@ test("orders by on bigInt field descending", async (context) => {
 
 test("limits to the first 50 by default", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await Promise.all(range(0, 105).map((n) => createTestEntity({ id: n })));
 
@@ -1366,6 +1386,7 @@ test("limits to the first 50 by default", async (context) => {
 
 test("limits as expected if less than 1000", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await Promise.all(range(0, 105).map((n) => createTestEntity({ id: n })));
 
@@ -1390,6 +1411,7 @@ test("limits as expected if less than 1000", async (context) => {
 
 test("throws if limit is greater than 1000", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -1415,6 +1437,7 @@ test("throws if limit is greater than 1000", async (context) => {
 test("serves singular entity versioned at specified timestamp", async (context) => {
   const { service, cleanup, gql, indexingStore, createTestEntity } =
     await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 1 });
   await indexingStore.update({
@@ -1453,13 +1476,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
 });
 
 test("responds with appropriate status code pre and post historical sync", async (context) => {
-  const { service, database, cleanup, gql, createTestEntity } = await setup({
-    context,
-    options: {
-      isDatabasePublished: false,
-      registerDevRoutes: false,
-    },
-  });
+  const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
   await createTestEntity({ id: 0 });
 
@@ -1477,8 +1494,7 @@ test("responds with appropriate status code pre and post historical sync", async
   });
   expect(response.statusCode).toBe(503);
 
-  // Set the historical sync flag to true
-  database.isPublished = true;
+  service.setIsHealthy(true);
 
   response = await gql(`
     testEntitys {
@@ -1513,6 +1529,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
     createTestEntity,
     createEntityWithBigIntId,
   } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1577,6 +1594,7 @@ test("serves nested records at the timestamp/version specified at the top level"
     createEntityWithStringId,
     cleanup,
   } = await setup({ context });
+  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createEntityWithStringId({ id: "0", testEntityId: "0" });
@@ -1637,6 +1655,7 @@ test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
     indexingStore,
     cleanup,
   } = await setup({ context });
+  service.setIsHealthy(true);
 
   const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
   const findManySpy = vi.spyOn(indexingStore, "findMany");
@@ -1691,6 +1710,7 @@ test.skip.fails(
       createEntityWithStringId,
       cleanup,
     } = await setup({ context });
+    service.setIsHealthy(true);
 
     const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
     const findManySpy = vi.spyOn(indexingStore, "findMany");
