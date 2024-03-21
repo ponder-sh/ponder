@@ -946,10 +946,7 @@ export class PostgresSyncStore implements SyncStore {
           ])
           .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
           .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
-          .orderBy("blocks.timestamp", "asc")
-          .orderBy("logs.chainId", "asc")
-          .orderBy("blocks.number", "asc")
-          .orderBy("logs.logIndex", "asc")
+          .orderBy("logs.checkpoint", "asc")
           .limit(limit + 1)
           .execute(),
 
@@ -990,10 +987,7 @@ export class PostgresSyncStore implements SyncStore {
           ])
           .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
           .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
-          .orderBy("blocks.timestamp", "desc")
-          .orderBy("logs.chainId", "desc")
-          .orderBy("blocks.number", "desc")
-          .orderBy("logs.logIndex", "desc")
+          .orderBy("logs.checkpoint", "asc")
           .limit(1)
           .execute(),
       ]);

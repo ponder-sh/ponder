@@ -21,14 +21,6 @@ const EVENT_TYPE_DIGITS = 1;
 // Same logic as chain ID.
 const EVENT_INDEX_DIGITS = 16;
 
-const encodedLength =
-  BLOCK_TIMESTAMP_DIGITS +
-  CHAIN_ID_DIGITS +
-  BLOCK_NUMBER_DIGITS +
-  TRANSACTION_INDEX_DIGITS +
-  EVENT_TYPE_DIGITS +
-  EVENT_INDEX_DIGITS;
-
 export const eventTypes = {
   logs: 5,
 } as const;
@@ -63,7 +55,15 @@ export const encodeCheckpoint = (checkpoint: Checkpoint) => {
     eventType.toString() +
     eventIndex.toString().padStart(EVENT_INDEX_DIGITS, "0");
 
-  if (result.length !== encodedLength)
+  if (
+    result.length !==
+    BLOCK_TIMESTAMP_DIGITS +
+      CHAIN_ID_DIGITS +
+      BLOCK_NUMBER_DIGITS +
+      TRANSACTION_INDEX_DIGITS +
+      EVENT_TYPE_DIGITS +
+      EVENT_INDEX_DIGITS
+  )
     throw new Error(`Invalid stringified checkpoint: ${result}`);
 
   return result;
@@ -75,12 +75,6 @@ const runtimeCheckKey = (obj: Checkpoint, key: keyof Checkpoint) => {
 };
 
 export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
-  if (checkpoint.length !== encodedLength) {
-    throw new Error(
-      `Invalid checkpoint encoding: expected length ${encodedLength} but got ${checkpoint.length}`,
-    );
-  }
-
   let offset = 0;
 
   const blockTimestamp = +checkpoint.slice(

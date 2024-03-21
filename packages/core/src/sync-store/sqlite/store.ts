@@ -952,10 +952,7 @@ export class SqliteSyncStore implements SyncStore {
           ])
           .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
           .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
-          .orderBy("blocks.timestamp", "asc")
-          .orderBy("logs.chainId", "asc")
-          .orderBy("blocks.number", "asc")
-          .orderBy("logs.logIndex", "asc")
+          .orderBy("logs.checkpoint", "asc")
           .limit(limit + 1)
           .execute(),
         this.db

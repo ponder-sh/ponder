@@ -521,6 +521,12 @@ const migrations: Record<string, Migration> = {
           );
         }
       }
+
+      await db.schema
+        .createIndex("logs_checkpoint_index")
+        .on("logs")
+        .column("checkpoint")
+        .execute();
     },
   },
 };
