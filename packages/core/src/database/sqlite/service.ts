@@ -189,6 +189,12 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 )
                 .execute();
 
+              await tx.schema
+                .createIndex(`${RAW_TABLE_PREFIX}${tableName}_ef_index`)
+                .on(`${RAW_TABLE_PREFIX}${tableName}`)
+                .column("effective_from")
+                .execute();
+
               // c) Create the latest view in the public schema.
               await tx.schema
                 .createView(tableName)

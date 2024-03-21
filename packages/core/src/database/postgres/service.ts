@@ -191,6 +191,13 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 )
                 .execute();
 
+              await tx.schema
+                .withSchema(this.instanceSchemaName)
+                .createIndex(`${tableName}_ef_index`)
+                .on(tableName)
+                .column("effective_from")
+                .execute();
+
               // b) Create a table in the cache schema if it doesn't already exist.
               await tx.schema
                 .withSchema(CACHE_SCHEMA_NAME)
