@@ -133,6 +133,7 @@ export class PostgresSyncStore implements SyncStore {
               rpcLogs.map((log) => ({
                 ...rpcToPostgresLog(log),
                 chainId,
+                checkpoint: this.createCheckpoint(log, rpcBlock, chainId),
               })),
             )
             .onConflict((oc) => oc.column("id").doNothing())
@@ -369,7 +370,11 @@ export class PostgresSyncStore implements SyncStore {
         for (const rpcLog of rpcLogs) {
           await tx
             .insertInto("logs")
-            .values({ ...rpcToPostgresLog(rpcLog), chainId })
+            .values({
+              ...rpcToPostgresLog(rpcLog),
+              chainId,
+              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            })
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
         }
@@ -503,6 +508,26 @@ export class PostgresSyncStore implements SyncStore {
     });
   };
 
+  createCheckpoint = (log: RpcLog, block: RpcBlock, chainId: number) => {
+    if (block.number === null) {
+      throw new Error("Number is missing from RPC block");
+    }
+    if (log.transactionIndex === null) {
+      throw new Error("Transaction index is missing from RPC log");
+    }
+    if (log.logIndex === null) {
+      throw new Error("Log index index is missing from RPC log");
+    }
+    return encodeCheckpoint({
+      blockTimestamp: Number(BigInt(block.timestamp)),
+      chainId,
+      blockNumber: Number(BigInt(block.number)),
+      transactionIndex: Number(BigInt(log.transactionIndex)),
+      eventType: eventTypes.logs,
+      eventIndex: Number(BigInt(log.logIndex)),
+    });
+  };
+
   insertRealtimeBlock = async ({
     chainId,
     block: rpcBlock,
@@ -533,7 +558,11 @@ export class PostgresSyncStore implements SyncStore {
         for (const rpcLog of rpcLogs) {
           await tx
             .insertInto("logs")
-            .values({ ...rpcToPostgresLog(rpcLog), chainId })
+            .values({
+              ...rpcToPostgresLog(rpcLog),
+              chainId,
+              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            })
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
         }
@@ -1061,6 +1090,7 @@ export class PostgresSyncStore implements SyncStore {
       });
 
       const lastCheckpointRow = lastCheckpointRows[0];
+
       const lastCheckpoint =
         lastCheckpointRow !== undefined
           ? ({

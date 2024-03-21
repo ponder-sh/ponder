@@ -113,17 +113,13 @@ export class SqliteSyncStore implements SyncStore {
         }
 
         for (const rpcLog of rpcLogs) {
-          const checkpoint = encodeCheckpoint({
-            blockTimestamp: Number(BigInt(rpcBlock.timestamp)),
-            chainId,
-            blockNumber: Number(BigInt(rpcBlock.number!)),
-            eventIndex: Number(BigInt(rpcLog.logIndex!)),
-            eventType: eventTypes.logs,
-            transactionIndex: Number(BigInt(rpcLog.transactionIndex!)),
-          });
           await tx
             .insertInto("logs")
-            .values({ ...rpcToSqliteLog(rpcLog), chainId, checkpoint })
+            .values({
+              ...rpcToSqliteLog(rpcLog),
+              chainId,
+              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            })
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
         }
@@ -266,9 +262,6 @@ export class SqliteSyncStore implements SyncStore {
             .values({
               ...rpcToSqliteLog(rpcLog),
               chainId,
-              checkpoint:
-                // TODO
-                "0",
             })
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
