@@ -43,7 +43,7 @@ const schemaTwo = createSchema((p) => ({
 }));
 
 function createCheckpoint(index: number): Checkpoint {
-  return { ...zeroCheckpoint, blockTimestamp: index + 1_000_000_000 };
+  return { ...zeroCheckpoint, blockTimestamp: index };
 }
 
 const shouldSkip = process.env.DATABASE_URL !== undefined;

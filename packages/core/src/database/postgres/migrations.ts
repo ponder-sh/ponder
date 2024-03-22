@@ -46,8 +46,8 @@ const migrations: Record<string, Migration> = {
         .addColumn("function_id", "text", (col) => col.notNull().primaryKey())
         .addColumn("function_name", "text", (col) => col.notNull())
         .addColumn("hash_version", "integer", (col) => col.notNull())
-        .addColumn("from_checkpoint", "numeric(75, 0)")
-        .addColumn("to_checkpoint", "numeric(75, 0)", (col) => col.notNull())
+        .addColumn("from_checkpoint", "varchar(75)")
+        .addColumn("to_checkpoint", "varchar(75)", (col) => col.notNull())
         .addColumn("event_count", "integer", (col) => col.notNull())
         .execute();
 
@@ -56,7 +56,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("table_id", "text", (col) => col.notNull().primaryKey())
         .addColumn("table_name", "text", (col) => col.notNull())
         .addColumn("hash_version", "integer", (col) => col.notNull())
-        .addColumn("to_checkpoint", "numeric(75, 0)", (col) => col.notNull())
+        .addColumn("to_checkpoint", "varchar(75)", (col) => col.notNull())
         .addColumn("schema", "jsonb", (col) => col.notNull())
         .execute();
 
@@ -78,15 +78,15 @@ export type PonderCoreSchema = {
     function_id: string;
     function_name: string;
     hash_version: number;
-    from_checkpoint: bigint | null;
-    to_checkpoint: bigint;
+    from_checkpoint: string | null;
+    to_checkpoint: string;
     event_count: number;
   };
   "ponder_cache.table_metadata": {
     table_id: string;
     table_name: string;
     hash_version: number;
-    to_checkpoint: bigint;
+    to_checkpoint: string;
     schema: JSONColumnType<Schema>;
   };
   "ponder_cache.instance_metadata": {
@@ -100,7 +100,7 @@ export type PonderCoreSchema = {
 } & {
   [tableId: string]: {
     id: unknown;
-    effective_from: bigint;
-    effective_to: bigint;
+    effective_from: string;
+    effective_to: string;
   };
 };

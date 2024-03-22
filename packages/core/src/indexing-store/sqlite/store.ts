@@ -76,7 +76,7 @@ export class SqliteIndexingStore implements IndexingStore {
         .execute((tx) =>
           Promise.all(
             Object.keys(this.schema?.tables ?? {}).map(async (tableName) =>
-              revertTable(tx, tableName, checkpoint, LATEST),
+              revertTable(tx, tableName, checkpoint),
             ),
           ),
         );

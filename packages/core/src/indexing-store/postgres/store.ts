@@ -27,7 +27,7 @@ import {
 const MAX_BATCH_SIZE = 1_000 as const;
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
-const LATEST = BigInt(encodeCheckpoint(maxCheckpoint));
+const LATEST = encodeCheckpoint(maxCheckpoint);
 
 export class PostgresIndexingStore implements IndexingStore {
   kind = "postgres" as const;
@@ -83,7 +83,7 @@ export class PostgresIndexingStore implements IndexingStore {
         .execute((tx) =>
           Promise.all(
             Object.keys(this.schema?.tables ?? {}).map(async (tableName) =>
-              revertTable(tx, tableName, checkpoint, LATEST),
+              revertTable(tx, tableName, checkpoint),
             ),
           ),
         );

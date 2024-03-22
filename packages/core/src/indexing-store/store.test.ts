@@ -30,7 +30,7 @@ const hexSchema = createSchema((p) => ({
 }));
 
 function createCheckpoint(index: number): Checkpoint {
-  return { ...zeroCheckpoint, blockTimestamp: index + 1_000_000_000 };
+  return { ...zeroCheckpoint, blockTimestamp: index };
 }
 
 test("create() inserts a record that is effective after specified checkpoint", async (context) => {

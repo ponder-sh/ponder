@@ -51,7 +51,11 @@ const schema = createSchema((p) => ({
 
 const graphqlSchema = buildGqlSchema(schema);
 
-export const setup = async ({ context }: { context: TestContext }) => {
+export const setup = async ({
+  context,
+}: {
+  context: TestContext;
+}) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
     tableIds: getTableIds(schema),
@@ -95,10 +99,7 @@ export const setup = async ({ context }: { context: TestContext }) => {
   const createEntityWithBigIntId = async ({
     id,
     testEntityId,
-  }: {
-    id: bigint;
-    testEntityId: string;
-  }) => {
+  }: { id: bigint; testEntityId: string }) => {
     await indexingStore.create({
       tableName: "EntityWithBigIntId",
       checkpoint: zeroCheckpoint,
@@ -1584,7 +1585,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   await cleanup();
 });
 
-test.only("serves nested records at the timestamp/version specified at the top level", async (context) => {
+test("serves nested records at the timestamp/version specified at the top level", async (context) => {
   const {
     service,
     indexingStore,

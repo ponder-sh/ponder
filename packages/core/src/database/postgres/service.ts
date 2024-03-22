@@ -45,7 +45,7 @@ const RAW_TABLE_PREFIX = "_raw_";
 const HEARTBEAT_INTERVAL_MS = 10 * 1_000; // 10 seconds
 const INSTANCE_TIMEOUT_MS = 60 * 1_000; // 1 minute
 
-const LATEST = BigInt(encodeCheckpoint(maxCheckpoint));
+const LATEST = encodeCheckpoint(maxCheckpoint);
 
 export class PostgresDatabaseService implements BaseDatabaseService {
   kind = "postgres" as const;
@@ -305,9 +305,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       function_name: m.functionName,
       hash_version: HASH_VERSION,
       from_checkpoint: m.fromCheckpoint
-        ? BigInt(encodeCheckpoint(m.fromCheckpoint))
+        ? encodeCheckpoint(m.fromCheckpoint)
         : null,
-      to_checkpoint: BigInt(encodeCheckpoint(m.toCheckpoint)),
+      to_checkpoint: encodeCheckpoint(m.toCheckpoint),
       event_count: m.eventCount,
     }));
 
@@ -338,9 +338,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           table_id: tableId,
           table_name: tableName,
           hash_version: HASH_VERSION,
-          to_checkpoint: BigInt(
-            encodeCheckpoint(checkpointMax(...checkpoints)),
-          ),
+          to_checkpoint: encodeCheckpoint(checkpointMax(...checkpoints)),
         });
       }
     }
@@ -391,7 +389,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               await tx
                 .withSchema(CACHE_SCHEMA_NAME)
                 .updateTable(tableId)
-                .set({ effective_to: BigInt(encodeCheckpoint(maxCheckpoint)) })
+                .set({ effective_to: encodeCheckpoint(maxCheckpoint) })
                 .where("effective_to", ">", newTableToCheckpoint)
                 .execute();
             } else {
@@ -648,10 +646,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       }
     });
 
-    builder = builder.addColumn("effective_from", "numeric(75, 0)", (col) =>
+    builder = builder.addColumn("effective_from", "varchar(75)", (col) =>
       col.notNull(),
     );
-    builder = builder.addColumn("effective_to", "numeric(75, 0)", (col) =>
+    builder = builder.addColumn("effective_to", "varchar(75)", (col) =>
       col.notNull(),
     );
     builder = builder.addPrimaryKeyConstraint(
