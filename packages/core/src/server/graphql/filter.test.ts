@@ -37,6 +37,13 @@ test("buildWhereObject handles complex conditions with and/or correctly", () => 
   expect(buildWhereObject(where)).toEqual(expected);
 });
 
+test("buildWhereObject handles two conditions for the same field", () => {
+  const where = { timestamp_gte: 1630608704, timestamp_lte: 1630605241 };
+  const expected = { timestamp: { gte: 1630608704, lte: 1630605241 } };
+
+  expect(buildWhereObject(where)).toEqual(expected);
+});
+
 test("buildWhereObject throws error on unknown condition", () => {
   const where = { name_like: "John" };
   expect(() => buildWhereObject(where)).toThrow(
