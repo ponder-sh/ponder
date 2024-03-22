@@ -545,7 +545,7 @@ export class SqliteSyncStore implements SyncStore {
       throw new Error("Transaction index is missing from RPC log");
     }
     if (rpcLog.logIndex === null) {
-      throw new Error("Log index index is missing from RPC log");
+      throw new Error("Log index is missing from RPC log");
     }
     return encodeCheckpoint({
       blockTimestamp: Number(BigInt(block.timestamp)),

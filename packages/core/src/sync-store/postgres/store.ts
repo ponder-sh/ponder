@@ -5,9 +5,9 @@ import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
   type Checkpoint,
+  EVENT_TYPES,
   decodeCheckpoint,
   encodeCheckpoint,
-  eventTypes,
 } from "@/utils/checkpoint.js";
 import {
   buildFactoryFragments,
@@ -517,14 +517,14 @@ export class PostgresSyncStore implements SyncStore {
       throw new Error("Transaction index is missing from RPC log");
     }
     if (log.logIndex === null) {
-      throw new Error("Log index index is missing from RPC log");
+      throw new Error("Log index is missing from RPC log");
     }
     return encodeCheckpoint({
       blockTimestamp: Number(BigInt(block.timestamp)),
       chainId,
       blockNumber: Number(BigInt(block.number)),
       transactionIndex: Number(BigInt(log.transactionIndex)),
-      eventType: eventTypes.logs,
+      eventType: EVENT_TYPES.logs,
       eventIndex: Number(BigInt(log.logIndex)),
     });
   };
