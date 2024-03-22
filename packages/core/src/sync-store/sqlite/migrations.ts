@@ -1,4 +1,4 @@
-import { encodeCheckpoint, eventTypes } from "@/utils/checkpoint.js";
+import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import { type Kysely, sql } from "kysely";
 import { type Migration, type MigrationProvider } from "kysely";
@@ -511,7 +511,7 @@ const migrations: Record<string, Migration> = {
           chainId: row.chainId,
           blockNumber: Number(decodeToBigInt(row.number)),
           transactionIndex: row.transactionIndex,
-          eventType: eventTypes.logs,
+          eventType: EVENT_TYPES.logs,
           eventIndex: row.logIndex,
         });
 

@@ -1,5 +1,5 @@
 import type { Common } from "@/common/common.js";
-import { encodeCheckpoint, eventTypes } from "@/utils/checkpoint.js";
+import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { Kysely } from "kysely";
 import { type Migration, type MigrationProvider, sql } from "kysely";
 
@@ -505,7 +505,7 @@ const migrations: Record<string, Migration> = {
           chainId: row.chainId,
           blockNumber: row.number,
           transactionIndex: row.transactionIndex,
-          eventType: eventTypes.logs,
+          eventType: EVENT_TYPES.logs,
           eventIndex: row.logIndex,
         });
 

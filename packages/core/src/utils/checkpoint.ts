@@ -21,7 +21,15 @@ const EVENT_TYPE_DIGITS = 1;
 // Same logic as chain ID.
 const EVENT_INDEX_DIGITS = 16;
 
-export const eventTypes = {
+const CHECKPOINT_LENGTH =
+  BLOCK_TIMESTAMP_DIGITS +
+  CHAIN_ID_DIGITS +
+  BLOCK_NUMBER_DIGITS +
+  TRANSACTION_INDEX_DIGITS +
+  EVENT_TYPE_DIGITS +
+  EVENT_INDEX_DIGITS;
+
+export const EVENT_TYPES = {
   logs: 5,
 } as const;
 
@@ -55,15 +63,7 @@ export const encodeCheckpoint = (checkpoint: Checkpoint) => {
     eventType.toString() +
     eventIndex.toString().padStart(EVENT_INDEX_DIGITS, "0");
 
-  if (
-    result.length !==
-    BLOCK_TIMESTAMP_DIGITS +
-      CHAIN_ID_DIGITS +
-      BLOCK_NUMBER_DIGITS +
-      TRANSACTION_INDEX_DIGITS +
-      EVENT_TYPE_DIGITS +
-      EVENT_INDEX_DIGITS
-  )
+  if (result.length !== CHECKPOINT_LENGTH)
     throw new Error(`Invalid stringified checkpoint: ${result}`);
 
   return result;

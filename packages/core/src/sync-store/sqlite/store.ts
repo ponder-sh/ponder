@@ -5,9 +5,9 @@ import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
   type Checkpoint,
+  EVENT_TYPES,
   decodeCheckpoint,
   encodeCheckpoint,
-  eventTypes,
 } from "@/utils/checkpoint.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import {
@@ -552,7 +552,7 @@ export class SqliteSyncStore implements SyncStore {
       chainId,
       blockNumber: Number(BigInt(block.number)),
       transactionIndex: Number(BigInt(rpcLog.transactionIndex)),
-      eventType: eventTypes.logs,
+      eventType: EVENT_TYPES.logs,
       eventIndex: Number(BigInt(rpcLog.logIndex)),
     });
   };

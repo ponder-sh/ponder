@@ -9,7 +9,7 @@ import {
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import {
-  eventTypes,
+  EVENT_TYPES,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -1501,7 +1501,7 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async (context) => {
       blockTimestamp: Number(rpcData.block1.block.timestamp!),
       blockNumber: Number(rpcData.block1.block.number!),
       transactionIndex: 0,
-      eventType: eventTypes.logs,
+      eventType: EVENT_TYPES.logs,
       // Should exclude the 2nd log in the first block.
       eventIndex: Number(rpcData.block1.logs[1].logIndex),
     },
