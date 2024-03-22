@@ -3,8 +3,8 @@ import { NonRetryableError, StoreError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import {
   type Checkpoint,
+  LATEST,
   encodeCheckpoint,
-  maxCheckpoint,
 } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
@@ -27,7 +27,6 @@ import {
 const MAX_BATCH_SIZE = 1_000 as const;
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
-const LATEST = encodeCheckpoint(maxCheckpoint);
 
 export class SqliteIndexingStore implements IndexingStore {
   kind = "sqlite" as const;

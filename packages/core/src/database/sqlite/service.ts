@@ -15,10 +15,10 @@ import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
   type Checkpoint,
+  LATEST,
   checkpointMax,
   decodeCheckpoint,
   encodeCheckpoint,
-  maxCheckpoint,
 } from "@/utils/checkpoint.js";
 import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
@@ -38,7 +38,6 @@ const PUBLIC_DB_NAME = "ponder";
 const CACHE_DB_NAME = "ponder_cache";
 const SYNC_DB_NAME = "ponder_sync";
 const RAW_TABLE_PREFIX = "_raw_";
-const LATEST = encodeCheckpoint(maxCheckpoint);
 
 export class SqliteDatabaseService implements BaseDatabaseService {
   kind = "sqlite" as const;

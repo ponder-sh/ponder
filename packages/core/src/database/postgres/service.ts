@@ -14,6 +14,7 @@ import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
   type Checkpoint,
+  LATEST,
   checkpointMax,
   decodeCheckpoint,
   encodeCheckpoint,
@@ -44,8 +45,6 @@ const RAW_TABLE_PREFIX = "_raw_";
 
 const HEARTBEAT_INTERVAL_MS = 10 * 1_000; // 10 seconds
 const INSTANCE_TIMEOUT_MS = 60 * 1_000; // 1 minute
-
-const LATEST = encodeCheckpoint(maxCheckpoint);
 
 export class PostgresDatabaseService implements BaseDatabaseService {
   kind = "postgres" as const;
@@ -247,9 +246,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         functionId: m.function_id,
         functionName: m.function_name,
         fromCheckpoint: m.from_checkpoint
-          ? decodeCheckpoint(m.from_checkpoint.toString())
+          ? decodeCheckpoint(m.from_checkpoint)
           : null,
-        toCheckpoint: decodeCheckpoint(m.to_checkpoint.toString()),
+        toCheckpoint: decodeCheckpoint(m.to_checkpoint),
         eventCount: m.event_count,
       }));
     });
@@ -389,7 +388,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               await tx
                 .withSchema(CACHE_SCHEMA_NAME)
                 .updateTable(tableId)
-                .set({ effective_to: encodeCheckpoint(maxCheckpoint) })
+                .set({ effective_to: LATEST })
                 .where("effective_to", ">", newTableToCheckpoint)
                 .execute();
             } else {

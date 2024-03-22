@@ -64,9 +64,9 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     // Cache database, metadata tables, and cache tables were created
     expect(
-      new Set(await getTableNames(database.db, "ponder_cache")),
+      (await getTableNames(database.db, "ponder_cache")).sort(),
     ).toStrictEqual(
-      new Set([
+      [
         "kysely_migration",
         "kysely_migration_lock",
         "function_metadata",
@@ -74,7 +74,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         "instance_metadata",
         "0xPet",
         "0xPerson",
-      ]),
+      ].sort(),
     );
 
     // Instance tables were created in the instance schema

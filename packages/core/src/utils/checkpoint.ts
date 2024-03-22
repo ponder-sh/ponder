@@ -149,3 +149,5 @@ export const checkpointMin = (...checkpoints: Checkpoint[]) =>
   checkpoints.reduce((min, checkpoint) => {
     return isCheckpointGreaterThan(min, checkpoint) ? checkpoint : min;
   });
+
+export const LATEST = encodeCheckpoint(maxCheckpoint);
