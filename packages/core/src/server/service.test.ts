@@ -1433,7 +1433,7 @@ test("throws if limit is greater than 1000", async (context) => {
   await cleanup();
 });
 
-test.only("serves singular entity versioned at specified timestamp", async (context) => {
+test("serves singular entity versioned at specified timestamp", async (context) => {
   const { service, cleanup, gql, indexingStore, createTestEntity } =
     await setup({ context });
   service.setIsHealthy(true);
