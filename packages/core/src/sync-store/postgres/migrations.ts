@@ -460,7 +460,7 @@ const migrations: Record<string, Migration> = {
     async up(db: Kysely<any>) {
       await db.schema
         .alterTable("logs")
-        .addColumn("checkpoint", "numeric(75, 0)")
+        .addColumn("checkpoint", "varchar(75)")
         .execute();
       await db.executeQuery(
         sql`
@@ -476,7 +476,7 @@ const migrations: Record<string, Migration> = {
               lpad(checkpoint_vals.number::text, 16, '0') ||
               lpad(checkpoint_vals."transactionIndex"::text, 16, '0') ||
               '5' ||
-              lpad(checkpoint_vals."logIndex"::text, 16, '0'))::numeric(75, 0)
+              lpad(checkpoint_vals."logIndex"::text, 16, '0'))
           FROM checkpoint_vals
           WHERE ponder_sync.logs.id = checkpoint_vals.id;
         `.compile(db),
