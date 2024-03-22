@@ -37,26 +37,19 @@ const migrations: Record<string, Migration> = {
   },
   "2024_03_22_new_checkpoint_encoding": {
     async up(db: Kysely<any>) {
-      await db.schema.dropTable("function_metadata").execute();
-      await db.schema.dropTable("table_metadata").execute();
-
       await db.schema
-        .createTable("function_metadata")
-        .addColumn("function_id", "text", (col) => col.notNull().primaryKey())
-        .addColumn("function_name", "text", (col) => col.notNull())
-        .addColumn("hash_version", "integer", (col) => col.notNull())
-        .addColumn("from_checkpoint", "varchar(75)")
-        .addColumn("to_checkpoint", "varchar(75)", (col) => col.notNull())
-        .addColumn("event_count", "integer", (col) => col.notNull())
+        .alterTable("function_metadata")
+        .alterColumn("from_checkpoint", (cb) => cb.setDataType("varchar(75)"))
         .execute();
 
       await db.schema
-        .createTable("table_metadata")
-        .addColumn("table_id", "text", (col) => col.notNull().primaryKey())
-        .addColumn("table_name", "text", (col) => col.notNull())
-        .addColumn("hash_version", "integer", (col) => col.notNull())
-        .addColumn("to_checkpoint", "varchar(75)", (col) => col.notNull())
-        .addColumn("schema", "jsonb", (col) => col.notNull())
+        .alterTable("function_metadata")
+        .alterColumn("to_checkpoint", (cb) => cb.setDataType("varchar(75)"))
+        .execute();
+
+      await db.schema
+        .alterTable("table_metadata")
+        .alterColumn("to_checkpoint", (cb) => cb.setDataType("varchar(75)"))
         .execute();
     },
   },
