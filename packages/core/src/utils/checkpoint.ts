@@ -26,15 +26,6 @@ export const eventTypes = {
 } as const;
 
 export const encodeCheckpoint = (checkpoint: Checkpoint) => {
-  if (
-    checkpoint.blockTimestamp < 1_000_000_000 ||
-    checkpoint.blockTimestamp >= 10_000_000_000
-  ) {
-    throw new Error(
-      `Invalid timestamp ${checkpoint.blockTimestamp}, expected a 10 digit timestamp`,
-    );
-  }
-
   runtimeCheckKey(checkpoint, "blockTimestamp");
   runtimeCheckKey(checkpoint, "chainId");
   runtimeCheckKey(checkpoint, "blockNumber");
@@ -121,7 +112,7 @@ export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
 };
 
 export const zeroCheckpoint: Checkpoint = {
-  blockTimestamp: 1_000_000_000,
+  blockTimestamp: 0,
   chainId: 0,
   blockNumber: 0,
   transactionIndex: 0,
