@@ -18,7 +18,6 @@ import {
   checkpointMax,
   decodeCheckpoint,
   encodeCheckpoint,
-  maxCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool } from "@/utils/pg.js";
