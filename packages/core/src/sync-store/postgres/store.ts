@@ -5,6 +5,7 @@ import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
   type Checkpoint,
+  decodeCheckpoint,
   encodeCheckpoint,
   eventTypes,
 } from "@/utils/checkpoint.js";
@@ -904,6 +905,7 @@ export class PostgresSyncStore implements SyncStore {
             "logs.topic3 as log_topic3",
             "logs.transactionHash as log_transactionHash",
             "logs.transactionIndex as log_transactionIndex",
+            "logs.checkpoint as log_checkpoint",
 
             "blocks.baseFeePerGas as block_baseFeePerGas",
             "blocks.difficulty as block_difficulty",
@@ -952,12 +954,6 @@ export class PostgresSyncStore implements SyncStore {
 
         this.db
           .selectFrom("logs")
-          .leftJoin("blocks", "blocks.hash", "logs.blockHash")
-          .innerJoin(
-            "transactions",
-            "transactions.hash",
-            "logs.transactionHash",
-          )
           .where((eb) => {
             const logFilterCmprs =
               logFilters?.map((logFilter) => {
@@ -978,16 +974,10 @@ export class PostgresSyncStore implements SyncStore {
 
             return eb.or([...logFilterCmprs, ...factoryCmprs]);
           })
-          .select([
-            "blocks.timestamp as block_timestamp",
-            "logs.chainId as log_chainId",
-            "blocks.number as block_number",
-            "logs.logIndex as log_logIndex",
-            "transactions.transactionIndex as tx_index",
-          ])
+          .select(["logs.checkpoint"])
           .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
           .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
-          .orderBy("logs.checkpoint", "asc")
+          .orderBy("logs.checkpoint", "desc")
           .limit(1)
           .execute(),
       ]);
@@ -1000,6 +990,7 @@ export class PostgresSyncStore implements SyncStore {
 
         return {
           chainId: row.log_chainId,
+          checkpoint: decodeCheckpoint(row.log_checkpoint),
           log: {
             address: checksumAddress(row.log_address),
             blockHash: row.log_blockHash,
@@ -1080,40 +1071,25 @@ export class PostgresSyncStore implements SyncStore {
           log: Log;
           block: Block;
           transaction: Transaction;
+          checkpoint: Checkpoint;
         };
       });
 
       const lastCheckpointRow = lastCheckpointRows[0];
 
       const lastCheckpoint =
-        lastCheckpointRow !== undefined
-          ? ({
-              blockTimestamp: Number(lastCheckpointRow.block_timestamp!),
-              blockNumber: Number(lastCheckpointRow.block_number!),
-              chainId: lastCheckpointRow.log_chainId,
-              transactionIndex: lastCheckpointRow.tx_index,
-              eventType: eventTypes.logs,
-              eventIndex: lastCheckpointRow.log_logIndex,
-            } satisfies Checkpoint)
+        lastCheckpointRow?.checkpoint !== undefined
+          ? decodeCheckpoint(lastCheckpointRow.checkpoint)
           : undefined;
 
       if (events.length === limit + 1) {
         events.pop();
 
         const lastEventInPage = events[events.length - 1];
-        const lastCheckpointInPage = {
-          blockTimestamp: Number(lastEventInPage.block.timestamp),
-          chainId: lastEventInPage.chainId,
-          blockNumber: Number(lastEventInPage.block.number),
-          transactionIndex: lastEventInPage.transaction.transactionIndex,
-          eventType: eventTypes.logs,
-          eventIndex: lastEventInPage.log.logIndex,
-        } satisfies Checkpoint;
-
         return {
           events,
           hasNextPage: true,
-          lastCheckpointInPage,
+          lastCheckpointInPage: lastEventInPage.checkpoint,
           lastCheckpoint,
         } as const;
       } else {
