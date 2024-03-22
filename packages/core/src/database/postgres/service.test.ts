@@ -89,7 +89,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(metadataRows).toEqual([
       {
         created_at: expect.any(Number),
-        hash_version: 2,
+        hash_version: 3,
         heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: null,
@@ -222,7 +222,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(metadataRows).toEqual([
       {
         created_at: expect.any(Number),
-        hash_version: 2,
+        hash_version: 3,
         heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: expect.any(Number),
@@ -274,7 +274,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(firstMetadataRows).toEqual([
       {
         created_at: expect.any(Number),
-        hash_version: 2,
+        hash_version: 3,
         heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: null,
@@ -282,7 +282,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       },
       {
         created_at: expect.any(Number),
-        hash_version: 2,
+        hash_version: 3,
         heartbeat_at: expect.any(Number),
         instance_id: 2,
         published_at: expect.any(Number),
@@ -309,7 +309,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(metadataRows).toEqual([
       {
         created_at: expect.any(Number),
-        hash_version: 2,
+        hash_version: 3,
         heartbeat_at: expect.any(Number),
         instance_id: 1,
         published_at: expect.any(Number),
@@ -317,7 +317,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       },
       {
         created_at: expect.any(Number),
-        hash_version: 2,
+        hash_version: 3,
         heartbeat_at: expect.any(Number),
         instance_id: 2,
         published_at: expect.any(Number),
@@ -430,7 +430,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
-        hash_version: 2,
+        hash_version: 3,
         to_checkpoint: encodeCheckpoint(createCheckpoint(1)),
         event_count: 3,
       },
@@ -441,7 +441,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
-        hash_version: 2,
+        hash_version: 3,
         table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(createCheckpoint(1)),
@@ -525,7 +525,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
-        hash_version: 2,
+        hash_version: 3,
         to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
         event_count: 3,
       },
@@ -536,7 +536,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
-        hash_version: 2,
+        hash_version: 3,
         table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
@@ -650,7 +650,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
-        hash_version: 2,
+        hash_version: 3,
         to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
         event_count: 6,
       },
@@ -661,7 +661,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
-        hash_version: 2,
+        hash_version: 3,
         table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
@@ -778,7 +778,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
-        hash_version: 2,
+        hash_version: 3,
         to_checkpoint: encodeCheckpoint(createCheckpoint(3)),
         event_count: 4,
       },
@@ -880,7 +880,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
-        hash_version: 2,
+        hash_version: 3,
         to_checkpoint: encodeCheckpoint(createCheckpoint(3)),
         event_count: 4,
       },
@@ -973,7 +973,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction1",
         function_name: "function1",
         from_checkpoint: null,
-        hash_version: 2,
+        hash_version: 3,
         to_checkpoint: encodeCheckpoint(createCheckpoint(4)),
         event_count: 3,
       },
@@ -981,7 +981,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction2",
         function_name: "function2",
         from_checkpoint: null,
-        hash_version: 2,
+        hash_version: 3,
         to_checkpoint: encodeCheckpoint(createCheckpoint(5)),
         event_count: 3,
       },
@@ -989,7 +989,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction3",
         function_name: "function3",
         from_checkpoint: null,
-        hash_version: 2,
+        hash_version: 3,
         to_checkpoint: encodeCheckpoint(createCheckpoint(12)),
         event_count: 3,
       },
@@ -1000,14 +1000,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
     expect(tableMetadataRowsAfter).toStrictEqual([
       {
-        hash_version: 2,
+        hash_version: 3,
         table_id: "0xPet",
         table_name: "Pet",
         to_checkpoint: encodeCheckpoint(createCheckpoint(5)),
         schema: expect.any(Object),
       },
       {
-        hash_version: 2,
+        hash_version: 3,
         table_id: "0xPerson",
         table_name: "Person",
         to_checkpoint: encodeCheckpoint(createCheckpoint(12)),
@@ -1119,7 +1119,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         function_id: "0xfunction",
         function_name: "function",
         from_checkpoint: null,
-        hash_version: 2,
+        hash_version: 3,
         to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
         event_count: 4,
       },
