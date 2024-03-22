@@ -152,7 +152,8 @@ export function buildWhereObject(where: Record<string, any>) {
       );
     }
 
-    whereObject[fieldName] = { [storeCondition]: rawValue };
+    whereObject[fieldName] ||= {};
+    whereObject[fieldName][storeCondition] = rawValue;
   }
 
   return whereObject;
