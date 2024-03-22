@@ -7,7 +7,6 @@ import {
   hexToNumber,
 } from "viem";
 
-import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { encodeAsText } from "@/utils/encoding.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
