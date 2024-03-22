@@ -15,11 +15,7 @@ import type { IndexingStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { buildLoaderCache } from "./graphql/loaders.js";
 
-type ServerEvents = {
-  "admin:reload": { chainId: number };
-};
-
-export class ServerService extends Emittery<ServerEvents> {
+export class ServerService {
   app: express.Express;
 
   private common: Common;
@@ -39,8 +35,6 @@ export class ServerService extends Emittery<ServerEvents> {
     indexingStore: IndexingStore;
     database: DatabaseService;
   }) {
-    super();
-
     this.common = common;
     this.indexingStore = indexingStore;
     this.database = database;
@@ -50,7 +44,7 @@ export class ServerService extends Emittery<ServerEvents> {
     this.port = this.common.options.port;
   }
 
-  setup({ registerDevRoutes }: { registerDevRoutes: boolean }) {
+  setup() {
     // Middleware.
     this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
 
@@ -67,10 +61,6 @@ export class ServerService extends Emittery<ServerEvents> {
       "/",
       this.handleGraphql({ shouldWaitForHistoricalSync: false }),
     );
-
-    if (registerDevRoutes) {
-      this.app.post("/admin/reload", this.handleAdminReload());
-    }
   }
 
   async start() {
@@ -203,22 +193,6 @@ export class ServerService extends Emittery<ServerEvents> {
           return res.status(200).send();
         default:
           return next();
-      }
-    };
-  }
-
-  private handleAdminReload(): Handler {
-    return async (req, res) => {
-      try {
-        const chainId = parseInt(req.query.chainId as string, 10);
-        if (Number.isNaN(chainId)) {
-          res.status(400).end("chainId must exist and be a valid integer");
-          return;
-        }
-        this.emit("admin:reload", { chainId });
-        res.status(200).end();
-      } catch (error) {
-        res.status(500).end(error);
       }
     };
   }
