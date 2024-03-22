@@ -25,9 +25,9 @@ import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { StoreMethod } from "@/types/model.js";
 import {
   type Checkpoint,
+  EVENT_TYPES,
   checkpointMax,
   checkpointMin,
-  eventTypes,
   isCheckpointEqual,
   isCheckpointGreaterThan,
   isCheckpointGreaterThanOrEqualTo,
@@ -878,7 +878,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               blockTimestamp: Number(event.block.timestamp),
               chainId: event.chainId,
               transactionIndex: event.transaction.transactionIndex,
-              eventType: eventTypes.logs,
+              eventType: EVENT_TYPES.logs,
               eventIndex: event.log.logIndex,
             },
           },
