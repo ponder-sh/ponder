@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.3.6
+
+### Patch Changes
+
+- [#748](https://github.com/ponder-sh/ponder/pull/748) [`5f624562aa8b63116182bc6d482ddf6740040f5e`](https://github.com/ponder-sh/ponder/commit/5f624562aa8b63116182bc6d482ddf6740040f5e) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where GraphQL `where` arguments that specify multiple conditions for the same field would only apply the last condition.
+
+- [#743](https://github.com/ponder-sh/ponder/pull/743) [`261457c06750c116717e8ed4a8b51f0d71dc352f`](https://github.com/ponder-sh/ponder/commit/261457c06750c116717e8ed4a8b51f0d71dc352f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed compatibility with chains that don't have a "logsBloom" in blocks.
+
 ## 0.3.5
 
 ### Patch Changes
