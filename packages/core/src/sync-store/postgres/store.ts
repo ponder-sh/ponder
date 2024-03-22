@@ -954,6 +954,7 @@ export class PostgresSyncStore implements SyncStore {
 
         this.db
           .selectFrom("logs")
+          .leftJoin("blocks", "blocks.hash", "logs.blockHash")
           .where((eb) => {
             const logFilterCmprs =
               logFilters?.map((logFilter) => {
