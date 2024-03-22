@@ -1,7 +1,11 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError, StoreError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
-import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  encodeCheckpoint,
+  maxCheckpoint,
+} from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";
 import { WithTablePrefixPlugin } from "@/utils/withTablePrefixPlugin.js";
 import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
@@ -23,6 +27,7 @@ import {
 const MAX_BATCH_SIZE = 1_000 as const;
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
+const LATEST = BigInt(encodeCheckpoint(maxCheckpoint));
 
 export class PostgresIndexingStore implements IndexingStore {
   kind = "postgres" as const;
@@ -78,7 +83,7 @@ export class PostgresIndexingStore implements IndexingStore {
         .execute((tx) =>
           Promise.all(
             Object.keys(this.schema?.tables ?? {}).map(async (tableName) =>
-              revertTable(tx, tableName, checkpoint),
+              revertTable(tx, tableName, checkpoint, LATEST),
             ),
           ),
         );
@@ -87,11 +92,11 @@ export class PostgresIndexingStore implements IndexingStore {
 
   findUnique = async ({
     tableName,
-    checkpoint = "latest",
+    checkpoint,
     id,
   }: {
     tableName: string;
-    checkpoint?: Checkpoint | "latest";
+    checkpoint?: Checkpoint;
     id: string | number | bigint;
   }) => {
     const table = this.schema.tables[tableName];
@@ -104,16 +109,16 @@ export class PostgresIndexingStore implements IndexingStore {
         .selectAll()
         .where("id", "=", formattedId);
 
-      if (checkpoint === "latest") {
-        query = query.where("effective_to", "=", "latest");
+      if (!checkpoint) {
+        query = query.where("effective_to", "=", LATEST);
       } else {
-        const encodedCheckpoint = encodeCheckpoint(checkpoint);
+        const encodedCheckpoint = BigInt(encodeCheckpoint(checkpoint));
         query = query
           .where("effective_from", "<=", encodedCheckpoint)
           .where(({ eb, or }) =>
             or([
               eb("effective_to", ">", encodedCheckpoint),
-              eb("effective_to", "=", "latest"),
+              eb("effective_to", "=", LATEST),
             ]),
           );
       }
@@ -127,7 +132,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
   findMany = async ({
     tableName,
-    checkpoint = "latest",
+    checkpoint,
     where,
     orderBy,
     before = null,
@@ -135,7 +140,7 @@ export class PostgresIndexingStore implements IndexingStore {
     limit = DEFAULT_LIMIT,
   }: {
     tableName: string;
-    checkpoint?: Checkpoint | "latest";
+    checkpoint?: Checkpoint;
     where?: WhereInput<any>;
     orderBy?: OrderByInput<any>;
     before?: string | null;
@@ -147,16 +152,16 @@ export class PostgresIndexingStore implements IndexingStore {
     return this.wrap({ method: `${tableName}.findMany` }, async () => {
       let query = this.db.selectFrom(tableName).selectAll();
 
-      if (checkpoint === "latest") {
-        query = query.where("effective_to", "=", "latest");
+      if (!checkpoint) {
+        query = query.where("effective_to", "=", LATEST);
       } else {
-        const encodedCheckpoint = encodeCheckpoint(checkpoint);
+        const encodedCheckpoint = BigInt(encodeCheckpoint(checkpoint));
         query = query
           .where("effective_from", "<=", encodedCheckpoint)
           .where(({ eb, or }) =>
             or([
               eb("effective_to", ">", encodedCheckpoint),
-              eb("effective_to", "=", "latest"),
+              eb("effective_to", "=", LATEST),
             ]),
           );
       }
@@ -363,8 +368,8 @@ export class PostgresIndexingStore implements IndexingStore {
           .insertInto(tableName)
           .values({
             ...createRow,
-            effective_from: encodedCheckpoint,
-            effective_to: "latest",
+            effective_from: BigInt(encodedCheckpoint),
+            effective_to: LATEST,
           })
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -394,10 +399,11 @@ export class PostgresIndexingStore implements IndexingStore {
 
     return this.wrap({ method: `${tableName}.createMany` }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
+
       const createRows = data.map((d) => ({
         ...encodeRow({ ...d }, table, "postgres"),
         effective_from: encodedCheckpoint,
-        effective_to: "latest",
+        effective_to: LATEST,
       }));
 
       const chunkedRows = [];
@@ -448,7 +454,7 @@ export class PostgresIndexingStore implements IndexingStore {
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", formattedId)
-          .where("effective_to", "=", "latest")
+          .where("effective_to", "=", LATEST)
           .executeTakeFirst();
         if (!latestRow)
           throw new StoreError(
@@ -489,7 +495,7 @@ export class PostgresIndexingStore implements IndexingStore {
         await tx
           .updateTable(tableName)
           .where("id", "=", formattedId)
-          .where("effective_to", "=", "latest")
+          .where("effective_to", "=", LATEST)
           .set({ effective_to: encodedCheckpoint })
           .execute();
         return await tx
@@ -498,7 +504,7 @@ export class PostgresIndexingStore implements IndexingStore {
             ...latestRow,
             ...updateRow,
             effective_from: encodedCheckpoint,
-            effective_to: "latest",
+            effective_to: LATEST,
           })
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -533,7 +539,7 @@ export class PostgresIndexingStore implements IndexingStore {
         let query = tx
           .selectFrom(tableName)
           .selectAll()
-          .where("effective_to", "=", "latest");
+          .where("effective_to", "=", LATEST);
 
         if (where) {
           query = query.where((eb) =>
@@ -587,7 +593,7 @@ export class PostgresIndexingStore implements IndexingStore {
             await tx
               .updateTable(tableName)
               .where("id", "=", encodedId)
-              .where("effective_to", "=", "latest")
+              .where("effective_to", "=", LATEST)
               .set({ effective_to: encodedCheckpoint })
               .execute();
             return await tx
@@ -596,7 +602,7 @@ export class PostgresIndexingStore implements IndexingStore {
                 ...latestRow,
                 ...updateRow,
                 effective_from: encodedCheckpoint,
-                effective_to: "latest",
+                effective_to: LATEST,
               })
               .returningAll()
               .executeTakeFirstOrThrow();
@@ -636,7 +642,7 @@ export class PostgresIndexingStore implements IndexingStore {
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", formattedId)
-          .where("effective_to", "=", "latest")
+          .where("effective_to", "=", LATEST)
           .executeTakeFirst();
 
         // If there is no latest version, insert a new version using the create data.
@@ -646,7 +652,7 @@ export class PostgresIndexingStore implements IndexingStore {
             .values({
               ...createRow,
               effective_from: encodedCheckpoint,
-              effective_to: "latest",
+              effective_to: LATEST,
             })
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -686,7 +692,7 @@ export class PostgresIndexingStore implements IndexingStore {
         await tx
           .updateTable(tableName)
           .where("id", "=", formattedId)
-          .where("effective_to", "=", "latest")
+          .where("effective_to", "=", LATEST)
           .set({ effective_to: encodedCheckpoint })
           .execute();
         return await tx
@@ -695,7 +701,7 @@ export class PostgresIndexingStore implements IndexingStore {
             ...latestRow,
             ...updateRow,
             effective_from: encodedCheckpoint,
-            effective_to: "latest",
+            effective_to: LATEST,
           })
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -726,7 +732,7 @@ export class PostgresIndexingStore implements IndexingStore {
           .deleteFrom(tableName)
           .where("id", "=", formattedId)
           .where("effective_from", "=", encodedCheckpoint)
-          .where("effective_to", "=", "latest")
+          .where("effective_to", "=", LATEST)
           .returning(["id"])
           .executeTakeFirst();
 
@@ -737,7 +743,7 @@ export class PostgresIndexingStore implements IndexingStore {
             .updateTable(tableName)
             .set({ effective_to: encodedCheckpoint })
             .where("id", "=", formattedId)
-            .where("effective_to", "=", "latest")
+            .where("effective_to", "=", LATEST)
             .returning(["id"])
             .executeTakeFirst();
         }

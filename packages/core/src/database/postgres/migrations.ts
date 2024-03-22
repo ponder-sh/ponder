@@ -5,6 +5,7 @@ import { type Migration, type MigrationProvider } from "kysely";
 const migrations: Record<string, Migration> = {
   "2024_01_29_0_initial": {
     async up(db: Kysely<any>) {
+      console.log("doing initial migration");
       await db.schema
         .createTable("function_metadata")
         .addColumn("function_id", "text", (col) => col.notNull().primaryKey())
@@ -35,6 +36,33 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_03_22_new_checkpoint_encoding": {
+    async up(db: Kysely<any>) {
+      await db.schema.dropTable("function_metadata").execute();
+      await db.schema.dropTable("table_metadata").execute();
+
+      await db.schema
+        .createTable("function_metadata")
+        .addColumn("function_id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("function_name", "text", (col) => col.notNull())
+        .addColumn("hash_version", "integer", (col) => col.notNull())
+        .addColumn("from_checkpoint", "numeric(75, 0)")
+        .addColumn("to_checkpoint", "numeric(75, 0)", (col) => col.notNull())
+        .addColumn("event_count", "integer", (col) => col.notNull())
+        .execute();
+
+      await db.schema
+        .createTable("table_metadata")
+        .addColumn("table_id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("table_name", "text", (col) => col.notNull())
+        .addColumn("hash_version", "integer", (col) => col.notNull())
+        .addColumn("to_checkpoint", "numeric(75, 0)", (col) => col.notNull())
+        .addColumn("schema", "jsonb", (col) => col.notNull())
+        .execute();
+
+      console.log("finishd migration");
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -50,15 +78,15 @@ export type PonderCoreSchema = {
     function_id: string;
     function_name: string;
     hash_version: number;
-    from_checkpoint: string | null;
-    to_checkpoint: string;
+    from_checkpoint: bigint | null;
+    to_checkpoint: bigint;
     event_count: number;
   };
   "ponder_cache.table_metadata": {
     table_id: string;
     table_name: string;
     hash_version: number;
-    to_checkpoint: string;
+    to_checkpoint: bigint;
     schema: JSONColumnType<Schema>;
   };
   "ponder_cache.instance_metadata": {
@@ -72,7 +100,7 @@ export type PonderCoreSchema = {
 } & {
   [tableId: string]: {
     id: unknown;
-    effective_from: string;
-    effective_to: string;
+    effective_from: bigint;
+    effective_to: bigint;
   };
 };

@@ -29,6 +29,11 @@ export async function run({
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
+  const syncOnly = !!process.env.SYNC_ONLY;
+  if (syncOnly) {
+    common.logger.info({ msg: "Running sync only (no indexing will occur)" });
+  }
+
   const {
     databaseConfig,
     networks,
@@ -86,32 +91,35 @@ export async function run({
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = new IndexingService({
-    common,
-    database,
-    indexingStore,
-    sources,
-    networks,
-    syncService,
-  });
+  const indexingService = syncOnly
+    ? undefined
+    : new IndexingService({
+        common,
+        database,
+        indexingStore,
+        sources,
+        networks,
+        syncService,
+      });
 
-  syncService.on("checkpoint", async () => {
-    await indexingService.processEvents();
-  });
+  if (indexingService) {
+    syncService.on("checkpoint", async () => {
+      await indexingService.processEvents();
+    });
 
-  syncService.on("reorg", async (checkpoint) => {
-    await indexingService.handleReorg(checkpoint);
-    await indexingService.processEvents();
-  });
+    syncService.on("reorg", async (checkpoint) => {
+      await indexingService.handleReorg(checkpoint);
+      await indexingService.processEvents();
+    });
+  }
 
   syncService.on("fatal", onFatalError);
-
-  indexingService.on("error", onReloadableError);
+  indexingService?.on("error", onReloadableError);
 
   const finalizedCheckpoint = await syncService.start();
 
   let isHealthy = false;
-  indexingService.onSerial("eventsProcessed", async ({ toCheckpoint }) => {
+  indexingService?.onSerial("eventsProcessed", async ({ toCheckpoint }) => {
     if (isHealthy) return;
 
     if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
@@ -122,7 +130,7 @@ export async function run({
     }
   });
 
-  await indexingService.start({
+  await indexingService?.start({
     indexingFunctions,
     schema,
     tableAccess,
@@ -130,12 +138,12 @@ export async function run({
     functionIds,
   });
 
-  indexingService.processEvents();
+  indexingService?.processEvents();
 
   return async () => {
     await serverService.kill();
     await syncService.kill();
-    await indexingService.kill();
+    await indexingService?.kill();
     indexingStore.kill();
     syncStore.kill();
     await database.kill();

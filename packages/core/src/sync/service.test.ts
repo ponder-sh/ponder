@@ -17,6 +17,8 @@ import { SyncService } from "./service.js";
 beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupIsolatedDatabase(context));
 
+const MIN_TIMESTAMP = 1_000_000_000;
+
 function getMultichainNetworksAndSources(context: TestContext) {
   const mainnet = context.networks[0];
   const optimism = { ...mainnet, name: "optimism", chainId: 10 };
@@ -35,7 +37,11 @@ function getMultichainNetworksAndSources(context: TestContext) {
 }
 
 function createCheckpoint(checkpoint: Partial<Checkpoint>): Checkpoint {
-  return { ...zeroCheckpoint, ...checkpoint };
+  const output = { ...zeroCheckpoint, ...checkpoint };
+  if (output.blockTimestamp < MIN_TIMESTAMP) {
+    output.blockTimestamp = output.blockTimestamp + MIN_TIMESTAMP;
+  }
+  return output;
 }
 
 test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
@@ -50,11 +56,11 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
 
   const mainnet10 = createCheckpoint({
     chainId: mainnet.chainId,
-    blockTimestamp: 10,
+    blockTimestamp: 10 + MIN_TIMESTAMP,
   });
   const optimism12 = createCheckpoint({
     chainId: optimism.chainId,
-    blockTimestamp: 12,
+    blockTimestamp: 12 + MIN_TIMESTAMP,
   });
   service.handleNewHistoricalCheckpoint(mainnet10);
   service.handleNewHistoricalCheckpoint(optimism12);

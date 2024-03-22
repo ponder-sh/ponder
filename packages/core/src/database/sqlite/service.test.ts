@@ -5,6 +5,7 @@ import { createSchema } from "@/schema/schema.js";
 import {
   type Checkpoint,
   encodeCheckpoint,
+  maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { Kysely, sql } from "kysely";
@@ -42,7 +43,7 @@ const schemaTwo = createSchema((p) => ({
 }));
 
 function createCheckpoint(index: number): Checkpoint {
-  return { ...zeroCheckpoint, blockTimestamp: index };
+  return { ...zeroCheckpoint, blockTimestamp: index + 1_000_000_000 };
 }
 
 const shouldSkip = process.env.DATABASE_URL !== undefined;
@@ -63,14 +64,18 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     // Cache database, metadata tables, and cache tables were created
-    expect(await getTableNames(database.db, "ponder_cache")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "function_metadata",
-      "table_metadata",
-      "0xPet",
-      "0xPerson",
-    ]);
+    expect(
+      new Set(await getTableNames(database.db, "ponder_cache")),
+    ).toStrictEqual(
+      new Set([
+        "kysely_migration",
+        "kysely_migration_lock",
+        "function_metadata",
+        "table_metadata",
+        "0xPet",
+        "0xPerson",
+      ]),
+    );
 
     // Instance tables and views were created in the public schema
     expect(await getTableNames(database.db)).toStrictEqual([
@@ -960,7 +965,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       kind: expect.any(String),
       name: expect.any(String),
       effective_from: encodeCheckpoint(createCheckpoint(2)),
-      effective_to: "latest",
+      effective_to: encodeCheckpoint(maxCheckpoint),
     });
 
     expect(petRowsAfter).length(5);

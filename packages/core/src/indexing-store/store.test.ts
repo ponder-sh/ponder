@@ -30,7 +30,7 @@ const hexSchema = createSchema((p) => ({
 }));
 
 function createCheckpoint(index: number): Checkpoint {
-  return { ...zeroCheckpoint, blockTimestamp: index };
+  return { ...zeroCheckpoint, blockTimestamp: index + 1_000_000_000 };
 }
 
 test("create() inserts a record that is effective after specified checkpoint", async (context) => {
@@ -1275,6 +1275,7 @@ test("createMany() inserts multiple entities", async (context) => {
       { id: "id3", name: "Bar", bigAge: 190n },
     ],
   });
+
   expect(createdItems.length).toBe(3);
 
   const { items } = await indexingStore.findMany({ tableName: "Pet" });

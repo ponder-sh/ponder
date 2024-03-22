@@ -1,9 +1,9 @@
 import type { Schema } from "@/schema/types.js";
-import type {
-  JSONColumnType,
-  Kysely,
-  Migration,
-  MigrationProvider,
+import {
+  type JSONColumnType,
+  type Kysely,
+  type Migration,
+  type MigrationProvider,
 } from "kysely";
 
 const migrations: Record<string, Migration> = {
@@ -25,6 +25,31 @@ const migrations: Record<string, Migration> = {
         .addColumn("table_name", "text", (col) => col.notNull())
         .addColumn("hash_version", "integer", (col) => col.notNull())
         .addColumn("to_checkpoint", "varchar(58)", (col) => col.notNull())
+        .addColumn("schema", "jsonb", (col) => col.notNull())
+        .execute();
+    },
+  },
+  "2024_03_22_new_checkpoint_encoding": {
+    async up(db: Kysely<any>) {
+      await db.schema.dropTable("function_metadata").execute();
+      await db.schema.dropTable("table_metadata").execute();
+
+      await db.schema
+        .createTable("function_metadata")
+        .addColumn("function_id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("function_name", "text", (col) => col.notNull())
+        .addColumn("hash_version", "integer", (col) => col.notNull())
+        .addColumn("from_checkpoint", "varchar(75)")
+        .addColumn("to_checkpoint", "varchar(75)", (col) => col.notNull())
+        .addColumn("event_count", "integer", (col) => col.notNull())
+        .execute();
+
+      await db.schema
+        .createTable("table_metadata")
+        .addColumn("table_id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("table_name", "text", (col) => col.notNull())
+        .addColumn("hash_version", "integer", (col) => col.notNull())
+        .addColumn("to_checkpoint", "varchar(75)", (col) => col.notNull())
         .addColumn("schema", "jsonb", (col) => col.notNull())
         .execute();
     },

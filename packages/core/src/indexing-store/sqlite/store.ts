@@ -1,7 +1,11 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError, StoreError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
-import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  encodeCheckpoint,
+  maxCheckpoint,
+} from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
 import { WithTablePrefixPlugin } from "@/utils/withTablePrefixPlugin.js";
@@ -23,6 +27,7 @@ import {
 const MAX_BATCH_SIZE = 1_000 as const;
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
+const LATEST = encodeCheckpoint(maxCheckpoint);
 
 export class SqliteIndexingStore implements IndexingStore {
   kind = "sqlite" as const;
@@ -71,7 +76,7 @@ export class SqliteIndexingStore implements IndexingStore {
         .execute((tx) =>
           Promise.all(
             Object.keys(this.schema?.tables ?? {}).map(async (tableName) =>
-              revertTable(tx, tableName, checkpoint),
+              revertTable(tx, tableName, checkpoint, LATEST),
             ),
           ),
         );
@@ -80,11 +85,11 @@ export class SqliteIndexingStore implements IndexingStore {
 
   findUnique = async ({
     tableName,
-    checkpoint = "latest",
+    checkpoint,
     id,
   }: {
     tableName: string;
-    checkpoint?: Checkpoint | "latest";
+    checkpoint?: Checkpoint;
     id: string | number | bigint;
   }) => {
     const table = this.schema.tables[tableName];
@@ -97,8 +102,8 @@ export class SqliteIndexingStore implements IndexingStore {
         .selectAll()
         .where("id", "=", encodedId);
 
-      if (checkpoint === "latest") {
-        query = query.where("effective_to", "=", "latest");
+      if (!checkpoint) {
+        query = query.where("effective_to", "=", LATEST);
       } else {
         const encodedCheckpoint = encodeCheckpoint(checkpoint);
         query = query
@@ -106,7 +111,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .where(({ eb, or }) =>
             or([
               eb("effective_to", ">", encodedCheckpoint),
-              eb("effective_to", "=", "latest"),
+              eb("effective_to", "=", LATEST),
             ]),
           );
       }
@@ -120,7 +125,7 @@ export class SqliteIndexingStore implements IndexingStore {
 
   findMany = async ({
     tableName,
-    checkpoint = "latest",
+    checkpoint,
     where,
     orderBy,
     before = null,
@@ -128,7 +133,7 @@ export class SqliteIndexingStore implements IndexingStore {
     limit = DEFAULT_LIMIT,
   }: {
     tableName: string;
-    checkpoint?: Checkpoint | "latest";
+    checkpoint?: Checkpoint;
     where?: WhereInput<any>;
     orderBy?: OrderByInput<any>;
     before?: string | null;
@@ -140,8 +145,8 @@ export class SqliteIndexingStore implements IndexingStore {
     return this.wrap({ method: `${tableName}.findMany` }, async () => {
       let query = this.db.selectFrom(tableName).selectAll();
 
-      if (checkpoint === "latest") {
-        query = query.where("effective_to", "=", "latest");
+      if (!checkpoint) {
+        query = query.where("effective_to", "=", LATEST);
       } else {
         const encodedCheckpoint = encodeCheckpoint(checkpoint);
         query = query
@@ -149,7 +154,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .where(({ eb, or }) =>
             or([
               eb("effective_to", ">", encodedCheckpoint),
-              eb("effective_to", "=", "latest"),
+              eb("effective_to", "=", LATEST),
             ]),
           );
       }
@@ -356,7 +361,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .values({
             ...createRow,
             effective_from: encodedCheckpoint,
-            effective_to: "latest",
+            effective_to: LATEST,
           })
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -388,7 +393,7 @@ export class SqliteIndexingStore implements IndexingStore {
       const createRows = data.map((d) => ({
         ...encodeRow({ ...d }, table, "sqlite"),
         effective_from: encodedCheckpoint,
-        effective_to: "latest",
+        effective_to: LATEST,
       }));
 
       const chunkedRows = [];
@@ -439,7 +444,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
-          .where("effective_to", "=", "latest")
+          .where("effective_to", "=", LATEST)
           .executeTakeFirst();
         if (!latestRow)
           throw new StoreError(
@@ -480,7 +485,7 @@ export class SqliteIndexingStore implements IndexingStore {
         await tx
           .updateTable(tableName)
           .where("id", "=", encodedId)
-          .where("effective_to", "=", "latest")
+          .where("effective_to", "=", LATEST)
           .set({ effective_to: encodedCheckpoint })
           .execute();
         return tx
@@ -489,7 +494,7 @@ export class SqliteIndexingStore implements IndexingStore {
             ...latestRow,
             ...updateRow,
             effective_from: encodedCheckpoint,
-            effective_to: "latest",
+            effective_to: LATEST,
           })
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -524,7 +529,7 @@ export class SqliteIndexingStore implements IndexingStore {
         let query = tx
           .selectFrom(tableName)
           .selectAll()
-          .where("effective_to", "=", "latest");
+          .where("effective_to", "=", LATEST);
 
         if (where) {
           query = query.where((eb) =>
@@ -578,7 +583,7 @@ export class SqliteIndexingStore implements IndexingStore {
             await tx
               .updateTable(tableName)
               .where("id", "=", encodedId)
-              .where("effective_to", "=", "latest")
+              .where("effective_to", "=", LATEST)
               .set({ effective_to: encodedCheckpoint })
               .execute();
             return tx
@@ -587,7 +592,7 @@ export class SqliteIndexingStore implements IndexingStore {
                 ...latestRow,
                 ...updateRow,
                 effective_from: encodedCheckpoint,
-                effective_to: "latest",
+                effective_to: LATEST,
               })
               .returningAll()
               .executeTakeFirstOrThrow();
@@ -627,7 +632,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
-          .where("effective_to", "=", "latest")
+          .where("effective_to", "=", LATEST)
           .executeTakeFirst();
 
         // If there is no latest version, insert a new version using the create data.
@@ -637,7 +642,7 @@ export class SqliteIndexingStore implements IndexingStore {
             .values({
               ...createRow,
               effective_from: encodedCheckpoint,
-              effective_to: "latest",
+              effective_to: LATEST,
             })
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -677,7 +682,7 @@ export class SqliteIndexingStore implements IndexingStore {
         await tx
           .updateTable(tableName)
           .where("id", "=", encodedId)
-          .where("effective_to", "=", "latest")
+          .where("effective_to", "=", LATEST)
           .set({ effective_to: encodedCheckpoint })
           .execute();
         return tx
@@ -686,7 +691,7 @@ export class SqliteIndexingStore implements IndexingStore {
             ...latestRow,
             ...updateRow,
             effective_from: encodedCheckpoint,
-            effective_to: "latest",
+            effective_to: LATEST,
           })
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -718,7 +723,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .deleteFrom(tableName)
           .where("id", "=", encodedId)
           .where("effective_from", "=", encodedCheckpoint)
-          .where("effective_to", "=", "latest")
+          .where("effective_to", "=", LATEST)
           .returning(["id"])
           .executeTakeFirst();
 
@@ -729,7 +734,7 @@ export class SqliteIndexingStore implements IndexingStore {
             .updateTable(tableName)
             .set({ effective_to: encodedCheckpoint })
             .where("id", "=", encodedId)
-            .where("effective_to", "=", "latest")
+            .where("effective_to", "=", LATEST)
             .returning(["id"])
             .executeTakeFirst();
         }

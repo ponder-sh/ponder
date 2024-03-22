@@ -5,7 +5,8 @@ export const revertTable = async (
   kysely: Kysely<any>,
   tableName: string,
   checkpoint: Checkpoint,
-) => {
+  latest: string | bigint,
+): Promise<void> => {
   const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
   // Delete any versions that are newer than or equal to the safe checkpoint.
@@ -18,7 +19,7 @@ export const revertTable = async (
   // to the safe checkpoint are the new latest version.
   await kysely
     .updateTable(tableName)
-    .set({ effective_to: "latest" })
+    .set({ effective_to: latest })
     .where("effective_to", ">=", encodedCheckpoint)
     .execute();
 };
