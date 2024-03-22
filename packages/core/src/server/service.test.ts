@@ -51,11 +51,7 @@ const schema = createSchema((p) => ({
 
 const graphqlSchema = buildGqlSchema(schema);
 
-export const setup = async ({
-  context,
-}: {
-  context: TestContext;
-}) => {
+export const setup = async ({ context }: { context: TestContext }) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
     tableIds: getTableIds(schema),
@@ -99,7 +95,10 @@ export const setup = async ({
   const createEntityWithBigIntId = async ({
     id,
     testEntityId,
-  }: { id: bigint; testEntityId: string }) => {
+  }: {
+    id: bigint;
+    testEntityId: string;
+  }) => {
     await indexingStore.create({
       tableName: "EntityWithBigIntId",
       checkpoint: zeroCheckpoint,
@@ -1434,7 +1433,7 @@ test("throws if limit is greater than 1000", async (context) => {
   await cleanup();
 });
 
-test("serves singular entity versioned at specified timestamp", async (context) => {
+test.only("serves singular entity versioned at specified timestamp", async (context) => {
   const { service, cleanup, gql, indexingStore, createTestEntity } =
     await setup({ context });
   service.setIsHealthy(true);

@@ -5,7 +5,6 @@ import { type Migration, type MigrationProvider } from "kysely";
 const migrations: Record<string, Migration> = {
   "2024_01_29_0_initial": {
     async up(db: Kysely<any>) {
-      console.log("doing initial migration");
       await db.schema
         .createTable("function_metadata")
         .addColumn("function_id", "text", (col) => col.notNull().primaryKey())
@@ -59,8 +58,6 @@ const migrations: Record<string, Migration> = {
         .addColumn("to_checkpoint", "varchar(75)", (col) => col.notNull())
         .addColumn("schema", "jsonb", (col) => col.notNull())
         .execute();
-
-      console.log("finishd migration");
     },
   },
 };

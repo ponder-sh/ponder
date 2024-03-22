@@ -393,7 +393,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 .where("effective_to", ">", newTableToCheckpoint)
                 .execute();
             } else {
-              console.log("in else");
               // Update effective_to of overwritten rows
               await tx.executeQuery(
                 sql`WITH earliest_new_records AS (SELECT id, MIN(effective_from) as new_effective_to FROM "${sql.raw(

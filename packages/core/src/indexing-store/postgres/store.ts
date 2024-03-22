@@ -112,7 +112,7 @@ export class PostgresIndexingStore implements IndexingStore {
       if (!checkpoint) {
         query = query.where("effective_to", "=", LATEST);
       } else {
-        const encodedCheckpoint = BigInt(encodeCheckpoint(checkpoint));
+        const encodedCheckpoint = encodeCheckpoint(checkpoint);
         query = query
           .where("effective_from", "<=", encodedCheckpoint)
           .where(({ eb, or }) =>
@@ -155,7 +155,7 @@ export class PostgresIndexingStore implements IndexingStore {
       if (!checkpoint) {
         query = query.where("effective_to", "=", LATEST);
       } else {
-        const encodedCheckpoint = BigInt(encodeCheckpoint(checkpoint));
+        const encodedCheckpoint = encodeCheckpoint(checkpoint);
         query = query
           .where("effective_from", "<=", encodedCheckpoint)
           .where(({ eb, or }) =>
@@ -368,7 +368,7 @@ export class PostgresIndexingStore implements IndexingStore {
           .insertInto(tableName)
           .values({
             ...createRow,
-            effective_from: BigInt(encodedCheckpoint),
+            effective_from: encodedCheckpoint,
             effective_to: LATEST,
           })
           .returningAll()
