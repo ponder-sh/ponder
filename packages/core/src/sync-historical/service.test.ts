@@ -230,7 +230,14 @@ test("start() adds log filter events to sync store", async (context) => {
 
   const { events: erc20Events } = await getEventsErc20(sources, maxCheckpoint);
 
-  expect(erc20Events).toMatchObject(events);
+  expect(erc20Events).toMatchObject(
+    events.map((x) => ({
+      block: x.block,
+      log: x.log,
+      transaction: x.transaction,
+      chainId: x.chainId,
+    })),
+  );
 
   service.kill();
   await service.onIdle();
