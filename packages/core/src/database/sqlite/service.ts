@@ -1,5 +1,4 @@
 import path from "node:path";
-import type { Common } from "@/Ponder.js";
 import {
   type FunctionIds,
   HASH_VERSION,
@@ -10,7 +9,8 @@ import {
   getTableAccessInverse,
   isWriteStoreMethod,
 } from "@/build/static/getTableAccess.js";
-import { NonRetryableError } from "@/errors/base.js";
+import type { Common } from "@/common/common.js";
+import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
@@ -55,7 +55,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   tableAccess?: TableAccess;
 
   functionMetadata: FunctionMetadata[] = undefined!;
-  isPublished = false;
 
   constructor({
     common,
@@ -417,7 +416,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
   async publish() {
     return this.wrap({ method: "publish" }, async () => {
-      this.isPublished = true;
+      // no-op
     });
   }
 

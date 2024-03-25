@@ -1,28 +1,20 @@
 import { rmSync } from "node:fs";
-import { Ponder } from "@/Ponder.js";
+import { ALICE } from "@/_test/constants.js";
 import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
 import { simulatePairSwap } from "@/_test/simulate.js";
-import { onAllEventsIndexed } from "@/_test/utils.js";
-import { buildOptions } from "@/config/options.js";
-import request from "supertest";
+import { getFreePort, postGraphql, waitForHealthy } from "@/_test/utils.js";
+import { start } from "@/bin/commands/start.js";
+import { wait } from "@/utils/wait.js";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
-const gql = async (ponder: Ponder, query: string) => {
-  const response = await request(ponder.serverService.app)
-    .post("/")
-    .send({ query: `query { ${query} }` });
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  return response.body.data;
-};
-
 afterEach(() => {
   rmSync("./src/_test/e2e/factory/.ponder", {
     recursive: true,
     force: true,
+    retryDelay: 20,
   });
   rmSync("./src/_test/e2e/factory/generated", {
     recursive: true,
@@ -31,24 +23,22 @@ afterEach(() => {
 });
 
 test("factory", async (context) => {
-  const options = buildOptions({
-    cliOptions: { root: "./src/_test/e2e/factory", config: "ponder.config.ts" },
+  const port = await getFreePort();
+
+  const cleanup = await start({
+    cliOptions: {
+      root: "./src/_test/e2e/factory",
+      config: "ponder.config.ts",
+      port,
+    },
   });
-  const testOptions = {
-    ...options,
-    uiEnabled: false,
-    logLevel: "error",
-    telemetryDisabled: true,
-  } as const;
 
-  const ponder = new Ponder({ options: testOptions });
-  await ponder.start(context.databaseConfig);
-  if (!ponder.database.isPublished) {
-    await onAllEventsIndexed(ponder, 4);
-  }
+  await waitForHealthy(port);
 
-  let swapEvents = await gql(
-    ponder,
+  await wait(500);
+
+  let response = await postGraphql(
+    port,
     `
     swapEvents {
       items {
@@ -59,16 +49,28 @@ test("factory", async (context) => {
       }
     }
     `,
-  ).then((g) => g.swapEvents.items);
+  );
+
+  expect(response.status).toBe(200);
+  let body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  let swapEvents = body.data.swapEvents.items;
 
   expect(swapEvents).toHaveLength(1);
+  expect(swapEvents[0]).toMatchObject({
+    id: expect.any(String),
+    from: ALICE.toLowerCase(),
+    to: ALICE.toLowerCase(),
+    pair: context.factory.pair.toLowerCase(),
+  });
 
-  const indexedPromise = onAllEventsIndexed(ponder, 5);
   await simulatePairSwap(context.factory.pair);
-  await indexedPromise;
 
-  swapEvents = await gql(
-    ponder,
+  // TODO: Find a consistent way to wait for indexing to be complete.
+  await wait(2500);
+
+  response = await postGraphql(
+    port,
     `
     swapEvents {
       items {
@@ -79,9 +81,14 @@ test("factory", async (context) => {
       }
     }
     `,
-  ).then((g) => g.swapEvents.items);
+  );
+
+  expect(response.status).toBe(200);
+  body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  swapEvents = body.data.swapEvents.items;
 
   expect(swapEvents).toHaveLength(2);
 
-  await ponder.kill();
+  await cleanup();
 });

@@ -1,4 +1,4 @@
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Factory,
@@ -27,7 +27,7 @@ import {
   hexToNumber,
   numberToHex,
 } from "viem";
-import { isMatchedLogInBloomFilter } from "./bloom.js";
+import { isMatchedLogInBloomFilter, zeroLogsBloom } from "./bloom.js";
 import { filterLogs } from "./filter.js";
 import {
   type LightBlock,
@@ -44,7 +44,7 @@ type RealtimeSyncEvents = {
   finalityCheckpoint: Checkpoint;
   reorg: Checkpoint;
   idle: undefined;
-  fatal: undefined;
+  fatal: Error;
 };
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
@@ -275,7 +275,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           network: this.network.name,
         });
 
-        if (i === 5) this.emit("fatal");
+        if (i === 5) this.emit("fatal", error);
         else {
           const duration = 250 * 2 ** i;
           await wait(duration);
@@ -459,8 +459,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     const criteria = this.sources.map((s) => s.criteria);
+
     // Don't attempt to skip "eth_getLogs" if a factory source is present.
-    // Note: this may not be a possible path depending on the implementation of "determineSyncPath".
     const canSkipGetLogs =
       !this.hasFactorySource &&
       newBlocks.every(
@@ -468,7 +468,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           !isMatchedLogInBloomFilter({
             bloom: block.logsBloom,
             logFilters: criteria,
-          }),
+          }) && block.logsBloom !== zeroLogsBloom,
       );
 
     if (canSkipGetLogs) {
@@ -574,12 +574,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     );
 
     if (remoteFinalizedBlock.hash !== this.finalizedBlock.hash) {
-      this.common.logger.warn({
-        service: "realtime",
-        msg: `Detected unrecoverable reorg at block ${this.finalizedBlock.number} with local hash ${this.finalizedBlock.hash} and remote hash ${remoteFinalizedBlock.hash} (network=${this.network.name})`,
-      });
+      const msg = `Detected unrecoverable reorg at block ${this.finalizedBlock.number} with local hash ${this.finalizedBlock.hash} and remote hash ${remoteFinalizedBlock.hash} (network=${this.network.name})`;
+      this.common.logger.warn({ service: "realtime", msg });
 
-      this.emit("fatal");
+      this.emit("fatal", new Error(msg));
 
       this.blocks = [];
       this.logs = [];
@@ -663,8 +661,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       });
     };
 
-    let i = 0;
-    for (; i < localLogs.length && i < matchedLogs.length; i++) {
+    for (let i = 0; i < localLogs.length && i < matchedLogs.length; i++) {
       const lightMatchedLog = realtimeLogToLightLog(matchedLogs[i]);
       if (
         lightMatchedLog.blockHash !== localLogs[i].blockHash ||

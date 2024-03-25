@@ -1,5 +1,5 @@
-import type { Common } from "@/Ponder.js";
 import { setupAnvil } from "@/_test/setup.js";
+import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import { beforeEach, expect, test } from "vitest";
 import { createRequestQueue } from "./requestQueue.js";

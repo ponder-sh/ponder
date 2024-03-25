@@ -1,4 +1,5 @@
-import type { Common } from "@/Ponder.js";
+import type { Common } from "@/common/common.js";
+import { getHistoricalSyncStats } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Factory,
@@ -8,7 +9,6 @@ import {
   type Topics,
   sourceIsLogFilter,
 } from "@/config/sources.js";
-import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import { Emittery } from "@/utils/emittery.js";

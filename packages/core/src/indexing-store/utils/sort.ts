@@ -1,4 +1,4 @@
-import { StoreError } from "@/errors/base.js";
+import { StoreError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
 import type { OrderByInput } from "../store.js";

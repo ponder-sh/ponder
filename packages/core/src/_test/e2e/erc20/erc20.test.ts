@@ -1,26 +1,17 @@
 import { rmSync } from "node:fs";
-import { Ponder } from "@/Ponder.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
-import { simulate, simulateErc20 } from "@/_test/simulate.js";
-import { onAllEventsIndexed } from "@/_test/utils.js";
-import { buildOptions } from "@/config/options.js";
+import { simulate } from "@/_test/simulate.js";
+import { getFreePort, postGraphql, waitForHealthy } from "@/_test/utils.js";
+import { serve } from "@/bin/commands/serve.js";
+import { start } from "@/bin/commands/start.js";
 import { range } from "@/utils/range.js";
-import request from "supertest";
+import { wait } from "@/utils/wait.js";
 import { zeroAddress } from "viem";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
-
-const gql = async (ponder: Ponder, query: string) => {
-  const response = await request(ponder.serverService.app)
-    .post("/")
-    .send({ query: `query { ${query} }` });
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  return response.body.data;
-};
 
 afterEach(() => {
   rmSync("./src/_test/e2e/erc20/.ponder", {
@@ -35,24 +26,20 @@ afterEach(() => {
 });
 
 test("erc20", async (context) => {
-  const options = buildOptions({
-    cliOptions: { root: "./src/_test/e2e/erc20", config: "ponder.config.ts" },
+  const port = await getFreePort();
+
+  const cleanup = await start({
+    cliOptions: {
+      root: "./src/_test/e2e/erc20",
+      config: "ponder.config.ts",
+      port,
+    },
   });
-  const testOptions = {
-    ...options,
-    uiEnabled: false,
-    logLevel: "error",
-    telemetryDisabled: true,
-  } as const;
 
-  const ponder = new Ponder({ options: testOptions });
-  await ponder.start(context.databaseConfig);
-  if (!ponder.database.isPublished) {
-    await onAllEventsIndexed(ponder, 4);
-  }
+  await waitForHealthy(port);
 
-  let accounts = await gql(
-    ponder,
+  let response = await postGraphql(
+    port,
     `
     accounts {
       items {
@@ -61,7 +48,12 @@ test("erc20", async (context) => {
       }
     }
     `,
-  ).then((g) => g.accounts.items);
+  );
+
+  expect(response.status).toBe(200);
+  let body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  let accounts = body.data.accounts.items;
 
   expect(accounts).toHaveLength(3);
   expect(accounts[0]).toMatchObject({
@@ -77,12 +69,16 @@ test("erc20", async (context) => {
     balance: "0",
   });
 
-  const indexedPromise = onAllEventsIndexed(ponder, 5);
-  await simulateErc20(context.erc20.address);
-  await indexedPromise;
+  await simulate({
+    erc20Address: context.erc20.address,
+    factoryAddress: context.factory.address,
+  });
 
-  accounts = await gql(
-    ponder,
+  // TODO: Find a consistent way to wait for indexing to be complete.
+  await wait(2500);
+
+  response = await postGraphql(
+    port,
     `
     accounts {
       items {
@@ -91,7 +87,12 @@ test("erc20", async (context) => {
       }
     }
     `,
-  ).then((g) => g.accounts.items);
+  );
+
+  expect(response.status).toBe(200);
+  body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  accounts = body.data.accounts.items;
 
   expect(accounts[0]).toMatchObject({
     id: zeroAddress,
@@ -106,7 +107,7 @@ test("erc20", async (context) => {
     balance: "0",
   });
 
-  await ponder.kill();
+  await cleanup();
 });
 
 const shouldSkip = process.env.DATABASE_URL === undefined;
@@ -114,15 +115,17 @@ const shouldSkip = process.env.DATABASE_URL === undefined;
 // Fix this once it's easier to have per-command kill functions in Ponder.ts.
 describe.skipIf(shouldSkip)("postgres database", () => {
   test.todo("ponder serve", async (context) => {
-    const options = buildOptions({
-      cliOptions: { root: "./src/_test/e2e/erc20", config: "ponder.config.ts" },
+    const startPort = await getFreePort();
+
+    const cleanupStart = await start({
+      cliOptions: {
+        root: "./src/_test/e2e/erc20",
+        config: "ponder.config.ts",
+        port: startPort,
+      },
     });
-    const testOptions = {
-      ...options,
-      uiEnabled: false,
-      logLevel: "error",
-      telemetryDisabled: true,
-    } as const;
+
+    await waitForHealthy(startPort);
 
     for (const _ in range(0, 3)) {
       await simulate({
@@ -131,15 +134,20 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       });
     }
 
-    const ponder = new Ponder({ options: testOptions });
-    await ponder.start(context.databaseConfig);
-    await onAllEventsIndexed(ponder, 13);
+    const servePort = await getFreePort();
 
-    const ponderServe = new Ponder({ options: testOptions });
-    await ponderServe.serve(context.databaseConfig);
+    const cleanupServe = await serve({
+      cliOptions: {
+        root: "./src/_test/e2e/erc20",
+        config: "ponder.config.ts",
+        port: servePort,
+      },
+    });
 
-    const accounts = await gql(
-      ponderServe,
+    await waitForHealthy(servePort);
+
+    const response = await postGraphql(
+      servePort,
       `
       accounts {
         items {
@@ -148,7 +156,12 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         }
       }
       `,
-    ).then((g) => g.accounts.items);
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.errors).toBe(undefined);
+    const accounts = body.data.accounts.items;
 
     expect(accounts).toHaveLength(3);
     expect(accounts[0]).toMatchObject({
@@ -164,7 +177,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       balance: "0",
     });
 
-    await ponderServe.kill();
-    await ponder.kill();
+    await cleanupServe();
+    await cleanupStart();
   });
 });

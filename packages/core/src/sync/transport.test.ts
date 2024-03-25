@@ -7,7 +7,7 @@ import { anvil, publicClient } from "@/_test/utils.js";
 import type { Transport } from "viem";
 import { getFunctionSelector, toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
-import { ponderTransport } from "./transport.js";
+import { cachedTransport } from "./transport.js";
 
 beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupIsolatedDatabase(context));
@@ -16,7 +16,7 @@ test("default", async (context) => {
   const { requestQueues } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
-  const transport = ponderTransport({
+  const transport = cachedTransport({
     requestQueue: requestQueues[0],
     syncStore,
   });
@@ -47,7 +47,7 @@ test("eth_call", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
-  const transport = ponderTransport({
+  const transport = cachedTransport({
     requestQueue: requestQueues[0],
     syncStore,
   })({
@@ -109,7 +109,7 @@ test("eth_getBalance", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
-  const transport = ponderTransport({
+  const transport = cachedTransport({
     requestQueue: requestQueues[0],
     syncStore,
   })({
@@ -153,7 +153,7 @@ test("eth_getStorageAt", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
-  const transport = ponderTransport({
+  const transport = cachedTransport({
     requestQueue: requestQueues[0],
     syncStore,
   })({
@@ -197,7 +197,7 @@ test("eth_getCode", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
-  const transport = ponderTransport({
+  const transport = cachedTransport({
     requestQueue: requestQueues[0],
     syncStore,
   })({
@@ -239,7 +239,7 @@ test("eth_getCode", async (context) => {
 test("fallback method", async (context) => {
   const { requestQueues } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const transport = ponderTransport({
+  const transport = cachedTransport({
     requestQueue: requestQueues[0],
     syncStore,
   })({

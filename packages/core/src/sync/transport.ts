@@ -11,7 +11,7 @@ const cachedMethods = [
   "eth_getStorageAt",
 ] as const;
 
-export const ponderTransport = ({
+export const cachedTransport = ({
   requestQueue,
   syncStore,
 }: {

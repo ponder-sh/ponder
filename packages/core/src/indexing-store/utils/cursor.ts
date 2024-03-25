@@ -1,4 +1,4 @@
-import { StoreError } from "@/errors/base.js";
+import { StoreError } from "@/common/errors.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
 import type { ExpressionBuilder } from "kysely";
 import type { Row } from "../store.js";
