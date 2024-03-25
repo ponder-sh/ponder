@@ -129,7 +129,7 @@ export async function run({
     functionIds,
   });
 
-  indexingService?.processEvents();
+  indexingService.processEvents();
 
   return async () => {
     await serverService.kill();
