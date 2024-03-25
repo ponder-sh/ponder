@@ -955,7 +955,7 @@ export class PostgresSyncStore implements SyncStore {
 
         this.db
           .selectFrom("logs")
-          .leftJoin("blocks", "blocks.hash", "logs.blockHash")
+          .select(["logs.checkpoint"])
           .where((eb) => {
             const logFilterCmprs =
               logFilters?.map((logFilter) => {
@@ -976,7 +976,6 @@ export class PostgresSyncStore implements SyncStore {
 
             return eb.or([...logFilterCmprs, ...factoryCmprs]);
           })
-          .select(["logs.checkpoint"])
           .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
           .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
           .orderBy("logs.checkpoint", "desc")
@@ -1158,9 +1157,9 @@ export class PostgresSyncStore implements SyncStore {
     }
 
     if (logFilter.fromBlock)
-      exprs.push(eb("blocks.number", ">=", BigInt(logFilter.fromBlock)));
+      exprs.push(eb("logs.blockNumber", ">=", BigInt(logFilter.fromBlock)));
     if (logFilter.toBlock)
-      exprs.push(eb("blocks.number", "<=", BigInt(logFilter.toBlock)));
+      exprs.push(eb("logs.blockNumber", "<=", BigInt(logFilter.toBlock)));
 
     return exprs;
   };
@@ -1207,9 +1206,9 @@ export class PostgresSyncStore implements SyncStore {
     );
 
     if (factory.fromBlock)
-      exprs.push(eb("blocks.number", ">=", BigInt(factory.fromBlock)));
+      exprs.push(eb('logs."blockNumber"', ">=", BigInt(factory.fromBlock)));
     if (factory.toBlock)
-      exprs.push(eb("blocks.number", "<=", BigInt(factory.toBlock)));
+      exprs.push(eb('logs."blockNumber"', "<=", BigInt(factory.toBlock)));
 
     return exprs;
   };
