@@ -1,14 +1,9 @@
 import type { IndexingStore } from "@/indexing-store/store.js";
-import type { Scalar, Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/types.js";
 import {
-  GraphQLBoolean,
   type GraphQLFieldConfig,
-  GraphQLFloat,
-  GraphQLInt,
   GraphQLObjectType,
-  GraphQLScalarType,
   GraphQLSchema,
-  GraphQLString,
 } from "graphql";
 import { buildEntityTypes } from "./entity.js";
 import { buildEnumTypes } from "./enum.js";
@@ -17,38 +12,14 @@ import type { GetLoader } from "./loaders.js";
 import { buildPluralField } from "./plural.js";
 import { buildSingularField } from "./singular.js";
 
-const GraphQLBigInt = new GraphQLScalarType({
-  name: "BigInt",
-  serialize: (value) => String(value),
-  // TODO: Kyle this cast is probably a bad idea.
-  parseValue: (value) => BigInt(value as any),
-  parseLiteral: (value) => {
-    if (value.kind === "StringValue") {
-      return BigInt(value.value);
-    } else {
-      throw new Error(
-        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
-      );
-    }
-  },
-});
-
-export const tsTypeToGqlScalar: { [type in Scalar]: GraphQLScalarType } = {
-  int: GraphQLInt,
-  float: GraphQLFloat,
-  string: GraphQLString,
-  boolean: GraphQLBoolean,
-  bigint: GraphQLBigInt,
-  hex: GraphQLString,
-};
-
+// TODO(kyle) stricter type
 export type Parent = Record<string, any>;
 export type Context = {
   store: IndexingStore;
   getLoader: GetLoader;
 };
 
-export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
+export const buildGraphqlSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Parent, Context>> = {};
 
   const { enumTypes } = buildEnumTypes({ schema });
@@ -80,14 +51,10 @@ export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
     });
   }
 
-  const queryType = new GraphQLObjectType({
-    name: "Query",
-    fields: queryFields,
+  return new GraphQLSchema({
+    query: new GraphQLObjectType({
+      name: "Query",
+      fields: queryFields,
+    }),
   });
-
-  const gqlSchema = new GraphQLSchema({
-    query: queryType,
-  });
-
-  return gqlSchema;
 };

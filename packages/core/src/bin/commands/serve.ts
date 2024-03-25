@@ -6,7 +6,7 @@ import { buildOptions } from "@/common/options.js";
 import { TelemetryService } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
-import { ServerService } from "@/server/service.js";
+import { createServer, killServer, setHealthy } from "@/server/service.js";
 import dotenv from "dotenv";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
@@ -96,14 +96,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     tablePrefix: "_raw_",
   });
 
-  const serverService = new ServerService({ common, indexingStore });
-  serverService.setup();
-  await serverService.start();
-  serverService.reloadGraphqlSchema({ graphqlSchema });
-  serverService.setIsHealthy(true);
+  const server = createServer({ graphqlSchema, indexingStore, common });
+  setHealthy(server);
 
   cleanupReloadable = async () => {
-    await serverService.kill();
+    await killServer(server);
     indexingStore.kill();
   };
 

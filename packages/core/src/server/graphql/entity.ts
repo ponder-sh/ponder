@@ -22,10 +22,10 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
+import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { buildWhereObject } from "./filter.js";
 import type { PluralResolver } from "./plural.js";
-import type { Context, Parent } from "./schema.js";
-import { tsTypeToGqlScalar } from "./schema.js";
+import { SCALARS } from "./scalar.js";
 
 const GraphQLPageInfo = new GraphQLObjectType({
   name: "PageInfo",
@@ -164,7 +164,7 @@ export const buildEntityTypes = ({
           } else {
             const type = isEnumColumn(column)
               ? enumTypes[column.type]
-              : tsTypeToGqlScalar[column.type];
+              : SCALARS[column.type];
             if (column.list) {
               const listType = new GraphQLList(new GraphQLNonNull(type));
               fieldConfigMap[columnName] = {
