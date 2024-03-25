@@ -105,6 +105,7 @@ export async function run({
   });
 
   syncService.on("fatal", onFatalError);
+
   indexingService.on("error", onReloadableError);
 
   const finalizedCheckpoint = await syncService.start();
