@@ -1,4 +1,4 @@
-import { createServer as createNodeServer } from "node:http";
+import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { graphqlServer } from "@hono/graphql-server";
@@ -6,13 +6,13 @@ import { serve } from "@hono/node-server";
 import type { GraphQLSchema } from "graphql";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { createHttpTerminator } from "http-terminator";
 import { type GetLoader, buildLoaderCache } from "./graphql/loaders.js";
 
 type Server = {
   hono: Hono<{ Variables: { store: IndexingStore; getLoader: GetLoader } }>;
-  // Note(kevin) might need this property for kill
-  // server: ReturnType<typeof serve>;
   isHealthy: boolean;
+  terminate: () => void;
 };
 
 export const createServer = ({
@@ -28,7 +28,7 @@ export const createServer = ({
     Variables: { store: IndexingStore; getLoader: GetLoader };
   }>();
 
-  const server = { hono, isHealthy: false };
+  const isHealthy = false;
 
   hono
     .use(cors())
@@ -42,7 +42,7 @@ export const createServer = ({
     //   }
     // })
     .get("/health", async (c, next) => {
-      if (server.isHealthy) {
+      if (isHealthy) {
         c.status(200);
         return next();
       }
@@ -79,18 +79,64 @@ export const createServer = ({
     );
 
   // TODO(kyle) cache
-  // TODO(kevin) find port
   // TODO(kyle) graphIql
 
-  serve({ fetch: hono.fetch, createServer: createNodeServer });
+  let port = common.options.port;
+  let terminate: () => void = () => {};
 
-  return server;
+  function createServerInner(...args: Parameters<typeof http.createServer>) {
+    const httpServer = http.createServer(...args);
+
+    const errorHandler = (error: Error & { code: string }) => {
+      if (error.code === "EADDRINUSE") {
+        common.logger.warn({
+          service: "server",
+          msg: `Port ${port} was in use, trying port ${port + 1}`,
+        });
+        port += 1;
+        setTimeout(() => {
+          httpServer.close();
+          httpServer.listen(port, common.options.hostname);
+        }, 5);
+      }
+    };
+
+    httpServer.on("error", errorHandler).on("listening", () => {
+      common.metrics.ponder_server_port.set(port);
+      common.logger.info({
+        service: "server",
+        msg: `Started listening on port ${port}`,
+      });
+      httpServer.off("error", errorHandler);
+    });
+
+    const terminator = createHttpTerminator({ server: httpServer });
+    terminate = () => terminator.terminate();
+
+    return httpServer;
+  }
+
+  serve({
+    fetch: hono.fetch,
+    createServer: createServerInner as any,
+    port,
+    // Note that common.options.hostname can be undefined if the user did not specify one.
+    // In this case, Node.js uses `::` if IPv6 is available and `0.0.0.0` otherwise.
+    // https://nodejs.org/api/net.html#serverlistenport-host-backlog-callback
+    hostname: common.options.hostname,
+  });
+
+  return {
+    hono,
+    isHealthy,
+    terminate,
+  };
 };
 
 export const setHealthy = (server: Server) => {
   server.isHealthy = true;
 };
 
-export const killServer = async (_server: Server) => {
-  // TODO(kevin)
+export const killServer = (_server: Server) => {
+  _server.terminate();
 };
