@@ -32,6 +32,7 @@ import {
   type RpcLog,
   type RpcTransaction,
   checksumAddress,
+  hexToNumber,
 } from "viem";
 import type { SyncStore } from "../store.js";
 import {
@@ -520,12 +521,12 @@ export class PostgresSyncStore implements SyncStore {
       throw new Error("Log index is missing from RPC log");
     }
     return encodeCheckpoint({
-      blockTimestamp: Number(BigInt(block.timestamp)),
+      blockTimestamp: hexToNumber(block.timestamp),
       chainId,
-      blockNumber: Number(BigInt(block.number)),
-      transactionIndex: Number(BigInt(log.transactionIndex)),
+      blockNumber: hexToNumber(block.number),
+      transactionIndex: hexToNumber(log.transactionIndex),
       eventType: EVENT_TYPES.logs,
-      eventIndex: Number(BigInt(log.logIndex)),
+      eventIndex: hexToNumber(log.logIndex),
     });
   };
 
