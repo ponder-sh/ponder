@@ -34,13 +34,6 @@ export const EVENT_TYPES = {
 } as const;
 
 export const encodeCheckpoint = (checkpoint: Checkpoint) => {
-  runtimeCheckKey(checkpoint, "blockTimestamp");
-  runtimeCheckKey(checkpoint, "chainId");
-  runtimeCheckKey(checkpoint, "blockNumber");
-  runtimeCheckKey(checkpoint, "transactionIndex");
-  runtimeCheckKey(checkpoint, "eventType");
-  runtimeCheckKey(checkpoint, "eventIndex");
-
   const {
     blockTimestamp,
     chainId,
@@ -67,11 +60,6 @@ export const encodeCheckpoint = (checkpoint: Checkpoint) => {
     throw new Error(`Invalid stringified checkpoint: ${result}`);
 
   return result;
-};
-
-const runtimeCheckKey = (obj: Checkpoint, key: keyof Checkpoint) => {
-  if (obj[key] === undefined)
-    throw new Error(`Checkpoint was missing value: ${key}`);
 };
 
 export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
