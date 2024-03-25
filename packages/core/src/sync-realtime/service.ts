@@ -148,7 +148,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           .then((c) => hexToNumber(c)),
       ]);
     } catch (error_) {
-      throw Error(
+      throw new Error(
         "Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)",
       );
     }
