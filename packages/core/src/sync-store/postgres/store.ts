@@ -1206,9 +1206,9 @@ export class PostgresSyncStore implements SyncStore {
     );
 
     if (factory.fromBlock)
-      exprs.push(eb('logs."blockNumber"', ">=", BigInt(factory.fromBlock)));
+      exprs.push(eb("logs.blockNumber", ">=", BigInt(factory.fromBlock)));
     if (factory.toBlock)
-      exprs.push(eb('logs."blockNumber"', "<=", BigInt(factory.toBlock)));
+      exprs.push(eb("logs.blockNumber", "<=", BigInt(factory.toBlock)));
 
     return exprs;
   };
