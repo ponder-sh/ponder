@@ -6,6 +6,7 @@ import { graphqlServer } from "@hono/graphql-server";
 import { serve } from "@hono/node-server";
 import type { GraphQLSchema } from "graphql";
 import { Hono } from "hono";
+import { cache } from "hono/cache";
 import { cors } from "hono/cors";
 import { createHttpTerminator } from "http-terminator";
 import {
@@ -39,6 +40,13 @@ export const createServer = ({
 
   hono
     .use(cors())
+    .use(
+      "/metrics",
+      cache({
+        cacheName: "ponder-metrics",
+        cacheControl: "max-age=5",
+      }),
+    )
     .get("/metrics", async (c) => {
       try {
         const metrics = await common.metrics.getMetrics();
@@ -47,6 +55,13 @@ export const createServer = ({
         return c.json(error, 500);
       }
     })
+    .use(
+      "/health",
+      cache({
+        cacheName: "ponder-health",
+        cacheControl: "max-age=1",
+      }),
+    )
     .get("/health", async (c) => {
       if (isHealthy) {
         c.status(200);
@@ -69,6 +84,13 @@ export const createServer = ({
       c.status(503);
       return c.text("Historical indexing is not complete.");
     })
+    .use(
+      "/graphql",
+      cache({
+        cacheName: "ponder-graphql",
+        cacheControl: "max-age=1",
+      }),
+    )
     .use("/graphql", async (c, next) => {
       if (c.req.method === "POST") {
         const getLoader = buildLoaderCache({ store: indexingStore });
@@ -85,8 +107,6 @@ export const createServer = ({
     .get("/graphql", (c) => {
       return c.html(graphiQLHtml);
     });
-
-  // TODO(kyle) cache
 
   function createServerInner(...args: Parameters<typeof http.createServer>) {
     const httpServer = http.createServer(...args);

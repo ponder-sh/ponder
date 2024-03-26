@@ -177,8 +177,6 @@ test("graphql interactive", async (context) => {
   expect(response.status).toBe(200);
 });
 
-test.todo("cache");
-
 test("kill", async (context) => {
   const server = createServer({
     graphqlSchema: {} as GraphQLSchema,
