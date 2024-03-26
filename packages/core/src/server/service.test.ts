@@ -9,13 +9,13 @@ import { buildGraphqlSchema } from "./graphql/buildGraphqlSchema.js";
 import { createServer } from "./service.js";
 
 test("port", async (context) => {
-  const server1 = createServer({
+  const server1 = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     indexingStore: {} as IndexingStore,
   });
 
-  const server2 = createServer({
+  const server2 = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     indexingStore: {} as IndexingStore,
@@ -25,7 +25,7 @@ test("port", async (context) => {
 });
 
 test("not healthy", async (context) => {
-  const server = createServer({
+  const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: {
       ...context.common,
@@ -40,7 +40,7 @@ test("not healthy", async (context) => {
 });
 
 test("healthy", async (context) => {
-  const server = createServer({
+  const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: {
       ...context.common,
@@ -55,7 +55,7 @@ test("healthy", async (context) => {
 });
 
 test("metrics", async (context) => {
-  const server = createServer({
+  const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     indexingStore: {} as IndexingStore,
@@ -67,7 +67,7 @@ test("metrics", async (context) => {
 });
 
 test("metrics error", async (context) => {
-  const server = createServer({
+  const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     indexingStore: {} as IndexingStore,
@@ -116,7 +116,7 @@ test("graphql", async (context) => {
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
-  const server = createServer({
+  const server = await createServer({
     graphqlSchema: graphqlSchema,
     common: context.common,
     indexingStore: indexingStore,
@@ -166,7 +166,7 @@ test("graphql", async (context) => {
 });
 
 test("graphql interactive", async (context) => {
-  const server = createServer({
+  const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     indexingStore: {} as IndexingStore,
@@ -177,8 +177,10 @@ test("graphql interactive", async (context) => {
   expect(response.status).toBe(200);
 });
 
-test("kill", async (context) => {
-  const server = createServer({
+// Note that this test doesn't work because the `hono.request` method doesn't actually
+// create a socket connection, it just calls the request handler function directly.
+test.fails("kill", async (context) => {
+  const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     indexingStore: {} as IndexingStore,
@@ -186,5 +188,5 @@ test("kill", async (context) => {
 
   await server.kill();
 
-  expect(() => server.hono.request("/")).toThrowError();
+  expect(() => server.hono.request("/health")).rejects.toThrow();
 });

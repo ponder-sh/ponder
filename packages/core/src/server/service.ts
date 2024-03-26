@@ -20,7 +20,7 @@ type Server = {
   kill: () => Promise<void>;
 };
 
-export const createServer = ({
+export async function createServer({
   graphqlSchema,
   indexingStore,
   common,
@@ -28,14 +28,13 @@ export const createServer = ({
   graphqlSchema: GraphQLSchema;
   indexingStore: IndexingStore;
   common: Common;
-}): Server => {
+}): Promise<Server> {
   const hono = new Hono<{
     Variables: { store: IndexingStore; getLoader: GetLoader };
   }>();
-  let port = common.options.port;
 
+  let port = common.options.port;
   let isHealthy = false;
-  let kill: () => Promise<void>;
 
   hono
     .use(cors())
@@ -110,7 +109,9 @@ export const createServer = ({
       return c.html(graphiQLHtml);
     });
 
-  function createServerInner(...args: Parameters<typeof http.createServer>) {
+  const createServerWithNextAvailablePort: typeof http.createServer = (
+    ...args: any
+  ) => {
     const httpServer = http.createServer(...args);
 
     const errorHandler = (error: Error & { code: string }) => {
@@ -139,28 +140,42 @@ export const createServer = ({
     httpServer.on("error", errorHandler);
     httpServer.on("listening", listenerHandler);
 
-    kill = createHttpTerminator({ server: httpServer }).terminate;
-
     return httpServer;
-  }
+  };
 
-  serve({
-    fetch: hono.fetch,
-    createServer: createServerInner as any,
-    port,
-    // Note that common.options.hostname can be undefined if the user did not specify one.
-    // In this case, Node.js uses `::` if IPv6 is available and `0.0.0.0` otherwise.
-    // https://nodejs.org/api/net.html#serverlistenport-host-backlog-callback
-    hostname: common.options.hostname,
+  const httpServer = await new Promise<http.Server>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error("HTTP server failed to start within 5 seconds."));
+    }, 5_000);
+
+    const httpServer = serve(
+      {
+        fetch: hono.fetch,
+        createServer: createServerWithNextAvailablePort,
+        port,
+        // Note that common.options.hostname can be undefined if the user did not specify one.
+        // In this case, Node.js uses `::` if IPv6 is available and `0.0.0.0` otherwise.
+        // https://nodejs.org/api/net.html#serverlistenport-host-backlog-callback
+        hostname: common.options.hostname,
+      },
+      () => {
+        clearTimeout(timeout);
+        resolve(httpServer as http.Server);
+      },
+    );
+  });
+
+  const terminator = createHttpTerminator({
+    server: httpServer,
+    gracefulTerminationTimeout: 1000,
   });
 
   return {
     hono,
     port,
-
     setHealthy: () => {
       isHealthy = true;
     },
-    kill: kill!,
+    kill: () => terminator.terminate(),
   };
-};
+}
