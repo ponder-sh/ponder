@@ -6,7 +6,10 @@ import { serve } from "@hono/node-server";
 import type { GraphQLSchema } from "graphql";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { type GetLoader, buildLoaderCache } from "./graphql/loaders.js";
+import {
+  type GetLoader,
+  buildLoaderCache,
+} from "./graphql/buildLoaderCache.js";
 
 type Server = {
   hono: Hono<{ Variables: { store: IndexingStore; getLoader: GetLoader } }>;
@@ -64,7 +67,7 @@ export const createServer = ({
       return c.text("Historical indexing is not complete.");
     })
     .use("/graphql", async (c, next) => {
-      const { getLoader } = buildLoaderCache({ store: indexingStore });
+      const getLoader = buildLoaderCache({ store: indexingStore });
 
       c.set("store", indexingStore);
       c.set("getLoader", getLoader);
