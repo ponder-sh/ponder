@@ -1,5 +1,6 @@
 import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
 import { getTableIds } from "@/_test/utils.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { zeroCheckpoint } from "@/utils/checkpoint.js";
 import { execute, parse } from "graphql";
@@ -8,6 +9,22 @@ import { buildGraphqlSchema } from "./buildGraphqlSchema.js";
 import { buildLoaderCache } from "./buildLoaderCache.js";
 
 beforeEach((context) => setupIsolatedDatabase(context));
+
+const create = async (id: string, indexingStore: IndexingStore) => {
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: zeroCheckpoint,
+    id,
+    data: {
+      string: "0",
+      int: 0,
+      float: 0,
+      boolean: false,
+      hex: "0x0",
+      bigint: 0n,
+    },
+  });
+};
 
 test("scalar", async (context) => {
   const schema = createSchema((p) => ({
@@ -27,19 +44,7 @@ test("scalar", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -780,19 +785,7 @@ test("filter string eq", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -855,19 +848,7 @@ test("filter string in", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -1155,19 +1136,7 @@ test("filter int eq", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -1305,19 +1274,7 @@ test("filter int lte", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -1362,7 +1319,7 @@ test("filter int lte", async (context) => {
   await cleanup();
 });
 
-test("filter in in", async (context) => {
+test("filter int in", async (context) => {
   const schema = createSchema((p) => ({
     table: p.createTable({
       id: p.string(),
@@ -1380,19 +1337,7 @@ test("filter in in", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -1455,19 +1400,7 @@ test("filter float eq", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -1605,19 +1538,7 @@ test("filter float lte", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -1680,19 +1601,7 @@ test("filter float in", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -1755,19 +1664,7 @@ test("filter bigint eq", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -1905,19 +1802,7 @@ test("filter bigint lte", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -1980,19 +1865,7 @@ test("filter bigint in", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -2055,19 +1928,7 @@ test("filer hex eq", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   const graphqlSchema = buildGraphqlSchema(schema);
 
@@ -2598,19 +2459,7 @@ test("order int asc", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   await indexingStore.create({
     tableName: "table",
@@ -2695,19 +2544,7 @@ test("order bigint asc", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   await indexingStore.create({
     tableName: "table",
@@ -2792,19 +2629,7 @@ test("order bigint desc", async (context) => {
     tableIds: getTableIds(schema),
   });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: zeroCheckpoint,
-    id: "0",
-    data: {
-      string: "0",
-      int: 0,
-      float: 0,
-      boolean: false,
-      hex: "0x0",
-      bigint: 0n,
-    },
-  });
+  await create("0", indexingStore);
 
   await indexingStore.create({
     tableName: "table",
@@ -2871,12 +2696,226 @@ test("order bigint desc", async (context) => {
   await cleanup();
 });
 
-test.todo("limit default");
+test("limit default", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      string: p.string(),
+      int: p.int(),
+      float: p.float(),
+      boolean: p.boolean(),
+      hex: p.hex(),
+      bigint: p.bigint(),
+    }),
+  }));
 
-test.todo("limit");
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+    tableIds: getTableIds(schema),
+  });
 
-test.todo("limit default");
+  for (let i = 0; i < 100; i++) {
+    await create(String(i), indexingStore);
+  }
 
-test.todo("limit error");
+  const graphqlSchema = buildGraphqlSchema(schema);
 
-test.todo("timestamp");
+  const document = parse(`
+  query {
+    tables {
+      items { 
+        id
+        string
+        int
+        float
+        boolean
+        hex
+        bigint
+      }
+    }
+  }
+  `);
+
+  const result = await execute({
+    schema: graphqlSchema,
+    document,
+    contextValue: { store: indexingStore },
+  });
+
+  // @ts-ignore
+  expect(result.data.tables.items).toHaveLength(50);
+
+  await cleanup();
+});
+
+test("limit", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      string: p.string(),
+      int: p.int(),
+      float: p.float(),
+      boolean: p.boolean(),
+      hex: p.hex(),
+      bigint: p.bigint(),
+    }),
+  }));
+
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+    tableIds: getTableIds(schema),
+  });
+
+  for (let i = 0; i < 100; i++) {
+    await create(String(i), indexingStore);
+  }
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const document = parse(`
+  query {
+    tables (limit: 15) {
+      items { 
+        id
+        string
+        int
+        float
+        boolean
+        hex
+        bigint
+      }
+    }
+  }
+  `);
+
+  const result = await execute({
+    schema: graphqlSchema,
+    document,
+    contextValue: { store: indexingStore },
+  });
+
+  // @ts-ignore
+  expect(result.data.tables.items).toHaveLength(15);
+
+  await cleanup();
+});
+
+test("limit error", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      string: p.string(),
+      int: p.int(),
+      float: p.float(),
+      boolean: p.boolean(),
+      hex: p.hex(),
+      bigint: p.bigint(),
+    }),
+  }));
+
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+    tableIds: getTableIds(schema),
+  });
+
+  // for (let i = 0; i < 100; i++) {
+  //   await create(String(i), indexingStore);
+  // }
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const document = parse(`
+  query {
+    tables (limit: 1005) {
+      items { 
+        id
+        string
+        int
+        float
+        boolean
+        hex
+        bigint
+      }
+    }
+  }
+  `);
+
+  const result = await execute({
+    schema: graphqlSchema,
+    document,
+    contextValue: { store: indexingStore },
+  });
+
+  // @ts-ignore
+  expect(result.errors[0].message).toBe(
+    "Invalid limit. Got 1005, expected <=1000.",
+  );
+
+  await cleanup();
+});
+
+test("timestamp", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      string: p.string(),
+      int: p.int(),
+      float: p.float(),
+      boolean: p.boolean(),
+      hex: p.hex(),
+      bigint: p.bigint(),
+    }),
+  }));
+
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+    tableIds: getTableIds(schema),
+  });
+
+  await create("0", indexingStore);
+
+  await indexingStore.update({
+    tableName: "table",
+    checkpoint: { ...zeroCheckpoint, blockTimestamp: 10 },
+    id: "0",
+    data: {
+      string: "updated",
+    },
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const document = parse(`
+  query {
+    table(id: "0", checkpoint: 15) {
+      id
+      string
+      int
+      float
+      boolean
+      hex
+      bigint
+    }
+  }
+  `);
+
+  const result = await execute({
+    schema: graphqlSchema,
+    document,
+    contextValue: { store: indexingStore },
+  });
+
+  expect(result.data).toMatchObject({
+    table: {
+      id: "0",
+      string: "updated",
+      int: 0,
+      float: 0,
+      boolean: false,
+      hex: "0x00",
+      bigint: "0",
+    },
+  });
+
+  await cleanup();
+});
