@@ -5,6 +5,7 @@ import {
   GraphQLObjectType,
   GraphQLSchema,
 } from "graphql";
+import { type Context as HonoContext } from "hono";
 import type { GetLoader } from "./buildLoaderCache.js";
 import { buildEntityTypes } from "./entity.js";
 import { buildEnumTypes } from "./enum.js";
@@ -14,9 +15,14 @@ import { buildSingularField } from "./singular.js";
 
 // TODO(kyle) stricter type
 export type Parent = Record<string, any>;
-export type Context = {
-  store: IndexingStore;
-  getLoader: GetLoader;
+export type Context = HonoContext<{
+  Variables: { store: IndexingStore; getLoader: GetLoader };
+}> & {
+  get: {
+    <key extends "store" | "getLoader">(_: key): key extends "store"
+      ? IndexingStore
+      : GetLoader;
+  };
 };
 
 export const buildGraphqlSchema = (schema: Schema): GraphQLSchema => {

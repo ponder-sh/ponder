@@ -26,7 +26,7 @@ export const buildSingularField = ({
   entityType: GraphQLObjectType<Parent, Context>;
 }): GraphQLFieldConfig<Parent, Context> => {
   const resolver: SingularResolver = async (_, args, context) => {
-    const { store } = context;
+    const store = context.get("store");
     const { id, timestamp } = args;
 
     if (id === undefined) return null;

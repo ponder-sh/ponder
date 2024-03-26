@@ -1,6 +1,7 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
+import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { graphqlServer } from "@hono/graphql-server";
 import { serve } from "@hono/node-server";
 import type { GraphQLSchema } from "graphql";
@@ -37,9 +38,8 @@ export const createServer = ({
     .use(cors())
     .get("/metrics", async (c) => {
       try {
-        const metrics = common.metrics.getMetrics();
-        // TODO(kyle) set content type
-        return c.json(metrics);
+        const metrics = await common.metrics.getMetrics();
+        return c.text(metrics);
       } catch (error) {
         return c.json(error, 500);
       }
@@ -67,22 +67,23 @@ export const createServer = ({
       return c.text("Historical indexing is not complete.");
     })
     .use("/graphql", async (c, next) => {
-      const getLoader = buildLoaderCache({ store: indexingStore });
+      if (c.req.method === "POST") {
+        const getLoader = buildLoaderCache({ store: indexingStore });
 
-      c.set("store", indexingStore);
-      c.set("getLoader", getLoader);
+        c.set("store", indexingStore);
+        c.set("getLoader", getLoader);
 
-      await next();
+        return graphqlServer({
+          schema: graphqlSchema,
+        })(c);
+      }
+      return next();
     })
-    .use(
-      "/graphql",
-      graphqlServer({
-        schema: graphqlSchema,
-      }),
-    );
+    .get("/graphql", (c) => {
+      return c.html(graphiQLHtml);
+    });
 
   // TODO(kyle) cache
-  // TODO(kyle) graphIql
 
   let port = common.options.port;
 

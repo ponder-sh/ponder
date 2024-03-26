@@ -85,7 +85,7 @@ export const buildEntityTypes = ({
               if (relatedRecordId === null || relatedRecordId === undefined)
                 return null;
 
-              const loader = context.getLoader({
+              const loader = context.get("getLoader")({
                 tableName: referencedTable,
                 checkpoint,
               });
@@ -106,7 +106,7 @@ export const buildEntityTypes = ({
               context,
               info,
             ) => {
-              const { store } = context;
+              const store = context.get("store");
 
               const timestamp = getTimestampArgument(info);
               const checkpoint = timestamp
@@ -138,7 +138,7 @@ export const buildEntityTypes = ({
               });
 
               // Load entire records objects using the loader.
-              const loader = context.getLoader({
+              const loader = context.get("getLoader")({
                 tableName: column.referenceTable,
                 checkpoint,
               });
