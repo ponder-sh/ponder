@@ -77,7 +77,7 @@ export async function run({
     await syncStore.migrateUp();
   }
 
-  const server = createServer({ common, graphqlSchema, indexingStore });
+  const server = await createServer({ common, graphqlSchema, indexingStore });
 
   runCodegen({ common, graphqlSchema });
 

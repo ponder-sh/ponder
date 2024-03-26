@@ -96,7 +96,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     tablePrefix: "_raw_",
   });
 
-  const server = createServer({ graphqlSchema, indexingStore, common });
+  const server = await createServer({ graphqlSchema, indexingStore, common });
   server.setHealthy();
 
   cleanupReloadable = async () => {
