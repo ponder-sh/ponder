@@ -15,6 +15,7 @@ import {
 
 type Server = {
   hono: Hono<{ Variables: { store: IndexingStore; getLoader: GetLoader } }>;
+  port: number;
   setHealthy: () => void;
   kill: () => Promise<void>;
 };
@@ -31,6 +32,8 @@ export const createServer = ({
   const hono = new Hono<{
     Variables: { store: IndexingStore; getLoader: GetLoader };
   }>();
+  let port = common.options.port;
+
   let isHealthy = false;
   let kill: () => Promise<void>;
 
@@ -85,8 +88,6 @@ export const createServer = ({
 
   // TODO(kyle) cache
 
-  let port = common.options.port;
-
   function createServerInner(...args: Parameters<typeof http.createServer>) {
     const httpServer = http.createServer(...args);
 
@@ -133,6 +134,8 @@ export const createServer = ({
 
   return {
     hono,
+    port,
+
     setHealthy: () => {
       isHealthy = true;
     },

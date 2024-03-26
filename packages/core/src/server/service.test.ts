@@ -8,7 +8,21 @@ import { expect, test, vi } from "vitest";
 import { buildGraphqlSchema } from "./graphql/buildGraphqlSchema.js";
 import { createServer } from "./service.js";
 
-test.todo("port");
+test("port", async (context) => {
+  const server1 = createServer({
+    graphqlSchema: {} as GraphQLSchema,
+    common: context.common,
+    indexingStore: {} as IndexingStore,
+  });
+
+  const server2 = createServer({
+    graphqlSchema: {} as GraphQLSchema,
+    common: context.common,
+    indexingStore: {} as IndexingStore,
+  });
+
+  expect(server1.port + 1).toBe(server2.port);
+});
 
 test("not healthy", async (context) => {
   const server = createServer({
@@ -165,7 +179,7 @@ test("graphql interactive", async (context) => {
 
 test.todo("cache");
 
-test.skip("kill", async (context) => {
+test("kill", async (context) => {
   const server = createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
