@@ -1,13 +1,17 @@
-import type { Common } from "@/common/common.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { GraphQLSchema } from "graphql";
 import { expect, test } from "vitest";
 import { createServer } from "./service.js";
 
-test("not healthy", async () => {
+test.todo("port");
+
+test("not healthy", async (context) => {
   const server = createServer({
     graphqlSchema: {} as GraphQLSchema,
-    common: { options: { maxHealthcheckDuration: 5_000 } } as Common,
+    common: {
+      ...context.common,
+      options: { ...context.common.options, maxHealthcheckDuration: 5_000 },
+    },
     indexingStore: {} as IndexingStore,
   });
 
@@ -16,7 +20,20 @@ test("not healthy", async () => {
   expect(response.status).toBe(503);
 });
 
-test.todo("healthy", async () => {});
+test("healthy", async (context) => {
+  const server = createServer({
+    graphqlSchema: {} as GraphQLSchema,
+    common: {
+      ...context.common,
+      options: { ...context.common.options, maxHealthcheckDuration: 0 },
+    },
+    indexingStore: {} as IndexingStore,
+  });
+
+  const response = await server.hono.request("/health");
+
+  expect(response.status).toBe(200);
+});
 
 test.todo("metrics", async () => {});
 
@@ -46,4 +63,14 @@ test.todo("graphql", async () => {
 
 test.todo("graphql interactive");
 
-test.todo("kill");
+test.only("kill", async (context) => {
+  const server = createServer({
+    graphqlSchema: {} as GraphQLSchema,
+    common: context.common,
+    indexingStore: {} as IndexingStore,
+  });
+
+  await server.kill();
+
+  expect(() => server.hono.request("/")).toThrowError();
+});

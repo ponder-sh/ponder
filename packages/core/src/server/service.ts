@@ -44,10 +44,10 @@ export const createServer = ({
         return c.json(error, 500);
       }
     })
-    .get("/health", async (c, next) => {
+    .get("/health", async (c) => {
       if (isHealthy) {
         c.status(200);
-        return next();
+        return c.text("");
       }
 
       const max = common.options.maxHealthcheckDuration;
@@ -60,7 +60,7 @@ export const createServer = ({
         });
 
         c.status(200);
-        return next();
+        return c.text("");
       }
 
       c.status(503);
@@ -103,14 +103,17 @@ export const createServer = ({
       }
     };
 
-    httpServer.on("error", errorHandler).on("listening", () => {
+    const listenerHandler = () => {
       common.metrics.ponder_server_port.set(port);
       common.logger.info({
         service: "server",
         msg: `Started listening on port ${port}`,
       });
       httpServer.off("error", errorHandler);
-    });
+    };
+
+    httpServer.on("error", errorHandler);
+    httpServer.on("listening", listenerHandler);
 
     kill = createHttpTerminator({ server: httpServer }).terminate;
 
