@@ -2580,11 +2580,296 @@ test("filter ref in", async (context) => {
   await cleanup();
 });
 
-test.todo("order int asc");
+test("order int asc", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      string: p.string(),
+      int: p.int(),
+      float: p.float(),
+      boolean: p.boolean(),
+      hex: p.hex(),
+      bigint: p.bigint(),
+    }),
+  }));
 
-test.todo("order bigint asc");
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+    tableIds: getTableIds(schema),
+  });
 
-test.todo("order bigint desc");
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: zeroCheckpoint,
+    id: "0",
+    data: {
+      string: "0",
+      int: 0,
+      float: 0,
+      boolean: false,
+      hex: "0x0",
+      bigint: 0n,
+    },
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: zeroCheckpoint,
+    id: "1",
+    data: {
+      string: "0",
+      int: 1_000,
+      float: 0,
+      boolean: false,
+      hex: "0x0",
+      bigint: 0n,
+    },
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: zeroCheckpoint,
+    id: "2",
+    data: {
+      string: "0",
+      int: 5,
+      float: 0,
+      boolean: false,
+      hex: "0x0",
+      bigint: 0n,
+    },
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const document = parse(`
+  query {
+    tables(orderBy: "int", orderDirection: "asc") {
+      items {
+        id
+      }
+    }
+  }
+  `);
+
+  const result = await execute({
+    schema: graphqlSchema,
+    document,
+    contextValue: { store: indexingStore },
+  });
+
+  expect(result.data).toMatchObject({
+    tables: {
+      items: [
+        {
+          id: "0",
+        },
+        {
+          id: "2",
+        },
+        {
+          id: "1",
+        },
+      ],
+    },
+  });
+
+  await cleanup();
+});
+
+test("order bigint asc", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      string: p.string(),
+      int: p.int(),
+      float: p.float(),
+      boolean: p.boolean(),
+      hex: p.hex(),
+      bigint: p.bigint(),
+    }),
+  }));
+
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+    tableIds: getTableIds(schema),
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: zeroCheckpoint,
+    id: "0",
+    data: {
+      string: "0",
+      int: 0,
+      float: 0,
+      boolean: false,
+      hex: "0x0",
+      bigint: 0n,
+    },
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: zeroCheckpoint,
+    id: "1",
+    data: {
+      string: "0",
+      int: 0,
+      float: 0,
+      boolean: false,
+      hex: "0x0",
+      bigint: 1_000n,
+    },
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: zeroCheckpoint,
+    id: "2",
+    data: {
+      string: "0",
+      int: 0,
+      float: 0,
+      boolean: false,
+      hex: "0x0",
+      bigint: 5n,
+    },
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const document = parse(`
+  query {
+    tables(orderBy: "bigint", orderDirection: "asc") {
+      items {
+        id
+      }
+    }
+  }
+  `);
+
+  const result = await execute({
+    schema: graphqlSchema,
+    document,
+    contextValue: { store: indexingStore },
+  });
+
+  expect(result.data).toMatchObject({
+    tables: {
+      items: [
+        {
+          id: "0",
+        },
+        {
+          id: "2",
+        },
+        {
+          id: "1",
+        },
+      ],
+    },
+  });
+
+  await cleanup();
+});
+
+test("order bigint desc", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      string: p.string(),
+      int: p.int(),
+      float: p.float(),
+      boolean: p.boolean(),
+      hex: p.hex(),
+      bigint: p.bigint(),
+    }),
+  }));
+
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+    tableIds: getTableIds(schema),
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: zeroCheckpoint,
+    id: "0",
+    data: {
+      string: "0",
+      int: 0,
+      float: 0,
+      boolean: false,
+      hex: "0x0",
+      bigint: 0n,
+    },
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: zeroCheckpoint,
+    id: "1",
+    data: {
+      string: "0",
+      int: 0,
+      float: 0,
+      boolean: false,
+      hex: "0x0",
+      bigint: 1_000n,
+    },
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: zeroCheckpoint,
+    id: "2",
+    data: {
+      string: "0",
+      int: 0,
+      float: 0,
+      boolean: false,
+      hex: "0x0",
+      bigint: 5n,
+    },
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const document = parse(`
+  query {
+    tables(orderBy: "bigint", orderDirection: "desc") {
+      items {
+        id
+      }
+    }
+  }
+  `);
+
+  const result = await execute({
+    schema: graphqlSchema,
+    document,
+    contextValue: { store: indexingStore },
+  });
+
+  expect(result.data).toMatchObject({
+    tables: {
+      items: [
+        {
+          id: "1",
+        },
+        {
+          id: "2",
+        },
+        {
+          id: "0",
+        },
+      ],
+    },
+  });
+
+  await cleanup();
+});
 
 test.todo("limit default");
 
