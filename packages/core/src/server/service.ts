@@ -35,15 +35,15 @@ export const createServer = ({
 
   hono
     .use(cors())
-    // .get("/metrics", async (c) => {
-    //   try {
-    //     const metrics = common.metrics.getMetrics();
-    //     // res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-    //     return c.json(metrics);
-    //   } catch (error) {
-    //     return c.json(error, 500);
-    //   }
-    // })
+    .get("/metrics", async (c) => {
+      try {
+        const metrics = common.metrics.getMetrics();
+        // TODO(kyle) set content type
+        return c.json(metrics);
+      } catch (error) {
+        return c.json(error, 500);
+      }
+    })
     .get("/health", async (c, next) => {
       if (isHealthy) {
         c.status(200);
