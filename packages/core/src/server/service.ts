@@ -14,8 +14,8 @@ import {
 
 type Server = {
   hono: Hono<{ Variables: { store: IndexingStore; getLoader: GetLoader } }>;
-  isHealthy: boolean;
-  terminate: () => void;
+  setHealthy: () => void;
+  kill: () => Promise<void>;
 };
 
 export const createServer = ({
@@ -30,8 +30,8 @@ export const createServer = ({
   const hono = new Hono<{
     Variables: { store: IndexingStore; getLoader: GetLoader };
   }>();
-
-  const isHealthy = false;
+  let isHealthy = false;
+  let kill: () => Promise<void>;
 
   hono
     .use(cors())
@@ -85,7 +85,6 @@ export const createServer = ({
   // TODO(kyle) graphIql
 
   let port = common.options.port;
-  let terminate: () => void = () => {};
 
   function createServerInner(...args: Parameters<typeof http.createServer>) {
     const httpServer = http.createServer(...args);
@@ -113,8 +112,7 @@ export const createServer = ({
       httpServer.off("error", errorHandler);
     });
 
-    const terminator = createHttpTerminator({ server: httpServer });
-    terminate = () => terminator.terminate();
+    kill = createHttpTerminator({ server: httpServer }).terminate;
 
     return httpServer;
   }
@@ -131,15 +129,9 @@ export const createServer = ({
 
   return {
     hono,
-    isHealthy,
-    terminate,
+    setHealthy: () => {
+      isHealthy = true;
+    },
+    kill: kill!,
   };
-};
-
-export const setHealthy = (server: Server) => {
-  server.isHealthy = true;
-};
-
-export const killServer = (_server: Server) => {
-  _server.terminate();
 };

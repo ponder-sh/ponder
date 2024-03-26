@@ -8,7 +8,7 @@ import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { IndexingService } from "@/indexing/service.js";
-import { createServer, killServer, setHealthy } from "@/server/service.js";
+import { createServer } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -114,7 +114,8 @@ export async function run({
     if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
       isHealthy = true;
       await database.publish();
-      setHealthy(server);
+      server.setHealthy();
+
       common.logger.info({ service: "server", msg: "Responding as healthy" });
     }
   });
@@ -130,7 +131,7 @@ export async function run({
   indexingService.processEvents();
 
   return async () => {
-    await killServer(server);
+    await server.kill();
     await syncService.kill();
     await indexingService.kill();
     indexingStore.kill();
