@@ -227,13 +227,17 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         }
       }
 
-      // if (
-      //   invalidated.includes(
-      //     path.join(this.common.options.srcDir, SERVER_FILE),
-      //   )
-      // ) {
-      //   const
-      // }
+      if (
+        invalidated.includes(path.join(this.common.options.srcDir, SERVER_FILE))
+      ) {
+        const { error } = await this.loadServer();
+
+        if (error) {
+          this.common.logger.error({ service: "build", error });
+          this.emit("rebuild", { success: false, error });
+          return;
+        }
+      }
 
       const indexingFunctionFiles = invalidated.filter((file) =>
         this.indexingFunctionRegex.test(file),
