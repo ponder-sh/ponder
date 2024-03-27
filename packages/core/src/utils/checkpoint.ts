@@ -16,9 +16,9 @@ const CHAIN_ID_DIGITS = 16;
 const BLOCK_NUMBER_DIGITS = 16;
 // Same logic as chain ID.
 const TRANSACTION_INDEX_DIGITS = 16;
-// Currently only event type
+// At time of writing, we only have 2 event types planned, so one digit (10 types) is enough.
 const EVENT_TYPE_DIGITS = 1;
-// Same logic as chain ID.
+// This could contain log index, trace index, etc. 16 digits should be enough.
 const EVENT_INDEX_DIGITS = 16;
 
 const CHECKPOINT_LENGTH =
@@ -108,8 +108,6 @@ export const zeroCheckpoint: Checkpoint = {
   eventIndex: 0,
 };
 
-// TODO: Consider changing block timestamps and numbers to bigints
-// so that we can accurately represent EVM max values.
 export const maxCheckpoint: Checkpoint = {
   blockTimestamp: 9999999999,
   chainId: 9999999999,

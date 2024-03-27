@@ -955,6 +955,7 @@ export class PostgresSyncStore implements SyncStore {
 
         this.db
           .selectFrom("logs")
+          .leftJoin("blocks", "blocks.hash", "logs.blockHash")
           .select(["logs.checkpoint"])
           .where((eb) => {
             const logFilterCmprs =
@@ -1157,9 +1158,9 @@ export class PostgresSyncStore implements SyncStore {
     }
 
     if (logFilter.fromBlock)
-      exprs.push(eb("logs.blockNumber", ">=", BigInt(logFilter.fromBlock)));
+      exprs.push(eb("blocks.number", ">=", BigInt(logFilter.fromBlock)));
     if (logFilter.toBlock)
-      exprs.push(eb("logs.blockNumber", "<=", BigInt(logFilter.toBlock)));
+      exprs.push(eb("blocks.number", "<=", BigInt(logFilter.toBlock)));
 
     return exprs;
   };
@@ -1206,9 +1207,9 @@ export class PostgresSyncStore implements SyncStore {
     );
 
     if (factory.fromBlock)
-      exprs.push(eb("logs.blockNumber", ">=", BigInt(factory.fromBlock)));
+      exprs.push(eb("blocks.number", ">=", BigInt(factory.fromBlock)));
     if (factory.toBlock)
-      exprs.push(eb("logs.blockNumber", "<=", BigInt(factory.toBlock)));
+      exprs.push(eb("blocks.number", "<=", BigInt(factory.toBlock)));
 
     return exprs;
   };

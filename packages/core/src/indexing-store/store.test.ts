@@ -1275,7 +1275,6 @@ test("createMany() inserts multiple entities", async (context) => {
       { id: "id3", name: "Bar", bigAge: 190n },
     ],
   });
-
   expect(createdItems.length).toBe(3);
 
   const { items } = await indexingStore.findMany({ tableName: "Pet" });

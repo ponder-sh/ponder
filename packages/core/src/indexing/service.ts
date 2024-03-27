@@ -873,14 +873,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               block: event.block,
               transaction: event.transaction,
             },
-            checkpoint: {
-              blockNumber: Number(event.block.number),
-              blockTimestamp: Number(event.block.timestamp),
-              chainId: event.chainId,
-              transactionIndex: event.transaction.transactionIndex,
-              eventType: EVENT_TYPES.logs,
-              eventIndex: event.log.logIndex,
-            },
+            checkpoint: event.checkpoint,
           },
         });
       } catch (err) {

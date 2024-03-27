@@ -51,7 +51,11 @@ const schema = createSchema((p) => ({
 
 const graphqlSchema = buildGqlSchema(schema);
 
-export const setup = async ({ context }: { context: TestContext }) => {
+export const setup = async ({
+  context,
+}: {
+  context: TestContext;
+}) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
     tableIds: getTableIds(schema),
@@ -95,10 +99,7 @@ export const setup = async ({ context }: { context: TestContext }) => {
   const createEntityWithBigIntId = async ({
     id,
     testEntityId,
-  }: {
-    id: bigint;
-    testEntityId: string;
-  }) => {
+  }: { id: bigint; testEntityId: string }) => {
     await indexingStore.create({
       tableName: "EntityWithBigIntId",
       checkpoint: zeroCheckpoint,

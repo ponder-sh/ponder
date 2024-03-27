@@ -1,9 +1,9 @@
 import type { Schema } from "@/schema/types.js";
-import {
-  type JSONColumnType,
-  type Kysely,
-  type Migration,
-  type MigrationProvider,
+import type {
+  JSONColumnType,
+  Kysely,
+  Migration,
+  MigrationProvider,
 } from "kysely";
 
 const migrations: Record<string, Migration> = {

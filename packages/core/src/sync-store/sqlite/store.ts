@@ -957,8 +957,10 @@ export class SqliteSyncStore implements SyncStore {
           .orderBy("logs.checkpoint", "asc")
           .limit(limit + 1)
           .execute(),
+
         this.db
           .selectFrom("logs")
+          .leftJoin("blocks", "blocks.hash", "logs.blockHash")
           .select(["logs.checkpoint"])
           .where((eb) => {
             const logFilterCmprs =
@@ -1167,11 +1169,9 @@ export class SqliteSyncStore implements SyncStore {
     }
 
     if (logFilter.fromBlock)
-      exprs.push(
-        eb("logs.blockNumber", ">=", encodeAsText(logFilter.fromBlock)),
-      );
+      exprs.push(eb("blocks.number", ">=", encodeAsText(logFilter.fromBlock)));
     if (logFilter.toBlock)
-      exprs.push(eb("logs.blockNumber", "<=", encodeAsText(logFilter.toBlock)));
+      exprs.push(eb("blocks.number", "<=", encodeAsText(logFilter.toBlock)));
 
     return exprs;
   };
