@@ -363,6 +363,17 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         return;
       }
 
+      // verify integrity before inserting
+      for (const log of this.logs) {
+        const block = this.blocks.find((b) => b.hash === log.blockHash);
+
+        if (block === undefined || log.blockNumber !== block.number) {
+          throw new Error(
+            `Local block ${log.blockNumber} is missing or invalid.`,
+          );
+        }
+      }
+
       this.blocks = this.blocks.filter(
         (block) => block.number > newFinalizedBlock.number,
       );
@@ -776,7 +787,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       if (block === undefined || log.blockNumber !== block.number) {
         throw new Error(
-          `Local block ${log.blockNumber} is missing or invalid.`,
+          `Local block ${hexToNumber(log.blockNumber)} is missing or invalid.`,
         );
       }
 
