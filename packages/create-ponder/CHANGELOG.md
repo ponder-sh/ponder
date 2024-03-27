@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.3.8
+
+### Patch Changes
+
+- [`6680a757e2604a488d722107fabc32452a583d78`](https://github.com/ponder-sh/ponder/commit/6680a757e2604a488d722107fabc32452a583d78) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for more testnets in the subgraph template.
+
 ## 0.3.7
 
 ## 0.3.6
