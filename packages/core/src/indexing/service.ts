@@ -25,7 +25,6 @@ import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { StoreMethod } from "@/types/model.js";
 import {
   type Checkpoint,
-  EVENT_TYPES,
   checkpointMax,
   checkpointMin,
   isCheckpointEqual,
