@@ -121,6 +121,7 @@ test("graphql", async (context) => {
     common: context.common,
     indexingStore: indexingStore,
   });
+  server.setHealthy();
 
   const response = await server.hono.request("/graphql", {
     method: "POST",
@@ -171,6 +172,7 @@ test("graphql interactive", async (context) => {
     common: context.common,
     indexingStore: {} as IndexingStore,
   });
+  server.setHealthy();
 
   const response = await server.hono.request("/graphql");
 
@@ -179,7 +181,7 @@ test("graphql interactive", async (context) => {
 
 // Note that this test doesn't work because the `hono.request` method doesn't actually
 // create a socket connection, it just calls the request handler function directly.
-test.fails("kill", async (context) => {
+test.skip("kill", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,

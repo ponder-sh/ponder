@@ -92,13 +92,7 @@ export function encodeValue(
       }
 
       if (column.type === "bigint") {
-        return JSON.stringify(
-          value.map((v) =>
-            column.optional && (v === undefined || v === null)
-              ? null
-              : String(v),
-          ),
-        );
+        return JSON.stringify(value.map(String));
       } else {
         return JSON.stringify(value);
       }
@@ -189,9 +183,7 @@ function decodeValue(
   if (value === null) return null;
   else if (column.list) {
     return column.type === "bigint"
-      ? JSON.parse(value as string).map((v: any) =>
-          v === null ? null : BigInt(v),
-        )
+      ? JSON.parse(value as string).map(BigInt)
       : JSON.parse(value as string);
   } else if (column.type === "boolean") {
     return value === 1 ? true : false;
