@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.3.4",
+  "version": "0.3.8",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -71,7 +71,6 @@
     "pino": "^8.16.2",
     "prom-client": "^15.0.0",
     "react": "^18.2.0",
-    "retry": "^0.13.1",
     "stacktrace-parser": "^0.1.10",
     "vite": "^5.0.7",
     "vite-node": "^1.0.2",
@@ -86,11 +85,8 @@
     "@types/node": "^20.10.0",
     "@types/pg": "^8.10.9",
     "@types/react": "^18.2.38",
-    "@types/retry": "^0.12.5",
-    "@types/supertest": "^2.0.16",
     "@viem/anvil": "^0.0.6",
     "@wagmi/cli": "^1.5.2",
-    "supertest": "^6.3.3",
     "tsup": "^8.0.1",
     "vitest": "^1.0.2"
   },

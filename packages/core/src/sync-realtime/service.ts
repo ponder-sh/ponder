@@ -27,7 +27,7 @@ import {
   hexToNumber,
   numberToHex,
 } from "viem";
-import { isMatchedLogInBloomFilter } from "./bloom.js";
+import { isMatchedLogInBloomFilter, zeroLogsBloom } from "./bloom.js";
 import { filterLogs } from "./filter.js";
 import {
   type LightBlock,
@@ -148,7 +148,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           .then((c) => hexToNumber(c)),
       ]);
     } catch (error_) {
-      throw Error(
+      throw new Error(
         "Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)",
       );
     }
@@ -463,8 +463,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     const criteria = this.sources.map((s) => s.criteria);
+
     // Don't attempt to skip "eth_getLogs" if a factory source is present.
-    // Note: this may not be a possible path depending on the implementation of "determineSyncPath".
     const canSkipGetLogs =
       !this.hasFactorySource &&
       newBlocks.every(
@@ -472,7 +472,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           !isMatchedLogInBloomFilter({
             bloom: block.logsBloom,
             logFilters: criteria,
-          }),
+          }) && block.logsBloom !== zeroLogsBloom,
       );
 
     if (canSkipGetLogs) {
@@ -667,8 +667,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       });
     };
 
-    let i = 0;
-    for (; i < localLogs.length && i < matchedLogs.length; i++) {
+    for (let i = 0; i < localLogs.length && i < matchedLogs.length; i++) {
       const lightMatchedLog = realtimeLogToLightLog(matchedLogs[i]);
       if (
         lightMatchedLog.blockHash !== localLogs[i].blockHash ||

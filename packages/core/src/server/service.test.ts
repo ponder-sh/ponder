@@ -1,9 +1,8 @@
 import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
-import { getTableIds } from "@/_test/utils.js";
+import { getFreePort, getTableIds, postGraphql } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
-import request from "supertest";
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import { buildGqlSchema } from "./graphql/schema.js";
 import { ServerService } from "./service.js";
@@ -61,18 +60,22 @@ export const setup = async ({
     tableIds: getTableIds(schema),
   });
 
+  const port = await getFreePort();
+
+  const common = {
+    ...context.common,
+    options: { ...context.common.options, port },
+  };
+
   const service = new ServerService({
-    common: context.common,
+    common,
     indexingStore,
   });
   service.setup();
   await service.start();
   service.reloadGraphqlSchema({ graphqlSchema });
 
-  const gql = async (query: string) =>
-    request(service.app)
-      .post("/graphql")
-      .send({ query: `query { ${query} }` });
+  const gql = async (query: string) => postGraphql(port, query);
 
   const createTestEntity = async ({ id }: { id: number }) => {
     await indexingStore.create({
@@ -163,7 +166,6 @@ function createCheckpoint(index: number): Checkpoint {
 test("serves all scalar types correctly", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
   service.setIsHealthy(true);
-  service.setIsHealthy(true);
 
   await createTestEntity({ id: 0 });
   await createTestEntity({ id: 1 });
@@ -183,9 +185,10 @@ test("serves all scalar types correctly", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(3);
   expect(testEntitys.items[0]).toMatchObject({
@@ -241,9 +244,10 @@ test("serves all scalar list types correctly", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(3);
   expect(testEntitys.items[0]).toMatchObject({
@@ -290,9 +294,10 @@ test("serves all optional types correctly", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({
@@ -321,9 +326,10 @@ test("serves enum types correctly", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(3);
   expect(testEntitys.items[0]).toMatchObject({
@@ -365,9 +371,10 @@ test("serves many column types correctly", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({
@@ -421,9 +428,10 @@ test("serves one column types correctly", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { entityWithBigIntIds, entityWithNullRefs } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { entityWithBigIntIds, entityWithNullRefs } = body.data;
 
   expect(entityWithBigIntIds.items).toHaveLength(1);
   expect(entityWithBigIntIds.items[0]).toMatchObject({
@@ -464,9 +472,10 @@ test("finds unique entity by bigint id", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { entityWithBigIntId } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { entityWithBigIntId } = body.data;
 
   expect(entityWithBigIntId).toBeDefined();
 
@@ -488,9 +497,10 @@ test("finds unique entity with id: 0", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { entityWithIntId } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { entityWithIntId } = body.data;
 
   expect(entityWithIntId).toBeTruthy();
 
@@ -514,9 +524,10 @@ test("filters on string field equals", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({ id: "123" });
@@ -541,9 +552,10 @@ test("filters on string field in", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "123" });
@@ -570,9 +582,10 @@ test("filters on string field contains", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({ id: "125" });
@@ -598,9 +611,10 @@ test("filters on string field starts with", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "123" });
@@ -627,9 +641,10 @@ test("filters on string field not ends with", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "123" });
@@ -656,9 +671,10 @@ test("filters on integer field equals", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
@@ -683,9 +699,10 @@ test("filters on integer field greater than", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({ id: "2" });
@@ -710,9 +727,10 @@ test("filters on integer field less than or equal to", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
@@ -738,9 +756,10 @@ test("filters on integer field in", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
@@ -766,9 +785,10 @@ test("filters on float field equals", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({
@@ -795,9 +815,10 @@ test("filters on float field greater than", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({ id: "2" });
@@ -823,9 +844,10 @@ test("filters on float field less than or equal to", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
@@ -852,9 +874,10 @@ test("filters on float field in", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
@@ -880,9 +903,10 @@ test("filters on bigInt field equals", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({
@@ -909,9 +933,10 @@ test("filters on bigInt field greater than", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({ id: "2" });
@@ -937,9 +962,10 @@ test("filters on hex field equals", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({
@@ -966,9 +992,10 @@ test("filters on hex field greater than", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({ id: "2" });
@@ -994,9 +1021,10 @@ test("filters on bigInt field less than or equal to", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
@@ -1023,9 +1051,10 @@ test("filters on bigInt field in", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
@@ -1051,9 +1080,10 @@ test("filters on string list field equals", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({ id: "1" });
@@ -1078,9 +1108,10 @@ test("filters on string list field has", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({ id: "2" });
@@ -1105,9 +1136,10 @@ test("filters on enum field equals", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({ id: "1" });
@@ -1133,9 +1165,10 @@ test("filters on enum field in", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(2);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
@@ -1165,9 +1198,10 @@ test("filters on relationship field equals", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { entityWithBigIntIds } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { entityWithBigIntIds } = body.data;
 
   expect(entityWithBigIntIds.items).toHaveLength(1);
   expect(entityWithBigIntIds.items[0]).toMatchObject({
@@ -1199,9 +1233,10 @@ test("filters on relationship field in", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { entityWithBigIntIds } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { entityWithBigIntIds } = body.data;
 
   expect(entityWithBigIntIds.items).toHaveLength(2);
   expect(entityWithBigIntIds.items[0]).toMatchObject({ id: "0" });
@@ -1229,9 +1264,10 @@ test("filters on relationship field in", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { entityWithBigIntIds } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { entityWithBigIntIds } = body.data;
 
   expect(entityWithBigIntIds.items).toHaveLength(2);
   expect(entityWithBigIntIds.items[0]).toMatchObject({ id: "0" });
@@ -1257,9 +1293,10 @@ test("orders by on int field ascending", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(3);
   expect(testEntitys.items[0]).toMatchObject({ id: "1" });
@@ -1286,9 +1323,10 @@ test("orders by on int field descending", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(3);
   expect(testEntitys.items[0]).toMatchObject({ id: "123" });
@@ -1316,9 +1354,10 @@ test("orders by on bigInt field ascending including negative values", async (con
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(4);
   expect(testEntitys.items[0]).toMatchObject({ id: "-9999" });
@@ -1346,9 +1385,10 @@ test("orders by on bigInt field descending", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(3);
   expect(testEntitys.items[0]).toMatchObject({ id: "123" });
@@ -1373,9 +1413,10 @@ test("limits to the first 50 by default", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(50);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
@@ -1398,9 +1439,10 @@ test("limits as expected if less than 1000", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { testEntitys } = body.data;
 
   expect(testEntitys.items).toHaveLength(15);
   expect(testEntitys.items[0]).toMatchObject({ id: "0" });
@@ -1425,10 +1467,12 @@ test("throws if limit is greater than 1000", async (context) => {
     }
   `);
 
-  expect(response.body.errors[0].message).toBe(
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+
+  expect(body.errors[0].message).toBe(
     "Invalid limit. Got 1005, expected <=1000.",
   );
-  expect(response.statusCode).toBe(200);
 
   await service.kill();
   await cleanup();
@@ -1449,26 +1493,30 @@ test("serves singular entity versioned at specified timestamp", async (context) 
     },
   });
 
-  const responseOld = await gql(`
+  let response = await gql(`
     testEntity(id: "1", timestamp: 5) {
       id
       string
     }
   `);
-  expect(responseOld.body.errors).toBe(undefined);
-  expect(responseOld.statusCode).toBe(200);
-  const testEntityOld = responseOld.body.data.testEntity;
-  expect(testEntityOld.string).toBe("1");
 
-  const response = await gql(`
+  expect(response.status).toBe(200);
+  let body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  let testEntity = body.data.testEntity;
+
+  expect(testEntity.string).toBe("1");
+
+  response = await gql(`
     testEntity(id: "1", timestamp: 15) {
       id
       string
     }
   `);
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const testEntity = response.body.data.testEntity;
+  expect(response.status).toBe(200);
+  body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  testEntity = body.data.testEntity;
   expect(testEntity.string).toBe("updated");
 
   await service.kill();
@@ -1488,11 +1536,12 @@ test("responds with appropriate status code pre and post historical sync", async
     }
   `);
 
-  expect(response.body.errors).toHaveLength(1);
-  expect(response.body.errors[0]).toMatchObject({
+  expect(response.status).toBe(503);
+  let body = (await response.json()) as any;
+  expect(body.errors).toHaveLength(1);
+  expect(body.errors[0]).toMatchObject({
     message: "Historical indexing is not complete",
   });
-  expect(response.statusCode).toBe(503);
 
   service.setIsHealthy(true);
 
@@ -1504,9 +1553,11 @@ test("responds with appropriate status code pre and post historical sync", async
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const testEntitys = response.body.data.testEntitys.items;
+  expect(response.status).toBe(200);
+  body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+
+  const testEntitys = body.data.testEntitys.items;
   expect(testEntitys).toHaveLength(1);
   expect(testEntitys[0]).toMatchObject({
     id: "0",
@@ -1543,7 +1594,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
     },
   });
 
-  const responseOld = await gql(`
+  let response = await gql(`
     testEntitys(timestamp: 5) {
       items {
         id
@@ -1553,16 +1604,19 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
       }
     }
   `);
-  expect(responseOld.body.errors).toBe(undefined);
-  expect(responseOld.statusCode).toBe(200);
-  const testEntitysOld = responseOld.body.data.testEntitys.items;
-  expect(testEntitysOld).toHaveLength(1);
-  expect(testEntitysOld[0]).toMatchObject({
+
+  expect(response.status).toBe(200);
+  let body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+
+  let testEntitys = body.data.testEntitys.items;
+  expect(testEntitys).toHaveLength(1);
+  expect(testEntitys[0]).toMatchObject({
     id: "0",
     derivedTestEntity: [{ id: "0" }],
   });
 
-  const response = await gql(`
+  response = await gql(`
     testEntitys {
       items {
           id
@@ -1572,9 +1626,12 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
       }
     }
   `);
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { testEntitys } = response.body.data;
+
+  expect(response.status).toBe(200);
+  body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+
+  testEntitys = body.data.testEntitys.items;
   expect(testEntitys.items).toHaveLength(1);
   expect(testEntitys.items[0]).toMatchObject({
     id: "0",
@@ -1606,7 +1663,7 @@ test("serves nested records at the timestamp/version specified at the top level"
     data: { testEntityId: "2" },
   });
 
-  const responseOld = await gql(`
+  let response = await gql(`
     testEntitys(timestamp: 5) {
       items {
         id
@@ -1618,14 +1675,17 @@ test("serves nested records at the timestamp/version specified at the top level"
       }
     }
   `);
-  expect(responseOld.body.errors).toBe(undefined);
-  expect(responseOld.statusCode).toBe(200);
-  const { items: testEntitysOld } = responseOld.body.data.testEntitys;
-  expect(testEntitysOld).toMatchObject([
+
+  expect(response.status).toBe(200);
+  let body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+
+  let testEntitys = body.data.testEntitys.items;
+  expect(testEntitys).toMatchObject([
     { id: "0", derived: { items: [{ id: "0" }] } },
   ]);
 
-  const response = await gql(`
+  response = await gql(`
     testEntitys {
       items {
         id
@@ -1637,9 +1697,12 @@ test("serves nested records at the timestamp/version specified at the top level"
       }
     }
   `);
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { items: testEntitys } = response.body.data.testEntitys;
+
+  expect(response.status).toBe(200);
+  body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+
+  testEntitys = body.data.testEntitys.items;
   expect(testEntitys).toMatchObject([{ id: "0", derived: { items: [] } }]);
 
   await service.kill();
@@ -1687,9 +1750,10 @@ test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
     }
   `);
 
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const { entityWithBigIntIds } = response.body.data;
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { entityWithBigIntIds } = body.data;
   expect(entityWithBigIntIds.items).toHaveLength(50);
 
   expect(findUniqueSpy).toHaveBeenCalledTimes(0);
@@ -1741,9 +1805,11 @@ test.skip.fails(
     }
   `);
 
-    expect(response.body.errors).toBe(undefined);
-    expect(response.statusCode).toBe(200);
-    const { entityWithBigIntIds } = response.body.data;
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.errors).toBe(undefined);
+
+    const { entityWithBigIntIds } = body.data;
     expect(entityWithBigIntIds.items).toHaveLength(50);
 
     // Fails because we haven't implemented the dataloader for this path yet.
