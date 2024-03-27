@@ -1,44 +1,46 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
-import { graphiQLHtml } from "@/ui/graphiql.html.js";
-import { graphqlServer } from "@hono/graphql-server";
 import { serve } from "@hono/node-server";
-import { GraphQLError, type GraphQLSchema } from "graphql";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createHttpTerminator } from "http-terminator";
-import {
-  type GetLoader,
-  buildLoaderCache,
-} from "./graphql/buildLoaderCache.js";
+import { buildLoaderCache } from "../graphql/buildLoaderCache.js";
 
 type Server = {
-  hono: Hono<{ Variables: { store: IndexingStore; getLoader: GetLoader } }>;
+  hono: Hono;
   port: number;
   setHealthy: () => void;
   kill: () => Promise<void>;
 };
 
 export async function createServer({
-  graphqlSchema,
   indexingStore,
   common,
+  hono: _hono,
 }: {
-  graphqlSchema: GraphQLSchema;
   indexingStore: IndexingStore;
   common: Common;
+  hono: Hono | undefined;
 }): Promise<Server> {
-  const hono = new Hono<{
-    Variables: { store: IndexingStore; getLoader: GetLoader };
-  }>();
+  const hono = _hono ?? new Hono();
 
   let port = common.options.port;
   let isHealthy = false;
 
   hono
     .use(cors())
-    .get("/metrics", async (c) => {
+    .use(async (c, next) => {
+      const getLoader = buildLoaderCache({ store: indexingStore });
+
+      // @ts-ignore
+      c.set("store", indexingStore);
+      // @ts-ignore
+      c.set("getLoader", getLoader);
+
+      return await next();
+    })
+    .get("/_ponder/metrics", async (c) => {
       try {
         const metrics = await common.metrics.getMetrics();
         return c.text(metrics);
@@ -46,7 +48,7 @@ export async function createServer({
         return c.json(error, 500);
       }
     })
-    .get("/health", async (c) => {
+    .get("/_ponder/health", async (c) => {
       if (isHealthy) {
         c.status(200);
         return c.text("");
@@ -67,46 +69,6 @@ export async function createServer({
 
       c.status(503);
       return c.text("Historical indexing is not complete.");
-    })
-    .use("/graphql", async (c, next) => {
-      if (isHealthy === false) {
-        c.status(503);
-        return c.json({
-          data: undefined,
-          errors: [new GraphQLError("Historical indexing in not complete")],
-        });
-      }
-
-      if (c.req.method === "POST") {
-        const getLoader = buildLoaderCache({ store: indexingStore });
-
-        c.set("store", indexingStore);
-        c.set("getLoader", getLoader);
-
-        return graphqlServer({
-          schema: graphqlSchema,
-        })(c);
-      }
-      return next();
-    })
-    .get("/graphql", (c) => {
-      return c.html(graphiQLHtml);
-    })
-    .use("/", async (c, next) => {
-      if (c.req.method === "POST") {
-        const getLoader = buildLoaderCache({ store: indexingStore });
-
-        c.set("store", indexingStore);
-        c.set("getLoader", getLoader);
-
-        return graphqlServer({
-          schema: graphqlSchema,
-        })(c);
-      }
-      return next();
-    })
-    .get("/", (c) => {
-      return c.html(graphiQLHtml);
     });
 
   const createServerWithNextAvailablePort: typeof http.createServer = (

@@ -4,6 +4,8 @@ import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type { Infer, Schema as _Schema } from "@/schema/types.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
+import type { GraphQLSchema as _GraphQLSchema } from "graphql";
+import type { Hono } from "hono";
 import type { Abi, GetEventArgs } from "viem";
 import type { Prettify } from "./utils.js";
 
@@ -168,4 +170,7 @@ export namespace Virtual {
       ) => Promise<void> | void,
     ) => void;
   };
+
+  export type Server = Hono;
+  export type GraphQLSchema = _GraphQLSchema;
 }

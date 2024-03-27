@@ -34,6 +34,7 @@ export async function run({
     networks,
     sources,
     schema,
+    hono,
     graphqlSchema,
     indexingFunctions,
     tableAccess,
@@ -77,7 +78,11 @@ export async function run({
     await syncStore.migrateUp();
   }
 
-  const server = await createServer({ common, graphqlSchema, indexingStore });
+  const server = await createServer({
+    common,
+    indexingStore,
+    hono,
+  });
 
   runCodegen({ common, graphqlSchema });
 

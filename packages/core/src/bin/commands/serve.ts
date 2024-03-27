@@ -74,7 +74,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  const { databaseConfig, schema, graphqlSchema } = initialResult.build;
+  const { databaseConfig, schema, hono } = initialResult.build;
 
   if (databaseConfig.kind === "sqlite") {
     await shutdown({
@@ -96,7 +96,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     tablePrefix: "_raw_",
   });
 
-  const server = await createServer({ graphqlSchema, indexingStore, common });
+  const server = await createServer({
+    indexingStore,
+    common,
+    hono,
+  });
   server.setHealthy();
 
   cleanupReloadable = async () => {

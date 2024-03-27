@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { safeBuildSchema } from "@/build/schema/schema.js";
 import type { Common } from "@/common/common.js";
@@ -5,11 +6,12 @@ import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
+import { buildGraphqlSchema } from "@/graphql/buildGraphqlSchema.js";
 import type { Schema } from "@/schema/types.js";
-import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { Emittery } from "@/utils/emittery.js";
 import { glob } from "glob";
 import { GraphQLSchema } from "graphql";
+import type { Hono } from "hono";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -35,6 +37,8 @@ import {
   safeGetTableAccess,
 } from "./static/getTableAccess.js";
 
+export const SERVER_FILE = "_server.ts";
+
 export type Build = {
   // Config
   databaseConfig: DatabaseConfig;
@@ -43,6 +47,8 @@ export type Build = {
   // Schema
   schema: Schema;
   graphqlSchema: GraphQLSchema;
+  // Server
+  hono: Hono | undefined;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
   // Static analysis
@@ -75,6 +81,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   private networks?: Network[];
   private sources?: Source[];
   private schema?: Schema;
+  private hono?: Hono;
   private graphqlSchema?: GraphQLSchema;
   private indexingFunctions?: IndexingFunctions;
   private tableAccess?: TableAccess;
@@ -124,7 +131,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       publicDir: false,
       customLogger: viteLogger,
       server: { hmr: false },
-      plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
+      plugins: [viteTsconfigPathsPlugin(), vitePluginPonder(this.common)],
     });
 
     // This is Vite boilerplate (initializes the Rollup container).
@@ -220,6 +227,14 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         }
       }
 
+      // if (
+      //   invalidated.includes(
+      //     path.join(this.common.options.srcDir, SERVER_FILE),
+      //   )
+      // ) {
+      //   const
+      // }
+
       const indexingFunctionFiles = invalidated.filter((file) =>
         this.indexingFunctionRegex.test(file),
       );
@@ -251,6 +266,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           sources: this.sources!,
           networks: this.networks!,
           schema: this.schema!,
+          hono: this.hono!,
           graphqlSchema: this.graphqlSchema!,
           indexingFunctions: this.indexingFunctions!,
           tableAccess: this.tableAccess!,
@@ -288,6 +304,11 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     if (!indexingFunctionsResult.success)
       return { error: indexingFunctionsResult.error } as const;
 
+    const serverResult = await this.loadServer();
+    if (serverResult.error) {
+      return { error: serverResult.error } as const;
+    }
+
     const validationResult = this.validate();
     if (validationResult.error)
       return { error: validationResult.error } as const;
@@ -300,6 +321,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const { schema, graphqlSchema } = schemaResult;
     const { indexingFunctions } = indexingFunctionsResult;
     const { tableAccess } = parseResult;
+    const { hono } = serverResult;
     const { tableIds, functionIds } = analyzeResult;
 
     return {
@@ -308,6 +330,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         databaseConfig,
         networks,
         sources,
+        hono,
         schema,
         graphqlSchema,
         indexingFunctions,
@@ -405,6 +428,29 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     this.indexingFunctions = indexingFunctions;
 
     return { success: true, indexingFunctions } as const;
+  }
+
+  async loadServer(): Promise<
+    | { success: true; hono: Hono | undefined; error?: never }
+    | { success: false; hono?: never; error: Error }
+  > {
+    const file = path.join(this.common.options.srcDir, SERVER_FILE);
+
+    const exists = fs.existsSync(file);
+    if (!exists) return { success: true, hono: undefined };
+
+    const result = await this.executeFile(file);
+
+    if (result.error) {
+      return { success: false, error: result.error } as const;
+    }
+
+    this.hono = result.exports.server;
+
+    return {
+      success: true,
+      hono: result.exports.server as Hono | undefined,
+    } as const;
   }
 
   /**
