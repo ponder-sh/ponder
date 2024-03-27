@@ -674,9 +674,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     for (let i = 0; i < localLogs.length && i < matchedLogs.length; i++) {
       const lightMatchedLog = realtimeLogToLightLog(matchedLogs[i]);
+
+      const block = this.blocks.find((b) => b.hash === localLogs[i].blockHash);
       if (
         lightMatchedLog.blockHash !== localLogs[i].blockHash ||
-        lightMatchedLog.logIndex !== localLogs[i].logIndex
+        lightMatchedLog.blockNumber !== localLogs[i].blockNumber ||
+        lightMatchedLog.logIndex !== localLogs[i].logIndex ||
+        block === undefined ||
+        block.number !== localLogs[i].blockNumber
       ) {
         await handleLogsInconsistency(localLogs[i].blockNumber - 1);
         return true;
