@@ -8,7 +8,7 @@ import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { IndexingService } from "@/indexing/service.js";
-import { ServerService } from "@/server/service.js";
+import { createServer } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -34,6 +34,7 @@ export async function run({
     networks,
     sources,
     schema,
+    hono,
     graphqlSchema,
     indexingFunctions,
     tableAccess,
@@ -77,10 +78,11 @@ export async function run({
     await syncStore.migrateUp();
   }
 
-  const serverService = new ServerService({ common, indexingStore });
-  serverService.setup();
-  await serverService.start();
-  serverService.reloadGraphqlSchema({ graphqlSchema });
+  const server = await createServer({
+    common,
+    indexingStore,
+    hono,
+  });
 
   runCodegen({ common, graphqlSchema });
 
@@ -117,7 +119,8 @@ export async function run({
     if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
       isHealthy = true;
       await database.publish();
-      serverService.setIsHealthy(true);
+      server.setHealthy();
+
       common.logger.info({ service: "server", msg: "Responding as healthy" });
     }
   });
@@ -133,7 +136,7 @@ export async function run({
   indexingService.processEvents();
 
   return async () => {
-    await serverService.kill();
+    await server.kill();
     await syncService.kill();
     await indexingService.kill();
     indexingStore.kill();

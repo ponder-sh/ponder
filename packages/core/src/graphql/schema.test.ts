@@ -1,9 +1,7 @@
+import { createSchema } from "@/schema/schema.js";
 import { type GraphQLType } from "graphql";
 import { expect, test } from "vitest";
-
-import { createSchema } from "@/schema/schema.js";
-
-import { buildGqlSchema } from "./schema.js";
+import { buildGraphqlSchema } from "./buildGraphqlSchema.js";
 
 test("filter type has correct suffixes and types", () => {
   const s = createSchema((p) => ({
@@ -27,7 +25,7 @@ test("filter type has correct suffixes and types", () => {
     }),
   }));
 
-  const serverSchema = buildGqlSchema(s);
+  const serverSchema = buildGraphqlSchema(s);
 
   const typeMap = serverSchema.getTypeMap();
 

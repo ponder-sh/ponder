@@ -6,7 +6,7 @@ import { buildOptions } from "@/common/options.js";
 import { TelemetryService } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
-import { ServerService } from "@/server/service.js";
+import { createServer } from "@/server/service.js";
 import dotenv from "dotenv";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
@@ -74,7 +74,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  const { databaseConfig, schema, graphqlSchema } = initialResult.build;
+  const { databaseConfig, schema, hono } = initialResult.build;
 
   if (databaseConfig.kind === "sqlite") {
     await shutdown({
@@ -96,14 +96,15 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     tablePrefix: "_raw_",
   });
 
-  const serverService = new ServerService({ common, indexingStore });
-  serverService.setup();
-  await serverService.start();
-  serverService.reloadGraphqlSchema({ graphqlSchema });
-  serverService.setIsHealthy(true);
+  const server = await createServer({
+    indexingStore,
+    common,
+    hono,
+  });
+  server.setHealthy();
 
   cleanupReloadable = async () => {
-    await serverService.kill();
+    await server.kill();
     indexingStore.kill();
   };
 

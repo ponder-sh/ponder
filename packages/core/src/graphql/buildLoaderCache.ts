@@ -2,7 +2,7 @@ import type { IndexingStore } from "@/indexing-store/store.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import DataLoader from "dataloader";
 
-export type GetLoader = ReturnType<typeof buildLoaderCache>["getLoader"];
+export type GetLoader = ReturnType<typeof buildLoaderCache>;
 
 export function buildLoaderCache({ store }: { store: IndexingStore }) {
   const loaderCache: Record<
@@ -10,7 +10,7 @@ export function buildLoaderCache({ store }: { store: IndexingStore }) {
     Record<string, DataLoader<string | number | bigint, any>> | undefined
   > = {};
 
-  const getLoader = ({
+  return ({
     tableName,
     checkpoint,
   }: { tableName: string; checkpoint?: Checkpoint }) => {
@@ -32,6 +32,4 @@ export function buildLoaderCache({ store }: { store: IndexingStore }) {
 
     return loader;
   };
-
-  return { getLoader };
 }

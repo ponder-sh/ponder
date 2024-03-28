@@ -8,8 +8,8 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
+import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { buildWhereObject } from "./filter.js";
-import { type Context, type Parent } from "./schema.js";
 
 type PluralArgs = {
   where?: { [key: string]: number | string };
@@ -33,7 +33,7 @@ export const buildPluralField = ({
   entityFilterType: GraphQLInputObjectType;
 }): GraphQLFieldConfig<Parent, Context> => {
   const resolver: PluralResolver = async (_, args, context) => {
-    const { store } = context;
+    const store = context.get("store");
 
     const { timestamp, where, orderBy, orderDirection, before, limit, after } =
       args;
