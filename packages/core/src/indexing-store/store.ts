@@ -91,13 +91,11 @@ export interface IndexingStore {
 
   findUnique(options: {
     tableName: string;
-    checkpoint?: Checkpoint;
     id: string | number | bigint;
   }): Promise<Row | null>;
 
   findMany(options: {
     tableName: string;
-    checkpoint?: Checkpoint;
     where?: WhereInput<any>;
     orderBy?: OrderByInput<any>;
     before?: string | null;

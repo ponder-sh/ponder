@@ -1,10 +1,5 @@
-import type { Schema } from "@/schema/types.js";
-import type {
-  JSONColumnType,
-  Kysely,
-  Migration,
-  MigrationProvider,
-} from "kysely";
+import { type Kysely } from "kysely";
+import { type Migration, type MigrationProvider } from "kysely";
 
 const migrations: Record<string, Migration> = {
   "2024_01_29_0_initial": {
@@ -29,6 +24,12 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_03_28_0_bigly": {
+    async up(db: Kysely<any>) {
+      await db.schema.dropTable("function_metadata").execute();
+      await db.schema.dropTable("table_metadata").execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -38,27 +39,3 @@ class StaticMigrationProvider implements MigrationProvider {
 }
 
 export const migrationProvider = new StaticMigrationProvider();
-
-export type PonderCoreSchema = {
-  "ponder_cache.function_metadata": {
-    function_id: string;
-    function_name: string;
-    hash_version: number;
-    from_checkpoint: string | null;
-    to_checkpoint: string;
-    event_count: number;
-  };
-  "ponder_cache.table_metadata": {
-    table_id: string;
-    table_name: string;
-    hash_version: number;
-    to_checkpoint: string;
-    schema: JSONColumnType<Schema>;
-  };
-} & {
-  [tableId: string]: {
-    id: unknown;
-    effective_from: string;
-    effective_to: string;
-  };
-};

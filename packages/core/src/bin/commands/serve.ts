@@ -92,8 +92,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     schema,
     pool: indexingStoreConfig.pool,
-    schemaName: "ponder",
-    tablePrefix: "_raw_",
   });
 
   const serverService = new ServerService({ common, indexingStore });

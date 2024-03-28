@@ -48,7 +48,7 @@ export async function run({
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
-    await database.setup({ schema, tableIds, functionIds, tableAccess });
+    await database.setup({ schema });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
     indexingStore = new SqliteIndexingStore({
@@ -63,7 +63,7 @@ export async function run({
   } else {
     const { poolConfig } = databaseConfig;
     database = new PostgresDatabaseService({ common, poolConfig });
-    await database.setup({ schema, tableIds, functionIds, tableAccess });
+    await database.setup({ schema });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
     indexingStore = new PostgresIndexingStore({
@@ -116,7 +116,6 @@ export async function run({
 
     if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
       isHealthy = true;
-      await database.publish();
       serverService.setIsHealthy(true);
       common.logger.info({ service: "server", msg: "Responding as healthy" });
     }

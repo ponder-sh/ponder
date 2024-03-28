@@ -90,7 +90,7 @@ const MAX_BATCH_SIZE = 10_000;
 export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
   private indexingStore: IndexingStore;
-  private database: DatabaseService;
+  // private database: DatabaseService;
   private syncService: SyncService;
   private sources: Source[];
   private networks: Network[];
@@ -104,9 +104,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private functionIds?: FunctionIds;
 
   queue?: IndexingFunctionQueue;
-
-  private flushInterval?: NodeJS.Timeout;
-  private isFlushIntervalExec = false;
 
   private getNetwork: (checkpoint: Checkpoint) => Context["network"] =
     undefined!;
@@ -165,7 +162,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   constructor({
     common,
-    database,
+    // database,
     syncService,
     indexingStore,
     networks,
@@ -180,7 +177,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }) {
     super();
     this.common = common;
-    this.database = database;
+    // this.database = database;
     this.indexingStore = indexingStore;
     this.syncService = syncService;
     this.sources = sources;
@@ -201,13 +198,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.clearListeners();
     this.isPaused = true;
 
-    clearInterval(this.flushInterval);
+    // clearInterval(this.flushInterval);
 
     this.queue?.pause();
     this.queue?.clear();
     this.loadingMutex.cancel();
 
-    await this.flush();
+    // await this.flush();
 
     this.common.logger.debug({
       service: "indexing",
@@ -250,19 +247,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     await this.buildIndexingFunctionStates();
     this.createEventQueue();
-
-    this.flushInterval = setInterval(async () => {
-      if (this.isFlushIntervalExec) return;
-      this.isFlushIntervalExec = true;
-
-      this.isPaused = true;
-      await this.queue?.onIdle();
-      this.isPaused = false;
-      await this.flush();
-
-      this.processEvents();
-      this.isFlushIntervalExec = false;
-    }, 120_000);
   };
 
   /**
@@ -964,47 +948,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
   };
 
-  private flush = async () => {
-    const indexingFunctionMetadata = Object.entries(this.indexingFunctionStates)
-      .map(([indexingFunctionKey, state]) => {
-        const stateCheckpoint = this.getStateCheckpoint(indexingFunctionKey);
-
-        const toCheckpoint = checkpointMin(
-          stateCheckpoint,
-          this.syncService.finalityCheckpoint,
-        );
-
-        return {
-          functionId: this.functionIds![indexingFunctionKey],
-          functionName: indexingFunctionKey,
-          fromCheckpoint: state.firstEventCheckpoint ?? null,
-          toCheckpoint,
-          eventCount: state.eventCount,
-        };
-      })
-      .filter(
-        ({ toCheckpoint }) => !isCheckpointEqual(toCheckpoint, zeroCheckpoint),
-      );
-
-    const setupFunctionMetadata = Object.entries(this.setupFunctionStates)
-      .map(([setupFunctionKey, state]) =>
-        state.isComplete
-          ? {
-              functionId: this.functionIds![setupFunctionKey],
-              functionName: setupFunctionKey,
-              fromCheckpoint: null,
-              toCheckpoint: zeroCheckpoint,
-              eventCount: 0,
-            }
-          : null,
-      )
-      .filter((m) => m !== null) as FunctionMetadata[];
-
-    await this.database.flush(
-      indexingFunctionMetadata.concat(setupFunctionMetadata),
-    );
-  };
-
   private buildSourceById = () => {
     for (const source of this.sources) {
       this.sourceById[source.id] = source;
@@ -1031,15 +974,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
         "functionId" | "functionName"
       >;
     } = {};
-    const metadata = this.database.functionMetadata;
-
-    for (const m of metadata) {
-      checkpoints[m.functionId] = {
-        fromCheckpoint: m.fromCheckpoint,
-        toCheckpoint: m.toCheckpoint,
-        eventCount: m.eventCount,
-      };
-    }
 
     for (const contractName of Object.keys(this.indexingFunctions)) {
       // Not sure why this is necessary
