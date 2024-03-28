@@ -358,6 +358,58 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 });
 ```
 
+To run an indexing function whenever a child contract is created (but before any of its events are indexed), add a new contract to your config that uses the factory contract in the `address` field.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts" {9-14}
+import { createConfig } from "@ponder/core";
+import { parseAbiItem } from "viem";
+
+export default createConfig({
+  networks: {
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+  },
+  contracts: {
+    SudoswapFactory: {
+      abi: SudoswapFactoryAbi,
+      network: "mainnet",
+      address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
+      startBlock: 14645816,
+    },
+    SudoswapPool: {
+      abi: SudoswapPoolAbi,
+      network: "mainnet",
+      factory: {
+        address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
+        event: parseAbiItem("event NewPair(address poolAddress)"),
+        parameter: "poolAddress",
+      },
+      startBlock: 14645816,
+    },
+  },
+});
+```
+
+```ts filename="src/index.ts" {3-8}
+import { ponder } from "@/generated";
+
+// This function will run whenever a new child contract is created.
+ponder.on("SudoswapFactory:NewPair", async ({ event }) => {
+  // Address of the child contract that was created.
+  event.args.poolAddress;
+  //        ^? string
+});
+
+ponder.on("SudoswapPool:Transfer", async ({ event }) => {
+  // Address of the child contract that emitted the event.
+  event.log.address;
+  //        ^? string
+});
+```
+
+</div>
+
 **Factory contract requirements & limitations**
 
 1. **Scaling**: The sync engine does not currently support factory contracts with more than 10,000 children. This includes Uniswap V2, V3, and many other permissionless pool-based DeFi protocols. Why not? The Ethereum JSON-RPC API does not scale well for factory contracts. There's only so much that Ponder's sync engine can do about this while remaining compatible with the JSON-RPC API. We're actively working to address scaling challenges via features like remote sync, shared caching, and concurrent indexing. Thanks for your patience.
@@ -398,7 +450,12 @@ Tip: On Etherscan, there is a link to the current implementation contract on the
 
 The `filter` option filters for events by signature and indexed argument values. This makes it possible to index events emitted by _any contract on the network_ that match the specified signature and arguments.
 
-<Callout type="info">If you're indexing a popular contract but only need an infrequent event (e.g. `OwnershipTransferred`), you can use the `filter` option alongside `address` or `factory` to sync only those event(s). By default, the sync engine fetches all events emitted by the contracts you specify.</Callout>
+<Callout type="info">
+  If you're indexing a popular contract but only need an infrequent event (e.g.
+  `OwnershipTransferred`), you can use the `filter` option alongside `address`
+  or `factory` to sync only those event(s). By default, the sync engine fetches
+  all events emitted by the contracts you specify.
+</Callout>
 
 ### By event name or signature
 
