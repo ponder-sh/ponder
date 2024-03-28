@@ -29,7 +29,57 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_03_22_new_checkpoint_encoding": {
+    async up(db: Kysely<any>) {
+      await alterColumnType({
+        db,
+        table: "function_metadata",
+        column: "from_checkpoint",
+        newType: "varchar(75)",
+      });
+
+      await alterColumnType({
+        db,
+        table: "function_metadata",
+        column: "to_checkpoint",
+        newType: "varchar(75)",
+      });
+
+      await alterColumnType({
+        db,
+        table: "table_metadata",
+        column: "to_checkpoint",
+        newType: "varchar(75)",
+      });
+    },
+  },
 };
+
+async function alterColumnType({
+  db,
+  table,
+  column,
+  newType,
+}: {
+  db: Kysely<any>;
+  table: string;
+  column: string;
+  newType: Parameters<
+    ReturnType<Kysely<any>["schema"]["alterTable"]>["addColumn"]
+  >[1];
+}) {
+  const tempName = `temp_${column}`;
+
+  await db.schema.alterTable(table).addColumn(tempName, newType).execute();
+  await db
+    .updateTable(table)
+    .set((eb: any) => ({
+      [tempName]: eb.selectFrom(table).select(column),
+    }))
+    .execute();
+  await db.schema.alterTable(table).dropColumn(column).execute();
+  await db.schema.alterTable(table).renameColumn(tempName, column).execute();
+}
 
 class StaticMigrationProvider implements MigrationProvider {
   async getMigrations() {

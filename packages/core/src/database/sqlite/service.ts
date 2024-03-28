@@ -15,6 +15,7 @@ import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
   type Checkpoint,
+  LATEST,
   checkpointMax,
   decodeCheckpoint,
   encodeCheckpoint,
@@ -195,7 +196,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                   (tx as Kysely<any>)
                     .selectFrom(`${RAW_TABLE_PREFIX}${tableName}`)
                     .select(viewColumnNames)
-                    .where("effective_to", "=", "latest"),
+                    .where("effective_to", "=", LATEST),
                 )
                 .execute();
 
@@ -333,7 +334,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               await tx
                 .withSchema(CACHE_DB_NAME)
                 .updateTable(tableId)
-                .set({ effective_to: "latest" })
+                .set({ effective_to: LATEST })
                 .where("effective_to", ">", newTableToCheckpoint)
                 .execute();
             } else {
@@ -349,7 +350,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                   CACHE_DB_NAME,
                 )}"."${sql.raw(
                   tableId,
-                )}".id = earliest_new_records.id AND effective_to = 'latest'`.compile(
+                )}".id = earliest_new_records.id AND effective_to = ${LATEST}`.compile(
                   tx,
                 ),
               );
@@ -370,7 +371,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               await tx
                 .withSchema(CACHE_DB_NAME)
                 .updateTable(tableId)
-                .set({ effective_to: "latest" })
+                .set({ effective_to: LATEST })
                 .where("effective_to", ">", newTableToCheckpoint)
                 .execute();
             }
@@ -460,10 +461,10 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       }
     });
 
-    builder = builder.addColumn("effective_from", "varchar(58)", (col) =>
+    builder = builder.addColumn("effective_from", "varchar(75)", (col) =>
       col.notNull(),
     );
-    builder = builder.addColumn("effective_to", "varchar(58)", (col) =>
+    builder = builder.addColumn("effective_to", "varchar(75)", (col) =>
       col.notNull(),
     );
     builder = builder.addPrimaryKeyConstraint(

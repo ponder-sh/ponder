@@ -14,6 +14,7 @@ import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
   type Checkpoint,
+  LATEST,
   checkpointMax,
   decodeCheckpoint,
   encodeCheckpoint,
@@ -377,16 +378,16 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                   this.instanceSchemaName,
                 )}"."${sql.raw(
                   tableName,
-                )}" WHERE "effective_from" <= '${sql.raw(
-                  newTableToCheckpoint,
-                )}'`.compile(tx),
+                )}" WHERE "effective_from" <= ${newTableToCheckpoint}`.compile(
+                  tx,
+                ),
               );
 
               // Truncate cache tables to match metadata.
               await tx
                 .withSchema(CACHE_SCHEMA_NAME)
                 .updateTable(tableId)
-                .set({ effective_to: "latest" })
+                .set({ effective_to: LATEST })
                 .where("effective_to", ">", newTableToCheckpoint)
                 .execute();
             } else {
@@ -394,17 +395,18 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               await tx.executeQuery(
                 sql`WITH earliest_new_records AS (SELECT id, MIN(effective_from) as new_effective_to FROM "${sql.raw(
                   this.instanceSchemaName,
-                )}"."${sql.raw(tableName)}" WHERE effective_from > '${sql.raw(
-                  tableMetadata.to_checkpoint,
-                )}' GROUP BY id) UPDATE "${sql.raw(
-                  CACHE_SCHEMA_NAME,
-                )}"."${sql.raw(
-                  tableId,
-                )}" SET effective_to = earliest_new_records.new_effective_to FROM earliest_new_records WHERE "${sql.raw(
-                  CACHE_SCHEMA_NAME,
-                )}"."${sql.raw(
-                  tableId,
-                )}".id = earliest_new_records.id AND effective_to = 'latest'`.compile(
+                )}"."${sql.raw(tableName)}" WHERE effective_from > ${
+                  tableMetadata.to_checkpoint
+                } 
+                  GROUP BY id) UPDATE "${sql.raw(
+                    CACHE_SCHEMA_NAME,
+                  )}"."${sql.raw(
+                    tableId,
+                  )}" SET effective_to = earliest_new_records.new_effective_to FROM earliest_new_records WHERE "${sql.raw(
+                    CACHE_SCHEMA_NAME,
+                  )}"."${sql.raw(
+                    tableId,
+                  )}".id = earliest_new_records.id AND effective_to = ${LATEST}`.compile(
                   tx,
                 ),
               );
@@ -414,17 +416,15 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                   `"${CACHE_SCHEMA_NAME}"."${tableId}"`,
                 )} SELECT * FROM "${sql.raw(
                   this.instanceSchemaName,
-                )}"."${sql.raw(tableName)}" WHERE "effective_from" > '${sql.raw(
-                  tableMetadata.to_checkpoint,
-                )}' AND "effective_from" <= '${sql.raw(
-                  newTableToCheckpoint,
-                )}'`.compile(tx),
+                )}"."${sql.raw(tableName)}" WHERE "effective_from" > ${
+                  tableMetadata.to_checkpoint
+                } AND "effective_from" <= ${newTableToCheckpoint}`.compile(tx),
               );
 
               await tx
                 .withSchema(CACHE_SCHEMA_NAME)
                 .updateTable(tableId)
-                .set({ effective_to: "latest" })
+                .set({ effective_to: LATEST })
                 .where("effective_to", ">", newTableToCheckpoint)
                 .execute();
             }
@@ -517,7 +517,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                   .withSchema(this.instanceSchemaName)
                   .selectFrom(tableName)
                   .select(viewColumnNames)
-                  .where("effective_to", "=", "latest"),
+                  .where("effective_to", "=", LATEST),
               )
               .execute();
             await tx.schema
@@ -643,10 +643,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       }
     });
 
-    builder = builder.addColumn("effective_from", "varchar(58)", (col) =>
+    builder = builder.addColumn("effective_from", "varchar(75)", (col) =>
       col.notNull(),
     );
-    builder = builder.addColumn("effective_to", "varchar(58)", (col) =>
+    builder = builder.addColumn("effective_to", "varchar(75)", (col) =>
       col.notNull(),
     );
     builder = builder.addPrimaryKeyConstraint(

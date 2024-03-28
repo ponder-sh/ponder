@@ -10,7 +10,7 @@ import {
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
+import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { Emittery } from "@/utils/emittery.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
@@ -815,6 +815,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     if (newBlockCheckpoint) {
       this.debouncedEmitCheckpoint.call({
+        ...maxCheckpoint,
         blockTimestamp: newBlockCheckpoint.blockTimestamp,
         chainId: this.network.chainId,
         blockNumber: newBlockCheckpoint.blockNumber,

@@ -1,4 +1,8 @@
-import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  LATEST,
+  encodeCheckpoint,
+} from "@/utils/checkpoint.js";
 import type { Kysely } from "kysely";
 
 export const revertTable = async (
@@ -18,7 +22,7 @@ export const revertTable = async (
   // to the safe checkpoint are the new latest version.
   await kysely
     .updateTable(tableName)
-    .set({ effective_to: "latest" })
+    .set({ effective_to: LATEST })
     .where("effective_to", ">=", encodedCheckpoint)
     .execute();
 };

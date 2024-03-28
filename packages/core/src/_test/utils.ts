@@ -10,7 +10,7 @@ import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
+import { type Checkpoint } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import type {
   BlockTag,
@@ -256,6 +256,14 @@ export const getEventsErc20 = async (
           ...transaction,
           from: checksumAddress(transaction.from),
           to: transaction.to ? checksumAddress(transaction.to) : transaction.to,
+        },
+        checkpoint: {
+          blockTimestamp: Number(block.timestamp),
+          chainId: sources[0].chainId,
+          blockNumber: Number(block.number!),
+          transactionIndex: transaction.transactionIndex!,
+          eventType: 5,
+          eventIndex: log.logIndex!,
         },
       })),
     lastCheckpoint: toCheckpoint,

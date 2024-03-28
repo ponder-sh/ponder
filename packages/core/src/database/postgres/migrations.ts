@@ -35,6 +35,24 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_03_22_new_checkpoint_encoding": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("function_metadata")
+        .alterColumn("from_checkpoint", (cb) => cb.setDataType("varchar(75)"))
+        .execute();
+
+      await db.schema
+        .alterTable("function_metadata")
+        .alterColumn("to_checkpoint", (cb) => cb.setDataType("varchar(75)"))
+        .execute();
+
+      await db.schema
+        .alterTable("table_metadata")
+        .alterColumn("to_checkpoint", (cb) => cb.setDataType("varchar(75)"))
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
