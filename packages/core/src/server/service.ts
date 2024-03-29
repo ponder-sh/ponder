@@ -120,6 +120,7 @@ export class ServerService {
     return async (req, res) => {
       if (req.method !== "GET" && req.method !== "POST") {
         res.status(404).end();
+        return;
       }
 
       try {
