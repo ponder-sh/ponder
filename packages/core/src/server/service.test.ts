@@ -1,7 +1,7 @@
 import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
-import { getFreePort, getTableIds, postGraphql } from "@/_test/utils.js";
+import { getFreePort, postGraphql } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
-import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import { buildGqlSchema } from "./graphql/schema.js";
@@ -57,7 +57,6 @@ export const setup = async ({
 }) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   const port = await getFreePort();
@@ -158,10 +157,6 @@ export const setup = async ({
     createEntityWithNullRef,
   };
 };
-
-function createCheckpoint(index: number): Checkpoint {
-  return { ...zeroCheckpoint, blockTimestamp: index };
-}
 
 test("serves all scalar types correctly", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
@@ -1478,51 +1473,6 @@ test("throws if limit is greater than 1000", async (context) => {
   await cleanup();
 });
 
-test("serves singular entity versioned at specified timestamp", async (context) => {
-  const { service, cleanup, gql, indexingStore, createTestEntity } =
-    await setup({ context });
-  service.setIsHealthy(true);
-
-  await createTestEntity({ id: 1 });
-  await indexingStore.update({
-    tableName: "TestEntity",
-    checkpoint: createCheckpoint(10),
-    id: String(1),
-    data: {
-      string: "updated",
-    },
-  });
-
-  let response = await gql(`
-    testEntity(id: "1", timestamp: 5) {
-      id
-      string
-    }
-  `);
-
-  expect(response.status).toBe(200);
-  let body = (await response.json()) as any;
-  expect(body.errors).toBe(undefined);
-  let testEntity = body.data.testEntity;
-
-  expect(testEntity.string).toBe("1");
-
-  response = await gql(`
-    testEntity(id: "1", timestamp: 15) {
-      id
-      string
-    }
-  `);
-  expect(response.status).toBe(200);
-  body = (await response.json()) as any;
-  expect(body.errors).toBe(undefined);
-  testEntity = body.data.testEntity;
-  expect(testEntity.string).toBe("updated");
-
-  await service.kill();
-  await cleanup();
-});
-
 test("responds with appropriate status code pre and post historical sync", async (context) => {
   const { service, cleanup, gql, createTestEntity } = await setup({ context });
 
@@ -1562,148 +1512,6 @@ test("responds with appropriate status code pre and post historical sync", async
   expect(testEntitys[0]).toMatchObject({
     id: "0",
   });
-
-  await service.kill();
-  await cleanup();
-});
-
-// This is a known limitation for now, which is that the timestamp version of entities
-// returned in derived fields does not inherit the timestamp argument provided to the parent.
-// So, if you want to use time-travel queries with derived fields, you need to manually
-// include the desired timestamp at every level of the query.
-test.skip("serves derived entities versioned at provided timestamp", async (context) => {
-  const {
-    service,
-    cleanup,
-    gql,
-    indexingStore,
-    createTestEntity,
-    createEntityWithBigIntId,
-  } = await setup({ context });
-  service.setIsHealthy(true);
-
-  await createTestEntity({ id: 0 });
-  await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
-
-  await indexingStore.update({
-    tableName: "EntityWithBigIntId",
-    checkpoint: createCheckpoint(10),
-    id: BigInt(0),
-    data: {
-      testEntity: "2",
-    },
-  });
-
-  let response = await gql(`
-    testEntitys(timestamp: 5) {
-      items {
-        id
-        derivedTestEntity {
-          id
-        }
-      }
-    }
-  `);
-
-  expect(response.status).toBe(200);
-  let body = (await response.json()) as any;
-  expect(body.errors).toBe(undefined);
-
-  let testEntitys = body.data.testEntitys.items;
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "0",
-    derivedTestEntity: [{ id: "0" }],
-  });
-
-  response = await gql(`
-    testEntitys {
-      items {
-          id
-          derivedTestEntity {
-            id
-          }
-      }
-    }
-  `);
-
-  expect(response.status).toBe(200);
-  body = (await response.json()) as any;
-  expect(body.errors).toBe(undefined);
-
-  testEntitys = body.data.testEntitys.items;
-  expect(testEntitys.items).toHaveLength(1);
-  expect(testEntitys.items[0]).toMatchObject({
-    id: "0",
-    derivedTestEntity: [],
-  });
-
-  await service.kill();
-  await cleanup();
-});
-
-test("serves nested records at the timestamp/version specified at the top level", async (context) => {
-  const {
-    service,
-    indexingStore,
-    gql,
-    createTestEntity,
-    createEntityWithStringId,
-    cleanup,
-  } = await setup({ context });
-  service.setIsHealthy(true);
-
-  await createTestEntity({ id: 0 });
-  await createEntityWithStringId({ id: "0", testEntityId: "0" });
-
-  await indexingStore.update({
-    tableName: "EntityWithStringId",
-    checkpoint: createCheckpoint(10),
-    id: "0",
-    data: { testEntityId: "2" },
-  });
-
-  let response = await gql(`
-    testEntitys(timestamp: 5) {
-      items {
-        id
-        derived {
-          items {
-            id
-          }
-        }
-      }
-    }
-  `);
-
-  expect(response.status).toBe(200);
-  let body = (await response.json()) as any;
-  expect(body.errors).toBe(undefined);
-
-  let testEntitys = body.data.testEntitys.items;
-  expect(testEntitys).toMatchObject([
-    { id: "0", derived: { items: [{ id: "0" }] } },
-  ]);
-
-  response = await gql(`
-    testEntitys {
-      items {
-        id
-        derived {
-          items {
-            id
-          }
-        }
-      }
-    }
-  `);
-
-  expect(response.status).toBe(200);
-  body = (await response.json()) as any;
-  expect(body.errors).toBe(undefined);
-
-  testEntitys = body.data.testEntitys.items;
-  expect(testEntitys).toMatchObject([{ id: "0", derived: { items: [] } }]);
 
   await service.kill();
   await cleanup();

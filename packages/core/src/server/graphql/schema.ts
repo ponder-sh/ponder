@@ -1,4 +1,4 @@
-import type { IndexingStore } from "@/indexing-store/historicalStore.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Scalar, Schema } from "@/schema/types.js";
 import {
   GraphQLBoolean,

@@ -1,7 +1,7 @@
 import type { Server } from "node:http";
 import { createServer } from "node:http";
 import type { Common } from "@/common/common.js";
-import type { IndexingStore } from "@/indexing-store/historicalStore.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import cors from "cors";
 import express, { type Handler } from "express";

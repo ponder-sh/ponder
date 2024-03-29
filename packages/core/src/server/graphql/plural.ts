@@ -1,4 +1,3 @@
-import { maxCheckpoint } from "@/utils/checkpoint.js";
 import {
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
@@ -18,7 +17,6 @@ type PluralArgs = {
   limit?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
-  timestamp?: number;
 };
 
 export type PluralResolver = GraphQLFieldResolver<Parent, Context, PluralArgs>;
@@ -35,12 +33,7 @@ export const buildPluralField = ({
   const resolver: PluralResolver = async (_, args, context) => {
     const { store } = context;
 
-    const { timestamp, where, orderBy, orderDirection, before, limit, after } =
-      args;
-
-    const checkpoint = timestamp
-      ? { ...maxCheckpoint, blockTimestamp: timestamp }
-      : undefined; // Latest.
+    const { where, orderBy, orderDirection, before, limit, after } = args;
 
     const whereObject = where ? buildWhereObject(where) : {};
 
@@ -50,7 +43,6 @@ export const buildPluralField = ({
 
     return await store.findMany({
       tableName,
-      checkpoint,
       where: whereObject,
       orderBy: orderByObject,
       limit,
@@ -62,7 +54,6 @@ export const buildPluralField = ({
   return {
     type: new GraphQLNonNull(entityPageType),
     args: {
-      timestamp: { type: GraphQLInt },
       where: { type: entityFilterType },
       orderBy: { type: GraphQLString },
       orderDirection: { type: GraphQLString },
