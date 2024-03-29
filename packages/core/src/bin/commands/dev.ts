@@ -64,12 +64,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const shutdown = setupShutdown({ common, cleanup });
 
   const initialResult = await buildService.initialLoad();
-  if (initialResult.error) {
-    logger.error({
-      service: "process",
-      msg: "Failed initial build with error:",
-      error: initialResult.error,
-    });
+  if (!initialResult.success) {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }

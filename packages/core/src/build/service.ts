@@ -275,26 +275,35 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async initialLoad() {
+    const logAndReturnError = (error: Error) => {
+      this.common.logger.error({
+        service: "build",
+        msg: "Failed initial build with error:",
+        error,
+      });
+      return { success: false, error } as const;
+    };
+
     const configResult = await this.loadConfig();
-    if (!configResult.success) return { error: configResult.error } as const;
+    if (!configResult.success) return logAndReturnError(configResult.error);
 
     const schemaResult = await this.loadSchema();
-    if (!schemaResult.success) return { error: schemaResult.error } as const;
+    if (!schemaResult.success) return logAndReturnError(schemaResult.error);
 
     const files = glob.sync(
       path.join(this.common.options.srcDir, "**/*.{js,mjs,ts,mts}"),
     );
     const indexingFunctionsResult = await this.loadIndexingFunctions({ files });
     if (!indexingFunctionsResult.success)
-      return { error: indexingFunctionsResult.error } as const;
+      return logAndReturnError(indexingFunctionsResult.error);
 
     const validationResult = this.validate();
     if (validationResult.error)
-      return { error: validationResult.error } as const;
+      return logAndReturnError(validationResult.error);
     const parseResult = this.parse();
-    if (parseResult.error) return { error: parseResult.error } as const;
+    if (parseResult.error) return logAndReturnError(parseResult.error);
     const analyzeResult = this.analyze();
-    if (analyzeResult.error) return { error: analyzeResult.error } as const;
+    if (analyzeResult.error) return logAndReturnError(analyzeResult.error);
 
     const { databaseConfig, sources, networks } = configResult;
     const { schema, graphqlSchema } = schemaResult;
@@ -430,7 +439,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
               .map((n) => `'${n}'`)
               .join(", ")}].`,
           );
-          error.stack = undefined;
           return { success: false, error } as const;
         }
 
@@ -444,7 +452,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
               .map((eventName) => `'${eventName}'`)
               .join(", ")}].`,
           );
-          error.stack = undefined;
           return { success: false, error } as const;
         }
       }
