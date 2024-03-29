@@ -161,7 +161,6 @@ const setupStore = async () => {
         tables: {},
         enums: {},
       },
-      tableIds: {},
     });
 
   cleanup = async () => {

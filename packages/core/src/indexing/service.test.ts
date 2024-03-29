@@ -88,9 +88,6 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -149,9 +146,6 @@ test("processEvents() calls indexing functions with correct arguments", async (c
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -231,9 +225,6 @@ test("processEvent() runs setup functions before log event", async (context) => 
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -281,9 +272,6 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -342,9 +330,6 @@ test("processEvents() orders tasks with self reliance", async (context) => {
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -397,9 +382,6 @@ test("processEvents() model methods insert data into the indexing store", async 
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -445,9 +427,6 @@ test("processEvents() updates metrics", async (context) => {
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -503,9 +482,6 @@ test("processEvents() reads data from a contract", async (context) => {
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -551,9 +527,6 @@ test("processEvents() recovers from errors while reading data from a contract", 
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -602,9 +575,6 @@ test("processEvents() retries indexing functions", async (context) => {
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -667,9 +637,6 @@ test("processEvents() handles errors", async (context) => {
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -728,9 +695,6 @@ test("processEvents can be called multiple times", async (context) => {
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -776,9 +740,6 @@ test("handleReorg() updates ponder_indexing_completed_timestamp metric", async (
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -828,9 +789,6 @@ test("handleReorg() reverts the indexing store", async (context) => {
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -881,9 +839,6 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -938,9 +893,6 @@ test("handleReorg() processes the correct range of events after a reorg", async 
   const { database, syncStore, indexingStore, cleanup } =
     await setupDatabaseServices(context, {
       schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
     });
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
@@ -997,68 +949,5 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 
   await service.kill();
   await service.onIdle();
-  await cleanup();
-});
-
-test("reset() loads from cache", async (context) => {
-  const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-      tableAccess,
-      functionIds: getFunctionIds(indexingFunctions),
-      tableIds: getTableIds(schema),
-    });
-
-  const flushSpy = vi.spyOn(database, "flush");
-
-  const syncService = new SyncService({ common, syncStore, networks, sources });
-
-  const getEventsSpy = vi.spyOn(syncService, "getEvents");
-
-  const service = new IndexingService({
-    common,
-    database,
-    syncService,
-    indexingStore,
-    sources,
-    networks,
-  });
-
-  await service.start({
-    schema,
-    indexingFunctions,
-    tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
-  });
-
-  const checkpoint10 = createCheckpoint(10);
-  syncService.checkpoint = checkpoint10;
-  syncService.finalityCheckpoint = checkpoint10;
-
-  const events = await getEventsErc20(sources, checkpoint10);
-  getEventsSpy.mockReturnValue(Promise.resolve(events));
-
-  await service.processEvents();
-
-  await service.kill();
-  await service.onIdle();
-
-  expect(flushSpy).toHaveBeenCalledWith([
-    {
-      eventCount: 2,
-      functionId: "0xErc20:Transfer",
-      functionName: "Erc20:Transfer",
-      fromCheckpoint: {
-        blockTimestamp: expect.any(Number),
-        blockNumber: expect.any(Number),
-        chainId: expect.any(Number),
-        logIndex: expect.any(Number),
-      },
-      toCheckpoint: expect.any(Object),
-    },
-  ]);
-
   await cleanup();
 });

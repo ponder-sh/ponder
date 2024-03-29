@@ -1,7 +1,6 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError, StoreError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
-import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
 import {
@@ -306,12 +305,10 @@ export class HistoricalIndexingStore implements IndexingStore {
 
   create = async ({
     tableName,
-    checkpoint,
     id,
     data = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
@@ -319,28 +316,14 @@ export class HistoricalIndexingStore implements IndexingStore {
 
     return this.wrap({ method: `${tableName}.create` }, async () => {
       const createRow = encodeRow({ id, ...data }, table, this.kind);
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       try {
-        return await this.db.transaction().execute(async (tx) => {
-          const [row] = await Promise.all([
-            tx
-              .insertInto(tableName)
-              .values(createRow)
-              .returningAll()
-              .executeTakeFirstOrThrow(),
-            tx
-              .insertInto("logs")
-              .values({
-                table: table,
-                row: null,
-                checkpoint: encodedCheckpoint,
-                operation: 0,
-              })
-              .execute(),
-          ]);
-          return decodeRow(row, table, "postgres");
-        });
+        const row = await this.db
+          .insertInto(tableName)
+          .values(createRow)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+        return decodeRow(row, table, "postgres");
       } catch (err) {
         const error = err as Error;
         throw error.message.includes("UNIQUE constraint failed")
@@ -354,17 +337,14 @@ export class HistoricalIndexingStore implements IndexingStore {
 
   createMany = async ({
     tableName,
-    checkpoint,
     data,
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     data: Row[];
   }) => {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.createMany` }, async () => {
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const createRows = data.map((d) => encodeRow({ ...d }, table, this.kind));
 
       const chunkedRows: (typeof createRows)[] = [];
@@ -372,31 +352,12 @@ export class HistoricalIndexingStore implements IndexingStore {
         chunkedRows.push(createRows.slice(i, i + MAX_BATCH_SIZE));
 
       try {
-        const rows = await this.db.transaction().execute(async (tx) => {
-          const rowsAndResults = await Promise.all([
-            ...chunkedRows.map((chunk) =>
-              tx.insertInto(tableName).values(chunk).returningAll().execute(),
+        const rows = await this.db.transaction().execute((tx) => {
+          return Promise.all(
+            chunkedRows.map((c) =>
+              tx.insertInto(tableName).values(c).returningAll().execute(),
             ),
-            ...chunkedRows.map((chunk) =>
-              tx
-                .insertInto("logs")
-                .values(
-                  chunk.map((row) => ({
-                    tableName,
-                    operation: 0,
-                    row: JSON.stringify(
-                      decodeRow(row as Row, table, this.kind),
-                    ),
-                    checkpoint: encodedCheckpoint,
-                  })),
-                )
-                .execute(),
-            ),
-          ]);
-
-          rowsAndResults.splice(chunkedRows.length, chunkedRows.length);
-
-          return rowsAndResults as Row[][];
+          );
         });
 
         return rows.flat().map((row) => decodeRow(row, table, this.kind));
@@ -413,12 +374,10 @@ export class HistoricalIndexingStore implements IndexingStore {
 
   update = async ({
     tableName,
-    checkpoint,
     id,
     data = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     id: string | number | bigint;
     data?:
       | Partial<Omit<Row, "id">>
@@ -428,51 +387,34 @@ export class HistoricalIndexingStore implements IndexingStore {
 
     return this.wrap({ method: `${tableName}.update` }, async () => {
       const encodedId = encodeValue(id, table.id, this.kind);
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const row = await this.db.transaction().execute(async (tx) => {
-        // Find the latest version of this instance.
-        const latestRow = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", encodedId)
-          .executeTakeFirst();
-        if (!latestRow)
-          throw new StoreError(
-            `Cannot update ${tableName} record with ID ${id} because no existing record was found with that ID. Consider using ${tableName}.upsert(), or create the record before updating it. Hint: Did you forget to await the promise returned by a store method?`,
-          );
+      // Find the latest version of this instance.
+      const latestRow = await this.db
+        .selectFrom(tableName)
+        .selectAll()
+        .where("id", "=", encodedId)
+        .executeTakeFirst();
+      if (!latestRow)
+        throw new StoreError(
+          `Cannot update ${tableName} record with ID ${id} because no existing record was found with that ID. Consider using ${tableName}.upsert(), or create the record before updating it. Hint: Did you forget to await the promise returned by a store method?`,
+        );
 
-        // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof encodeRow>;
-        if (typeof data === "function") {
-          const current = decodeRow(latestRow, table, this.kind);
-          const updateObject = data({ current });
-          updateRow = encodeRow({ id, ...updateObject }, table, this.kind);
-        } else {
-          updateRow = encodeRow({ id, ...data }, table, this.kind);
-        }
+      // If the user passed an update function, call it with the current instance.
+      let updateRow: ReturnType<typeof encodeRow>;
+      if (typeof data === "function") {
+        const current = decodeRow(latestRow, table, this.kind);
+        const updateObject = data({ current });
+        updateRow = encodeRow({ id, ...updateObject }, table, this.kind);
+      } else {
+        updateRow = encodeRow({ id, ...data }, table, this.kind);
+      }
 
-        const [updateResult] = await Promise.all([
-          tx
-            .updateTable(tableName)
-            .set(updateRow)
-            .where("id", "=", encodedId)
-            .returningAll()
-            .executeTakeFirstOrThrow(),
-          tx
-            .insertInto("logs")
-            .values({
-              tableName,
-              operation: 1,
-              checkpoint: encodedCheckpoint,
-              row: JSON.stringify(
-                decodeRow(latestRow, this.schema.tables[tableName], this.kind),
-              ),
-            })
-            .execute(),
-        ]);
-        return updateResult;
-      });
+      const row = await this.db
+        .updateTable(tableName)
+        .set(updateRow)
+        .where("id", "=", encodedId)
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
       const result = decodeRow(row, table, this.kind);
 
@@ -482,12 +424,10 @@ export class HistoricalIndexingStore implements IndexingStore {
 
   updateMany = async ({
     tableName,
-    checkpoint,
     where,
     data = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     where: WhereInput<any>;
     data?:
       | Partial<Omit<Row, "id">>
@@ -496,29 +436,24 @@ export class HistoricalIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.updateMany` }, async () => {
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      let query = this.db.selectFrom(tableName).selectAll();
 
-      const rows = await this.db.transaction().execute(async (tx) => {
-        // TODO(kyle) can remove this from the tx
+      if (where) {
+        query = query.where((eb) =>
+          buildWhereConditions({
+            eb,
+            where,
+            table,
+            encoding: this.kind,
+          }),
+        );
+      }
 
-        // Get all IDs that match the filter.
-        let query = tx.selectFrom(tableName).selectAll();
+      const latestRows = await query.execute();
 
-        if (where) {
-          query = query.where((eb) =>
-            buildWhereConditions({
-              eb,
-              where,
-              table,
-              encoding: this.kind,
-            }),
-          );
-        }
-
-        const latestRows = await query.execute();
-
-        const rowsAndResults = await Promise.all([
-          ...latestRows.map((latestRow) => {
+      const rows = await this.db.transaction().execute((tx) => {
+        return Promise.all(
+          latestRows.map((latestRow) => {
             // If the user passed an update function, call it with the current instance.
             let updateRow: ReturnType<typeof encodeRow>;
             if (typeof data === "function") {
@@ -536,19 +471,7 @@ export class HistoricalIndexingStore implements IndexingStore {
               .returningAll()
               .executeTakeFirstOrThrow();
           }),
-          ...latestRows.map((latestRow) =>
-            tx.insertInto(tableName).values({
-              tableName,
-              operation: 1,
-              checkpoint: encodedCheckpoint,
-              row: JSON.stringify(decodeRow(latestRow, table, this.kind)),
-            }),
-          ),
-        ]);
-
-        rowsAndResults.splice(latestRows.length, latestRows.length);
-
-        return rowsAndResults as Row[];
+        );
       });
 
       return rows.map((row) => decodeRow(row, table, this.kind));
@@ -557,13 +480,11 @@ export class HistoricalIndexingStore implements IndexingStore {
 
   upsert = async ({
     tableName,
-    checkpoint,
     id,
     create = {},
     update = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     id: string | number | bigint;
     create?: Omit<Row, "id">;
     update?:
@@ -575,64 +496,39 @@ export class HistoricalIndexingStore implements IndexingStore {
     return this.wrap({ method: `${tableName}.upsert` }, async () => {
       const encodedId = encodeValue(id, table.id, this.kind);
       const createRow = encodeRow({ id, ...create }, table, this.kind);
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const [row] = await this.db.transaction().execute(async (tx) => {
-        // Find the latest version of this instance.
-        const latestRow = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", encodedId)
-          .executeTakeFirst();
+      // Find the latest version of this instance.
+      const latestRow = await this.db
+        .selectFrom(tableName)
+        .selectAll()
+        .where("id", "=", encodedId)
+        .executeTakeFirst();
 
-        // If there is no latest version, insert a new version using the create data.
-        if (latestRow === undefined) {
-          return Promise.all([
-            tx
-              .insertInto(tableName)
-              .values(createRow)
-              .returningAll()
-              .executeTakeFirstOrThrow(),
-            tx
-              .insertInto("logs")
-              .values({
-                tableName,
-                operation: 0,
-                checkpont: encodedCheckpoint,
-                row: null,
-              })
-              .execute(),
-          ]);
-        }
+      // If there is no latest version, insert a new version using the create data.
+      if (latestRow === undefined) {
+        return this.db
+          .insertInto(tableName)
+          .values(createRow)
+          .returningAll()
+          .executeTakeFirstOrThrow() as Promise<Row>;
+      }
 
-        // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof encodeRow>;
-        if (typeof update === "function") {
-          const current = decodeRow(latestRow, table, this.kind);
-          const updateObject = update({ current });
-          updateRow = encodeRow({ id, ...updateObject }, table, this.kind);
-        } else {
-          updateRow = encodeRow({ id, ...update }, table, this.kind);
-        }
+      // If the user passed an update function, call it with the current instance.
+      let updateRow: ReturnType<typeof encodeRow>;
+      if (typeof update === "function") {
+        const current = decodeRow(latestRow, table, this.kind);
+        const updateObject = update({ current });
+        updateRow = encodeRow({ id, ...updateObject }, table, this.kind);
+      } else {
+        updateRow = encodeRow({ id, ...update }, table, this.kind);
+      }
 
-        return Promise.all([
-          tx
-            .updateTable(tableName)
-            .set(updateRow)
-            .where("id", "=", encodedId)
-            .returningAll()
-            .executeTakeFirstOrThrow(),
-          tx
-            .insertInto("logs")
-            .values({
-              tableName,
-              operation: 1,
-              checkpont: encodedCheckpoint,
-              row: JSON.stringify(decodeRow(latestRow, table, this.kind)),
-            })
-            .execute(),
-        ]);
-      });
+      const row = await this.db
+        .updateTable(tableName)
+        .set(updateRow)
+        .where("id", "=", encodedId)
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
       return decodeRow(row, table, this.kind);
     });
@@ -640,51 +536,23 @@ export class HistoricalIndexingStore implements IndexingStore {
 
   delete = async ({
     tableName,
-    checkpoint,
     id,
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     id: string | number | bigint;
   }) => {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.delete` }, async () => {
       const encodedId = encodeValue(id, table.id, this.kind);
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const isDeleted = await this.db.transaction().execute(async (tx) => {
-        const row = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", encodedId)
-          .executeTakeFirst();
+      const deletedRow = await this.db
+        .deleteFrom(tableName)
+        .where("id", "=", encodedId)
+        .returning(["id"])
+        .executeTakeFirst();
 
-        const [deletedRow] = await Promise.all([
-          tx
-            .deleteFrom(tableName)
-            .where("id", "=", encodedId)
-            .returning(["id"])
-            .executeTakeFirst(),
-          row !== undefined
-            ? tx
-                .insertInto("logs")
-                .values({
-                  tableName,
-                  checkpoint: encodedCheckpoint,
-                  type: 2,
-                  row: JSON.stringify(
-                    decodeRow(row, this.schema.tables[tableName], this.kind),
-                  ),
-                })
-                .execute()
-            : Promise.resolve(),
-        ]);
-
-        return !!deletedRow;
-      });
-
-      return isDeleted;
+      return !!deletedRow;
     });
   };
 

@@ -107,7 +107,7 @@ type DatabaseServiceSetup = Parameters<DatabaseService["setup"]>[0] & {
 const defaultSchema = createSchema(() => ({}));
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
   schema: defaultSchema,
-  indexing: "realtime",
+  indexing: "historical",
 };
 
 export async function setupDatabaseServices(

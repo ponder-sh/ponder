@@ -5,7 +5,7 @@ import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { TelemetryService } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
+import { HistoricalIndexingStore } from "@/indexing-store/historicalStore.js";
 import { ServerService } from "@/server/service.js";
 import dotenv from "dotenv";
 import type { CliOptions } from "../ponder.js";
@@ -88,10 +88,10 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const database = new PostgresDatabaseService({ common, poolConfig });
 
   const indexingStoreConfig = database.getIndexingStoreConfig();
-  const indexingStore = new PostgresIndexingStore({
+  const indexingStore = new HistoricalIndexingStore({
     common,
     schema,
-    pool: indexingStoreConfig.pool,
+    database: { kind: "postgres", pool: indexingStoreConfig.pool },
   });
 
   const serverService = new ServerService({ common, indexingStore });

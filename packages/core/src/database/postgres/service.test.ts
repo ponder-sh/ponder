@@ -1,6 +1,6 @@
 import { setupIsolatedDatabase } from "@/_test/setup.js";
 import { getTableIds } from "@/_test/utils.js";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
+import { HistoricalIndexingStore } from "@/indexing-store/historicalStore.js";
 import { createSchema } from "@/schema/schema.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { Kysely, sql } from "kysely";
@@ -101,23 +101,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.setup({
       schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: { function: "0xfunction" },
-      tableAccess: {
-        function: {
-          access: [
-            {
-              storeMethod: "create",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-      },
     });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore = new PostgresIndexingStore({
+    const indexingStore = new HistoricalIndexingStore({
       common: context.common,
       ...indexingStoreConfig,
       schema,

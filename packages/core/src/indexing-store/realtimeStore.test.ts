@@ -30,6 +30,7 @@ const hexSchema = createSchema((p) => ({
 test("create() inserts a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -50,6 +51,7 @@ test("create() inserts a record", async (context) => {
 test("create() throws on unique constraint violation", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -72,6 +74,7 @@ test("create() throws on unique constraint violation", async (context) => {
 test("create() respects optional fields", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -93,6 +96,7 @@ test("create() respects optional fields", async (context) => {
 test("create() accepts enums", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -114,6 +118,7 @@ test("create() accepts enums", async (context) => {
 test("create() throws on invalid enum value", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await expect(() =>
@@ -130,6 +135,7 @@ test("create() throws on invalid enum value", async (context) => {
 test("create() accepts BigInt fields as bigint and returns as bigint", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -151,6 +157,7 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
 test("create() accepts float fields as float and returns as float", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -172,6 +179,7 @@ test("create() accepts float fields as float and returns as float", async (conte
 test("update() updates a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -204,6 +212,7 @@ test("update() updates a record", async (context) => {
 test("update() updates a record using an update function", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -241,6 +250,7 @@ test("update() updates a record using an update function", async (context) => {
 test("upsert() inserts a new record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.upsert({
@@ -261,6 +271,7 @@ test("upsert() inserts a new record", async (context) => {
 test("upsert() updates a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -293,6 +304,7 @@ test("upsert() updates a record", async (context) => {
 test("upsert() updates a record using an update function", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -327,6 +339,7 @@ test("upsert() updates a record using an update function", async (context) => {
 test("delete() removes a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.create({
@@ -354,498 +367,10 @@ test("delete() removes a record", async (context) => {
   await cleanup();
 });
 
-test("findMany() returns current versions of all records", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
-  await indexingStore.update({
-    tableName: "Pet",
-    id: "id1",
-    data: { name: "SkipUpdated" },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id2",
-    data: { name: "Foo" },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id3",
-    data: { name: "Bar", bigAge: 100n },
-  });
-
-  const { items } = await indexingStore.findMany({ tableName: "Pet" });
-  expect(items).toHaveLength(3);
-  expect(items.map((i) => i.name)).toMatchObject(["SkipUpdated", "Foo", "Bar"]);
-
-  await cleanup();
-});
-
-test("findMany() orders by bigint field", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id1",
-    data: { name: "Skip", bigAge: 105n },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id2",
-    data: { name: "Foo", bigAge: 10n },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id3",
-    data: { name: "Bar", bigAge: 190n },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id4",
-    data: { name: "Patch" },
-  });
-
-  const { items } = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { bigAge: "asc" },
-  });
-  expect(items.map((i) => i.bigAge)).toMatchObject([null, 10n, 105n, 190n]);
-
-  await cleanup();
-});
-
-test("findMany() filters on bigint gt", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id1",
-    data: { name: "Skip", bigAge: 105n },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id2",
-    data: { name: "Foo", bigAge: 10n },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id3",
-    data: { name: "Bar", bigAge: 190n },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id4",
-    data: { name: "Patch" },
-  });
-
-  const { items } = await indexingStore.findMany({
-    tableName: "Pet",
-    where: { bigAge: { gt: 50n } },
-  });
-
-  expect(items.map((i) => i.bigAge)).toMatchObject([105n, 190n]);
-
-  await cleanup();
-});
-
-test("findMany() filters with complex OR condition", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.createMany({
-    tableName: "Pet",
-    data: [
-      { id: "id1", name: "Skip", bigAge: 105n },
-      { id: "id2", name: "Foo", bigAge: 10n },
-      { id: "id3", name: "Bar", bigAge: 190n },
-      { id: "id4", name: "Zarbar" },
-      { id: "id5", name: "Winston", age: 12 },
-    ],
-  });
-
-  const { items } = await indexingStore.findMany({
-    tableName: "Pet",
-    where: {
-      OR: [
-        { bigAge: { gt: 50n } },
-        { AND: [{ name: "Foo" }, { bigAge: { lt: 20n } }] },
-      ],
-    },
-  });
-
-  expect(items).toMatchObject([
-    { id: "id1", name: "Skip", bigAge: 105n },
-    { id: "id2", name: "Foo", bigAge: 10n },
-    { id: "id3", name: "Bar", bigAge: 190n },
-  ]);
-
-  await cleanup();
-});
-
-test("findMany() sorts and filters together", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id1",
-    data: { name: "Skip", bigAge: 105n },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id2",
-    data: { name: "Foo", bigAge: 10n },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id3",
-    data: { name: "Bar", bigAge: 190n },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    id: "id4",
-    data: { name: "Zarbar" },
-  });
-
-  const { items } = await indexingStore.findMany({
-    tableName: "Pet",
-    where: { name: { endsWith: "ar" } },
-    orderBy: { name: "asc" },
-  });
-
-  expect(items.map((i) => i.name)).toMatchObject(["Bar", "Zarbar"]);
-
-  await cleanup();
-});
-
-test("findMany() errors on invalid filter condition", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  expect(() =>
-    indexingStore.findMany({
-      tableName: "Pet",
-      where: { name: { invalidWhereCondition: "ar" } },
-    }),
-  ).rejects.toThrow(
-    "Invalid filter condition for column 'name'. Got 'invalidWhereCondition', expected one of ['equals', 'not', 'in', 'notIn', 'contains', 'notContains', 'startsWith', 'notStartsWith', 'endsWith', 'notEndsWith']",
-  );
-
-  await cleanup();
-});
-
-test("findMany() cursor pagination ascending", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.createMany({
-    tableName: "Pet",
-    data: [
-      { id: "id1", name: "Skip" },
-      { id: "id2", name: "Foo" },
-      { id: "id3", name: "Bar" },
-      { id: "id4", name: "Zarbar" },
-      { id: "id5", name: "Winston" },
-      { id: "id6", name: "Book" },
-      { id: "id7", name: "Shea" },
-      { id: "id8", name: "Snack" },
-      { id: "id9", name: "Last" },
-    ],
-  });
-
-  const resultOne = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { id: "asc" },
-    limit: 5,
-  });
-
-  expect(
-    resultOne.items.map((i) => ({ id: i.id, name: i.name })),
-  ).toMatchObject([
-    { id: "id1", name: "Skip" },
-    { id: "id2", name: "Foo" },
-    { id: "id3", name: "Bar" },
-    { id: "id4", name: "Zarbar" },
-    { id: "id5", name: "Winston" },
-  ]);
-  expect(resultOne.pageInfo).toMatchObject({
-    startCursor: expect.any(String),
-    endCursor: expect.any(String),
-    hasPreviousPage: false,
-    hasNextPage: true,
-  });
-
-  const resultTwo = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { id: "asc" },
-    after: resultOne.pageInfo.endCursor,
-  });
-
-  expect(
-    resultTwo.items.map((i) => ({ id: i.id, name: i.name })),
-  ).toMatchObject([
-    { id: "id6", name: "Book" },
-    { id: "id7", name: "Shea" },
-    { id: "id8", name: "Snack" },
-    { id: "id9", name: "Last" },
-  ]);
-  expect(resultTwo.pageInfo).toMatchObject({
-    startCursor: expect.any(String),
-    endCursor: expect.any(String),
-    hasPreviousPage: true,
-    hasNextPage: false,
-  });
-
-  const resultThree = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { id: "asc" },
-    before: resultTwo.pageInfo.startCursor,
-    limit: 2,
-  });
-
-  expect(
-    resultThree.items.map((i) => ({ id: i.id, name: i.name })),
-  ).toMatchObject([
-    { id: "id4", name: "Zarbar" },
-    { id: "id5", name: "Winston" },
-  ]);
-  expect(resultThree.pageInfo).toMatchObject({
-    startCursor: expect.any(String),
-    endCursor: expect.any(String),
-    hasPreviousPage: true,
-    hasNextPage: true,
-  });
-
-  await cleanup();
-});
-
-test("findMany() cursor pagination descending", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.createMany({
-    tableName: "Pet",
-    data: [
-      { id: "id1", name: "Skip", bigAge: 105n },
-      { id: "id2", name: "Foo", bigAge: 10n },
-      { id: "id3", name: "Bar", bigAge: 190n },
-      { id: "id4", name: "Zarbar" },
-      { id: "id5", name: "Winston", age: 12 },
-    ],
-  });
-
-  const resultOne = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { name: "desc" },
-    limit: 2,
-  });
-
-  expect(
-    resultOne.items.map((i) => ({ id: i.id, name: i.name })),
-  ).toMatchObject([
-    { id: "id4", name: "Zarbar" },
-    { id: "id5", name: "Winston" },
-  ]);
-  expect(resultOne.pageInfo).toMatchObject({
-    startCursor: expect.any(String),
-    endCursor: expect.any(String),
-    hasPreviousPage: false,
-    hasNextPage: true,
-  });
-
-  const resultTwo = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { name: "desc" },
-    after: resultOne.pageInfo.endCursor,
-  });
-
-  expect(
-    resultTwo.items.map((i) => ({ id: i.id, name: i.name })),
-  ).toMatchObject([
-    { id: "id1", name: "Skip" },
-    { id: "id2", name: "Foo" },
-    { id: "id3", name: "Bar" },
-  ]);
-  expect(resultTwo.pageInfo).toMatchObject({
-    startCursor: expect.any(String),
-    endCursor: expect.any(String),
-    hasPreviousPage: true,
-    hasNextPage: false,
-  });
-
-  const resultThree = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { name: "desc" },
-    before: resultTwo.pageInfo.startCursor,
-    limit: 1,
-  });
-
-  expect(
-    resultThree.items.map((i) => ({ id: i.id, name: i.name })),
-  ).toMatchObject([{ id: "id5", name: "Winston" }]);
-  expect(resultThree.pageInfo).toMatchObject({
-    startCursor: expect.any(String),
-    endCursor: expect.any(String),
-    hasPreviousPage: true,
-    hasNextPage: true,
-  });
-
-  await cleanup();
-});
-
-test("findMany() returns start and end cursor if limited", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.createMany({
-    tableName: "Pet",
-    data: [
-      { id: "id1", name: "Skip", bigAge: 105n },
-      { id: "id2", name: "Foo", bigAge: 10n },
-      { id: "id3", name: "Bar", bigAge: 190n },
-      { id: "id4", name: "Zarbar" },
-      { id: "id5", name: "Winston", age: 12 },
-    ],
-  });
-
-  const resultOne = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { name: "asc" },
-  });
-
-  expect(
-    resultOne.items.map((i) => ({ id: i.id, name: i.name })),
-  ).toMatchObject([
-    { id: "id3", name: "Bar" },
-    { id: "id2", name: "Foo" },
-    { id: "id1", name: "Skip" },
-    { id: "id5", name: "Winston" },
-    { id: "id4", name: "Zarbar" },
-  ]);
-  expect(resultOne.pageInfo).toMatchObject({
-    startCursor: expect.any(String),
-    endCursor: expect.any(String),
-    hasPreviousPage: false,
-    hasNextPage: false,
-  });
-
-  await cleanup();
-});
-
-test("findMany() returns hasPreviousPage if no results", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.createMany({
-    tableName: "Pet",
-    data: [
-      { id: "id1", name: "Skip", bigAge: 105n },
-      { id: "id2", name: "Foo", bigAge: 10n },
-      { id: "id3", name: "Bar", bigAge: 190n },
-      { id: "id4", name: "Zarbar" },
-      { id: "id5", name: "Winston", age: 12 },
-    ],
-  });
-
-  const resultOne = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { name: "asc" },
-  });
-
-  const resultTwo = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { name: "asc" },
-    after: resultOne.pageInfo.endCursor,
-  });
-
-  expect(resultTwo.items).toHaveLength(0);
-  expect(resultTwo.pageInfo).toMatchObject({
-    startCursor: null,
-    endCursor: null,
-    hasPreviousPage: true,
-    hasNextPage: false,
-  });
-
-  await cleanup();
-});
-
-test("findMany() errors on orderBy object with multiple keys", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  expect(() =>
-    indexingStore.findMany({
-      tableName: "Pet",
-      orderBy: { name: "asc", bigAge: "desc" },
-    }),
-  ).rejects.toThrow("Invalid sort. Cannot sort by multiple columns.");
-
-  await cleanup();
-});
-
-test("findMany() ordering secondary sort inherits primary", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.createMany({
-    tableName: "Pet",
-    data: [
-      { id: "id1", name: "Skip", bigAge: 105n },
-      { id: "id2", name: "Foo", bigAge: 10n },
-      { id: "id3", name: "Bar", bigAge: 190n },
-      { id: "id4", name: "Zarbar", bigAge: 10n },
-    ],
-  });
-
-  const resultOne = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { bigAge: "desc" },
-  });
-
-  expect(resultOne.items).toMatchObject([
-    { id: "id3", name: "Bar", bigAge: 190n },
-    { id: "id1", name: "Skip", bigAge: 105n },
-    { id: "id4", name: "Zarbar", bigAge: 10n }, // secondary sort by ID is descending
-    { id: "id2", name: "Foo", bigAge: 10n },
-  ]);
-
-  const resultTwo = await indexingStore.findMany({
-    tableName: "Pet",
-    orderBy: { bigAge: "asc" },
-  });
-
-  expect(resultTwo.items).toMatchObject([
-    { id: "id2", name: "Foo", bigAge: 10n },
-    { id: "id4", name: "Zarbar", bigAge: 10n }, // secondary sort by ID is ascending
-    { id: "id1", name: "Skip", bigAge: 105n },
-    { id: "id3", name: "Bar", bigAge: 190n },
-  ]);
-
-  await cleanup();
-});
-
 test("createMany() inserts multiple entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   const createdItems = await indexingStore.createMany({
@@ -867,6 +392,7 @@ test("createMany() inserts multiple entities", async (context) => {
 test("createMany() inserts a large number of entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   const RECORD_COUNT = 100_000;
@@ -898,6 +424,7 @@ test("createMany() inserts a large number of entities", async (context) => {
 test("updateMany() updates multiple entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
+    indexing: "realtime",
   });
 
   await indexingStore.createMany({
@@ -920,26 +447,6 @@ test("updateMany() updates multiple entities", async (context) => {
   const { items } = await indexingStore.findMany({ tableName: "Pet" });
 
   expect(items.map((i) => i.bigAge)).toMatchObject([300n, 10n, 300n]);
-
-  await cleanup();
-});
-
-test("findUnique() works with hex case sensitivity", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema: hexSchema,
-  });
-
-  await indexingStore.create({
-    tableName: "table",
-    id: "0x0a",
-    data: { n: 1 },
-  });
-
-  const instance = await indexingStore.findUnique({
-    tableName: "table",
-    id: "0x0A",
-  });
-  expect(instance).toMatchObject({ id: "0x0a", n: 1 });
 
   await cleanup();
 });

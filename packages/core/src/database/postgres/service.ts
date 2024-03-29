@@ -2,6 +2,7 @@ import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
 import { createPool } from "@/utils/pg.js";
 import { startClock } from "@/utils/timer.js";
 import { CreateTableBuilder, Kysely, PostgresDialect, sql } from "kysely";
@@ -84,6 +85,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     await this.db.schema.createSchema(SYNC_SCHEMA_NAME).ifNotExists().execute();
     return { pool: this.syncPool, schemaName: SYNC_SCHEMA_NAME };
   }
+
+  async revert({ checkpoint }: { checkpoint: Checkpoint }) {}
 
   async setup({
     schema,

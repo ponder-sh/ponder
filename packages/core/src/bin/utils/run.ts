@@ -4,9 +4,8 @@ import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
-import type { IndexingStore } from "@/indexing-store/historicalStore.js";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
-import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
+import { HistoricalIndexingStore } from "@/indexing-store/historicalStore.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
 import { IndexingService } from "@/indexing/service.js";
 import { ServerService } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
@@ -51,10 +50,10 @@ export async function run({
     await database.setup({ schema });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
-    indexingStore = new SqliteIndexingStore({
+    indexingStore = new HistoricalIndexingStore({
       common,
       schema,
-      ...indexingStoreConfig,
+      database: { kind: "sqlite", database: indexingStoreConfig.database },
     });
 
     const syncStoreConfig = database.getSyncStoreConfig();
@@ -66,10 +65,10 @@ export async function run({
     await database.setup({ schema });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
-    indexingStore = new PostgresIndexingStore({
+    indexingStore = new HistoricalIndexingStore({
       common,
       schema,
-      ...indexingStoreConfig,
+      database: { kind: "postgres", pool: indexingStoreConfig.pool },
     });
 
     const syncStoreConfig = await database.getSyncStoreConfig();

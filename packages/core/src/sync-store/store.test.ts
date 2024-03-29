@@ -1,6 +1,3 @@
-import { checksumAddress, hexToBigInt, toHex } from "viem";
-import { beforeEach, expect, test } from "vitest";
-
 import {
   setupAnvil,
   setupDatabaseServices,
@@ -9,6 +6,8 @@ import {
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { checksumAddress, hexToBigInt, toHex } from "viem";
+import { beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupIsolatedDatabase(context));
