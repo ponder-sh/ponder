@@ -1,5 +1,5 @@
 import { http, fallback, webSocket } from "viem";
-import { mainnet } from "viem/chains";
+import { kromaSepolia, mainnet, optimism } from "viem/chains";
 import { expect, test } from "vitest";
 
 import {
@@ -46,7 +46,7 @@ test("getRpcUrlsForClient should handle a fallback containing an http transport"
 
 test("getDefaultMaxBlockRange should return 2_000 for mainnet", () => {
   const maxBlockRange = getDefaultMaxBlockRange({
-    chainId: 1,
+    chain: mainnet,
     rpcUrls: ["https://eth-mainnet.g.alchemy.com/v2/abc"],
   });
 
@@ -55,7 +55,7 @@ test("getDefaultMaxBlockRange should return 2_000 for mainnet", () => {
 
 test("getDefaultMaxBlockRange should return 50_000 for optimism", () => {
   const maxBlockRange = getDefaultMaxBlockRange({
-    chainId: 10,
+    chain: optimism,
     rpcUrls: ["https://eth-optimism.g.alchemy.com/v2/abc"],
   });
 
@@ -64,7 +64,7 @@ test("getDefaultMaxBlockRange should return 50_000 for optimism", () => {
 
 test("getDefaultMaxBlockRange should override quicknode RPC URLs to 10_000", () => {
   const maxBlockRange = getDefaultMaxBlockRange({
-    chainId: 10,
+    chain: optimism,
     rpcUrls: ["https://blah.quiknode.pro/abc"],
   });
 
@@ -73,7 +73,7 @@ test("getDefaultMaxBlockRange should override quicknode RPC URLs to 10_000", () 
 
 test("getDefaultMaxBlockRange should use lesser value even if overriden", () => {
   const maxBlockRange = getDefaultMaxBlockRange({
-    chainId: 1,
+    chain: mainnet,
     rpcUrls: ["https://blah.quiknode.pro/abc"],
   });
 
@@ -82,7 +82,7 @@ test("getDefaultMaxBlockRange should use lesser value even if overriden", () => 
 
 test("getDefaultMaxBlockRange should return 50_000 for unknown chain ID", () => {
   const maxBlockRange = getDefaultMaxBlockRange({
-    chainId: 1234,
+    chain: kromaSepolia,
     rpcUrls: [],
   });
 

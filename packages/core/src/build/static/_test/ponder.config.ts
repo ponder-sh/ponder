@@ -1,4 +1,5 @@
 import { http, parseAbi, zeroAddress } from "viem";
+import { mainnet } from "viem/chains";
 import { createConfig } from "../../../config/config.js";
 
 const abi = parseAbi([
@@ -10,7 +11,7 @@ const abi = parseAbi([
 export default createConfig({
   networks: {
     mainnet: {
-      chainId: 1,
+      chain: mainnet,
       transport: http(),
     },
   },

@@ -11,7 +11,6 @@ import {
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
-import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import parse from "pg-connection-string";
 import type {
@@ -103,13 +102,7 @@ export async function buildConfig({
 
   const networks: Network[] = await Promise.all(
     Object.entries(config.networks).map(async ([networkName, network]) => {
-      const { chainId, transport } = network;
-
-      const defaultChain =
-        Object.values(chains).find((c) =>
-          "id" in c ? c.id === chainId : false,
-        ) ?? chains.mainnet;
-      const chain = { ...defaultChain, name: networkName, id: chainId };
+      const { chain, transport } = network;
 
       // Note: This can throw.
       const rpcUrls = await getRpcUrlsForClient({ transport, chain });
@@ -124,13 +117,12 @@ export async function buildConfig({
 
       return {
         name: networkName,
-        chainId: chainId,
         chain,
         transport: network.transport({ chain }),
         maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
         pollingInterval: network.pollingInterval ?? 1_000,
-        defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
-        finalityBlockCount: getFinalityBlockCount({ chainId }),
+        defaultMaxBlockRange: getDefaultMaxBlockRange({ chain, rpcUrls }),
+        finalityBlockCount: getFinalityBlockCount({ chain }),
         maxHistoricalTaskConcurrency:
           network.maxHistoricalTaskConcurrency ?? 20,
       } satisfies Network;
@@ -269,7 +261,7 @@ export async function buildConfig({
         id: rawContract.id,
         contractName: rawContract.contractName,
         networkName: rawContract.networkName,
-        chainId: network.chainId,
+        chainId: network.chain.id,
         abi: rawContract.abi,
         abiEvents: abiEvents,
         startBlock: rawContract.startBlock,

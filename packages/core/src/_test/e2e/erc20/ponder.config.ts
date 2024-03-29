@@ -1,5 +1,6 @@
 import { http } from "viem";
 
+import { mainnet } from "viem/chains";
 import { createConfig } from "../../../config/config.js";
 import { CONTRACTS } from "../../constants.js";
 import { erc20ABI } from "../../generated.js";
@@ -21,7 +22,7 @@ export default createConfig({
   database: getDatabase(),
   networks: {
     mainnet: {
-      chainId: 1,
+      chain: mainnet,
       transport: http(`http://127.0.0.1:8545/${poolId}`),
     },
   },

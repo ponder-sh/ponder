@@ -20,11 +20,16 @@
     "lint-staged": "^15.1.0",
     "simple-git-hooks": "^2.9.0",
     "typescript": "5.0.4",
-    "viem": "1.16.0"
+    "viem": "2.0.0"
   },
   "lint-staged": {
-    "*.ts": ["biome format --no-errors-on-unmatched", "biome check"],
-    "!(*.ts)": ["biome format --no-errors-on-unmatched"]
+    "*.ts": [
+      "biome format --no-errors-on-unmatched",
+      "biome check"
+    ],
+    "!(*.ts)": [
+      "biome format --no-errors-on-unmatched"
+    ]
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
@@ -35,7 +40,9 @@
       "graphql@16.8.1": "patches/graphql@16.8.1.patch"
     },
     "peerDependencyRules": {
-      "ignoreMissing": ["node-fetch"]
+      "ignoreMissing": [
+        "node-fetch"
+      ]
     }
   },
   "engines": {

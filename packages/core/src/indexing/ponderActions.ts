@@ -3,7 +3,8 @@ import type {
   Account,
   Chain,
   Client,
-  ContractFunctionConfig,
+  ContractFunctionArgs,
+  ContractFunctionName,
   GetBalanceParameters,
   GetBalanceReturnType,
   GetBytecodeParameters,
@@ -54,25 +55,27 @@ export type PonderActions = {
       BlockOptions,
   ) => Promise<GetStorageAtReturnType>;
   multicall: <
-    TContracts extends ContractFunctionConfig[],
-    TAllowFailure extends boolean = true,
+    const contracts extends readonly unknown[],
+    allowFailure extends boolean = true,
   >(
     args: Omit<
-      MulticallParameters<TContracts, TAllowFailure>,
+      MulticallParameters<contracts, allowFailure>,
       "blockTag" | "blockNumber"
     > &
       BlockOptions,
-  ) => Promise<MulticallReturnType<TContracts, TAllowFailure>>;
+  ) => Promise<MulticallReturnType<contracts, allowFailure>>;
   readContract: <
-    const TAbi extends Abi | readonly unknown[],
-    TFunctionName extends string,
+    const abi extends Abi | readonly unknown[],
+    functionName extends ContractFunctionName<abi, "pure" | "view">,
+    args extends ContractFunctionArgs<abi, "pure" | "view", functionName>,
   >(
+    // biome-ignore lint/suspicious/noRedeclare: no
     args: Omit<
-      ReadContractParameters<TAbi, TFunctionName>,
+      ReadContractParameters<abi, functionName, args>,
       "blockTag" | "blockNumber"
     > &
       BlockOptions,
-  ) => Promise<ReadContractReturnType<TAbi, TFunctionName>>;
+  ) => Promise<ReadContractReturnType<abi, functionName, args>>;
 };
 
 export type ReadOnlyClient<
@@ -128,40 +131,41 @@ export const ponderActions =
           : { blockNumber: userBlockNumber ?? blockNumber }),
       }),
     multicall: <
-      TContracts extends ContractFunctionConfig[],
-      TAllowFailure extends boolean = true,
+      const contracts extends readonly unknown[],
+      allowFailure extends boolean = true,
     >({
       cache,
       blockNumber: userBlockNumber,
       ...args
     }: Omit<
-      MulticallParameters<TContracts, TAllowFailure>,
+      MulticallParameters<contracts, allowFailure>,
       "blockTag" | "blockNumber"
     > &
-      BlockOptions): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
+      BlockOptions): Promise<MulticallReturnType<contracts, allowFailure>> =>
       viemMulticall(client, {
         ...args,
         ...(cache === "immutable"
           ? { blockTag: "latest" }
           : { blockNumber: userBlockNumber ?? blockNumber }),
       }),
-    // @ts-ignore
     readContract: <
-      const TAbi extends Abi | readonly unknown[],
-      TFunctionName extends string,
+      const abi extends Abi | readonly unknown[],
+      functionName extends ContractFunctionName<abi, "pure" | "view">,
+      args extends ContractFunctionArgs<abi, "pure" | "view", functionName>,
     >({
       cache,
       blockNumber: userBlockNumber,
+      // biome-ignore lint/suspicious/noRedeclare: no
       ...args
     }: Omit<
-      ReadContractParameters<TAbi, TFunctionName>,
+      ReadContractParameters<abi, functionName, args>,
       "blockTag" | "blockNumber"
     > &
-      BlockOptions): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
+      BlockOptions): Promise<ReadContractReturnType<abi, functionName, args>> =>
       viemReadContract(client, {
         ...args,
         ...(cache === "immutable"
           ? { blockTag: "latest" }
           : { blockNumber: userBlockNumber ?? blockNumber }),
-      } as ReadContractParameters<TAbi, TFunctionName>),
+      } as ReadContractParameters<abi, functionName, args>),
   });

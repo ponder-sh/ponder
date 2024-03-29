@@ -1,6 +1,6 @@
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
-import { type Narrow, type Transport } from "viem";
+import { type Chain, type Narrow, type Transport } from "viem";
 import type { GetAddress } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
 import type { NonStrictPick } from "./utilityTypes.js";
@@ -32,20 +32,20 @@ export type OptionConfig = {
 };
 
 export type NetworkConfig<network> = {
-  /** Chain ID of the network. */
-  chainId: network extends { chainId: infer chainId extends number }
-    ? chainId | number
-    : number;
+  /** Chain of the network. */
+  chain: network extends { chain: infer chain extends Chain }
+    ? chain | Chain
+    : Chain;
   /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
    *
    * __To avoid rate limiting, include a custom RPC URL.__ Usage:
    *
    * ```ts
    * import { http } from "viem";
+   * import { mainnet } from "viem/chains";
    *
    * const network = {
-   *    name: "mainnet",
-   *    chainId: 1,
+   *    chain: mainnet,
    *    transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
    * }
    * ```

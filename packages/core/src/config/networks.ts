@@ -1,9 +1,8 @@
-import { chains } from "@/utils/chains.js";
 import type { Chain, Client, Transport } from "viem";
+import * as chains from "viem/chains";
 
 export type Network = {
   name: string;
-  chainId: number;
   chain: Chain;
   transport: ReturnType<Transport>;
   pollingInterval: number;
@@ -14,14 +13,14 @@ export type Network = {
 };
 
 export function getDefaultMaxBlockRange({
-  chainId,
+  chain,
   rpcUrls,
 }: {
-  chainId: number;
+  chain: Chain;
   rpcUrls: (string | undefined)[];
 }) {
   let maxBlockRange: number;
-  switch (chainId) {
+  switch (chain.id) {
     // Mainnet and mainnet testnets.
     case 1:
     case 3:
@@ -74,9 +73,9 @@ export function getDefaultMaxBlockRange({
  * @param network The network to get the finality block count for.
  * @returns The finality block count.
  */
-export function getFinalityBlockCount({ chainId }: { chainId: number }) {
+export function getFinalityBlockCount({ chain }: { chain: Chain }) {
   let finalityBlockCount: number;
-  switch (chainId) {
+  switch (chain.id) {
     // Mainnet and mainnet testnets.
     case 1:
     case 3:
@@ -182,16 +181,15 @@ export function isRpcUrlPublic(rpcUrl: string | undefined) {
   if (!publicRpcUrls) {
     // By default, viem uses `chain.default.{http|webSocket}.[0]` if it exists.
     publicRpcUrls = Object.values(chains).reduce<Set<string>>((acc, chain) => {
-      chain.rpcUrls.default.http.forEach((httpRpcUrl) => {
+      (chain as Chain).rpcUrls.default.http.forEach((httpRpcUrl) => {
         acc.add(httpRpcUrl);
       });
 
-      (
-        (chain.rpcUrls.default as unknown as { webSocket?: string[] })
-          .webSocket ?? []
-      ).forEach((webSocketRpcUrl) => {
-        acc.add(webSocketRpcUrl);
-      });
+      ((chain as Chain).rpcUrls.default.webSocket ?? []).forEach(
+        (webSocketRpcUrl) => {
+          acc.add(webSocketRpcUrl);
+        },
+      );
 
       return acc;
     }, new Set<string>());

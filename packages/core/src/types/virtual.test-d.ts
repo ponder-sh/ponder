@@ -1,6 +1,7 @@
 import { createConfig } from "@/config/config.js";
 import { createSchema, createTable } from "@/schema/schema.js";
 import { http, type Abi, type Hex, parseAbiItem } from "viem";
+import { mainnet, optimism } from "viem/chains";
 import { assertType, test } from "vitest";
 import type { Block, Log, Transaction } from "./eth.js";
 import type { DatabaseModel } from "./model.js";
@@ -23,11 +24,11 @@ type abi = readonly [Event0, Event1, Event1Overloaded, Func];
 const config = createConfig({
   networks: {
     mainnet: {
-      chainId: 1,
+      chain: mainnet,
       transport: http(),
     },
     optimism: {
-      chainId: 10,
+      chain: optimism,
       transport: http(),
     },
   },

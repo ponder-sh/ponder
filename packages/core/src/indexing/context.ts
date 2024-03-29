@@ -36,7 +36,7 @@ export const buildNetwork = ({ networks }: { networks: Network[] }) => {
   const _networks = {} as Record<number, string>;
 
   for (const network of networks) {
-    _networks[network.chainId] = network.name;
+    _networks[network.chain.id] = network.name;
   }
 
   return (checkpoint: Checkpoint) => ({
@@ -53,9 +53,12 @@ export const buildClient =
   (checkpoint: Checkpoint) => {
     const transport = syncService.getCachedTransport(checkpoint.chainId);
     const chain =
-      networks.find((n) => n.chainId === checkpoint.chainId)?.chain ?? mainnet;
+      networks.find((n) => n.chain.id === checkpoint.chainId)?.chain ?? mainnet;
 
     return createClient({ transport, chain }).extend(
+      // Viem doesn't like overriding the readContract function,
+      // because other functions may depend on it.
+      // @ts-expect-error
       ponderActions(BigInt(checkpoint.blockNumber)),
     ) as Client;
   };

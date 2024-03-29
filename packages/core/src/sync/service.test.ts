@@ -1,17 +1,15 @@
-import { type TestContext, beforeEach, expect, test, vi } from "vitest";
-
 import {
   setupAnvil,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-
 import {
   type Checkpoint,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-
+import { optimism as _optimism } from "viem/chains";
+import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import { SyncService } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -19,7 +17,7 @@ beforeEach((context) => setupIsolatedDatabase(context));
 
 function getMultichainNetworksAndSources(context: TestContext) {
   const mainnet = context.networks[0];
-  const optimism = { ...mainnet, name: "optimism", chainId: 10 };
+  const optimism = { ...mainnet, name: "optimism", chain: _optimism };
 
   const sources = [
     context.sources[0],
@@ -27,7 +25,7 @@ function getMultichainNetworksAndSources(context: TestContext) {
       ...context.sources[0],
       id: `Erc20_${optimism.name}`,
       networkName: optimism.name,
-      chainId: optimism.chainId,
+      chainId: optimism.chain.id,
     },
   ];
 
@@ -49,11 +47,11 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 10,
   });
   const optimism12 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 12,
   });
   service.handleNewHistoricalCheckpoint(mainnet10);
@@ -76,15 +74,15 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 10,
   });
   const optimism5 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 5,
   });
   const mainnet15 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 15,
   });
 
@@ -109,11 +107,11 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt", async (conte
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 10,
   });
   const optimism5 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 5,
   });
 
@@ -121,10 +119,10 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt", async (conte
   service.handleNewRealtimeCheckpoint(optimism5);
 
   service.handleNewHistoricalCheckpoint(mainnet10);
-  service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
+  service.handleHistoricalSyncComplete({ chainId: mainnet.chain.id });
 
   service.handleNewHistoricalCheckpoint(optimism5); // should emit checkpoint
-  service.handleHistoricalSyncComplete({ chainId: optimism.chainId }); // should emit historicalSyncComplete 10
+  service.handleHistoricalSyncComplete({ chainId: optimism.chain.id }); // should emit historicalSyncComplete 10
 
   expect(emitSpy).toHaveBeenCalledWith("checkpoint", optimism5);
   expect(emitSpy).toHaveBeenCalledTimes(1);
@@ -144,19 +142,19 @@ test("handleNewHistoricalCheckpoint emits new checkpoint when other chain is com
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 10,
   });
   const optimism12 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 12,
   });
 
   service.handleNewHistoricalCheckpoint(mainnet10);
-  service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
+  service.handleHistoricalSyncComplete({ chainId: mainnet.chain.id });
   service.handleNewRealtimeCheckpoint({
     ...maxCheckpoint,
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
   });
 
   // Because the mainnet sync is finished, this should advance the checkpoint freely.
@@ -179,15 +177,15 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 10,
   });
   const optimism12 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 12,
   });
   const mainnet25 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 25,
   });
 
@@ -212,27 +210,27 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet10 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 10,
   });
   const mainnet20 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 20,
   });
   const mainnet25 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 25,
   });
   const optimism12 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 12,
   });
   const optimism22 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 22,
   });
   const optimism27 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 27,
   });
 
@@ -247,8 +245,8 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
   expect(emitSpy).toHaveBeenCalledWith("checkpoint", mainnet10);
   expect(emitSpy).toHaveBeenCalledTimes(1);
 
-  service.handleHistoricalSyncComplete({ chainId: optimism.chainId });
-  service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
+  service.handleHistoricalSyncComplete({ chainId: optimism.chain.id });
+  service.handleHistoricalSyncComplete({ chainId: mainnet.chain.id });
 
   expect(emitSpy).toHaveBeenCalledWith("checkpoint", mainnet20);
   expect(emitSpy).toHaveBeenCalledTimes(2);
@@ -275,11 +273,11 @@ test("handleNewFinalityCheckpoint emits finalityCheckpoint", async (context) => 
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet15 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 15,
   });
   const optimism12 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 12,
   });
 
@@ -303,15 +301,15 @@ test("handleNewFinalityCheckpoint does not emit finalityCheckpoint if subsequent
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet15 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 15,
   });
   const mainnet19 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 19,
   });
   const optimism12 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 12,
   });
 
@@ -336,15 +334,15 @@ test("handleNewFinalityCheckpoint emits finalityCheckpoint if subsequent event i
   const emitSpy = vi.spyOn(service, "emit");
 
   const mainnet15 = createCheckpoint({
-    chainId: mainnet.chainId,
+    chainId: mainnet.chain.id,
     blockTimestamp: 15,
   });
   const optimism12 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 12,
   });
   const optimism16 = createCheckpoint({
-    chainId: optimism.chainId,
+    chainId: optimism.chain.id,
     blockTimestamp: 16,
   });
 

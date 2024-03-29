@@ -85,7 +85,7 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(`http://127.0.0.1:8545/${poolId}`),
       },
     },

@@ -409,14 +409,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
       for (const network of this.networks) {
         const source = this.sources.find(
           (s) =>
-            s.contractName === contractName && s.chainId === network.chainId,
+            s.contractName === contractName && s.chainId === network.chain.id,
         )!;
 
         // The "setup" event uses the contract start block number for contract calls.
         // TODO: Consider implications of this "synthetic" checkpoint on record versioning.
         const checkpoint = {
           ...zeroCheckpoint,
-          chainId: network.chainId,
+          chainId: network.chain.id,
           blockNumber: source.startBlock,
         };
 

@@ -116,14 +116,14 @@ export namespace Virtual {
       ? // 1. No network overriding
         {
           name: config["contracts"][contractName]["network"];
-          chainId: config["networks"][config["contracts"][contractName]["network"]]["chainId"];
+          chainId: config["networks"][config["contracts"][contractName]["network"]]["chain"]["id"];
         }
       : // 2. Network overrides
         {
           [key in keyof config["contracts"][contractName]["network"]]: {
             name: key;
             chainId: config["networks"][key &
-              keyof config["networks"]]["chainId"];
+              keyof config["networks"]]["chain"]["id"];
           };
         }[keyof config["contracts"][contractName]["network"]];
     client: Prettify<
@@ -140,6 +140,7 @@ export namespace Virtual {
         | "name"
         | "pollingInterval"
         | "transport"
+        | "ccipRead"
       >
     >;
     db: {

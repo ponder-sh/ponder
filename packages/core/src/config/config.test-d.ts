@@ -1,4 +1,5 @@
 import { http, type Abi, type HttpTransport, parseAbiItem } from "viem";
+import { mainnet, optimism } from "viem/chains";
 import { assertType, test } from "vitest";
 import { createConfig } from "./config.js";
 
@@ -12,11 +13,11 @@ test("createConfig basic", () => {
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
       },
       optimism: {
-        chainId: 10,
+        chain: optimism,
         transport: http(),
       },
     },
@@ -39,7 +40,7 @@ test("createConfig no extra properties", () => {
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
         // @ts-expect-error
         a: 0,
@@ -60,11 +61,11 @@ test("createConfig address", () => {
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
       },
       optimism: {
-        chainId: 10,
+        chain: optimism,
         transport: http(),
       },
     },
@@ -82,11 +83,11 @@ test("createConfig factory", () => {
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
       },
       optimism: {
-        chainId: 10,
+        chain: optimism,
         transport: http(),
       },
     },
@@ -108,11 +109,11 @@ test("createConfig address and factory", () => {
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
       },
       optimism: {
-        chainId: 10,
+        chain: optimism,
         transport: http(),
       },
     },
@@ -136,11 +137,11 @@ test("createConfig filter", () => {
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
       },
       optimism: {
-        chainId: 10,
+        chain: optimism,
         transport: http(),
       },
     },
@@ -160,11 +161,11 @@ test("createConfig filter with args", () => {
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
       },
       optimism: {
-        chainId: 10,
+        chain: optimism,
         transport: http(),
       },
     },
@@ -187,11 +188,11 @@ test("createConfig filter multiple events", () => {
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
       },
       optimism: {
-        chainId: 10,
+        chain: optimism,
         transport: http(),
       },
     },
@@ -211,11 +212,11 @@ test("createConfig network overrides", () => {
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
       },
       optimism: {
-        chainId: 10,
+        chain: optimism,
         transport: http(),
       },
     },
@@ -247,11 +248,11 @@ test("createConfig weak Abi", () => {
   createConfig({
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
       },
       optimism: {
-        chainId: 10,
+        chain: optimism,
         transport: http(),
       },
     },
@@ -269,11 +270,11 @@ test("createConfig strict return type", () => {
     //  ^?
     networks: {
       mainnet: {
-        chainId: 1,
+        chain: mainnet,
         transport: http(),
       },
       optimism: {
-        chainId: 10,
+        chain: optimism,
         transport: http(),
       },
     },
@@ -288,7 +289,7 @@ test("createConfig strict return type", () => {
     },
   });
 
-  assertType<{ mainnet: { chainId: 1; transport: HttpTransport } }>(
+  assertType<{ mainnet: { chain: typeof mainnet; transport: HttpTransport } }>(
     config.networks,
   );
   assertType<{

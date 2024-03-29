@@ -1,5 +1,6 @@
 import type { Options } from "@/common/options.js";
 import { http, getEventSelector, parseAbiItem } from "viem";
+import { mainnet, optimism } from "viem/chains";
 import { expect, test } from "vitest";
 import { type Config, createConfig } from "../../config/config.js";
 import { buildConfig, safeBuildConfig } from "./config.js";
@@ -23,7 +24,7 @@ const options = {
 test("buildConfig() builds topics for multiple events", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      mainnet: { chain: mainnet, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -48,7 +49,7 @@ test("buildConfig() builds topics for multiple events", async () => {
 test("buildConfig() handles overloaded event signatures and combines topics", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      mainnet: { chain: mainnet, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       BaseRegistrartImplementation: {
@@ -75,8 +76,8 @@ test("buildConfig() handles overloaded event signatures and combines topics", as
 test("buildConfig() creates a source for each network for multi-network contracts", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+      mainnet: { chain: mainnet, transport: http("http://127.0.0.1:8545") },
+      optimism: { chain: optimism, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -94,7 +95,7 @@ test("buildConfig() creates a source for each network for multi-network contract
 test("buildConfig() builds topics for event with args", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      mainnet: { chain: mainnet, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -125,7 +126,7 @@ test("buildConfig() builds topics for event with args", async () => {
 test("buildConfig() builds topics for event with unnamed parameters", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      mainnet: { chain: mainnet, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -154,7 +155,7 @@ test("buildConfig() builds topics for event with unnamed parameters", async () =
 test("buildConfig() overrides default values with network-specific values", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      mainnet: { chain: mainnet, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -181,7 +182,7 @@ test("buildConfig() overrides default values with network-specific values", asyn
 test("buildConfig() handles network name shortcut", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      mainnet: { chain: mainnet, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -204,7 +205,7 @@ test("buildConfig() handles network name shortcut", async () => {
 test("buildConfig() validates network name", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      mainnet: { chain: mainnet, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -227,7 +228,10 @@ test("buildConfig() validates network name", async () => {
 test("buildConfig() warns for public RPC URL", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+      mainnet: {
+        chain: mainnet,
+        transport: http("https://cloudflare-eth.com"),
+      },
     },
     contracts: {
       a: {
@@ -250,7 +254,10 @@ test("buildConfig() warns for public RPC URL", async () => {
 test("buildConfig() validates against multiple events and indexed argument values", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+      mainnet: {
+        chain: mainnet,
+        transport: http("https://cloudflare-eth.com"),
+      },
     },
     contracts: {
       a: {
@@ -276,7 +283,10 @@ test("buildConfig() validates against multiple events and indexed argument value
 test("buildConfig() validates event filter event name must be present in ABI", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+      mainnet: {
+        chain: mainnet,
+        transport: http("https://cloudflare-eth.com"),
+      },
     },
     contracts: {
       a: {
@@ -301,7 +311,10 @@ test("buildConfig() validates event filter event name must be present in ABI", a
 test("buildConfig() validates against specifying both factory and address", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+      mainnet: {
+        chain: mainnet,
+        transport: http("https://cloudflare-eth.com"),
+      },
     },
     contracts: {
       a: {
@@ -329,7 +342,10 @@ test("buildConfig() validates against specifying both factory and address", asyn
 test("buildConfig() validates address prefix", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+      mainnet: {
+        chain: mainnet,
+        transport: http("https://cloudflare-eth.com"),
+      },
     },
     contracts: {
       a: {
@@ -352,7 +368,10 @@ test("buildConfig() validates address prefix", async () => {
 test("buildConfig() validates address length", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+      mainnet: {
+        chain: mainnet,
+        transport: http("https://cloudflare-eth.com"),
+      },
     },
     contracts: {
       a: {
@@ -374,7 +393,7 @@ test("buildConfig() validates address length", async () => {
 test("buildConfig() coerces NaN startBlock to 0", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      mainnet: { chain: mainnet, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {
@@ -393,7 +412,7 @@ test("buildConfig() coerces NaN startBlock to 0", async () => {
 test("buildConfig() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      mainnet: { chain: mainnet, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
       a: {

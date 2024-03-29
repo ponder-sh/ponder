@@ -98,7 +98,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
 
     this.networks = {};
     networks.forEach((network) => {
-      const { chainId } = network;
+      const { chain } = network;
       const sourcesForNetwork = this.sources.filter(
         (source) => source.networkName === network.name,
       );
@@ -124,7 +124,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
         sources: sourcesForNetwork,
       });
 
-      this.networks[chainId] = {
+      this.networks[chain.id] = {
         network,
         requestQueue,
         cachedTransport: cachedTransport({ requestQueue, syncStore }),
@@ -142,7 +142,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
       });
 
       historical.on("syncComplete", () => {
-        this.handleHistoricalSyncComplete({ chainId });
+        this.handleHistoricalSyncComplete({ chainId: chain.id });
       });
 
       realtime.on("realtimeCheckpoint", (checkpoint) => {

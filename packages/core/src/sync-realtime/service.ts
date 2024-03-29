@@ -153,10 +153,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       );
     }
 
-    if (rpcChainId !== this.network.chainId) {
+    if (rpcChainId !== this.network.chain.id) {
       this.common.logger.warn({
         service: "realtime",
-        msg: `Remote chain ID (${rpcChainId}) does not match configured chain ID (${this.network.chainId}) for network "${this.network.name}"`,
+        msg: `Remote chain ID (${rpcChainId}) does not match configured chain ID (${this.network.chain.id}) for network "${this.network.name}"`,
       });
     }
 
@@ -186,13 +186,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.emit("finalityCheckpoint", {
       blockTimestamp: this.finalizedBlock.timestamp,
-      chainId: this.network.chainId,
+      chainId: this.network.chain.id,
       blockNumber: this.finalizedBlock.number,
     });
 
     this.emit("realtimeCheckpoint", {
       blockTimestamp: this.finalizedBlock.timestamp,
-      chainId: this.network.chainId,
+      chainId: this.network.chain.id,
       blockNumber: this.finalizedBlock.number,
     });
 
@@ -375,7 +375,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       // 2) Factory contract intervals
       // 3) Child filter intervals
       await this.syncStore.insertRealtimeInterval({
-        chainId: this.network.chainId,
+        chainId: this.network.chain.id,
         logFilters: this.logFilterSources.map((l) => l.criteria),
         factories: this.factorySources.map((f) => f.criteria),
         interval: {
@@ -388,7 +388,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       this.emit("finalityCheckpoint", {
         blockTimestamp: newFinalizedBlock.timestamp,
-        chainId: this.network.chainId,
+        chainId: this.network.chain.id,
         blockNumber: newFinalizedBlock.number,
       });
 
@@ -403,7 +403,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.emit("realtimeCheckpoint", {
       blockTimestamp: newBlockTimestamp,
-      chainId: this.network.chainId,
+      chainId: this.network.chain.id,
       blockNumber: newBlockNumber,
     });
 
@@ -541,13 +541,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.logs = this.logs.filter((log) => log.blockNumber <= parent.number);
 
         await this.syncStore.deleteRealtimeData({
-          chainId: this.network.chainId,
+          chainId: this.network.chain.id,
           fromBlock: BigInt(parent.number),
         });
 
         this.emit("reorg", {
           blockTimestamp: parent.timestamp,
-          chainId: this.network.chainId,
+          chainId: this.network.chain.id,
           blockNumber: parent.number,
         });
 
@@ -645,13 +645,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       );
 
       await this.syncStore.deleteRealtimeData({
-        chainId: this.network.chainId,
+        chainId: this.network.chain.id,
         fromBlock: BigInt(commonAncestor.number),
       });
 
       this.emit("reorg", {
         blockTimestamp: commonAncestor.timestamp,
-        chainId: this.network.chainId,
+        chainId: this.network.chain.id,
         blockNumber: commonAncestor.number,
       });
 
@@ -784,7 +784,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       // TODO: Maybe rename or at least document behavior
       await this.syncStore.insertRealtimeBlock({
-        chainId: this.network.chainId,
+        chainId: this.network.chain.id,
         block: block,
         transactions: blockTransactions,
         logs: blockLogs,
@@ -825,7 +825,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       if (insertChildAddress) {
         await this.syncStore.insertFactoryChildAddressLogs({
-          chainId: this.network.chainId,
+          chainId: this.network.chain.id,
           logs: matchedFactoryLogs,
         });
       }
@@ -839,7 +839,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       const factoryLogFilters = await Promise.all(
         this.factorySources.map(async (factory) => {
           const iterator = this.syncStore.getFactoryChildAddresses({
-            chainId: this.network.chainId,
+            chainId: this.network.chain.id,
             factory: factory.criteria,
             upToBlockNumber: toBlockNumber,
           });
