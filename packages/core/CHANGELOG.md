@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.3.9
+
+### Patch Changes
+
+- [#765](https://github.com/ponder-sh/ponder/pull/765) [`3f9c52f3b00bc10bf7b581616e0acb550a1598b9`](https://github.com/ponder-sh/ponder/commit/3f9c52f3b00bc10bf7b581616e0acb550a1598b9) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where some error messages and stack traces were not logged if the initial build failed.
+
+- [#763](https://github.com/ponder-sh/ponder/pull/763) [`80b8e26b7b138ed4b0e84af16e203013580f5b0c`](https://github.com/ponder-sh/ponder/commit/80b8e26b7b138ed4b0e84af16e203013580f5b0c) Thanks [@jaylmiller](https://github.com/jaylmiller)! - Fixed a bug where malformed requests to the `/metrics` path could cause the process to exit.
+
 ## 0.3.8
 
 ## 0.3.7
