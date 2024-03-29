@@ -20,28 +20,13 @@ import { migrationProvider } from "./migrations.js";
 const PUBLIC_DB_NAME = "ponder";
 const SYNC_DB_NAME = "ponder_sync";
 
-export type PonderCoreSchema = {
-  "ponder.logs": {
-    id: number;
-    table: string;
-    row: Object | null;
-    checkpoint: string;
-    type: 0 | 1 | 2;
-  };
-} & {
-  [table: string]: {
-    id: unknown;
-    [column: string]: unknown;
-  };
-};
-
 export class SqliteDatabaseService implements BaseDatabaseService {
   kind = "sqlite" as const;
 
   private common: Common;
   private directory: string;
 
-  db: Kysely<PonderCoreSchema>;
+  db: Kysely<any>;
 
   private sqliteDatabase: SqliteDatabase;
   private syncDatabase?: SqliteDatabase;
@@ -99,10 +84,10 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       await this.db.schema
         .createTable("logs")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey())
-        .addColumn("table", "text", (col) => col.notNull())
+        .addColumn("tableName", "text", (col) => col.notNull())
         .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
         .addColumn("operation", "integer", (col) => col.notNull())
-        .addColumn("row", "text")
+        .addColumn("row", "text", (col) => col.notNull())
         .execute();
 
       for (const [tableName, columns] of Object.entries(schema.tables)) {

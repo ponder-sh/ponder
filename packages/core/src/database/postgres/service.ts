@@ -105,10 +105,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         .withSchema("ponder")
         .createTable("logs")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey())
-        .addColumn("table", "text", (col) => col.notNull())
+        .addColumn("tableName", "text", (col) => col.notNull())
         .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
         .addColumn("operation", "integer", (col) => col.notNull())
-        .addColumn("row", "text")
+        .addColumn("row", "text", (col) => col.notNull())
         .execute();
 
       const tables = Object.entries(schema.tables);

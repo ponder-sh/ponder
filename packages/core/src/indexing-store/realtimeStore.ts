@@ -1,34 +1,39 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError, StoreError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
-import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
-import { Kysely, SqliteDialect } from "kysely";
-import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
+import {
+  Kysely,
+  PostgresDialect,
+  SqliteDialect,
+  WithSchemaPlugin,
+} from "kysely";
+import type { Pool } from "pg";
+import type { IndexingStore, OrderByInput, Row, WhereInput } from "./store.js";
 import {
   buildCursorConditions,
   decodeCursor,
   encodeCursor,
-} from "../utils/cursor.js";
-import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
-import { buildWhereConditions } from "../utils/filter.js";
+} from "./utils/cursor.js";
+import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
+import { buildWhereConditions } from "./utils/filter.js";
 import {
   buildOrderByConditions,
   reverseOrderByConditions,
-} from "../utils/sort.js";
+} from "./utils/sort.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
 
-export class SqliteIndexingStore implements IndexingStore {
-  kind = "sqlite" as const;
+export class RealtimeIndexingStore implements IndexingStore {
   private common: Common;
   private isKilled = false;
 
   db: Kysely<any>;
   schema: Schema;
+  kind: "sqlite" | "postgres";
 
   constructor({
     common,
@@ -36,42 +41,43 @@ export class SqliteIndexingStore implements IndexingStore {
     schema,
   }: {
     common: Common;
-    database: SqliteDatabase;
+    database:
+      | { kind: "sqlite"; database: SqliteDatabase }
+      | { kind: "postgres"; pool: Pool };
     schema: Schema;
   }) {
     this.common = common;
     this.schema = schema;
-    this.db = new Kysely({
-      dialect: new SqliteDialect({ database }),
-      log(event) {
-        if (event.level === "query") {
-          common.metrics.ponder_sqlite_query_total.inc({
-            database: "indexing",
-          });
-        }
-      },
-    });
+    this.kind = database.kind;
+
+    if (database.kind === "sqlite") {
+      this.db = new Kysely({
+        dialect: new SqliteDialect({ database: database.database }),
+        log(event) {
+          if (event.level === "query") {
+            common.metrics.ponder_sqlite_query_total.inc({
+              database: "indexing",
+            });
+          }
+        },
+      });
+    } else {
+      this.db = new Kysely({
+        dialect: new PostgresDialect({ pool: database.pool }),
+        log(event) {
+          if (event.level === "query") {
+            common.metrics.ponder_postgres_query_total.inc({
+              pool: "indexing",
+            });
+          }
+        },
+        plugins: [new WithSchemaPlugin("ponder")],
+      });
+    }
   }
 
   kill = () => {
     this.isKilled = true;
-  };
-
-  /**
-   * Revert any changes that occurred during or after the specified checkpoint.
-   */
-  revert = async ({ checkpoint }: { checkpoint: Checkpoint }) => {
-    // return this.wrap({ method: "revert" }, async () => {
-    //   await this.db
-    //     .transaction()
-    //     .execute((tx) =>
-    //       Promise.all(
-    //         Object.keys(this.schema?.tables ?? {}).map(async (tableName) =>
-    //           revertTable(tx, tableName, checkpoint),
-    //         ),
-    //       ),
-    //     );
-    // });
   };
 
   findUnique = async ({
@@ -84,7 +90,7 @@ export class SqliteIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.findUnique` }, async () => {
-      const encodedId = encodeValue(id, table.id, "sqlite");
+      const encodedId = encodeValue(id, table.id, this.kind);
 
       const row = await this.db
         .selectFrom(tableName)
@@ -94,7 +100,7 @@ export class SqliteIndexingStore implements IndexingStore {
 
       if (row === undefined) return null;
 
-      return decodeRow(row, table, "sqlite");
+      return decodeRow(row, table, this.kind);
     });
   };
 
@@ -120,7 +126,7 @@ export class SqliteIndexingStore implements IndexingStore {
 
       if (where) {
         query = query.where((eb) =>
-          buildWhereConditions({ eb, where, table, encoding: "sqlite" }),
+          buildWhereConditions({ eb, where, table, encoding: this.kind }),
         );
       }
 
@@ -149,7 +155,7 @@ export class SqliteIndexingStore implements IndexingStore {
       if (after === null && before === null) {
         query = query.limit(limit + 1);
         const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, "sqlite"));
+        const records = rows.map((row) => decodeRow(row, table, this.kind));
 
         if (records.length === limit + 1) {
           records.pop();
@@ -176,7 +182,7 @@ export class SqliteIndexingStore implements IndexingStore {
         const rawCursorValues = decodeCursor(after, orderByConditions);
         const cursorValues = rawCursorValues.map(([columnName, value]) => [
           columnName,
-          encodeValue(value, table[columnName], "sqlite"),
+          encodeValue(value, table[columnName], this.kind),
         ]) satisfies [string, any][];
         query = query
           .where((eb) =>
@@ -185,7 +191,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .limit(limit + 2);
 
         const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, "sqlite"));
+        const records = rows.map((row) => decodeRow(row, table, this.kind));
 
         if (records.length === 0) {
           return {
@@ -230,7 +236,7 @@ export class SqliteIndexingStore implements IndexingStore {
         const rawCursorValues = decodeCursor(before!, orderByConditions);
         const cursorValues = rawCursorValues.map(([columnName, value]) => [
           columnName,
-          encodeValue(value, table[columnName], "sqlite"),
+          encodeValue(value, table[columnName], this.kind),
         ]) satisfies [string, any][];
         query = query
           .where((eb) =>
@@ -248,7 +254,7 @@ export class SqliteIndexingStore implements IndexingStore {
 
         const rows = await query.execute();
         const records = rows
-          .map((row) => decodeRow(row, table, "sqlite"))
+          .map((row) => decodeRow(row, table, this.kind))
           // Reverse the records again, back to the original order.
           .reverse();
 
@@ -299,20 +305,17 @@ export class SqliteIndexingStore implements IndexingStore {
 
   create = async ({
     tableName,
-    checkpoint,
     id,
     data = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.create` }, async () => {
-      const createRow = encodeRow({ id, ...data }, table, "sqlite");
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      const createRow = encodeRow({ id, ...data }, table, this.kind);
 
       try {
         const row = await this.db
@@ -320,7 +323,7 @@ export class SqliteIndexingStore implements IndexingStore {
           .values(createRow)
           .returningAll()
           .executeTakeFirstOrThrow();
-        return decodeRow(row, table, "sqlite");
+        return decodeRow(row, table, "postgres");
       } catch (err) {
         const error = err as Error;
         throw error.message.includes("UNIQUE constraint failed")
@@ -334,31 +337,30 @@ export class SqliteIndexingStore implements IndexingStore {
 
   createMany = async ({
     tableName,
-    checkpoint,
     data,
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     data: Row[];
   }) => {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.createMany` }, async () => {
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
-      const createRows = data.map((d) => encodeRow({ ...d }, table, "sqlite"));
+      const createRows = data.map((d) => encodeRow({ ...d }, table, this.kind));
 
-      const chunkedRows = [];
+      const chunkedRows: (typeof createRows)[] = [];
       for (let i = 0, len = createRows.length; i < len; i += MAX_BATCH_SIZE)
         chunkedRows.push(createRows.slice(i, i + MAX_BATCH_SIZE));
 
       try {
-        const rows = await Promise.all(
-          chunkedRows.map((c) =>
-            this.db.insertInto(tableName).values(c).returningAll().execute(),
-          ),
-        );
+        const rows = await this.db.transaction().execute((tx) => {
+          return Promise.all(
+            chunkedRows.map((c) =>
+              tx.insertInto(tableName).values(c).returningAll().execute(),
+            ),
+          );
+        });
 
-        return rows.flat().map((row) => decodeRow(row, table, "sqlite"));
+        return rows.flat().map((row) => decodeRow(row, table, this.kind));
       } catch (err) {
         const error = err as Error;
         throw error.message.includes("UNIQUE constraint failed")
@@ -372,12 +374,10 @@ export class SqliteIndexingStore implements IndexingStore {
 
   update = async ({
     tableName,
-    checkpoint,
     id,
     data = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     id: string | number | bigint;
     data?:
       | Partial<Omit<Row, "id">>
@@ -386,40 +386,37 @@ export class SqliteIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.update` }, async () => {
-      const encodedId = encodeValue(id, table.id, "sqlite");
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      const encodedId = encodeValue(id, table.id, this.kind);
 
-      const row = await this.db.transaction().execute(async (tx) => {
-        // Find the latest version of this instance.
-        const latestRow = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", encodedId)
-          .executeTakeFirst();
-        if (!latestRow)
-          throw new StoreError(
-            `Cannot update ${tableName} record with ID ${id} because no existing record was found with that ID. Consider using ${tableName}.upsert(), or create the record before updating it. Hint: Did you forget to await the promise returned by a store method?`,
-          );
+      // Find the latest version of this instance.
+      const latestRow = await this.db
+        .selectFrom(tableName)
+        .selectAll()
+        .where("id", "=", encodedId)
+        .executeTakeFirst();
+      if (!latestRow)
+        throw new StoreError(
+          `Cannot update ${tableName} record with ID ${id} because no existing record was found with that ID. Consider using ${tableName}.upsert(), or create the record before updating it. Hint: Did you forget to await the promise returned by a store method?`,
+        );
 
-        // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof encodeRow>;
-        if (typeof data === "function") {
-          const current = decodeRow(latestRow, table, "sqlite");
-          const updateObject = data({ current });
-          updateRow = encodeRow({ id, ...updateObject }, table, "sqlite");
-        } else {
-          updateRow = encodeRow({ id, ...data }, table, "sqlite");
-        }
+      // If the user passed an update function, call it with the current instance.
+      let updateRow: ReturnType<typeof encodeRow>;
+      if (typeof data === "function") {
+        const current = decodeRow(latestRow, table, this.kind);
+        const updateObject = data({ current });
+        updateRow = encodeRow({ id, ...updateObject }, table, this.kind);
+      } else {
+        updateRow = encodeRow({ id, ...data }, table, this.kind);
+      }
 
-        return tx
-          .updateTable(tableName)
-          .set(updateRow)
-          .where("id", "=", encodedId)
-          .returningAll()
-          .executeTakeFirstOrThrow();
-      });
+      const row = await this.db
+        .updateTable(tableName)
+        .set(updateRow)
+        .where("id", "=", encodedId)
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
-      const result = decodeRow(row, table, "sqlite");
+      const result = decodeRow(row, table, this.kind);
 
       return result;
     });
@@ -427,12 +424,10 @@ export class SqliteIndexingStore implements IndexingStore {
 
   updateMany = async ({
     tableName,
-    checkpoint,
     where,
     data = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     where: WhereInput<any>;
     data?:
       | Partial<Omit<Row, "id">>
@@ -441,59 +436,55 @@ export class SqliteIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.updateMany` }, async () => {
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      let query = this.db.selectFrom(tableName).selectAll();
 
-      const rows = await this.db.transaction().execute(async (tx) => {
-        // Get all IDs that match the filter.
-        let query = tx.selectFrom(tableName).selectAll();
+      if (where) {
+        query = query.where((eb) =>
+          buildWhereConditions({
+            eb,
+            where,
+            table,
+            encoding: this.kind,
+          }),
+        );
+      }
 
-        if (where) {
-          query = query.where((eb) =>
-            buildWhereConditions({
-              eb,
-              where,
-              table,
-              encoding: "sqlite",
-            }),
-          );
-        }
+      const latestRows = await query.execute();
 
-        const latestRows = await query.execute();
-
-        return await Promise.all(
-          latestRows.map(async (latestRow) => {
+      const rows = await this.db.transaction().execute((tx) => {
+        return Promise.all(
+          latestRows.map((latestRow) => {
             // If the user passed an update function, call it with the current instance.
             let updateRow: ReturnType<typeof encodeRow>;
             if (typeof data === "function") {
-              const current = decodeRow(latestRow, table, "sqlite");
+              const current = decodeRow(latestRow, table, this.kind);
               const updateObject = data({ current });
-              updateRow = encodeRow(updateObject, table, "sqlite");
+              updateRow = encodeRow(updateObject, table, this.kind);
             } else {
-              updateRow = encodeRow(data, table, "sqlite");
+              updateRow = encodeRow(data, table, this.kind);
             }
 
             return tx
               .updateTable(tableName)
               .set(updateRow)
+              .where("id", "=", latestRow.id)
               .returningAll()
               .executeTakeFirstOrThrow();
           }),
         );
       });
 
-      return rows.map((row) => decodeRow(row, table, "sqlite"));
+      return rows.map((row) => decodeRow(row, table, this.kind));
     });
   };
 
   upsert = async ({
     tableName,
-    checkpoint,
     id,
     create = {},
     update = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     id: string | number | bigint;
     create?: Omit<Row, "id">;
     update?:
@@ -503,99 +494,65 @@ export class SqliteIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.upsert` }, async () => {
-      const encodedId = encodeValue(id, table.id, "sqlite");
-      const createRow = encodeRow({ id, ...create }, table, "sqlite");
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      const encodedId = encodeValue(id, table.id, this.kind);
+      const createRow = encodeRow({ id, ...create }, table, this.kind);
 
-      const row = await this.db.transaction().execute(async (tx) => {
-        // Find the latest version of this instance.
-        const latestRow = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", encodedId)
-          .executeTakeFirst();
+      // Find the latest version of this instance.
+      const latestRow = await this.db
+        .selectFrom(tableName)
+        .selectAll()
+        .where("id", "=", encodedId)
+        .executeTakeFirst();
 
-        // If there is no latest version, insert a new version using the create data.
-        if (latestRow === undefined) {
-          return await tx
-            .insertInto(tableName)
-            .values(createRow)
-            .returningAll()
-            .executeTakeFirstOrThrow();
-        }
-
-        // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof encodeRow>;
-        if (typeof update === "function") {
-          const current = decodeRow(latestRow, table, "sqlite");
-          const updateObject = update({ current });
-          updateRow = encodeRow({ id, ...updateObject }, table, "sqlite");
-        } else {
-          updateRow = encodeRow({ id, ...update }, table, "sqlite");
-        }
-
-        return tx
-          .updateTable(tableName)
-          .set(updateRow)
-          .where("id", "=", encodedId)
+      // If there is no latest version, insert a new version using the create data.
+      if (latestRow === undefined) {
+        return this.db
+          .insertInto(tableName)
+          .values(createRow)
           .returningAll()
-          .executeTakeFirstOrThrow();
-      });
+          .executeTakeFirstOrThrow() as Promise<Row>;
+      }
 
-      return decodeRow(row, table, "sqlite");
+      // If the user passed an update function, call it with the current instance.
+      let updateRow: ReturnType<typeof encodeRow>;
+      if (typeof update === "function") {
+        const current = decodeRow(latestRow, table, this.kind);
+        const updateObject = update({ current });
+        updateRow = encodeRow({ id, ...updateObject }, table, this.kind);
+      } else {
+        updateRow = encodeRow({ id, ...update }, table, this.kind);
+      }
+
+      const row = await this.db
+        .updateTable(tableName)
+        .set(updateRow)
+        .where("id", "=", encodedId)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      return decodeRow(row, table, this.kind);
     });
   };
 
   delete = async ({
     tableName,
-    checkpoint,
     id,
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
     id: string | number | bigint;
   }) => {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.delete` }, async () => {
-      const encodedId = encodeValue(id, table.id, "sqlite");
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      const encodedId = encodeValue(id, table.id, this.kind);
 
-      const isDeleted = await this.db.transaction().execute(async (tx) => {
-        const row = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", encodedId)
-          .executeTakeFirst();
+      const deletedRow = await this.db
+        .deleteFrom(tableName)
+        .where("id", "=", encodedId)
+        .returning(["id"])
+        .executeTakeFirst();
 
-        if (row !== undefined) {
-          const decodedRow = decodeRow(
-            row,
-            this.schema.tables[tableName],
-            "sqlite",
-          );
-
-          await tx
-            .insertInto("logs")
-            .values({
-              table: tableName,
-              checkpoint: encodedCheckpoint,
-              type: 2,
-              row: JSON.stringify(decodedRow),
-            })
-            .execute();
-        }
-
-        const deletedRow = await tx
-          .deleteFrom(tableName)
-          .where("id", "=", encodedId)
-          .returning(["id"])
-          .executeTakeFirst();
-
-        return !!deletedRow;
-      });
-
-      return isDeleted;
+      return !!deletedRow;
     });
   };
 

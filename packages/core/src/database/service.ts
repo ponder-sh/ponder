@@ -22,5 +22,7 @@ export interface BaseDatabaseService {
     schema: Schema;
   }): Promise<void>;
 
+  revert({ checkpoint }: { checkpoint: Checkpoint }): Promise<void>;
+
   kill(): Promise<void>;
 }

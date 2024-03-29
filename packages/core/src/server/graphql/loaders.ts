@@ -1,4 +1,4 @@
-import type { IndexingStore } from "@/indexing-store/store.js";
+import type { IndexingStore } from "@/indexing-store/historicalStore.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import DataLoader from "dataloader";
 

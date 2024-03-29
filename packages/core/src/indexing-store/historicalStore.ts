@@ -2,77 +2,83 @@ import type { Common } from "@/common/common.js";
 import { NonRetryableError, StoreError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
+import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
-import { WithTablePrefixPlugin } from "@/utils/withTablePrefixPlugin.js";
-import { Kysely, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
+import {
+  Kysely,
+  PostgresDialect,
+  SqliteDialect,
+  WithSchemaPlugin,
+} from "kysely";
 import type { Pool } from "pg";
-import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
+import type { IndexingStore, OrderByInput, Row, WhereInput } from "./store.js";
 import {
   buildCursorConditions,
   decodeCursor,
   encodeCursor,
-} from "../utils/cursor.js";
-import { decodeRow, encodeRow, encodeValue } from "../utils/encoding.js";
-import { buildWhereConditions } from "../utils/filter.js";
+} from "./utils/cursor.js";
+import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
+import { buildWhereConditions } from "./utils/filter.js";
 import {
   buildOrderByConditions,
   reverseOrderByConditions,
-} from "../utils/sort.js";
+} from "./utils/sort.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
 
-export class PostgresIndexingStore implements IndexingStore {
-  kind = "postgres" as const;
+export class HistoricalIndexingStore implements IndexingStore {
   private common: Common;
   private isKilled = false;
 
   db: Kysely<any>;
   schema: Schema;
+  kind: "sqlite" | "postgres";
 
   constructor({
     common,
-    pool,
+    database,
     schema,
   }: {
     common: Common;
-    pool: Pool;
+    database:
+      | { kind: "sqlite"; database: SqliteDatabase }
+      | { kind: "postgres"; pool: Pool };
     schema: Schema;
   }) {
     this.common = common;
     this.schema = schema;
+    this.kind = database.kind;
 
-    this.db = new Kysely({
-      dialect: new PostgresDialect({ pool }),
-      log(event) {
-        if (event.level === "query") {
-          common.metrics.ponder_postgres_query_total.inc({ pool: "indexing" });
-        }
-      },
-      plugins: [new WithSchemaPlugin("ponder")],
-    });
+    if (database.kind === "sqlite") {
+      this.db = new Kysely({
+        dialect: new SqliteDialect({ database: database.database }),
+        log(event) {
+          if (event.level === "query") {
+            common.metrics.ponder_sqlite_query_total.inc({
+              database: "indexing",
+            });
+          }
+        },
+      });
+    } else {
+      this.db = new Kysely({
+        dialect: new PostgresDialect({ pool: database.pool }),
+        log(event) {
+          if (event.level === "query") {
+            common.metrics.ponder_postgres_query_total.inc({
+              pool: "indexing",
+            });
+          }
+        },
+        plugins: [new WithSchemaPlugin("ponder")],
+      });
+    }
   }
 
   kill = () => {
     this.isKilled = true;
-  };
-
-  /**
-   * Revert any changes that occurred during or after the specified checkpoint.
-   */
-  revert = async ({ checkpoint }: { checkpoint: Checkpoint }) => {
-    // return this.wrap({ method: "revert" }, async () => {
-    //   await this.db
-    //     .transaction()
-    //     .execute((tx) =>
-    //       Promise.all(
-    //         Object.keys(this.schema?.tables ?? {}).map(async (tableName) =>
-    //           revertTable(tx, tableName, checkpoint),
-    //         ),
-    //       ),
-    //     );
-    // });
   };
 
   findUnique = async ({
@@ -85,17 +91,17 @@ export class PostgresIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.findUnique` }, async () => {
-      const formattedId = encodeValue(id, table.id, "postgres");
+      const encodedId = encodeValue(id, table.id, this.kind);
 
       const row = await this.db
         .selectFrom(tableName)
         .selectAll()
-        .where("id", "=", formattedId)
+        .where("id", "=", encodedId)
         .executeTakeFirst();
 
       if (row === undefined) return null;
 
-      return decodeRow(row, table, "postgres");
+      return decodeRow(row, table, this.kind);
     });
   };
 
@@ -121,18 +127,13 @@ export class PostgresIndexingStore implements IndexingStore {
 
       if (where) {
         query = query.where((eb) =>
-          buildWhereConditions({ eb, where, table, encoding: "postgres" }),
+          buildWhereConditions({ eb, where, table, encoding: this.kind }),
         );
       }
 
       const orderByConditions = buildOrderByConditions({ orderBy, table });
       for (const [column, direction] of orderByConditions) {
-        query = query.orderBy(
-          column,
-          direction === "asc" || direction === undefined
-            ? sql`asc nulls first`
-            : sql`desc nulls last`,
-        );
+        query = query.orderBy(column, direction);
       }
       const orderDirection = orderByConditions[0][1];
 
@@ -140,6 +141,10 @@ export class PostgresIndexingStore implements IndexingStore {
         throw new StoreError(
           `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
         );
+      }
+
+      if (after !== null && before !== null) {
+        throw new StoreError("Cannot specify both before and after cursors.");
       }
 
       let startCursor = null;
@@ -151,7 +156,7 @@ export class PostgresIndexingStore implements IndexingStore {
       if (after === null && before === null) {
         query = query.limit(limit + 1);
         const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, "postgres"));
+        const records = rows.map((row) => decodeRow(row, table, this.kind));
 
         if (records.length === limit + 1) {
           records.pop();
@@ -178,7 +183,7 @@ export class PostgresIndexingStore implements IndexingStore {
         const rawCursorValues = decodeCursor(after, orderByConditions);
         const cursorValues = rawCursorValues.map(([columnName, value]) => [
           columnName,
-          encodeValue(value, table[columnName], "postgres"),
+          encodeValue(value, table[columnName], this.kind),
         ]) satisfies [string, any][];
         query = query
           .where((eb) =>
@@ -187,7 +192,7 @@ export class PostgresIndexingStore implements IndexingStore {
           .limit(limit + 2);
 
         const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, "postgres"));
+        const records = rows.map((row) => decodeRow(row, table, this.kind));
 
         if (records.length === 0) {
           return {
@@ -232,7 +237,7 @@ export class PostgresIndexingStore implements IndexingStore {
         const rawCursorValues = decodeCursor(before!, orderByConditions);
         const cursorValues = rawCursorValues.map(([columnName, value]) => [
           columnName,
-          encodeValue(value, table[columnName], "postgres"),
+          encodeValue(value, table[columnName], this.kind),
         ]) satisfies [string, any][];
         query = query
           .where((eb) =>
@@ -250,7 +255,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
         const rows = await query.execute();
         const records = rows
-          .map((row) => decodeRow(row, table, "postgres"))
+          .map((row) => decodeRow(row, table, this.kind))
           // Reverse the records again, back to the original order.
           .reverse();
 
@@ -313,7 +318,7 @@ export class PostgresIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.create` }, async () => {
-      const createRow = encodeRow({ id, ...data }, table, "postgres");
+      const createRow = encodeRow({ id, ...data }, table, this.kind);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       try {
@@ -338,7 +343,7 @@ export class PostgresIndexingStore implements IndexingStore {
         });
       } catch (err) {
         const error = err as Error;
-        throw error.message.includes("violates unique constraint")
+        throw error.message.includes("UNIQUE constraint failed")
           ? new StoreError(
               `Cannot create ${tableName} record with ID ${id} because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using ${tableName}.upsert().`,
             )
@@ -360,25 +365,44 @@ export class PostgresIndexingStore implements IndexingStore {
 
     return this.wrap({ method: `${tableName}.createMany` }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
-      const createRows = data.map((d) =>
-        encodeRow({ ...d }, table, "postgres"),
-      );
+      const createRows = data.map((d) => encodeRow({ ...d }, table, this.kind));
 
-      const chunkedRows = [];
+      const chunkedRows: (typeof createRows)[] = [];
       for (let i = 0, len = createRows.length; i < len; i += MAX_BATCH_SIZE)
         chunkedRows.push(createRows.slice(i, i + MAX_BATCH_SIZE));
 
       try {
-        const rows = await Promise.all(
-          chunkedRows.map((c) =>
-            this.db.insertInto(tableName).values(c).returningAll().execute(),
-          ),
-        );
+        const rows = await this.db.transaction().execute(async (tx) => {
+          const rowsAndResults = await Promise.all([
+            ...chunkedRows.map((chunk) =>
+              tx.insertInto(tableName).values(chunk).returningAll().execute(),
+            ),
+            ...chunkedRows.map((chunk) =>
+              tx
+                .insertInto("logs")
+                .values(
+                  chunk.map((row) => ({
+                    tableName,
+                    operation: 0,
+                    row: JSON.stringify(
+                      decodeRow(row as Row, table, this.kind),
+                    ),
+                    checkpoint: encodedCheckpoint,
+                  })),
+                )
+                .execute(),
+            ),
+          ]);
 
-        return rows.flat().map((row) => decodeRow(row, table, "postgres"));
+          rowsAndResults.splice(chunkedRows.length, chunkedRows.length);
+
+          return rowsAndResults as Row[][];
+        });
+
+        return rows.flat().map((row) => decodeRow(row, table, this.kind));
       } catch (err) {
         const error = err as Error;
-        throw error.message.includes("violates unique constraint")
+        throw error.message.includes("UNIQUE constraint failed")
           ? new StoreError(
               `Cannot createMany ${tableName} records because one or more records already exist (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method?`,
             )
@@ -403,7 +427,7 @@ export class PostgresIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.update` }, async () => {
-      const formattedId = encodeValue(id, table.id, "postgres");
+      const encodedId = encodeValue(id, table.id, this.kind);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
@@ -411,7 +435,7 @@ export class PostgresIndexingStore implements IndexingStore {
         const latestRow = await tx
           .selectFrom(tableName)
           .selectAll()
-          .where("id", "=", formattedId)
+          .where("id", "=", encodedId)
           .executeTakeFirst();
         if (!latestRow)
           throw new StoreError(
@@ -421,24 +445,36 @@ export class PostgresIndexingStore implements IndexingStore {
         // If the user passed an update function, call it with the current instance.
         let updateRow: ReturnType<typeof encodeRow>;
         if (typeof data === "function") {
-          const current = decodeRow(latestRow, table, "postgres");
+          const current = decodeRow(latestRow, table, this.kind);
           const updateObject = data({ current });
-          updateRow = encodeRow({ id, ...updateObject }, table, "postgres");
+          updateRow = encodeRow({ id, ...updateObject }, table, this.kind);
         } else {
-          updateRow = encodeRow({ id, ...data }, table, "postgres");
+          updateRow = encodeRow({ id, ...data }, table, this.kind);
         }
 
-        return await tx
-          .updateTable(tableName)
-          .set({
-            ...updateRow,
-          })
-          .where("id", "=", formattedId)
-          .returningAll()
-          .executeTakeFirstOrThrow();
+        const [updateResult] = await Promise.all([
+          tx
+            .updateTable(tableName)
+            .set(updateRow)
+            .where("id", "=", encodedId)
+            .returningAll()
+            .executeTakeFirstOrThrow(),
+          tx
+            .insertInto("logs")
+            .values({
+              tableName,
+              operation: 1,
+              checkpoint: encodedCheckpoint,
+              row: JSON.stringify(
+                decodeRow(latestRow, this.schema.tables[tableName], this.kind),
+              ),
+            })
+            .execute(),
+        ]);
+        return updateResult;
       });
 
-      const result = decodeRow(row, table, "postgres");
+      const result = decodeRow(row, table, this.kind);
 
       return result;
     });
@@ -463,6 +499,8 @@ export class PostgresIndexingStore implements IndexingStore {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const rows = await this.db.transaction().execute(async (tx) => {
+        // TODO(kyle) can remove this from the tx
+
         // Get all IDs that match the filter.
         let query = tx.selectFrom(tableName).selectAll();
 
@@ -472,39 +510,48 @@ export class PostgresIndexingStore implements IndexingStore {
               eb,
               where,
               table,
-              encoding: "postgres",
+              encoding: this.kind,
             }),
           );
         }
 
         const latestRows = await query.execute();
 
-        // TODO: This is probably incredibly slow. Ideally, we'd do most of this in the database.
-        return await Promise.all(
-          latestRows.map(async (latestRow) => {
-            const encodedId = latestRow.id;
-
+        const rowsAndResults = await Promise.all([
+          ...latestRows.map((latestRow) => {
             // If the user passed an update function, call it with the current instance.
             let updateRow: ReturnType<typeof encodeRow>;
             if (typeof data === "function") {
-              const current = decodeRow(latestRow, table, "postgres");
+              const current = decodeRow(latestRow, table, this.kind);
               const updateObject = data({ current });
-              updateRow = encodeRow(updateObject, table, "postgres");
+              updateRow = encodeRow(updateObject, table, this.kind);
             } else {
-              updateRow = encodeRow(data, table, "postgres");
+              updateRow = encodeRow(data, table, this.kind);
             }
 
-            return await tx
+            return tx
               .updateTable(tableName)
               .set(updateRow)
-              .where("id", "=", encodedId)
+              .where("id", "=", latestRow.id)
               .returningAll()
               .executeTakeFirstOrThrow();
           }),
-        );
+          ...latestRows.map((latestRow) =>
+            tx.insertInto(tableName).values({
+              tableName,
+              operation: 1,
+              checkpoint: encodedCheckpoint,
+              row: JSON.stringify(decodeRow(latestRow, table, this.kind)),
+            }),
+          ),
+        ]);
+
+        rowsAndResults.splice(latestRows.length, latestRows.length);
+
+        return rowsAndResults as Row[];
       });
 
-      return rows.map((row) => decodeRow(row, table, "postgres"));
+      return rows.map((row) => decodeRow(row, table, this.kind));
     });
   };
 
@@ -526,46 +573,68 @@ export class PostgresIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.upsert` }, async () => {
-      const formattedId = encodeValue(id, table.id, "postgres");
-      const createRow = encodeRow({ id, ...create }, table, "postgres");
+      const encodedId = encodeValue(id, table.id, this.kind);
+      const createRow = encodeRow({ id, ...create }, table, this.kind);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const row = await this.db.transaction().execute(async (tx) => {
+      const [row] = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRow = await tx
           .selectFrom(tableName)
           .selectAll()
-          .where("id", "=", formattedId)
+          .where("id", "=", encodedId)
           .executeTakeFirst();
 
         // If there is no latest version, insert a new version using the create data.
         if (latestRow === undefined) {
-          return await tx
-            .insertInto(tableName)
-            .values(createRow)
-            .returningAll()
-            .executeTakeFirstOrThrow();
+          return Promise.all([
+            tx
+              .insertInto(tableName)
+              .values(createRow)
+              .returningAll()
+              .executeTakeFirstOrThrow(),
+            tx
+              .insertInto("logs")
+              .values({
+                tableName,
+                operation: 0,
+                checkpont: encodedCheckpoint,
+                row: null,
+              })
+              .execute(),
+          ]);
         }
 
         // If the user passed an update function, call it with the current instance.
         let updateRow: ReturnType<typeof encodeRow>;
         if (typeof update === "function") {
-          const current = decodeRow(latestRow, table, "postgres");
+          const current = decodeRow(latestRow, table, this.kind);
           const updateObject = update({ current });
-          updateRow = encodeRow({ id, ...updateObject }, table, "postgres");
+          updateRow = encodeRow({ id, ...updateObject }, table, this.kind);
         } else {
-          updateRow = encodeRow({ id, ...update }, table, "postgres");
+          updateRow = encodeRow({ id, ...update }, table, this.kind);
         }
 
-        return await tx
-          .updateTable(tableName)
-          .set(updateRow)
-          .where("id", "=", formattedId)
-          .returningAll()
-          .executeTakeFirstOrThrow();
+        return Promise.all([
+          tx
+            .updateTable(tableName)
+            .set(updateRow)
+            .where("id", "=", encodedId)
+            .returningAll()
+            .executeTakeFirstOrThrow(),
+          tx
+            .insertInto("logs")
+            .values({
+              tableName,
+              operation: 1,
+              checkpont: encodedCheckpoint,
+              row: JSON.stringify(decodeRow(latestRow, table, this.kind)),
+            })
+            .execute(),
+        ]);
       });
 
-      return decodeRow(row, table, "postgres");
+      return decodeRow(row, table, this.kind);
     });
   };
 
@@ -581,14 +650,36 @@ export class PostgresIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.wrap({ method: `${tableName}.delete` }, async () => {
-      const formattedId = encodeValue(id, table.id, "postgres");
+      const encodedId = encodeValue(id, table.id, this.kind);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
+
       const isDeleted = await this.db.transaction().execute(async (tx) => {
-        const deletedRow = await tx
-          .deleteFrom(tableName)
-          .where("id", "=", formattedId)
-          .returning(["id"])
+        const row = await tx
+          .selectFrom(tableName)
+          .selectAll()
+          .where("id", "=", encodedId)
           .executeTakeFirst();
+
+        const [deletedRow] = await Promise.all([
+          tx
+            .deleteFrom(tableName)
+            .where("id", "=", encodedId)
+            .returning(["id"])
+            .executeTakeFirst(),
+          row !== undefined
+            ? tx
+                .insertInto("logs")
+                .values({
+                  tableName,
+                  checkpoint: encodedCheckpoint,
+                  type: 2,
+                  row: JSON.stringify(
+                    decodeRow(row, this.schema.tables[tableName], this.kind),
+                  ),
+                })
+                .execute()
+            : Promise.resolve(),
+        ]);
 
         return !!deletedRow;
       });
@@ -603,7 +694,7 @@ export class PostgresIndexingStore implements IndexingStore {
   ) => {
     const endClock = startClock();
     const RETRY_COUNT = 3;
-    const BASE_DURATION = 100;
+    const BASE_DURATION = 25;
 
     let error: any;
     let hasError = false;

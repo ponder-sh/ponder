@@ -80,14 +80,27 @@ export type OrderByInput<table, columns extends keyof table = keyof table> = {
   [ColumnName in columns]?: "asc" | "desc";
 };
 
+export type PonderSchema = {
+  "ponder.logs": {
+    id: number;
+    table: string;
+    row: Object | null;
+    checkpoint: string;
+    type: 0 | 1 | 2;
+  };
+} & {
+  [table: string]: {
+    id: unknown;
+    [column: string]: unknown;
+  };
+};
+
 export interface IndexingStore {
   kind: "sqlite" | "postgres";
   db: Kysely<any>;
   schema: Schema;
 
   kill(): void;
-
-  revert(options: { checkpoint: Checkpoint }): Promise<void>;
 
   findUnique(options: {
     tableName: string;
@@ -113,20 +126,20 @@ export interface IndexingStore {
 
   create(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }): Promise<Row>;
 
   createMany(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     data: Row[];
   }): Promise<Row[]>;
 
   update(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     id: string | number | bigint;
     data?:
       | Partial<Omit<Row, "id">>
@@ -135,7 +148,7 @@ export interface IndexingStore {
 
   updateMany(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     where?: WhereInput<any>;
     data?:
       | Partial<Omit<Row, "id">>
@@ -144,7 +157,7 @@ export interface IndexingStore {
 
   upsert(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     id: string | number | bigint;
     create?: Omit<Row, "id">;
     update?:
@@ -154,7 +167,7 @@ export interface IndexingStore {
 
   delete(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     id: string | number | bigint;
   }): Promise<boolean>;
 }

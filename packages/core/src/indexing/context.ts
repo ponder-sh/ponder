@@ -1,7 +1,7 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
-import type { IndexingStore, Row } from "@/indexing-store/store.js";
+import type { IndexingStore, Row } from "@/indexing-store/historicalStore.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";
 import type { DatabaseModel, StoreMethod } from "@/types/model.js";

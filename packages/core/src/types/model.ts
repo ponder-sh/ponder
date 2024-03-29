@@ -1,4 +1,7 @@
-import type { OrderByInput, WhereInput } from "@/indexing-store/store.js";
+import type {
+  OrderByInput,
+  WhereInput,
+} from "@/indexing-store/historicalStore.js";
 import type { Hex } from "viem";
 import type {
   HasOnlyIdProperty,

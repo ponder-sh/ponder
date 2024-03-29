@@ -18,7 +18,7 @@ import {
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import type { DatabaseService, FunctionMetadata } from "@/database/service.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
+import type { IndexingStore } from "@/indexing-store/historicalStore.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
