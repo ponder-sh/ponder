@@ -55,12 +55,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   // Once we have the initial build, we can kill the build service.
   await buildService.kill();
 
-  if (initialResult.error) {
-    logger.error({
-      service: "process",
-      msg: "Failed initial build with error:",
-      error: initialResult.error,
-    });
+  if (!initialResult.success) {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }

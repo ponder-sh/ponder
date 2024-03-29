@@ -33,10 +33,7 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   const buildService = new BuildService({ common });
   await buildService.setup({ watch: false });
 
-  const cleanupReloadable = () => Promise.resolve();
-
   const cleanup = async () => {
-    await cleanupReloadable();
     await buildService.kill();
     await telemetry.kill();
   };
