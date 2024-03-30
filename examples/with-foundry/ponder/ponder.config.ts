@@ -1,12 +1,13 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
+import { foundry } from "viem/chains";
 import { counterABI } from "../abis/Counter";
 
 export default createConfig({
   networks: {
     anvil: {
-      chainId: 31337,
+      chain: foundry,
       transport: http("http://127.0.0.1:8545"),
     },
   },

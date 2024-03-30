@@ -1,11 +1,12 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
+import { mainnet } from "viem/chains";
 import { erc1155ABI } from "./abis/erc1155Abi";
 
 export default createConfig({
   networks: {
     mainnet: {
-      chainId: 1,
+      chain: mainnet,
       transport: http(process.env.PONDER_RPC_URL_1),
     },
   },

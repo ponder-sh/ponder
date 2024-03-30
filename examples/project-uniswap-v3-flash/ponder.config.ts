@@ -1,13 +1,14 @@
 import { createConfig } from "@ponder/core";
 import { http, getAbiItem } from "viem";
 
+import { mainnet } from "viem/chains";
 import { UniswapV3FactoryAbi } from "./abis/UniswapV3FactoryAbi";
 import { UniswapV3PoolAbi } from "./abis/UniswapV3PoolAbi";
 
 export default createConfig({
   networks: {
     mainnet: {
-      chainId: 1,
+      chain: mainnet,
       transport: http(process.env.PONDER_RPC_URL_1),
     },
   },

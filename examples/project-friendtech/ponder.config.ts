@@ -1,12 +1,13 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
+import { base } from "viem/chains";
 import { FriendtechSharesV1Abi } from "./abis/FriendtechSharesV1Abi";
 
 export default createConfig({
   networks: {
     base: {
-      chainId: 8453,
+      chain: base,
       transport: http(process.env.PONDER_RPC_URL_8453),
     },
   },

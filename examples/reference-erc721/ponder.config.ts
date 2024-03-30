@@ -1,11 +1,12 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
+import { arbitrum } from "viem/chains";
 import { erc721ABI } from "./abis/erc721ABI";
 
 export default createConfig({
   networks: {
     arbitrum: {
-      chainId: 42161,
+      chain: arbitrum,
       transport: http(process.env.PONDER_RPC_URL_42161),
     },
   },

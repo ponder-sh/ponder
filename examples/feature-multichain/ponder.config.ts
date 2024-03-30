@@ -1,6 +1,7 @@
 import { createConfig } from "@ponder/core";
 import { http, createPublicClient } from "viem";
 
+import { arbitrum, base, mainnet, optimism, polygon } from "viem/chains";
 import { weth9Abi } from "./abis/weth9Abi";
 
 const latestBlockMainnet = await createPublicClient({
@@ -22,27 +23,27 @@ const latestBlockPolygon = await createPublicClient({
 export default createConfig({
   networks: {
     mainnet: {
-      chainId: 1,
+      chain: mainnet,
       transport: http(process.env.PONDER_RPC_URL_1),
       pollingInterval: 15_000,
     },
     base: {
-      chainId: 8453,
+      chain: base,
       transport: http(process.env.PONDER_RPC_URL_8453),
       pollingInterval: 15_000,
     },
     optimism: {
-      chainId: 10,
+      chain: optimism,
       transport: http(process.env.PONDER_RPC_URL_10),
       pollingInterval: 15_000,
     },
     arbitrum: {
-      chainId: 42161,
+      chain: arbitrum,
       transport: http(process.env.PONDER_RPC_URL_42161),
       pollingInterval: 15_000,
     },
     polygon: {
-      chainId: 137,
+      chain: polygon,
       transport: http(process.env.PONDER_RPC_URL_137),
       pollingInterval: 15_000,
     },

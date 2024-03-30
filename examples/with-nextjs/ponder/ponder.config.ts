@@ -1,6 +1,7 @@
 import { createConfig } from "@ponder/core";
 import { http, createPublicClient } from "viem";
 
+import { mainnet } from "viem/chains";
 import { Weth9Abi } from "./abis/Weth9Abi";
 
 const transport = http(process.env.PONDER_RPC_URL_1);
@@ -10,7 +11,7 @@ const latestBlock = await createPublicClient({ transport }).getBlock();
 export default createConfig({
   networks: {
     mainnet: {
-      chainId: 1,
+      chain: mainnet,
       transport,
     },
   },

@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@ponder/core": "workspace:*",
-    "viem": "^1.19.3"
+    "viem": "^2.9.5"
   },
   "devDependencies": {
     "@types/node": "^20.9.0",

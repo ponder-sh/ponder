@@ -144,8 +144,8 @@ importers:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.3.3)
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -166,8 +166,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -188,8 +188,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -210,8 +210,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -232,8 +232,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -254,8 +254,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -276,8 +276,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -298,8 +298,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -342,8 +342,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -364,8 +364,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -392,8 +392,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/core
       viem:
-        specifier: ^1.19.3
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.9.0
@@ -471,8 +471,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/core
       viem:
-        specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        specifier: ^2.9.5
+        version: 2.9.5(typescript@5.3.3)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
