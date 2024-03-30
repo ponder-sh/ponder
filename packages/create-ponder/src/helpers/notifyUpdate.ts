@@ -9,7 +9,7 @@ const log = console.log;
 
 export async function notifyUpdate({ options }: { options: CLIOptions }) {
   try {
-    const res = await checkForUpdate.default(packageJson);
+    const res = await checkForUpdate(packageJson);
     if (res?.latest) {
       const packageManager = getPackageManager({ options });
       const updateMessage =

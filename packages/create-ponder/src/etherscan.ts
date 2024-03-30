@@ -7,6 +7,7 @@ import pico from "picocolors";
 import prettier from "prettier";
 import type { Chain } from "viem";
 import * as chains from "viem/chains";
+import { extractChainName } from "./helpers/extractChain";
 
 type ChainExplorer = {
   name: string;
@@ -190,7 +191,9 @@ export const fromEtherscan = async ({
   const config: SerializableConfig = {
     networks: {
       [name]: {
-        chainId: chainId,
+        chain: extractChainName({
+          id: chainId,
+        }),
         transport: `http(process.env.PONDER_RPC_URL_${chainId})`,
       },
     },

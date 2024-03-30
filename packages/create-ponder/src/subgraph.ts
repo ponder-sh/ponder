@@ -3,7 +3,7 @@ import path from "node:path";
 import type { SerializableConfig } from "@/index.js";
 import prettier from "prettier";
 import { parse } from "yaml";
-
+import { extractChainName } from "./helpers/extractChain.js";
 import { getGraphProtocolChainId } from "./helpers/getGraphProtocolChainId.js";
 import {
   GraphSource,
@@ -98,7 +98,7 @@ export const fromSubgraphId = async ({
   ponderContracts.forEach((pc) => {
     contractsObject[pc.name] = pc;
     networksObject[pc.network] = {
-      chainId: getGraphProtocolChainId(pc.network),
+      chain: extractChainName({ id: getGraphProtocolChainId(pc.network) ?? 1 }),
       transport: `http(process.env.PONDER_RPC_URL_${getGraphProtocolChainId(
         pc.network,
       )})`,

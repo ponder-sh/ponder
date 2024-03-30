@@ -30,7 +30,7 @@ import { fromSubgraphId } from "./subgraph.js";
 const log = console.log;
 
 export type SerializableNetwork = {
-  chainId: number;
+  chain: string;
   transport: string;
 };
 

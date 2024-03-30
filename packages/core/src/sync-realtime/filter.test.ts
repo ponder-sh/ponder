@@ -2,13 +2,10 @@ import { erc20ABI, pairABI } from "@/_test/generated.js";
 import { setupAnvil } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { getAbiItem, getEventSelector, toHex } from "viem";
+import { getAbiItem, getEventSelector, toHex, zeroHash } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { filterLogs } from "./filter.js";
 import type { RealtimeLog } from "./format.js";
-
-const zeroHash =
-  "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 beforeEach((context) => setupAnvil(context));
 

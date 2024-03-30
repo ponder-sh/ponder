@@ -674,7 +674,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       viem:
-        specifier: ^2.7.20
+        specifier: ^2.9.5
         version: 2.9.5(typescript@5.0.4)
       yaml:
         specifier: ^2.3.4
