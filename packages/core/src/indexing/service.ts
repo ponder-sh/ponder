@@ -17,7 +17,7 @@ import {
   sourceIsFactory,
   sourceIsLogFilter,
 } from "@/config/sources.js";
-import type { DatabaseService, FunctionMetadata } from "@/database/service.js";
+import type { DatabaseService } from "@/database/service.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";
@@ -968,13 +968,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.indexingFunctionStates = {};
     this.setupFunctionStates = {};
 
-    const checkpoints: {
-      [functionId: string]: Omit<
-        FunctionMetadata,
-        "functionId" | "functionName"
-      >;
-    } = {};
-
     for (const contractName of Object.keys(this.indexingFunctions)) {
       // Not sure why this is necessary
       // @ts-ignore
@@ -986,12 +979,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
         if (eventName === "setup") {
           const indexingFunctionKey = `${contractName}:${eventName}`;
 
-          const checkpoint =
-            checkpoints[this.functionIds[indexingFunctionKey]]!;
-
           this.setupFunctionStates[indexingFunctionKey] = {
             contractName,
-            isComplete: checkpoint ? true : false,
+            isComplete: false,
           };
 
           continue;
@@ -1054,8 +1044,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
           }]`,
         });
 
-        const checkpoint = checkpoints[this.functionIds[indexingFunctionKey]]!;
-
         this.indexingFunctionStates[indexingFunctionKey] = {
           eventName,
           contractName,
@@ -1065,25 +1053,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
           abiEvent,
           eventSelector,
 
-          tasksProcessedToCheckpoint:
-            checkpoint?.toCheckpoint ?? zeroCheckpoint,
-          tasksLoadedFromCheckpoint: checkpoint?.toCheckpoint ?? zeroCheckpoint,
-          tasksLoadedToCheckpoint: checkpoint?.toCheckpoint ?? zeroCheckpoint,
-          firstEventCheckpoint: checkpoint?.fromCheckpoint ?? undefined,
+          tasksProcessedToCheckpoint: zeroCheckpoint,
+          tasksLoadedFromCheckpoint: zeroCheckpoint,
+          tasksLoadedToCheckpoint: zeroCheckpoint,
+          firstEventCheckpoint: undefined,
           loadedTasks: [],
-          eventCount: checkpoint?.eventCount ?? 0,
+          eventCount: 0,
         };
-
-        if (checkpoint?.eventCount) {
-          const labels = {
-            network: "",
-            event: indexingFunctionKey,
-          };
-          this.common.metrics.ponder_indexing_completed_events.set(
-            labels,
-            checkpoint.eventCount,
-          );
-        }
       }
     }
   };
