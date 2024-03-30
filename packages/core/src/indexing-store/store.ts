@@ -80,27 +80,14 @@ export type OrderByInput<table, columns extends keyof table = keyof table> = {
   [ColumnName in columns]?: "asc" | "desc";
 };
 
-export type PonderSchema = {
-  "ponder.logs": {
-    id: number;
-    table: string;
-    row: Object | null;
-    checkpoint: string;
-    type: 0 | 1 | 2;
-  };
-} & {
-  [table: string]: {
-    id: unknown;
-    [column: string]: unknown;
-  };
-};
-
 export interface IndexingStore {
   kind: "sqlite" | "postgres";
   db: Kysely<any>;
   schema: Schema;
 
   kill(): void;
+
+  revert({ checkpoint }: { checkpoint: Checkpoint }): Promise<void>;
 
   findUnique(options: {
     tableName: string;

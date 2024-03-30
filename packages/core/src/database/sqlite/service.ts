@@ -4,7 +4,6 @@ import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
 import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
 import {
@@ -15,7 +14,7 @@ import {
   sql,
 } from "kysely";
 import prometheus from "prom-client";
-import type { BaseDatabaseService } from "../service.js";
+import type { BaseDatabaseService, PonderIndexingSchema } from "../service.js";
 import { migrationProvider } from "./migrations.js";
 
 const PUBLIC_DB_NAME = "ponder";
@@ -27,7 +26,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   private common: Common;
   private directory: string;
 
-  db: Kysely<any>;
+  db: Kysely<PonderIndexingSchema>;
 
   private sqliteDatabase: SqliteDatabase;
   private syncDatabase?: SqliteDatabase;
@@ -68,8 +67,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.syncDatabase = createSqliteDatabase(syncDbPath);
     return { database: this.syncDatabase };
   }
-
-  async revert({ checkpoint }: { checkpoint: Checkpoint }) {}
 
   async setup({
     schema,

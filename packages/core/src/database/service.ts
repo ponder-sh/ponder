@@ -1,14 +1,20 @@
 import type { Schema } from "@/schema/types.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
 import { PostgresDatabaseService } from "./postgres/service.js";
 import { SqliteDatabaseService } from "./sqlite/service.js";
 
-export type FunctionMetadata = {
-  functionId: string;
-  functionName: string;
-  fromCheckpoint: Checkpoint | null;
-  toCheckpoint: Checkpoint;
-  eventCount: number;
+export type PonderIndexingSchema = {
+  "ponder.logs": {
+    id: number;
+    tableName: string;
+    row: string;
+    checkpoint: string;
+    operation: 0 | 1 | 2;
+  };
+} & {
+  [table: string]: {
+    id: unknown;
+    [column: string]: unknown;
+  };
 };
 
 export type DatabaseService = PostgresDatabaseService | SqliteDatabaseService;
@@ -21,8 +27,6 @@ export interface BaseDatabaseService {
   }: {
     schema: Schema;
   }): Promise<void>;
-
-  revert({ checkpoint }: { checkpoint: Checkpoint }): Promise<void>;
 
   kill(): Promise<void>;
 }

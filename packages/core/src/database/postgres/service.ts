@@ -2,33 +2,17 @@ import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
 import { createPool } from "@/utils/pg.js";
 import { startClock } from "@/utils/timer.js";
 import { CreateTableBuilder, Kysely, PostgresDialect, sql } from "kysely";
 import type { Pool, PoolConfig } from "pg";
 import prometheus from "prom-client";
-import type { BaseDatabaseService, FunctionMetadata } from "../service.js";
+import type { BaseDatabaseService, PonderIndexingSchema } from "../service.js";
 
 const ADMIN_POOL_SIZE = 3;
 
 const PUBLIC_SCHEMA_NAME = "ponder";
 const SYNC_SCHEMA_NAME = "ponder_sync";
-
-export type PonderCoreSchema = {
-  "ponder.logs": {
-    id: number;
-    table: string;
-    row: Object | null;
-    checkpoint: string;
-    type: 0 | 1 | 2;
-  };
-} & {
-  [table: string]: {
-    id: unknown;
-    [column: string]: unknown;
-  };
-};
 
 export class PostgresDatabaseService implements BaseDatabaseService {
   kind = "postgres" as const;
@@ -40,12 +24,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
    * Small pool used by this service for creating tables.
    */
   private adminPool: Pool;
-  db: Kysely<PonderCoreSchema>;
+  db: Kysely<PonderIndexingSchema>;
 
   private indexingPool: Pool;
   private syncPool: Pool;
-
-  functionMetadata: FunctionMetadata[] = undefined!;
 
   constructor({
     common,
@@ -65,7 +47,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.indexingPool = createPool(this.poolConfig);
     this.syncPool = createPool(this.poolConfig);
 
-    this.db = new Kysely<PonderCoreSchema>({
+    this.db = new Kysely({
       dialect: new PostgresDialect({ pool: this.adminPool }),
       log(event) {
         if (event.level === "query") {
@@ -85,8 +67,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     await this.db.schema.createSchema(SYNC_SCHEMA_NAME).ifNotExists().execute();
     return { pool: this.syncPool, schemaName: SYNC_SCHEMA_NAME };
   }
-
-  async revert({ checkpoint }: { checkpoint: Checkpoint }) {}
 
   async setup({
     schema,

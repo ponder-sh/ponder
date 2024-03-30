@@ -1,6 +1,8 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError, StoreError } from "@/common/errors.js";
+import type { PonderIndexingSchema } from "@/database/service.js";
 import type { Schema } from "@/schema/types.js";
+import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
 import {
@@ -79,6 +81,64 @@ export class HistoricalIndexingStore implements IndexingStore {
   kill = () => {
     this.isKilled = true;
   };
+
+  async revert({ checkpoint }: { checkpoint: Checkpoint }) {
+    await this.wrap({ method: "revert" }, async () => {
+      // Retrieve all logs that need to be undone.
+      const logs = (await this.db
+        .selectFrom("logs")
+        .selectAll()
+        .where("checkpoint", ">", encodeCheckpoint(checkpoint))
+        .orderBy("checkpoint", "asc")
+        .execute()) as PonderIndexingSchema["ponder.logs"][];
+
+      await this.db.transaction().execute(async (tx) => {
+        // undo operation
+        for (const log of logs) {
+          const decodedRow = JSON.parse(log.row);
+
+          if (log.operation === 0) {
+            // create
+            await tx
+              .deleteFrom(log.tableName)
+              .where("id", "=", decodedRow.id)
+              .execute();
+          } else if (log.operation === 1) {
+            // update
+            await tx
+              .updateTable(log.tableName)
+              .set(
+                encodeRow(
+                  decodedRow,
+                  this.schema.tables[log.tableName],
+                  this.kind,
+                ),
+              )
+              .where("id", "=", decodedRow.id)
+              .execute();
+          } else {
+            // delete
+            await tx
+              .insertInto(log.tableName)
+              .values(
+                encodeRow(
+                  decodedRow,
+                  this.schema.tables[log.tableName],
+                  this.kind,
+                ),
+              )
+              .execute();
+          }
+        }
+
+        // delete logs
+        await tx
+          .deleteFrom("logs")
+          .where("checkpoint", ">", encodeCheckpoint(checkpoint))
+          .execute();
+      });
+    });
+  }
 
   findUnique = async ({
     tableName,
