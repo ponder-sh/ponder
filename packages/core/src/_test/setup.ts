@@ -15,7 +15,6 @@ import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { createSchema } from "@/index.js";
-import { HistoricalIndexingStore } from "@/indexing-store/historicalStore.js";
 import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
@@ -72,7 +71,10 @@ export function setupContext(context: TestContext) {
  */
 export async function setupIsolatedDatabase(context: TestContext) {
   if (process.env.DATABASE_URL) {
+    console.log(process.env.VITEST_POOL_ID);
+
     const databaseName = `vitest_${process.env.VITEST_POOL_ID ?? 1}`;
+    console.log(databaseName);
     const databaseUrl = new URL(process.env.DATABASE_URL);
     databaseUrl.pathname = `/${databaseName}`;
 
@@ -130,24 +132,14 @@ export async function setupDatabaseServices(
     await database.setup(config);
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore =
-      config.indexing === "realtime"
-        ? new RealtimeIndexingStore({
-            common: context.common,
-            schema: config.schema,
-            database: {
-              kind: "sqlite",
-              database: indexingStoreConfig.database,
-            },
-          })
-        : new HistoricalIndexingStore({
-            common: context.common,
-            schema: config.schema,
-            database: {
-              kind: "sqlite",
-              database: indexingStoreConfig.database,
-            },
-          });
+    const indexingStore = new RealtimeIndexingStore({
+      common: context.common,
+      schema: config.schema,
+      database: {
+        kind: "sqlite",
+        database: indexingStoreConfig.database,
+      },
+    });
 
     const syncStoreConfig = database.getSyncStoreConfig();
     const syncStore = new SqliteSyncStore({
@@ -169,24 +161,14 @@ export async function setupDatabaseServices(
     await database.setup(config);
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore =
-      config.indexing === "realtime"
-        ? new RealtimeIndexingStore({
-            common: context.common,
-            schema: config.schema,
-            database: {
-              kind: "postgres",
-              pool: indexingStoreConfig.pool,
-            },
-          })
-        : new HistoricalIndexingStore({
-            common: context.common,
-            schema: config.schema,
-            database: {
-              kind: "postgres",
-              pool: indexingStoreConfig.pool,
-            },
-          });
+    const indexingStore = new RealtimeIndexingStore({
+      common: context.common,
+      schema: config.schema,
+      database: {
+        kind: "postgres",
+        pool: indexingStoreConfig.pool,
+      },
+    });
 
     const syncStoreConfig = await database.getSyncStoreConfig();
     const syncStore = new PostgresSyncStore({

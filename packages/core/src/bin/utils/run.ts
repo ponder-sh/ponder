@@ -4,7 +4,7 @@ import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
-import { HistoricalIndexingStore } from "@/indexing-store/historicalStore.js";
+import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { IndexingService } from "@/indexing/service.js";
 import { ServerService } from "@/server/service.js";
@@ -50,7 +50,7 @@ export async function run({
     await database.setup({ schema });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
-    indexingStore = new HistoricalIndexingStore({
+    indexingStore = new RealtimeIndexingStore({
       common,
       schema,
       database: { kind: "sqlite", database: indexingStoreConfig.database },
@@ -65,7 +65,7 @@ export async function run({
     await database.setup({ schema });
 
     const indexingStoreConfig = database.getIndexingStoreConfig();
-    indexingStore = new HistoricalIndexingStore({
+    indexingStore = new RealtimeIndexingStore({
       common,
       schema,
       database: { kind: "postgres", pool: indexingStoreConfig.pool },
