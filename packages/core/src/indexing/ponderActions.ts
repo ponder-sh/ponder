@@ -78,11 +78,22 @@ export type PonderActions = {
   ) => Promise<ReadContractReturnType<abi, functionName, args>>;
 };
 
-export type ReadOnlyClient<
-  transport extends Transport = Transport,
-  chain extends Chain | undefined = Chain | undefined,
-> = Prettify<
-  Client<transport, chain, undefined, PublicRpcSchema, PonderActions>
+export type ReadOnlyClient = Prettify<
+  Omit<
+    Client<Transport, undefined, undefined, PublicRpcSchema, PonderActions>,
+    | "extend"
+    | "key"
+    | "batch"
+    | "cacheTime"
+    | "account"
+    | "type"
+    | "uid"
+    | "chain"
+    | "name"
+    | "pollingInterval"
+    | "transport"
+    | "ccipRead"
+  >
 >;
 
 export const ponderActions =

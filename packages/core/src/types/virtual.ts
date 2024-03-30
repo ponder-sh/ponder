@@ -126,23 +126,7 @@ export namespace Virtual {
               keyof config["networks"]]["chain"]["id"];
           };
         }[keyof config["contracts"][contractName]["network"]];
-    client: Prettify<
-      Omit<
-        ReadOnlyClient,
-        | "extend"
-        | "key"
-        | "batch"
-        | "cacheTime"
-        | "account"
-        | "type"
-        | "uid"
-        | "chain"
-        | "name"
-        | "pollingInterval"
-        | "transport"
-        | "ccipRead"
-      >
-    >;
+    client: ReadOnlyClient;
     db: {
       [key in keyof Infer<schema>]: DatabaseModel<Infer<schema>[key]>;
     };
