@@ -6,7 +6,7 @@ import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
-import { buildGraphqlSchema } from "@/graphql/buildGraphqlSchema.js";
+import { buildGraphqlSchema } from "@/graphql/schema.js";
 import type { Schema } from "@/schema/types.js";
 import { Emittery } from "@/utils/emittery.js";
 import { glob } from "glob";

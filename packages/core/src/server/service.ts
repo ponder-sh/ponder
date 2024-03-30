@@ -5,7 +5,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createHttpTerminator } from "http-terminator";
-import { buildLoaderCache } from "../graphql/buildLoaderCache.js";
+import { buildLoaderCache } from "../graphql/loader.js";
 
 type Server = {
   hono: Hono;

@@ -6,10 +6,10 @@ import {
   GraphQLSchema,
 } from "graphql";
 import { type Context as HonoContext } from "hono";
-import type { GetLoader } from "./buildLoaderCache.js";
 import { buildEntityTypes } from "./entity.js";
 import { buildEnumTypes } from "./enum.js";
 import { buildEntityFilterTypes } from "./filter.js";
+import type { GetLoader } from "./loader.js";
 import { buildPluralField } from "./plural.js";
 import { buildSingularField } from "./singular.js";
 

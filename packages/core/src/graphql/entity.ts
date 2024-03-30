@@ -22,10 +22,10 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { buildWhereObject } from "./filter.js";
 import type { PluralResolver } from "./plural.js";
 import { SCALARS } from "./scalar.js";
+import type { Context, Parent } from "./schema.js";
 
 const GraphQLPageInfo = new GraphQLObjectType({
   name: "PageInfo",

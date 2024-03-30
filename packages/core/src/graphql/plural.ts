@@ -8,8 +8,8 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { buildWhereObject } from "./filter.js";
+import type { Context, Parent } from "./schema.js";
 
 type PluralArgs = {
   where?: { [key: string]: number | string };

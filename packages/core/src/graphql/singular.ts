@@ -7,8 +7,8 @@ import {
   GraphQLInt,
   GraphQLNonNull,
 } from "graphql";
-import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { SCALARS } from "./scalar.js";
+import type { Context, Parent } from "./schema.js";
 
 type SingularArgs = {
   id?: string;
