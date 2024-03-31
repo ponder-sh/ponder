@@ -232,10 +232,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             .withSchema(this.internalNamespace)
             .createTable(tableId)
             .$call((builder) => this.buildOperationLogColumns(builder, columns))
-            .addPrimaryKeyConstraint(`${tableId}_pk`, [
-              "id",
-              "checkpoint",
-            ] as any)
             .execute();
 
           await tx.schema
@@ -362,6 +358,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     });
 
     builder = builder
+      .addColumn("uuid", "integer", (col) => col.notNull().primaryKey())
       .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
       .addColumn("operation", "integer", (col) => col.notNull());
 

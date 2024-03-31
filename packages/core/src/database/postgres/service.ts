@@ -240,10 +240,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             .withSchema(this.internalNamespace)
             .createTable(tableId)
             .$call((builder) => this.buildOperationLogColumns(builder, columns))
-            .addPrimaryKeyConstraint(`${tableId}_pk`, [
-              "id",
-              "checkpoint",
-            ] as any)
             .execute();
 
           try {
@@ -385,6 +381,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     });
 
     builder = builder
+      .addColumn("uuid", "serial", (col) => col.notNull().primaryKey())
       .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
       .addColumn("operation", "integer", (col) => col.notNull());
 

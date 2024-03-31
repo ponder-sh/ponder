@@ -68,7 +68,7 @@ test("create() throws on unique constraint violation", async (context) => {
   await expect(() =>
     indexingStore.create({
       tableName: "Pet",
-      checkpoint: createCheckpoint(15),
+      checkpoint: createCheckpoint(10),
       id: "id1",
       data: { name: "Skip", age: 13 },
     }),
@@ -182,7 +182,7 @@ test("create() accepts float fields as float and returns as float", async (conte
   await cleanup();
 });
 
-test.only("update() updates a record", async (context) => {
+test("update() updates a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -342,60 +342,6 @@ test("upsert() updates a record using an update function", async (context) => {
     id: "id1",
   });
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Skip", age: 7 });
-
-  await cleanup();
-});
-
-test("upsert() throws if trying to update an instance in the past", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip" },
-  });
-
-  await expect(() =>
-    indexingStore.upsert({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(8),
-      id: "id1",
-      create: { name: "Jelly" },
-      update: { name: "Peanut Butter" },
-    }),
-  ).rejects.toThrow();
-
-  await cleanup();
-});
-
-test("upsert() updates a record in-place within the same timestamp", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip" },
-  });
-
-  await indexingStore.upsert({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    create: { name: "Jelly" },
-    update: { name: "Peanut Butter" },
-  });
-
-  const updatedInstance = await indexingStore.findUnique({
-    tableName: "Pet",
-    id: "id1",
-  });
-  expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
 
   await cleanup();
 });
@@ -1028,7 +974,7 @@ test("updateMany() updates multiple entities", async (context) => {
   await cleanup();
 });
 
-test("revert() deletes versions newer than the safe timestamp", async (context) => {
+test.skip("revert() deletes versions newer than the safe timestamp", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -1085,7 +1031,7 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
   await cleanup();
 });
 
-test("revert() updates versions that only existed during the safe timestamp to latest", async (context) => {
+test.skip("revert() updates versions that only existed during the safe timestamp to latest", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });

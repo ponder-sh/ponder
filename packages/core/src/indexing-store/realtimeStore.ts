@@ -365,7 +365,7 @@ export class RealtimeIndexingStore implements IndexingStore {
               })
               .execute(),
           ]);
-          return decodeRow(row, table, "postgres");
+          return decodeRow(row, table, this.kind);
         });
       } catch (err) {
         const error = err as Error;
@@ -577,7 +577,8 @@ export class RealtimeIndexingStore implements IndexingStore {
                 operation: 1,
                 checkpoint: encodedCheckpoint,
                 ...latestRow,
-              }),
+              })
+              .execute(),
           ),
         ]);
 
