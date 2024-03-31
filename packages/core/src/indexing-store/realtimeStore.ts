@@ -1,17 +1,8 @@
-import type { Common } from "@/common/common.js";
-import { NonRetryableError, StoreError } from "@/common/errors.js";
-import type { PonderIndexingSchema } from "@/database/service.js";
+import { StoreError } from "@/common/errors.js";
+import type { HeadlessKysely } from "@/database/kysely.js";
+import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
-import type { SqliteDatabase } from "@/utils/sqlite.js";
-import { startClock } from "@/utils/timer.js";
-import {
-  Kysely,
-  PostgresDialect,
-  SqliteDialect,
-  WithSchemaPlugin,
-} from "kysely";
-import type { Pool } from "pg";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "./store.js";
 import {
   buildCursorConditions,
@@ -30,67 +21,38 @@ const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
 
 export class RealtimeIndexingStore implements IndexingStore {
-  private common: Common;
-  private isKilled = false;
-
-  db: Kysely<any>;
-  schema: Schema;
   kind: "sqlite" | "postgres";
+  private namespaceInfo: NamespaceInfo;
+
+  db: HeadlessKysely<any>;
+  schema: Schema;
 
   constructor({
-    common,
-    database,
+    kind,
     schema,
+    namespaceInfo,
+    db,
   }: {
-    common: Common;
-    database:
-      | { kind: "sqlite"; database: SqliteDatabase }
-      | { kind: "postgres"; pool: Pool };
+    kind: "sqlite" | "postgres";
     schema: Schema;
+    namespaceInfo: NamespaceInfo;
+    db: HeadlessKysely<any>;
   }) {
-    this.common = common;
+    this.kind = kind;
     this.schema = schema;
-    this.kind = database.kind;
-
-    if (database.kind === "sqlite") {
-      this.db = new Kysely({
-        dialect: new SqliteDialect({ database: database.database }),
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_sqlite_query_total.inc({
-              database: "indexing",
-            });
-          }
-        },
-      });
-    } else {
-      this.db = new Kysely({
-        dialect: new PostgresDialect({ pool: database.pool }),
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "indexing",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin("ponder")],
-      });
-    }
+    this.namespaceInfo = namespaceInfo;
+    this.db = db;
   }
 
-  kill = () => {
-    this.isKilled = true;
-  };
-
   async revert({ checkpoint }: { checkpoint: Checkpoint }) {
-    await this.wrap({ method: "revert" }, async () => {
+    await this.db.wrap({ method: "revert" }, async () => {
       // Retrieve all logs that need to be undone.
       const logs = (await this.db
         .selectFrom("logs")
         .selectAll()
         .where("checkpoint", ">", encodeCheckpoint(checkpoint))
         .orderBy("checkpoint", "asc")
-        .execute()) as PonderIndexingSchema["ponder.logs"][];
+        .execute()) as any;
 
       await this.db.transaction().execute(async (tx) => {
         // undo operation
@@ -149,10 +111,11 @@ export class RealtimeIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: `${tableName}.findUnique` }, async () => {
+    return this.db.wrap({ method: `${tableName}.findUnique` }, async () => {
       const encodedId = encodeValue(id, table.id, this.kind);
 
       const row = await this.db
+        .withSchema(this.namespaceInfo.userNamespace)
         .selectFrom(tableName)
         .selectAll()
         .where("id", "=", encodedId)
@@ -181,8 +144,11 @@ export class RealtimeIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: `${tableName}.findMany` }, async () => {
-      let query = this.db.selectFrom(tableName).selectAll();
+    return this.db.wrap({ method: `${tableName}.findMany` }, async () => {
+      let query = this.db
+        .withSchema(this.namespaceInfo.userNamespace)
+        .selectFrom(tableName)
+        .selectAll();
 
       if (where) {
         query = query.where((eb) =>
@@ -376,7 +342,7 @@ export class RealtimeIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: `${tableName}.create` }, async () => {
+    return this.db.wrap({ method: `${tableName}.create` }, async () => {
       const createRow = encodeRow({ id, ...data }, table, this.kind);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -384,17 +350,17 @@ export class RealtimeIndexingStore implements IndexingStore {
         return await this.db.transaction().execute(async (tx) => {
           const [row] = await Promise.all([
             tx
+              .withSchema(this.namespaceInfo.userNamespace)
               .insertInto(tableName)
               .values(createRow)
               .returningAll()
               .executeTakeFirstOrThrow(),
             tx
-              .insertInto("logs")
+              .insertInto(this.namespaceInfo.internalTableIds[tableName])
               .values({
-                table: table,
-                row: null,
-                checkpoint: encodedCheckpoint,
                 operation: 0,
+                id: createRow.id,
+                checkpoint: encodedCheckpoint,
               })
               .execute(),
           ]);
@@ -422,7 +388,7 @@ export class RealtimeIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: `${tableName}.createMany` }, async () => {
+    return this.db.wrap({ method: `${tableName}.createMany` }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const createRows = data.map((d) => encodeRow({ ...d }, table, this.kind));
 
@@ -434,18 +400,20 @@ export class RealtimeIndexingStore implements IndexingStore {
         const rows = await this.db.transaction().execute(async (tx) => {
           const rowsAndResults = await Promise.all([
             ...chunkedRows.map((chunk) =>
-              tx.insertInto(tableName).values(chunk).returningAll().execute(),
+              tx
+                .withSchema(this.namespaceInfo.userNamespace)
+                .insertInto(tableName)
+                .values(chunk)
+                .returningAll()
+                .execute(),
             ),
             ...chunkedRows.map((chunk) =>
               tx
-                .insertInto("logs")
+                .insertInto(this.namespaceInfo.internalTableIds[tableName])
                 .values(
                   chunk.map((row) => ({
-                    tableName,
                     operation: 0,
-                    row: JSON.stringify(
-                      decodeRow(row as Row, table, this.kind),
-                    ),
+                    id: row.id,
                     checkpoint: encodedCheckpoint,
                   })),
                 )
@@ -485,13 +453,14 @@ export class RealtimeIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: `${tableName}.update` }, async () => {
+    return this.db.wrap({ method: `${tableName}.update` }, async () => {
       const encodedId = encodeValue(id, table.id, this.kind);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRow = await tx
+          .withSchema(this.namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
@@ -513,20 +482,18 @@ export class RealtimeIndexingStore implements IndexingStore {
 
         const [updateResult] = await Promise.all([
           tx
+            .withSchema(this.namespaceInfo.userNamespace)
             .updateTable(tableName)
             .set(updateRow)
             .where("id", "=", encodedId)
             .returningAll()
             .executeTakeFirstOrThrow(),
           tx
-            .insertInto("logs")
+            .insertInto(this.namespaceInfo.internalTableIds[tableName])
             .values({
-              tableName,
               operation: 1,
               checkpoint: encodedCheckpoint,
-              row: JSON.stringify(
-                decodeRow(latestRow, this.schema.tables[tableName], this.kind),
-              ),
+              ...latestRow,
             })
             .execute(),
         ]);
@@ -554,14 +521,17 @@ export class RealtimeIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: `${tableName}.updateMany` }, async () => {
+    return this.db.wrap({ method: `${tableName}.updateMany` }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const rows = await this.db.transaction().execute(async (tx) => {
         // TODO(kyle) can remove this from the tx
 
         // Get all IDs that match the filter.
-        let query = tx.selectFrom(tableName).selectAll();
+        let query = tx
+          .withSchema(this.namespaceInfo.userNamespace)
+          .selectFrom(tableName)
+          .selectAll();
 
         if (where) {
           query = query.where((eb) =>
@@ -589,6 +559,7 @@ export class RealtimeIndexingStore implements IndexingStore {
             }
 
             return tx
+              .withSchema(this.namespaceInfo.userNamespace)
               .updateTable(tableName)
               .set(updateRow)
               .where("id", "=", latestRow.id)
@@ -596,12 +567,13 @@ export class RealtimeIndexingStore implements IndexingStore {
               .executeTakeFirstOrThrow();
           }),
           ...latestRows.map((latestRow) =>
-            tx.insertInto(tableName).values({
-              tableName,
-              operation: 1,
-              checkpoint: encodedCheckpoint,
-              row: JSON.stringify(decodeRow(latestRow, table, this.kind)),
-            }),
+            tx
+              .insertInto(this.namespaceInfo.internalTableIds[tableName])
+              .values({
+                operation: 1,
+                checkpoint: encodedCheckpoint,
+                ...latestRow,
+              }),
           ),
         ]);
 
@@ -631,7 +603,7 @@ export class RealtimeIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: `${tableName}.upsert` }, async () => {
+    return this.db.wrap({ method: `${tableName}.upsert` }, async () => {
       const encodedId = encodeValue(id, table.id, this.kind);
       const createRow = encodeRow({ id, ...create }, table, this.kind);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
@@ -639,6 +611,7 @@ export class RealtimeIndexingStore implements IndexingStore {
       const [row] = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRow = await tx
+          .withSchema(this.namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
@@ -648,17 +621,17 @@ export class RealtimeIndexingStore implements IndexingStore {
         if (latestRow === undefined) {
           return Promise.all([
             tx
+              .withSchema(this.namespaceInfo.userNamespace)
               .insertInto(tableName)
               .values(createRow)
               .returningAll()
               .executeTakeFirstOrThrow(),
             tx
-              .insertInto("logs")
+              .insertInto(this.namespaceInfo.internalTableIds[tableName])
               .values({
-                tableName,
                 operation: 0,
-                checkpont: encodedCheckpoint,
-                row: null,
+                id: createRow.id,
+                checkpoint: encodedCheckpoint,
               })
               .execute(),
           ]);
@@ -676,18 +649,18 @@ export class RealtimeIndexingStore implements IndexingStore {
 
         return Promise.all([
           tx
+            .withSchema(this.namespaceInfo.userNamespace)
             .updateTable(tableName)
             .set(updateRow)
             .where("id", "=", encodedId)
             .returningAll()
             .executeTakeFirstOrThrow(),
           tx
-            .insertInto("logs")
+            .insertInto(this.namespaceInfo.internalTableIds[tableName])
             .values({
-              tableName,
               operation: 1,
-              checkpont: encodedCheckpoint,
-              row: JSON.stringify(decodeRow(latestRow, table, this.kind)),
+              checkpoint: encodedCheckpoint,
+              ...latestRow,
             })
             .execute(),
         ]);
@@ -708,12 +681,13 @@ export class RealtimeIndexingStore implements IndexingStore {
   }) => {
     const table = this.schema.tables[tableName];
 
-    return this.wrap({ method: `${tableName}.delete` }, async () => {
+    return this.db.wrap({ method: `${tableName}.delete` }, async () => {
       const encodedId = encodeValue(id, table.id, this.kind);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const isDeleted = await this.db.transaction().execute(async (tx) => {
         const row = await tx
+          .withSchema(this.namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
@@ -721,20 +695,18 @@ export class RealtimeIndexingStore implements IndexingStore {
 
         const [deletedRow] = await Promise.all([
           tx
+            .withSchema(this.namespaceInfo.userNamespace)
             .deleteFrom(tableName)
             .where("id", "=", encodedId)
             .returning(["id"])
             .executeTakeFirst(),
           row !== undefined
             ? tx
-                .insertInto("logs")
+                .insertInto(this.namespaceInfo.internalTableIds[tableName])
                 .values({
-                  tableName,
+                  operation: 2,
                   checkpoint: encodedCheckpoint,
-                  type: 2,
-                  row: JSON.stringify(
-                    decodeRow(row, this.schema.tables[tableName], this.kind),
-                  ),
+                  ...row,
                 })
                 .execute()
             : Promise.resolve(),
@@ -745,55 +717,5 @@ export class RealtimeIndexingStore implements IndexingStore {
 
       return isDeleted;
     });
-  };
-
-  private wrap = async <T>(
-    options: { method: string },
-    fn: () => Promise<T>,
-  ) => {
-    const endClock = startClock();
-    const RETRY_COUNT = 3;
-    const BASE_DURATION = 25;
-
-    let error: any;
-    let hasError = false;
-
-    for (let i = 0; i < RETRY_COUNT + 1; i++) {
-      try {
-        const result = await fn();
-        this.common.metrics.ponder_database_method_duration.observe(
-          { service: "indexing", method: options.method },
-          endClock(),
-        );
-        return result;
-      } catch (_error) {
-        if (this.isKilled || _error instanceof NonRetryableError) {
-          throw _error;
-        }
-
-        if (!hasError) {
-          hasError = true;
-          error = _error;
-        }
-
-        if (i < RETRY_COUNT) {
-          const duration = BASE_DURATION * 2 ** i;
-          this.common.logger.warn({
-            service: "database",
-            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-          });
-          await new Promise((_resolve) => {
-            setTimeout(_resolve, duration);
-          });
-        }
-      }
-    }
-
-    this.common.metrics.ponder_database_method_error_total.inc({
-      service: "indexing",
-      method: options.method,
-    });
-
-    throw error;
   };
 }

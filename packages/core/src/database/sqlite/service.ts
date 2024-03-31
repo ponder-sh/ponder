@@ -1,53 +1,70 @@
-import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
+import type { SyncStoreTables } from "@/sync-store/sqlite/encoding.js";
+import {
+  decodeCheckpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
+import { formatShortDate } from "@/utils/date.js";
+import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
+import { hash } from "@/utils/hash.js";
+import { createSqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
 import {
-  CreateTableBuilder,
+  type CreateTableBuilder,
+  type Insertable,
   Kysely,
   Migrator,
   SqliteDialect,
   sql,
 } from "kysely";
 import prometheus from "prom-client";
-import type { BaseDatabaseService, PonderIndexingSchema } from "../service.js";
-import { migrationProvider } from "./migrations.js";
+import { HeadlessKysely } from "../kysely.js";
+import type { BaseDatabaseService, NamespaceInfo } from "../service.js";
+import { type InternalTables, migrationProvider } from "./migrations.js";
 
-const PUBLIC_DB_NAME = "ponder";
-const SYNC_DB_NAME = "ponder_sync";
+const HEARTBEAT_INTERVAL_MS = 1000 * 10; // 10 seconds
+const HEARTBEAT_TIMEOUT_MS = 1000 * 60; // 60 seconds
 
 export class SqliteDatabaseService implements BaseDatabaseService {
   kind = "sqlite" as const;
 
   private common: Common;
-  private directory: string;
+  private userNamespace: string;
 
-  db: Kysely<PonderIndexingSchema>;
+  db: Kysely<InternalTables>;
+  indexingDb: HeadlessKysely<InternalTables>;
+  syncDb: HeadlessKysely<SyncStoreTables>;
 
-  private sqliteDatabase: SqliteDatabase;
-  private syncDatabase?: SqliteDatabase;
+  private appId: string = null!;
+  private heartbeatInterval?: NodeJS.Timeout;
 
   constructor({
     common,
     directory,
+    userNamespace = "public",
   }: {
     common: Common;
     directory: string;
+    userNamespace?: string;
   }) {
     this.common = common;
-    this.directory = directory;
+    this.userNamespace = userNamespace;
 
-    const publicDbPath = path.join(directory, `${PUBLIC_DB_NAME}.db`);
+    const userDatabaseFile = path.join(directory, `${userNamespace}.db`);
+    const internalDatabaseFile = path.join(directory, "ponder.db");
 
-    fs.rmSync(publicDbPath, { force: true });
-    this.sqliteDatabase = createSqliteDatabase(publicDbPath);
+    const internalDatabase = createSqliteDatabase(internalDatabaseFile);
+    internalDatabase.exec(
+      `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
+    );
 
-    this.db = new Kysely({
-      dialect: new SqliteDialect({ database: this.sqliteDatabase }),
+    this.db = new Kysely<InternalTables>({
+      dialect: new SqliteDialect({ database: internalDatabase }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_sqlite_query_total.inc({ database: "admin" });
@@ -55,60 +72,215 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       },
     });
 
+    this.indexingDb = new HeadlessKysely<InternalTables>({
+      name: "indexing",
+      common,
+      dialect: new SqliteDialect({ database: internalDatabase }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_sqlite_query_total.inc({
+            database: "indexing",
+          });
+        }
+      },
+    });
+
+    const syncDatabaseFile = path.join(directory, "ponder_sync.db");
+    const syncDatabase = createSqliteDatabase(syncDatabaseFile);
+    this.syncDb = new HeadlessKysely<SyncStoreTables>({
+      name: "sync",
+      common,
+      dialect: new SqliteDialect({ database: syncDatabase }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_sqlite_query_total.inc({ database: "sync" });
+        }
+      },
+    });
+
     this.registerMetrics();
   }
 
-  getIndexingStoreConfig(): { database: SqliteDatabase } {
-    return { database: this.sqliteDatabase };
-  }
+  async setup({ schema, appId }: { schema: Schema; appId: string }) {
+    this.appId = appId;
 
-  getSyncStoreConfig(): { database: SqliteDatabase } {
-    const syncDbPath = path.join(this.directory, `${SYNC_DB_NAME}.db`);
-    this.syncDatabase = createSqliteDatabase(syncDbPath);
-    return { database: this.syncDatabase };
-  }
+    console.log("entering database setup");
 
-  async setup({
-    schema,
-  }: {
-    schema: Schema;
-  }) {
+    const migrator = new Migrator({
+      db: this.db,
+      provider: migrationProvider,
+      migrationTableName: "migration",
+      migrationLockTableName: "migration_lock",
+    });
+    const result = await migrator.migrateToLatest();
+    if (result.error) throw result.error;
+
+    const namespaceInfo = {
+      userNamespace: this.userNamespace,
+      internalNamespace: "ponder",
+      internalTableIds: Object.keys(schema.tables).reduce((acc, tableName) => {
+        acc[tableName] = hash([this.userNamespace, this.appId, tableName]);
+        return acc;
+      }, {} as { [tableName: string]: string }),
+    } satisfies NamespaceInfo;
+
     return this.wrap({ method: "setup" }, async () => {
-      const migrator = new Migrator({
-        db: this.db,
-        provider: migrationProvider,
+      const checkpoint = await this.db.transaction().execute(async (tx) => {
+        const priorLockRow = await tx
+          .selectFrom("namespace_lock")
+          .selectAll()
+          .where("namespace", "=", this.userNamespace)
+          .executeTakeFirst();
+
+        const newLockRow = {
+          namespace: this.userNamespace,
+          is_locked: 1,
+          heartbeat_at: encodeAsText(BigInt(Date.now())),
+          app_id: this.appId,
+          checkpoint: encodeCheckpoint(zeroCheckpoint),
+          finality_checkpoint: encodeCheckpoint(zeroCheckpoint),
+          schema: JSON.stringify(schema),
+        } satisfies Insertable<InternalTables["namespace_lock"]>;
+
+        // If no lock row is found for this namespace, we can acquire the lock.
+        if (priorLockRow === undefined) {
+          await tx.insertInto("namespace_lock").values(newLockRow).execute();
+        }
+        // If there is a row, but the lock is not held or has expired,
+        // we can acquire the lock and drop the prior app's tables.
+        else if (
+          priorLockRow.is_locked === 0 ||
+          BigInt(Date.now()) >
+            decodeToBigInt(priorLockRow.heartbeat_at) +
+              BigInt(HEARTBEAT_TIMEOUT_MS)
+        ) {
+          // // If the prior row has the same app ID, continue where the prior app left off
+          // // by reverting tables to the finality checkpoint, then returning.
+          // if (priorLockRow.app_id === this.appId) {
+          //   const finalityCheckpoint = decodeCheckpoint(
+          //     priorLockRow.finality_checkpoint,
+          //   );
+
+          //   const duration =
+          //     Math.floor(Date.now() / 1000) - finalityCheckpoint.blockTimestamp;
+          //   const progressText =
+          //     finalityCheckpoint.blockTimestamp > 0
+          //       ? `last used ${formatShortDate(duration)} ago`
+          //       : "with no progress";
+          //   this.common.logger.debug({
+          //     service: "database",
+          //     msg: `Cache hit for app ID '${this.appId}' on namespace '${this.userNamespace}' ${progressText}`,
+          //   });
+
+          //   // Acquire the lock and update the heartbeat (app_id, schema, ).
+          //   await tx
+          //     .updateTable("namespace_lock")
+          //     .set({
+          //       is_locked: 1,
+          //       heartbeat_at: encodeAsText(BigInt(Date.now())),
+          //     })
+          //     .execute();
+
+          //   // Revert the tables to the finality checkpoint. Note that this also updates
+          //   // the namespace_lock table to reflect the new finality checkpoint.
+          //   // TODO MOVE THIS BACK await this.revert({ checkpoint: finalityCheckpoint });
+
+          //   return finalityCheckpoint;
+          // }
+
+          // If the prior row has a different app ID, drop the prior app's tables.
+          const priorAppId = priorLockRow.app_id;
+          const priorSchema = JSON.parse(priorLockRow.schema);
+
+          for (const tableName of Object.keys(priorSchema.tables)) {
+            const tableId = hash([this.userNamespace, priorAppId, tableName]);
+
+            await tx.schema.dropTable(tableId).ifExists().execute();
+
+            await tx.schema
+              .withSchema(this.userNamespace)
+              .dropTable(tableName)
+              .ifExists()
+              .execute();
+          }
+
+          // Update the lock row to reflect the new app ID and checkpoint progress.
+          await tx.updateTable("namespace_lock").set(newLockRow).execute();
+        }
+        // Otherwise, the prior app still holds the lock.
+        else {
+          throw new NonRetryableError(
+            `Failed to acquire namespace '${this.userNamespace}' because it is locked by a different app`,
+          );
+        }
+
+        // Create the operation log tables and user tables.
+        for (const [tableName, columns] of Object.entries(schema.tables)) {
+          const tableId = namespaceInfo.internalTableIds[tableName];
+
+          await tx.schema
+            .createTable(tableId)
+            .$call((builder) => this.buildOperationLogColumns(builder, columns))
+            .addPrimaryKeyConstraint(`${tableId}_pk`, [
+              "id",
+              "checkpoint",
+            ] as any)
+            .execute();
+
+          await tx.schema
+            .withSchema(this.userNamespace)
+            .createTable(tableName)
+            .$call((builder) => this.buildColumns(builder, schema, columns))
+            .execute();
+        }
+
+        return zeroCheckpoint;
       });
-      const result = await migrator.migrateToLatest();
-      if (result.error) throw result.error;
 
-      await this.db.schema
-        .createTable("logs")
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey())
-        .addColumn("tableName", "text", (col) => col.notNull())
-        .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
-        .addColumn("operation", "integer", (col) => col.notNull())
-        .addColumn("row", "text", (col) => col.notNull())
-        .execute();
+      // Start the heartbeat interval to hold the lock for as long as the process is running.
+      this.heartbeatInterval = setInterval(async () => {
+        const lockRow = await this.db
+          .updateTable("namespace_lock")
+          .set({ heartbeat_at: encodeAsText(BigInt(Date.now())) })
+          .returningAll()
+          .executeTakeFirst();
 
-      for (const [tableName, columns] of Object.entries(schema.tables)) {
-        await this.db.schema
-          .createTable(`${tableName}`)
-          .$call((builder) => this.buildColumns(builder, schema, columns))
-          // TODO(kyle) ifNotExists?
-          .execute();
-      }
+        this.common.logger.debug({
+          service: "database",
+          msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (app_id=${this.appId})`,
+        });
+      }, HEARTBEAT_INTERVAL_MS);
+
+      console.log("returning from database setup");
+
+      return { checkpoint, namespaceInfo };
     });
   }
 
   async kill() {
     await this.wrap({ method: "kill" }, async () => {
+      clearInterval(this.heartbeatInterval);
+
+      await this.db
+        .updateTable("namespace_lock")
+        .set({ is_locked: 0 })
+        .where("namespace", "=", this.userNamespace)
+        .returningAll()
+        .executeTakeFirst();
+
+      this.common.logger.debug({
+        service: "database",
+        msg: `Released lock on namespace '${this.userNamespace}'`,
+      });
+
+      await this.indexingDb.destroy();
+      await this.syncDb.destroy();
       await this.db.destroy();
-      this.syncDatabase?.close();
     });
   }
 
-  private buildColumns(
-    builder: CreateTableBuilder<string>,
+  private buildColumns<T extends string, C extends string = never>(
+    builder: CreateTableBuilder<T, C>,
     schema: Schema,
     columns: Schema["tables"][string],
   ) {
@@ -147,6 +319,33 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         );
       }
     });
+
+    return builder;
+  }
+
+  private buildOperationLogColumns<T extends string, C extends string = never>(
+    builder: CreateTableBuilder<T, C>,
+    columns: Schema["tables"][string],
+  ) {
+    Object.entries(columns).forEach(([columnName, column]) => {
+      if (isOneColumn(column)) return;
+      if (isManyColumn(column)) return;
+      if (isEnumColumn(column)) {
+        // Handle enum types
+        // Omit the CHECK constraint because its included in the user table
+        builder = builder.addColumn(columnName, "text");
+      } else if (column.list) {
+        // Handle scalar list columns
+        builder = builder.addColumn(columnName, "text");
+      } else {
+        // Non-list base columns
+        builder = builder.addColumn(columnName, scalarToSqlType[column.type]);
+      }
+    });
+
+    builder = builder
+      .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
+      .addColumn("operation", "integer", (col) => col.notNull());
 
     return builder;
   }

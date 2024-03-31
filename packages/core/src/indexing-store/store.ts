@@ -1,7 +1,7 @@
+import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Schema } from "@/schema/types.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import type { Kysely } from "kysely";
 import type { Hex } from "viem";
 
 export type Table = {
@@ -82,10 +82,8 @@ export type OrderByInput<table, columns extends keyof table = keyof table> = {
 
 export interface IndexingStore {
   kind: "sqlite" | "postgres";
-  db: Kysely<any>;
+  db: HeadlessKysely<any>;
   schema: Schema;
-
-  kill(): void;
 
   revert({ checkpoint }: { checkpoint: Checkpoint }): Promise<void>;
 

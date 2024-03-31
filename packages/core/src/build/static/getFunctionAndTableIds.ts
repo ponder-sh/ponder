@@ -1,7 +1,8 @@
-import crypto from "crypto";
+import crypto from "node:crypto";
 import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
+import { hash } from "@/utils/hash.js";
 import { dedupe } from "@ponder/common";
 import type { IndexingFunctions } from "../functions/functions.js";
 import {
@@ -225,7 +226,10 @@ export function safeGetFunctionAndTableIds({
       tableAccess,
       indexingFunctions,
     });
-    return { success: true, data: result } as const;
+
+    const appId = hash([result.functionIds, result.tableIds]);
+
+    return { success: true, data: { appId } } as const;
   } catch (error_) {
     const error = error_ as Error;
     error.stack = undefined;
