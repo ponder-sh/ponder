@@ -105,6 +105,7 @@ type DatabaseServiceSetup = Parameters<DatabaseService["setup"]>[0] & {
 };
 const defaultSchema = createSchema(() => ({}));
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
+  appId: "test",
   schema: defaultSchema,
   indexing: "historical",
 };
@@ -126,22 +127,18 @@ export async function setupDatabaseServices(
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup(config);
+    const result = await database.setup(config);
 
-    const indexingStoreConfig = database.getIndexingStoreConfig();
     const indexingStore = new RealtimeIndexingStore({
-      common: context.common,
+      kind: "sqlite",
       schema: config.schema,
-      database: {
-        kind: "sqlite",
-        database: indexingStoreConfig.database,
-      },
+      namespaceInfo: result.namespaceInfo,
+      db: database.indexingDb,
     });
 
-    const syncStoreConfig = database.getSyncStoreConfig();
     const syncStore = new SqliteSyncStore({
       common: context.common,
-      ...syncStoreConfig,
+      db: database.syncDb,
     });
 
     await syncStore.migrateUp();
@@ -155,22 +152,18 @@ export async function setupDatabaseServices(
       poolConfig: context.databaseConfig.poolConfig,
     });
 
-    await database.setup(config);
+    const result = await database.setup(config);
 
-    const indexingStoreConfig = database.getIndexingStoreConfig();
     const indexingStore = new RealtimeIndexingStore({
-      common: context.common,
+      kind: "postgres",
       schema: config.schema,
-      database: {
-        kind: "postgres",
-        pool: indexingStoreConfig.pool,
-      },
+      namespaceInfo: result.namespaceInfo,
+      db: database.indexingDb,
     });
 
-    const syncStoreConfig = await database.getSyncStoreConfig();
     const syncStore = new PostgresSyncStore({
       common: context.common,
-      ...syncStoreConfig,
+      db: database.syncDb,
     });
 
     await syncStore.migrateUp();

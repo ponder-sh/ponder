@@ -4,7 +4,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { getEventsErc20, getFunctionIds, getTableIds } from "@/_test/utils.js";
+import { getEventsErc20 } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions/functions.js";
 import type { TableAccess } from "@/build/static/getTableAccess.js";
 import { createSchema } from "@/schema/schema.js";
@@ -85,10 +85,10 @@ function createCheckpoint(index: number): Checkpoint {
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -96,7 +96,6 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -106,8 +105,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   expect(getEventsSpy).not.toHaveBeenCalled();
@@ -143,10 +141,10 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -154,7 +152,6 @@ test("processEvents() calls indexing functions with correct arguments", async (c
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -164,8 +161,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -222,17 +218,16 @@ test("processEvent() runs setup functions before log event", async (context) => 
   };
 
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const getEventsSpy = vi.spyOn(syncService, "getEvents");
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -243,8 +238,7 @@ test("processEvent() runs setup functions before log event", async (context) => 
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   service.queue!.concurrency = 1;
@@ -269,10 +263,10 @@ test("processEvent() runs setup functions before log event", async (context) => 
 
 test("processEvents() orders tasks with no parents or self reliance", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -280,7 +274,6 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -291,8 +284,7 @@ test("processEvents() orders tasks with no parents or self reliance", async (con
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -327,10 +319,10 @@ test("processEvents() orders tasks with self reliance", async (context) => {
     },
   };
 
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -338,7 +330,6 @@ test("processEvents() orders tasks with self reliance", async (context) => {
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -349,8 +340,7 @@ test("processEvents() orders tasks with self reliance", async (context) => {
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -379,10 +369,10 @@ test("processEvents() orders tasks with self reliance", async (context) => {
 
 test("processEvents() model methods insert data into the indexing store", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -390,7 +380,6 @@ test("processEvents() model methods insert data into the indexing store", async 
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -401,8 +390,7 @@ test("processEvents() model methods insert data into the indexing store", async 
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -424,10 +412,10 @@ test("processEvents() model methods insert data into the indexing store", async 
 
 test("processEvents() updates metrics", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -435,7 +423,6 @@ test("processEvents() updates metrics", async (context) => {
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -446,8 +433,7 @@ test("processEvents() updates metrics", async (context) => {
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -479,10 +465,10 @@ test("processEvents() updates metrics", async (context) => {
 
 test("processEvents() reads data from a contract", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -490,7 +476,6 @@ test("processEvents() reads data from a contract", async (context) => {
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -501,8 +486,7 @@ test("processEvents() reads data from a contract", async (context) => {
     schema,
     indexingFunctions: readContractIndexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(readContractIndexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -524,10 +508,10 @@ test("processEvents() reads data from a contract", async (context) => {
 
 test("processEvents() recovers from errors while reading data from a contract", async (context) => {
   const { common, sources, networks, requestQueues } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -535,7 +519,6 @@ test("processEvents() recovers from errors while reading data from a contract", 
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -549,8 +532,7 @@ test("processEvents() recovers from errors while reading data from a contract", 
     schema,
     indexingFunctions: readContractIndexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(readContractIndexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -572,10 +554,10 @@ test("processEvents() recovers from errors while reading data from a contract", 
 
 test("processEvents() retries indexing functions", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -583,7 +565,6 @@ test("processEvents() retries indexing functions", async (context) => {
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -596,8 +577,7 @@ test("processEvents() retries indexing functions", async (context) => {
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   transferIndexingFunction.mockImplementationOnce(() => {
@@ -634,10 +614,10 @@ test("processEvents() handles errors", async (context) => {
     },
   };
 
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -645,7 +625,6 @@ test("processEvents() handles errors", async (context) => {
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -658,8 +637,7 @@ test("processEvents() handles errors", async (context) => {
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   transferIndexingFunction.mockImplementation(() => {
@@ -692,10 +670,10 @@ test("processEvents can be called multiple times", async (context) => {
     },
   };
 
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -703,7 +681,6 @@ test("processEvents can be called multiple times", async (context) => {
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -714,8 +691,7 @@ test("processEvents can be called multiple times", async (context) => {
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -737,10 +713,10 @@ test("processEvents can be called multiple times", async (context) => {
 
 test("handleReorg() updates ponder_indexing_completed_timestamp metric", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -748,7 +724,6 @@ test("handleReorg() updates ponder_indexing_completed_timestamp metric", async (
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -759,8 +734,7 @@ test("handleReorg() updates ponder_indexing_completed_timestamp metric", async (
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -786,10 +760,10 @@ test("handleReorg() updates ponder_indexing_completed_timestamp metric", async (
 
 test("handleReorg() reverts the indexing store", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -797,7 +771,6 @@ test("handleReorg() reverts the indexing store", async (context) => {
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -810,8 +783,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
@@ -836,10 +808,10 @@ test("handleReorg() reverts the indexing store", async (context) => {
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -847,7 +819,6 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -860,8 +831,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   transferIndexingFunction.mockImplementation(() => {
@@ -890,10 +860,10 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
   const { common, sources, networks } = context;
-  const { database, syncStore, indexingStore, cleanup } =
-    await setupDatabaseServices(context, {
-      schema,
-    });
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
@@ -901,7 +871,6 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 
   const service = new IndexingService({
     common,
-    database,
     syncService,
     indexingStore,
     sources,
@@ -912,8 +881,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     schema,
     indexingFunctions,
     tableAccess,
-    functionIds: getFunctionIds(indexingFunctions),
-    tableIds: getTableIds(schema),
+    cachedToCheckpoint: zeroCheckpoint,
   });
 
   const checkpoint10 = createCheckpoint(10);
