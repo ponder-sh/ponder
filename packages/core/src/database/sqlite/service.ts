@@ -10,7 +10,6 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatShortDate } from "@/utils/date.js";
-import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import { hash } from "@/utils/hash.js";
 import { createSqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
@@ -111,8 +110,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   async setup({ schema, appId }: { schema: Schema; appId: string }) {
     this.appId = appId;
 
-    console.log("entering database setup");
-
     const migrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
@@ -143,7 +140,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         const newLockRow = {
           namespace: this.userNamespace,
           is_locked: 1,
-          heartbeat_at: encodeAsText(BigInt(Date.now())),
+          heartbeat_at: Date.now(),
           app_id: this.appId,
           checkpoint: encodeCheckpoint(zeroCheckpoint),
           finality_checkpoint: encodeCheckpoint(zeroCheckpoint),
@@ -162,9 +159,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         // we can acquire the lock and drop the prior app's tables.
         else if (
           priorLockRow.is_locked === 0 ||
-          BigInt(Date.now()) >
-            decodeToBigInt(priorLockRow.heartbeat_at) +
-              BigInt(HEARTBEAT_TIMEOUT_MS)
+          Date.now() > priorLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
         ) {
           // // If the prior row has the same app ID, continue where the prior app left off
           // // by reverting tables to the finality checkpoint, then returning.
@@ -263,7 +258,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         const lockRow = await this.db
           .withSchema(this.internalNamespace)
           .updateTable("namespace_lock")
-          .set({ heartbeat_at: encodeAsText(BigInt(Date.now())) })
+          .set({ heartbeat_at: Date.now() })
           .returningAll()
           .executeTakeFirst();
 
@@ -272,8 +267,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (app_id=${this.appId})`,
         });
       }, HEARTBEAT_INTERVAL_MS);
-
-      console.log("returning from database setup");
 
       return { checkpoint, namespaceInfo };
     });

@@ -9,7 +9,6 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatShortDate } from "@/utils/date.js";
-import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import { hash } from "@/utils/hash.js";
 import { createPool } from "@/utils/pg.js";
 import { startClock } from "@/utils/timer.js";
@@ -124,6 +123,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       migrationLockTableName: "migration_lock",
     });
     const result = await migrator.migrateToLatest();
+
     if (result.error) throw result.error;
 
     const namespaceInfo = {
@@ -147,7 +147,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         const newLockRow = {
           namespace: this.userNamespace,
           is_locked: 1,
-          heartbeat_at: encodeAsText(BigInt(Date.now())),
+          heartbeat_at: Date.now(),
           app_id: this.appId,
           checkpoint: encodeCheckpoint(zeroCheckpoint),
           finality_checkpoint: encodeCheckpoint(zeroCheckpoint),
@@ -166,9 +166,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         // we can acquire the lock and drop the prior app's tables.
         else if (
           priorLockRow.is_locked === 0 ||
-          BigInt(Date.now()) >
-            decodeToBigInt(priorLockRow.heartbeat_at) +
-              BigInt(HEARTBEAT_TIMEOUT_MS)
+          Date.now() > priorLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
         ) {
           // // If the prior row has the same app ID, continue where the prior app left off
           // // by reverting tables to the finality checkpoint, then returning.
@@ -276,17 +274,21 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
       // Start the heartbeat interval to hold the lock for as long as the process is running.
       this.heartbeatInterval = setInterval(async () => {
-        const lockRow = await this.db
-          .withSchema(this.internalNamespace)
-          .updateTable("namespace_lock")
-          .set({ heartbeat_at: encodeAsText(BigInt(Date.now())) })
-          .returningAll()
-          .executeTakeFirst();
+        try {
+          const lockRow = await this.db
+            .withSchema(this.internalNamespace)
+            .updateTable("namespace_lock")
+            .set({ heartbeat_at: Date.now() })
+            .returningAll()
+            .executeTakeFirst();
 
-        this.common.logger.debug({
-          service: "database",
-          msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (app_id=${this.appId})`,
-        });
+          this.common.logger.debug({
+            service: "database",
+            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (app_id=${this.appId})`,
+          });
+        } catch (e) {
+          console.log(e);
+        }
       }, HEARTBEAT_INTERVAL_MS);
 
       return { checkpoint, namespaceInfo };

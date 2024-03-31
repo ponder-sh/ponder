@@ -71,10 +71,7 @@ export function setupContext(context: TestContext) {
  */
 export async function setupIsolatedDatabase(context: TestContext) {
   if (process.env.DATABASE_URL) {
-    console.log(process.env.VITEST_POOL_ID);
-
     const databaseName = `vitest_${process.env.VITEST_POOL_ID ?? 1}`;
-    console.log(databaseName);
     const databaseUrl = new URL(process.env.DATABASE_URL);
     databaseUrl.pathname = `/${databaseName}`;
 

@@ -1,4 +1,3 @@
-import path from "node:path";
 import { setupIsolatedDatabase } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -124,17 +123,19 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.setup({ schema, appId: "abc" });
     await database.kill();
 
-    const sqliteDatabase = createSqliteDatabase(
-      path.join(context.databaseConfig.directory, "public.db"),
-    );
-    sqliteDatabase.exec("CREATE TABLE not_a_ponder_table (id TEXT)");
-    sqliteDatabase.exec("CREATE TABLE 'AnotherTable' (id TEXT)");
-    sqliteDatabase.close();
-
     const databaseTwo = new SqliteDatabaseService({
       common: context.common,
       directory: context.databaseConfig.directory,
     });
+
+    await databaseTwo.db.executeQuery(
+      sql`CREATE TABLE public.not_a_ponder_table (id TEXT)`.compile(
+        databaseTwo.db,
+      ),
+    );
+    await databaseTwo.db.executeQuery(
+      sql`CREATE TABLE public."AnotherTable" (id TEXT)`.compile(databaseTwo.db),
+    );
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
       "Pet",
@@ -221,6 +222,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     );
 
     await database.kill();
+    await databaseTwo.kill();
   });
 
   test("setup succeeds if the previous lock has timed out", async (context) => {
@@ -329,6 +331,8 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
 
     expect(row?.is_locked).toBe(1);
     expect(rowAfterKill?.is_locked).toBe(0);
+
+    await databaseTwo.kill();
   });
 
   test("setup succeeds with a live app in a different namespace", async (context) => {

@@ -31,7 +31,7 @@ export type InternalTables = {
   namespace_lock: {
     namespace: string;
     is_locked: number;
-    heartbeat_at: string;
+    heartbeat_at: number;
     app_id: string;
     checkpoint: string;
     finality_checkpoint: string;
