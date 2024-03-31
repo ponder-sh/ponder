@@ -3,12 +3,7 @@ import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
-import {
-  decodeCheckpoint,
-  encodeCheckpoint,
-  zeroCheckpoint,
-} from "@/utils/checkpoint.js";
-import { formatShortDate } from "@/utils/date.js";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
 import { createPool } from "@/utils/pg.js";
 import { startClock } from "@/utils/timer.js";
@@ -378,7 +373,14 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         builder = builder.addColumn(columnName, "text");
       } else {
         // Non-list base columns
-        builder = builder.addColumn(columnName, scalarToSqlType[column.type]);
+        builder = builder.addColumn(
+          columnName,
+          scalarToSqlType[column.type],
+          (col) => {
+            if (columnName === "id") col = col.notNull();
+            return col;
+          },
+        );
       }
     });
 

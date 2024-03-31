@@ -2,7 +2,6 @@ import { setupIsolatedDatabase } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
-import { wait } from "@/utils/wait.js";
 import { Kysely, sql } from "kysely";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { PostgresDatabaseService } from "./service.js";
