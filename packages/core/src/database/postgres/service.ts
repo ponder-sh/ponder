@@ -2,52 +2,74 @@ import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
+import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
+import {
+  decodeCheckpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
+import { formatShortDate } from "@/utils/date.js";
+import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
+import { hash } from "@/utils/hash.js";
 import { createPool } from "@/utils/pg.js";
 import { startClock } from "@/utils/timer.js";
-import { CreateTableBuilder, Kysely, PostgresDialect, sql } from "kysely";
+import {
+  type CreateTableBuilder,
+  type Insertable,
+  Kysely,
+  Migrator,
+  PostgresDialect,
+  WithSchemaPlugin,
+  sql,
+} from "kysely";
 import type { Pool, PoolConfig } from "pg";
 import prometheus from "prom-client";
-import type { BaseDatabaseService, PonderIndexingSchema } from "../service.js";
+import { HeadlessKysely } from "../kysely.js";
+import type { BaseDatabaseService, NamespaceInfo } from "../service.js";
+import { type InternalTables, migrationProvider } from "./migrations.js";
 
-const ADMIN_POOL_SIZE = 3;
-
-const PUBLIC_SCHEMA_NAME = "ponder";
-const SYNC_SCHEMA_NAME = "ponder_sync";
+const HEARTBEAT_INTERVAL_MS = 1000 * 10; // 10 seconds
+const HEARTBEAT_TIMEOUT_MS = 1000 * 60; // 60 seconds
 
 export class PostgresDatabaseService implements BaseDatabaseService {
   kind = "postgres" as const;
 
   private common: Common;
   private poolConfig: PoolConfig;
+  private userNamespace: string;
+  private internalNamespace: string;
 
-  /**
-   * Small pool used by this service for creating tables.
-   */
+  db: Kysely<InternalTables>;
+  indexingDb: HeadlessKysely<InternalTables>;
+  syncDb: HeadlessKysely<SyncStoreTables>;
+
+  private appId: string = null!;
+  private heartbeatInterval?: NodeJS.Timeout;
+
+  // Only need these for metrics.
   private adminPool: Pool;
-  db: Kysely<PonderIndexingSchema>;
-
   private indexingPool: Pool;
   private syncPool: Pool;
 
   constructor({
     common,
     poolConfig,
+    userNamespace = "public",
   }: {
     common: Common;
     poolConfig: PoolConfig;
+    userNamespace?: string;
   }) {
     this.common = common;
     this.poolConfig = poolConfig;
+    this.userNamespace = userNamespace;
+    this.internalNamespace = "ponder";
 
-    this.adminPool = createPool({
-      ...poolConfig,
-      min: ADMIN_POOL_SIZE,
-      max: ADMIN_POOL_SIZE,
-    });
+    this.adminPool = createPool({ ...poolConfig, min: 2, max: 2 });
     this.indexingPool = createPool(this.poolConfig);
     this.syncPool = createPool(this.poolConfig);
 
-    this.db = new Kysely({
+    this.db = new Kysely<InternalTables>({
       dialect: new PostgresDialect({ pool: this.adminPool }),
       log(event) {
         if (event.level === "query") {
@@ -56,66 +78,246 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       },
     });
 
+    this.indexingDb = new HeadlessKysely<InternalTables>({
+      name: "indexing",
+      common,
+      dialect: new PostgresDialect({ pool: this.indexingPool }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_postgres_query_total.inc({ pool: "indexing" });
+        }
+      },
+    });
+
+    this.syncDb = new HeadlessKysely<SyncStoreTables>({
+      name: "sync",
+      common,
+      dialect: new PostgresDialect({ pool: this.syncPool }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_postgres_query_total.inc({ pool: "sync" });
+        }
+      },
+      plugins: [new WithSchemaPlugin("ponder_sync")],
+    });
+
     this.registerMetrics();
   }
 
-  getIndexingStoreConfig() {
-    return { pool: this.indexingPool };
-  }
+  async setup({ schema, appId }: { schema: Schema; appId: string }) {
+    this.appId = appId;
 
-  async getSyncStoreConfig() {
-    await this.db.schema.createSchema(SYNC_SCHEMA_NAME).ifNotExists().execute();
-    return { pool: this.syncPool, schemaName: SYNC_SCHEMA_NAME };
-  }
+    await this.db.schema
+      .createSchema(this.userNamespace)
+      .ifNotExists()
+      .execute();
+    await this.db.schema
+      .createSchema(this.internalNamespace)
+      .ifNotExists()
+      .execute();
 
-  async setup({
-    schema,
-  }: {
-    schema: Schema;
-  }) {
-    await this.wrap({ method: "setup" }, async () => {
-      await this.db.schema
-        .dropSchema(PUBLIC_SCHEMA_NAME)
-        .ifExists()
-        .cascade()
-        .execute();
-      await this.db.schema
-        .createSchema(PUBLIC_SCHEMA_NAME)
-        .ifNotExists()
-        .execute();
+    const migrator = new Migrator({
+      db: this.db.withPlugin(new WithSchemaPlugin(this.internalNamespace)),
+      provider: migrationProvider,
+      migrationTableSchema: this.internalNamespace,
+      migrationTableName: "migration",
+      migrationLockTableName: "migration_lock",
+    });
+    const result = await migrator.migrateToLatest();
+    if (result.error) throw result.error;
 
-      await this.db.schema
-        .withSchema("ponder")
-        .createTable("logs")
-        .addColumn("id", "serial", (col) => col.notNull().primaryKey())
-        .addColumn("tableName", "text", (col) => col.notNull())
-        .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
-        .addColumn("operation", "integer", (col) => col.notNull())
-        .addColumn("row", "text", (col) => col.notNull())
-        .execute();
+    const namespaceInfo = {
+      userNamespace: this.userNamespace,
+      internalNamespace: this.internalNamespace,
+      internalTableIds: Object.keys(schema.tables).reduce((acc, tableName) => {
+        acc[tableName] = hash([this.userNamespace, this.appId, tableName]);
+        return acc;
+      }, {} as { [tableName: string]: string }),
+    } satisfies NamespaceInfo;
 
-      const tables = Object.entries(schema.tables);
-      await Promise.all(
-        tables.map(async ([tableName, columns]) => {
-          await this.db.schema
-            .withSchema("ponder")
-            .createTable(tableName)
-            .$call((builder) => this.buildColumns(builder, schema, columns))
+    return this.wrap({ method: "setup" }, async () => {
+      const checkpoint = await this.db.transaction().execute(async (tx) => {
+        const priorLockRow = await tx
+          .withSchema(this.internalNamespace)
+          .selectFrom("namespace_lock")
+          .selectAll()
+          .where("namespace", "=", this.userNamespace)
+          .executeTakeFirst();
+
+        const newLockRow = {
+          namespace: this.userNamespace,
+          is_locked: 1,
+          heartbeat_at: encodeAsText(BigInt(Date.now())),
+          app_id: this.appId,
+          checkpoint: encodeCheckpoint(zeroCheckpoint),
+          finality_checkpoint: encodeCheckpoint(zeroCheckpoint),
+          schema: JSON.stringify(schema),
+        } satisfies Insertable<InternalTables["namespace_lock"]>;
+
+        // If no lock row is found for this namespace, we can acquire the lock.
+        if (priorLockRow === undefined) {
+          await tx
+            .withSchema(this.internalNamespace)
+            .insertInto("namespace_lock")
+            .values(newLockRow)
             .execute();
-        }),
-      );
+        }
+        // If there is a row, but the lock is not held or has expired,
+        // we can acquire the lock and drop the prior app's tables.
+        else if (
+          priorLockRow.is_locked === 0 ||
+          BigInt(Date.now()) >
+            decodeToBigInt(priorLockRow.heartbeat_at) +
+              BigInt(HEARTBEAT_TIMEOUT_MS)
+        ) {
+          // // If the prior row has the same app ID, continue where the prior app left off
+          // // by reverting tables to the finality checkpoint, then returning.
+          // if (priorLockRow.app_id === this.appId) {
+          //   const finalityCheckpoint = decodeCheckpoint(
+          //     priorLockRow.finality_checkpoint,
+          //   );
+
+          //   const duration =
+          //     Math.floor(Date.now() / 1000) - finalityCheckpoint.blockTimestamp;
+          //   const progressText =
+          //     finalityCheckpoint.blockTimestamp > 0
+          //       ? `last used ${formatShortDate(duration)} ago`
+          //       : "with no progress";
+          //   this.common.logger.debug({
+          //     service: "database",
+          //     msg: `Cache hit for app ID '${this.appId}' on namespace '${this.userNamespace}' ${progressText}`,
+          //   });
+
+          //   // Acquire the lock and update the heartbeat (app_id, schema, ).
+          //   await tx
+          //     .withSchema(this.internalNamespace)
+          //     .updateTable("namespace_lock")
+          //     .set({
+          //       is_locked: 1,
+          //       heartbeat_at: encodeAsText(BigInt(Date.now())),
+          //     })
+          //     .execute();
+
+          //   // Revert the tables to the finality checkpoint. Note that this also updates
+          //   // the namespace_lock table to reflect the new finality checkpoint.
+          //   // TODO MOVE THIS BACK await this.revert({ checkpoint: finalityCheckpoint });
+
+          //   return finalityCheckpoint;
+          // }
+
+          // If the prior row has a different app ID, drop the prior app's tables.
+          const priorAppId = priorLockRow.app_id;
+          const priorSchema = priorLockRow.schema as unknown as Schema;
+
+          for (const tableName of Object.keys(priorSchema.tables)) {
+            const tableId = hash([this.userNamespace, priorAppId, tableName]);
+
+            await tx.schema
+              .withSchema(this.internalNamespace)
+              .dropTable(tableId)
+              .ifExists()
+              .execute();
+
+            await tx.schema
+              .withSchema(this.userNamespace)
+              .dropTable(tableName)
+              .ifExists()
+              .execute();
+          }
+
+          // Update the lock row to reflect the new app ID and checkpoint progress.
+          await tx
+            .withSchema(this.internalNamespace)
+            .updateTable("namespace_lock")
+            .set(newLockRow)
+            .execute();
+        }
+        // Otherwise, the prior app still holds the lock.
+        else {
+          throw new NonRetryableError(
+            `Failed to acquire namespace '${this.userNamespace}' because it is locked by a different app`,
+          );
+        }
+
+        // Create the operation log tables and user tables.
+        for (const [tableName, columns] of Object.entries(schema.tables)) {
+          const tableId = namespaceInfo.internalTableIds[tableName];
+
+          await tx.schema
+            .withSchema(this.internalNamespace)
+            .createTable(tableId)
+            .$call((builder) => this.buildOperationLogColumns(builder, columns))
+            .addPrimaryKeyConstraint(`${tableId}_pk`, [
+              "id",
+              "checkpoint",
+            ] as any)
+            .execute();
+
+          try {
+            await tx.schema
+              .withSchema(this.userNamespace)
+              .createTable(tableName)
+              .$call((builder) => this.buildColumns(builder, schema, columns))
+              .execute();
+          } catch (err) {
+            const error = err as Error;
+            if (error.message.includes("already exists")) {
+              throw new NonRetryableError(
+                `Table '${this.userNamespace}'.'${tableName}' already exists. Please drop it and try again.`,
+              );
+            } else {
+              throw error;
+            }
+          }
+        }
+
+        return zeroCheckpoint;
+      });
+
+      // Start the heartbeat interval to hold the lock for as long as the process is running.
+      this.heartbeatInterval = setInterval(async () => {
+        const lockRow = await this.db
+          .withSchema(this.internalNamespace)
+          .updateTable("namespace_lock")
+          .set({ heartbeat_at: encodeAsText(BigInt(Date.now())) })
+          .returningAll()
+          .executeTakeFirst();
+
+        this.common.logger.debug({
+          service: "database",
+          msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (app_id=${this.appId})`,
+        });
+      }, HEARTBEAT_INTERVAL_MS);
+
+      return { checkpoint, namespaceInfo };
     });
   }
 
   async kill() {
     await this.wrap({ method: "kill" }, async () => {
-      await this.indexingPool.end();
-      await this.syncPool.end();
+      clearInterval(this.heartbeatInterval);
+
+      await this.db
+        .withSchema(this.internalNamespace)
+        .updateTable("namespace_lock")
+        .set({ is_locked: 0 })
+        .where("namespace", "=", this.userNamespace)
+        .returningAll()
+        .executeTakeFirst();
+
+      this.common.logger.debug({
+        service: "database",
+        msg: `Released lock on namespace '${this.userNamespace}'`,
+      });
+
+      await this.indexingDb.destroy();
+      await this.syncDb.destroy();
+      await this.db.destroy();
     });
   }
 
-  private buildColumns(
-    builder: CreateTableBuilder<string>,
+  private buildColumns<T extends string, C extends string = never>(
+    builder: CreateTableBuilder<T, C>,
     schema: Schema,
     columns: Schema["tables"][string],
   ) {
@@ -158,6 +360,33 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     return builder;
   }
 
+  private buildOperationLogColumns<T extends string, C extends string = never>(
+    builder: CreateTableBuilder<T, C>,
+    columns: Schema["tables"][string],
+  ) {
+    Object.entries(columns).forEach(([columnName, column]) => {
+      if (isOneColumn(column)) return;
+      if (isManyColumn(column)) return;
+      if (isEnumColumn(column)) {
+        // Handle enum types
+        // Omit the CHECK constraint because its included in the user table
+        builder = builder.addColumn(columnName, "text");
+      } else if (column.list) {
+        // Handle scalar list columns
+        builder = builder.addColumn(columnName, "text");
+      } else {
+        // Non-list base columns
+        builder = builder.addColumn(columnName, scalarToSqlType[column.type]);
+      }
+    });
+
+    builder = builder
+      .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
+      .addColumn("operation", "integer", (col) => col.notNull());
+
+    return builder;
+  }
+
   private wrap = async <T>(
     options: { method: string },
     fn: () => Promise<T>,
@@ -173,7 +402,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       try {
         const result = await fn();
         this.common.metrics.ponder_database_method_duration.observe(
-          { service: "admin", method: options.method },
+          { service: "database", method: options.method },
           endClock(),
         );
         return result;
@@ -201,7 +430,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     }
 
     this.common.metrics.ponder_database_method_error_total.inc({
-      service: "admin",
+      service: "database",
       method: options.method,
     });
 

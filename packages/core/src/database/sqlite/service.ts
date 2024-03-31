@@ -35,6 +35,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
   private common: Common;
   private userNamespace: string;
+  private internalNamespace: string;
 
   db: Kysely<InternalTables>;
   indexingDb: HeadlessKysely<InternalTables>;
@@ -53,9 +54,15 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     userNamespace?: string;
   }) {
     this.common = common;
-    this.userNamespace = userNamespace;
 
+    this.userNamespace = userNamespace;
     const userDatabaseFile = path.join(directory, `${userNamespace}.db`);
+
+    // Note that SQLite supports using "main" as the schema name for tables
+    // in the primary database (as opposed to attached databases). We include
+    // it here to more closely match Postgres, where it's required.
+    // https://www.sqlite.org/lang_attach.html
+    this.internalNamespace = "main";
     const internalDatabaseFile = path.join(directory, "ponder.db");
 
     const internalDatabase = createSqliteDatabase(internalDatabaseFile);
@@ -117,7 +124,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
     const namespaceInfo = {
       userNamespace: this.userNamespace,
-      internalNamespace: "ponder",
+      internalNamespace: this.internalNamespace,
       internalTableIds: Object.keys(schema.tables).reduce((acc, tableName) => {
         acc[tableName] = hash([this.userNamespace, this.appId, tableName]);
         return acc;
@@ -127,6 +134,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     return this.wrap({ method: "setup" }, async () => {
       const checkpoint = await this.db.transaction().execute(async (tx) => {
         const priorLockRow = await tx
+          .withSchema(this.internalNamespace)
           .selectFrom("namespace_lock")
           .selectAll()
           .where("namespace", "=", this.userNamespace)
@@ -144,7 +152,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
         // If no lock row is found for this namespace, we can acquire the lock.
         if (priorLockRow === undefined) {
-          await tx.insertInto("namespace_lock").values(newLockRow).execute();
+          await tx
+            .withSchema(this.internalNamespace)
+            .insertInto("namespace_lock")
+            .values(newLockRow)
+            .execute();
         }
         // If there is a row, but the lock is not held or has expired,
         // we can acquire the lock and drop the prior app's tables.
@@ -174,6 +186,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
           //   // Acquire the lock and update the heartbeat (app_id, schema, ).
           //   await tx
+          //     .withSchema(this.internalNamespace)
           //     .updateTable("namespace_lock")
           //     .set({
           //       is_locked: 1,
@@ -190,12 +203,15 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
           // If the prior row has a different app ID, drop the prior app's tables.
           const priorAppId = priorLockRow.app_id;
-          const priorSchema = JSON.parse(priorLockRow.schema);
+          const priorSchema = JSON.parse(priorLockRow.schema) as Schema;
 
           for (const tableName of Object.keys(priorSchema.tables)) {
             const tableId = hash([this.userNamespace, priorAppId, tableName]);
-
-            await tx.schema.dropTable(tableId).ifExists().execute();
+            await tx.schema
+              .withSchema(this.internalNamespace)
+              .dropTable(tableId)
+              .ifExists()
+              .execute();
 
             await tx.schema
               .withSchema(this.userNamespace)
@@ -205,7 +221,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           }
 
           // Update the lock row to reflect the new app ID and checkpoint progress.
-          await tx.updateTable("namespace_lock").set(newLockRow).execute();
+          await tx
+            .withSchema(this.internalNamespace)
+            .updateTable("namespace_lock")
+            .set(newLockRow)
+            .execute();
         }
         // Otherwise, the prior app still holds the lock.
         else {
@@ -219,6 +239,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           const tableId = namespaceInfo.internalTableIds[tableName];
 
           await tx.schema
+            .withSchema(this.internalNamespace)
             .createTable(tableId)
             .$call((builder) => this.buildOperationLogColumns(builder, columns))
             .addPrimaryKeyConstraint(`${tableId}_pk`, [
@@ -240,6 +261,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       // Start the heartbeat interval to hold the lock for as long as the process is running.
       this.heartbeatInterval = setInterval(async () => {
         const lockRow = await this.db
+          .withSchema(this.internalNamespace)
           .updateTable("namespace_lock")
           .set({ heartbeat_at: encodeAsText(BigInt(Date.now())) })
           .returningAll()
@@ -262,6 +284,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       clearInterval(this.heartbeatInterval);
 
       await this.db
+        .withSchema(this.internalNamespace)
         .updateTable("namespace_lock")
         .set({ is_locked: 0 })
         .where("namespace", "=", this.userNamespace)

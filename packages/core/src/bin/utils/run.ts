@@ -122,16 +122,12 @@ export async function run({
     }
   });
 
-  console.log("about to start indexing service");
-
   await indexingService.start({
     indexingFunctions,
     schema,
     tableAccess,
     cachedToCheckpoint,
   });
-
-  console.log("returned indexing service start");
 
   indexingService.processEvents();
 

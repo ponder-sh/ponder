@@ -356,6 +356,7 @@ export class RealtimeIndexingStore implements IndexingStore {
               .returningAll()
               .executeTakeFirstOrThrow(),
             tx
+              .withSchema(this.namespaceInfo.internalNamespace)
               .insertInto(this.namespaceInfo.internalTableIds[tableName])
               .values({
                 operation: 0,
@@ -409,6 +410,7 @@ export class RealtimeIndexingStore implements IndexingStore {
             ),
             ...chunkedRows.map((chunk) =>
               tx
+                .withSchema(this.namespaceInfo.internalNamespace)
                 .insertInto(this.namespaceInfo.internalTableIds[tableName])
                 .values(
                   chunk.map((row) => ({
@@ -489,6 +491,7 @@ export class RealtimeIndexingStore implements IndexingStore {
             .returningAll()
             .executeTakeFirstOrThrow(),
           tx
+            .withSchema(this.namespaceInfo.internalNamespace)
             .insertInto(this.namespaceInfo.internalTableIds[tableName])
             .values({
               operation: 1,
@@ -568,6 +571,7 @@ export class RealtimeIndexingStore implements IndexingStore {
           }),
           ...latestRows.map((latestRow) =>
             tx
+              .withSchema(this.namespaceInfo.internalNamespace)
               .insertInto(this.namespaceInfo.internalTableIds[tableName])
               .values({
                 operation: 1,
@@ -627,6 +631,7 @@ export class RealtimeIndexingStore implements IndexingStore {
               .returningAll()
               .executeTakeFirstOrThrow(),
             tx
+              .withSchema(this.namespaceInfo.internalNamespace)
               .insertInto(this.namespaceInfo.internalTableIds[tableName])
               .values({
                 operation: 0,
@@ -656,6 +661,7 @@ export class RealtimeIndexingStore implements IndexingStore {
             .returningAll()
             .executeTakeFirstOrThrow(),
           tx
+            .withSchema(this.namespaceInfo.internalNamespace)
             .insertInto(this.namespaceInfo.internalTableIds[tableName])
             .values({
               operation: 1,
@@ -702,6 +708,7 @@ export class RealtimeIndexingStore implements IndexingStore {
             .executeTakeFirst(),
           row !== undefined
             ? tx
+                .withSchema(this.namespaceInfo.internalNamespace)
                 .insertInto(this.namespaceInfo.internalTableIds[tableName])
                 .values({
                   operation: 2,

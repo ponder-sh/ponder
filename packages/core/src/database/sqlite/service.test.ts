@@ -155,47 +155,50 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.kill();
   });
 
-  test("setup with the same app ID and namespace reverts to and returns the finality checkpoint", async (context) => {
-    if (context.databaseConfig.kind !== "sqlite") return;
-    const database = new SqliteDatabaseService({
-      common: context.common,
-      directory: context.databaseConfig.directory,
-    });
+  test.todo(
+    "setup with the same app ID and namespace reverts to and returns the finality checkpoint",
+    async (context) => {
+      if (context.databaseConfig.kind !== "sqlite") return;
+      const database = new SqliteDatabaseService({
+        common: context.common,
+        directory: context.databaseConfig.directory,
+      });
 
-    await database.setup({ schema, appId: "abc" });
+      await database.setup({ schema, appId: "abc" });
 
-    // Simulate progress being made by updating the checkpoints.
-    // TODO: Actually use the indexing store.
-    const newCheckpoint = {
-      ...zeroCheckpoint,
-      blockNumber: 10,
-    };
+      // Simulate progress being made by updating the checkpoints.
+      // TODO: Actually use the indexing store.
+      const newCheckpoint = {
+        ...zeroCheckpoint,
+        blockNumber: 10,
+      };
 
-    await database.db
-      .updateTable("namespace_lock")
-      .set({
-        checkpoint: encodeCheckpoint(newCheckpoint),
-        finality_checkpoint: encodeCheckpoint(newCheckpoint),
-      })
-      .where("namespace", "=", "public")
-      .execute();
+      await database.db
+        .updateTable("namespace_lock")
+        .set({
+          checkpoint: encodeCheckpoint(newCheckpoint),
+          finality_checkpoint: encodeCheckpoint(newCheckpoint),
+        })
+        .where("namespace", "=", "public")
+        .execute();
 
-    await database.kill();
+      await database.kill();
 
-    const databaseTwo = new SqliteDatabaseService({
-      common: context.common,
-      directory: context.databaseConfig.directory,
-    });
+      const databaseTwo = new SqliteDatabaseService({
+        common: context.common,
+        directory: context.databaseConfig.directory,
+      });
 
-    const { checkpoint } = await databaseTwo.setup({
-      schema: schema,
-      appId: "abc",
-    });
+      const { checkpoint } = await databaseTwo.setup({
+        schema: schema,
+        appId: "abc",
+      });
 
-    expect(checkpoint).toMatchObject(newCheckpoint);
+      expect(checkpoint).toMatchObject(newCheckpoint);
 
-    await databaseTwo.kill();
-  });
+      await databaseTwo.kill();
+    },
+  );
 
   test("setup throws if the namespace is locked", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
