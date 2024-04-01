@@ -11,8 +11,8 @@ const migrations: Record<string, Migration> = {
         .addColumn("is_locked", "integer", (col) => col.notNull())
         .addColumn("heartbeat_at", "bigint", (col) => col.notNull())
         .addColumn("app_id", "text", (col) => col.notNull())
-        .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
-        .addColumn("finality_checkpoint", "varchar(58)", (col) => col.notNull())
+        .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
+        .addColumn("finality_checkpoint", "varchar(75)", (col) => col.notNull())
         .addColumn("schema", "jsonb", (col) => col.notNull())
         .execute();
     },

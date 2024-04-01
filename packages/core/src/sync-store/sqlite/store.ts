@@ -3,7 +3,12 @@ import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  EVENT_TYPES,
+  decodeCheckpoint,
+  encodeCheckpoint,
+} from "@/utils/checkpoint.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import {
   buildFactoryFragments,
@@ -90,7 +95,11 @@ export class SqliteSyncStore implements SyncStore {
         for (const rpcLog of rpcLogs) {
           await tx
             .insertInto("logs")
-            .values({ ...rpcToSqliteLog(rpcLog), chainId })
+            .values({
+              ...rpcToSqliteLog(rpcLog),
+              chainId,
+              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            })
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
         }
@@ -328,7 +337,11 @@ export class SqliteSyncStore implements SyncStore {
           for (const rpcLog of rpcLogs) {
             await tx
               .insertInto("logs")
-              .values({ ...rpcToSqliteLog(rpcLog), chainId })
+              .values({
+                ...rpcToSqliteLog(rpcLog),
+                chainId,
+                checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+              })
               .onConflict((oc) => oc.column("id").doNothing())
               .execute();
           }
@@ -496,11 +509,39 @@ export class SqliteSyncStore implements SyncStore {
         for (const rpcLog of rpcLogs) {
           await tx
             .insertInto("logs")
-            .values({ ...rpcToSqliteLog(rpcLog), chainId })
+            .values({
+              ...rpcToSqliteLog(rpcLog),
+              chainId,
+              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            })
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
         }
       });
+    });
+  };
+
+  private createCheckpoint = (
+    rpcLog: RpcLog,
+    block: RpcBlock,
+    chainId: number,
+  ) => {
+    if (block.number === null) {
+      throw new Error("Number is missing from RPC block");
+    }
+    if (rpcLog.transactionIndex === null) {
+      throw new Error("Transaction index is missing from RPC log");
+    }
+    if (rpcLog.logIndex === null) {
+      throw new Error("Log index is missing from RPC log");
+    }
+    return encodeCheckpoint({
+      blockTimestamp: Number(BigInt(block.timestamp)),
+      chainId,
+      blockNumber: Number(BigInt(block.number)),
+      transactionIndex: Number(BigInt(rpcLog.transactionIndex)),
+      eventType: EVENT_TYPES.logs,
+      eventIndex: Number(BigInt(rpcLog.logIndex)),
     });
   };
 
@@ -858,6 +899,7 @@ export class SqliteSyncStore implements SyncStore {
             "logs.topic3 as log_topic3",
             "logs.transactionHash as log_transactionHash",
             "logs.transactionIndex as log_transactionIndex",
+            "logs.checkpoint as log_checkpoint",
 
             "blocks.baseFeePerGas as block_baseFeePerGas",
             "blocks.difficulty as block_difficulty",
@@ -898,17 +940,16 @@ export class SqliteSyncStore implements SyncStore {
             "transactions.value as tx_value",
             "transactions.v as tx_v",
           ])
-          .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
-          .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
-          .orderBy("blocks.timestamp", "asc")
-          .orderBy("logs.chainId", "asc")
-          .orderBy("blocks.number", "asc")
-          .orderBy("logs.logIndex", "asc")
+          .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
+          .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
+          .orderBy("logs.checkpoint", "asc")
           .limit(limit + 1)
           .execute(),
+
         this.db
           .selectFrom("logs")
           .leftJoin("blocks", "blocks.hash", "logs.blockHash")
+          .select(["logs.checkpoint"])
           .where((eb) => {
             const logFilterCmprs =
               logFilters?.map((logFilter) => {
@@ -930,18 +971,9 @@ export class SqliteSyncStore implements SyncStore {
 
             return eb.or([...logFilterCmprs, ...factoryCmprs]);
           })
-          .select([
-            "blocks.timestamp as block_timestamp",
-            "logs.chainId as log_chainId",
-            "blocks.number as block_number",
-            "logs.logIndex as log_logIndex",
-          ])
-          .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
-          .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
-          .orderBy("blocks.timestamp", "desc")
-          .orderBy("logs.chainId", "desc")
-          .orderBy("blocks.number", "desc")
-          .orderBy("logs.logIndex", "desc")
+          .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
+          .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
+          .orderBy("logs.checkpoint", "desc")
           .limit(1)
           .execute(),
       ]);
@@ -953,6 +985,7 @@ export class SqliteSyncStore implements SyncStore {
         const row = _row as NonNull<(typeof requestedLogs)[number]>;
         return {
           chainId: row.log_chainId,
+          checkpoint: decodeCheckpoint(row.log_checkpoint),
           log: {
             address: checksumAddress(row.log_address),
             blockHash: row.log_blockHash,
@@ -1041,6 +1074,7 @@ export class SqliteSyncStore implements SyncStore {
                       }),
           },
         } satisfies {
+          checkpoint: Checkpoint;
           chainId: number;
           log: Log;
           block: Block;
@@ -1050,34 +1084,19 @@ export class SqliteSyncStore implements SyncStore {
 
       const lastCheckpointRow = lastCheckpointRows[0];
       const lastCheckpoint =
-        lastCheckpointRow !== undefined
-          ? ({
-              blockTimestamp: Number(
-                decodeToBigInt(lastCheckpointRow.block_timestamp!),
-              ),
-              blockNumber: Number(
-                decodeToBigInt(lastCheckpointRow.block_number!),
-              ),
-              chainId: lastCheckpointRow.log_chainId,
-              logIndex: lastCheckpointRow.log_logIndex,
-            } satisfies Checkpoint)
+        lastCheckpointRow?.checkpoint !== undefined
+          ? decodeCheckpoint(lastCheckpointRow.checkpoint)
           : undefined;
 
       if (events.length === limit + 1) {
         events.pop();
 
         const lastEventInPage = events[events.length - 1];
-        const lastCheckpointInPage = {
-          blockTimestamp: Number(lastEventInPage.block.timestamp),
-          chainId: lastEventInPage.chainId,
-          blockNumber: Number(lastEventInPage.block.number),
-          logIndex: lastEventInPage.log.logIndex,
-        } satisfies Checkpoint;
 
         return {
           events,
           hasNextPage: true,
-          lastCheckpointInPage,
+          lastCheckpointInPage: lastEventInPage.checkpoint,
           lastCheckpoint,
         } as const;
       } else {
@@ -1090,72 +1109,6 @@ export class SqliteSyncStore implements SyncStore {
       }
     });
   }
-
-  /**
-   * Builds an expression that filters for events that are greater or
-   * less than the provided checkpoint. If the log index is not specific,
-   * the expression will use a block-level granularity.
-   */
-  private buildCheckpointCmprs = (
-    eb: ExpressionBuilder<any, any>,
-    op: ">" | ">=" | "<" | "<=",
-    checkpoint: Checkpoint,
-  ) => {
-    const { and, or } = eb;
-
-    const { blockTimestamp, chainId, blockNumber, logIndex } = checkpoint;
-
-    const operand = op.startsWith(">") ? (">" as const) : ("<" as const);
-    const operandOrEquals = `${operand}=` as const;
-    const isInclusive = op.endsWith("=");
-
-    // If the execution index is not defined, the checkpoint is at block granularity.
-    // Include (or exclude) all events in the block.
-    if (logIndex === undefined) {
-      return and([
-        eb("blocks.timestamp", operandOrEquals, encodeAsText(blockTimestamp)),
-        or([
-          eb("blocks.timestamp", operand, encodeAsText(blockTimestamp)),
-          and([
-            eb("logs.chainId", operandOrEquals, chainId),
-            or([
-              eb("logs.chainId", operand, chainId),
-              eb(
-                "blocks.number",
-                isInclusive ? operandOrEquals : operand,
-                encodeAsText(blockNumber),
-              ),
-            ]),
-          ]),
-        ]),
-      ]);
-    }
-
-    // Otherwise, apply the filter down to the log index.
-    return and([
-      eb("blocks.timestamp", operandOrEquals, encodeAsText(blockTimestamp)),
-      or([
-        eb("blocks.timestamp", operand, encodeAsText(blockTimestamp)),
-        and([
-          eb("logs.chainId", operandOrEquals, chainId),
-          or([
-            eb("logs.chainId", operand, chainId),
-            and([
-              eb("blocks.number", operandOrEquals, encodeAsText(blockNumber)),
-              or([
-                eb("blocks.number", operand, encodeAsText(blockNumber)),
-                eb(
-                  "logs.logIndex",
-                  isInclusive ? operandOrEquals : operand,
-                  logIndex,
-                ),
-              ]),
-            ]),
-          ]),
-        ]),
-      ]),
-    ]);
-  };
 
   private buildLogFilterCmprs = ({
     eb,

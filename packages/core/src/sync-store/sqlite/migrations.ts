@@ -1,4 +1,6 @@
-import type { Kysely } from "kysely";
+import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
+import { decodeToBigInt } from "@/utils/encoding.js";
+import { type Kysely, sql } from "kysely";
 import { type Migration, type MigrationProvider } from "kysely";
 
 const migrations: Record<string, Migration> = {
@@ -458,6 +460,73 @@ const migrations: Record<string, Migration> = {
         column: "v",
         columnType: "varchar(79)",
       });
+    },
+  },
+  "2024_03_20_0_checkpoint_in_logs_table": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("logs")
+        .addColumn("checkpoint", "varchar(75)")
+        .execute();
+      await db.executeQuery(
+        sql`
+          WITH checkpoint_vals AS (
+              SELECT logs.id, blocks.timestamp, blocks.chainId, blocks.number, logs.transactionIndex, logs.logIndex
+              FROM logs
+              JOIN blocks ON logs."blockHash" = blocks.hash
+          )
+          UPDATE logs
+          SET checkpoint =
+              substr(checkpoint_vals.timestamp, -10, 10) ||
+              substr('0000000000000000' || checkpoint_vals.chainId, -16, 16) ||
+              substr(checkpoint_vals.number, -16, 16) ||
+              substr('0000000000000000' || checkpoint_vals.transactionIndex, -16, 16) ||
+              '5' ||
+              substr('0000000000000000' || checkpoint_vals.logIndex, -16, 16)
+          FROM checkpoint_vals
+          WHERE logs.id = checkpoint_vals.id;
+        `.compile(db),
+      );
+
+      // sanity check our checkpoint encoding on the first 10 rows of the table
+      const checkRes = await db.executeQuery<{
+        timestamp: string;
+        chainId: number;
+        number: string;
+        transactionIndex: number;
+        logIndex: number;
+        checkpoint: string;
+      }>(
+        sql`
+          SELECT blocks.timestamp, blocks.chainId, blocks.number, logs.transactionIndex, logs.logIndex, logs.checkpoint
+          FROM logs
+          JOIN blocks ON logs.blockHash = blocks.hash
+          LIMIT 10;
+        `.compile(db),
+      );
+
+      for (const row of checkRes.rows) {
+        const expected = encodeCheckpoint({
+          blockTimestamp: Number(decodeToBigInt(row.timestamp)),
+          chainId: row.chainId,
+          blockNumber: Number(decodeToBigInt(row.number)),
+          transactionIndex: row.transactionIndex,
+          eventType: EVENT_TYPES.logs,
+          eventIndex: row.logIndex,
+        });
+
+        if (row.checkpoint.toString() !== expected) {
+          throw new Error(
+            `data migration failed: expected new checkpoint column to have value ${expected} but got ${row.checkpoint}`,
+          );
+        }
+      }
+
+      await db.schema
+        .createIndex("logs_checkpoint_index")
+        .on("logs")
+        .column("checkpoint")
+        .execute();
     },
   },
 };

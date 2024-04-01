@@ -64,7 +64,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
     );
 
-    this.db = new Kysely<InternalTables>({
+    this.db = new HeadlessKysely<InternalTables>({
+      name: "admin",
+      common,
       dialect: new SqliteDialect({ database: internalDatabase }),
       log(event) {
         if (event.level === "query") {
@@ -359,7 +361,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
     builder = builder
       .addColumn("uuid", "integer", (col) => col.notNull().primaryKey())
-      .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
+      .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
       .addColumn("operation", "integer", (col) => col.notNull());
 
     return builder;

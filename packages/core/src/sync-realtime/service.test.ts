@@ -5,6 +5,7 @@ import {
 } from "@/_test/setup.js";
 import { simulate, simulateErc20 } from "@/_test/simulate.js";
 import { testClient } from "@/_test/utils.js";
+import { maxCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -52,6 +53,7 @@ test("start() emits checkpoint at finality block even if no realtime contracts",
   service.start();
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    ...maxCheckpoint,
     blockNumber: 0,
     // Anvil messes with the block timestamp for blocks mined locally.
     blockTimestamp: expect.any(Number),
@@ -104,6 +106,7 @@ test("start() sync realtime data with traversal method", async (context) => {
   });
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    ...maxCheckpoint,
     blockNumber: 4,
     // Anvil messes with the block timestamp for blocks mined locally.
     blockTimestamp: expect.any(Number),
@@ -146,6 +149,7 @@ test("start() insert logFilterInterval records with traversal method", async (co
   expect(logFilterIntervals).toMatchObject([[1, 4]]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
+    ...maxCheckpoint,
     blockNumber: 4,
     blockTimestamp: expect.any(Number),
     chainId: 1,
@@ -258,12 +262,14 @@ test("start() deletes data from the store after 2 block reorg", async (context) 
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("reorg", {
+    ...maxCheckpoint,
     blockTimestamp: expect.any(Number),
     chainId: 1,
     blockNumber: 4,
   });
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
+    ...maxCheckpoint,
     blockTimestamp: expect.any(Number),
     chainId: 1,
     blockNumber: 4,
@@ -375,6 +381,7 @@ test("start() sync realtime data with factory sources", async (context) => {
   });
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    ...maxCheckpoint,
     blockNumber: 4,
     // Anvil messes with the block timestamp for blocks mined locally.
     blockTimestamp: expect.any(Number),
@@ -411,6 +418,7 @@ test("start() finalize realtime data with factory sources", async (context) => {
   expect(logFilterIntervals).toMatchObject([[1, 4]]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
+    ...maxCheckpoint,
     blockNumber: 4,
     // Anvil messes with the block timestamp for blocks mined locally.
     blockTimestamp: expect.any(Number),

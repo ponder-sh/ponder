@@ -179,6 +179,7 @@ export interface SyncStore {
         log: Log;
         block: Block;
         transaction: Transaction;
+        checkpoint: Checkpoint;
       }[];
       lastCheckpoint: Checkpoint | undefined;
     } & (

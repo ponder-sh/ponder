@@ -63,7 +63,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.indexingPool = createPool(this.poolConfig);
     this.syncPool = createPool(this.poolConfig);
 
-    this.db = new Kysely<InternalTables>({
+    this.db = new HeadlessKysely<InternalTables>({
+      name: "admin",
+      common,
       dialect: new PostgresDialect({ pool: this.adminPool }),
       log(event) {
         if (event.level === "query") {
@@ -308,6 +310,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       await this.indexingDb.destroy();
       await this.syncDb.destroy();
       await this.db.destroy();
+
+      await this.indexingPool.end();
+      await this.syncPool.end();
+      await this.adminPool.end();
     });
   }
 
@@ -384,7 +390,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
     builder = builder
       .addColumn("uuid", "serial", (col) => col.notNull().primaryKey())
-      .addColumn("checkpoint", "varchar(58)", (col) => col.notNull())
+      .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
       .addColumn("operation", "integer", (col) => col.notNull());
 
     return builder;
