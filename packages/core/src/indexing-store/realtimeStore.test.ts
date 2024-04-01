@@ -1,6 +1,11 @@
 import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
-import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
+import { hash } from "@/utils/hash.js";
 import { beforeEach, expect, test } from "vitest";
 
 beforeEach(setupIsolatedDatabase);
@@ -30,6 +35,10 @@ const hexSchema = createSchema((p) => ({
 
 function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index };
+}
+
+function calculateLogTableName(tableName: string) {
+  return hash(["public", "test", tableName]);
 }
 
 test("create() inserts a record", async (context) => {
@@ -182,6 +191,34 @@ test("create() accepts float fields as float and returns as float", async (conte
   await cleanup();
 });
 
+test("create() inserts into the log table", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const logs = await indexingStore.db
+    .selectFrom(calculateLogTableName("Pet"))
+    .selectAll()
+    .execute();
+
+  expect(logs).toMatchObject([
+    {
+      id: "id1",
+      checkpoint: encodeCheckpoint(createCheckpoint(10)),
+      operation: 0,
+    },
+  ]);
+
+  await cleanup();
+});
+
 test("update() updates a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
@@ -250,6 +287,46 @@ test("update() updates a record using an update function", async (context) => {
   expect(updatedInstance).toMatchObject({
     id: "id1",
     name: "Skip and Skipper",
+  });
+
+  await cleanup();
+});
+
+test("update() inserts into the log table", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+    data: { name: "Skip", bigAge: 100n },
+  });
+
+  const instance = await indexingStore.findUnique({
+    tableName: "Pet",
+    id: "id1",
+  });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
+
+  await indexingStore.update({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(11),
+    id: "id1",
+    data: { name: "Peanut Butter" },
+  });
+
+  const logs = await indexingStore.db
+    .selectFrom(calculateLogTableName("Pet"))
+    .selectAll()
+    .execute();
+
+  expect(logs).toHaveLength(2);
+  expect(logs[1]).toMatchObject({
+    id: "id1",
+    checkpoint: encodeCheckpoint(createCheckpoint(11)),
+    operation: 1,
   });
 
   await cleanup();
@@ -346,6 +423,46 @@ test("upsert() updates a record using an update function", async (context) => {
   await cleanup();
 });
 
+test("upsert() inserts into the log table", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+  const instance = await indexingStore.findUnique({
+    tableName: "Pet",
+    id: "id1",
+  });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await indexingStore.upsert({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(12),
+    id: "id1",
+    create: { name: "Skip", age: 24 },
+    update: { name: "Jelly" },
+  });
+
+  const logs = await indexingStore.db
+    .selectFrom(calculateLogTableName("Pet"))
+    .selectAll()
+    .execute();
+
+  expect(logs).toHaveLength(2);
+  expect(logs[1]).toMatchObject({
+    id: "id1",
+    checkpoint: encodeCheckpoint(createCheckpoint(12)),
+    operation: 1,
+  });
+
+  await cleanup();
+});
+
 test("delete() removes a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
@@ -374,6 +491,44 @@ test("delete() removes a record", async (context) => {
     id: "id1",
   });
   expect(deletedInstance).toBe(null);
+
+  await cleanup();
+});
+
+test("delete() inserts into the log table", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+  const instance = await indexingStore.findUnique({
+    tableName: "Pet",
+    id: "id1",
+  });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await indexingStore.delete({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(15),
+    id: "id1",
+  });
+
+  const logs = await indexingStore.db
+    .selectFrom(calculateLogTableName("Pet"))
+    .selectAll()
+    .execute();
+
+  expect(logs).toHaveLength(2);
+  expect(logs[1]).toMatchObject({
+    id: "id1",
+    checkpoint: encodeCheckpoint(createCheckpoint(15)),
+    operation: 2,
+  });
 
   await cleanup();
 });
@@ -943,6 +1098,48 @@ test("createMany() inserts a large number of entities", async (context) => {
   await cleanup();
 });
 
+test("createMany() inserts into the log table", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+    ],
+  });
+
+  const logs = await indexingStore.db
+    .selectFrom(calculateLogTableName("Pet"))
+    .selectAll()
+    .execute();
+
+  expect(logs).toHaveLength(3);
+  expect(logs).toMatchObject([
+    {
+      id: "id1",
+      checkpoint: encodeCheckpoint(createCheckpoint(10)),
+      operation: 0,
+    },
+    {
+      id: "id2",
+      checkpoint: encodeCheckpoint(createCheckpoint(10)),
+      operation: 0,
+    },
+    {
+      id: "id3",
+      checkpoint: encodeCheckpoint(createCheckpoint(10)),
+      operation: 0,
+    },
+  ]);
+
+  await cleanup();
+});
+
 test("updateMany() updates multiple entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
@@ -970,6 +1167,48 @@ test("updateMany() updates multiple entities", async (context) => {
   const { items } = await indexingStore.findMany({ tableName: "Pet" });
 
   expect(items.map((i) => i.bigAge)).toMatchObject([300n, 10n, 300n]);
+
+  await cleanup();
+});
+
+test("updateMany() inserts into the log table", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+    ],
+  });
+
+  await indexingStore.updateMany({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(11),
+    where: { bigAge: { gt: 50n } },
+    data: { bigAge: 300n },
+  });
+
+  const logs = await indexingStore.db
+    .selectFrom(calculateLogTableName("Pet"))
+    .selectAll()
+    .execute();
+
+  expect(logs).toHaveLength(5);
+  expect(logs[3]).toMatchObject({
+    id: "id1",
+    checkpoint: encodeCheckpoint(createCheckpoint(11)),
+    operation: 1,
+  });
+  expect(logs[4]).toMatchObject({
+    id: "id3",
+    checkpoint: encodeCheckpoint(createCheckpoint(11)),
+    operation: 1,
+  });
 
   await cleanup();
 });
