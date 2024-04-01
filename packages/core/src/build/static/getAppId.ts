@@ -3,7 +3,7 @@ import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
 import { type TableAccess } from "./getTableAccess.js";
 
-export const HASH_VERSION = 2;
+export const HASH_VERSION = 3;
 
 type Identifier = {
   version: number;

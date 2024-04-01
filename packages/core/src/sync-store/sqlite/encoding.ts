@@ -139,6 +139,7 @@ type LogsTable = {
   topic3: Hex | null;
 
   chainId: number;
+  checkpoint?: string;
 };
 
 export type InsertableLog = Insertable<LogsTable>;
