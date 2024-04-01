@@ -379,7 +379,10 @@ export class RealtimeIndexingStore implements IndexingStore {
         });
       } catch (err) {
         const error = err as Error;
-        throw error.message.includes("UNIQUE constraint failed")
+        throw (this.kind === "sqlite" &&
+          error.message.includes("UNIQUE constraint failed")) ||
+          (this.kind === "postgres" &&
+            error.message.includes("violates unique constraint"))
           ? new StoreError(
               `Cannot create ${tableName} record with ID ${id} because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using ${tableName}.upsert().`,
             )
@@ -436,7 +439,10 @@ export class RealtimeIndexingStore implements IndexingStore {
         return rows.map((row) => decodeRow(row, table, this.kind));
       } catch (err) {
         const error = err as Error;
-        throw error.message.includes("UNIQUE constraint failed")
+        throw (this.kind === "sqlite" &&
+          error.message.includes("UNIQUE constraint failed")) ||
+          (this.kind === "postgres" &&
+            error.message.includes("violates unique constraint"))
           ? new StoreError(
               `Cannot createMany ${tableName} records because one or more records already exist (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method?`,
             )
