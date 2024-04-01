@@ -55,8 +55,6 @@ export function safeBuildIndexingFunctions({
     return { success: true, data: result } as const;
   } catch (error_) {
     const error = error_ as Error;
-    // The trace is not useful here, better to only include the message.
-    error.stack = error.message;
     return { success: false, error } as const;
   }
 }

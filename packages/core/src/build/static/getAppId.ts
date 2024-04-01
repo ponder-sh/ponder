@@ -67,7 +67,6 @@ export function safeGetAppId({
     return { success: true, data: { appId } } as const;
   } catch (error_) {
     const error = error_ as Error;
-    error.stack = undefined;
     return { success: false, error } as const;
   }
 }

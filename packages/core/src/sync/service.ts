@@ -158,9 +158,10 @@ export class SyncService extends Emittery<SyncServiceEvents> {
       });
 
       realtime.on("fatal", (error) => {
-        this.common.logger.fatal({
-          service: "app",
+        this.common.logger.error({
+          service: "realtime",
           msg: "Realtime sync service failed",
+          error,
         });
         this.emit("fatal", error);
       });
@@ -179,7 +180,11 @@ export class SyncService extends Emittery<SyncServiceEvents> {
       );
     } catch (error_) {
       const error = error_ as Error;
-      error.stack = undefined;
+      this.common.logger.error({
+        service: "sync",
+        msg: "Sync service failed during setup:",
+        error,
+      });
       this.emit("fatal", error);
     }
 
