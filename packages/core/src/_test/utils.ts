@@ -1,14 +1,8 @@
 import { type AddressInfo, createServer } from "node:net";
 import { buildConfig } from "@/build/config/config.js";
-import type { IndexingFunctions } from "@/build/functions/functions.js";
-import type {
-  FunctionIds,
-  TableIds,
-} from "@/build/static/getFunctionAndTableIds.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";
-import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
@@ -262,37 +256,6 @@ export const getEventsErc20 = async (
     hasNextPage: true,
     lastCheckpointInPage: toCheckpoint,
   } as Awaited<ReturnType<SyncService["getEvents"]>>;
-};
-
-/**
- * Returns simple function IDs
- */
-export const getFunctionIds = (
-  indexingFunctions: IndexingFunctions,
-): FunctionIds => {
-  const functionIds: FunctionIds = {};
-
-  for (const contractName of Object.keys(indexingFunctions)) {
-    for (const eventName of Object.keys(indexingFunctions[contractName])) {
-      const key = `${contractName}:${eventName}`;
-      functionIds[key] = `0x${key}`;
-    }
-  }
-
-  return functionIds;
-};
-
-/**
- * Returns simple table IDs
- */
-export const getTableIds = (schema: Schema): TableIds => {
-  const tableIds: TableIds = {};
-
-  for (const tableName of Object.keys(schema.tables)) {
-    tableIds[tableName] = `0x${tableName}`;
-  }
-
-  return tableIds;
 };
 
 export function getFreePort(): Promise<number> {
