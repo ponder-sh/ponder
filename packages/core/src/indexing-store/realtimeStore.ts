@@ -358,23 +358,23 @@ export class RealtimeIndexingStore implements IndexingStore {
 
       try {
         return await this.db.transaction().execute(async (tx) => {
-          const [row] = await Promise.all([
-            tx
-              .withSchema(this.namespaceInfo.userNamespace)
-              .insertInto(tableName)
-              .values(createRow)
-              .returningAll()
-              .executeTakeFirstOrThrow(),
-            tx
-              .withSchema(this.namespaceInfo.internalNamespace)
-              .insertInto(this.namespaceInfo.internalTableIds[tableName])
-              .values({
-                operation: 0,
-                id: createRow.id,
-                checkpoint: encodedCheckpoint,
-              })
-              .execute(),
-          ]);
+          const row = await tx
+            .withSchema(this.namespaceInfo.userNamespace)
+            .insertInto(tableName)
+            .values(createRow)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+
+          await tx
+            .withSchema(this.namespaceInfo.internalNamespace)
+            .insertInto(this.namespaceInfo.internalTableIds[tableName])
+            .values({
+              operation: 0,
+              id: createRow.id,
+              checkpoint: encodedCheckpoint,
+            })
+            .execute();
+
           return decodeRow(row, table, this.kind);
         });
       } catch (err) {
@@ -401,44 +401,39 @@ export class RealtimeIndexingStore implements IndexingStore {
 
     return this.db.wrap({ method: `${tableName}.createMany` }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
-      const createRows = data.map((d) => encodeRow({ ...d }, table, this.kind));
-
-      const chunkedRows: (typeof createRows)[] = [];
-      for (let i = 0, len = createRows.length; i < len; i += MAX_BATCH_SIZE)
-        chunkedRows.push(createRows.slice(i, i + MAX_BATCH_SIZE));
 
       try {
-        const rows = await this.db.transaction().execute(async (tx) => {
-          const rowsAndResults = await Promise.all([
-            ...chunkedRows.map((chunk) =>
-              tx
-                .withSchema(this.namespaceInfo.userNamespace)
-                .insertInto(tableName)
-                .values(chunk)
-                .returningAll()
-                .execute(),
-            ),
-            ...chunkedRows.map((chunk) =>
-              tx
-                .withSchema(this.namespaceInfo.internalNamespace)
-                .insertInto(this.namespaceInfo.internalTableIds[tableName])
-                .values(
-                  chunk.map((row) => ({
-                    operation: 0,
-                    id: row.id,
-                    checkpoint: encodedCheckpoint,
-                  })),
-                )
-                .execute(),
-            ),
-          ]);
+        const rows: Row[] = [];
+        await this.db.transaction().execute(async (tx) => {
+          for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
+            const createRows = data
+              .slice(i, i + MAX_BATCH_SIZE)
+              .map((d) => encodeRow(d, table, this.kind));
 
-          rowsAndResults.splice(chunkedRows.length, chunkedRows.length);
+            const _rows = await tx
+              .withSchema(this.namespaceInfo.userNamespace)
+              .insertInto(tableName)
+              .values(createRows)
+              .returningAll()
+              .execute();
 
-          return rowsAndResults as Row[][];
+            rows.push(...(_rows as Row[]));
+
+            await tx
+              .withSchema(this.namespaceInfo.internalNamespace)
+              .insertInto(this.namespaceInfo.internalTableIds[tableName])
+              .values(
+                createRows.map((row) => ({
+                  operation: 0,
+                  id: row.id,
+                  checkpoint: encodedCheckpoint,
+                })),
+              )
+              .execute();
+          }
         });
 
-        return rows.flat().map((row) => decodeRow(row, table, this.kind));
+        return rows.map((row) => decodeRow(row, table, this.kind));
       } catch (err) {
         const error = err as Error;
         throw error.message.includes("UNIQUE constraint failed")
@@ -492,24 +487,24 @@ export class RealtimeIndexingStore implements IndexingStore {
           updateRow = encodeRow({ id, ...data }, table, this.kind);
         }
 
-        const [updateResult] = await Promise.all([
-          tx
-            .withSchema(this.namespaceInfo.userNamespace)
-            .updateTable(tableName)
-            .set(updateRow)
-            .where("id", "=", encodedId)
-            .returningAll()
-            .executeTakeFirstOrThrow(),
-          tx
-            .withSchema(this.namespaceInfo.internalNamespace)
-            .insertInto(this.namespaceInfo.internalTableIds[tableName])
-            .values({
-              operation: 1,
-              checkpoint: encodedCheckpoint,
-              ...latestRow,
-            })
-            .execute(),
-        ]);
+        const updateResult = await tx
+          .withSchema(this.namespaceInfo.userNamespace)
+          .updateTable(tableName)
+          .set(updateRow)
+          .where("id", "=", encodedId)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+
+        await tx
+          .withSchema(this.namespaceInfo.internalNamespace)
+          .insertInto(this.namespaceInfo.internalTableIds[tableName])
+          .values({
+            operation: 1,
+            checkpoint: encodedCheckpoint,
+            ...latestRow,
+          })
+          .execute();
+
         return updateResult;
       });
 
@@ -559,42 +554,40 @@ export class RealtimeIndexingStore implements IndexingStore {
 
         const latestRows = await query.execute();
 
-        const rowsAndResults = await Promise.all([
-          ...latestRows.map((latestRow) => {
-            // If the user passed an update function, call it with the current instance.
-            let updateRow: ReturnType<typeof encodeRow>;
-            if (typeof data === "function") {
-              const current = decodeRow(latestRow, table, this.kind);
-              const updateObject = data({ current });
-              updateRow = encodeRow(updateObject, table, this.kind);
-            } else {
-              updateRow = encodeRow(data, table, this.kind);
-            }
+        const rows: Row[] = [];
+        for (const latestRow of latestRows) {
+          // If the user passed an update function, call it with the current instance.
+          let updateRow: ReturnType<typeof encodeRow>;
+          if (typeof data === "function") {
+            const current = decodeRow(latestRow, table, this.kind);
+            const updateObject = data({ current });
+            updateRow = encodeRow(updateObject, table, this.kind);
+          } else {
+            updateRow = encodeRow(data, table, this.kind);
+          }
 
-            return tx
-              .withSchema(this.namespaceInfo.userNamespace)
-              .updateTable(tableName)
-              .set(updateRow)
-              .where("id", "=", latestRow.id)
-              .returningAll()
-              .executeTakeFirstOrThrow();
-          }),
-          ...latestRows.map((latestRow) =>
-            tx
-              .withSchema(this.namespaceInfo.internalNamespace)
-              .insertInto(this.namespaceInfo.internalTableIds[tableName])
-              .values({
-                operation: 1,
-                checkpoint: encodedCheckpoint,
-                ...latestRow,
-              })
-              .execute(),
-          ),
-        ]);
+          const row = await tx
+            .withSchema(this.namespaceInfo.userNamespace)
+            .updateTable(tableName)
+            .set(updateRow)
+            .where("id", "=", latestRow.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
 
-        rowsAndResults.splice(latestRows.length, latestRows.length);
+          rows.push(row as Row);
 
-        return rowsAndResults as Row[];
+          await tx
+            .withSchema(this.namespaceInfo.internalNamespace)
+            .insertInto(this.namespaceInfo.internalTableIds[tableName])
+            .values({
+              operation: 1,
+              checkpoint: encodedCheckpoint,
+              ...latestRow,
+            })
+            .execute();
+        }
+
+        return rows;
       });
 
       return rows.map((row) => decodeRow(row, table, this.kind));
@@ -623,7 +616,7 @@ export class RealtimeIndexingStore implements IndexingStore {
       const createRow = encodeRow({ id, ...create }, table, this.kind);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const [row] = await this.db.transaction().execute(async (tx) => {
+      const row = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRow = await tx
           .withSchema(this.namespaceInfo.userNamespace)
@@ -634,23 +627,24 @@ export class RealtimeIndexingStore implements IndexingStore {
 
         // If there is no latest version, insert a new version using the create data.
         if (latestRow === undefined) {
-          return Promise.all([
-            tx
-              .withSchema(this.namespaceInfo.userNamespace)
-              .insertInto(tableName)
-              .values(createRow)
-              .returningAll()
-              .executeTakeFirstOrThrow(),
-            tx
-              .withSchema(this.namespaceInfo.internalNamespace)
-              .insertInto(this.namespaceInfo.internalTableIds[tableName])
-              .values({
-                operation: 0,
-                id: createRow.id,
-                checkpoint: encodedCheckpoint,
-              })
-              .execute(),
-          ]);
+          const row = await tx
+            .withSchema(this.namespaceInfo.userNamespace)
+            .insertInto(tableName)
+            .values(createRow)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+
+          await tx
+            .withSchema(this.namespaceInfo.internalNamespace)
+            .insertInto(this.namespaceInfo.internalTableIds[tableName])
+            .values({
+              operation: 0,
+              id: createRow.id,
+              checkpoint: encodedCheckpoint,
+            })
+            .execute();
+
+          return row;
         }
 
         // If the user passed an update function, call it with the current instance.
@@ -663,24 +657,25 @@ export class RealtimeIndexingStore implements IndexingStore {
           updateRow = encodeRow({ id, ...update }, table, this.kind);
         }
 
-        return Promise.all([
-          tx
-            .withSchema(this.namespaceInfo.userNamespace)
-            .updateTable(tableName)
-            .set(updateRow)
-            .where("id", "=", encodedId)
-            .returningAll()
-            .executeTakeFirstOrThrow(),
-          tx
-            .withSchema(this.namespaceInfo.internalNamespace)
-            .insertInto(this.namespaceInfo.internalTableIds[tableName])
-            .values({
-              operation: 1,
-              checkpoint: encodedCheckpoint,
-              ...latestRow,
-            })
-            .execute(),
-        ]);
+        const row = await tx
+          .withSchema(this.namespaceInfo.userNamespace)
+          .updateTable(tableName)
+          .set(updateRow)
+          .where("id", "=", encodedId)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+
+        await tx
+          .withSchema(this.namespaceInfo.internalNamespace)
+          .insertInto(this.namespaceInfo.internalTableIds[tableName])
+          .values({
+            operation: 1,
+            checkpoint: encodedCheckpoint,
+            ...latestRow,
+          })
+          .execute();
+
+        return row;
       });
 
       return decodeRow(row, table, this.kind);
@@ -710,25 +705,24 @@ export class RealtimeIndexingStore implements IndexingStore {
           .where("id", "=", encodedId)
           .executeTakeFirst();
 
-        const [deletedRow] = await Promise.all([
-          tx
-            .withSchema(this.namespaceInfo.userNamespace)
-            .deleteFrom(tableName)
-            .where("id", "=", encodedId)
-            .returning(["id"])
-            .executeTakeFirst(),
-          row !== undefined
-            ? tx
-                .withSchema(this.namespaceInfo.internalNamespace)
-                .insertInto(this.namespaceInfo.internalTableIds[tableName])
-                .values({
-                  operation: 2,
-                  checkpoint: encodedCheckpoint,
-                  ...row,
-                })
-                .execute()
-            : Promise.resolve(),
-        ]);
+        const deletedRow = await tx
+          .withSchema(this.namespaceInfo.userNamespace)
+          .deleteFrom(tableName)
+          .where("id", "=", encodedId)
+          .returning(["id"])
+          .executeTakeFirst();
+
+        if (row !== undefined) {
+          await tx
+            .withSchema(this.namespaceInfo.internalNamespace)
+            .insertInto(this.namespaceInfo.internalTableIds[tableName])
+            .values({
+              operation: 2,
+              checkpoint: encodedCheckpoint,
+              ...row,
+            })
+            .execute();
+        }
 
         return !!deletedRow;
       });
