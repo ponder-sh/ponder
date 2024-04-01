@@ -192,9 +192,10 @@ test("create() accepts float fields as float and returns as float", async (conte
 });
 
 test("create() inserts into the log table", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, namespaceInfo, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -204,6 +205,7 @@ test("create() inserts into the log table", async (context) => {
   });
 
   const logs = await indexingStore.db
+    .withSchema(namespaceInfo.internalNamespace)
     .selectFrom(calculateLogTableName("Pet"))
     .selectAll()
     .execute();
@@ -293,9 +295,10 @@ test("update() updates a record using an update function", async (context) => {
 });
 
 test("update() inserts into the log table", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, namespaceInfo, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -318,6 +321,7 @@ test("update() inserts into the log table", async (context) => {
   });
 
   const logs = await indexingStore.db
+    .withSchema(namespaceInfo.internalNamespace)
     .selectFrom(calculateLogTableName("Pet"))
     .selectAll()
     .execute();
@@ -424,9 +428,10 @@ test("upsert() updates a record using an update function", async (context) => {
 });
 
 test("upsert() inserts into the log table", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, namespaceInfo, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -449,6 +454,7 @@ test("upsert() inserts into the log table", async (context) => {
   });
 
   const logs = await indexingStore.db
+    .withSchema(namespaceInfo.internalNamespace)
     .selectFrom(calculateLogTableName("Pet"))
     .selectAll()
     .execute();
@@ -496,9 +502,10 @@ test("delete() removes a record", async (context) => {
 });
 
 test("delete() inserts into the log table", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, namespaceInfo, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -519,6 +526,7 @@ test("delete() inserts into the log table", async (context) => {
   });
 
   const logs = await indexingStore.db
+    .withSchema(namespaceInfo.internalNamespace)
     .selectFrom(calculateLogTableName("Pet"))
     .selectAll()
     .execute();
@@ -1099,9 +1107,10 @@ test("createMany() inserts a large number of entities", async (context) => {
 });
 
 test("createMany() inserts into the log table", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, namespaceInfo, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.createMany({
     tableName: "Pet",
@@ -1114,6 +1123,7 @@ test("createMany() inserts into the log table", async (context) => {
   });
 
   const logs = await indexingStore.db
+    .withSchema(namespaceInfo.internalNamespace)
     .selectFrom(calculateLogTableName("Pet"))
     .selectAll()
     .execute();
@@ -1172,9 +1182,10 @@ test("updateMany() updates multiple entities", async (context) => {
 });
 
 test("updateMany() inserts into the log table", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, namespaceInfo, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.createMany({
     tableName: "Pet",
@@ -1194,6 +1205,7 @@ test("updateMany() inserts into the log table", async (context) => {
   });
 
   const logs = await indexingStore.db
+    .withSchema(namespaceInfo.internalNamespace)
     .selectFrom(calculateLogTableName("Pet"))
     .selectAll()
     .execute();
@@ -1214,9 +1226,10 @@ test("updateMany() inserts into the log table", async (context) => {
 });
 
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, namespaceInfo, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -1271,6 +1284,7 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
   expect(persons[1].name).toBe("Kevin");
 
   const PetLogs = await indexingStore.db
+    .withSchema(namespaceInfo.internalNamespace)
     .selectFrom(calculateLogTableName("Pet"))
     .selectAll()
     .execute();
@@ -1278,6 +1292,7 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
   expect(PetLogs).toHaveLength(1);
 
   const PersonLogs = await indexingStore.db
+    .withSchema(namespaceInfo.internalNamespace)
     .selectFrom(calculateLogTableName("Person"))
     .selectAll()
     .execute();
@@ -1287,9 +1302,10 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 });
 
 test("revert() updates versions with intermediate logs", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, namespaceInfo, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -1312,6 +1328,7 @@ test("revert() updates versions with intermediate logs", async (context) => {
   expect(instancePet).toBe(null);
 
   const PetLogs = await indexingStore.db
+    .withSchema(namespaceInfo.internalNamespace)
     .selectFrom(calculateLogTableName("Pet"))
     .selectAll()
     .execute();

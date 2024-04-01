@@ -25,7 +25,7 @@ import {
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
-import { safeGetFunctionAndTableIds } from "./static/getFunctionAndTableIds.js";
+import { safeGetAppId } from "./static/getAppId.js";
 import {
   type TableAccess,
   safeGetTableAccess,
@@ -481,11 +481,10 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         ),
       } as const;
 
-    const result = safeGetFunctionAndTableIds({
+    const result = safeGetAppId({
       sources: this.sources,
       tableAccess: this.tableAccess,
       schema: this.schema,
-      indexingFunctions: this.indexingFunctions,
     });
     if (!result.success) {
       return { success: false, error: result.error } as const;

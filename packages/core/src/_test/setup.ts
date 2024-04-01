@@ -12,7 +12,7 @@ import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Factory, LogFilter } from "@/config/sources.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import type { DatabaseService } from "@/database/service.js";
+import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { createSchema } from "@/index.js";
 import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
@@ -115,6 +115,7 @@ export async function setupDatabaseServices(
   overrides: Partial<DatabaseServiceSetup> = {},
 ): Promise<{
   database: DatabaseService;
+  namespaceInfo: NamespaceInfo;
   syncStore: SyncStore;
   indexingStore: IndexingStore;
   cleanup: () => Promise<void>;
@@ -145,7 +146,13 @@ export async function setupDatabaseServices(
 
     const cleanup = () => database.kill();
 
-    return { database, indexingStore, syncStore, cleanup };
+    return {
+      database,
+      namespaceInfo: result.namespaceInfo,
+      indexingStore,
+      syncStore,
+      cleanup,
+    };
   } else {
     const database = new PostgresDatabaseService({
       common: context.common,
@@ -170,7 +177,13 @@ export async function setupDatabaseServices(
 
     const cleanup = () => database.kill();
 
-    return { database, indexingStore, syncStore, cleanup };
+    return {
+      database,
+      namespaceInfo: result.namespaceInfo,
+      indexingStore,
+      syncStore,
+      cleanup,
+    };
   }
 }
 

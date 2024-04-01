@@ -2,8 +2,9 @@ import { setupIsolatedDatabase } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
-import { Kysely, sql } from "kysely";
+import { sql } from "kysely";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import type { HeadlessKysely } from "../kysely.js";
 import { PostgresDatabaseService } from "./service.js";
 
 beforeEach(setupIsolatedDatabase);
@@ -175,10 +176,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
       await database.db
         .updateTable("namespace_lock")
-        .set({
-          checkpoint: encodeCheckpoint(newCheckpoint),
-          finality_checkpoint: encodeCheckpoint(newCheckpoint),
-        })
+        .set({ finalized_checkpoint: encodeCheckpoint(newCheckpoint) })
         .where("namespace", "=", "public")
         .execute();
 
@@ -424,7 +422,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   });
 });
 
-async function getTableNames(db: Kysely<any>, schemaName: string) {
+async function getTableNames(db: HeadlessKysely<any>, schemaName: string) {
   const { rows } = await db.executeQuery<{
     table_name: string;
   }>(
