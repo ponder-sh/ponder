@@ -145,8 +145,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           is_locked: 1,
           heartbeat_at: Date.now(),
           app_id: this.appId,
-          checkpoint: encodeCheckpoint(zeroCheckpoint),
-          finality_checkpoint: encodeCheckpoint(zeroCheckpoint),
+          finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
           schema: JSON.stringify(schema),
         } satisfies Insertable<InternalTables["namespace_lock"]>;
 
@@ -165,16 +164,16 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           Date.now() > priorLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
         ) {
           // // If the prior row has the same app ID, continue where the prior app left off
-          // // by reverting tables to the finality checkpoint, then returning.
+          // // by reverting tables to the finalized checkpoint, then returning.
           // if (priorLockRow.app_id === this.appId) {
-          //   const finalityCheckpoint = decodeCheckpoint(
-          //     priorLockRow.finality_checkpoint,
+          //   const finalizedCheckpoint = decodeCheckpoint(
+          //     priorLockRow.finalized_checkpoint,
           //   );
 
           //   const duration =
-          //     Math.floor(Date.now() / 1000) - finalityCheckpoint.blockTimestamp;
+          //     Math.floor(Date.now() / 1000) - finalizedCheckpoint.blockTimestamp;
           //   const progressText =
-          //     finalityCheckpoint.blockTimestamp > 0
+          //     finalizedCheckpoint.blockTimestamp > 0
           //       ? `last used ${formatShortDate(duration)} ago`
           //       : "with no progress";
           //   this.common.logger.debug({
@@ -192,11 +191,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           //     })
           //     .execute();
 
-          //   // Revert the tables to the finality checkpoint. Note that this also updates
-          //   // the namespace_lock table to reflect the new finality checkpoint.
-          //   // TODO MOVE THIS BACK await this.revert({ checkpoint: finalityCheckpoint });
+          //   // Revert the tables to the finalized checkpoint. Note that this also updates
+          //   // the namespace_lock table to reflect the new finalized checkpoint.
+          //   // TODO MOVE THIS BACK await this.revert({ checkpoint: finalizedCheckpoint });
 
-          //   return finalityCheckpoint;
+          //   return finalizedCheckpoint;
           // }
 
           // If the prior row has a different app ID, drop the prior app's tables.
