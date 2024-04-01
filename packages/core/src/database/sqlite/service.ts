@@ -120,8 +120,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     const migrator = new Migrator({
       db: this.db.withPlugin(new WithSchemaPlugin(this.internalNamespace)),
       provider: migrationProvider,
-      migrationTableName: "migration",
-      migrationLockTableName: "migration_lock",
     });
     const result = await migrator.migrateToLatest();
     if (result.error) throw result.error;
