@@ -11,9 +11,9 @@ import { startClock } from "@/utils/timer.js";
 import {
   type CreateTableBuilder,
   type Insertable,
-  Kysely,
   Migrator,
   SqliteDialect,
+  WithSchemaPlugin,
   sql,
 } from "kysely";
 import prometheus from "prom-client";
@@ -31,7 +31,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   private userNamespace: string;
   private internalNamespace: string;
 
-  db: Kysely<InternalTables>;
+  db: HeadlessKysely<InternalTables>;
   indexingDb: HeadlessKysely<InternalTables>;
   syncDb: HeadlessKysely<SyncStoreTables>;
 
@@ -108,7 +108,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.appId = appId;
 
     const migrator = new Migrator({
-      db: this.db,
+      db: this.db.withPlugin(new WithSchemaPlugin(this.internalNamespace)),
       provider: migrationProvider,
       migrationTableName: "migration",
       migrationLockTableName: "migration_lock",
@@ -360,7 +360,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     });
 
     builder = builder
-      .addColumn("uuid", "integer", (col) => col.notNull().primaryKey())
+      .addColumn("operation_id", "integer", (col) => col.notNull().primaryKey())
       .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
       .addColumn("operation", "integer", (col) => col.notNull());
 

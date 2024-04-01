@@ -10,7 +10,6 @@ import { startClock } from "@/utils/timer.js";
 import {
   type CreateTableBuilder,
   type Insertable,
-  Kysely,
   Migrator,
   PostgresDialect,
   WithSchemaPlugin,
@@ -33,7 +32,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   private userNamespace: string;
   private internalNamespace: string;
 
-  db: Kysely<InternalTables>;
+  db: HeadlessKysely<InternalTables>;
   indexingDb: HeadlessKysely<InternalTables>;
   syncDb: HeadlessKysely<SyncStoreTables>;
 
@@ -389,7 +388,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     });
 
     builder = builder
-      .addColumn("uuid", "serial", (col) => col.notNull().primaryKey())
+      .addColumn("operation_id", "serial", (col) => col.notNull().primaryKey())
       .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
       .addColumn("operation", "integer", (col) => col.notNull());
 

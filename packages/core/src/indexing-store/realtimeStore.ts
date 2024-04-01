@@ -3,6 +3,7 @@ import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema } from "@/schema/types.js";
 import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
+import { sql } from "kysely";
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "./store.js";
 import {
   buildCursorConditions,
@@ -48,25 +49,23 @@ export class RealtimeIndexingStore implements IndexingStore {
     await this.db.wrap({ method: "revert" }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      // Retrieve all logs that need to be undone.
-      const tableLogs = await Promise.all(
-        Object.values(this.namespaceInfo.internalTableIds).map((tableId) =>
-          this.db
-            .withSchema(this.namespaceInfo.internalNamespace)
-            .selectFrom(tableId)
-            .selectAll()
-            .where("checkpoint", ">", encodedCheckpoint)
-            .orderBy("uuid", "desc")
-            .execute(),
-        ),
-      );
-
       await Promise.all(
         Object.entries(this.namespaceInfo.internalTableIds).map(
-          async ([tableName, tableId], i) => {
+          async ([tableName, tableId]) => {
             await this.db.transaction().execute(async (tx) => {
+              const rows = await tx
+                .withSchema(this.namespaceInfo.internalNamespace)
+                .deleteFrom(tableId)
+                .returningAll()
+                .where("checkpoint", ">", encodedCheckpoint)
+                .execute();
+
+              const reversed = rows.sort(
+                (a, b) => b.operation_id - a.operation_id,
+              );
+
               // undo operation
-              for (const log of tableLogs[i]) {
+              for (const log of reversed) {
                 if (log.operation === 0) {
                   // create
                   await tx
@@ -76,7 +75,7 @@ export class RealtimeIndexingStore implements IndexingStore {
                     .execute();
                 } else if (log.operation === 1) {
                   // update
-                  log.uuid = undefined;
+                  log.operation_id = undefined;
                   log.checkpoint = undefined;
                   log.operation = undefined;
 
@@ -88,7 +87,7 @@ export class RealtimeIndexingStore implements IndexingStore {
                     .execute();
                 } else {
                   // delete
-                  log.uuid = undefined;
+                  log.operation_id = undefined;
                   log.checkpoint = undefined;
                   log.operation = undefined;
 
@@ -99,13 +98,6 @@ export class RealtimeIndexingStore implements IndexingStore {
                     .execute();
                 }
               }
-
-              // delete logs
-              await tx
-                .withSchema(this.namespaceInfo.internalNamespace)
-                .deleteFrom(tableId)
-                .where("checkpoint", ">", encodedCheckpoint)
-                .execute();
             });
           },
         ),
@@ -169,7 +161,14 @@ export class RealtimeIndexingStore implements IndexingStore {
 
       const orderByConditions = buildOrderByConditions({ orderBy, table });
       for (const [column, direction] of orderByConditions) {
-        query = query.orderBy(column, direction);
+        query = query.orderBy(
+          column,
+          this.kind === "sqlite"
+            ? direction
+            : direction === "asc"
+              ? sql`asc nulls first`
+              : sql`desc nulls last`,
+        );
       }
       const orderDirection = orderByConditions[0][1];
 
