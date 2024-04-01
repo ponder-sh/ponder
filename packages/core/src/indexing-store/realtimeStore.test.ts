@@ -1213,7 +1213,7 @@ test("updateMany() inserts into the log table", async (context) => {
   await cleanup();
 });
 
-test.skip("revert() deletes versions newer than the safe timestamp", async (context) => {
+test("revert() deletes versions newer than the safe timestamp", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -1258,19 +1258,35 @@ test.skip("revert() deletes versions newer than the safe timestamp", async (cont
   await indexingStore.revert({ checkpoint: createCheckpoint(12) });
 
   const { items: pets } = await indexingStore.findMany({ tableName: "Pet" });
+
   expect(pets.length).toBe(1);
   expect(pets[0].name).toBe("Skip");
 
   const { items: persons } = await indexingStore.findMany({
     tableName: "Person",
   });
-  expect(persons.length).toBe(1);
+
+  expect(persons.length).toBe(2);
   expect(persons[0].name).toBe("Bobby");
+  expect(persons[1].name).toBe("Kevin");
+
+  const PetLogs = await indexingStore.db
+    .selectFrom(calculateLogTableName("Pet"))
+    .selectAll()
+    .execute();
+
+  expect(PetLogs).toHaveLength(1);
+
+  const PersonLogs = await indexingStore.db
+    .selectFrom(calculateLogTableName("Person"))
+    .selectAll()
+    .execute();
+  expect(PersonLogs).toHaveLength(3);
 
   await cleanup();
 });
 
-test.skip("revert() updates versions that only existed during the safe timestamp to latest", async (context) => {
+test("revert() updates versions with intermediate logs", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -1283,15 +1299,23 @@ test.skip("revert() updates versions that only existed during the safe timestamp
   });
   await indexingStore.delete({
     tableName: "Pet",
-    checkpoint: createCheckpoint(11),
+    checkpoint: createCheckpoint(10),
     id: "id1",
   });
 
-  await indexingStore.revert({ checkpoint: createCheckpoint(10) });
+  await indexingStore.revert({ checkpoint: createCheckpoint(8) });
 
-  const { items: pets } = await indexingStore.findMany({ tableName: "Pet" });
-  expect(pets.length).toBe(1);
-  expect(pets[0].name).toBe("Skip");
+  const instancePet = await indexingStore.findUnique({
+    tableName: "Pet",
+    id: "id1",
+  });
+  expect(instancePet).toBe(null);
+
+  const PetLogs = await indexingStore.db
+    .selectFrom(calculateLogTableName("Pet"))
+    .selectAll()
+    .execute();
+  expect(PetLogs).toHaveLength(0);
 
   await cleanup();
 });

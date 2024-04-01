@@ -46,59 +46,70 @@ export class RealtimeIndexingStore implements IndexingStore {
 
   async revert({ checkpoint }: { checkpoint: Checkpoint }) {
     await this.db.wrap({ method: "revert" }, async () => {
+      const encodedCheckpoint = encodeCheckpoint(checkpoint);
+
       // Retrieve all logs that need to be undone.
-      const logs = (await this.db
-        .selectFrom("logs")
-        .selectAll()
-        .where("checkpoint", ">", encodeCheckpoint(checkpoint))
-        .orderBy("checkpoint", "asc")
-        .execute()) as any;
+      const tableLogs = await Promise.all(
+        Object.values(this.namespaceInfo.internalTableIds).map((tableId) =>
+          this.db
+            .withSchema(this.namespaceInfo.internalNamespace)
+            .selectFrom(tableId)
+            .selectAll()
+            .where("checkpoint", ">", encodedCheckpoint)
+            .orderBy("uuid", "desc")
+            .execute(),
+        ),
+      );
 
-      await this.db.transaction().execute(async (tx) => {
-        // undo operation
-        for (const log of logs) {
-          const decodedRow = JSON.parse(log.row);
+      await Promise.all(
+        Object.entries(this.namespaceInfo.internalTableIds).map(
+          async ([tableName, tableId], i) => {
+            await this.db.transaction().execute(async (tx) => {
+              // undo operation
+              for (const log of tableLogs[i]) {
+                if (log.operation === 0) {
+                  // create
+                  await tx
+                    .withSchema(this.namespaceInfo.userNamespace)
+                    .deleteFrom(tableName)
+                    .where("id", "=", log.id)
+                    .execute();
+                } else if (log.operation === 1) {
+                  // update
+                  log.uuid = undefined;
+                  log.checkpoint = undefined;
+                  log.operation = undefined;
 
-          if (log.operation === 0) {
-            // create
-            await tx
-              .deleteFrom(log.tableName)
-              .where("id", "=", decodedRow.id)
-              .execute();
-          } else if (log.operation === 1) {
-            // update
-            await tx
-              .updateTable(log.tableName)
-              .set(
-                encodeRow(
-                  decodedRow,
-                  this.schema.tables[log.tableName],
-                  this.kind,
-                ),
-              )
-              .where("id", "=", decodedRow.id)
-              .execute();
-          } else {
-            // delete
-            await tx
-              .insertInto(log.tableName)
-              .values(
-                encodeRow(
-                  decodedRow,
-                  this.schema.tables[log.tableName],
-                  this.kind,
-                ),
-              )
-              .execute();
-          }
-        }
+                  await tx
+                    .withSchema(this.namespaceInfo.userNamespace)
+                    .updateTable(tableName)
+                    .set(log)
+                    .where("id", "=", log.id)
+                    .execute();
+                } else {
+                  // delete
+                  log.uuid = undefined;
+                  log.checkpoint = undefined;
+                  log.operation = undefined;
 
-        // delete logs
-        await tx
-          .deleteFrom("logs")
-          .where("checkpoint", ">", encodeCheckpoint(checkpoint))
-          .execute();
-      });
+                  await tx
+                    .withSchema(this.namespaceInfo.userNamespace)
+                    .insertInto(tableName)
+                    .values(log)
+                    .execute();
+                }
+              }
+
+              // delete logs
+              await tx
+                .withSchema(this.namespaceInfo.internalNamespace)
+                .deleteFrom(tableId)
+                .where("checkpoint", ">", encodedCheckpoint)
+                .execute();
+            });
+          },
+        ),
+      );
     });
   }
 

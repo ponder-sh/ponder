@@ -242,6 +242,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             .$call((builder) => this.buildOperationLogColumns(builder, columns))
             .execute();
 
+          // TODO(kyle) add index on checkpoint
+
           try {
             await tx.schema
               .withSchema(this.userNamespace)
