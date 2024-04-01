@@ -97,7 +97,7 @@ const generateBlock = (
     });
   }
 
-  const block: RpcBlock = {
+  const block = {
     baseFeePerGas: randomNum(),
     difficulty: randomNum(),
     extraData: randomNum(),
@@ -120,7 +120,9 @@ const generateBlock = (
     transactionsRoot: randomBlob(256),
     uncles: [],
     transactions: [],
-  };
+    blobGasUsed: undefined,
+    excessBlobGas: undefined,
+  } as unknown as RpcBlock;
 
   return {
     block,
