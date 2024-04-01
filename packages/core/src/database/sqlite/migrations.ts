@@ -11,8 +11,9 @@ const migrations: Record<string, Migration> = {
         .addColumn("is_locked", "integer", (col) => col.notNull())
         .addColumn("heartbeat_at", "integer", (col) => col.notNull())
         .addColumn("app_id", "text", (col) => col.notNull())
-        .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
-        .addColumn("finality_checkpoint", "varchar(75)", (col) => col.notNull())
+        .addColumn("finalized_checkpoint", "varchar(75)", (col) =>
+          col.notNull(),
+        )
         .addColumn("schema", "jsonb", (col) => col.notNull())
         .execute();
     },
@@ -33,8 +34,7 @@ export type InternalTables = {
     is_locked: number;
     heartbeat_at: number;
     app_id: string;
-    checkpoint: string;
-    finality_checkpoint: string;
+    finalized_checkpoint: string;
     schema: string;
   };
 };

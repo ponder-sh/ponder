@@ -176,10 +176,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
       await database.db
         .updateTable("namespace_lock")
-        .set({
-          checkpoint: encodeCheckpoint(newCheckpoint),
-          finality_checkpoint: encodeCheckpoint(newCheckpoint),
-        })
+        .set({ finalized_checkpoint: encodeCheckpoint(newCheckpoint) })
         .where("namespace", "=", "public")
         .execute();
 
