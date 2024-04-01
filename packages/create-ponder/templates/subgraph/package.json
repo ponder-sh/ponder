@@ -11,13 +11,13 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@ponder/core": "^0.0.95",
-    "viem": "^1.19.3"
+    "@ponder/core": "latest",
+    "viem": "^2.9.5"
   },
   "devDependencies": {
     "@types/node": "^20.9.0",
     "eslint": "^8.53.0",
-    "eslint-config-ponder": "^0.0.95",
+    "eslint-config-ponder": "latest",
     "typescript": "^5.2.2"
   },
   "engines": {
