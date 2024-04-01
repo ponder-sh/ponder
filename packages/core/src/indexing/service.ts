@@ -1,8 +1,4 @@
 import type { IndexingFunctions } from "@/build/functions/functions.js";
-import type {
-  FunctionIds,
-  TableIds,
-} from "@/build/static/getFunctionAndTableIds.js";
 import {
   type TableAccess,
   getTableAccessInverse,
@@ -17,7 +13,6 @@ import {
   sourceIsFactory,
   sourceIsLogFilter,
 } from "@/config/sources.js";
-import type { DatabaseService, FunctionMetadata } from "@/database/service.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";
@@ -90,7 +85,7 @@ const MAX_BATCH_SIZE = 10_000;
 export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
   private indexingStore: IndexingStore;
-  private database: DatabaseService;
+  // private database: DatabaseService;
   private syncService: SyncService;
   private sources: Source[];
   private networks: Network[];
@@ -100,13 +95,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private indexingFunctions?: IndexingFunctions;
   private schema?: Schema;
   private tableAccess?: TableAccess;
-  private tableIds?: TableIds;
-  private functionIds?: FunctionIds;
 
   queue?: IndexingFunctionQueue;
-
-  private flushInterval?: NodeJS.Timeout;
-  private isFlushIntervalExec = false;
 
   private getNetwork: (checkpoint: Checkpoint) => Context["network"] =
     undefined!;
@@ -165,14 +155,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   constructor({
     common,
-    database,
     syncService,
     indexingStore,
     networks,
     sources,
   }: {
     common: Common;
-    database: DatabaseService;
     syncService: SyncService;
     indexingStore: IndexingStore;
     networks: Network[];
@@ -180,7 +168,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }) {
     super();
     this.common = common;
-    this.database = database;
     this.indexingStore = indexingStore;
     this.syncService = syncService;
     this.sources = sources;
@@ -201,13 +188,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.clearListeners();
     this.isPaused = true;
 
-    clearInterval(this.flushInterval);
-
     this.queue?.pause();
     this.queue?.clear();
     this.loadingMutex.cancel();
-
-    await this.flush();
 
     this.common.logger.debug({
       service: "indexing",
@@ -227,20 +210,16 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingFunctions,
     schema,
     tableAccess,
-    tableIds,
-    functionIds,
+    cachedToCheckpoint,
   }: {
     indexingFunctions: IndexingFunctions;
     schema: Schema;
     tableAccess: TableAccess;
-    tableIds: TableIds;
-    functionIds: FunctionIds;
+    cachedToCheckpoint: Checkpoint;
   }) => {
     this.schema = schema;
     this.indexingFunctions = indexingFunctions;
     this.tableAccess = tableAccess;
-    this.tableIds = tableIds;
-    this.functionIds = functionIds;
 
     this.getDb = buildDb({
       common: this.common,
@@ -248,21 +227,99 @@ export class IndexingService extends Emittery<IndexingEvents> {
       schema: this.schema,
     });
 
-    await this.buildIndexingFunctionStates();
+    for (const contractName of Object.keys(this.indexingFunctions)) {
+      // Not sure why this is necessary
+      // @ts-ignore
+      for (const eventName of Object.keys(
+        this.indexingFunctions[contractName],
+      )) {
+        const indexingFunctionKey = `${contractName}:${eventName}`;
+
+        if (eventName === "setup") {
+          this.setupFunctionStates[indexingFunctionKey] = {
+            contractName,
+            isComplete: false,
+          };
+          continue;
+        }
+
+        // All tables that this indexing function key reads
+        const tableReads = this.tableAccess[indexingFunctionKey]?.access
+          ?.filter((t) => isReadStoreMethod(t.storeMethod))
+          .map((t) => t.tableName);
+
+        // All indexing function keys that write to a table in `tableReads`
+        // except for itself.
+        const parents: string[] = [];
+        const inverseTableAccess = getTableAccessInverse(this.tableAccess);
+        for (const tableName of tableReads) {
+          for (const {
+            indexingFunctionKey: parentIndexingFunctionKey,
+            storeMethod,
+          } of inverseTableAccess[tableName]) {
+            if (
+              !parentIndexingFunctionKey.includes(":setup") &&
+              isWriteStoreMethod(storeMethod) &&
+              parentIndexingFunctionKey !== indexingFunctionKey
+            )
+              parents.push(parentIndexingFunctionKey);
+          }
+        }
+
+        const isSelfDependent = this.tableAccess[
+          indexingFunctionKey
+        ]?.access?.some(
+          (t) =>
+            isWriteStoreMethod(t.storeMethod) &&
+            tableReads.includes(t.tableName),
+        );
+
+        const keySources = this.sources.filter(
+          (s) => s.contractName === contractName,
+        );
+
+        // Note: Assumption is that all sources with the same contract name have the same abi.
+        const i = this.sources.findIndex(
+          (s) =>
+            s.contractName === contractName &&
+            s.abiEvents.bySafeName[eventName] !== undefined,
+        );
+
+        const abiEvent = this.sources[i].abiEvents.bySafeName[eventName]!.item;
+        const eventSelector =
+          this.sources[i].abiEvents.bySafeName[eventName]!.selector;
+
+        this.common.logger.debug({
+          service: "indexing",
+          msg: `Registered indexing function "${indexingFunctionKey}" with table access [${
+            this.tableAccess[indexingFunctionKey]?.access
+              ?.map(
+                ({ storeMethod, tableName }) => `${tableName}.${storeMethod}()`,
+              )
+              ?.join(", ") ?? ""
+          }]`,
+        });
+
+        this.indexingFunctionStates[indexingFunctionKey] = {
+          eventName,
+          contractName,
+          parents: dedupe(parents),
+          isSelfDependent,
+          sources: keySources,
+          abiEvent,
+          eventSelector,
+
+          tasksProcessedToCheckpoint: cachedToCheckpoint,
+          tasksLoadedFromCheckpoint: cachedToCheckpoint,
+          tasksLoadedToCheckpoint: cachedToCheckpoint,
+          firstEventCheckpoint: undefined,
+          loadedTasks: [],
+          eventCount: 0,
+        };
+      }
+    }
+
     this.createEventQueue();
-
-    this.flushInterval = setInterval(async () => {
-      if (this.isFlushIntervalExec) return;
-      this.isFlushIntervalExec = true;
-
-      this.isPaused = true;
-      await this.queue?.onIdle();
-      this.isPaused = false;
-      await this.flush();
-
-      this.processEvents();
-      this.isFlushIntervalExec = false;
-    }, 120_000);
   };
 
   /**
@@ -964,193 +1021,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
   };
 
-  private flush = async () => {
-    const indexingFunctionMetadata = Object.entries(this.indexingFunctionStates)
-      .map(([indexingFunctionKey, state]) => {
-        const stateCheckpoint = this.getStateCheckpoint(indexingFunctionKey);
-
-        const toCheckpoint = checkpointMin(
-          stateCheckpoint,
-          this.syncService.finalityCheckpoint,
-        );
-
-        return {
-          functionId: this.functionIds![indexingFunctionKey],
-          functionName: indexingFunctionKey,
-          fromCheckpoint: state.firstEventCheckpoint ?? null,
-          toCheckpoint,
-          eventCount: state.eventCount,
-        };
-      })
-      .filter(
-        ({ toCheckpoint }) => !isCheckpointEqual(toCheckpoint, zeroCheckpoint),
-      );
-
-    const setupFunctionMetadata = Object.entries(this.setupFunctionStates)
-      .map(([setupFunctionKey, state]) =>
-        state.isComplete
-          ? {
-              functionId: this.functionIds![setupFunctionKey],
-              functionName: setupFunctionKey,
-              fromCheckpoint: null,
-              toCheckpoint: zeroCheckpoint,
-              eventCount: 0,
-            }
-          : null,
-      )
-      .filter((m) => m !== null) as FunctionMetadata[];
-
-    await this.database.flush(
-      indexingFunctionMetadata.concat(setupFunctionMetadata),
-    );
-  };
-
   private buildSourceById = () => {
     for (const source of this.sources) {
       this.sourceById[source.id] = source;
-    }
-  };
-
-  private buildIndexingFunctionStates = async () => {
-    if (
-      this.indexingFunctions === undefined ||
-      this.sources === undefined ||
-      this.tableAccess === undefined ||
-      this.tableIds === undefined ||
-      this.functionIds === undefined
-    )
-      return;
-
-    // clear in case of reloads
-    this.indexingFunctionStates = {};
-    this.setupFunctionStates = {};
-
-    const checkpoints: {
-      [functionId: string]: Omit<
-        FunctionMetadata,
-        "functionId" | "functionName"
-      >;
-    } = {};
-    const metadata = this.database.functionMetadata;
-
-    for (const m of metadata) {
-      checkpoints[m.functionId] = {
-        fromCheckpoint: m.fromCheckpoint,
-        toCheckpoint: m.toCheckpoint,
-        eventCount: m.eventCount,
-      };
-    }
-
-    for (const contractName of Object.keys(this.indexingFunctions)) {
-      // Not sure why this is necessary
-      // @ts-ignore
-      for (const eventName of Object.keys(
-        this.indexingFunctions[contractName],
-      )) {
-        const indexingFunctionKey = `${contractName}:${eventName}`;
-
-        if (eventName === "setup") {
-          const indexingFunctionKey = `${contractName}:${eventName}`;
-
-          const checkpoint =
-            checkpoints[this.functionIds[indexingFunctionKey]]!;
-
-          this.setupFunctionStates[indexingFunctionKey] = {
-            contractName,
-            isComplete: checkpoint ? true : false,
-          };
-
-          continue;
-        }
-
-        // All tables that this indexing function key reads
-        const tableReads = this.tableAccess[indexingFunctionKey]?.access
-          ?.filter((t) => isReadStoreMethod(t.storeMethod))
-          .map((t) => t.tableName);
-
-        // All indexing function keys that write to a table in `tableReads`
-        // except for itself.
-        const parents: string[] = [];
-        const inverseTableAccess = getTableAccessInverse(this.tableAccess);
-        for (const tableName of tableReads) {
-          for (const {
-            indexingFunctionKey: parentIndexingFunctionKey,
-            storeMethod,
-          } of inverseTableAccess[tableName]) {
-            if (
-              !parentIndexingFunctionKey.includes(":setup") &&
-              isWriteStoreMethod(storeMethod) &&
-              parentIndexingFunctionKey !== indexingFunctionKey
-            )
-              parents.push(parentIndexingFunctionKey);
-          }
-        }
-
-        const isSelfDependent = this.tableAccess[
-          indexingFunctionKey
-        ]?.access?.some(
-          (t) =>
-            isWriteStoreMethod(t.storeMethod) &&
-            tableReads.includes(t.tableName),
-        );
-
-        const keySources = this.sources.filter(
-          (s) => s.contractName === contractName,
-        );
-
-        // Note: Assumption is that all sources with the same contract name have the same abi.
-        const i = this.sources.findIndex(
-          (s) =>
-            s.contractName === contractName &&
-            s.abiEvents.bySafeName[eventName] !== undefined,
-        );
-
-        const abiEvent = this.sources[i].abiEvents.bySafeName[eventName]!.item;
-        const eventSelector =
-          this.sources[i].abiEvents.bySafeName[eventName]!.selector;
-
-        this.common.logger.debug({
-          service: "indexing",
-          msg: `Registered indexing function "${indexingFunctionKey}" with table access [${
-            this.tableAccess[indexingFunctionKey]?.access
-              ?.map(
-                ({ storeMethod, tableName }) => `${tableName}.${storeMethod}()`,
-              )
-              ?.join(", ") ?? ""
-          }]`,
-        });
-
-        const checkpoint = checkpoints[this.functionIds[indexingFunctionKey]]!;
-
-        this.indexingFunctionStates[indexingFunctionKey] = {
-          eventName,
-          contractName,
-          parents: dedupe(parents),
-          isSelfDependent,
-          sources: keySources,
-          abiEvent,
-          eventSelector,
-
-          tasksProcessedToCheckpoint:
-            checkpoint?.toCheckpoint ?? zeroCheckpoint,
-          tasksLoadedFromCheckpoint: checkpoint?.toCheckpoint ?? zeroCheckpoint,
-          tasksLoadedToCheckpoint: checkpoint?.toCheckpoint ?? zeroCheckpoint,
-          firstEventCheckpoint: checkpoint?.fromCheckpoint ?? undefined,
-          loadedTasks: [],
-          eventCount: checkpoint?.eventCount ?? 0,
-        };
-
-        if (checkpoint?.eventCount) {
-          const labels = {
-            network: "",
-            event: indexingFunctionKey,
-          };
-          this.common.metrics.ponder_indexing_completed_events.set(
-            labels,
-            checkpoint.eventCount,
-          );
-        }
-      }
     }
   };
 

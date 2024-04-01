@@ -5,7 +5,8 @@ import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { TelemetryService } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
+import type { NamespaceInfo } from "@/database/service.js";
+import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
 import { createServer } from "@/server/service.js";
 import dotenv from "dotenv";
 import type { CliOptions } from "../ponder.js";
@@ -87,13 +88,14 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const { poolConfig } = databaseConfig;
   const database = new PostgresDatabaseService({ common, poolConfig });
 
-  const indexingStoreConfig = database.getIndexingStoreConfig();
-  const indexingStore = new PostgresIndexingStore({
-    common,
+  const indexingStore = new RealtimeIndexingStore({
+    kind: "postgres",
     schema,
-    pool: indexingStoreConfig.pool,
-    schemaName: "ponder",
-    tablePrefix: "_raw_",
+    // Note: `ponder serve` only uses findUnique and findMany, which only
+    // use the user namespaace tables. Eventually, they should probably be
+    // in their own PublicStore class.
+    namespaceInfo: { userNamespace: "public" } as unknown as NamespaceInfo,
+    db: database.indexingDb,
   });
 
   const server = await createServer({ graphqlSchema, indexingStore, common });
@@ -101,7 +103,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   cleanupReloadable = async () => {
     await server.kill();
-    indexingStore.kill();
+    await database.kill();
   };
 
   return cleanup;

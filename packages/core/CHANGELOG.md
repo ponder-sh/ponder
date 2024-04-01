@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.3.8
+
+## 0.3.7
+
+### Patch Changes
+
+- [#754](https://github.com/ponder-sh/ponder/pull/754) [`395196b6ca802e77fc49145b2a6d26fdbed48973`](https://github.com/ponder-sh/ponder/commit/395196b6ca802e77fc49145b2a6d26fdbed48973) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where certain errors encountered during the initial build were not printed to the console.
+
 ## 0.3.6
 
 ### Patch Changes

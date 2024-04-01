@@ -15,7 +15,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
     const enumValues = new Set<string>();
     for (const enumValue of _enum) {
       if (enumValues.has(enumValue)) {
-        throw Error(
+        throw new Error(
           `Validation failed: Enum '${name}' contains duplicate value '${enumValue}'.`,
         );
       }
@@ -29,24 +29,24 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
 
     // Validate the id column
     if (columns.id === undefined)
-      throw Error(
+      throw new Error(
         `Validation failed: Table '${tableName}' does not have an 'id' column.`,
       );
 
     if (isEnumColumn(columns.id))
-      throw Error(
+      throw new Error(
         `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'enum', expected one of ['string', 'hex', 'bigint', 'int'].`,
       );
     if (isOneColumn(columns.id))
-      throw Error(
+      throw new Error(
         `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'one', expected one of ['string', 'hex', 'bigint', 'int'].`,
       );
     if (isManyColumn(columns.id))
-      throw Error(
+      throw new Error(
         `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'many', expected one of ['string', 'hex', 'bigint', 'int'].`,
       );
     if (isReferenceColumn(columns.id))
-      throw Error(
+      throw new Error(
         `Validation failed: Invalid type for ID column '${tableName}.id'. ID columns cannot use the '.references' modifier.`,
       );
 
@@ -56,18 +56,18 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
       columns.id.type !== "hex" &&
       columns.id.type !== "int"
     )
-      throw Error(
+      throw new Error(
         `Validation failed: Invalid type for ID column '${tableName}.id'. Got '${columns.id.type}', expected one of ['string', 'hex', 'bigint', 'int'].`,
       );
 
     // @ts-expect-error
     if (columns.id.optional === true)
-      throw Error(
+      throw new Error(
         `Validation failed: Invalid type for ID column '${tableName}.id'. ID columns cannot be optional.`,
       );
     // @ts-expect-error
     if (columns.id.list === true)
-      throw Error(
+      throw new Error(
         `Validation failed: Invalid type for ID column '${tableName}.id'. ID columns cannot be a list.`,
       );
 
@@ -86,7 +86,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
           const otherColumns = Object.keys(columns).filter(
             (c) => c !== columnName,
           );
-          throw Error(
+          throw new Error(
             `Validation failed. Relationship column '${tableName}.${columnName}' uses a column that does not exist. Got '${
               column.referenceColumn
             }', expected one of [${otherColumns
@@ -99,7 +99,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
           const foreignKeyColumns = Object.keys(columns).filter(
             (c) => c !== columnName && isReferenceColumn(columns[c]),
           );
-          throw Error(
+          throw new Error(
             `Validation failed. Relationship column '${tableName}.${columnName}' uses a column that is not foreign key column. Got '${
               column.referenceColumn
             }', expected one of [${foreignKeyColumns
@@ -119,7 +119,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
             (t) => t !== tableName,
           );
 
-          throw Error(
+          throw new Error(
             `Validation failed. Relationship column '${tableName}.${columnName}' uses a table that does not exist. Got '${
               column.referenceTable
             }', expected one of [${otherTables
@@ -134,7 +134,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
         );
 
         if (usedColumn === undefined) {
-          throw Error(
+          throw new Error(
             `Validation failed. Relationship column '${tableName}.${columnName}' uses a column that does not exist. Got '${
               column.referenceTable
             }.${column.referenceColumn}', expected one of [${usedTableColumns
@@ -147,7 +147,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
           const foreignKeyColumnNames = usedTableColumns.filter(([, c]) =>
             isReferenceColumn(c),
           );
-          throw Error(
+          throw new Error(
             `Validation failed. Relationship column '${tableName}.${columnName}' uses a column that is not foreign key column. Got '${
               column.referenceTable
             }.${
@@ -164,7 +164,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
           ([enumName]) => enumName === column.type,
         );
         if (referencedEnum === undefined) {
-          throw Error(
+          throw new Error(
             `Validation failed: Enum column '${tableName}.${columnName}' doesn't reference a valid enum. Got '${
               column.type
             }', expected one of [${Object.keys(schema.enums)
@@ -180,7 +180,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
         );
 
         if (referencedTable === undefined) {
-          throw Error(
+          throw new Error(
             `Validation failed: Foreign key column '${tableName}.${columnName}' does not reference a valid ID column. Got '${
               column.references
             }', expected one of [${Object.keys(schema.tables)
@@ -190,14 +190,14 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
         }
 
         if (referencedTable[1].id.type !== column.type) {
-          throw Error(
+          throw new Error(
             `Validation failed: Foreign key column '${tableName}.${columnName}' type does not match the referenced table's ID column type. Got '${column.type}', expected '${referencedTable[1].id.type}'.`,
           );
         }
 
         // NOTE: This is unreachable, but worth documenting here.
         // if (column.list) {
-        //   throw Error(
+        //   throw new Error(
         //     `Validation failed: Foreign key column '${tableName}.${columnName}' cannot use the 'list' modifier.`,
         //   );
         // }
@@ -213,7 +213,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
       //     column.type !== "float" &&
       //     column.type !== "hex"
       //   ) {
-      //     throw Error(
+      //     throw new Error(
       //       `Validation failed: Primitive column '${tableName}.${columnName}' type is invalid. Got '${column.type}', expected one of ['bigint', 'string', 'boolean', 'int', 'float', 'hex'].`,
       //     );
       //   }
@@ -226,10 +226,12 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
 
 const validateTableOrColumnName = (key: string, type: string) => {
   if (key === "")
-    throw Error(`Validation failed: ${type} name can't be an empty string.`);
+    throw new Error(
+      `Validation failed: ${type} name can't be an empty string.`,
+    );
 
   if (!/^[a-z|A-Z|0-9]+$/.test(key))
-    throw Error(
+    throw new Error(
       `Validation failed: ${type} name '${key}' contains an invalid character.`,
     );
 };
@@ -240,7 +242,8 @@ export function safeBuildSchema({ schema }: { schema: Schema }) {
     return { success: true, data: result } as const;
   } catch (error_) {
     const error = error_ as Error;
-    error.stack = undefined;
+    // The trace is not useful here, better to only include the message.
+    error.stack = error.message;
     return { success: false, error } as const;
   }
 }

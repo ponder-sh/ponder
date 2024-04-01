@@ -4,8 +4,7 @@ import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
-import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
+import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { IndexingService } from "@/indexing/service.js";
 import { createServer } from "@/server/service.js";
@@ -13,7 +12,10 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { SyncService } from "@/sync/service.js";
-import { isCheckpointGreaterThanOrEqualTo } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  isCheckpointGreaterThanOrEqualTo,
+} from "@/utils/checkpoint.js";
 
 /**
  * Starts the server, sync, and indexing services for the specified build.
@@ -37,43 +39,43 @@ export async function run({
     graphqlSchema,
     indexingFunctions,
     tableAccess,
-    tableIds,
-    functionIds,
+    appId,
   } = build;
 
   let database: DatabaseService;
+  let cachedToCheckpoint: Checkpoint;
   let indexingStore: IndexingStore;
   let syncStore: SyncStore;
 
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
-    await database.setup({ schema, tableIds, functionIds, tableAccess });
+    const result = await database.setup({ schema, appId });
+    cachedToCheckpoint = result.checkpoint;
 
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    indexingStore = new SqliteIndexingStore({
-      common,
+    indexingStore = new RealtimeIndexingStore({
+      kind: "sqlite",
       schema,
-      ...indexingStoreConfig,
+      namespaceInfo: result.namespaceInfo,
+      db: database.indexingDb,
     });
 
-    const syncStoreConfig = database.getSyncStoreConfig();
-    syncStore = new SqliteSyncStore({ common, ...syncStoreConfig });
+    syncStore = new SqliteSyncStore({ common, db: database.syncDb });
     await syncStore.migrateUp();
   } else {
     const { poolConfig } = databaseConfig;
     database = new PostgresDatabaseService({ common, poolConfig });
-    await database.setup({ schema, tableIds, functionIds, tableAccess });
+    const result = await database.setup({ schema, appId });
+    cachedToCheckpoint = result.checkpoint;
 
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    indexingStore = new PostgresIndexingStore({
-      common,
+    indexingStore = new RealtimeIndexingStore({
+      kind: "postgres",
       schema,
-      ...indexingStoreConfig,
+      namespaceInfo: result.namespaceInfo,
+      db: database.indexingDb,
     });
 
-    const syncStoreConfig = await database.getSyncStoreConfig();
-    syncStore = new PostgresSyncStore({ common, ...syncStoreConfig });
+    syncStore = new PostgresSyncStore({ common, db: database.syncDb });
     await syncStore.migrateUp();
   }
 
@@ -85,7 +87,6 @@ export async function run({
 
   const indexingService = new IndexingService({
     common,
-    database,
     indexingStore,
     sources,
     networks,
@@ -113,9 +114,7 @@ export async function run({
 
     if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
       isHealthy = true;
-      await database.publish();
       server.setHealthy();
-
       common.logger.info({ service: "server", msg: "Responding as healthy" });
     }
   });
@@ -124,8 +123,7 @@ export async function run({
     indexingFunctions,
     schema,
     tableAccess,
-    tableIds,
-    functionIds,
+    cachedToCheckpoint,
   });
 
   indexingService.processEvents();
@@ -134,8 +132,6 @@ export async function run({
     await server.kill();
     await syncService.kill();
     await indexingService.kill();
-    indexingStore.kill();
-    syncStore.kill();
     await database.kill();
   };
 }

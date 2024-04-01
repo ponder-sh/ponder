@@ -1,5 +1,4 @@
 import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
-import { getTableIds } from "@/_test/utils.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -41,7 +40,6 @@ test("scalar", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -98,7 +96,6 @@ test("scalar list", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -167,7 +164,6 @@ test("scalar optional", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -236,7 +232,6 @@ test("scalar optional list", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -301,7 +296,6 @@ test("enum", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -351,7 +345,6 @@ test("enum optional", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -401,7 +394,6 @@ test("enum list", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -460,7 +452,6 @@ test("enum optional list", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -523,7 +514,6 @@ test("one", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -590,7 +580,6 @@ test("many", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -657,7 +646,6 @@ test("bigint id", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -700,7 +688,6 @@ test("hex id", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -749,7 +736,6 @@ test("filter string eq", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -812,7 +798,6 @@ test("filter string in", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -875,7 +860,6 @@ test("filter string contains", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -950,7 +934,6 @@ test("filter string starts with", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -1025,7 +1008,6 @@ test("filter string not ends with", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -1100,7 +1082,6 @@ test("filter int eq", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -1163,7 +1144,6 @@ test("filter int gt", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -1238,7 +1218,6 @@ test("filter int lte", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -1301,7 +1280,6 @@ test("filter int in", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -1364,7 +1342,6 @@ test("filter float eq", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -1427,7 +1404,6 @@ test("filter float gt", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -1502,7 +1478,6 @@ test("filter float lte", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -1565,7 +1540,6 @@ test("filter float in", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -1628,7 +1602,6 @@ test("filter bigint eq", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -1691,7 +1664,6 @@ test("filter bigint gt", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -1766,7 +1738,6 @@ test("filter bigint lte", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -1829,7 +1800,6 @@ test("filter bigint in", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -1892,7 +1862,6 @@ test("filer hex eq", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -1955,7 +1924,6 @@ test("filter hex gt", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -2030,7 +1998,6 @@ test("filter string list eq", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -2105,7 +2072,6 @@ test("filter string list has", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -2176,7 +2142,6 @@ test("filter enum eq", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -2232,7 +2197,6 @@ test("filter enum in", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -2292,7 +2256,6 @@ test("filter ref eq", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -2361,7 +2324,6 @@ test("filter ref in", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
@@ -2429,7 +2391,6 @@ test("order int asc", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -2514,7 +2475,6 @@ test("order bigint asc", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -2599,7 +2559,6 @@ test("order bigint desc", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);
@@ -2684,7 +2643,6 @@ test("limit default", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   for (let i = 0; i < 100; i++) {
@@ -2736,7 +2694,6 @@ test("limit", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   for (let i = 0; i < 100; i++) {
@@ -2788,7 +2745,6 @@ test("limit error", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   // for (let i = 0; i < 100; i++) {
@@ -2842,7 +2798,6 @@ test("timestamp", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await create("0", indexingStore);

@@ -1,6 +1,6 @@
 import type { Common } from "@/common/common.js";
-import { NonRetryableError } from "@/common/errors.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
@@ -11,13 +11,10 @@ import {
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
-import { type SqliteDatabase } from "@/utils/sqlite.js";
-import { startClock } from "@/utils/timer.js";
 import {
   type ExpressionBuilder,
-  Kysely,
+  type Kysely,
   Migrator,
-  SqliteDialect,
   type Transaction as KyselyTransaction,
   sql,
 } from "kysely";
@@ -41,34 +38,16 @@ import { migrationProvider } from "./migrations.js";
 export class SqliteSyncStore implements SyncStore {
   kind = "sqlite" as const;
 
-  private common: Common;
-  private isKilled = false;
+  db: HeadlessKysely<SyncStoreTables>;
 
-  db: Kysely<SyncStoreTables>;
-
-  constructor({
-    common,
-    database,
-  }: { common: Common; database: SqliteDatabase }) {
-    this.common = common;
-    this.db = new Kysely<SyncStoreTables>({
-      dialect: new SqliteDialect({ database }),
-      log(event) {
-        if (event.level === "query") {
-          common.metrics.ponder_sqlite_query_total.inc({ database: "sync" });
-        }
-      },
-    });
+  constructor({ db }: { common: Common; db: HeadlessKysely<SyncStoreTables> }) {
+    this.db = db;
   }
 
-  kill = () => {
-    this.isKilled = true;
-  };
-
   migrateUp = async () => {
-    return this.wrap({ method: "migrateUp" }, async () => {
+    return this.db.wrap({ method: "migrateUp" }, async () => {
       const migrator = new Migrator({
-        db: this.db,
+        db: this.db as Kysely<any>,
         provider: migrationProvider,
       });
 
@@ -92,7 +71,7 @@ export class SqliteSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    return this.wrap({ method: "insertLogFilterInterval" }, async () => {
+    return this.db.wrap({ method: "insertLogFilterInterval" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await tx
           .insertInto("blocks")
@@ -133,7 +112,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     logFilter: LogFilterCriteria;
   }) => {
-    return this.wrap({ method: "getLogFilterIntervals" }, async () => {
+    return this.db.wrap({ method: "getLogFilterIntervals" }, async () => {
       const fragments = buildLogFilterFragments({ ...logFilter, chainId });
 
       // First, attempt to merge overlapping and adjacent intervals.
@@ -246,17 +225,20 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     logs: RpcLog[];
   }) => {
-    return this.wrap({ method: "insertFactoryChildAddressLogs" }, async () => {
-      await this.db.transaction().execute(async (tx) => {
-        for (const rpcLog of rpcLogs) {
-          await tx
-            .insertInto("logs")
-            .values({ ...rpcToSqliteLog(rpcLog), chainId })
-            .onConflict((oc) => oc.column("id").doNothing())
-            .execute();
-        }
-      });
-    });
+    return this.db.wrap(
+      { method: "insertFactoryChildAddressLogs" },
+      async () => {
+        await this.db.transaction().execute(async (tx) => {
+          for (const rpcLog of rpcLogs) {
+            await tx
+              .insertInto("logs")
+              .values({ ...rpcToSqliteLog(rpcLog), chainId })
+              .onConflict((oc) => oc.column("id").doNothing())
+              .execute();
+          }
+        });
+      },
+    );
   };
 
   async *getFactoryChildAddresses({
@@ -292,7 +274,7 @@ export class SqliteSyncStore implements SyncStore {
         query = query.where("blockNumber", ">", cursor);
       }
 
-      const batch = await this.wrap(
+      const batch = await this.db.wrap(
         { method: "getFactoryChildAddresses" },
         () => query.execute(),
       );
@@ -325,38 +307,41 @@ export class SqliteSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    return this.wrap({ method: "insertFactoryLogFilterInterval" }, async () => {
-      await this.db.transaction().execute(async (tx) => {
-        await tx
-          .insertInto("blocks")
-          .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute();
-
-        for (const rpcTransaction of rpcTransactions) {
+    return this.db.wrap(
+      { method: "insertFactoryLogFilterInterval" },
+      async () => {
+        await this.db.transaction().execute(async (tx) => {
           await tx
-            .insertInto("transactions")
-            .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
+            .insertInto("blocks")
+            .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
-        }
 
-        for (const rpcLog of rpcLogs) {
-          await tx
-            .insertInto("logs")
-            .values({ ...rpcToSqliteLog(rpcLog), chainId })
-            .onConflict((oc) => oc.column("id").doNothing())
-            .execute();
-        }
+          for (const rpcTransaction of rpcTransactions) {
+            await tx
+              .insertInto("transactions")
+              .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
+              .onConflict((oc) => oc.column("hash").doNothing())
+              .execute();
+          }
 
-        await this._insertFactoryLogFilterInterval({
-          tx,
-          chainId,
-          factories: [factory],
-          interval,
+          for (const rpcLog of rpcLogs) {
+            await tx
+              .insertInto("logs")
+              .values({ ...rpcToSqliteLog(rpcLog), chainId })
+              .onConflict((oc) => oc.column("id").doNothing())
+              .execute();
+          }
+
+          await this._insertFactoryLogFilterInterval({
+            tx,
+            chainId,
+            factories: [factory],
+            interval,
+          });
         });
-      });
-    });
+      },
+    );
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -366,113 +351,119 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     factory: FactoryCriteria;
   }) => {
-    return this.wrap({ method: "getFactoryLogFilterIntervals" }, async () => {
-      const fragments = buildFactoryFragments({ ...factory, chainId });
+    return this.db.wrap(
+      { method: "getFactoryLogFilterIntervals" },
+      async () => {
+        const fragments = buildFactoryFragments({ ...factory, chainId });
 
-      await Promise.all(
-        fragments.map(async (fragment) => {
-          return await this.db.transaction().execute(async (tx) => {
-            const { id: factoryId } = await tx
-              .insertInto("factories")
-              .values(fragment)
-              .onConflict((oc) => oc.doUpdateSet(fragment))
-              .returningAll()
-              .executeTakeFirstOrThrow();
+        await Promise.all(
+          fragments.map(async (fragment) => {
+            return await this.db.transaction().execute(async (tx) => {
+              const { id: factoryId } = await tx
+                .insertInto("factories")
+                .values(fragment)
+                .onConflict((oc) => oc.doUpdateSet(fragment))
+                .returningAll()
+                .executeTakeFirstOrThrow();
 
-            const existingIntervals = await tx
-              .deleteFrom("factoryLogFilterIntervals")
-              .where("factoryId", "=", factoryId)
-              .returningAll()
-              .execute();
+              const existingIntervals = await tx
+                .deleteFrom("factoryLogFilterIntervals")
+                .where("factoryId", "=", factoryId)
+                .returningAll()
+                .execute();
 
-            const mergedIntervals = intervalUnion(
-              existingIntervals.map((i) => [
-                Number(decodeToBigInt(i.startBlock)),
-                Number(decodeToBigInt(i.endBlock)),
+              const mergedIntervals = intervalUnion(
+                existingIntervals.map((i) => [
+                  Number(decodeToBigInt(i.startBlock)),
+                  Number(decodeToBigInt(i.endBlock)),
+                ]),
+              );
+
+              const mergedIntervalRows = mergedIntervals.map(
+                ([startBlock, endBlock]) => ({
+                  factoryId,
+                  startBlock: encodeAsText(startBlock),
+                  endBlock: encodeAsText(endBlock),
+                }),
+              );
+
+              if (mergedIntervalRows.length > 0) {
+                await tx
+                  .insertInto("factoryLogFilterIntervals")
+                  .values(mergedIntervalRows)
+                  .execute();
+              }
+
+              return mergedIntervals;
+            });
+          }),
+        );
+
+        const intervals = await this.db
+          .with(
+            "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
+            () =>
+              sql`( values ${sql.join(
+                fragments.map(
+                  (f) =>
+                    sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
+                      f.eventSelector,
+                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
+                      f.topic0,
+                    )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
+                      f.topic3,
+                    )} )`,
+                ),
+              )} )`,
+          )
+          .selectFrom("factoryLogFilterIntervals")
+          .leftJoin("factories", "factoryId", "factories.id")
+          .innerJoin("factoryFilterFragments", (join) => {
+            let baseJoin = join.on(({ and, cmpr }) =>
+              and([
+                cmpr("fragmentAddress", "=", sql.ref("address")),
+                cmpr("fragmentEventSelector", "=", sql.ref("eventSelector")),
+                cmpr(
+                  "fragmentChildAddressLocation",
+                  "=",
+                  sql.ref("childAddressLocation"),
+                ),
               ]),
             );
-
-            const mergedIntervalRows = mergedIntervals.map(
-              ([startBlock, endBlock]) => ({
-                factoryId,
-                startBlock: encodeAsText(startBlock),
-                endBlock: encodeAsText(endBlock),
-              }),
-            );
-
-            if (mergedIntervalRows.length > 0) {
-              await tx
-                .insertInto("factoryLogFilterIntervals")
-                .values(mergedIntervalRows)
-                .execute();
+            for (const idx_ of range(0, 4)) {
+              baseJoin = baseJoin.on(({ or, cmpr }) => {
+                const idx = idx_ as 0 | 1 | 2 | 3;
+                return or([
+                  cmpr(`topic${idx}`, "is", null),
+                  cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
+                ]);
+              });
             }
 
-            return mergedIntervals;
-          });
-        }),
-      );
+            return baseJoin;
+          })
+          .select(["fragmentId", "startBlock", "endBlock"])
+          .where("chainId", "=", chainId)
+          .execute();
 
-      const intervals = await this.db
-        .with(
-          "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
-          () =>
-            sql`( values ${sql.join(
-              fragments.map(
-                (f) =>
-                  sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                    f.eventSelector,
-                  )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
-                    f.topic0,
-                  )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                    f.topic3,
-                  )} )`,
-              ),
-            )} )`,
-        )
-        .selectFrom("factoryLogFilterIntervals")
-        .leftJoin("factories", "factoryId", "factories.id")
-        .innerJoin("factoryFilterFragments", (join) => {
-          let baseJoin = join.on(({ and, cmpr }) =>
-            and([
-              cmpr("fragmentAddress", "=", sql.ref("address")),
-              cmpr("fragmentEventSelector", "=", sql.ref("eventSelector")),
-              cmpr(
-                "fragmentChildAddressLocation",
-                "=",
-                sql.ref("childAddressLocation"),
-              ),
-            ]),
-          );
-          for (const idx_ of range(0, 4)) {
-            baseJoin = baseJoin.on(({ or, cmpr }) => {
-              const idx = idx_ as 0 | 1 | 2 | 3;
-              return or([
-                cmpr(`topic${idx}`, "is", null),
-                cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
-              ]);
-            });
-          }
+        const intervalsByFragmentId = intervals.reduce(
+          (acc, cur) => {
+            const { fragmentId, startBlock, endBlock } = cur;
+            (acc[fragmentId] ||= []).push([
+              Number(startBlock),
+              Number(endBlock),
+            ]);
+            return acc;
+          },
+          {} as Record<string, [number, number][]>,
+        );
 
-          return baseJoin;
-        })
-        .select(["fragmentId", "startBlock", "endBlock"])
-        .where("chainId", "=", chainId)
-        .execute();
-
-      const intervalsByFragmentId = intervals.reduce(
-        (acc, cur) => {
-          const { fragmentId, startBlock, endBlock } = cur;
-          (acc[fragmentId] ||= []).push([Number(startBlock), Number(endBlock)]);
-          return acc;
-        },
-        {} as Record<string, [number, number][]>,
-      );
-
-      const intervalsForEachFragment = fragments.map((f) =>
-        intervalUnion(intervalsByFragmentId[f.id] ?? []),
-      );
-      return intervalIntersectionMany(intervalsForEachFragment);
-    });
+        const intervalsForEachFragment = fragments.map((f) =>
+          intervalUnion(intervalsByFragmentId[f.id] ?? []),
+        );
+        return intervalIntersectionMany(intervalsForEachFragment);
+      },
+    );
   };
 
   insertRealtimeBlock = async ({
@@ -486,7 +477,7 @@ export class SqliteSyncStore implements SyncStore {
     transactions: RpcTransaction[];
     logs: RpcLog[];
   }) => {
-    return this.wrap({ method: "insertRealtimeBlock" }, async () => {
+    return this.db.wrap({ method: "insertRealtimeBlock" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await tx
           .insertInto("blocks")
@@ -524,7 +515,7 @@ export class SqliteSyncStore implements SyncStore {
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    return this.wrap({ method: "insertRealtimeInterval" }, async () => {
+    return this.db.wrap({ method: "insertRealtimeInterval" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await this._insertLogFilterInterval({
           tx,
@@ -556,7 +547,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     fromBlock: bigint;
   }) => {
-    return this.wrap({ method: "deleteRealtimeData" }, async () => {
+    return this.db.wrap({ method: "deleteRealtimeData" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         const fromBlock = encodeAsText(fromBlock_);
 
@@ -750,7 +741,7 @@ export class SqliteSyncStore implements SyncStore {
     request: string;
     result: string;
   }) => {
-    return this.wrap({ method: "insertRpcRequestResult" }, async () => {
+    return this.db.wrap({ method: "insertRpcRequestResult" }, async () => {
       await this.db
         .insertInto("rpcRequestResults")
         .values({
@@ -773,7 +764,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     request: string;
   }) => {
-    return this.wrap({ method: "getRpcRequestResult" }, async () => {
+    return this.db.wrap({ method: "getRpcRequestResult" }, async () => {
       const rpcRequestResult = await this.db
         .selectFrom("rpcRequestResults")
         .selectAll()
@@ -825,7 +816,7 @@ export class SqliteSyncStore implements SyncStore {
         }[];
       }
   )) {
-    return this.wrap({ method: "getLogEvents" }, async () => {
+    return this.db.wrap({ method: "getLogEvents" }, async () => {
       // Query a batch of logs.
       const [requestedLogs, lastCheckpointRows] = await Promise.all([
         this.db
@@ -1261,56 +1252,6 @@ export class SqliteSyncStore implements SyncStore {
       exprs.push(eb("blocks.number", "<=", encodeAsText(factory.toBlock)));
 
     return exprs;
-  };
-
-  private wrap = async <T>(
-    options: { method: string },
-    fn: () => Promise<T>,
-  ) => {
-    const endClock = startClock();
-    const RETRY_COUNT = 3;
-    const BASE_DURATION = 100;
-
-    let error: any;
-    let hasError = false;
-
-    for (let i = 0; i < RETRY_COUNT + 1; i++) {
-      try {
-        const result = await fn();
-        this.common.metrics.ponder_database_method_duration.observe(
-          { service: "sync", method: options.method },
-          endClock(),
-        );
-        return result;
-      } catch (_error) {
-        if (this.isKilled || _error instanceof NonRetryableError) {
-          throw _error;
-        }
-
-        if (!hasError) {
-          hasError = true;
-          error = _error;
-        }
-
-        if (i < RETRY_COUNT) {
-          const duration = BASE_DURATION * 2 ** i;
-          this.common.logger.warn({
-            service: "database",
-            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-          });
-          await new Promise((_resolve) => {
-            setTimeout(_resolve, duration);
-          });
-        }
-      }
-    }
-
-    this.common.metrics.ponder_database_method_error_total.inc({
-      service: "sync",
-      method: options.method,
-    });
-
-    throw error;
   };
 }
 

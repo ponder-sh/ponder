@@ -1,5 +1,4 @@
 import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
-import { getTableIds } from "@/_test/utils.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -97,7 +96,6 @@ test("graphql", async (context) => {
 
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
-    tableIds: getTableIds(schema),
   });
 
   await indexingStore.create({
