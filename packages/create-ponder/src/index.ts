@@ -307,6 +307,9 @@ export async function run({
           : ""
       } } from "@ponder/core";
       import { http } from "viem";
+      import { ${Object.values(config.networks)
+        .map((n) => n.chain)
+        .join(", ")} } from "viem/chains";
 
       ${Object.values(config.contracts)
         .flatMap((c) => c.abi)
@@ -324,12 +327,16 @@ export async function run({
         .join("\n")}
 
       export default createConfig({
-        networks: ${JSON.stringify(config.networks)
-          .replaceAll(
-            /"process.env.PONDER_RPC_URL_(.*?)"/g,
-            "process.env.PONDER_RPC_URL_$1",
-          )
-          .replaceAll(/"http\((.*?)\)"/g, "http($1)")},
+        networks: {
+          ${Object.entries(config.networks)
+            .map(
+              ([networkName, { chain, transport }]) => `${networkName}: {
+          chain: ${chain},
+          transport: ${transport}
+        }`,
+            )
+            .join(",\n")}
+        },
         contracts: ${JSON.stringify(
           Object.entries(config.contracts).reduce<Record<string, any>>(
             (acc, [name, c]) => {
