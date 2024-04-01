@@ -6,7 +6,6 @@ import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
 import { createPool } from "@/utils/pg.js";
-import { startClock } from "@/utils/timer.js";
 import {
   type CreateTableBuilder,
   type Insertable,
@@ -115,8 +114,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       db: this.db.withPlugin(new WithSchemaPlugin(this.internalNamespace)),
       provider: migrationProvider,
       migrationTableSchema: this.internalNamespace,
-      migrationTableName: "migration",
-      migrationLockTableName: "migration_lock",
     });
     const result = await migrator.migrateToLatest();
 
@@ -131,7 +128,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       }, {} as { [tableName: string]: string }),
     } satisfies NamespaceInfo;
 
-    return this.wrap({ method: "setup" }, async () => {
+    return this.db.wrap({ method: "setup" }, async () => {
       const checkpoint = await this.db.transaction().execute(async (tx) => {
         const priorLockRow = await tx
           .withSchema(this.internalNamespace)
@@ -289,7 +286,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   }
 
   async kill() {
-    await this.wrap({ method: "kill" }, async () => {
+    await this.db.wrap({ method: "kill" }, async () => {
       clearInterval(this.heartbeatInterval);
 
       await this.db
@@ -312,6 +309,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       await this.indexingPool.end();
       await this.syncPool.end();
       await this.adminPool.end();
+
+      this.common.logger.debug({
+        service: "database",
+        msg: "Closed database connection pools",
+      });
     });
   }
 
@@ -393,56 +395,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
     return builder;
   }
-
-  private wrap = async <T>(
-    options: { method: string },
-    fn: () => Promise<T>,
-  ) => {
-    const endClock = startClock();
-    const RETRY_COUNT = 3;
-    const BASE_DURATION = 100;
-
-    let error: any;
-    let hasError = false;
-
-    for (let i = 0; i < RETRY_COUNT + 1; i++) {
-      try {
-        const result = await fn();
-        this.common.metrics.ponder_database_method_duration.observe(
-          { service: "database", method: options.method },
-          endClock(),
-        );
-        return result;
-      } catch (_error) {
-        if (_error instanceof NonRetryableError) {
-          throw _error;
-        }
-
-        if (!hasError) {
-          hasError = true;
-          error = _error;
-        }
-
-        if (i < RETRY_COUNT) {
-          const duration = BASE_DURATION * 2 ** i;
-          this.common.logger.warn({
-            service: "database",
-            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-          });
-          await new Promise((_resolve) => {
-            setTimeout(_resolve, duration);
-          });
-        }
-      }
-    }
-
-    this.common.metrics.ponder_database_method_error_total.inc({
-      service: "database",
-      method: options.method,
-    });
-
-    throw error;
-  };
 
   private registerMetrics() {
     const service = this;

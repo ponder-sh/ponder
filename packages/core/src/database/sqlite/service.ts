@@ -1,3 +1,4 @@
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
@@ -6,8 +7,7 @@ import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/sqlite/encoding.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
-import { createSqliteDatabase } from "@/utils/sqlite.js";
-import { startClock } from "@/utils/timer.js";
+import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
 import {
   type CreateTableBuilder,
   type Insertable,
@@ -28,8 +28,13 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   kind = "sqlite" as const;
 
   private common: Common;
+  private directory: string;
+
   private userNamespace: string;
   private internalNamespace: string;
+
+  private internalDatabase: SqliteDatabase;
+  private syncDatabase: SqliteDatabase;
 
   db: HeadlessKysely<InternalTables>;
   indexingDb: HeadlessKysely<InternalTables>;
@@ -48,6 +53,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     userNamespace?: string;
   }) {
     this.common = common;
+    this.directory = directory;
+
+    this.deleteV3DatabaseFiles();
 
     this.userNamespace = userNamespace;
     const userDatabaseFile = path.join(directory, `${userNamespace}.db`);
@@ -59,18 +67,20 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.internalNamespace = "main";
     const internalDatabaseFile = path.join(directory, "ponder.db");
 
-    const internalDatabase = createSqliteDatabase(internalDatabaseFile);
-    internalDatabase.exec(
+    this.internalDatabase = createSqliteDatabase(internalDatabaseFile);
+    this.internalDatabase.exec(
       `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
     );
 
     this.db = new HeadlessKysely<InternalTables>({
       name: "admin",
       common,
-      dialect: new SqliteDialect({ database: internalDatabase }),
+      dialect: new SqliteDialect({ database: this.internalDatabase }),
       log(event) {
         if (event.level === "query") {
-          common.metrics.ponder_sqlite_query_total.inc({ database: "admin" });
+          common.metrics.ponder_sqlite_query_total.inc({
+            database: "internal",
+          });
         }
       },
     });
@@ -78,7 +88,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.indexingDb = new HeadlessKysely<InternalTables>({
       name: "indexing",
       common,
-      dialect: new SqliteDialect({ database: internalDatabase }),
+      dialect: new SqliteDialect({ database: this.internalDatabase }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_sqlite_query_total.inc({
@@ -89,11 +99,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     });
 
     const syncDatabaseFile = path.join(directory, "ponder_sync.db");
-    const syncDatabase = createSqliteDatabase(syncDatabaseFile);
+    this.syncDatabase = createSqliteDatabase(syncDatabaseFile);
     this.syncDb = new HeadlessKysely<SyncStoreTables>({
       name: "sync",
       common,
-      dialect: new SqliteDialect({ database: syncDatabase }),
+      dialect: new SqliteDialect({ database: this.syncDatabase }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_sqlite_query_total.inc({ database: "sync" });
@@ -125,7 +135,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       }, {} as { [tableName: string]: string }),
     } satisfies NamespaceInfo;
 
-    return this.wrap({ method: "setup" }, async () => {
+    return this.db.wrap({ method: "setup" }, async () => {
       const checkpoint = await this.db.transaction().execute(async (tx) => {
         const priorLockRow = await tx
           .withSchema(this.internalNamespace)
@@ -265,7 +275,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   }
 
   async kill() {
-    await this.wrap({ method: "kill" }, async () => {
+    await this.db.wrap({ method: "kill" }, async () => {
       clearInterval(this.heartbeatInterval);
 
       await this.db
@@ -284,6 +294,14 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       await this.indexingDb.destroy();
       await this.syncDb.destroy();
       await this.db.destroy();
+
+      this.syncDatabase.close();
+      this.internalDatabase.close();
+
+      this.common.logger.debug({
+        service: "database",
+        msg: "Closed connection to database",
+      });
     });
   }
 
@@ -366,56 +384,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     return builder;
   }
 
-  private wrap = async <T>(
-    options: { method: string },
-    fn: () => Promise<T>,
-  ) => {
-    const endClock = startClock();
-    const RETRY_COUNT = 3;
-    const BASE_DURATION = 100;
-
-    let error: any;
-    let hasError = false;
-
-    for (let i = 0; i < RETRY_COUNT + 1; i++) {
-      try {
-        const result = await fn();
-        this.common.metrics.ponder_database_method_duration.observe(
-          { service: "database", method: options.method },
-          endClock(),
-        );
-        return result;
-      } catch (_error) {
-        if (_error instanceof NonRetryableError) {
-          throw _error;
-        }
-
-        if (!hasError) {
-          hasError = true;
-          error = _error;
-        }
-
-        if (i < RETRY_COUNT) {
-          const duration = BASE_DURATION * 2 ** i;
-          this.common.logger.warn({
-            service: "database",
-            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-          });
-          await new Promise((_resolve) => {
-            setTimeout(_resolve, duration);
-          });
-        }
-      }
-    }
-
-    this.common.metrics.ponder_database_method_error_total.inc({
-      service: "database",
-      method: options.method,
-    });
-
-    throw error;
-  };
-
   private registerMetrics() {
     this.common.metrics.registry.removeSingleMetric(
       "ponder_sqlite_query_total",
@@ -425,6 +393,36 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       help: "Number of queries submitted to the database",
       labelNames: ["database"] as const,
       registers: [this.common.metrics.registry],
+    });
+  }
+
+  private async deleteV3DatabaseFiles() {
+    // Detect if the `.ponder/sqlite` directly contains 0.3 database files.
+    const hasV3Files = existsSync(path.join(this.directory, "ponder_cache.db"));
+
+    if (!hasV3Files) return;
+
+    this.common.logger.debug({
+      service: "database",
+      msg: "Migrating '.ponder/sqlite' database from 0.3.x to 0.4.x",
+    });
+
+    // Drop 'ponder_cache' database files.
+    rmSync(path.join(this.directory, "ponder_cache.db"), { force: true });
+    rmSync(path.join(this.directory, "ponder_cache.db-shm"), { force: true });
+    rmSync(path.join(this.directory, "ponder_cache.db-wal"), { force: true });
+    this.common.logger.debug({
+      service: "database",
+      msg: `Removed '.ponder/sqlite/ponder_cache.db' file`,
+    });
+
+    // Drop 'ponder' database files (they will be created again).
+    rmSync(path.join(this.directory, "ponder.db"), { force: true });
+    rmSync(path.join(this.directory, "ponder.db-shm"), { force: true });
+    rmSync(path.join(this.directory, "ponder.db-wal"), { force: true });
+    this.common.logger.debug({
+      service: "database",
+      msg: `Removed '.ponder/sqlite/ponder.db' file`,
     });
   }
 }
