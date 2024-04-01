@@ -25,11 +25,7 @@ import {
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
-import {
-  type FunctionIds,
-  type TableIds,
-  safeGetFunctionAndTableIds,
-} from "./static/getFunctionAndTableIds.js";
+import { safeGetAppId } from "./static/getAppId.js";
 import {
   type TableAccess,
   safeGetTableAccess,
@@ -47,8 +43,7 @@ export type Build = {
   indexingFunctions: IndexingFunctions;
   // Static analysis
   tableAccess: TableAccess;
-  tableIds: TableIds;
-  functionIds: FunctionIds;
+  appId: string;
 };
 
 export type BuildResult =
@@ -78,8 +73,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   private graphqlSchema?: GraphQLSchema;
   private indexingFunctions?: IndexingFunctions;
   private tableAccess?: TableAccess;
-  private tableIds?: TableIds;
-  private functionIds?: FunctionIds;
+  private appId?: string;
 
   constructor({ common }: { common: Common }) {
     super();
@@ -254,8 +248,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           graphqlSchema: this.graphqlSchema!,
           indexingFunctions: this.indexingFunctions!,
           tableAccess: this.tableAccess!,
-          tableIds: this.tableIds!,
-          functionIds: this.functionIds!,
+          appId: this.appId!,
         },
       });
     };
@@ -300,7 +293,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const { schema, graphqlSchema } = schemaResult;
     const { indexingFunctions } = indexingFunctionsResult;
     const { tableAccess } = parseResult;
-    const { tableIds, functionIds } = analyzeResult;
+    const { appId } = analyzeResult;
 
     return {
       success: true,
@@ -312,8 +305,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         graphqlSchema,
         indexingFunctions,
         tableAccess,
-        tableIds,
-        functionIds,
+        appId,
       },
     } satisfies BuildResult;
   }
@@ -489,18 +481,16 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         ),
       } as const;
 
-    const result = safeGetFunctionAndTableIds({
+    const result = safeGetAppId({
       sources: this.sources,
       tableAccess: this.tableAccess,
       schema: this.schema,
-      indexingFunctions: this.indexingFunctions,
     });
     if (!result.success) {
       return { success: false, error: result.error } as const;
     }
 
-    this.tableIds = result.data.tableIds;
-    this.functionIds = result.data.functionIds;
+    this.appId = result.data.appId;
 
     return { success: true, ...result.data } as const;
   }

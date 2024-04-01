@@ -5,13 +5,10 @@ import {
   isOneColumn,
   referencedTableName,
 } from "@/schema/utils.js";
-import { maxCheckpoint } from "@/utils/checkpoint.js";
 import {
-  type FieldNode,
   GraphQLBoolean,
   type GraphQLFieldResolver,
   GraphQLInputObjectType,
-  type GraphQLResolveInfo,
 } from "graphql";
 import {
   GraphQLEnumType,
@@ -70,15 +67,7 @@ export const buildEntityTypes = ({
               parent,
               _args,
               context,
-              info,
             ) => {
-              // Analyze the `info` object to determine if the user passed a "timestamp"
-              // argument to the plural or singular root query field.
-              const timestamp = getTimestampArgument(info);
-              const checkpoint = timestamp
-                ? { ...maxCheckpoint, blockTimestamp: timestamp }
-                : undefined; // Latest.
-
               // The parent object gets passed in here containing reference column values.
               const relatedRecordId = parent[column.referenceColumn];
               // Note: Don't query with a null or undefined id, indexing store will throw error.
@@ -87,7 +76,6 @@ export const buildEntityTypes = ({
 
               const loader = context.getLoader({
                 tableName: referencedTable,
-                checkpoint,
               });
 
               return await loader.load(relatedRecordId);
@@ -100,18 +88,8 @@ export const buildEntityTypes = ({
               resolve: resolver,
             };
           } else if (isManyColumn(column)) {
-            const resolver: PluralResolver = async (
-              parent,
-              args,
-              context,
-              info,
-            ) => {
+            const resolver: PluralResolver = async (parent, args, context) => {
               const { store } = context;
-
-              const timestamp = getTimestampArgument(info);
-              const checkpoint = timestamp
-                ? { ...maxCheckpoint, blockTimestamp: timestamp }
-                : undefined; // Latest.
 
               const { where, orderBy, orderDirection, limit, after, before } =
                 args;
@@ -129,7 +107,6 @@ export const buildEntityTypes = ({
               // TODO: Update query to only fetch IDs, not entire records.
               const result = await store.findMany({
                 tableName: column.referenceTable,
-                checkpoint,
                 where: whereObject,
                 orderBy: orderByObject,
                 limit,
@@ -140,7 +117,6 @@ export const buildEntityTypes = ({
               // Load entire records objects using the loader.
               const loader = context.getLoader({
                 tableName: column.referenceTable,
-                checkpoint,
               });
 
               const ids = result.items.map((item) => item.id);
@@ -197,41 +173,3 @@ export const buildEntityTypes = ({
 
   return { entityTypes, entityPageTypes };
 };
-
-/**
- * Analyze the `info` object to determine if the user passed a "timestamp"
- * argument to the plural or singular root query field.
- */
-function getTimestampArgument(info: GraphQLResolveInfo) {
-  let rootQueryFieldName: string | undefined = undefined;
-  let pathNode = info.path;
-  while (true) {
-    if (pathNode.typename === "Query") {
-      if (typeof pathNode.key === "string") rootQueryFieldName = pathNode.key;
-      break;
-    }
-    if (pathNode.prev === undefined) break;
-    pathNode = pathNode.prev;
-  }
-
-  if (!rootQueryFieldName) return undefined;
-
-  const selectionNode = info.operation.selectionSet.selections
-    .filter((s): s is FieldNode => s.kind === "Field")
-    .find((s) => s.name.value === rootQueryFieldName);
-  const timestampArgumentNode = selectionNode?.arguments?.find(
-    (a) => a.name.value === "timestamp",
-  );
-
-  if (!timestampArgumentNode) return undefined;
-
-  switch (timestampArgumentNode.value.kind) {
-    case "IntValue":
-      return parseInt(timestampArgumentNode.value.value);
-    case "Variable":
-      // TODO: Handle variables.
-      return undefined;
-    default:
-      return undefined;
-  }
-}

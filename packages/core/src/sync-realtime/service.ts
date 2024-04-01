@@ -8,7 +8,7 @@ import {
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import { type Checkpoint } from "@/utils/checkpoint.js";
+import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { Emittery } from "@/utils/emittery.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -185,12 +185,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     ).then(realtimeBlockToLightBlock);
 
     this.emit("finalityCheckpoint", {
+      ...maxCheckpoint,
       blockTimestamp: this.finalizedBlock.timestamp,
       chainId: this.network.chain.id,
       blockNumber: this.finalizedBlock.number,
     });
 
     this.emit("realtimeCheckpoint", {
+      ...maxCheckpoint,
       blockTimestamp: this.finalizedBlock.timestamp,
       chainId: this.network.chain.id,
       blockNumber: this.finalizedBlock.number,
@@ -387,6 +389,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       this.finalizedBlock = newFinalizedBlock;
 
       this.emit("finalityCheckpoint", {
+        ...maxCheckpoint,
         blockTimestamp: newFinalizedBlock.timestamp,
         chainId: this.network.chain.id,
         blockNumber: newFinalizedBlock.number,
@@ -402,6 +405,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const newBlockTimestamp = hexToNumber(newBlock.timestamp);
 
     this.emit("realtimeCheckpoint", {
+      ...maxCheckpoint,
       blockTimestamp: newBlockTimestamp,
       chainId: this.network.chain.id,
       blockNumber: newBlockNumber,
@@ -546,6 +550,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         });
 
         this.emit("reorg", {
+          ...maxCheckpoint,
           blockTimestamp: parent.timestamp,
           chainId: this.network.chain.id,
           blockNumber: parent.number,
@@ -650,6 +655,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       });
 
       this.emit("reorg", {
+        ...maxCheckpoint,
         blockTimestamp: commonAncestor.timestamp,
         chainId: this.network.chain.id,
         blockNumber: commonAncestor.number,

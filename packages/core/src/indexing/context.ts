@@ -95,7 +95,6 @@ export const buildDb =
           onTableAccess({ storeMethod: "findUnique", tableName });
           return indexingStore.findUnique({
             tableName,
-            checkpoint,
             id,
           });
         },
@@ -107,7 +106,6 @@ export const buildDb =
           onTableAccess({ storeMethod: "findMany", tableName });
           return indexingStore.findMany({
             tableName,
-            checkpoint,
             where,
             orderBy,
             limit,

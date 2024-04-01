@@ -1,7 +1,7 @@
+import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Schema } from "@/schema/types.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import type { Kysely } from "kysely";
 import type { Hex } from "viem";
 
 export type Table = {
@@ -82,22 +82,18 @@ export type OrderByInput<table, columns extends keyof table = keyof table> = {
 
 export interface IndexingStore {
   kind: "sqlite" | "postgres";
-  db: Kysely<any>;
+  db: HeadlessKysely<any>;
   schema: Schema;
 
-  kill(): void;
-
-  revert(options: { checkpoint: Checkpoint }): Promise<void>;
+  revert({ checkpoint }: { checkpoint: Checkpoint }): Promise<void>;
 
   findUnique(options: {
     tableName: string;
-    checkpoint?: Checkpoint;
     id: string | number | bigint;
   }): Promise<Row | null>;
 
   findMany(options: {
     tableName: string;
-    checkpoint?: Checkpoint;
     where?: WhereInput<any>;
     orderBy?: OrderByInput<any>;
     before?: string | null;
@@ -115,20 +111,20 @@ export interface IndexingStore {
 
   create(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }): Promise<Row>;
 
   createMany(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     data: Row[];
   }): Promise<Row[]>;
 
   update(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     id: string | number | bigint;
     data?:
       | Partial<Omit<Row, "id">>
@@ -137,7 +133,7 @@ export interface IndexingStore {
 
   updateMany(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     where?: WhereInput<any>;
     data?:
       | Partial<Omit<Row, "id">>
@@ -146,7 +142,7 @@ export interface IndexingStore {
 
   upsert(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     id: string | number | bigint;
     create?: Omit<Row, "id">;
     update?:
@@ -156,7 +152,7 @@ export interface IndexingStore {
 
   delete(options: {
     tableName: string;
-    checkpoint: Checkpoint;
+    checkpoint?: Checkpoint;
     id: string | number | bigint;
   }): Promise<boolean>;
 }

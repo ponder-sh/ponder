@@ -1,6 +1,3 @@
-import { checksumAddress, hexToBigInt, toHex } from "viem";
-import { beforeEach, expect, test } from "vitest";
-
 import {
   setupAnvil,
   setupDatabaseServices,
@@ -8,7 +5,13 @@ import {
 } from "@/_test/setup.js";
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  EVENT_TYPES,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
+import { checksumAddress, hexToBigInt, toHex } from "viem";
+import { beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupIsolatedDatabase(context));
@@ -1496,8 +1499,10 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async (context) => {
       chainId: 1,
       blockTimestamp: Number(rpcData.block1.block.timestamp!),
       blockNumber: Number(rpcData.block1.block.number!),
+      transactionIndex: 0,
+      eventType: EVENT_TYPES.logs,
       // Should exclude the 2nd log in the first block.
-      logIndex: Number(rpcData.block1.logs[1].logIndex),
+      eventIndex: Number(rpcData.block1.logs[1].logIndex),
     },
     toCheckpoint: maxCheckpoint,
     limit: 100,

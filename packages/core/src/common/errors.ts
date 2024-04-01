@@ -15,3 +15,12 @@ export class StoreError extends NonRetryableError {
     Object.setPrototypeOf(this, StoreError.prototype);
   }
 }
+
+export class DatabaseError extends NonRetryableError {
+  override name = "DatabaseError";
+
+  constructor(message: string) {
+    super(message);
+    Object.setPrototypeOf(this, DatabaseError.prototype);
+  }
+}

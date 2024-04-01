@@ -1,14 +1,12 @@
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import type { Kysely } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 export interface SyncStore {
   kind: "sqlite" | "postgres";
-  db: Kysely<any>;
-
-  kill(): void;
+  db: HeadlessKysely<any>;
 
   migrateUp(): Promise<void>;
 
@@ -181,6 +179,7 @@ export interface SyncStore {
         log: Log;
         block: Block;
         transaction: Transaction;
+        checkpoint: Checkpoint;
       }[];
       lastCheckpoint: Checkpoint | undefined;
     } & (
