@@ -209,7 +209,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (
       endBlocks.every((b) => b !== undefined && b < this.finalizedBlock.number)
     ) {
-      this.common.logger.warn({
+      this.common.logger.debug({
         service: "realtime",
         msg: `No realtime contracts (network=${this.network.name})`,
       });

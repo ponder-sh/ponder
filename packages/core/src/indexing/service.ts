@@ -192,6 +192,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.queue?.clear();
     this.loadingMutex.cancel();
 
+    await this.onIdle();
+
     this.common.logger.debug({
       service: "indexing",
       msg: "Killed indexing service",
@@ -669,6 +671,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           this.common.metrics.ponder_indexing_has_error.set(1);
           this.emit("error", error);
         } else {
+          if (this.isPaused) return;
           this.common.logger.warn({
             service: "indexing",
             msg: `Indexing function failed, retrying... (event=${fullEventName}, chainId=${data.checkpoint.chainId}, error=${error.name}: ${error.message})`,
@@ -797,6 +800,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           this.common.metrics.ponder_indexing_has_error.set(1);
           this.emit("error", error);
         } else {
+          if (this.isPaused) return;
           this.common.logger.warn({
             service: "indexing",
             msg: `Indexing function failed, retrying... (event=${fullEventName}, chainId=${
