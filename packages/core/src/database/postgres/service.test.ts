@@ -52,8 +52,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(checkpoint).toMatchObject(zeroCheckpoint);
 
     expect(await getTableNames(database.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -85,8 +85,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -99,8 +99,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "def", "Dog"]),
       hash(["public", "def", "Apple"]),
@@ -215,7 +215,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await expect(() =>
       databaseTwo.setup({ schema: schemaTwo, appId: "def" }),
     ).rejects.toThrow(
-      "Failed to acquire namespace 'public' because it is locked by a different app",
+      "Schema 'public' is in use by a different Ponder app (lock expires in",
     );
 
     await database.kill();
@@ -239,7 +239,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await expect(() =>
       databaseTwo.setup({ schema: schemaTwo, appId: "def" }),
     ).rejects.toThrow(
-      "Failed to acquire namespace 'public' because it is locked by a different app",
+      "Schema 'public' is in use by a different Ponder app (lock expires in",
     );
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
@@ -264,6 +264,28 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.kill();
     await databaseTwo.kill();
+  });
+
+  test("setup throws if there is a table name collision", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+    });
+
+    await database.db.executeQuery(
+      sql`CREATE TABLE public."Pet" (id TEXT)`.compile(database.db),
+    );
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual(["Pet"]);
+
+    await expect(() =>
+      database.setup({ schema, appId: "abc" }),
+    ).rejects.toThrow(
+      "Unable to create table 'public'.'Pet' because a table with that name already exists. Hint: Is there another Ponder app using the 'public' database schema?",
+    );
+
+    await database.kill();
   });
 
   test("heartbeat updates the heartbeat_at value", async (context) => {
@@ -351,8 +373,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -361,8 +383,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -394,8 +416,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -404,8 +426,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await databaseTwo.setup({ schema: schemaTwo, appId: "abc" });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),

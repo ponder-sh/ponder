@@ -52,8 +52,8 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     expect(checkpoint).toMatchObject(zeroCheckpoint);
 
     expect(await getTableNames(database.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -85,8 +85,8 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -99,8 +99,8 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "def", "Dog"]),
       hash(["public", "def", "Apple"]),
@@ -215,7 +215,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await expect(() =>
       databaseTwo.setup({ schema: schemaTwo, appId: "def" }),
     ).rejects.toThrow(
-      "Failed to acquire namespace 'public' because it is locked by a different app",
+      "Database file 'public.db' is in use by a different Ponder app (lock expires in",
     );
 
     await database.kill();
@@ -239,7 +239,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await expect(() =>
       databaseTwo.setup({ schema: schemaTwo, appId: "def" }),
     ).rejects.toThrow(
-      "Failed to acquire namespace 'public' because it is locked by a different app",
+      "Database file 'public.db' is in use by a different Ponder app (lock expires in",
     );
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
@@ -265,6 +265,28 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.kill();
 
     vi.unstubAllGlobals();
+  });
+
+  test("setup throws if there is a table name collision", async (context) => {
+    if (context.databaseConfig.kind !== "sqlite") return;
+    const database = new SqliteDatabaseService({
+      common: context.common,
+      directory: context.databaseConfig.directory,
+    });
+
+    await database.db.executeQuery(
+      sql`CREATE TABLE public.'Pet' (id TEXT)`.compile(database.db),
+    );
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual(["Pet"]);
+
+    await expect(() =>
+      database.setup({ schema, appId: "abc" }),
+    ).rejects.toThrow(
+      "Unable to create table 'public'.'Pet' because a table with that name already exists. Hint: Is there another Ponder app using the 'public.db' database file?",
+    );
+
+    await database.kill();
   });
 
   test("heartbeat updates the heartbeat_at value", async (context) => {
@@ -348,8 +370,8 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -358,8 +380,8 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -391,8 +413,8 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -401,8 +423,8 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.setup({ schema: schemaTwo, appId: "abc" });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
