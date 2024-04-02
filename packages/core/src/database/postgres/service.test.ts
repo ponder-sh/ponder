@@ -45,6 +45,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     const { checkpoint } = await database.setup({ schema, appId: "abc" });
@@ -72,6 +73,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     const { checkpoint } = await database.setup({ schema, appId: "abc" });
@@ -82,6 +84,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
@@ -118,6 +121,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await database.setup({ schema, appId: "abc" });
@@ -126,6 +130,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await databaseTwo.db.executeQuery(
@@ -163,6 +168,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       const database = new PostgresDatabaseService({
         common: context.common,
         poolConfig: context.databaseConfig.poolConfig,
+        userNamespace: context.databaseConfig.schema,
       });
 
       await database.setup({ schema, appId: "abc" });
@@ -185,6 +191,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       const databaseTwo = new PostgresDatabaseService({
         common: context.common,
         poolConfig: context.databaseConfig.poolConfig,
+        userNamespace: context.databaseConfig.schema,
       });
 
       const { checkpoint } = await databaseTwo.setup({
@@ -203,6 +210,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await database.setup({ schema, appId: "abc" });
@@ -210,6 +218,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await expect(() =>
@@ -227,6 +236,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await database.setup({ schema, appId: "abc" });
@@ -234,6 +244,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await expect(() =>
@@ -271,6 +282,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await database.db.executeQuery(
@@ -293,6 +305,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await database.db.executeQuery(
@@ -325,6 +338,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     vi.useFakeTimers();
@@ -359,6 +373,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await database.setup({ schema, appId: "abc" });
@@ -375,6 +390,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     const rowAfterKill = await databaseTwo.db
@@ -394,6 +410,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await database.setup({ schema, appId: "abc" });
@@ -437,6 +454,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await database.setup({ schema, appId: "abc" });

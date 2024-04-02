@@ -63,8 +63,12 @@ export async function run({
     syncStore = new SqliteSyncStore({ common, db: database.syncDb });
     await syncStore.migrateUp();
   } else {
-    const { poolConfig } = databaseConfig;
-    database = new PostgresDatabaseService({ common, poolConfig });
+    const { poolConfig, schema: userNamespace } = databaseConfig;
+    database = new PostgresDatabaseService({
+      common,
+      poolConfig,
+      userNamespace,
+    });
     const result = await database.setup({ schema, appId });
     cachedToCheckpoint = result.checkpoint;
 

@@ -47,11 +47,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   constructor({
     common,
     poolConfig,
-    userNamespace = "public",
+    userNamespace,
   }: {
     common: Common;
     poolConfig: PoolConfig;
-    userNamespace?: string;
+    userNamespace: string;
   }) {
     this.common = common;
     this.poolConfig = poolConfig;

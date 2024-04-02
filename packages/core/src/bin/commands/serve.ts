@@ -80,8 +80,12 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  const { poolConfig } = databaseConfig;
-  const database = new PostgresDatabaseService({ common, poolConfig });
+  const { poolConfig, schema: userNamespace } = databaseConfig;
+  const database = new PostgresDatabaseService({
+    common,
+    poolConfig,
+    userNamespace,
+  });
 
   const indexingStore = new RealtimeIndexingStore({
     kind: "postgres",

@@ -22,8 +22,10 @@ type DatabaseConfig =
     }
   | {
       kind: "postgres";
-      /** PostgreSQL database connection string. Default: `process.env.DATABASE_PRIVATE_URL` or `process.env.DATABASE_URL`. */
+      /** Postgres database connection string. Default: `DATABASE_PRIVATE_URL` > `DATABASE_URL` environment variable. */
       connectionString?: string;
+      /** Postgres schema (namespace) to create indexed tables in. Default: 'public', or `RAILWAY_DEPLOYMENT_ID` environment variable if provided. */
+      schema?: string;
     };
 
 export type OptionConfig = {

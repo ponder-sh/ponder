@@ -40,44 +40,69 @@ export async function buildConfig({
 
       if (config.database.connectionString) {
         connectionString = config.database.connectionString;
-        source = "ponder.config.ts";
+        source = "from ponder.config.ts";
       } else if (process.env.DATABASE_PRIVATE_URL) {
         connectionString = process.env.DATABASE_PRIVATE_URL;
-        source = "DATABASE_PRIVATE_URL env var";
+        source = "from DATABASE_PRIVATE_URL env var";
       } else if (process.env.DATABASE_URL) {
         connectionString = process.env.DATABASE_URL;
-        source = "DATABASE_URL env var";
+        source = "from DATABASE_URL env var";
       } else {
         throw new Error(
-          `Invalid database configuration: "kind" is set to "postgres" but no connection string was provided.`,
+          `Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.`,
         );
       }
 
       logs.push({
         level: "info",
-        msg: `Using Postgres database ${getDatabaseName(
+        msg: `Using Postgres database '${getDatabaseName(
           connectionString,
-        )} (from ${source})`,
+        )}' (${source})`,
       });
 
-      databaseConfig = { kind: "postgres", poolConfig: { connectionString } };
+      let schema: string | undefined = undefined;
+      source = undefined;
+
+      if (config.database.schema) {
+        schema = config.database.schema;
+        source = "from ponder.config.ts";
+      } else if (process.env.RAILWAY_DEPLOYMENT_ID) {
+        schema = process.env.RAILWAY_DEPLOYMENT_ID;
+        source = "from RAILWAY_DEPLOYMENT_ID env var";
+      } else {
+        schema = "public";
+        source = "default";
+      }
+
+      logs.push({
+        level: "info",
+        msg: `Using '${schema}' schema/namespace (${source})`,
+      });
+
+      databaseConfig = {
+        kind: "postgres",
+        poolConfig: { connectionString },
+        schema,
+      };
     } else {
       logs.push({
         level: "info",
-        msg: `Using SQLite database at ${sqlitePrintPath} (from ponder.config.ts)`,
+        msg: `Using SQLite database in '${sqlitePrintPath}' (from ponder.config.ts)`,
       });
 
       databaseConfig = { kind: "sqlite", directory: sqliteDir };
     }
   } else {
+    console.log(process.env.DATABASE_PRIVATE_URL, process.env.DATABASE_URL);
+
     let connectionString: string | undefined = undefined;
     let source: string | undefined = undefined;
     if (process.env.DATABASE_PRIVATE_URL) {
       connectionString = process.env.DATABASE_PRIVATE_URL;
-      source = "DATABASE_PRIVATE_URL env var";
+      source = "from DATABASE_PRIVATE_URL env var";
     } else if (process.env.DATABASE_URL) {
       connectionString = process.env.DATABASE_URL;
-      source = "DATABASE_URL env var";
+      source = "from DATABASE_URL env var";
     }
 
     if (connectionString !== undefined) {
@@ -86,10 +111,29 @@ export async function buildConfig({
         level: "info",
         msg: `Using Postgres database ${getDatabaseName(
           connectionString,
-        )} (from ${source})`,
+        )} (${source})`,
       });
 
-      databaseConfig = { kind: "postgres", poolConfig: { connectionString } };
+      let schema: string | undefined = undefined;
+      source = undefined;
+      if (process.env.RAILWAY_DEPLOYMENT_ID) {
+        schema = process.env.RAILWAY_DEPLOYMENT_ID;
+        source = "from RAILWAY_DEPLOYMENT_ID env var";
+      } else {
+        schema = "public";
+        source = "default";
+      }
+
+      logs.push({
+        level: "info",
+        msg: `Using '${schema}' schema/namespace (${source})`,
+      });
+
+      databaseConfig = {
+        kind: "postgres",
+        poolConfig: { connectionString },
+        schema,
+      };
     } else {
       // Fall back to SQLite.
       logs.push({

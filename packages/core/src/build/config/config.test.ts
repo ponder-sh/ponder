@@ -1,6 +1,7 @@
+import path from "path";
 import type { Options } from "@/common/options.js";
 import { http, getEventSelector, parseAbiItem } from "viem";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { type Config, createConfig } from "../../config/config.js";
 import { buildConfig, safeBuildConfig } from "./config.js";
 
@@ -16,7 +17,7 @@ const bytes1 =
 const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
 const options = {
-  ponderDir: "ponderDir",
+  ponderDir: ".ponder",
   rootDir: "rootDir",
 } as const satisfies Pick<Options, "rootDir" | "ponderDir">;
 
@@ -241,10 +242,12 @@ test("buildConfig() warns for public RPC URL", async () => {
   const result = await safeBuildConfig({ config, options });
 
   expect(result.success).toBe(true);
-  expect(result.data?.logs[1]).toStrictEqual({
-    level: "warn",
-    msg: "Network 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
-  });
+  expect(result.data?.logs.filter((l) => l.level === "warn")).toMatchObject([
+    {
+      level: "warn",
+      msg: "Network 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
+    },
+  ]);
 });
 
 test("buildConfig() validates against multiple events and indexed argument values", async () => {
@@ -407,4 +410,124 @@ test("buildConfig() coerces NaN endBlock to undefined", async () => {
   const { sources } = await buildConfig({ config, options });
 
   expect(sources[0].endBlock).toBe(undefined);
+});
+
+test("buildConfig() database uses sqlite by default", async () => {
+  const config = createConfig({
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  const prev = process.env.DATABASE_URL;
+  // biome-ignore lint/performance/noDelete: Required to test default behavior.
+  delete process.env.DATABASE_URL;
+
+  const { databaseConfig } = await buildConfig({ config, options });
+  expect(databaseConfig).toMatchObject({
+    kind: "sqlite",
+    directory: expect.stringContaining(path.join(".ponder", "sqlite")),
+  });
+
+  process.env.DATABASE_URL = prev;
+});
+
+test("buildConfig() database uses sqlite if specified even if DATABASE_URL env var present", async () => {
+  const config = createConfig({
+    database: { kind: "sqlite" },
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
+
+  const { databaseConfig } = await buildConfig({ config, options });
+  expect(databaseConfig).toMatchObject({
+    kind: "sqlite",
+    directory: expect.stringContaining(path.join(".ponder", "sqlite")),
+  });
+
+  vi.unstubAllEnvs();
+});
+
+test("buildConfig() database uses postgres if DATABASE_URL env var present", async () => {
+  const config = createConfig({
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
+
+  const { databaseConfig } = await buildConfig({ config, options });
+  expect(databaseConfig).toMatchObject({
+    kind: "postgres",
+    poolConfig: {
+      connectionString: "postgres://username@localhost:5432/database",
+    },
+    schema: "public",
+  });
+
+  vi.unstubAllEnvs();
+});
+
+test("buildConfig() database uses postgres if DATABASE_PRIVATE_URL env var present", async () => {
+  const config = createConfig({
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
+  vi.stubEnv(
+    "DATABASE_PRIVATE_URL",
+    "postgres://username@localhost:5432/better_database",
+  );
+
+  const { databaseConfig } = await buildConfig({ config, options });
+  expect(databaseConfig).toMatchObject({
+    kind: "postgres",
+    poolConfig: {
+      connectionString: "postgres://username@localhost:5432/better_database",
+    },
+    schema: "public",
+  });
+
+  vi.unstubAllEnvs();
+});
+
+test("buildConfig() throws for postgres database with no connection string", async () => {
+  const config = createConfig({
+    database: { kind: "postgres" },
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  const prev = process.env.DATABASE_URL;
+  // biome-ignore lint/performance/noDelete: Required to test default behavior.
+  delete process.env.DATABASE_URL;
+
+  await expect(() => buildConfig({ config, options })).rejects.toThrow(
+    "Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.",
+  );
+
+  process.env.DATABASE_URL = prev;
+});
+
+test("buildConfig() database with postgres uses RAILWAY_DEPLOYMENT_ID env var as schema", async () => {
+  const config = createConfig({
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
+  vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
+
+  const { databaseConfig } = await buildConfig({ config, options });
+  expect(databaseConfig).toMatchObject({
+    kind: "postgres",
+    poolConfig: {
+      connectionString: "postgres://username@localhost:5432/database",
+    },
+    schema: "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2",
+  });
+
+  vi.unstubAllEnvs();
 });
