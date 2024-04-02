@@ -288,6 +288,38 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
+  test("setup succeeds and drops the view if there is a name collision with a view", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+    });
+
+    await database.db.executeQuery(
+      sql`CREATE TABLE public."Pet_table" (id TEXT)`.compile(database.db),
+    );
+    await database.db.executeQuery(
+      sql`CREATE VIEW public."Pet" AS (SELECT * FROM public."Pet_table")`.compile(
+        database.db,
+      ),
+    );
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet_table",
+      "Pet",
+    ]);
+
+    await database.setup({ schema, appId: "abc" });
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet_table",
+      "Pet",
+      "Person",
+    ]);
+
+    await database.kill();
+  });
+
   test("heartbeat updates the heartbeat_at value", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({

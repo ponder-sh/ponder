@@ -261,6 +261,23 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             .$call((builder) => this.buildOperationLogColumns(builder, columns))
             .execute();
 
+          // Before creating the user table, check if a view already exists with the same name.
+          // If it does, drop it, because it's very likely a published view from a <=0.3 app.
+          const query = sql`
+            SELECT *
+            FROM information_schema.tables
+            WHERE table_schema = '${sql.raw(this.userNamespace)}'
+            AND table_name = '${sql.raw(tableName)}'
+            AND table_type = 'VIEW'
+          `.compile(tx);
+          const { rows } = await tx.executeQuery(query);
+          if (rows[0] !== undefined) {
+            await tx.schema
+              .withSchema(this.userNamespace)
+              .dropView(tableName)
+              .execute();
+          }
+
           try {
             await tx.schema
               .withSchema(this.userNamespace)
