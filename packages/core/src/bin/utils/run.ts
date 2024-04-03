@@ -11,6 +11,9 @@ import {
   createIndexingService,
   kill,
   processEvents,
+  updateCompletedSeconds,
+  updateEventCount,
+  updateTotalSeconds,
 } from "@/indexing/service.js";
 import { ServerService } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
@@ -101,16 +104,53 @@ export async function run({
   let checkpoint: Checkpoint = zeroCheckpoint;
 
   syncService.on("checkpoint", async (newCheckpoint) => {
-    const rawEvents = await syncService.getEvents({
+    // TODO(kyle) only one runs at a time
+
+    let firstEventCheckpoint: Checkpoint | undefined = undefined;
+    let lastEventCheckpoint: Checkpoint | undefined = undefined;
+
+    if (firstEventCheckpoint === undefined) {
+      firstEventCheckpoint = await syncStore.getFirstEventCheckpoint({
+        sources,
+      });
+    }
+
+    lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
+      sources,
+      toCheckpoint: newCheckpoint,
+    });
+
+    if (
+      firstEventCheckpoint !== undefined &&
+      lastEventCheckpoint !== undefined
+    ) {
+      updateTotalSeconds(indexingService, {
+        firstEventCheckpoint,
+        lastEventCheckpoint,
+      });
+    }
+
+    for await (const rawEvents of syncService.getEvents({
       sources,
       fromCheckpoint: checkpoint,
       toCheckpoint: newCheckpoint,
-      limit: 10_000,
-    });
+      limit: 1_000,
+    })) {
+      const events = decodeEvents(rawEvents, indexingService.sourceById);
+      await processEvents(indexingService, { events });
+    }
 
-    const events = decodeEvents(rawEvents, indexingService.sourceById);
+    if (
+      firstEventCheckpoint !== undefined &&
+      lastEventCheckpoint !== undefined
+    ) {
+      updateCompletedSeconds(indexingService, {
+        firstEventCheckpoint: firstEventCheckpoint,
+        completedEventCheckpoint: lastEventCheckpoint,
+      });
+    }
 
-    await processEvents(indexingService, { events });
+    updateEventCount(indexingService);
 
     checkpoint = newCheckpoint;
 

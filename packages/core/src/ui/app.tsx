@@ -23,11 +23,10 @@ export type UiState = {
   }[];
 
   indexingStats: {
-    event: string;
     totalSeconds: number | undefined;
     completedSeconds: number | undefined;
     completedEventCount: number;
-  }[];
+  };
   indexingCompletedToTimestamp: number;
   indexingError: boolean;
 };
@@ -40,7 +39,11 @@ export const buildUiState = ({ sources }: { sources: Source[] }) => {
     isHistoricalSyncComplete: false,
     realtimeSyncNetworks: [],
 
-    indexingStats: [],
+    indexingStats: {
+      completedSeconds: 0,
+      totalSeconds: 0,
+      completedEventCount: 0,
+    },
     indexingCompletedToTimestamp: 0,
     indexingError: false,
   };
@@ -83,18 +86,24 @@ const App = (ui: UiState) => {
 
   const titleWidth = Math.max(
     ...historicalSyncStats.map((s) => s.contract.length + s.network.length + 4),
-    ...indexingStats.map((s) => s.event.length + 1),
   );
 
-  const maxEventCount = Math.max(
-    ...indexingStats.map((s) => s.completedEventCount),
-  );
-  const metricsWidth = 15 + maxEventCount.toString().length;
+  const metricsWidth = 15 + indexingStats.completedEventCount.toString().length;
 
   const barWidth = Math.min(
     Math.max(maxWidth - titleWidth - metricsWidth - 12, 24),
     48,
   );
+
+  const rate =
+    indexingStats.totalSeconds === undefined ||
+    indexingStats.completedSeconds === undefined ||
+    indexingStats.totalSeconds === 0
+      ? 1
+      : indexingStats.completedSeconds / indexingStats.totalSeconds;
+
+  const rateText =
+    rate === 1 ? <Text color="greenBright">done</Text> : formatPercentage(rate);
 
   return (
     <Box flexDirection="column">
@@ -130,45 +139,24 @@ const App = (ui: UiState) => {
       <Text> </Text>
 
       <Text bold={true}>Indexing </Text>
-      {indexingStats.map(
-        ({ event, totalSeconds, completedSeconds, completedEventCount }) => {
-          const rate =
-            totalSeconds === undefined ||
-            completedSeconds === undefined ||
-            totalSeconds === 0
-              ? 1
-              : completedSeconds / totalSeconds;
 
-          const titleText = event.padEnd(titleWidth, " ");
+      <Box flexDirection="column">
+        <Box flexDirection="row">
+          {indexingStats.completedSeconds !== undefined &&
+          indexingStats.totalSeconds !== undefined ? (
+            <>
+              <ProgressBar current={rate} end={1} width={barWidth} />
+              <Text>
+                {" "}
+                {rateText} ({indexingStats.completedEventCount} events)
+              </Text>
+            </>
+          ) : (
+            <Text>Waiting to start...</Text>
+          )}
+        </Box>
+      </Box>
 
-          const rateText =
-            rate === 1 ? (
-              <Text color="greenBright">done</Text>
-            ) : (
-              formatPercentage(rate)
-            );
-
-          return (
-            <Box flexDirection="column" key={event}>
-              <Box flexDirection="row">
-                <Text>{titleText} </Text>
-                {completedSeconds !== undefined &&
-                totalSeconds !== undefined ? (
-                  <>
-                    <ProgressBar current={rate} end={1} width={barWidth} />
-                    <Text>
-                      {" "}
-                      {rateText} ({completedEventCount} events)
-                    </Text>
-                  </>
-                ) : (
-                  <Text>Waiting to start...</Text>
-                )}
-              </Box>
-            </Box>
-          );
-        },
-      )}
       <Text> </Text>
 
       {/* {realtimeSyncNetworks.length > 0 && (

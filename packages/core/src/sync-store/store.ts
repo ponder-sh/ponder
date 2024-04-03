@@ -8,6 +8,15 @@ import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import type { Address, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
+export type RawEvent = {
+  chainId: number;
+  sourceId: string;
+  log: Log;
+  block: Block;
+  transaction: Transaction;
+  encodedCheckpoint: string;
+};
+
 export interface SyncStore {
   kind: "sqlite" | "postgres";
   db: HeadlessKysely<any>;
@@ -152,14 +161,14 @@ export interface SyncStore {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
-  }): Promise<
-    {
-      chainId: number;
-      sourceId: string;
-      log: Log;
-      block: Block;
-      transaction: Transaction;
-      encodedCheckpoint: string;
-    }[]
-  >;
+  }): AsyncGenerator<RawEvent[]>;
+
+  getFirstEventCheckpoint(arg: {
+    sources: Source[];
+  }): Promise<Checkpoint | undefined>;
+
+  getLastEventCheckpoint(arg: {
+    sources: Source[];
+    toCheckpoint: Checkpoint;
+  }): Promise<Checkpoint | undefined>;
 }

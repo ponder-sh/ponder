@@ -67,27 +67,16 @@ export class UiService {
       const completedSecondsMetric = (
         await this.common.metrics.ponder_indexing_completed_seconds.get()
       ).values;
+
       const completedEventsMetric = (
         await this.common.metrics.ponder_indexing_completed_events.get()
       ).values;
 
-      const eventNames = totalSecondsMetric.map(
-        (m) => m.labels.event as string,
-      );
-
-      this.ui.indexingStats = eventNames.map((event) => {
-        const totalSeconds = totalSecondsMetric.find(
-          (m) => m.labels.event === event,
-        )?.value;
-        const completedSeconds = completedSecondsMetric.find(
-          (m) => m.labels.event === event,
-        )?.value;
-        const completedEventCount = completedEventsMetric
-          .filter((m) => m.labels.event === event)
-          .reduce((a, v) => a + v.value, 0);
-
-        return { event, totalSeconds, completedSeconds, completedEventCount };
-      });
+      this.ui.indexingStats = {
+        completedSeconds: completedSecondsMetric[0]?.value ?? 0,
+        totalSeconds: totalSecondsMetric[0]?.value ?? 0,
+        completedEventCount: completedEventsMetric[0]?.value ?? 0,
+      };
 
       const indexingCompletedToTimestamp =
         (await this.common.metrics.ponder_indexing_completed_timestamp.get())

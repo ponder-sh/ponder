@@ -3,7 +3,7 @@ import { buildConfig } from "@/build/config/config.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";
-import type { RawEvents } from "@/indexing/events.js";
+import type { RawEvent } from "@/sync-store/store.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import type {
@@ -213,7 +213,9 @@ export const getRawRPCData = async (sources: Source[]) => {
 /**
  * Mock function for `getLogEvents` that specifically returns the event data for the erc20 source.
  */
-export const getEventsErc20 = async (sources: Source[]): Promise<RawEvents> => {
+export const getEventsErc20 = async (
+  sources: Source[],
+): Promise<RawEvent[]> => {
   const rpcData = await getRawRPCData(sources);
 
   return [
@@ -255,7 +257,7 @@ export const getEventsErc20 = async (sources: Source[]): Promise<RawEvents> => {
         eventType: 5,
         eventIndex: log.logIndex!,
       }),
-    })) as RawEvents;
+    })) as RawEvent[];
 };
 
 export function getFreePort(): Promise<number> {

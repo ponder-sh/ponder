@@ -1,9 +1,7 @@
 import type { Source } from "@/config/sources.js";
-import type { SyncService } from "@/sync/service.js";
+import type { RawEvent } from "@/sync-store/store.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import { decodeEventLog } from "viem";
-
-export type RawEvents = Awaited<ReturnType<SyncService["getEvents"]>>;
 
 export type SetupEvent = {
   type: "setup";
@@ -42,7 +40,7 @@ export type Event = SetupEvent | LogEvent | PlaceholderEvent;
 // TODO(kyle) decode raw database information
 
 export const decodeEvents = (
-  rawEvents: RawEvents,
+  rawEvents: RawEvent[],
   sourceById: { [sourceId: string]: Source },
 ): Event[] => {
   const events: Event[] = [];

@@ -6,7 +6,11 @@ import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";
 import type { DatabaseModel } from "@/types/model.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import { type Abi, type Address, checksumAddress, createClient } from "viem";
@@ -37,6 +41,7 @@ export type IndexingService = {
 
   // state
   isKilled: boolean;
+  eventCount: number;
 
   /**
    * Reduce memory usage by reserving space for objects ahead of time
@@ -237,6 +242,7 @@ export const createIndexingService = ({
     indexingFunctions,
     common,
     isKilled: false,
+    eventCount: 0,
     currentEvent: {
       contextState,
       context: {
@@ -304,6 +310,8 @@ export const processEvents = async (
   for (const event of events) {
     if (indexingService.isKilled) return;
 
+    indexingService.eventCount++;
+
     const neva = (_x: never) => {
       throw "unreachable";
     };
@@ -340,6 +348,44 @@ export const processEvents = async (
 
 export const kill = (indexingService: IndexingService) => {
   indexingService.isKilled = true;
+};
+
+export const updateCompletedSeconds = (
+  { common }: Pick<IndexingService, "common">,
+  {
+    firstEventCheckpoint,
+    completedEventCheckpoint,
+  }: {
+    firstEventCheckpoint: Pick<Checkpoint, "blockTimestamp">;
+    completedEventCheckpoint: Pick<Checkpoint, "blockTimestamp">;
+  },
+) => {
+  common.metrics.ponder_indexing_completed_seconds.set(
+    completedEventCheckpoint.blockTimestamp -
+      firstEventCheckpoint.blockTimestamp,
+  );
+};
+
+export const updateTotalSeconds = (
+  { common }: Pick<IndexingService, "common">,
+  {
+    firstEventCheckpoint,
+    lastEventCheckpoint,
+  }: {
+    firstEventCheckpoint: Pick<Checkpoint, "blockTimestamp">;
+    lastEventCheckpoint: Pick<Checkpoint, "blockTimestamp">;
+  },
+) => {
+  common.metrics.ponder_indexing_total_seconds.set(
+    lastEventCheckpoint.blockTimestamp - firstEventCheckpoint.blockTimestamp,
+  );
+};
+
+export const updateEventCount = ({
+  common,
+  eventCount,
+}: Pick<IndexingService, "common" | "eventCount">) => {
+  common.metrics.ponder_indexing_completed_events.set(eventCount);
 };
 
 // TODO(kyle) handle errors thrown
