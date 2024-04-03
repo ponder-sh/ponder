@@ -872,7 +872,6 @@ export class SqliteSyncStore implements SyncStore {
               const logFilterCmprs = sources
                 .filter(sourceIsLogFilter)
                 .map((logFilter) => {
-                  console.log(logFilter);
                   const exprs = this.buildLogFilterCmprs({ eb, logFilter });
                   return eb.and(exprs);
                 });

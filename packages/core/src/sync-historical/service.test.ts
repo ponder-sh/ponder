@@ -3,7 +3,11 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { getEventsErc20, publicClient } from "@/_test/utils.js";
+import {
+  drainAsyncGenerator,
+  getEventsErc20,
+  publicClient,
+} from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { wait } from "@/utils/wait.js";
@@ -214,21 +218,15 @@ test("start() adds log filter events to sync store", async (context) => {
   service.start();
   await service.onIdle();
 
-  const { events } = await syncStore.getLogEvents({
+  const ag = syncStore.getLogEvents({
+    sources: [sources[0]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
-    logFilters: [
-      {
-        id: sources[0].id,
-        chainId: sources[0].chainId,
-        criteria: sources[0].criteria,
-        eventSelector: sources[0].abiEvents.bySafeName.Transfer!.selector,
-      },
-    ],
   });
+  const events = drainAsyncGenerator(ag);
 
-  const { events: erc20Events } = await getEventsErc20(sources, maxCheckpoint);
+  const erc20Events = await getEventsErc20(sources);
 
   expect(erc20Events).toMatchObject(events);
 
@@ -253,19 +251,13 @@ test("start() adds factory events to sync store", async (context) => {
   service.start();
   await service.onIdle();
 
-  const { events } = await syncStore.getLogEvents({
+  const ag = syncStore.getLogEvents({
+    sources: [sources[1]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
-    factories: [
-      {
-        id: sources[0].id,
-        chainId: sources[1].chainId,
-        criteria: sources[1].criteria,
-        eventSelector: sources[1].abiEvents.bySafeName.Swap!.selector,
-      },
-    ],
   });
+  const events = await drainAsyncGenerator(ag);
 
   expect(events).toHaveLength(1);
 
