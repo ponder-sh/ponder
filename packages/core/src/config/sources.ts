@@ -42,8 +42,10 @@ export type Factory = BaseSource & {
 
 export type Source = LogFilter | Factory;
 
-export const sourceIsLogFilter = (source: Source): source is LogFilter =>
-  source.type === "logFilter";
+export const sourceIsLogFilter = (
+  source: Pick<Source, "type">,
+): source is LogFilter => source.type === "logFilter";
 
-export const sourceIsFactory = (source: Source): source is Factory =>
-  source.type === "factory";
+export const sourceIsFactory = (
+  source: Pick<Source, "type">,
+): source is Factory => source.type === "factory";

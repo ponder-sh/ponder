@@ -835,7 +835,10 @@ export class PostgresSyncStore implements SyncStore {
     toCheckpoint,
     limit,
   }: {
-    sources: Source[];
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
@@ -1056,7 +1059,10 @@ export class PostgresSyncStore implements SyncStore {
   async getFirstEventCheckpoint({
     sources,
   }: {
-    sources: Source[];
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
   }): Promise<Checkpoint | undefined> {
     return this.db.wrap({ method: "getFirstEventCheckpoint" }, async () => {
       const checkpoint = await this.db
@@ -1094,7 +1100,10 @@ export class PostgresSyncStore implements SyncStore {
     sources,
     toCheckpoint,
   }: {
-    sources: Source[];
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
     toCheckpoint: Checkpoint;
   }): Promise<Checkpoint | undefined> {
     return this.db.wrap({ method: "getLastEventCheckpoint" }, async () => {

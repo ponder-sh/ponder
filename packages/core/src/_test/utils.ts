@@ -194,17 +194,17 @@ export const getRawRPCData = async (sources: Source[]) => {
   } as {
     block1: {
       logs: [RpcLog, RpcLog];
-      block: RpcBlock<BlockTag, true>;
+      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction, RpcTransaction];
     };
     block2: {
       logs: [RpcLog];
-      block: RpcBlock<BlockTag, true>;
+      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
     };
     block3: {
       logs: [RpcLog];
-      block: RpcBlock<BlockTag, true>;
+      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
     };
   };
@@ -299,4 +299,16 @@ export async function postGraphql(port: number, query: string) {
 export async function getMetrics(port: number) {
   const response = await fetch(`http://localhost:${port}/metrics`);
   return await response.text();
+}
+
+export async function drainAsyncGenerator<t extends unknown[]>(
+  asyncGenerator: AsyncGenerator<t>,
+) {
+  const result = [] as unknown as t;
+
+  for await (const x of asyncGenerator) {
+    result.push(...x);
+  }
+
+  return result;
 }

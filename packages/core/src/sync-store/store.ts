@@ -157,18 +157,27 @@ export interface SyncStore {
   /** EVENTS METHOD */
 
   getLogEvents(arg: {
-    sources: Source[];
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
   }): AsyncGenerator<RawEvent[]>;
 
   getFirstEventCheckpoint(arg: {
-    sources: Source[];
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
   }): Promise<Checkpoint | undefined>;
 
   getLastEventCheckpoint(arg: {
-    sources: Source[];
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
     toCheckpoint: Checkpoint;
   }): Promise<Checkpoint | undefined>;
 }

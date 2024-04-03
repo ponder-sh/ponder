@@ -1,6 +1,8 @@
 import type { Common } from "@/common/common.js";
 import {
+  type Factory,
   type FactoryCriteria,
+  type LogFilter,
   type LogFilterCriteria,
   type Source,
   sourceIsFactory,
@@ -835,7 +837,10 @@ export class SqliteSyncStore implements SyncStore {
     toCheckpoint,
     limit,
   }: {
-    sources: Source[];
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
@@ -867,6 +872,7 @@ export class SqliteSyncStore implements SyncStore {
               const logFilterCmprs = sources
                 .filter(sourceIsLogFilter)
                 .map((logFilter) => {
+                  console.log(logFilter);
                   const exprs = this.buildLogFilterCmprs({ eb, logFilter });
                   return eb.and(exprs);
                 });
@@ -1067,7 +1073,10 @@ export class SqliteSyncStore implements SyncStore {
   async getFirstEventCheckpoint({
     sources,
   }: {
-    sources: Source[];
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
   }): Promise<Checkpoint | undefined> {
     return this.db.wrap({ method: "getFirstEventCheckpoint" }, async () => {
       const checkpoint = await this.db
@@ -1105,7 +1114,10 @@ export class SqliteSyncStore implements SyncStore {
     sources,
     toCheckpoint,
   }: {
-    sources: Source[];
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
     toCheckpoint: Checkpoint;
   }): Promise<Checkpoint | undefined> {
     return this.db.wrap({ method: "getLastEventCheckpoint" }, async () => {
@@ -1146,13 +1158,7 @@ export class SqliteSyncStore implements SyncStore {
     logFilter,
   }: {
     eb: ExpressionBuilder<any, any>;
-    logFilter: {
-      id: string;
-      chainId: number;
-      criteria: LogFilterCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    };
+    logFilter: LogFilter;
   }) => {
     const exprs = [];
 
@@ -1187,10 +1193,10 @@ export class SqliteSyncStore implements SyncStore {
       }
     }
 
-    if (logFilter.fromBlock)
-      exprs.push(eb("blocks.number", ">=", encodeAsText(logFilter.fromBlock)));
-    if (logFilter.toBlock)
-      exprs.push(eb("blocks.number", "<=", encodeAsText(logFilter.toBlock)));
+    if (logFilter.startBlock !== undefined && logFilter.startBlock !== 0)
+      exprs.push(eb("blocks.number", ">=", encodeAsText(logFilter.startBlock)));
+    if (logFilter.endBlock)
+      exprs.push(eb("blocks.number", "<=", encodeAsText(logFilter.endBlock)));
 
     return exprs;
   };
@@ -1200,13 +1206,7 @@ export class SqliteSyncStore implements SyncStore {
     factory,
   }: {
     eb: ExpressionBuilder<any, any>;
-    factory: {
-      id: string;
-      chainId: number;
-      criteria: FactoryCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    };
+    factory: Factory;
   }) => {
     const exprs = [];
 
@@ -1230,10 +1230,10 @@ export class SqliteSyncStore implements SyncStore {
       ),
     );
 
-    if (factory.fromBlock)
-      exprs.push(eb("blocks.number", ">=", encodeAsText(factory.fromBlock)));
-    if (factory.toBlock)
-      exprs.push(eb("blocks.number", "<=", encodeAsText(factory.toBlock)));
+    if (factory.startBlock !== undefined && factory.startBlock !== 0)
+      exprs.push(eb("blocks.number", ">=", encodeAsText(factory.startBlock)));
+    if (factory.endBlock)
+      exprs.push(eb("blocks.number", "<=", encodeAsText(factory.endBlock)));
 
     return exprs;
   };
