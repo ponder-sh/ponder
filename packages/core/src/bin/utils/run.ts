@@ -46,7 +46,6 @@ export async function run({
   } = build;
 
   let database: DatabaseService;
-  // let cachedToCheckpoint: Checkpoint;
   let indexingStore: IndexingStore;
   let syncStore: SyncStore;
 
@@ -54,7 +53,6 @@ export async function run({
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
     const result = await database.setup({ schema, appId });
-    // cachedToCheckpoint = result.checkpoint;
 
     indexingStore = new RealtimeIndexingStore({
       kind: "sqlite",
@@ -69,7 +67,6 @@ export async function run({
     const { poolConfig } = databaseConfig;
     database = new PostgresDatabaseService({ common, poolConfig });
     const result = await database.setup({ schema, appId });
-    // cachedToCheckpoint = result.checkpoint;
 
     indexingStore = new RealtimeIndexingStore({
       kind: "postgres",
@@ -103,7 +100,7 @@ export async function run({
 
   let checkpoint: Checkpoint = zeroCheckpoint;
 
-  syncService.on("checkpoint", async (newCheckpoint) => {
+  syncService.onSerial("checkpoint", async (newCheckpoint) => {
     // TODO(kyle) only one runs at a time
 
     let firstEventCheckpoint: Checkpoint | undefined = undefined;
@@ -120,15 +117,13 @@ export async function run({
       toCheckpoint: newCheckpoint,
     });
 
-    if (
-      firstEventCheckpoint !== undefined &&
-      lastEventCheckpoint !== undefined
-    ) {
-      updateTotalSeconds(indexingService, {
-        firstEventCheckpoint,
-        lastEventCheckpoint,
-      });
-    }
+    if (firstEventCheckpoint === undefined || lastEventCheckpoint === undefined)
+      return;
+
+    updateTotalSeconds(indexingService, {
+      firstEventCheckpoint,
+      lastEventCheckpoint,
+    });
 
     for await (const rawEvents of syncService.getEvents({
       sources,
@@ -137,18 +132,16 @@ export async function run({
       limit: 1_000,
     })) {
       const events = decodeEvents(rawEvents, indexingService.sourceById);
-      await processEvents(indexingService, { events });
+      await processEvents(indexingService, { events, firstEventCheckpoint });
+
+      // TODO(kyle) log
+      // TODO(kyle) update per network checkpoint
     }
 
-    if (
-      firstEventCheckpoint !== undefined &&
-      lastEventCheckpoint !== undefined
-    ) {
-      updateCompletedSeconds(indexingService, {
-        firstEventCheckpoint: firstEventCheckpoint,
-        completedEventCheckpoint: lastEventCheckpoint,
-      });
-    }
+    updateCompletedSeconds(indexingService, {
+      firstEventCheckpoint,
+      completedEventCheckpoint: lastEventCheckpoint,
+    });
 
     updateEventCount(indexingService);
 

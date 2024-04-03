@@ -26,16 +26,7 @@ export type LogEvent = {
   encodedCheckpoint: string;
 };
 
-export type PlaceholderEvent = {
-  type: "placeholder";
-  chainId: number;
-  contractName: string;
-  eventName: string;
-  event: {};
-  encodedCheckpoint: string;
-};
-
-export type Event = SetupEvent | LogEvent | PlaceholderEvent;
+export type Event = SetupEvent | LogEvent;
 
 // TODO(kyle) decode raw database information
 

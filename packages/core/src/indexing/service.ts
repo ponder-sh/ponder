@@ -8,14 +8,45 @@ import type { SyncService } from "@/sync/service.js";
 import type { DatabaseModel } from "@/types/model.js";
 import {
   type Checkpoint,
+  decodeCheckpoint,
   encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import { type Abi, type Address, checksumAddress, createClient } from "viem";
+import type {
+  Abi,
+  Account,
+  Address,
+  Chain,
+  Client,
+  ContractFunctionConfig,
+  GetBalanceParameters,
+  GetBalanceReturnType,
+  GetBytecodeParameters,
+  GetBytecodeReturnType,
+  GetStorageAtParameters,
+  GetStorageAtReturnType,
+  MulticallParameters,
+  MulticallReturnType,
+  ReadContractParameters,
+  ReadContractReturnType,
+  Transport,
+} from "viem";
+import { checksumAddress, createClient } from "viem";
+import {
+  getBalance as viemGetBalance,
+  getBytecode as viemGetBytecode,
+  getStorageAt as viemGetStorageAt,
+  multicall as viemMulticall,
+  readContract as viemReadContract,
+} from "viem/actions";
 import type { Event, LogEvent, SetupEvent } from "./events.js";
-import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
+import {
+  type BlockOptions,
+  type PonderActions,
+  type ReadOnlyClient,
+} from "./ponderActions.js";
 import { addUserStackTrace } from "./trace.js";
 
 export type Context = {
@@ -104,15 +135,6 @@ export const createIndexingService = ({
     },
     {},
   );
-
-  // build clientByChainId
-  for (const network of networks) {
-    const transport = syncService.getCachedTransport(network.chainId);
-    clientByChainId[network.chainId] = createClient({
-      transport,
-      chain: network.chain,
-    }).extend(ponderActions(contextState.blockNumber));
-  }
 
   // build contractsByChainId
   for (const source of sources) {
@@ -238,6 +260,98 @@ export const createIndexingService = ({
     return acc;
   }, {});
 
+  // build ponderActions
+  const ponderActions = <
+    TTransport extends Transport = Transport,
+    TChain extends Chain | undefined = Chain | undefined,
+    TAccount extends Account | undefined = Account | undefined,
+  >(
+    client: Client<TTransport, TChain, TAccount>,
+  ): PonderActions => ({
+    getBalance: ({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetBalanceReturnType> =>
+      viemGetBalance(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      }),
+    getBytecode: ({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetBytecodeReturnType> =>
+      viemGetBytecode(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      }),
+    getStorageAt: ({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetStorageAtReturnType> =>
+      viemGetStorageAt(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      }),
+    multicall: <
+      TContracts extends ContractFunctionConfig[],
+      TAllowFailure extends boolean = true,
+    >({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<
+      MulticallParameters<TContracts, TAllowFailure>,
+      "blockTag" | "blockNumber"
+    > &
+      BlockOptions): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
+      viemMulticall(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      }),
+    // @ts-ignore
+    readContract: <
+      const TAbi extends Abi | readonly unknown[],
+      TFunctionName extends string,
+    >({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<
+      ReadContractParameters<TAbi, TFunctionName>,
+      "blockTag" | "blockNumber"
+    > &
+      BlockOptions): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
+      viemReadContract(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      } as ReadContractParameters<TAbi, TFunctionName>),
+  });
+
+  // build clientByChainId
+  for (const network of networks) {
+    const transport = syncService.getCachedTransport(network.chainId);
+    clientByChainId[network.chainId] = createClient({
+      transport,
+      chain: network.chain,
+    }).extend(ponderActions);
+  }
+
   return {
     indexingFunctions,
     common,
@@ -305,7 +419,10 @@ export const createSetupEvents = (
 
 export const processEvents = async (
   indexingService: IndexingService,
-  { events }: { events: Event[] },
+  {
+    events,
+    firstEventCheckpoint,
+  }: { events: Event[]; firstEventCheckpoint: Checkpoint },
 ) => {
   for (const event of events) {
     if (indexingService.isKilled) return;
@@ -318,30 +435,26 @@ export const processEvents = async (
 
     switch (event.type) {
       case "setup": {
-        await new Promise((resolve) =>
-          setImmediate(() =>
-            executeSetup(indexingService, { event }).then(resolve),
-          ),
-        );
+        await executeSetup(indexingService, { event });
         break;
       }
 
       case "log": {
-        await new Promise((resolve) =>
-          setImmediate(() =>
-            executeLog(indexingService, { event }).then(resolve),
-          ),
-        );
-        break;
-      }
-
-      case "placeholder": {
-        // no-op
+        await executeLog(indexingService, { event });
         break;
       }
 
       default:
         neva(event);
+    }
+
+    if (Math.random() > 0.99) {
+      updateEventCount(indexingService);
+      updateCompletedSeconds(indexingService, {
+        firstEventCheckpoint,
+        completedEventCheckpoint: decodeCheckpoint(event.encodedCheckpoint),
+      });
+      await new Promise((resolve) => setImmediate(resolve));
     }
   }
 };
@@ -389,7 +502,6 @@ export const updateEventCount = ({
 };
 
 // TODO(kyle) handle errors thrown
-// TODO(kyle) make sure block on client is correct
 
 const executeSetup = async (
   indexingService: IndexingService,

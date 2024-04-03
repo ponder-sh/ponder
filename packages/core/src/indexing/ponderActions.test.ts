@@ -1,21 +1,11 @@
-import { parseEther, toHex } from "viem/utils";
-import { beforeEach, expect, test } from "vitest";
-
 import { BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import { setupAnvil } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
-
-import { type ReadOnlyClient, ponderActions } from "./ponderActions.js";
+import { parseEther, toHex } from "viem/utils";
+import { beforeEach, expect, test } from "vitest";
 
 beforeEach((context) => setupAnvil(context));
-
-const getClient = async () => {
-  const blockNumber = await publicClient.getBlockNumber();
-  return publicClient.extend(
-    ponderActions(blockNumber) as any,
-  ) as ReadOnlyClient;
-};
 
 test("getBalance()", async () => {
   const balance = await getClient().then((client) =>
@@ -49,6 +39,31 @@ test("getStorageAt()", async (context) => {
   expect(BigInt(storage!)).toBe(parseEther("1"));
 });
 
+test("readContract()", async (context) => {
+  const totalSupply = await getClient().then((client) =>
+    client.readContract({
+      abi: erc20ABI,
+      functionName: "totalSupply",
+      address: context.erc20.address,
+    }),
+  );
+
+  expect(totalSupply).toBe(parseEther("1"));
+});
+
+test("readContract() blockNumber", async (context) => {
+  const balance = await getClient().then((client) =>
+    client.readContract({
+      abi: erc20ABI,
+      functionName: "totalSupply",
+      address: context.erc20.address,
+      blockNumber: 1n,
+    }),
+  );
+
+  expect(balance).toBe(parseEther("0"));
+});
+
 // Note: Kyle the local chain doesn't have a deployed instance of "multicall3"
 test.todo("multicall()", async (context) => {
   const totalSupply = await getClient().then((client) =>
@@ -65,53 +80,4 @@ test.todo("multicall()", async (context) => {
   );
 
   expect(totalSupply).toMatchObject([parseEther("1")]);
-});
-
-test("readContract()", async (context) => {
-  const totalSupply = await getClient().then((client) =>
-    client.readContract({
-      abi: erc20ABI,
-      functionName: "totalSupply",
-      address: context.erc20.address,
-    }),
-  );
-
-  expect(totalSupply).toBe(parseEther("1"));
-});
-
-test("readContract() accepts user-provided block number", async (context) => {
-  const balance = await getClient().then((client) =>
-    client.readContract({
-      abi: erc20ABI,
-      functionName: "totalSupply",
-      address: context.erc20.address,
-      blockNumber: 1n,
-    }),
-  );
-
-  expect(balance).toBe(parseEther("0"));
-});
-
-test("readContract() uses event block number if not provided by user", async (context) => {
-  const balance = await getClient().then((client) =>
-    client.readContract({
-      abi: erc20ABI,
-      functionName: "totalSupply",
-      address: context.erc20.address,
-    }),
-  );
-
-  expect(balance).toBe(parseEther("1"));
-});
-
-test("readContract() uses event block number if not provided by user", async (context) => {
-  const balance = await getClient().then((client) =>
-    client.readContract({
-      abi: erc20ABI,
-      functionName: "totalSupply",
-      address: context.erc20.address,
-    }),
-  );
-
-  expect(balance).toBe(parseEther("1"));
 });
