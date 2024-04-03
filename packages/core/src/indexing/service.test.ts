@@ -1,4 +1,5 @@
 import { BOB } from "@/_test/constants.js";
+import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
   setupDatabaseServices,
@@ -8,7 +9,7 @@ import { getEventsErc20 } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { SyncService } from "@/sync/service.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
-import { type Address, checksumAddress } from "viem";
+import { type Address, checksumAddress, parseEther, toHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { decodeEvents } from "./events.js";
 import {
@@ -472,3 +473,186 @@ test("executeLog() context.db", async (context) => {
 test.todo("executeLog() metrics");
 
 test.todo("executeLog() error");
+
+test("ponderActions getBalance()", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingService = createIndexingService({
+    indexingFunctions: {},
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const balance = await indexingService.clientByChainId[1].getBalance({
+    address: BOB,
+  });
+
+  expect(balance).toBe(parseEther("10000"));
+
+  await cleanup();
+});
+
+test("ponderActions getBytecode()", async (context) => {
+  const { common, sources, networks, erc20 } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingService = createIndexingService({
+    indexingFunctions: {},
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const bytecode = await indexingService.clientByChainId[1].getBytecode({
+    address: erc20.address,
+  });
+
+  expect(bytecode).toBeTruthy();
+
+  await cleanup();
+});
+
+test("ponderActions getStorageAt()", async (context) => {
+  const { common, sources, networks, erc20 } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingService = createIndexingService({
+    indexingFunctions: {},
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const storage = await indexingService.clientByChainId[1].getStorageAt({
+    address: erc20.address,
+    // totalSupply is in the third storage slot
+    slot: toHex(2),
+  });
+
+  expect(BigInt(storage!)).toBe(parseEther("1"));
+
+  await cleanup();
+});
+
+test("ponderActions readContract()", async (context) => {
+  const { common, sources, networks, erc20 } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingService = createIndexingService({
+    indexingFunctions: {},
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const totalSupply = await indexingService.clientByChainId[1].readContract({
+    abi: erc20ABI,
+    functionName: "totalSupply",
+    address: erc20.address,
+  });
+
+  expect(totalSupply).toBe(parseEther("1"));
+
+  await cleanup();
+});
+
+test("ponderActions readContract() blockNumber", async (context) => {
+  const { common, sources, networks, erc20 } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingService = createIndexingService({
+    indexingFunctions: {},
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const totalSupply = await indexingService.clientByChainId[1].readContract({
+    abi: erc20ABI,
+    functionName: "totalSupply",
+    address: erc20.address,
+    blockNumber: 1n,
+  });
+
+  expect(totalSupply).toBe(parseEther("0"));
+
+  await cleanup();
+});
+
+// Note: Kyle the local chain doesn't have a deployed instance of "multicall3"
+test.skip("ponderActions multicall()", async (context) => {
+  const { common, sources, networks, erc20 } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingService = createIndexingService({
+    indexingFunctions: {},
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const [totalSupply] = await indexingService.clientByChainId[1].multicall({
+    allowFailure: false,
+    contracts: [
+      {
+        abi: erc20ABI,
+        functionName: "totalSupply",
+        address: erc20.address,
+      },
+    ],
+  });
+
+  expect(totalSupply).toBe(parseEther("1"));
+
+  await cleanup();
+});
