@@ -4,7 +4,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
-import { zeroCheckpoint } from "@/utils/checkpoint.js";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import { type TestContext, bench } from "vitest";
 import type { IndexingStore } from "./store.js";
@@ -41,7 +41,10 @@ const setup = async () => {
 
   await indexingStore.createMany({
     tableName: "table",
-    checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
+    encodedCheckpoint: encodeCheckpoint({
+      ...zeroCheckpoint,
+      blockTimestamp: count,
+    }),
     data: range(0, count).map((i) => ({
       id: `${i}`,
       name: "Kevin",
@@ -59,7 +62,10 @@ bench(
   async () => {
     await indexingStore.create({
       tableName: "table",
-      checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockTimestamp: count,
+      }),
       id: (count++).toString(),
       data: { name: "Kyle", bigAge: 10n },
     });
@@ -72,7 +78,10 @@ bench(
   async () => {
     await indexingStore.update({
       tableName: "table",
-      checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockTimestamp: count,
+      }),
       id: "500",
       data: { name: "Kyle" },
     });
@@ -85,7 +94,10 @@ bench(
   async () => {
     await indexingStore.upsert({
       tableName: "table",
-      checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockTimestamp: count,
+      }),
       id: (count++).toString(),
       create: { name: "Kyle", bigAge: 23n },
       update: { name: "Kyle" },
@@ -99,7 +111,10 @@ bench(
   async () => {
     await indexingStore.delete({
       tableName: "table",
-      checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockTimestamp: count,
+      }),
       id: (count--).toString(),
     });
   },
@@ -132,7 +147,10 @@ bench(
   async () => {
     await indexingStore.createMany({
       tableName: "table",
-      checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockTimestamp: count,
+      }),
       data: [
         { id: (count++).toString(), name: "Kevin", bigAge: 22n },
         { id: (count++).toString(), name: "Kevin", bigAge: 22n },
@@ -148,7 +166,10 @@ bench(
   async () => {
     await indexingStore.updateMany({
       tableName: "table",
-      checkpoint: { ...zeroCheckpoint, blockTimestamp: count },
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockTimestamp: count,
+      }),
       data: { name: "Kevin", bigAge: 22n },
       where: { id: { equals: "500" } },
     });
