@@ -132,7 +132,11 @@ export async function run({
       limit: 1_000,
     })) {
       const events = decodeEvents(rawEvents, indexingService.sourceById);
-      await processEvents(indexingService, { events, firstEventCheckpoint });
+      const result = await processEvents(indexingService, {
+        events,
+        firstEventCheckpoint,
+      });
+      if (result.success === false) break;
 
       // TODO(kyle) log
       // TODO(kyle) update per network checkpoint

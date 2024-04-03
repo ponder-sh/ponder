@@ -84,10 +84,6 @@ export type IndexingService = {
       blockNumber: bigint;
     };
     context: Context;
-    metricLabel: {
-      network: string;
-      event: string;
-    };
   };
 
   // static cache
@@ -365,7 +361,6 @@ export const createIndexingService = ({
         client: undefined!,
         db,
       },
-      metricLabel: { network: undefined!, event: undefined! },
     },
     networkByChainId,
     sourceById,
@@ -423,9 +418,10 @@ export const processEvents = async (
     events,
     firstEventCheckpoint,
   }: { events: Event[]; firstEventCheckpoint: Checkpoint },
-) => {
-  for (const event of events) {
-    if (indexingService.isKilled) return;
+): Promise<{ success: false } | { success: true }> => {
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i];
+    if (indexingService.isKilled) return { success: false };
 
     indexingService.eventCount++;
 
@@ -435,12 +431,22 @@ export const processEvents = async (
 
     switch (event.type) {
       case "setup": {
-        await executeSetup(indexingService, { event });
+        const result = await executeSetup(indexingService, { event });
+        if (result.success === false) {
+          // TODO(kyle) log
+
+          return { success: false };
+        }
         break;
       }
 
       case "log": {
-        await executeLog(indexingService, { event });
+        const result = await executeLog(indexingService, { event });
+        if (result.success === false) {
+          // TODO(kyle) log
+
+          return { success: false };
+        }
         break;
       }
 
@@ -448,15 +454,17 @@ export const processEvents = async (
         neva(event);
     }
 
-    if (Math.random() > 0.99) {
+    if (i % 93 === 0) {
       updateEventCount(indexingService);
       updateCompletedSeconds(indexingService, {
         firstEventCheckpoint,
         completedEventCheckpoint: decodeCheckpoint(event.encodedCheckpoint),
       });
-      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise(setImmediate);
     }
   }
+
+  return { success: true };
 };
 
 export const kill = (indexingService: IndexingService) => {
@@ -506,7 +514,7 @@ export const updateEventCount = ({
 const executeSetup = async (
   indexingService: IndexingService,
   { event }: { event: SetupEvent },
-) => {
+): Promise<{ success: true } | { success: false; error: Error }> => {
   const {
     common,
     indexingFunctions,
@@ -518,6 +526,11 @@ const executeSetup = async (
   const indexingFunction =
     indexingFunctions[event.contractName][event.eventName];
 
+  const metricLabel = {
+    event: event.eventName,
+    network: networkByChainId[event.chainId].name,
+  };
+
   try {
     // set currentEvent
     currentEvent.context.network.chainId = event.chainId;
@@ -526,8 +539,6 @@ const executeSetup = async (
     currentEvent.context.contracts = contractsByChainId[event.chainId];
     currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
     currentEvent.contextState.blockNumber = event.startBlock;
-    currentEvent.metricLabel.event = event.eventName;
-    currentEvent.metricLabel.network = networkByChainId[event.chainId].name;
 
     const endClock = startClock();
 
@@ -536,15 +547,13 @@ const executeSetup = async (
     });
 
     common.metrics.ponder_indexing_function_duration.observe(
-      currentEvent.metricLabel,
+      metricLabel,
       endClock(),
     );
   } catch (error_) {
     const error = error_ as Error & { meta?: string };
 
-    common.metrics.ponder_indexing_function_error_total.inc(
-      currentEvent.metricLabel,
-    );
+    common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     addUserStackTrace(error, common.options);
 
@@ -555,13 +564,16 @@ const executeSetup = async (
     });
 
     common.metrics.ponder_indexing_has_error.set(1);
+    return { success: false, error: error };
   }
+
+  return { success: true };
 };
 
 const executeLog = async (
   indexingService: IndexingService,
   { event }: { event: LogEvent },
-) => {
+): Promise<{ success: true } | { success: false; error: Error }> => {
   const {
     common,
     indexingFunctions,
@@ -573,6 +585,11 @@ const executeLog = async (
   const indexingFunction =
     indexingFunctions[event.contractName][event.eventName];
 
+  const metricLabel = {
+    event: event.eventName,
+    network: networkByChainId[event.chainId].name,
+  };
+
   try {
     // set currentEvent
     currentEvent.context.network.chainId = event.chainId;
@@ -581,8 +598,7 @@ const executeLog = async (
     currentEvent.context.contracts = contractsByChainId[event.chainId];
     currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
-    currentEvent.metricLabel.event = event.eventName;
-    currentEvent.metricLabel.network = networkByChainId[event.chainId].name;
+
     const endClock = startClock();
 
     await indexingFunction({
@@ -597,15 +613,13 @@ const executeLog = async (
     });
 
     common.metrics.ponder_indexing_function_duration.observe(
-      currentEvent.metricLabel,
+      metricLabel,
       endClock(),
     );
   } catch (error_) {
     const error = error_ as Error & { meta?: string };
 
-    common.metrics.ponder_indexing_function_error_total.inc(
-      currentEvent.metricLabel,
-    );
+    common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     addUserStackTrace(error, common.options);
 
@@ -622,5 +636,9 @@ const executeLog = async (
     });
 
     common.metrics.ponder_indexing_has_error.set(1);
+
+    return { success: false, error: error };
   }
+
+  return { success: true };
 };
