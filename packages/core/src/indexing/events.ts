@@ -3,7 +3,7 @@ import type { SyncService } from "@/sync/service.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import { decodeEventLog } from "viem";
 
-export type RawEvents = Awaited<ReturnType<SyncService["getEvents"]>>["events"];
+export type RawEvents = Awaited<ReturnType<SyncService["getEvents"]>>;
 
 export type SetupEvent = {
   type: "setup";
@@ -38,6 +38,8 @@ export type PlaceholderEvent = {
 };
 
 export type Event = SetupEvent | LogEvent | PlaceholderEvent;
+
+// TODO(kyle) decode raw database information
 
 export const decodeEvents = (
   rawEvents: RawEvents,

@@ -6,16 +6,18 @@ import type { DatabaseService } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
-import { IndexingService } from "@/indexing/service.js";
+import { decodeEvents } from "@/indexing/events.js";
+import {
+  createIndexingService,
+  kill,
+  processEvents,
+} from "@/indexing/service.js";
 import { ServerService } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { SyncService } from "@/sync/service.js";
-import {
-  type Checkpoint,
-  isCheckpointGreaterThanOrEqualTo,
-} from "@/utils/checkpoint.js";
+import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 /**
  * Starts the server, sync, and indexing services for the specified build.
@@ -24,7 +26,6 @@ export async function run({
   common,
   build,
   onFatalError,
-  onReloadableError,
 }: {
   common: Common;
   build: Build;
@@ -38,12 +39,11 @@ export async function run({
     schema,
     graphqlSchema,
     indexingFunctions,
-    tableAccess,
     appId,
   } = build;
 
   let database: DatabaseService;
-  let cachedToCheckpoint: Checkpoint;
+  // let cachedToCheckpoint: Checkpoint;
   let indexingStore: IndexingStore;
   let syncStore: SyncStore;
 
@@ -51,7 +51,7 @@ export async function run({
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
     const result = await database.setup({ schema, appId });
-    cachedToCheckpoint = result.checkpoint;
+    // cachedToCheckpoint = result.checkpoint;
 
     indexingStore = new RealtimeIndexingStore({
       kind: "sqlite",
@@ -66,7 +66,7 @@ export async function run({
     const { poolConfig } = databaseConfig;
     database = new PostgresDatabaseService({ common, poolConfig });
     const result = await database.setup({ schema, appId });
-    cachedToCheckpoint = result.checkpoint;
+    // cachedToCheckpoint = result.checkpoint;
 
     indexingStore = new RealtimeIndexingStore({
       kind: "postgres",
@@ -88,53 +88,66 @@ export async function run({
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = new IndexingService({
+  const indexingService = createIndexingService({
+    indexingFunctions,
     common,
     indexingStore,
     sources,
     networks,
     syncService,
+    schema,
   });
 
-  syncService.on("checkpoint", async () => {
-    await indexingService.processEvents();
+  let checkpoint: Checkpoint = zeroCheckpoint;
+
+  syncService.on("checkpoint", async (newCheckpoint) => {
+    const rawEvents = await syncService.getEvents({
+      sources,
+      fromCheckpoint: checkpoint,
+      toCheckpoint: newCheckpoint,
+      limit: 10_000,
+    });
+
+    const events = decodeEvents(rawEvents, indexingService.sourceById);
+
+    await processEvents(indexingService, { events });
+
+    checkpoint = newCheckpoint;
+
+    // if (isCheckpointGreaterThanOrEqualTo(checkpoint, finalizedCheckpoint)) {
+    //     isHealthy = true;
+    //     serverService.setIsHealthy(true);
+    //     common.logger.info({ service: "server", msg: "Responding as healthy" });
+    // }
   });
 
-  syncService.on("reorg", async (checkpoint) => {
-    await indexingService.handleReorg(checkpoint);
-    await indexingService.processEvents();
-  });
+  // TODO(kyle) setup, reorg, healthy, error
+
+  // syncService.on("reorg", async (checkpoint) => {
+  //   await indexingService.handleReorg(checkpoint);
+  //   await indexingService.processEvents();
+  // });
 
   syncService.on("fatal", onFatalError);
 
-  indexingService.on("error", onReloadableError);
+  // indexingService.on("error", onReloadableError);
 
-  const finalizedCheckpoint = await syncService.start();
+  // const finalizedCheckpoint =
+  await syncService.start();
 
-  let isHealthy = false;
-  indexingService.onSerial("eventsProcessed", async ({ toCheckpoint }) => {
-    if (isHealthy) return;
+  // let isHealthy = false;
+  // indexingService.onSerial("eventsProcessed", async ({ toCheckpoint }) => {
+  //   if (isHealthy) return;
 
-    if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
-      isHealthy = true;
-      serverService.setIsHealthy(true);
-      common.logger.info({ service: "server", msg: "Responding as healthy" });
-    }
-  });
+  //   if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
 
-  await indexingService.start({
-    indexingFunctions,
-    schema,
-    tableAccess,
-    cachedToCheckpoint,
-  });
-
-  indexingService.processEvents();
+  //   }
+  // });
 
   return async () => {
+    kill(indexingService);
     await serverService.kill();
     await syncService.kill();
-    await indexingService.kill();
     await database.kill();
   };
 }

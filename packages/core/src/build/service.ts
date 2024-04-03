@@ -42,7 +42,6 @@ export type Build = {
   // Indexing functions
   indexingFunctions: IndexingFunctions;
   // Static analysis
-  tableAccess: TableAccess;
   appId: string;
 };
 
@@ -247,7 +246,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           schema: this.schema!,
           graphqlSchema: this.graphqlSchema!,
           indexingFunctions: this.indexingFunctions!,
-          tableAccess: this.tableAccess!,
           appId: this.appId!,
         },
       });
@@ -301,7 +299,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const { databaseConfig, sources, networks } = configResult;
     const { schema, graphqlSchema } = schemaResult;
     const { indexingFunctions } = indexingFunctionsResult;
-    const { tableAccess } = parseResult;
     const { appId } = analyzeResult;
 
     return {
@@ -313,7 +310,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         schema,
         graphqlSchema,
         indexingFunctions,
-        tableAccess,
         appId,
       },
     } satisfies BuildResult;

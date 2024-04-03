@@ -310,12 +310,20 @@ export const processEvents = async (
 
     switch (event.type) {
       case "setup": {
-        await executeSetup(indexingService, { event });
+        await new Promise((resolve) =>
+          setImmediate(() =>
+            executeSetup(indexingService, { event }).then(resolve),
+          ),
+        );
         break;
       }
 
       case "log": {
-        await executeLog(indexingService, { event });
+        await new Promise((resolve) =>
+          setImmediate(() =>
+            executeLog(indexingService, { event }).then(resolve),
+          ),
+        );
         break;
       }
 

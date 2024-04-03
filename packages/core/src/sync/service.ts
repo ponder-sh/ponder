@@ -1,10 +1,6 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import type {
-  FactoryCriteria,
-  LogFilterCriteria,
-  Source,
-} from "@/config/sources.js";
+import type { Source } from "@/config/sources.js";
 import { HistoricalSyncService } from "@/sync-historical/service.js";
 import { RealtimeSyncService } from "@/sync-realtime/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -16,7 +12,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { Emittery } from "@/utils/emittery.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
-import type { Hex, Transport } from "viem";
+import type { Transport } from "viem";
 import { cachedTransport } from "./transport.js";
 
 type SyncServiceEvents = {
@@ -217,37 +213,13 @@ export class SyncService extends Emittery<SyncServiceEvents> {
    * @param options.fromCheckpoint Checkpoint to include events from (exclusive).
    * @param options.toCheckpoint Checkpoint to include events to (inclusive).
    */
-  getEvents(
-    arg: {
-      fromCheckpoint: Checkpoint;
-      toCheckpoint: Checkpoint;
-      limit: number;
-    } & (
-      | {
-          logFilters: {
-            id: string;
-            chainId: number;
-            criteria: LogFilterCriteria;
-            fromBlock?: number;
-            toBlock?: number;
-            eventSelector: Hex;
-          }[];
-          factories?: undefined;
-        }
-      | {
-          logFilters?: undefined;
-          factories: {
-            id: string;
-            chainId: number;
-            criteria: FactoryCriteria;
-            fromBlock?: number;
-            toBlock?: number;
-            eventSelector: Hex;
-          }[];
-        }
-    ),
-  ) {
-    return this.syncStore.getLogEvents(arg);
+  getEvents(options: {
+    sources: Source[];
+    fromCheckpoint: Checkpoint;
+    toCheckpoint: Checkpoint;
+    limit: number;
+  }) {
+    return this.syncStore.getLogEvents(options);
   }
 
   getCachedTransport(chainId: number) {
