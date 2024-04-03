@@ -9,6 +9,7 @@ import type { IndexingStore } from "@/indexing-store/store.js";
 import { decodeEvents } from "@/indexing/events.js";
 import {
   createIndexingService,
+  createSetupEvents,
   kill,
   processEvents,
   updateCompletedSeconds,
@@ -29,6 +30,7 @@ export async function run({
   common,
   build,
   onFatalError,
+  onReloadableError,
 }: {
   common: Common;
   build: Build;
@@ -98,6 +100,17 @@ export async function run({
     schema,
   });
 
+  const setupEvents = createSetupEvents(indexingService, { sources, networks });
+  const result = await processEvents(indexingService, {
+    events: setupEvents,
+    // TODO(kyle) this code sucks
+    firstEventCheckpoint: zeroCheckpoint,
+  });
+
+  if (result.status === "error") {
+    onReloadableError(result.error);
+  }
+
   let checkpoint: Checkpoint = zeroCheckpoint;
 
   syncService.onSerial("checkpoint", async (newCheckpoint) => {
@@ -136,7 +149,13 @@ export async function run({
         events,
         firstEventCheckpoint,
       });
-      if (result.success === false) break;
+
+      if (result.status === "error") {
+        onReloadableError(result.error);
+        break;
+      } else if (indexingService.isKilled) {
+        break;
+      }
 
       // TODO(kyle) log
       // TODO(kyle) update per network checkpoint
@@ -158,7 +177,7 @@ export async function run({
     // }
   });
 
-  // TODO(kyle) setup, reorg, healthy, error
+  // TODO(kyle) setup, reorg, healthy,
 
   // syncService.on("reorg", async (checkpoint) => {
   //   await indexingService.handleReorg(checkpoint);

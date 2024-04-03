@@ -418,10 +418,14 @@ export const processEvents = async (
     events,
     firstEventCheckpoint,
   }: { events: Event[]; firstEventCheckpoint: Checkpoint },
-): Promise<{ success: false } | { success: true }> => {
+): Promise<
+  | { status: "error"; error: Error }
+  | { status: "success" }
+  | { status: "killed" }
+> => {
   for (let i = 0; i < events.length; i++) {
     const event = events[i];
-    if (indexingService.isKilled) return { success: false };
+    if (indexingService.isKilled) return { status: "killed" };
 
     indexingService.eventCount++;
 
@@ -432,20 +436,16 @@ export const processEvents = async (
     switch (event.type) {
       case "setup": {
         const result = await executeSetup(indexingService, { event });
-        if (result.success === false) {
-          // TODO(kyle) log
-
-          return { success: false };
+        if (result.status === "error") {
+          return { status: "error", error: result.error };
         }
         break;
       }
 
       case "log": {
         const result = await executeLog(indexingService, { event });
-        if (result.success === false) {
-          // TODO(kyle) log
-
-          return { success: false };
+        if (result.status === "error") {
+          return { status: "error", error: result.error };
         }
         break;
       }
@@ -454,6 +454,7 @@ export const processEvents = async (
         neva(event);
     }
 
+    // TODO(kyle) this is only needed for sqlite
     if (i % 93 === 0) {
       updateEventCount(indexingService);
       updateCompletedSeconds(indexingService, {
@@ -464,7 +465,7 @@ export const processEvents = async (
     }
   }
 
-  return { success: true };
+  return { status: "success" };
 };
 
 export const kill = (indexingService: IndexingService) => {
@@ -514,7 +515,7 @@ export const updateEventCount = ({
 const executeSetup = async (
   indexingService: IndexingService,
   { event }: { event: SetupEvent },
-): Promise<{ success: true } | { success: false; error: Error }> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   const {
     common,
     indexingFunctions,
@@ -564,16 +565,16 @@ const executeSetup = async (
     });
 
     common.metrics.ponder_indexing_has_error.set(1);
-    return { success: false, error: error };
+    return { status: "error", error: error };
   }
 
-  return { success: true };
+  return { status: "success" };
 };
 
 const executeLog = async (
   indexingService: IndexingService,
   { event }: { event: LogEvent },
-): Promise<{ success: true } | { success: false; error: Error }> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   const {
     common,
     indexingFunctions,
@@ -637,8 +638,8 @@ const executeLog = async (
 
     common.metrics.ponder_indexing_has_error.set(1);
 
-    return { success: false, error: error };
+    return { status: "error", error: error };
   }
 
-  return { success: true };
+  return { status: "success" };
 };
