@@ -873,6 +873,7 @@ export class SqliteSyncStore implements SyncStore {
                 .filter(sourceIsLogFilter)
                 .map((logFilter) => {
                   const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+                  exprs.push(eb("source_id", "=", logFilter.id));
                   return eb.and(exprs);
                 });
 
@@ -880,6 +881,7 @@ export class SqliteSyncStore implements SyncStore {
                 .filter(sourceIsFactory)
                 .map((factory) => {
                   const exprs = this.buildFactoryCmprs({ eb, factory });
+                  exprs.push(eb("source_id", "=", factory.id));
                   return eb.and(exprs);
                 });
 
@@ -1062,51 +1064,11 @@ export class SqliteSyncStore implements SyncStore {
         yield events;
         break;
       } else {
-        const lastEvent = events.pop()!;
-        cursor = lastEvent.encodedCheckpoint;
+        events.pop();
+        cursor = events[events.length - 1].encodedCheckpoint;
         yield events;
       }
     }
-  }
-
-  async getFirstEventCheckpoint({
-    sources,
-  }: {
-    sources: Pick<
-      Source,
-      "id" | "startBlock" | "endBlock" | "criteria" | "type"
-    >[];
-  }): Promise<Checkpoint | undefined> {
-    return this.db.wrap({ method: "getFirstEventCheckpoint" }, async () => {
-      const checkpoint = await this.db
-        .selectFrom("logs")
-        .where((eb) => {
-          const logFilterCmprs = sources
-            .filter(sourceIsLogFilter)
-            .map((logFilter) => {
-              const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-              return eb.and(exprs);
-            });
-
-          const factoryCmprs = sources
-            .filter(sourceIsFactory)
-            .map((factory) => {
-              const exprs = this.buildFactoryCmprs({ eb, factory });
-              return eb.and(exprs);
-            });
-
-          return eb.or([...logFilterCmprs, ...factoryCmprs]);
-        })
-        .select("checkpoint")
-        .orderBy("logs.checkpoint", "asc")
-        .executeTakeFirst();
-
-      return checkpoint
-        ? checkpoint.checkpoint
-          ? decodeCheckpoint(checkpoint.checkpoint)
-          : undefined
-        : undefined;
-    });
   }
 
   async getLastEventCheckpoint({
@@ -1193,9 +1155,13 @@ export class SqliteSyncStore implements SyncStore {
     }
 
     if (logFilter.startBlock !== undefined && logFilter.startBlock !== 0)
-      exprs.push(eb("blocks.number", ">=", encodeAsText(logFilter.startBlock)));
+      exprs.push(
+        eb("logs.blockNumber", ">=", encodeAsText(logFilter.startBlock)),
+      );
     if (logFilter.endBlock)
-      exprs.push(eb("blocks.number", "<=", encodeAsText(logFilter.endBlock)));
+      exprs.push(
+        eb("logs.blockNumber", "<=", encodeAsText(logFilter.endBlock)),
+      );
 
     return exprs;
   };
@@ -1230,9 +1196,11 @@ export class SqliteSyncStore implements SyncStore {
     );
 
     if (factory.startBlock !== undefined && factory.startBlock !== 0)
-      exprs.push(eb("blocks.number", ">=", encodeAsText(factory.startBlock)));
+      exprs.push(
+        eb("logs.blockNumber", ">=", encodeAsText(factory.startBlock)),
+      );
     if (factory.endBlock)
-      exprs.push(eb("blocks.number", "<=", encodeAsText(factory.endBlock)));
+      exprs.push(eb("logs.blockNumber", "<=", encodeAsText(factory.endBlock)));
 
     return exprs;
   };

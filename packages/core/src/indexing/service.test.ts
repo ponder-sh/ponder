@@ -8,15 +8,14 @@ import {
 import { getEventsErc20 } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { SyncService } from "@/sync/service.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { type Address, checksumAddress, parseEther, toHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { decodeEvents } from "./events.js";
 import {
   type Context,
   createIndexingService,
-  createSetupEvents,
   processEvents,
+  processSetupEvents,
 } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -58,7 +57,7 @@ test("createIndexing()", async (context) => {
   await cleanup();
 });
 
-test("createSetupEvents() empty", async (context) => {
+test("processSetupEvents() empty", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
@@ -77,55 +76,17 @@ test("createSetupEvents() empty", async (context) => {
     schema,
   });
 
-  const setupEvents = createSetupEvents(indexingService, { sources, networks });
-
-  expect(setupEvents).toHaveLength(0);
-
-  await cleanup();
-});
-
-test("createSetupEvents()", async (context) => {
-  const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const syncService = new SyncService({ common, syncStore, networks, sources });
-
-  const indexingService = createIndexingService({
-    indexingFunctions: {
-      Erc20: {
-        setup: () => {},
-      },
-    },
-    common,
+  const result = await processSetupEvents(indexingService, {
     sources,
     networks,
-    syncService,
-    indexingStore,
-    schema,
   });
 
-  const setupEvents = createSetupEvents(indexingService, { sources, networks });
-
-  expect(setupEvents).toHaveLength(1);
-  expect(setupEvents[0]).toMatchObject({
-    type: "setup",
-    contractName: "Erc20",
-    eventName: "setup",
-    chainId: 1,
-    startBlock: 0n,
-    encodedCheckpoint: encodeCheckpoint({
-      ...zeroCheckpoint,
-      chainId: 1,
-    }),
-  });
+  expect(result.status).toBe("success");
 
   await cleanup();
 });
 
-test("processEvents() setup events", async (context) => {
+test("processSetupEvents()", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
@@ -150,12 +111,12 @@ test("processEvents() setup events", async (context) => {
     schema,
   });
 
-  const setupEvents = createSetupEvents(indexingService, { sources, networks });
-
-  await processEvents(indexingService, {
-    events: setupEvents,
-    firstEventCheckpoint: zeroCheckpoint,
+  const result = await processSetupEvents(indexingService, {
+    sources,
+    networks,
   });
+
+  expect(result.status).toBe("success");
 
   expect(indexingFunctions.Erc20.setup).toHaveBeenCalledOnce();
   expect(indexingFunctions.Erc20.setup).toHaveBeenCalledWith({
@@ -214,7 +175,6 @@ test("processEvent() log events", async (context) => {
   const events = decodeEvents(rawEvents, indexingService.sourceById);
   await processEvents(indexingService, {
     events,
-    firstEventCheckpoint: zeroCheckpoint,
   });
 
   expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(2);
@@ -286,12 +246,12 @@ test("executeSetup() context.client", async (context) => {
     "getBalance",
   );
 
-  const setupEvents = createSetupEvents(indexingService, { sources, networks });
-
-  await processEvents(indexingService, {
-    events: setupEvents,
-    firstEventCheckpoint: zeroCheckpoint,
+  const result = await processSetupEvents(indexingService, {
+    sources,
+    networks,
   });
+
+  expect(result.status).toBe("success");
 
   expect(getBalanceSpy).toHaveBeenCalledOnce();
   expect(getBalanceSpy).toHaveBeenCalledWith({
@@ -338,12 +298,12 @@ test("executeSetup() context.db", async (context) => {
     "create",
   );
 
-  const setupEvents = createSetupEvents(indexingService, { sources, networks });
-
-  await processEvents(indexingService, {
-    events: setupEvents,
-    firstEventCheckpoint: zeroCheckpoint,
+  const result = await processSetupEvents(indexingService, {
+    sources,
+    networks,
   });
+
+  expect(result.status).toBe("success");
 
   expect(createSpy).toHaveBeenCalledOnce();
   expect(createSpy).toHaveBeenCalledWith({
@@ -403,7 +363,6 @@ test("executeLog() context.client", async (context) => {
   const events = decodeEvents(rawEvents, indexingService.sourceById);
   await processEvents(indexingService, {
     events,
-    firstEventCheckpoint: zeroCheckpoint,
   });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(2);
@@ -456,7 +415,6 @@ test("executeLog() context.db", async (context) => {
   const events = decodeEvents(rawEvents, indexingService.sourceById);
   await processEvents(indexingService, {
     events,
-    firstEventCheckpoint: zeroCheckpoint,
   });
 
   expect(createSpy).toHaveBeenCalledTimes(2);

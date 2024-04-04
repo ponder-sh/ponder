@@ -871,6 +871,7 @@ export class PostgresSyncStore implements SyncStore {
                 .filter(sourceIsLogFilter)
                 .map((logFilter) => {
                   const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+                  exprs.push(eb("source_id", "=", logFilter.id));
                   return eb.and(exprs);
                 });
 
@@ -878,6 +879,7 @@ export class PostgresSyncStore implements SyncStore {
                 .filter(sourceIsFactory)
                 .map((factory) => {
                   const exprs = this.buildFactoryCmprs({ eb, factory });
+                  exprs.push(eb("source_id", "=", factory.id));
                   return eb.and(exprs);
                 });
 
@@ -1049,51 +1051,11 @@ export class PostgresSyncStore implements SyncStore {
         yield events;
         break;
       } else {
-        const lastEvent = events.pop()!;
-        cursor = lastEvent.encodedCheckpoint;
+        events.pop();
+        cursor = events[events.length - 1].encodedCheckpoint;
         yield events;
       }
     }
-  }
-
-  async getFirstEventCheckpoint({
-    sources,
-  }: {
-    sources: Pick<
-      Source,
-      "id" | "startBlock" | "endBlock" | "criteria" | "type"
-    >[];
-  }): Promise<Checkpoint | undefined> {
-    return this.db.wrap({ method: "getFirstEventCheckpoint" }, async () => {
-      const checkpoint = await this.db
-        .selectFrom("logs")
-        .where((eb) => {
-          const logFilterCmprs = sources
-            .filter(sourceIsLogFilter)
-            .map((logFilter) => {
-              const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-              return eb.and(exprs);
-            });
-
-          const factoryCmprs = sources
-            .filter(sourceIsFactory)
-            .map((factory) => {
-              const exprs = this.buildFactoryCmprs({ eb, factory });
-              return eb.and(exprs);
-            });
-
-          return eb.or([...logFilterCmprs, ...factoryCmprs]);
-        })
-        .select("checkpoint")
-        .orderBy("logs.checkpoint", "asc")
-        .executeTakeFirst();
-
-      return checkpoint
-        ? checkpoint.checkpoint
-          ? decodeCheckpoint(checkpoint.checkpoint)
-          : undefined
-        : undefined;
-    });
   }
 
   async getLastEventCheckpoint({
@@ -1192,9 +1154,9 @@ export class PostgresSyncStore implements SyncStore {
     }
 
     if (logFilter.fromBlock)
-      exprs.push(eb("blocks.number", ">=", BigInt(logFilter.fromBlock)));
+      exprs.push(eb("logs.blockNumber", ">=", BigInt(logFilter.fromBlock)));
     if (logFilter.toBlock)
-      exprs.push(eb("blocks.number", "<=", BigInt(logFilter.toBlock)));
+      exprs.push(eb("logs.blockNumber", "<=", BigInt(logFilter.toBlock)));
 
     return exprs;
   };
@@ -1241,9 +1203,9 @@ export class PostgresSyncStore implements SyncStore {
     );
 
     if (factory.fromBlock)
-      exprs.push(eb("blocks.number", ">=", BigInt(factory.fromBlock)));
+      exprs.push(eb("logs.blockNumber", ">=", BigInt(factory.fromBlock)));
     if (factory.toBlock)
-      exprs.push(eb("blocks.number", "<=", BigInt(factory.toBlock)));
+      exprs.push(eb("logs.blockNumber", "<=", BigInt(factory.toBlock)));
 
     return exprs;
   };

@@ -166,13 +166,6 @@ export interface SyncStore {
     limit: number;
   }): AsyncGenerator<RawEvent[]>;
 
-  getFirstEventCheckpoint(arg: {
-    sources: Pick<
-      Source,
-      "id" | "startBlock" | "endBlock" | "criteria" | "type"
-    >[];
-  }): Promise<Checkpoint | undefined>;
-
   getLastEventCheckpoint(arg: {
     sources: Pick<
       Source,

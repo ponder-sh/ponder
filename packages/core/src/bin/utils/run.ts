@@ -9,12 +9,10 @@ import type { IndexingStore } from "@/indexing-store/store.js";
 import { decodeEvents } from "@/indexing/events.js";
 import {
   createIndexingService,
-  createSetupEvents,
   kill,
   processEvents,
-  updateCompletedSeconds,
-  updateEventCount,
-  updateTotalSeconds,
+  processSetupEvents,
+  updateLastEventCheckpoint,
 } from "@/indexing/service.js";
 import { ServerService } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
@@ -104,13 +102,11 @@ export async function run({
     schema,
   });
 
-  const setupEvents = createSetupEvents(indexingService, { sources, networks });
-  const result = await processEvents(indexingService, {
-    events: setupEvents,
-    // TODO(kyle) this code sucks
-    firstEventCheckpoint: zeroCheckpoint,
+  // process setup events
+  const result = await processSetupEvents(indexingService, {
+    sources,
+    networks,
   });
-
   if (result.status === "error") {
     onReloadableError(result.error);
   }
@@ -119,27 +115,15 @@ export async function run({
 
   // TODO(kyle) only one runs at a time
   syncService.onSerial("checkpoint", async (newCheckpoint) => {
-    let firstEventCheckpoint: Checkpoint | undefined = undefined;
-    let lastEventCheckpoint: Checkpoint | undefined = undefined;
-
-    if (firstEventCheckpoint === undefined) {
-      firstEventCheckpoint = await syncStore.getFirstEventCheckpoint({
+    const updateLastEventPromise = syncStore
+      .getLastEventCheckpoint({
         sources,
+        toCheckpoint: newCheckpoint,
+      })
+      .then((lastEventCheckpoint) => {
+        if (lastEventCheckpoint !== undefined)
+          updateLastEventCheckpoint(indexingService, lastEventCheckpoint);
       });
-    }
-
-    lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
-      sources,
-      toCheckpoint: newCheckpoint,
-    });
-
-    if (firstEventCheckpoint === undefined || lastEventCheckpoint === undefined)
-      return;
-
-    updateTotalSeconds(indexingService, {
-      firstEventCheckpoint,
-      lastEventCheckpoint,
-    });
 
     for await (const rawEvents of syncService.getEvents({
       sources,
@@ -150,7 +134,6 @@ export async function run({
       const events = decodeEvents(rawEvents, indexingService.sourceById);
       const result = await processEvents(indexingService, {
         events,
-        firstEventCheckpoint,
       });
 
       if (result.status === "error") {
@@ -161,12 +144,7 @@ export async function run({
       }
     }
 
-    updateCompletedSeconds(indexingService, {
-      firstEventCheckpoint,
-      completedEventCheckpoint: lastEventCheckpoint,
-    });
-
-    updateEventCount(indexingService);
+    await updateLastEventPromise;
 
     checkpoint = newCheckpoint;
 

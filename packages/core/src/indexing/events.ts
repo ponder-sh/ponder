@@ -26,7 +26,7 @@ export type LogEvent = {
   encodedCheckpoint: string;
 };
 
-export type Event = SetupEvent | LogEvent;
+export type Event = LogEvent;
 
 // TODO(kyle) decode raw database information
 

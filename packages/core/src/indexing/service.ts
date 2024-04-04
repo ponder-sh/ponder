@@ -73,6 +73,8 @@ export type IndexingService = {
   // state
   isKilled: boolean;
   eventCount: number;
+  firstEventCheckpoint: Checkpoint | undefined;
+  lastEventCheckpoint: Checkpoint | undefined;
 
   /**
    * Reduce memory usage by reserving space for objects ahead of time
@@ -353,6 +355,8 @@ export const createIndexingService = ({
     common,
     isKilled: false,
     eventCount: 0,
+    firstEventCheckpoint: undefined,
+    lastEventCheckpoint: undefined,
     currentEvent: {
       contextState,
       context: {
@@ -369,7 +373,7 @@ export const createIndexingService = ({
   };
 };
 
-export const createSetupEvents = (
+export const processSetupEvents = async (
   indexingService: IndexingService,
   {
     sources,
@@ -378,9 +382,11 @@ export const createSetupEvents = (
     sources: Source[];
     networks: Network[];
   },
-): SetupEvent[] => {
-  const setupEvents: SetupEvent[] = [];
-
+): Promise<
+  | { status: "error"; error: Error }
+  | { status: "success" }
+  | { status: "killed" }
+> => {
   for (const contractName of Object.keys(indexingService.indexingFunctions)) {
     for (const eventName of Object.keys(
       indexingService.indexingFunctions[contractName],
@@ -393,55 +399,67 @@ export const createSetupEvents = (
             s.contractName === contractName && s.chainId === network.chainId,
         )!;
 
-        setupEvents.push({
-          type: "setup",
-          chainId: network.chainId,
-          contractName: source.contractName,
-          eventName: "setup",
-          startBlock: BigInt(source.startBlock),
-          encodedCheckpoint: encodeCheckpoint({
-            ...zeroCheckpoint,
+        if (indexingService.isKilled) return { status: "killed" };
+        indexingService.eventCount++;
+
+        const result = await executeSetup(indexingService, {
+          event: {
+            type: "setup",
             chainId: network.chainId,
-            blockNumber: source.startBlock,
-          }),
+            contractName: source.contractName,
+            eventName: "setup",
+            startBlock: BigInt(source.startBlock),
+            encodedCheckpoint: encodeCheckpoint({
+              ...zeroCheckpoint,
+              chainId: network.chainId,
+              blockNumber: source.startBlock,
+            }),
+          },
         });
+
+        if (result.status === "error") {
+          return { status: "error", error: result.error };
+        }
       }
     }
   }
 
-  return setupEvents;
+  return { status: "success" };
 };
 
 export const processEvents = async (
   indexingService: IndexingService,
-  {
-    events,
-    firstEventCheckpoint,
-  }: { events: Event[]; firstEventCheckpoint: Checkpoint },
+  { events }: { events: Event[] },
 ): Promise<
   | { status: "error"; error: Error }
   | { status: "success" }
   | { status: "killed" }
 > => {
+  // set first event checkpoint
+  if (events.length > 0 && indexingService.firstEventCheckpoint === undefined) {
+    indexingService.firstEventCheckpoint = decodeCheckpoint(
+      events[0].encodedCheckpoint,
+    );
+
+    // set total seconds
+    if (indexingService.lastEventCheckpoint !== undefined) {
+      indexingService.common.metrics.ponder_indexing_total_seconds.set(
+        indexingService.lastEventCheckpoint.blockTimestamp -
+          indexingService.firstEventCheckpoint.blockTimestamp,
+      );
+    }
+  }
+
   for (let i = 0; i < events.length; i++) {
     const event = events[i];
     if (indexingService.isKilled) return { status: "killed" };
-
     indexingService.eventCount++;
 
-    const neva = (_x: never) => {
-      throw "unreachable";
-    };
+    // const neva = (_x: never) => {
+    //   throw "unreachable";
+    // };
 
     switch (event.type) {
-      case "setup": {
-        const result = await executeSetup(indexingService, { event });
-        if (result.status === "error") {
-          return { status: "error", error: result.error };
-        }
-        break;
-      }
-
       case "log": {
         const result = await executeLog(indexingService, { event });
         if (result.status === "error") {
@@ -450,20 +468,41 @@ export const processEvents = async (
         break;
       }
 
-      default:
-        neva(event);
+      // default:
+      //   neva(event);
     }
 
-    // TODO(kyle) this is only needed for sqlite
+    // periodically update metrics
     if (i % 93 === 0) {
-      updateEventCount(indexingService);
-      updateCompletedSeconds(indexingService, {
-        firstEventCheckpoint,
-        completedEventCheckpoint: decodeCheckpoint(event.encodedCheckpoint),
-      });
+      indexingService.common.metrics.ponder_indexing_completed_events.set(
+        indexingService.eventCount,
+      );
+
+      indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+        decodeCheckpoint(event.encodedCheckpoint).blockTimestamp -
+          indexingService.firstEventCheckpoint!.blockTimestamp,
+      );
+
+      // Note(kyle) this is only needed for sqlite
       await new Promise(setImmediate);
     }
   }
+
+  // set completed seconds
+  if (
+    events.length > 0 &&
+    indexingService.firstEventCheckpoint !== undefined &&
+    indexingService.lastEventCheckpoint !== undefined
+  ) {
+    indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+      decodeCheckpoint(events[events.length - 1].encodedCheckpoint)
+        .blockTimestamp - indexingService.firstEventCheckpoint.blockTimestamp,
+    );
+  }
+  // set completed events
+  indexingService.common.metrics.ponder_indexing_completed_events.set(
+    indexingService.eventCount,
+  );
 
   return { status: "success" };
 };
@@ -472,42 +511,18 @@ export const kill = (indexingService: IndexingService) => {
   indexingService.isKilled = true;
 };
 
-export const updateCompletedSeconds = (
-  { common }: Pick<IndexingService, "common">,
-  {
-    firstEventCheckpoint,
-    completedEventCheckpoint,
-  }: {
-    firstEventCheckpoint: Pick<Checkpoint, "blockTimestamp">;
-    completedEventCheckpoint: Pick<Checkpoint, "blockTimestamp">;
-  },
+export const updateLastEventCheckpoint = (
+  indexingService: IndexingService,
+  lastEventCheckpoint: Checkpoint,
 ) => {
-  common.metrics.ponder_indexing_completed_seconds.set(
-    completedEventCheckpoint.blockTimestamp -
-      firstEventCheckpoint.blockTimestamp,
-  );
-};
+  indexingService.lastEventCheckpoint = lastEventCheckpoint;
 
-export const updateTotalSeconds = (
-  { common }: Pick<IndexingService, "common">,
-  {
-    firstEventCheckpoint,
-    lastEventCheckpoint,
-  }: {
-    firstEventCheckpoint: Pick<Checkpoint, "blockTimestamp">;
-    lastEventCheckpoint: Pick<Checkpoint, "blockTimestamp">;
-  },
-) => {
-  common.metrics.ponder_indexing_total_seconds.set(
-    lastEventCheckpoint.blockTimestamp - firstEventCheckpoint.blockTimestamp,
-  );
-};
-
-export const updateEventCount = ({
-  common,
-  eventCount,
-}: Pick<IndexingService, "common" | "eventCount">) => {
-  common.metrics.ponder_indexing_completed_events.set(eventCount);
+  if (indexingService.firstEventCheckpoint !== undefined) {
+    indexingService.common.metrics.ponder_indexing_total_seconds.set(
+      indexingService.lastEventCheckpoint.blockTimestamp -
+        indexingService.firstEventCheckpoint.blockTimestamp,
+    );
+  }
 };
 
 // TODO(kyle) handle errors thrown
