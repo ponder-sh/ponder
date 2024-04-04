@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.3.10
+
+### Patch Changes
+
+- [#775](https://github.com/ponder-sh/ponder/pull/775) [`334f4c2b2fcbdaa0ad66f61ccd4f3a64cd74a6bc`](https://github.com/ponder-sh/ponder/commit/334f4c2b2fcbdaa0ad66f61ccd4f3a64cd74a6bc) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for the `getEnsName` Viem action in `context.client`.
+
 ## 0.3.9
 
 ### Patch Changes
