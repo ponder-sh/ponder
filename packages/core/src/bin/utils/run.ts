@@ -21,7 +21,11 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { SyncService } from "@/sync/service.js";
-import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  isCheckpointGreaterThanOrEqualTo,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 
 /**
  * Starts the server, sync, and indexing services for the specified build.
@@ -113,9 +117,8 @@ export async function run({
 
   let checkpoint: Checkpoint = zeroCheckpoint;
 
+  // TODO(kyle) only one runs at a time
   syncService.onSerial("checkpoint", async (newCheckpoint) => {
-    // TODO(kyle) only one runs at a time
-
     let firstEventCheckpoint: Checkpoint | undefined = undefined;
     let lastEventCheckpoint: Checkpoint | undefined = undefined;
 
@@ -156,9 +159,6 @@ export async function run({
       } else if (indexingService.isKilled) {
         break;
       }
-
-      // TODO(kyle) log
-      // TODO(kyle) update per network checkpoint
     }
 
     updateCompletedSeconds(indexingService, {
@@ -170,15 +170,20 @@ export async function run({
 
     checkpoint = newCheckpoint;
 
-    // if (isCheckpointGreaterThanOrEqualTo(checkpoint, finalizedCheckpoint)) {
-    //     isHealthy = true;
-    //     serverService.setIsHealthy(true);
-    //     common.logger.info({ service: "server", msg: "Responding as healthy" });
-    // }
+    let isHealthy = false;
+    if (
+      !isHealthy &&
+      isCheckpointGreaterThanOrEqualTo(checkpoint, finalizedCheckpoint)
+    ) {
+      isHealthy = true;
+      serverService.setIsHealthy(true);
+      common.logger.info({ service: "server", msg: "Responding as healthy" });
+    }
+
+    // TODO(kyle) update per network checkpoint
   });
 
-  // TODO(kyle) setup, reorg, healthy,
-
+  // TODO(kyle) reorg
   // syncService.on("reorg", async (checkpoint) => {
   //   await indexingService.handleReorg(checkpoint);
   //   await indexingService.processEvents();
@@ -186,19 +191,7 @@ export async function run({
 
   syncService.on("fatal", onFatalError);
 
-  // indexingService.on("error", onReloadableError);
-
-  // const finalizedCheckpoint =
-  await syncService.start();
-
-  // let isHealthy = false;
-  // indexingService.onSerial("eventsProcessed", async ({ toCheckpoint }) => {
-  //   if (isHealthy) return;
-
-  //   if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
-
-  //   }
-  // });
+  const finalizedCheckpoint = await syncService.start();
 
   return async () => {
     kill(indexingService);
