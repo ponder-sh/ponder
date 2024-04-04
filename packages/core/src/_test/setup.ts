@@ -109,7 +109,7 @@ type DatabaseServiceSetup = Parameters<DatabaseService["setup"]>[0] & {
 };
 const defaultSchema = createSchema(() => ({}));
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
-  appId: "test",
+  buildId: "test",
   schema: defaultSchema,
   indexing: "historical",
 };

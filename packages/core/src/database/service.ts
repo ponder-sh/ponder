@@ -16,10 +16,10 @@ export interface BaseDatabaseService {
 
   setup({
     schema,
-    appId,
+    buildId,
   }: {
     schema: Schema;
-    appId: string;
+    buildId: string;
   }): Promise<{
     checkpoint: Checkpoint;
     namespaceInfo: NamespaceInfo;

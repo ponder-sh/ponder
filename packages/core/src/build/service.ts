@@ -25,13 +25,15 @@ import {
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
-import { safeGetAppId } from "./static/getAppId.js";
+import { safeGetBuildId } from "./static/getBuildId.js";
 import {
   type TableAccess,
   safeGetTableAccess,
 } from "./static/getTableAccess.js";
 
 export type Build = {
+  // Build ID for caching
+  buildId: string;
   // Config
   databaseConfig: DatabaseConfig;
   sources: Source[];
@@ -43,7 +45,6 @@ export type Build = {
   indexingFunctions: IndexingFunctions;
   // Static analysis
   tableAccess: TableAccess;
-  appId: string;
 };
 
 export type BuildResult =
@@ -73,7 +74,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   private graphqlSchema?: GraphQLSchema;
   private indexingFunctions?: IndexingFunctions;
   private tableAccess?: TableAccess;
-  private appId?: string;
+  private buildId?: string;
 
   constructor({ common }: { common: Common }) {
     super();
@@ -241,6 +242,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.emit("rebuild", {
         success: true,
         build: {
+          buildId: this.buildId!,
           databaseConfig: this.databaseConfig!,
           sources: this.sources!,
           networks: this.networks!,
@@ -248,7 +250,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           graphqlSchema: this.graphqlSchema!,
           indexingFunctions: this.indexingFunctions!,
           tableAccess: this.tableAccess!,
-          appId: this.appId!,
         },
       });
     };
@@ -302,11 +303,12 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const { schema, graphqlSchema } = schemaResult;
     const { indexingFunctions } = indexingFunctionsResult;
     const { tableAccess } = parseResult;
-    const { appId } = analyzeResult;
+    const { buildId } = analyzeResult;
 
     return {
       success: true,
       build: {
+        buildId,
         databaseConfig,
         networks,
         sources,
@@ -314,7 +316,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         graphqlSchema,
         indexingFunctions,
         tableAccess,
-        appId,
       },
     } satisfies BuildResult;
   }
@@ -488,7 +489,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         ),
       } as const;
 
-    const result = safeGetAppId({
+    const result = safeGetBuildId({
       sources: this.sources,
       tableAccess: this.tableAccess,
       schema: this.schema,
@@ -497,7 +498,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return { success: false, error: result.error } as const;
     }
 
-    this.appId = result.data.appId;
+    this.buildId = result.data.buildId;
 
     return { success: true, ...result.data } as const;
   }

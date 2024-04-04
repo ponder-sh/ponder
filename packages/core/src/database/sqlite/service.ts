@@ -41,7 +41,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   indexingDb: HeadlessKysely<InternalTables>;
   syncDb: HeadlessKysely<SyncStoreTables>;
 
-  private appId: string = null!;
+  private buildId: string = null!;
   private heartbeatInterval?: NodeJS.Timeout;
 
   constructor({
@@ -115,8 +115,8 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.registerMetrics();
   }
 
-  async setup({ schema, appId }: { schema: Schema; appId: string }) {
-    this.appId = appId;
+  async setup({ schema, buildId }: { schema: Schema; buildId: string }) {
+    this.buildId = buildId;
 
     const migrator = new Migrator({
       db: this.db.withPlugin(new WithSchemaPlugin(this.internalNamespace)),
@@ -129,7 +129,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       userNamespace: this.userNamespace,
       internalNamespace: this.internalNamespace,
       internalTableIds: Object.keys(schema.tables).reduce((acc, tableName) => {
-        acc[tableName] = hash([this.userNamespace, this.appId, tableName]);
+        acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
         return acc;
       }, {} as { [tableName: string]: string }),
     } satisfies NamespaceInfo;
@@ -147,7 +147,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           namespace: this.userNamespace,
           is_locked: 1,
           heartbeat_at: Date.now(),
-          app_id: this.appId,
+          app_id: this.buildId,
           finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
           schema: JSON.stringify(schema),
         } satisfies Insertable<InternalTables["namespace_lock"]>;
@@ -172,7 +172,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         ) {
           // // If the previous row has the same app ID, continue where the previous app left off
           // // by reverting tables to the finalized checkpoint, then returning.
-          // if (previousLockRow.app_id === this.appId) {
+          // if (previousLockRow.app_id === this.buildId) {
           //   const finalizedCheckpoint = decodeCheckpoint(
           //     previousLockRow.finalized_checkpoint,
           //   );
@@ -185,7 +185,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           //       : "with no progress";
           //   this.common.logger.debug({
           //     service: "database",
-          //     msg: `Cache hit for app ID '${this.appId}' on namespace '${this.userNamespace}' ${progressText}`,
+          //     msg: `Cache hit for app ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
           //   });
 
           //   // Acquire the lock and update the heartbeat (app_id, schema, ).
@@ -206,18 +206,18 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           // }
 
           // If the previous row has a different app ID, drop the previous app's tables.
-          const previousAppId = previousLockRow.app_id;
+          const previousBuildId = previousLockRow.app_id;
           const previousSchema = JSON.parse(previousLockRow.schema) as Schema;
 
           this.common.logger.debug({
             service: "database",
-            msg: `Acquired lock on namespace '${this.userNamespace}' previously used by app '${previousAppId}'`,
+            msg: `Acquired lock on namespace '${this.userNamespace}' previously used by app '${previousBuildId}'`,
           });
 
           for (const tableName of Object.keys(previousSchema.tables)) {
             const tableId = hash([
               this.userNamespace,
-              previousAppId,
+              previousBuildId,
               tableName,
             ]);
 
@@ -301,7 +301,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
           this.common.logger.debug({
             service: "database",
-            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (app_id=${this.appId})`,
+            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (app_id=${this.buildId})`,
           });
         } catch (err) {
           const error = err as Error;

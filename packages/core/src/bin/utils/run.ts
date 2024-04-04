@@ -32,6 +32,7 @@ export async function run({
   onReloadableError: (error: Error) => void;
 }) {
   const {
+    buildId,
     databaseConfig,
     networks,
     sources,
@@ -39,7 +40,6 @@ export async function run({
     graphqlSchema,
     indexingFunctions,
     tableAccess,
-    appId,
   } = build;
 
   let database: DatabaseService;
@@ -50,7 +50,7 @@ export async function run({
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
-    const result = await database.setup({ schema, appId });
+    const result = await database.setup({ buildId, schema });
     cachedToCheckpoint = result.checkpoint;
 
     indexingStore = new RealtimeIndexingStore({
@@ -69,7 +69,7 @@ export async function run({
       poolConfig,
       userNamespace,
     });
-    const result = await database.setup({ schema, appId });
+    const result = await database.setup({ buildId, schema });
     cachedToCheckpoint = result.checkpoint;
 
     indexingStore = new RealtimeIndexingStore({
