@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Added "getEnsName" to context.client.
+Added support for the `getEnsName` Viem action in `context.client`.
