@@ -521,8 +521,6 @@ export const updateLastEventCheckpoint = (
   }
 };
 
-// TODO(kyle) handle errors thrown
-
 const executeSetup = async (
   indexingService: IndexingService,
   { event }: { event: SetupEvent },

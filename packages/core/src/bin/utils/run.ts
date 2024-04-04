@@ -21,6 +21,7 @@ import type { SyncStore } from "@/sync-store/store.js";
 import { SyncService } from "@/sync/service.js";
 import {
   type Checkpoint,
+  isCheckpointGreaterThan,
   isCheckpointGreaterThanOrEqualTo,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -163,6 +164,9 @@ export async function run({
   };
 
   const handleReorg = async (safeCheckpoint: Checkpoint) => {
+    // No-op if realtime indexing hasn't started
+    if (isCheckpointGreaterThan(finalizedCheckpoint, checkpoint)) return;
+
     // TODO(kyle) "checkpoint" is confusing
     // TODO(kyle) move this to database service
     await indexingStore.revert({ checkpoint: safeCheckpoint });
