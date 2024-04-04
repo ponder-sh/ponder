@@ -24,7 +24,7 @@ type DatabaseConfig =
       kind: "postgres";
       /** Postgres database connection string. Default: `DATABASE_PRIVATE_URL` > `DATABASE_URL` environment variable. */
       connectionString?: string;
-      /** Postgres schema (namespace) to create indexed tables in. Default: 'public', or `RAILWAY_DEPLOYMENT_ID` environment variable if provided. */
+      /** Postgres schema to use for indexed data. Default: 'public', or `RAILWAY_DEPLOYMENT_ID` environment variable if provided. */
       schema?: string;
     };
 
