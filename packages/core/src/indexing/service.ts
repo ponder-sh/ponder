@@ -455,6 +455,11 @@ export const processEvents = async (
     if (indexingService.isKilled) return { status: "killed" };
     indexingService.eventCount++;
 
+    indexingService.common.logger.trace({
+      service: "indexing",
+      msg: `Started indexing function (event="${event.contractName}:${event.eventName}", checkpoint=${event.encodedCheckpoint})`,
+    });
+
     switch (event.type) {
       case "log": {
         const result = await executeLog(indexingService, { event });
@@ -467,6 +472,11 @@ export const processEvents = async (
       // default:
       //   neva(event);
     }
+
+    indexingService.common.logger.trace({
+      service: "indexing",
+      msg: `Completed indexing function (event="${event.contractName}:${event.eventName}", checkpoint=${event.encodedCheckpoint})`,
+    });
 
     // periodically update metrics
     if (i % 93 === 0) {
@@ -500,10 +510,21 @@ export const processEvents = async (
     indexingService.eventCount,
   );
 
+  indexingService.common.logger.info({
+    service: "indexing",
+    msg: `Indexed ${
+      events.length === 1 ? "1 event" : `${events.length} events`
+    }`,
+  });
+
   return { status: "success" };
 };
 
 export const kill = (indexingService: IndexingService) => {
+  indexingService.common.logger.debug({
+    service: "indexing",
+    msg: "Killed indexing service",
+  });
   indexingService.isKilled = true;
 };
 
@@ -567,9 +588,11 @@ const executeSetup = async (
 
     addUserStackTrace(error, common.options);
 
+    const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
+
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing "${event.contractName}:${event.eventName}" event at checkpoint=${event.encodedCheckpoint}: `,
+      msg: `Error while processing "${event.contractName}:${event.eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
       error,
     });
 
@@ -639,9 +662,11 @@ const executeLog = async (
       error.meta = `Event args:\n${prettyPrint(event.event.args)}`;
     }
 
+    const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
+
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing "${event.contractName}:${event.eventName}" event at checkpoint=${event.encodedCheckpoint}: `,
+      msg: `Error while processing "${event.contractName}:${event.eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
       error,
     });
 
