@@ -455,10 +455,6 @@ export const processEvents = async (
     if (indexingService.isKilled) return { status: "killed" };
     indexingService.eventCount++;
 
-    // const neva = (_x: never) => {
-    //   throw "unreachable";
-    // };
-
     switch (event.type) {
       case "log": {
         const result = await executeLog(indexingService, { event });

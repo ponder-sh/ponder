@@ -24,6 +24,8 @@ import {
   isCheckpointGreaterThanOrEqualTo,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { neva } from "@/utils/neva.js";
+import { createQueue } from "@ponder/common";
 
 /**
  * Starts the server, sync, and indexing services for the specified build.
@@ -113,8 +115,7 @@ export async function run({
 
   let checkpoint: Checkpoint = zeroCheckpoint;
 
-  // TODO(kyle) only one runs at a time
-  syncService.onSerial("checkpoint", async (newCheckpoint) => {
+  const handleCheckpoint = async (newCheckpoint: Checkpoint) => {
     const updateLastEventPromise = syncStore
       .getLastEventCheckpoint({
         sources,
@@ -159,19 +160,67 @@ export async function run({
     }
 
     // TODO(kyle) update per network checkpoint
+  };
+
+  const handleReorg = async (safeCheckpoint: Checkpoint) => {
+    // TODO(kyle) "checkpoint" is confusing
+    // TODO(kyle) move this to database service
+    await indexingStore.revert({ checkpoint: safeCheckpoint });
+    checkpoint = safeCheckpoint;
+    await handleCheckpoint(syncService.checkpoint);
+  };
+
+  type SyncEvent =
+    | {
+        type: "checkpoint";
+        newCheckpoint: Checkpoint;
+      }
+    | {
+        type: "reorg";
+        safeCheckpoint: Checkpoint;
+      };
+
+  const runQueue = createQueue({
+    initialStart: true,
+    browser: false,
+    concurrency: 1,
+    worker: async (syncEvent: SyncEvent) => {
+      switch (syncEvent.type) {
+        case "checkpoint":
+          await handleCheckpoint(syncEvent.newCheckpoint);
+          break;
+
+        case "reorg":
+          await handleReorg(syncEvent.safeCheckpoint);
+          break;
+
+        default:
+          neva(syncEvent);
+      }
+    },
   });
 
-  // TODO(kyle) reorg
-  // syncService.on("reorg", async (checkpoint) => {
-  //   await indexingService.handleReorg(checkpoint);
-  //   await indexingService.processEvents();
-  // });
+  syncService.on("checkpoint", async (newCheckpoint) =>
+    runQueue.add({
+      type: "checkpoint",
+      newCheckpoint,
+    }),
+  );
+
+  syncService.on("reorg", async (safeCheckpoint) =>
+    runQueue.add({
+      type: "reorg",
+      safeCheckpoint,
+    }),
+  );
 
   syncService.on("fatal", onFatalError);
 
   const finalizedCheckpoint = await syncService.start();
 
   return async () => {
+    runQueue.pause();
+    runQueue.clear();
     kill(indexingService);
     await serverService.kill();
     await syncService.kill();
