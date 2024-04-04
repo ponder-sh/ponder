@@ -181,7 +181,8 @@ test("Context client", () => {
     | "multicall"
     | "getStorageAt"
     | "getBytecode"
-    | "getBalance";
+    | "getBalance"
+    | "getEnsName";
 
   assertType<keyof a>({} as any as expectedFunctions);
   assertType<expectedFunctions>({} as any as keyof a);
