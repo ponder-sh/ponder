@@ -511,7 +511,29 @@ test("buildConfig() throws for postgres database with no connection string", asy
   process.env.DATABASE_URL = prev;
 });
 
-test("buildConfig() database with postgres uses RAILWAY_DEPLOYMENT_ID env var as schema", async () => {
+test("buildConfig() database with postgres uses RAILWAY_DEPLOYMENT_ID if defined", async () => {
+  const config = createConfig({
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
+  vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
+  vi.stubEnv("RAILWAY_SERVICE_NAME", "multichain-indexer");
+
+  const { databaseConfig } = await buildConfig({ config, options });
+  expect(databaseConfig).toMatchObject({
+    kind: "postgres",
+    poolConfig: {
+      connectionString: "postgres://username@localhost:5432/database",
+    },
+    schema: "multichain-indexer_b39cb9b7",
+  });
+
+  vi.unstubAllEnvs();
+});
+
+test("buildConfig() database throws with RAILWAY_DEPLOYMENT_ID but no RAILWAY_SERVICE_NAME", async () => {
   const config = createConfig({
     networks: { mainnet: { chainId: 1, transport: http() } },
     contracts: { a: { network: "mainnet", abi: [event0] } },
@@ -520,14 +542,9 @@ test("buildConfig() database with postgres uses RAILWAY_DEPLOYMENT_ID env var as
   vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
   vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
 
-  const { databaseConfig } = await buildConfig({ config, options });
-  expect(databaseConfig).toMatchObject({
-    kind: "postgres",
-    poolConfig: {
-      connectionString: "postgres://username@localhost:5432/database",
-    },
-    schema: "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2",
-  });
+  await expect(() => buildConfig({ config, options })).rejects.toThrow(
+    "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
+  );
 
   vi.unstubAllEnvs();
 });

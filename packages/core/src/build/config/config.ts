@@ -67,7 +67,14 @@ export async function buildConfig({
         schema = config.database.schema;
         source = "from ponder.config.ts";
       } else if (process.env.RAILWAY_DEPLOYMENT_ID) {
-        schema = process.env.RAILWAY_DEPLOYMENT_ID;
+        if (process.env.RAILWAY_SERVICE_NAME === undefined) {
+          throw new Error(
+            "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
+          );
+        }
+        schema = `${
+          process.env.RAILWAY_SERVICE_NAME
+        }_${process.env.RAILWAY_DEPLOYMENT_ID.slice(0, 8)}`;
         source = "from RAILWAY_DEPLOYMENT_ID env var";
       } else {
         schema = "public";
@@ -76,7 +83,7 @@ export async function buildConfig({
 
       logs.push({
         level: "info",
-        msg: `Using '${schema}' schema/namespace (${source})`,
+        msg: `Using '${schema}' database schema (${source})`,
       });
 
       databaseConfig = {
@@ -116,8 +123,16 @@ export async function buildConfig({
 
       let schema: string | undefined = undefined;
       source = undefined;
-      if (process.env.RAILWAY_DEPLOYMENT_ID) {
+      if (process.env.RAILWAY_DEPLOYMENT_ID !== undefined) {
         schema = process.env.RAILWAY_DEPLOYMENT_ID;
+        if (process.env.RAILWAY_SERVICE_NAME === undefined) {
+          throw new Error(
+            "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
+          );
+        }
+        schema = `${
+          process.env.RAILWAY_SERVICE_NAME
+        }_${process.env.RAILWAY_DEPLOYMENT_ID.slice(0, 8)}`;
         source = "from RAILWAY_DEPLOYMENT_ID env var";
       } else {
         schema = "public";
@@ -126,7 +141,7 @@ export async function buildConfig({
 
       logs.push({
         level: "info",
-        msg: `Using '${schema}' schema/namespace (${source})`,
+        msg: `Using '${schema}' database schema (${source})`,
       });
 
       databaseConfig = {
