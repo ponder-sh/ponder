@@ -8,6 +8,8 @@ import type {
   GetBalanceReturnType,
   GetBytecodeParameters,
   GetBytecodeReturnType,
+  GetEnsNameParameters,
+  GetEnsNameReturnType,
   GetStorageAtParameters,
   GetStorageAtReturnType,
   MulticallParameters,
@@ -20,6 +22,7 @@ import type {
 import {
   getBalance as viemGetBalance,
   getBytecode as viemGetBytecode,
+  getEnsName as viemGetEnsName,
   getStorageAt as viemGetStorageAt,
   multicall as viemMulticall,
   readContract as viemReadContract,
@@ -73,6 +76,9 @@ export type PonderActions = {
     > &
       BlockOptions,
   ) => Promise<ReadContractReturnType<TAbi, TFunctionName>>;
+  getEnsName: (
+    args: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> & BlockOptions,
+  ) => Promise<GetEnsNameReturnType>;
 };
 
 export type ReadOnlyClient<
@@ -164,4 +170,16 @@ export const ponderActions =
           ? { blockTag: "latest" }
           : { blockNumber: userBlockNumber ?? blockNumber }),
       } as ReadContractParameters<TAbi, TFunctionName>),
+    getEnsName: ({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetEnsNameReturnType> =>
+      viemGetEnsName(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? blockNumber }),
+      }),
   });
