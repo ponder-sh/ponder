@@ -85,7 +85,10 @@ export interface IndexingStore {
   db: HeadlessKysely<any>;
   schema: Schema;
 
-  revert({ checkpoint }: { checkpoint: Checkpoint }): Promise<void>;
+  revert({
+    checkpoint,
+    isCheckpointSafe,
+  }: { checkpoint: Checkpoint; isCheckpointSafe: boolean }): Promise<void>;
 
   findUnique(options: {
     tableName: string;

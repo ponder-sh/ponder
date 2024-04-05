@@ -45,7 +45,10 @@ export class RealtimeIndexingStore implements IndexingStore {
     this.db = db;
   }
 
-  async revert({ checkpoint }: { checkpoint: Checkpoint }) {
+  async revert({
+    checkpoint,
+    isCheckpointSafe,
+  }: { checkpoint: Checkpoint; isCheckpointSafe: boolean }) {
     await this.db.wrap({ method: "revert" }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -57,7 +60,11 @@ export class RealtimeIndexingStore implements IndexingStore {
                 .withSchema(this.namespaceInfo.internalNamespace)
                 .deleteFrom(tableId)
                 .returningAll()
-                .where("checkpoint", ">", encodedCheckpoint)
+                .where(
+                  "checkpoint",
+                  isCheckpointSafe ? ">" : ">=",
+                  encodedCheckpoint,
+                )
                 .execute();
 
               const reversed = rows.sort(

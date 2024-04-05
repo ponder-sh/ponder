@@ -8,6 +8,7 @@ import {
 import { getEventsErc20 } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { SyncService } from "@/sync/service.js";
+import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { type Address, checksumAddress, parseEther, toHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { decodeEvents } from "./events.js";
@@ -172,7 +173,7 @@ test("processEvent() log events", async (context) => {
   });
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(rawEvents, indexingService.sourceById);
+  const events = decodeEvents(indexingService, rawEvents);
   await processEvents(indexingService, {
     events,
   });
@@ -211,6 +212,10 @@ test("processEvent() log events", async (context) => {
 
   await cleanup();
 });
+
+test.todo("processEvents killed");
+
+test.todo("processEvents eventCount");
 
 test("executeSetup() context.client", async (context) => {
   const { common, sources, networks } = context;
@@ -325,6 +330,8 @@ test("executeSetup() context.db", async (context) => {
 
 test.todo("executeSetup() metrics");
 
+test.todo("executeSetup() retry");
+
 test.todo("executeSetup() error");
 
 test("executeLog() context.client", async (context) => {
@@ -360,7 +367,7 @@ test("executeLog() context.client", async (context) => {
   );
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(rawEvents, indexingService.sourceById);
+  const events = decodeEvents(indexingService, rawEvents);
   await processEvents(indexingService, {
     events,
   });
@@ -412,7 +419,7 @@ test("executeLog() context.db", async (context) => {
   );
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(rawEvents, indexingService.sourceById);
+  const events = decodeEvents(indexingService, rawEvents);
   await processEvents(indexingService, {
     events,
   });
@@ -430,7 +437,99 @@ test("executeLog() context.db", async (context) => {
 
 test.todo("executeLog() metrics");
 
-test.todo("executeLog() error");
+test("executeLog() retry", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingFunctions = {
+    Erc20: {
+      Transfer: vi.fn(),
+    },
+  };
+
+  const revertSpy = vi.spyOn(indexingStore, "revert");
+
+  const indexingService = createIndexingService({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  indexingFunctions.Erc20.Transfer.mockRejectedValueOnce(new Error());
+
+  const rawEvents = await getEventsErc20(sources);
+  const events = decodeEvents(indexingService, rawEvents);
+  const result = await processEvents(indexingService, {
+    events,
+  });
+
+  expect(result).toStrictEqual({
+    status: "success",
+  });
+  expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(3);
+
+  expect(revertSpy).toHaveBeenCalledTimes(1);
+  expect(revertSpy).toHaveBeenCalledWith({
+    checkpoint: decodeCheckpoint(events[0].encodedCheckpoint),
+    isCheckpointSafe: false,
+  });
+
+  await cleanup();
+});
+
+test("executeLog() error", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingFunctions = {
+    Erc20: {
+      Transfer: vi.fn(),
+    },
+  };
+
+  const revertSpy = vi.spyOn(indexingStore, "revert");
+
+  const indexingService = createIndexingService({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  indexingFunctions.Erc20.Transfer.mockRejectedValue(new Error());
+
+  const rawEvents = await getEventsErc20(sources);
+  const events = decodeEvents(indexingService, rawEvents);
+  const result = await processEvents(indexingService, {
+    events,
+  });
+
+  expect(result).toStrictEqual({
+    status: "error",
+    error: expect.any(Error),
+  });
+  expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(4);
+  expect(revertSpy).toHaveBeenCalledTimes(3);
+
+  await cleanup();
+});
 
 test("ponderActions getBalance()", async (context) => {
   const { common, sources, networks } = context;

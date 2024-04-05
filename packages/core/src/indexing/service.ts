@@ -618,6 +618,7 @@ const executeSetup = async (
         });
         await indexingService.indexingStore.revert({
           checkpoint: decodedCheckpoint,
+          isCheckpointSafe: false,
         });
       }
     }
@@ -713,6 +714,7 @@ const executeLog = async (
         });
         await indexingService.indexingStore.revert({
           checkpoint: decodedCheckpoint,
+          isCheckpointSafe: false,
         });
       }
     }
