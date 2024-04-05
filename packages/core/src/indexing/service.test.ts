@@ -215,7 +215,7 @@ test("processEvent() log events", async (context) => {
   await cleanup();
 });
 
-test.only("processEvents killed", async (context) => {
+test("processEvents killed", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
