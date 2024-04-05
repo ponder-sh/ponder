@@ -23,6 +23,7 @@ export function buildLoaderCache({ store }: { store: IndexingStore }) {
           tableName,
           where: { id: { in: ids } },
           checkpoint,
+          limit: ids.length,
         });
 
         return ids.map((id) => rows.items.find((row) => row.id === id));
