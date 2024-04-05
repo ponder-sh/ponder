@@ -523,6 +523,18 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_04_04_0_log_events_indexes": {
+    async up(db: Kysely<any>) {
+      await db.schema.dropIndex("blockNumberIndex").ifExists().execute();
+      await db.schema.dropIndex("blockTimestampIndex").ifExists().execute();
+
+      await db.schema
+        .createIndex("logBlockNumberIndex")
+        .on("logs")
+        .column("blockNumber")
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
