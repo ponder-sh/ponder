@@ -167,7 +167,6 @@ export async function run({
     // No-op if realtime indexing hasn't started
     if (isCheckpointGreaterThan(finalizedCheckpoint, checkpoint)) return;
 
-    // TODO(kyle) move this to database service
     await indexingStore.revert({
       checkpoint: safeCheckpoint,
       isCheckpointSafe: true,

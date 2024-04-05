@@ -872,7 +872,6 @@ export class PostgresSyncStore implements SyncStore {
               const logFilterCmprs = sources
                 .filter(sourceIsLogFilter)
                 .map((logFilter) => {
-                  console.log("hi");
                   const exprs = this.buildLogFilterCmprs({ eb, logFilter });
                   exprs.push(eb("source_id", "=", logFilter.id));
                   return eb.and(exprs);
