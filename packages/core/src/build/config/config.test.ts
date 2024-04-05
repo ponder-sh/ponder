@@ -548,3 +548,49 @@ test("buildConfig() database throws with RAILWAY_DEPLOYMENT_ID but no RAILWAY_SE
 
   vi.unstubAllEnvs();
 });
+
+test("buildConfig() database with postgres uses RAILWAY_SERVICE_NAME as publish schema if defined", async () => {
+  const config = createConfig({
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
+  vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
+  vi.stubEnv("RAILWAY_SERVICE_NAME", "multichain-indexer");
+
+  const { databaseConfig } = await buildConfig({ config, options });
+  expect(databaseConfig).toMatchObject({
+    kind: "postgres",
+    poolConfig: {
+      connectionString: "postgres://username@localhost:5432/database",
+    },
+    schema: "multichain-indexer_b39cb9b7",
+    publishSchema: "multichain-indexer",
+  });
+
+  vi.unstubAllEnvs();
+});
+
+test("buildConfig() database without RAILWAY_SERVICE_NAME does not set publishSchema", async () => {
+  const config = createConfig({
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
+  vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
+  vi.stubEnv("RAILWAY_SERVICE_NAME", "multichain-indexer");
+
+  const { databaseConfig } = await buildConfig({ config, options });
+  expect(databaseConfig).toMatchObject({
+    kind: "postgres",
+    poolConfig: {
+      connectionString: "postgres://username@localhost:5432/database",
+    },
+    schema: "multichain-indexer_b39cb9b7",
+    publishSchema: "multichain-indexer",
+  });
+
+  vi.unstubAllEnvs();
+});

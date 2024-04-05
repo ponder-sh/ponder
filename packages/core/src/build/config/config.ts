@@ -61,8 +61,6 @@ export async function buildConfig({
       });
 
       let schema: string | undefined = undefined;
-      source = undefined;
-
       if (config.database.schema) {
         schema = config.database.schema;
         source = "from ponder.config.ts";
@@ -80,16 +78,32 @@ export async function buildConfig({
         schema = "public";
         source = "default";
       }
-
       logs.push({
         level: "info",
         msg: `Using '${schema}' database schema ${source}`,
       });
 
+      let publishSchema: string | undefined = undefined;
+      if (config.database.publishSchema) {
+        publishSchema = config.database.publishSchema;
+        source = "from ponder.config.ts";
+      } else if (process.env.RAILWAY_SERVICE_NAME !== undefined) {
+        publishSchema = process.env.RAILWAY_SERVICE_NAME;
+        source = "from RAILWAY_SERVICE_NAME env var";
+      }
+      // Note: Only log if publishSchema is defined.
+      if (publishSchema !== undefined) {
+        logs.push({
+          level: "info",
+          msg: `Publishing views to '${schema}' database schema ${source}`,
+        });
+      }
+
       databaseConfig = {
         kind: "postgres",
         poolConfig: { connectionString },
         schema,
+        publishSchema,
       };
     } else {
       logs.push({
@@ -110,8 +124,8 @@ export async function buildConfig({
       source = "from DATABASE_URL env var";
     }
 
+    // If either of the DATABASE_URL env vars are set, use Postgres.
     if (connectionString !== undefined) {
-      // If either of the DATABASE_URL env vars are set, use them.
       logs.push({
         level: "info",
         msg: `Using Postgres database ${getDatabaseName(
@@ -120,7 +134,6 @@ export async function buildConfig({
       });
 
       let schema: string | undefined = undefined;
-      source = undefined;
       if (process.env.RAILWAY_DEPLOYMENT_ID !== undefined) {
         schema = process.env.RAILWAY_DEPLOYMENT_ID;
         if (process.env.RAILWAY_SERVICE_NAME === undefined) {
@@ -136,16 +149,27 @@ export async function buildConfig({
         schema = "public";
         source = "default";
       }
-
       logs.push({
         level: "info",
         msg: `Using '${schema}' database schema ${source}`,
       });
 
+      let publishSchema: string | undefined = undefined;
+      if (process.env.RAILWAY_SERVICE_NAME !== undefined) {
+        publishSchema = process.env.RAILWAY_SERVICE_NAME;
+        source = "from RAILWAY_SERVICE_NAME env var";
+        // Note: Only log if publishSchema is defined.
+        logs.push({
+          level: "info",
+          msg: `Publishing views to '${schema}' database schema ${source}`,
+        });
+      }
+
       databaseConfig = {
         kind: "postgres",
         poolConfig: { connectionString },
         schema,
+        publishSchema,
       };
     } else {
       // Fall back to SQLite.
