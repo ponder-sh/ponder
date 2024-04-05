@@ -601,16 +601,6 @@ export class SqliteSyncStore implements SyncStore {
         const fromBlock = encodeAsText(fromBlock_);
 
         await tx
-          .deleteFrom("blocks")
-          .where("chainId", "=", chainId)
-          .where("number", ">", fromBlock)
-          .execute();
-        await tx
-          .deleteFrom("transactions")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">", fromBlock)
-          .execute();
-        await tx
           .deleteFrom("logs")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)

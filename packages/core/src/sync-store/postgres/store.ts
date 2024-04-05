@@ -617,16 +617,6 @@ export class PostgresSyncStore implements SyncStore {
     return this.db.wrap({ method: "deleteRealtimeData" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await tx
-          .deleteFrom("blocks")
-          .where("chainId", "=", chainId)
-          .where("number", ">", fromBlock)
-          .execute();
-        await tx
-          .deleteFrom("transactions")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">", fromBlock)
-          .execute();
-        await tx
           .deleteFrom("logs")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)
