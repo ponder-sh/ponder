@@ -1,6 +1,8 @@
 import type { Common } from "@/common/common.js";
 import {
+  type Factory,
   type FactoryCriteria,
+  type LogFilter,
   type LogFilterCriteria,
   type Source,
   sourceIsFactory,
@@ -1017,13 +1019,7 @@ export class PostgresSyncStore implements SyncStore {
     logFilter,
   }: {
     eb: ExpressionBuilder<any, any>;
-    logFilter: {
-      id: string;
-      chainId: number;
-      criteria: LogFilterCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    };
+    logFilter: LogFilter;
   }) => {
     const exprs = [];
 
@@ -1064,10 +1060,10 @@ export class PostgresSyncStore implements SyncStore {
       }
     }
 
-    if (logFilter.fromBlock)
-      exprs.push(eb("logs.blockNumber", ">=", BigInt(logFilter.fromBlock)));
-    if (logFilter.toBlock)
-      exprs.push(eb("logs.blockNumber", "<=", BigInt(logFilter.toBlock)));
+    if (logFilter.startBlock !== undefined && logFilter.startBlock !== 0)
+      exprs.push(eb("logs.blockNumber", ">=", BigInt(logFilter.startBlock)));
+    if (logFilter.endBlock)
+      exprs.push(eb("logs.blockNumber", "<=", BigInt(logFilter.endBlock)));
 
     return exprs;
   };
@@ -1077,13 +1073,7 @@ export class PostgresSyncStore implements SyncStore {
     factory,
   }: {
     eb: ExpressionBuilder<any, any>;
-    factory: {
-      id: string;
-      chainId: number;
-      criteria: FactoryCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    };
+    factory: Factory;
   }) => {
     const exprs = [];
 
@@ -1113,10 +1103,10 @@ export class PostgresSyncStore implements SyncStore {
       ),
     );
 
-    if (factory.fromBlock)
-      exprs.push(eb("logs.blockNumber", ">=", BigInt(factory.fromBlock)));
-    if (factory.toBlock)
-      exprs.push(eb("logs.blockNumber", "<=", BigInt(factory.toBlock)));
+    if (factory.startBlock !== undefined && factory.startBlock !== 0)
+      exprs.push(eb("logs.blockNumber", ">=", BigInt(factory.startBlock)));
+    if (factory.endBlock)
+      exprs.push(eb("logs.blockNumber", "<=", BigInt(factory.endBlock)));
 
     return exprs;
   };

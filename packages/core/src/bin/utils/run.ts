@@ -133,7 +133,7 @@ export async function run({
       toCheckpoint: newCheckpoint,
       limit: 1_000,
     })) {
-      const events = decodeEvents(rawEvents, indexingService.sourceById);
+      const events = decodeEvents(indexingService, rawEvents);
       const result = await processEvents(indexingService, {
         events,
       });
@@ -167,9 +167,10 @@ export async function run({
     // No-op if realtime indexing hasn't started
     if (isCheckpointGreaterThan(finalizedCheckpoint, checkpoint)) return;
 
-    // TODO(kyle) "checkpoint" is confusing
-    // TODO(kyle) move this to database service
-    await indexingStore.revert({ checkpoint: safeCheckpoint });
+    await indexingStore.revert({
+      checkpoint: safeCheckpoint,
+      isCheckpointSafe: true,
+    });
     checkpoint = safeCheckpoint;
     await handleCheckpoint(syncService.checkpoint);
   };

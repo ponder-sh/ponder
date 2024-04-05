@@ -8,12 +8,14 @@ import {
 import { getEventsErc20 } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { SyncService } from "@/sync/service.js";
+import { decodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { type Address, checksumAddress, parseEther, toHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { decodeEvents } from "./events.js";
 import {
   type Context,
   createIndexingService,
+  kill,
   processEvents,
   processSetupEvents,
 } from "./service.js";
@@ -81,7 +83,7 @@ test("processSetupEvents() empty", async (context) => {
     networks,
   });
 
-  expect(result.status).toBe("success");
+  expect(result).toStrictEqual({ status: "success" });
 
   await cleanup();
 });
@@ -116,7 +118,7 @@ test("processSetupEvents()", async (context) => {
     networks,
   });
 
-  expect(result.status).toBe("success");
+  expect(result).toStrictEqual({ status: "success" });
 
   expect(indexingFunctions.Erc20.setup).toHaveBeenCalledOnce();
   expect(indexingFunctions.Erc20.setup).toHaveBeenCalledWith({
@@ -172,10 +174,11 @@ test("processEvent() log events", async (context) => {
   });
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(rawEvents, indexingService.sourceById);
-  await processEvents(indexingService, {
+  const events = decodeEvents(indexingService, rawEvents);
+  const result = await processEvents(indexingService, {
     events,
   });
+  expect(result).toStrictEqual({ status: "success" });
 
   expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(2);
   expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledWith({
@@ -208,6 +211,81 @@ test("processEvent() log events", async (context) => {
       db: expect.any(Object),
     },
   });
+
+  await cleanup();
+});
+
+test.only("processEvents killed", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingFunctions = {
+    Erc20: {
+      Transfer: vi.fn(),
+    },
+  };
+
+  const indexingService = createIndexingService({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+  kill(indexingService);
+
+  const rawEvents = await getEventsErc20(sources);
+  const events = decodeEvents(indexingService, rawEvents);
+  const result = await processEvents(indexingService, {
+    events,
+  });
+  expect(result).toStrictEqual({ status: "killed" });
+
+  expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(0);
+
+  await cleanup();
+});
+
+test("processEvents eventCount", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingFunctions = {
+    Erc20: {
+      Transfer: vi.fn(),
+    },
+  };
+
+  const indexingService = createIndexingService({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const rawEvents = await getEventsErc20(sources);
+  const events = decodeEvents(indexingService, rawEvents);
+  const result = await processEvents(indexingService, {
+    events,
+  });
+  expect(result).toStrictEqual({ status: "success" });
+
+  expect(indexingService.eventCount).toBe(2);
 
   await cleanup();
 });
@@ -251,7 +329,7 @@ test("executeSetup() context.client", async (context) => {
     networks,
   });
 
-  expect(result.status).toBe("success");
+  expect(result).toStrictEqual({ status: "success" });
 
   expect(getBalanceSpy).toHaveBeenCalledOnce();
   expect(getBalanceSpy).toHaveBeenCalledWith({
@@ -303,7 +381,7 @@ test("executeSetup() context.db", async (context) => {
     networks,
   });
 
-  expect(result.status).toBe("success");
+  expect(result).toStrictEqual({ status: "success" });
 
   expect(createSpy).toHaveBeenCalledOnce();
   expect(createSpy).toHaveBeenCalledWith({
@@ -323,9 +401,131 @@ test("executeSetup() context.db", async (context) => {
   await cleanup();
 });
 
-test.todo("executeSetup() metrics");
+test("executeSetup() metrics", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
-test.todo("executeSetup() error");
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingService = createIndexingService({
+    indexingFunctions: {
+      Erc20: {
+        setup: vi.fn(),
+      },
+    },
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const result = await processSetupEvents(indexingService, {
+    sources,
+    networks,
+  });
+  expect(result).toStrictEqual({ status: "success" });
+
+  const metrics = await common.metrics.ponder_indexing_function_duration.get();
+  expect(metrics.values).toBeDefined();
+
+  await cleanup();
+});
+
+test("executeSetup() retry", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingFunctions = {
+    Erc20: {
+      setup: vi.fn(),
+    },
+  };
+
+  const revertSpy = vi.spyOn(indexingStore, "revert");
+
+  const indexingService = createIndexingService({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  indexingFunctions.Erc20.setup.mockRejectedValueOnce(new Error());
+
+  const result = await processSetupEvents(indexingService, {
+    sources,
+    networks,
+  });
+  expect(result).toStrictEqual({ status: "success" });
+
+  expect(indexingFunctions.Erc20.setup).toHaveBeenCalledTimes(2);
+
+  expect(revertSpy).toHaveBeenCalledTimes(1);
+  expect(revertSpy).toHaveBeenCalledWith({
+    checkpoint: {
+      ...zeroCheckpoint,
+      chainId: 1,
+      blockNumber: 0,
+    },
+    isCheckpointSafe: false,
+  });
+
+  await cleanup();
+});
+
+test("executeSetup() error", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingFunctions = {
+    Erc20: {
+      setup: vi.fn(),
+    },
+  };
+
+  const revertSpy = vi.spyOn(indexingStore, "revert");
+
+  const indexingService = createIndexingService({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  indexingFunctions.Erc20.setup.mockRejectedValue(new Error());
+
+  const result = await processSetupEvents(indexingService, {
+    sources,
+    networks,
+  });
+  expect(result).toStrictEqual({ status: "error", error: expect.any(Error) });
+
+  expect(indexingFunctions.Erc20.setup).toHaveBeenCalledTimes(4);
+  expect(revertSpy).toHaveBeenCalledTimes(3);
+
+  await cleanup();
+});
 
 test("executeLog() context.client", async (context) => {
   const { common, sources, networks } = context;
@@ -360,10 +560,11 @@ test("executeLog() context.client", async (context) => {
   );
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(rawEvents, indexingService.sourceById);
-  await processEvents(indexingService, {
+  const events = decodeEvents(indexingService, rawEvents);
+  const result = await processEvents(indexingService, {
     events,
   });
+  expect(result).toStrictEqual({ status: "success" });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(2);
   expect(getBalanceSpy).toHaveBeenCalledWith({
@@ -412,10 +613,11 @@ test("executeLog() context.db", async (context) => {
   );
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(rawEvents, indexingService.sourceById);
-  await processEvents(indexingService, {
+  const events = decodeEvents(indexingService, rawEvents);
+  const result = await processEvents(indexingService, {
     events,
   });
+  expect(result).toStrictEqual({ status: "success" });
 
   expect(createSpy).toHaveBeenCalledTimes(2);
 
@@ -428,9 +630,134 @@ test("executeLog() context.db", async (context) => {
   await cleanup();
 });
 
-test.todo("executeLog() metrics");
+test("executeLog() metrics", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
-test.todo("executeLog() error");
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingService = createIndexingService({
+    indexingFunctions: {
+      Erc20: {
+        Transfer: vi.fn(),
+      },
+    },
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const rawEvents = await getEventsErc20(sources);
+  const events = decodeEvents(indexingService, rawEvents);
+  await processEvents(indexingService, {
+    events,
+  });
+
+  const metrics = await common.metrics.ponder_indexing_function_duration.get();
+  expect(metrics.values).toBeDefined();
+
+  await cleanup();
+});
+
+test("executeLog() retry", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingFunctions = {
+    Erc20: {
+      Transfer: vi.fn(),
+    },
+  };
+
+  const revertSpy = vi.spyOn(indexingStore, "revert");
+
+  const indexingService = createIndexingService({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  indexingFunctions.Erc20.Transfer.mockRejectedValueOnce(new Error());
+
+  const rawEvents = await getEventsErc20(sources);
+  const events = decodeEvents(indexingService, rawEvents);
+  const result = await processEvents(indexingService, {
+    events,
+  });
+
+  expect(result).toStrictEqual({
+    status: "success",
+  });
+  expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(3);
+
+  expect(revertSpy).toHaveBeenCalledTimes(1);
+  expect(revertSpy).toHaveBeenCalledWith({
+    checkpoint: decodeCheckpoint(events[0].encodedCheckpoint),
+    isCheckpointSafe: false,
+  });
+
+  await cleanup();
+});
+
+test("executeLog() error", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const indexingFunctions = {
+    Erc20: {
+      Transfer: vi.fn(),
+    },
+  };
+
+  const revertSpy = vi.spyOn(indexingStore, "revert");
+
+  const indexingService = createIndexingService({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  indexingFunctions.Erc20.Transfer.mockRejectedValue(new Error());
+
+  const rawEvents = await getEventsErc20(sources);
+  const events = decodeEvents(indexingService, rawEvents);
+  const result = await processEvents(indexingService, {
+    events,
+  });
+
+  expect(result).toStrictEqual({
+    status: "error",
+    error: expect.any(Error),
+  });
+  expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(4);
+  expect(revertSpy).toHaveBeenCalledTimes(3);
+
+  await cleanup();
+});
 
 test("ponderActions getBalance()", async (context) => {
   const { common, sources, networks } = context;

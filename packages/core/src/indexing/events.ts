@@ -1,7 +1,7 @@
-import type { Source } from "@/config/sources.js";
 import type { RawEvent } from "@/sync-store/store.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import { decodeEventLog } from "viem";
+import type { IndexingService } from "./service.js";
 
 export type SetupEvent = {
   type: "setup";
@@ -28,11 +28,9 @@ export type LogEvent = {
 
 export type Event = LogEvent;
 
-// TODO(kyle) decode raw database information
-
 export const decodeEvents = (
+  { common, sourceById }: Pick<IndexingService, "sourceById" | "common">,
   rawEvents: RawEvent[],
-  sourceById: { [sourceId: string]: Source },
 ): Event[] => {
   const events: Event[] = [];
 
@@ -61,7 +59,10 @@ export const decodeEvents = (
         encodedCheckpoint: event.encodedCheckpoint,
       });
     } catch (err) {
-      // TODO(kyle) cannot decode
+      common.logger.debug({
+        service: "app",
+        msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
+      });
     }
   }
 

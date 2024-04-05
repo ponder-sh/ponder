@@ -1272,6 +1272,7 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 
   await indexingStore.revert({
     checkpoint: createCheckpoint(12),
+    isCheckpointSafe: true,
   });
 
   const { items: pets } = await indexingStore.findMany({ tableName: "Pet" });
@@ -1325,6 +1326,7 @@ test("revert() updates versions with intermediate logs", async (context) => {
 
   await indexingStore.revert({
     checkpoint: createCheckpoint(8),
+    isCheckpointSafe: true,
   });
 
   const instancePet = await indexingStore.findUnique({
