@@ -1380,8 +1380,6 @@ test("getLogEvents filters on startBlock", async (context) => {
     ...rpcData.block2,
   });
 
-  console.log(rpcData.block2.block.number);
-
   const ag = syncStore.getLogEvents({
     sources: [
       { ...sources[0], startBlock: hexToNumber(rpcData.block3.block.number) },
@@ -1550,7 +1548,45 @@ test("getLogEvents multiple sources", async (context) => {
   await cleanup();
 });
 
-test.todo("getLogEvents multichain");
+test("getLogEvents multichain", async (context) => {
+  const { erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block1,
+  });
+
+  const ag = syncStore.getLogEvents({
+    sources: [
+      sources[0],
+      {
+        ...sources[0],
+        id: "kevin",
+        chainId: 2,
+      },
+    ],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(2);
+
+  expect(events[0].sourceId).toBe("Erc20_mainnet");
+  expect(events[0].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
+  expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
+
+  expect(events[1].sourceId).toBe("Erc20_mainnet");
+  expect(events[1].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
+  expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+
+  await cleanup();
+});
 
 test("getLogEvents pagination", async (context) => {
   const { erc20, sources } = context;
@@ -1598,6 +1634,59 @@ test("getLogEvents pagination", async (context) => {
   const thirdBatchEvents = await ag.next();
 
   expect(thirdBatchEvents.done).toBe(true);
+
+  await cleanup();
+});
+
+test("getLogEvents empty", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const ag = syncStore.getLogEvents({
+    sources,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(0);
+
+  await cleanup();
+});
+
+test("getLastEventCheckpoint", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block1,
+  });
+
+  const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
+    sources,
+    toCheckpoint: maxCheckpoint,
+  });
+
+  expect(lastEventCheckpoint?.blockNumber).toBe(2);
+  expect(lastEventCheckpoint?.eventIndex).toBe(
+    hexToNumber(rpcData.block1.logs[1].logIndex!),
+  );
+
+  await cleanup();
+});
+
+test("getLastEventCheckpoint empty", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
+    sources,
+    toCheckpoint: maxCheckpoint,
+  });
+  expect(lastEventCheckpoint).toBe(undefined);
 
   await cleanup();
 });
