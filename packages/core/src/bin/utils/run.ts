@@ -133,7 +133,7 @@ export async function run({
       toCheckpoint: newCheckpoint,
       limit: 1_000,
     })) {
-      const events = decodeEvents(rawEvents, indexingService.sourceById);
+      const events = decodeEvents(indexingService, rawEvents);
       const result = await processEvents(indexingService, {
         events,
       });
