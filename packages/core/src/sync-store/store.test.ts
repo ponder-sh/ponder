@@ -1365,7 +1365,7 @@ test("getLogEvents filters on simple factory", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents filters on fromBlock", async (context) => {
+test("getLogEvents filters on startBlock", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -1551,8 +1551,6 @@ test("getLogEvents multiple sources", async (context) => {
 });
 
 test.todo("getLogEvents multichain");
-
-test.todo("getLogEvents event selector");
 
 test("getLogEvents pagination", async (context) => {
   const { erc20, sources } = context;
