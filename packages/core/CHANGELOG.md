@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.3.11
+
+### Patch Changes
+
+- [#778](https://github.com/ponder-sh/ponder/pull/778) [`c55fdd1f0199d6bfd70e21774042a8741a5cecfa`](https://github.com/ponder-sh/ponder/commit/c55fdd1f0199d6bfd70e21774042a8741a5cecfa) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where GraphQL queries that include a many -> `p.one()` path with a limit greater than 50 would fail with the error: "Cannot return null for non-nullable field".
+
 ## 0.3.10
 
 ### Patch Changes
