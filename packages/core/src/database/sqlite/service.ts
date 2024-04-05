@@ -147,7 +147,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           namespace: this.userNamespace,
           is_locked: 1,
           heartbeat_at: Date.now(),
-          app_id: this.buildId,
+          build_id: this.buildId,
           finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
           schema: JSON.stringify(schema),
         } satisfies Insertable<InternalTables["namespace_lock"]>;
@@ -172,7 +172,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         ) {
           // // If the previous row has the same app ID, continue where the previous app left off
           // // by reverting tables to the finalized checkpoint, then returning.
-          // if (previousLockRow.app_id === this.buildId) {
+          // if (previousLockRow.build_id === this.buildId) {
           //   const finalizedCheckpoint = decodeCheckpoint(
           //     previousLockRow.finalized_checkpoint,
           //   );
@@ -188,7 +188,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           //     msg: `Cache hit for app ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
           //   });
 
-          //   // Acquire the lock and update the heartbeat (app_id, schema, ).
+          //   // Acquire the lock and update the heartbeat (build_id, schema, ).
           //   await tx
           //     .withSchema(this.internalNamespace)
           //     .updateTable("namespace_lock")
@@ -206,7 +206,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           // }
 
           // If the previous row has a different app ID, drop the previous app's tables.
-          const previousBuildId = previousLockRow.app_id;
+          const previousBuildId = previousLockRow.build_id;
           const previousSchema = JSON.parse(previousLockRow.schema) as Schema;
 
           this.common.logger.debug({
@@ -307,7 +307,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
           this.common.logger.debug({
             service: "database",
-            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (app_id=${this.buildId})`,
+            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (build_id=${this.buildId})`,
           });
         } catch (err) {
           const error = err as Error;

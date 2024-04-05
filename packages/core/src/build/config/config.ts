@@ -57,7 +57,7 @@ export async function buildConfig({
         level: "info",
         msg: `Using Postgres database '${getDatabaseName(
           connectionString,
-        )}' (${source})`,
+        )}' ${source}`,
       });
 
       let schema: string | undefined = undefined;
@@ -83,7 +83,7 @@ export async function buildConfig({
 
       logs.push({
         level: "info",
-        msg: `Using '${schema}' database schema (${source})`,
+        msg: `Using '${schema}' database schema ${source}`,
       });
 
       databaseConfig = {
@@ -94,14 +94,12 @@ export async function buildConfig({
     } else {
       logs.push({
         level: "info",
-        msg: `Using SQLite database in '${sqlitePrintPath}' (from ponder.config.ts)`,
+        msg: `Using SQLite database in '${sqlitePrintPath}'(from ponder.config.ts`,
       });
 
       databaseConfig = { kind: "sqlite", directory: sqliteDir };
     }
   } else {
-    console.log(process.env.DATABASE_PRIVATE_URL, process.env.DATABASE_URL);
-
     let connectionString: string | undefined = undefined;
     let source: string | undefined = undefined;
     if (process.env.DATABASE_PRIVATE_URL) {
@@ -118,7 +116,7 @@ export async function buildConfig({
         level: "info",
         msg: `Using Postgres database ${getDatabaseName(
           connectionString,
-        )} (${source})`,
+        )} ${source}`,
       });
 
       let schema: string | undefined = undefined;
@@ -141,7 +139,7 @@ export async function buildConfig({
 
       logs.push({
         level: "info",
-        msg: `Using '${schema}' database schema (${source})`,
+        msg: `Using '${schema}' database schema ${source}`,
       });
 
       databaseConfig = {
