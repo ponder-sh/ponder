@@ -172,7 +172,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           previousLockRow.is_locked === 0 ||
           Date.now() > previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
         ) {
-          // // If the previous row has the same app ID, continue where the previous app left off
+          // // If the previous row has the same build ID, continue where the previous app left off
           // // by reverting tables to the finalized checkpoint, then returning.
           // if (previousLockRow.build_id === this.buildId) {
           //   const finalizedCheckpoint = decodeCheckpoint(
@@ -187,7 +187,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           //       : "with no progress";
           //   this.common.logger.debug({
           //     service: "database",
-          //     msg: `Cache hit for app ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
+          //     msg: `Cache hit for build ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
           //   });
 
           //   // Acquire the lock and update the heartbeat (build_id, schema, ).
@@ -207,7 +207,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           //   return finalizedCheckpoint;
           // }
 
-          // If the previous row has a different app ID, drop the previous app's tables.
+          // If the previous row has a different build ID, drop the previous app's tables.
           const previousBuildId = previousLockRow.build_id;
           const previousSchema = previousLockRow.schema as unknown as Schema;
 
@@ -241,7 +241,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             });
           }
 
-          // Update the lock row to reflect the new app ID and checkpoint progress.
+          // Update the lock row to reflect the new build ID and checkpoint progress.
           await tx
             .withSchema(this.internalNamespace)
             .updateTable("namespace_lock")

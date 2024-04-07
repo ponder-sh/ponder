@@ -157,7 +157,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
   });
 
   test.todo(
-    "setup with the same app ID and namespace reverts to and returns the finality checkpoint",
+    "setup with the same build ID and namespace reverts to and returns the finality checkpoint",
     async (context) => {
       if (context.databaseConfig.kind !== "sqlite") return;
       const database = new SqliteDatabaseService({
@@ -397,7 +397,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.kill();
   });
 
-  test("setup succeeds with a live app in a different namespace using the same app ID", async (context) => {
+  test("setup succeeds with a live app in a different namespace using the same build ID", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,

@@ -162,7 +162,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   });
 
   test.todo(
-    "setup with the same app ID and namespace reverts to and returns the finality checkpoint",
+    "setup with the same build ID and namespace reverts to and returns the finality checkpoint",
     async (context) => {
       if (context.databaseConfig.kind !== "postgres") return;
       const database = new PostgresDatabaseService({
@@ -416,7 +416,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
-  test("setup succeeds with a live app in a different namespace using the same app ID", async (context) => {
+  test("setup succeeds with a live app in a different namespace using the same build ID", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
