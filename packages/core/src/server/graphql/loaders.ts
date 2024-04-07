@@ -15,7 +15,6 @@ export function buildLoaderCache({ store }: { store: IndexingStore }) {
         const rows = await store.findMany({
           tableName,
           where: { id: { in: ids } },
-          checkpoint,
           limit: ids.length,
         });
 
