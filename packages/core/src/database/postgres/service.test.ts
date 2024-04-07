@@ -459,6 +459,99 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
     await databaseTwo.kill();
   });
+
+  test("publish succeeds if there are no name collisions", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "publish",
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.publish();
+
+    expect(await getViewNames(database.db, "publish")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.kill();
+  });
+
+  test("publish succeeds and skips creating view if there is a name collision with a table", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "publish",
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.db.schema.createSchema("publish").ifNotExists().execute();
+    await database.db.executeQuery(
+      sql`CREATE TABLE publish."Pet" (id TEXT)`.compile(database.db),
+    );
+
+    await database.publish();
+
+    expect(await getTableNames(database.db, "publish")).toStrictEqual(["Pet"]);
+    expect(await getViewNames(database.db, "publish")).toStrictEqual([
+      "Person",
+    ]);
+
+    await database.kill();
+  });
+
+  test("publish succeeds and replaces view if there is a name collision with a view", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "nice_looks-great",
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.db.schema
+      .createSchema("nice_looks-great")
+      .ifNotExists()
+      .execute();
+    await database.db.executeQuery(
+      sql`CREATE VIEW "nice_looks-great"."Pet" AS SELECT 1`.compile(
+        database.db,
+      ),
+    );
+
+    await database.publish();
+
+    expect(await getViewNames(database.db, "nice_looks-great")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.kill();
+  });
 });
 
 async function getTableNames(db: HeadlessKysely<any>, schemaName: string) {
@@ -469,6 +562,21 @@ async function getTableNames(db: HeadlessKysely<any>, schemaName: string) {
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = '${sql.raw(schemaName)}'
+      AND table_type = 'BASE TABLE'
+    `.compile(db),
+  );
+  return rows.map((r) => r.table_name);
+}
+
+async function getViewNames(db: HeadlessKysely<any>, schemaName: string) {
+  const { rows } = await db.executeQuery<{
+    table_name: string;
+  }>(
+    sql`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = '${sql.raw(schemaName)}'
+      AND table_type = 'VIEW'
     `.compile(db),
   );
   return rows.map((r) => r.table_name);

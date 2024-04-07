@@ -10,6 +10,7 @@ import { createPool } from "@/utils/pg.js";
 import {
   type CreateTableBuilder,
   type Insertable,
+  Kysely,
   Migrator,
   PostgresDialect,
   WithSchemaPlugin,
@@ -27,15 +28,18 @@ const HEARTBEAT_TIMEOUT_MS = 1000 * 60; // 60 seconds
 export class PostgresDatabaseService implements BaseDatabaseService {
   kind = "postgres" as const;
 
+  private internalNamespace = "ponder";
+
   private common: Common;
   private poolConfig: PoolConfig;
   private userNamespace: string;
-  private internalNamespace: string;
+  private publishSchema?: string | undefined;
 
   db: HeadlessKysely<InternalTables>;
   indexingDb: HeadlessKysely<InternalTables>;
   syncDb: HeadlessKysely<SyncStoreTables>;
 
+  private schema: Schema = null!;
   private buildId: string = null!;
   private heartbeatInterval?: NodeJS.Timeout;
 
@@ -48,15 +52,17 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     common,
     poolConfig,
     userNamespace,
+    publishSchema,
   }: {
     common: Common;
     poolConfig: PoolConfig;
     userNamespace: string;
+    publishSchema?: string | undefined;
   }) {
     this.common = common;
     this.poolConfig = poolConfig;
     this.userNamespace = userNamespace;
-    this.internalNamespace = "ponder";
+    this.publishSchema = publishSchema;
 
     this.adminPool = createPool({ ...poolConfig, min: 2, max: 2 });
     this.indexingPool = createPool(this.poolConfig);
@@ -100,6 +106,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   }
 
   async setup({ schema, buildId }: { schema: Schema; buildId: string }) {
+    this.schema = schema;
     this.buildId = buildId;
 
     await this.db.schema
@@ -318,6 +325,82 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       }, HEARTBEAT_INTERVAL_MS);
 
       return { checkpoint, namespaceInfo };
+    });
+  }
+
+  async publish() {
+    await this.db.wrap({ method: "publish" }, async () => {
+      const publishSchema = this.publishSchema;
+      if (publishSchema === undefined) {
+        this.common.logger.debug({
+          service: "database",
+          msg: "Not publishing views, publish schema was not defined",
+        });
+        return;
+      }
+
+      await this.db.transaction().execute(async (tx) => {
+        // Create the publish schema if it doesn't exist.
+        await tx.schema.createSchema(publishSchema).ifNotExists().execute();
+
+        for (const tableName of Object.keys(this.schema.tables)) {
+          // Check if there is an existing relation with the name we're about to publish.
+          const result = await tx.executeQuery<{
+            table_type: string;
+          }>(
+            sql`
+              SELECT table_type
+              FROM information_schema.tables
+              WHERE table_schema = '${sql.raw(publishSchema)}'
+              AND table_name = '${sql.raw(tableName)}'
+            `.compile(tx),
+          );
+
+          const isTable = result.rows[0]?.table_type === "BASE TABLE";
+          if (isTable) {
+            this.common.logger.warn({
+              service: "database",
+              msg: `Unable to publish view '${publishSchema}'.'${tableName}' because a table with that name already exists`,
+            });
+            continue;
+          }
+
+          const isView = result.rows[0]?.table_type === "VIEW";
+          if (isView) {
+            await tx.schema
+              .withSchema(publishSchema)
+              .dropView(tableName)
+              .ifExists()
+              .execute();
+
+            this.common.logger.debug({
+              service: "database",
+              msg: `Dropped existing view '${publishSchema}'.'${tableName}'`,
+            });
+          }
+
+          await tx.schema
+            .withSchema(publishSchema)
+            .createView(tableName)
+            .as(
+              (tx as Kysely<any>)
+                .withSchema(this.userNamespace)
+                .selectFrom(tableName)
+                .selectAll(),
+            )
+            .execute();
+
+          this.common.logger.debug({
+            service: "database",
+            msg: `Created view '${publishSchema}'.'${tableName}' serving data from '${this.userNamespace}'.'${tableName}'`,
+          });
+        }
+      });
+
+      this.common.logger.debug({
+        service: "database",
+        msg: "Closed database connection pools",
+      });
     });
   }
 
