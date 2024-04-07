@@ -25,7 +25,7 @@ import {
   isCheckpointGreaterThanOrEqualTo,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { neva } from "@/utils/neva.js";
+import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
 
 /**
@@ -119,6 +119,9 @@ export async function run({
     onReloadableError(result.error);
   }
 
+  // start sync
+  const finalizedCheckpoint = await syncService.start();
+
   let checkpoint: Checkpoint = zeroCheckpoint;
 
   const handleCheckpoint = async (newCheckpoint: Checkpoint) => {
@@ -205,7 +208,7 @@ export async function run({
           break;
 
         default:
-          neva(syncEvent);
+          never(syncEvent);
       }
     },
   });
@@ -225,8 +228,6 @@ export async function run({
   );
 
   syncService.on("fatal", onFatalError);
-
-  const finalizedCheckpoint = await syncService.start();
 
   return async () => {
     runQueue.pause();

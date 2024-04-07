@@ -1409,8 +1409,6 @@ test("getLogEvents filters on endBlock", async (context) => {
     ...rpcData.block2,
   });
 
-  console.log(rpcData.block2.block.number);
-
   const ag = syncStore.getLogEvents({
     sources: [
       { ...sources[0], endBlock: hexToNumber(rpcData.block1.block.number) - 1 },

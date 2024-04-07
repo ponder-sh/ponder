@@ -260,8 +260,8 @@ export const createIndexingService = ({
     return acc;
   }, {});
 
-  // build ponderActions
-  const ponderActions = <
+  // build cachedActions
+  const cachedActions = <
     TTransport extends Transport = Transport,
     TChain extends Chain | undefined = Chain | undefined,
     TAccount extends Account | undefined = Account | undefined,
@@ -349,7 +349,7 @@ export const createIndexingService = ({
     clientByChainId[network.chainId] = createClient({
       transport,
       chain: network.chain,
-    }).extend(ponderActions);
+    }).extend(cachedActions);
   }
 
   return {
@@ -471,9 +471,6 @@ export const processEvents = async (
         }
         break;
       }
-
-      // default:
-      //   neva(event);
     }
 
     indexingService.common.logger.trace({
