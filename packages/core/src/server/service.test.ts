@@ -1571,6 +1571,54 @@ test("uses dataloader to resolve a plural -> p.one() path", async (context) => {
   await cleanup();
 });
 
+test("dataloader on a plural -> p.one() path handles a limit greater than 50", async (context) => {
+  const {
+    service,
+    gql,
+    createTestEntity,
+    createEntityWithBigIntId,
+    indexingStore,
+    cleanup,
+  } = await setup({ context });
+  service.setIsHealthy(true);
+
+  const findUniqueSpy = vi.spyOn(indexingStore, "findUnique");
+  const findManySpy = vi.spyOn(indexingStore, "findMany");
+
+  await Promise.all(
+    range(0, 100).map(async (n) => {
+      await createTestEntity({ id: n });
+      await createEntityWithBigIntId({
+        id: BigInt(n),
+        testEntityId: String(n),
+      });
+    }),
+  );
+
+  const response = await gql(`
+    entityWithBigIntIds(limit: 75) {
+      items {
+        id
+        testEntity {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as any;
+  expect(body.errors).toBe(undefined);
+  const { entityWithBigIntIds } = body.data;
+  expect(entityWithBigIntIds.items).toHaveLength(75);
+
+  expect(findUniqueSpy).toHaveBeenCalledTimes(0);
+  expect(findManySpy).toHaveBeenCalledTimes(2);
+
+  await service.kill();
+  await cleanup();
+});
+
 test.skip.fails(
   "uses dataloader to resolve a plural -> p.many() path",
   async (context) => {

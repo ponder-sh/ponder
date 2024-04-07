@@ -15,11 +15,9 @@ export class UiService {
   constructor({ common }: { common: Common }) {
     this.common = common;
 
-    if (this.common.options.uiEnabled) {
-      const { render, unmount } = setupInkApp(this.ui);
-      this.render = () => render(this.ui);
-      this.unmount = unmount;
-    }
+    const { render, unmount } = setupInkApp(this.ui);
+    this.render = () => render(this.ui);
+    this.unmount = unmount;
   }
 
   reset(sources: Source[]) {

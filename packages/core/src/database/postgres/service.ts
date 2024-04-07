@@ -4,12 +4,13 @@ import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
 import { createPool } from "@/utils/pg.js";
-import { startClock } from "@/utils/timer.js";
 import {
   type CreateTableBuilder,
   type Insertable,
+  Kysely,
   Migrator,
   PostgresDialect,
   WithSchemaPlugin,
@@ -27,16 +28,19 @@ const HEARTBEAT_TIMEOUT_MS = 1000 * 60; // 60 seconds
 export class PostgresDatabaseService implements BaseDatabaseService {
   kind = "postgres" as const;
 
+  private internalNamespace = "ponder";
+
   private common: Common;
   private poolConfig: PoolConfig;
   private userNamespace: string;
-  private internalNamespace: string;
+  private publishSchema?: string | undefined;
 
   db: HeadlessKysely<InternalTables>;
   indexingDb: HeadlessKysely<InternalTables>;
   syncDb: HeadlessKysely<SyncStoreTables>;
 
-  private appId: string = null!;
+  private schema: Schema = null!;
+  private buildId: string = null!;
   private heartbeatInterval?: NodeJS.Timeout;
 
   // Only need these for metrics.
@@ -47,16 +51,18 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   constructor({
     common,
     poolConfig,
-    userNamespace = "public",
+    userNamespace,
+    publishSchema,
   }: {
     common: Common;
     poolConfig: PoolConfig;
-    userNamespace?: string;
+    userNamespace: string;
+    publishSchema?: string | undefined;
   }) {
     this.common = common;
     this.poolConfig = poolConfig;
     this.userNamespace = userNamespace;
-    this.internalNamespace = "ponder";
+    this.publishSchema = publishSchema;
 
     this.adminPool = createPool({ ...poolConfig, min: 2, max: 2 });
     this.indexingPool = createPool(this.poolConfig);
@@ -99,8 +105,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.registerMetrics();
   }
 
-  async setup({ schema, appId }: { schema: Schema; appId: string }) {
-    this.appId = appId;
+  async setup({ schema, buildId }: { schema: Schema; buildId: string }) {
+    this.schema = schema;
+    this.buildId = buildId;
 
     await this.db.schema
       .createSchema(this.userNamespace)
@@ -115,8 +122,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       db: this.db.withPlugin(new WithSchemaPlugin(this.internalNamespace)),
       provider: migrationProvider,
       migrationTableSchema: this.internalNamespace,
-      migrationTableName: "migration",
-      migrationLockTableName: "migration_lock",
     });
     const result = await migrator.migrateToLatest();
 
@@ -126,14 +131,14 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       userNamespace: this.userNamespace,
       internalNamespace: this.internalNamespace,
       internalTableIds: Object.keys(schema.tables).reduce((acc, tableName) => {
-        acc[tableName] = hash([this.userNamespace, this.appId, tableName]);
+        acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
         return acc;
       }, {} as { [tableName: string]: string }),
     } satisfies NamespaceInfo;
 
-    return this.wrap({ method: "setup" }, async () => {
+    return this.db.wrap({ method: "setup" }, async () => {
       const checkpoint = await this.db.transaction().execute(async (tx) => {
-        const priorLockRow = await tx
+        const previousLockRow = await tx
           .withSchema(this.internalNamespace)
           .selectFrom("namespace_lock")
           .selectAll()
@@ -144,30 +149,34 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           namespace: this.userNamespace,
           is_locked: 1,
           heartbeat_at: Date.now(),
-          app_id: this.appId,
+          build_id: this.buildId,
           finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
           schema: JSON.stringify(schema),
         } satisfies Insertable<InternalTables["namespace_lock"]>;
 
         // If no lock row is found for this namespace, we can acquire the lock.
-        if (priorLockRow === undefined) {
+        if (previousLockRow === undefined) {
           await tx
             .withSchema(this.internalNamespace)
             .insertInto("namespace_lock")
             .values(newLockRow)
             .execute();
+          this.common.logger.debug({
+            service: "database",
+            msg: `Acquired lock on new namespace '${this.userNamespace}'`,
+          });
         }
         // If there is a row, but the lock is not held or has expired,
-        // we can acquire the lock and drop the prior app's tables.
+        // we can acquire the lock and drop the previous app's tables.
         else if (
-          priorLockRow.is_locked === 0 ||
-          Date.now() > priorLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
+          previousLockRow.is_locked === 0 ||
+          Date.now() > previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
         ) {
-          // // If the prior row has the same app ID, continue where the prior app left off
+          // // If the previous row has the same build ID, continue where the previous app left off
           // // by reverting tables to the finalized checkpoint, then returning.
-          // if (priorLockRow.app_id === this.appId) {
+          // if (previousLockRow.build_id === this.buildId) {
           //   const finalizedCheckpoint = decodeCheckpoint(
-          //     priorLockRow.finalized_checkpoint,
+          //     previousLockRow.finalized_checkpoint,
           //   );
 
           //   const duration =
@@ -178,10 +187,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           //       : "with no progress";
           //   this.common.logger.debug({
           //     service: "database",
-          //     msg: `Cache hit for app ID '${this.appId}' on namespace '${this.userNamespace}' ${progressText}`,
+          //     msg: `Cache hit for build ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
           //   });
 
-          //   // Acquire the lock and update the heartbeat (app_id, schema, ).
+          //   // Acquire the lock and update the heartbeat (build_id, schema, ).
           //   await tx
           //     .withSchema(this.internalNamespace)
           //     .updateTable("namespace_lock")
@@ -198,12 +207,21 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           //   return finalizedCheckpoint;
           // }
 
-          // If the prior row has a different app ID, drop the prior app's tables.
-          const priorAppId = priorLockRow.app_id;
-          const priorSchema = priorLockRow.schema as unknown as Schema;
+          // If the previous row has a different build ID, drop the previous app's tables.
+          const previousBuildId = previousLockRow.build_id;
+          const previousSchema = previousLockRow.schema as unknown as Schema;
 
-          for (const tableName of Object.keys(priorSchema.tables)) {
-            const tableId = hash([this.userNamespace, priorAppId, tableName]);
+          this.common.logger.debug({
+            service: "database",
+            msg: `Acquired lock on namespace '${this.userNamespace}' previously used by app '${previousBuildId}'`,
+          });
+
+          for (const tableName of Object.keys(previousSchema.tables)) {
+            const tableId = hash([
+              this.userNamespace,
+              previousBuildId,
+              tableName,
+            ]);
 
             await tx.schema
               .withSchema(this.internalNamespace)
@@ -216,19 +234,27 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               .dropTable(tableName)
               .ifExists()
               .execute();
+
+            this.common.logger.debug({
+              service: "database",
+              msg: `Dropped '${tableName}' table left by previous app`,
+            });
           }
 
-          // Update the lock row to reflect the new app ID and checkpoint progress.
+          // Update the lock row to reflect the new build ID and checkpoint progress.
           await tx
             .withSchema(this.internalNamespace)
             .updateTable("namespace_lock")
             .set(newLockRow)
             .execute();
         }
-        // Otherwise, the prior app still holds the lock.
+        // Otherwise, the previous app still holds the lock.
         else {
+          const expiresIn = formatEta(
+            previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS - Date.now(),
+          );
           throw new NonRetryableError(
-            `Failed to acquire namespace '${this.userNamespace}' because it is locked by a different app`,
+            `Schema '${this.userNamespace}' is in use by a different Ponder app (lock expires in ${expiresIn})`,
           );
         }
 
@@ -242,7 +268,12 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             .$call((builder) => this.buildOperationLogColumns(builder, columns))
             .execute();
 
-          // TODO(kyle) add index on checkpoint
+          await tx.schema
+            .withSchema(this.internalNamespace)
+            .createIndex(`${tableId}_checkpointIndex`)
+            .on(tableId)
+            .column("checkpoint")
+            .execute();
 
           try {
             await tx.schema
@@ -252,14 +283,16 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               .execute();
           } catch (err) {
             const error = err as Error;
-            if (error.message.includes("already exists")) {
-              throw new NonRetryableError(
-                `Table '${this.userNamespace}'.'${tableName}' already exists. Please drop it and try again.`,
-              );
-            } else {
-              throw error;
-            }
+            if (!error.message.includes("already exists")) throw error;
+            throw new NonRetryableError(
+              `Unable to create table '${this.userNamespace}'.'${tableName}' because a table with that name already exists. Hint: Is there another Ponder app using the '${this.userNamespace}' database schema?`,
+            );
           }
+
+          this.common.logger.debug({
+            service: "database",
+            msg: `Created '${tableName}' table`,
+          });
         }
 
         return zeroCheckpoint;
@@ -277,10 +310,17 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
           this.common.logger.debug({
             service: "database",
-            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (app_id=${this.appId})`,
+            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (build_id=${this.buildId})`,
           });
-        } catch (e) {
-          console.log(e);
+        } catch (err) {
+          const error = err as Error;
+          this.common.logger.error({
+            service: "database",
+            msg: `Failed to update heartbeat timestamp, retrying in ${formatEta(
+              HEARTBEAT_INTERVAL_MS,
+            )}`,
+            error,
+          });
         }
       }, HEARTBEAT_INTERVAL_MS);
 
@@ -288,8 +328,84 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     });
   }
 
+  async publish() {
+    await this.db.wrap({ method: "publish" }, async () => {
+      const publishSchema = this.publishSchema;
+      if (publishSchema === undefined) {
+        this.common.logger.debug({
+          service: "database",
+          msg: "Not publishing views, publish schema was not defined",
+        });
+        return;
+      }
+
+      await this.db.transaction().execute(async (tx) => {
+        // Create the publish schema if it doesn't exist.
+        await tx.schema.createSchema(publishSchema).ifNotExists().execute();
+
+        for (const tableName of Object.keys(this.schema.tables)) {
+          // Check if there is an existing relation with the name we're about to publish.
+          const result = await tx.executeQuery<{
+            table_type: string;
+          }>(
+            sql`
+              SELECT table_type
+              FROM information_schema.tables
+              WHERE table_schema = '${sql.raw(publishSchema)}'
+              AND table_name = '${sql.raw(tableName)}'
+            `.compile(tx),
+          );
+
+          const isTable = result.rows[0]?.table_type === "BASE TABLE";
+          if (isTable) {
+            this.common.logger.warn({
+              service: "database",
+              msg: `Unable to publish view '${publishSchema}'.'${tableName}' because a table with that name already exists`,
+            });
+            continue;
+          }
+
+          const isView = result.rows[0]?.table_type === "VIEW";
+          if (isView) {
+            await tx.schema
+              .withSchema(publishSchema)
+              .dropView(tableName)
+              .ifExists()
+              .execute();
+
+            this.common.logger.debug({
+              service: "database",
+              msg: `Dropped existing view '${publishSchema}'.'${tableName}'`,
+            });
+          }
+
+          await tx.schema
+            .withSchema(publishSchema)
+            .createView(tableName)
+            .as(
+              (tx as Kysely<any>)
+                .withSchema(this.userNamespace)
+                .selectFrom(tableName)
+                .selectAll(),
+            )
+            .execute();
+
+          this.common.logger.debug({
+            service: "database",
+            msg: `Created view '${publishSchema}'.'${tableName}' serving data from '${this.userNamespace}'.'${tableName}'`,
+          });
+        }
+      });
+
+      this.common.logger.debug({
+        service: "database",
+        msg: "Closed database connection pools",
+      });
+    });
+  }
+
   async kill() {
-    await this.wrap({ method: "kill" }, async () => {
+    await this.db.wrap({ method: "kill" }, async () => {
       clearInterval(this.heartbeatInterval);
 
       await this.db
@@ -312,6 +428,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       await this.indexingPool.end();
       await this.syncPool.end();
       await this.adminPool.end();
+
+      this.common.logger.debug({
+        service: "database",
+        msg: "Closed database connection pools",
+      });
     });
   }
 
@@ -393,56 +514,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
     return builder;
   }
-
-  private wrap = async <T>(
-    options: { method: string },
-    fn: () => Promise<T>,
-  ) => {
-    const endClock = startClock();
-    const RETRY_COUNT = 3;
-    const BASE_DURATION = 100;
-
-    let error: any;
-    let hasError = false;
-
-    for (let i = 0; i < RETRY_COUNT + 1; i++) {
-      try {
-        const result = await fn();
-        this.common.metrics.ponder_database_method_duration.observe(
-          { service: "database", method: options.method },
-          endClock(),
-        );
-        return result;
-      } catch (_error) {
-        if (_error instanceof NonRetryableError) {
-          throw _error;
-        }
-
-        if (!hasError) {
-          hasError = true;
-          error = _error;
-        }
-
-        if (i < RETRY_COUNT) {
-          const duration = BASE_DURATION * 2 ** i;
-          this.common.logger.warn({
-            service: "database",
-            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-          });
-          await new Promise((_resolve) => {
-            setTimeout(_resolve, duration);
-          });
-        }
-      }
-    }
-
-    this.common.metrics.ponder_database_method_error_total.inc({
-      service: "database",
-      method: options.method,
-    });
-
-    throw error;
-  };
 
   private registerMetrics() {
     const service = this;

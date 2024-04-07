@@ -241,4 +241,4 @@ To safely reconcile chain reorganizations and manage indexing error retries, Pon
 
 2. **Internal tables must not be modified**. Ponder creates and maintains 3-5 schemas (Postgres) or database files (SQLite) for internal use. They are all prefixed with `ponder_`. Do not modify, drop, or read from them.
 
-3. **Redeployments are nuanced**. Apps that rely on direct SQL must take care during schema migrations. For more details, see the [zero downtime deployments](#zero-downtime-deployments) guide.
+3. **Redeployments are nuanced**. Apps that rely on direct SQL must take care during schema migrations. For more details, see the [zero downtime deployments](/docs/production/zero-downtime#zero-downtime-with-direct-sql) guide.

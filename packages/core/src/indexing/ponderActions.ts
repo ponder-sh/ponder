@@ -8,6 +8,8 @@ import type {
   GetBalanceReturnType,
   GetBytecodeParameters,
   GetBytecodeReturnType,
+  GetEnsNameParameters,
+  GetEnsNameReturnType,
   GetStorageAtParameters,
   GetStorageAtReturnType,
   MulticallParameters,
@@ -64,6 +66,9 @@ export type PonderActions = {
     > &
       BlockOptions,
   ) => Promise<ReadContractReturnType<TAbi, TFunctionName>>;
+  getEnsName: (
+    args: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> & BlockOptions,
+  ) => Promise<GetEnsNameReturnType>;
 };
 
 export type ReadOnlyClient<

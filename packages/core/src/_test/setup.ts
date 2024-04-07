@@ -85,7 +85,11 @@ export async function setupIsolatedDatabase(context: TestContext) {
     await client.query(`CREATE DATABASE "${databaseName}"`);
     await client.end();
 
-    context.databaseConfig = { kind: "postgres", poolConfig };
+    context.databaseConfig = {
+      kind: "postgres",
+      poolConfig,
+      schema: "public",
+    };
 
     return async () => {};
   } else {
@@ -105,7 +109,7 @@ type DatabaseServiceSetup = Parameters<DatabaseService["setup"]>[0] & {
 };
 const defaultSchema = createSchema(() => ({}));
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
-  appId: "test",
+  buildId: "test",
   schema: defaultSchema,
   indexing: "historical",
 };
@@ -157,6 +161,7 @@ export async function setupDatabaseServices(
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     const result = await database.setup(config);

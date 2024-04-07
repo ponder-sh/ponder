@@ -43,13 +43,13 @@ export async function run({
   onReloadableError: (error: Error) => void;
 }) {
   const {
+    buildId,
     databaseConfig,
     networks,
     sources,
     schema,
     graphqlSchema,
     indexingFunctions,
-    appId,
   } = build;
 
   let database: DatabaseService;
@@ -59,7 +59,7 @@ export async function run({
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
-    const result = await database.setup({ schema, appId });
+    const result = await database.setup({ schema, buildId });
 
     indexingStore = new RealtimeIndexingStore({
       kind: "sqlite",
@@ -71,9 +71,14 @@ export async function run({
     syncStore = new SqliteSyncStore({ common, db: database.syncDb });
     await syncStore.migrateUp();
   } else {
-    const { poolConfig } = databaseConfig;
-    database = new PostgresDatabaseService({ common, poolConfig });
-    const result = await database.setup({ schema, appId });
+    const { poolConfig, schema: userNamespace, publishSchema } = databaseConfig;
+    database = new PostgresDatabaseService({
+      common,
+      poolConfig,
+      userNamespace,
+      publishSchema,
+    });
+    const result = await database.setup({ buildId, schema });
 
     indexingStore = new RealtimeIndexingStore({
       kind: "postgres",

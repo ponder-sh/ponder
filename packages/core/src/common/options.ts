@@ -22,14 +22,9 @@ export type Options = {
   telemetryIsExampleProject: boolean;
 
   logLevel: LevelWithSilent;
-  uiEnabled: boolean;
 };
 
-export const buildOptions = ({
-  cliOptions,
-}: {
-  cliOptions: CliOptions;
-}): Options => {
+export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
   let rootDir: string;
   if (cliOptions.root !== undefined) {
     rootDir = path.resolve(cliOptions.root);
@@ -38,14 +33,10 @@ export const buildOptions = ({
   }
 
   let logLevel: LevelWithSilent;
-  if (cliOptions.trace) {
+  if (cliOptions.trace === true) {
     logLevel = "trace";
-  } else if (cliOptions.v !== undefined) {
-    if (Array.isArray(cliOptions.v)) {
-      logLevel = "trace";
-    } else {
-      logLevel = "debug";
-    }
+  } else if (cliOptions.debug === true) {
+    logLevel = "debug";
   } else if (
     process.env.PONDER_LOG_LEVEL !== undefined &&
     ["silent", "fatal", "error", "warn", "info", "debug", "trace"].includes(
@@ -96,6 +87,5 @@ export const buildOptions = ({
     ),
 
     logLevel,
-    uiEnabled: true,
-  };
+  } satisfies Options;
 };

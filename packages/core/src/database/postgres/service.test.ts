@@ -45,15 +45,16 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    const { checkpoint } = await database.setup({ schema, appId: "abc" });
+    const { checkpoint } = await database.setup({ schema, buildId: "abc" });
 
     expect(checkpoint).toMatchObject(zeroCheckpoint);
 
     expect(await getTableNames(database.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -72,9 +73,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    const { checkpoint } = await database.setup({ schema, appId: "abc" });
+    const { checkpoint } = await database.setup({ schema, buildId: "abc" });
     expect(checkpoint).toMatchObject(zeroCheckpoint);
 
     await database.kill();
@@ -82,11 +84,12 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -96,11 +99,11 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       "Person",
     ]);
 
-    await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "def", "Dog"]),
       hash(["public", "def", "Apple"]),
@@ -118,14 +121,16 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
     await database.kill();
 
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await databaseTwo.db.executeQuery(
@@ -144,7 +149,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       "AnotherTable",
     ]);
 
-    await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
       "not_a_ponder_table",
@@ -157,15 +162,16 @@ describe.skipIf(shouldSkip)("postgres database", () => {
   });
 
   test.todo(
-    "setup with the same app ID and namespace reverts to and returns the finality checkpoint",
+    "setup with the same build ID and namespace reverts to and returns the finality checkpoint",
     async (context) => {
       if (context.databaseConfig.kind !== "postgres") return;
       const database = new PostgresDatabaseService({
         common: context.common,
         poolConfig: context.databaseConfig.poolConfig,
+        userNamespace: context.databaseConfig.schema,
       });
 
-      await database.setup({ schema, appId: "abc" });
+      await database.setup({ schema, buildId: "abc" });
 
       // Simulate progress being made by updating the checkpoints.
       // TODO: Actually use the indexing store.
@@ -185,11 +191,12 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       const databaseTwo = new PostgresDatabaseService({
         common: context.common,
         poolConfig: context.databaseConfig.poolConfig,
+        userNamespace: context.databaseConfig.schema,
       });
 
       const { checkpoint } = await databaseTwo.setup({
         schema: schema,
-        appId: "abc",
+        buildId: "abc",
       });
 
       expect(checkpoint).toMatchObject(newCheckpoint);
@@ -203,19 +210,21 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await expect(() =>
-      databaseTwo.setup({ schema: schemaTwo, appId: "def" }),
+      databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
     ).rejects.toThrow(
-      "Failed to acquire namespace 'public' because it is locked by a different app",
+      "Schema 'public' is in use by a different Ponder app (lock expires in",
     );
 
     await database.kill();
@@ -227,19 +236,21 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     await expect(() =>
-      databaseTwo.setup({ schema: schemaTwo, appId: "def" }),
+      databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
     ).rejects.toThrow(
-      "Failed to acquire namespace 'public' because it is locked by a different app",
+      "Schema 'public' is in use by a different Ponder app (lock expires in",
     );
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
@@ -255,7 +266,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       .where("namespace", "=", "public")
       .execute();
 
-    await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
       "Dog",
@@ -266,16 +277,40 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await databaseTwo.kill();
   });
 
+  test("setup throws if there is a table name collision", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await database.db.executeQuery(
+      sql`CREATE TABLE public."Pet" (id TEXT)`.compile(database.db),
+    );
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual(["Pet"]);
+
+    await expect(() =>
+      database.setup({ schema, buildId: "abc" }),
+    ).rejects.toThrow(
+      "Unable to create table 'public'.'Pet' because a table with that name already exists. Hint: Is there another Ponder app using the 'public' database schema?",
+    );
+
+    await database.kill();
+  });
+
   test("heartbeat updates the heartbeat_at value", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     vi.useFakeTimers();
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const row = await database.db
       .withSchema("ponder")
@@ -305,9 +340,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const row = await database.db
       .withSchema("ponder")
@@ -321,6 +357,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
     const rowAfterKill = await databaseTwo.db
@@ -340,9 +377,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
@@ -351,18 +389,18 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
     ]);
 
-    await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -378,14 +416,15 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
-  test("setup succeeds with a live app in a different namespace using the same app ID", async (context) => {
+  test("setup succeeds with a live app in a different namespace using the same build ID", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
@@ -394,18 +433,18 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
     ]);
 
-    await databaseTwo.setup({ schema: schemaTwo, appId: "abc" });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "abc" });
 
     expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -420,6 +459,99 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
     await databaseTwo.kill();
   });
+
+  test("publish succeeds if there are no name collisions", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "publish",
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.publish();
+
+    expect(await getViewNames(database.db, "publish")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.kill();
+  });
+
+  test("publish succeeds and skips creating view if there is a name collision with a table", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "publish",
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.db.schema.createSchema("publish").ifNotExists().execute();
+    await database.db.executeQuery(
+      sql`CREATE TABLE publish."Pet" (id TEXT)`.compile(database.db),
+    );
+
+    await database.publish();
+
+    expect(await getTableNames(database.db, "publish")).toStrictEqual(["Pet"]);
+    expect(await getViewNames(database.db, "publish")).toStrictEqual([
+      "Person",
+    ]);
+
+    await database.kill();
+  });
+
+  test("publish succeeds and replaces view if there is a name collision with a view", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "nice_looks-great",
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.db.schema
+      .createSchema("nice_looks-great")
+      .ifNotExists()
+      .execute();
+    await database.db.executeQuery(
+      sql`CREATE VIEW "nice_looks-great"."Pet" AS SELECT 1`.compile(
+        database.db,
+      ),
+    );
+
+    await database.publish();
+
+    expect(await getViewNames(database.db, "nice_looks-great")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.kill();
+  });
 });
 
 async function getTableNames(db: HeadlessKysely<any>, schemaName: string) {
@@ -430,6 +562,21 @@ async function getTableNames(db: HeadlessKysely<any>, schemaName: string) {
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = '${sql.raw(schemaName)}'
+      AND table_type = 'BASE TABLE'
+    `.compile(db),
+  );
+  return rows.map((r) => r.table_name);
+}
+
+async function getViewNames(db: HeadlessKysely<any>, schemaName: string) {
+  const { rows } = await db.executeQuery<{
+    table_name: string;
+  }>(
+    sql`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = '${sql.raw(schemaName)}'
+      AND table_type = 'VIEW'
     `.compile(db),
   );
   return rows.map((r) => r.table_name);
