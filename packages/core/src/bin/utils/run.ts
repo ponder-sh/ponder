@@ -117,6 +117,7 @@ export async function run({
   });
   if (result.status === "error") {
     onReloadableError(result.error);
+    // TODO(kyle) return
   }
 
   // start sync
