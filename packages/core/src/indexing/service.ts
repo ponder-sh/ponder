@@ -74,7 +74,10 @@ export type IndexingService = {
 
   // state
   isKilled: boolean;
-  eventCount: number;
+
+  eventCount: {
+    [indexingFunctionKey: string]: { [networkName: string]: number };
+  };
   firstEventCheckpoint: Checkpoint | undefined;
   lastEventCheckpoint: Checkpoint | undefined;
 
@@ -352,12 +355,24 @@ export const createIndexingService = ({
     }).extend(cachedActions);
   }
 
+  // build eventCount
+  const eventCount: IndexingService["eventCount"] = {};
+  for (const contractName of Object.keys(indexingFunctions)) {
+    for (const eventName of Object.keys(indexingFunctions[contractName])) {
+      const indexingFunctionKey = `${contractName}:${eventName}`;
+      eventCount[indexingFunctionKey] = {};
+      for (const network of networks) {
+        eventCount[indexingFunctionKey][network.name] = 0;
+      }
+    }
+  }
+
   return {
     common,
     indexingFunctions,
     indexingStore,
     isKilled: false,
-    eventCount: 0,
+    eventCount,
     firstEventCheckpoint: undefined,
     lastEventCheckpoint: undefined,
     currentEvent: {
@@ -403,7 +418,9 @@ export const processSetupEvents = async (
         )!;
 
         if (indexingService.isKilled) return { status: "killed" };
-        indexingService.eventCount++;
+        indexingService.eventCount[`${source.contractName}:setup`][
+          source.networkName
+        ]++;
 
         const result = await executeSetup(indexingService, {
           event: {
@@ -455,12 +472,16 @@ export const processEvents = async (
 
   for (let i = 0; i < events.length; i++) {
     const event = events[i];
+    const indexingFunctionKey = `${event.contractName}:${event.eventName}`;
+
     if (indexingService.isKilled) return { status: "killed" };
-    indexingService.eventCount++;
+    indexingService.eventCount[indexingFunctionKey][
+      indexingService.networkByChainId[event.chainId].name
+    ]++;
 
     indexingService.common.logger.trace({
       service: "indexing",
-      msg: `Started indexing function (event="${event.contractName}:${event.eventName}", checkpoint=${event.encodedCheckpoint})`,
+      msg: `Started indexing function (event="${indexingFunctionKey}", checkpoint=${event.encodedCheckpoint})`,
     });
 
     switch (event.type) {
@@ -475,14 +496,12 @@ export const processEvents = async (
 
     indexingService.common.logger.trace({
       service: "indexing",
-      msg: `Completed indexing function (event="${event.contractName}:${event.eventName}", checkpoint=${event.encodedCheckpoint})`,
+      msg: `Completed indexing function (event="${indexingFunctionKey}", checkpoint=${event.encodedCheckpoint})`,
     });
 
     // periodically update metrics
     if (i % 93 === 0) {
-      indexingService.common.metrics.ponder_indexing_completed_events.set(
-        indexingService.eventCount,
-      );
+      updateCompletedEvents(indexingService);
 
       indexingService.common.metrics.ponder_indexing_completed_seconds.set(
         decodeCheckpoint(event.encodedCheckpoint).blockTimestamp -
@@ -506,9 +525,7 @@ export const processEvents = async (
     );
   }
   // set completed events
-  indexingService.common.metrics.ponder_indexing_completed_events.set(
-    indexingService.eventCount,
-  );
+  updateCompletedEvents(indexingService);
 
   indexingService.common.logger.info({
     service: "indexing",
@@ -539,6 +556,21 @@ export const updateLastEventCheckpoint = (
       indexingService.lastEventCheckpoint.blockTimestamp -
         indexingService.firstEventCheckpoint.blockTimestamp,
     );
+  }
+};
+
+const updateCompletedEvents = (indexingService: IndexingService) => {
+  for (const event of Object.keys(indexingService.eventCount)) {
+    for (const network of Object.keys(indexingService.eventCount[event])) {
+      const metricLabel = {
+        event,
+        network,
+      };
+      indexingService.common.metrics.ponder_indexing_completed_events.set(
+        metricLabel,
+        indexingService.eventCount[event][network],
+      );
+    }
   }
 };
 

@@ -285,7 +285,11 @@ test("processEvents eventCount", async (context) => {
   });
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(indexingService.eventCount).toBe(2);
+  expect(indexingService.eventCount).toStrictEqual({
+    "Erc20:Transfer": {
+      mainnet: 2,
+    },
+  });
 
   await cleanup();
 });
