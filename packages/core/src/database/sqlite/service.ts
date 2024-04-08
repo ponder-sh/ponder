@@ -282,13 +282,13 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             const error = err as Error;
             if (!error.message.includes("already exists")) throw error;
             throw new Error(
-              `Unable to create table '${this.userNamespace}'.'${tableName}' because a table with that name already exists. Hint: Is there another Ponder app using the '${this.userNamespace}.db' database file?`,
+              `Unable to create table '${this.userNamespace}'.'${tableName}' because a table with that name already exists. Is there another application using the '${this.userNamespace}.db' database file?`,
             );
           }
 
-          this.common.logger.debug({
+          this.common.logger.info({
             service: "database",
-            msg: `Created '${tableName}' table`,
+            msg: `Created table '${tableName}' in '${this.userNamespace}.db'`,
           });
         }
 

@@ -348,7 +348,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await expect(() =>
       database.setup({ schema, buildId: "abc" }),
     ).rejects.toThrow(
-      "Unable to create table 'public'.'Pet' because a table with that name already exists. Hint: Is there another Ponder app using the 'public' database schema?",
+      "Unable to create table 'public'.'Pet' because a table with that name already exists. Is there another application using the 'public' database schema?",
     );
 
     await database.kill();
