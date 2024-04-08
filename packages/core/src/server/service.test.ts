@@ -53,6 +53,21 @@ test("healthy", async (context) => {
   expect(response.status).toBe(200);
 });
 
+test("healthy PUT", async (context) => {
+  const server = await createServer({
+    graphqlSchema: {} as GraphQLSchema,
+    common: {
+      ...context.common,
+      options: { ...context.common.options, maxHealthcheckDuration: 0 },
+    },
+    indexingStore: {} as IndexingStore,
+  });
+
+  const response = await server.hono.request("/health", { method: "PUT" });
+
+  expect(response.status).toBe(404);
+});
+
 test("metrics", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
@@ -78,6 +93,18 @@ test("metrics error", async (context) => {
   const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(500);
+});
+
+test("metrics PUT", async (context) => {
+  const server = await createServer({
+    graphqlSchema: {} as GraphQLSchema,
+    common: context.common,
+    indexingStore: {} as IndexingStore,
+  });
+
+  const response = await server.hono.request("/metrics", { method: "PUT" });
+
+  expect(response.status).toBe(404);
 });
 
 test("graphql", async (context) => {
@@ -175,6 +202,18 @@ test("graphql interactive", async (context) => {
   const response = await server.hono.request("/graphql");
 
   expect(response.status).toBe(200);
+});
+
+test("missing route", async (context) => {
+  const server = await createServer({
+    graphqlSchema: {} as GraphQLSchema,
+    common: context.common,
+    indexingStore: {} as IndexingStore,
+  });
+
+  const response = await server.hono.request("/kevin");
+
+  expect(response.status).toBe(404);
 });
 
 // Note that this test doesn't work because the `hono.request` method doesn't actually
