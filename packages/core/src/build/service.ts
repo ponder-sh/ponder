@@ -479,9 +479,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         }
 
         // Update source topic0 to include only registered event selectors
-        const registeredEventSelectors = Object.keys(fns).map(
-          (eventName) => source.abiEvents.bySafeName[eventName]!.selector,
-        );
+        const registeredEventSelectors = Object.keys(fns)
+          .filter((eventName) => eventName !== "setup")
+          .map((eventName) => source.abiEvents.bySafeName[eventName]!.selector);
         (source.criteria.topics ??= [])[0] = registeredEventSelectors;
       }
     }
