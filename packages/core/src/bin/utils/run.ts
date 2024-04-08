@@ -121,7 +121,16 @@ export async function run({
     if (isHealthy) return;
 
     if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
+      common.logger.info({
+        service: "indexing",
+        msg: "Completed historical indexing",
+      });
       isHealthy = true;
+
+      if (database.kind === "postgres") {
+        await database.publish();
+      }
+
       serverService.setIsHealthy(true);
       common.logger.info({ service: "server", msg: "Responding as healthy" });
     }

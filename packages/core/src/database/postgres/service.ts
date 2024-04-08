@@ -232,6 +232,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             await tx.schema
               .withSchema(this.userNamespace)
               .dropTable(tableName)
+              .cascade() // Need cascade here to drop dependent published views.
               .ifExists()
               .execute();
 
@@ -390,16 +391,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             )
             .execute();
 
-          this.common.logger.debug({
+          this.common.logger.info({
             service: "database",
             msg: `Created view '${publishSchema}'.'${tableName}' serving data from '${this.userNamespace}'.'${tableName}'`,
           });
         }
-      });
-
-      this.common.logger.debug({
-        service: "database",
-        msg: "Closed database connection pools",
       });
     });
   }

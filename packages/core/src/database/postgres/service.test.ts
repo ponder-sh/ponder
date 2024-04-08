@@ -116,6 +116,60 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await databaseTwo.kill();
   });
 
+  test("setup succeeds with a prior app that used the same publish schema", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const config = {
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "publish",
+    };
+
+    const database = new PostgresDatabaseService(config);
+    await database.setup({ schema, buildId: "abc" });
+    await database.publish();
+    await database.kill();
+
+    const databaseTwo = new PostgresDatabaseService(config);
+
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "abc", "Pet"]),
+      hash(["public", "abc", "Person"]),
+    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+    expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
+    await databaseTwo.publish();
+
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "def", "Dog"]),
+      hash(["public", "def", "Apple"]),
+    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
+      "Dog",
+      "Apple",
+    ]);
+    expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual([
+      "Dog",
+      "Apple",
+    ]);
+
+    await databaseTwo.kill();
+  });
+
   test("setup does not drop tables that are not managed by ponder", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
