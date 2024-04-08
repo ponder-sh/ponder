@@ -65,27 +65,57 @@ export class UiService {
       const completedSecondsMetric = (
         await this.common.metrics.ponder_indexing_completed_seconds.get()
       ).values;
+
       const completedEventsMetric = (
         await this.common.metrics.ponder_indexing_completed_events.get()
       ).values;
 
-      const eventNames = totalSecondsMetric.map(
-        (m) => m.labels.event as string,
-      );
+      this.ui.indexingTable = completedEventsMetric.map((m) => ({
+        eventName: m.labels.event as string,
+        networkName: m.labels.network as string,
+        count: m.value,
+        averageDuration: 0,
+        errorCount: 0,
+      }));
 
-      this.ui.indexingStats = eventNames.map((event) => {
-        const totalSeconds = totalSecondsMetric.find(
-          (m) => m.labels.event === event,
-        )?.value;
-        const completedSeconds = completedSecondsMetric.find(
-          (m) => m.labels.event === event,
-        )?.value;
-        const completedEventCount = completedEventsMetric
-          .filter((m) => m.labels.event === event)
-          .reduce((a, v) => a + v.value, 0);
+      const indexingFunctionErrorMetric = (
+        await this.common.metrics.ponder_indexing_function_error_total.get()
+      ).values;
+      for (const m of indexingFunctionErrorMetric) {
+        const row = this.ui.indexingTable.find(
+          (r) =>
+            r.eventName === m.labels.event &&
+            r.networkName === m.labels.network,
+        );
+        if (row) row.errorCount = m.value;
+      }
 
-        return { event, totalSeconds, completedSeconds, completedEventCount };
-      });
+      const indexingFunctionDurationMetric = (
+        await this.common.metrics.ponder_indexing_function_duration.get()
+      ).values;
+
+      const durationSumByEvent: Record<string, Record<string, number>> = {};
+      const durationCountByEvent: Record<string, Record<string, number>> = {};
+      for (const m of indexingFunctionDurationMetric) {
+        if (m.metricName === "ponder_indexing_function_duration_sum")
+          (durationSumByEvent[m.labels.event!] ??= {})[m.labels.network!] =
+            m.value;
+        if (m.metricName === "ponder_indexing_function_duration_count")
+          (durationCountByEvent[m.labels.event!] ??= {})[m.labels.network!] =
+            m.value;
+      }
+
+      for (const row of this.ui.indexingTable) {
+        const sum = durationSumByEvent[row.eventName]?.[row.networkName] ?? 0;
+        const count =
+          durationCountByEvent[row.eventName]?.[row.networkName] ?? 0;
+        row.averageDuration = count === 0 ? 0 : sum / count;
+      }
+
+      this.ui.indexingStats = {
+        completedSeconds: completedSecondsMetric[0]?.value ?? 0,
+        totalSeconds: totalSecondsMetric[0]?.value ?? 0,
+      };
 
       const indexingCompletedToTimestamp =
         (await this.common.metrics.ponder_indexing_completed_timestamp.get())

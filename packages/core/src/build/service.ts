@@ -43,8 +43,6 @@ export type Build = {
   graphqlSchema: GraphQLSchema;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
-  // Static analysis
-  tableAccess: TableAccess;
 };
 
 export type BuildResult =
@@ -249,7 +247,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           schema: this.schema!,
           graphqlSchema: this.graphqlSchema!,
           indexingFunctions: this.indexingFunctions!,
-          tableAccess: this.tableAccess!,
         },
       });
     };
@@ -302,7 +299,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const { databaseConfig, sources, networks } = configResult;
     const { schema, graphqlSchema } = schemaResult;
     const { indexingFunctions } = indexingFunctionsResult;
-    const { tableAccess } = parseResult;
     const { buildId } = analyzeResult;
 
     return {
@@ -315,7 +311,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         schema,
         graphqlSchema,
         indexingFunctions,
-        tableAccess,
       },
     } satisfies BuildResult;
   }
@@ -418,35 +413,76 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return { success: true } as const;
 
     for (const [sourceName, fns] of Object.entries(this.indexingFunctions)) {
+      const source = this.sources.find((s) => s.contractName === sourceName);
+      if (!source) {
+        // Multi-network contracts have N sources, but the hint here should not have duplicates.
+        const uniqueContractNames = [
+          ...new Set(this.sources.map((s) => s.contractName)),
+        ];
+        const error = new Error(
+          `Validation failed: Invalid contract name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueContractNames
+            .map((n) => `'${n}'`)
+            .join(", ")}].`,
+        );
+        return { success: false, error } as const;
+      }
+
       for (const eventName of Object.keys(fns)) {
         const eventKey = `${sourceName}:${eventName}`;
 
-        const source = this.sources.find((s) => s.contractName === sourceName);
-        if (!source) {
-          // Multi-network contracts have N sources, but the hint here should not have duplicates.
-          const uniqueContractNames = [
-            ...new Set(this.sources.map((s) => s.contractName)),
-          ];
-          const error = new Error(
-            `Validation failed: Invalid contract name for event '${eventKey}'. Got '${sourceName}', expected one of [${uniqueContractNames
-              .map((n) => `'${n}'`)
-              .join(", ")}].`,
-          );
-          return { success: false, error } as const;
-        }
+        if (eventName === "setup") continue;
 
-        const eventNames = [
-          ...Object.keys(source.abiEvents.bySafeName),
-          "setup",
-        ];
-        if (!eventNames.find((e) => e === eventName)) {
+        // Validate that the event name is found in the contract ABI.
+        if (source.abiEvents.bySafeName[eventName] === undefined) {
           const error = new Error(
-            `Validation failed: Invalid event name for event '${eventKey}'. Got '${eventName}', expected one of [${eventNames
+            `Validation failed: Event name for event '${eventKey}' not found in the contract ABI. Got '${eventName}', expected one of [${Object.keys(
+              source.abiEvents.bySafeName,
+            )
               .map((eventName) => `'${eventName}'`)
               .join(", ")}].`,
           );
           return { success: false, error } as const;
         }
+      }
+    }
+
+    // Validate source topics
+    for (const [sourceName, fns] of Object.entries(this.indexingFunctions)) {
+      for (const source of this.sources.filter(
+        (s) => s.contractName === sourceName,
+      )) {
+        for (const eventName of Object.keys(fns)) {
+          const eventKey = `${sourceName}:${eventName}`;
+
+          if (eventName === "setup") continue;
+          const filteredEventSelectors = source.criteria.topics?.[0]
+            ? Array.isArray(source.criteria.topics[0])
+              ? source.criteria.topics[0]
+              : [source.criteria.topics[0]]
+            : [];
+
+          // Validate that the selector for this event was not filtered out by the user via an event filter.
+          const eventSelector =
+            source.abiEvents.bySafeName[eventName]!.selector;
+          if (
+            filteredEventSelectors.length > 0 &&
+            !filteredEventSelectors.includes(eventSelector)
+          ) {
+            const error = new Error(
+              `Validation failed: Event '${eventKey}' is excluded by the event filter defined on the contract '${sourceName}'. Got '${eventName}', expected one of [${filteredEventSelectors
+                .map((s) => source.abiEvents.bySelector[s]!.safeName)
+                .map((eventName) => `'${eventName}'`)
+                .join(", ")}].`,
+            );
+            return { success: false, error } as const;
+          }
+        }
+
+        // Update source topic0 to include only registered event selectors
+        const registeredEventSelectors = Object.keys(fns)
+          .filter((eventName) => eventName !== "setup")
+          .map((eventName) => source.abiEvents.bySafeName[eventName]!.selector);
+        (source.criteria.topics ??= [])[0] = registeredEventSelectors;
       }
     }
 

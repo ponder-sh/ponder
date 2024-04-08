@@ -6,7 +6,14 @@ import type { DatabaseService } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
-import { IndexingService } from "@/indexing/service.js";
+import { decodeEvents } from "@/indexing/events.js";
+import {
+  createIndexingService,
+  kill,
+  processEvents,
+  processSetupEvents,
+  updateLastEventCheckpoint,
+} from "@/indexing/service.js";
 import { ServerService } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
@@ -14,8 +21,12 @@ import type { SyncStore } from "@/sync-store/store.js";
 import { SyncService } from "@/sync/service.js";
 import {
   type Checkpoint,
+  isCheckpointGreaterThan,
   isCheckpointGreaterThanOrEqualTo,
+  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { never } from "@/utils/never.js";
+import { createQueue } from "@ponder/common";
 
 /**
  * Starts the server, sync, and indexing services for the specified build.
@@ -39,19 +50,16 @@ export async function run({
     schema,
     graphqlSchema,
     indexingFunctions,
-    tableAccess,
   } = build;
 
   let database: DatabaseService;
-  let cachedToCheckpoint: Checkpoint;
   let indexingStore: IndexingStore;
   let syncStore: SyncStore;
 
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
-    const result = await database.setup({ buildId, schema });
-    cachedToCheckpoint = result.checkpoint;
+    const result = await database.setup({ schema, buildId });
 
     indexingStore = new RealtimeIndexingStore({
       kind: "sqlite",
@@ -71,7 +79,6 @@ export async function run({
       publishSchema,
     });
     const result = await database.setup({ buildId, schema });
-    cachedToCheckpoint = result.checkpoint;
 
     indexingStore = new RealtimeIndexingStore({
       kind: "postgres",
@@ -93,34 +100,75 @@ export async function run({
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = new IndexingService({
+  const indexingService = createIndexingService({
+    indexingFunctions,
     common,
     indexingStore,
     sources,
     networks,
     syncService,
+    schema,
   });
 
-  syncService.on("checkpoint", async () => {
-    await indexingService.processEvents();
+  // process setup events
+  const result = await processSetupEvents(indexingService, {
+    sources,
+    networks,
   });
+  if (result.status === "error") {
+    onReloadableError(result.error);
 
-  syncService.on("reorg", async (checkpoint) => {
-    await indexingService.handleReorg(checkpoint);
-    await indexingService.processEvents();
-  });
+    return async () => {
+      kill(indexingService);
+      await serverService.kill();
+      await syncService.kill();
+      await database.kill();
+    };
+  }
 
-  syncService.on("fatal", onFatalError);
-
-  indexingService.on("error", onReloadableError);
-
-  const finalizedCheckpoint = await syncService.start();
-
+  let checkpoint: Checkpoint = zeroCheckpoint;
   let isHealthy = false;
-  indexingService.onSerial("eventsProcessed", async ({ toCheckpoint }) => {
-    if (isHealthy) return;
 
-    if (isCheckpointGreaterThanOrEqualTo(toCheckpoint, finalizedCheckpoint)) {
+  const handleCheckpoint = async (newCheckpoint: Checkpoint) => {
+    const updateLastEventPromise = syncStore
+      .getLastEventCheckpoint({
+        sources,
+        toCheckpoint: newCheckpoint,
+      })
+      .then((lastEventCheckpoint) => {
+        if (lastEventCheckpoint !== undefined)
+          updateLastEventCheckpoint(indexingService, lastEventCheckpoint);
+      });
+
+    for await (const rawEvents of syncService.getEvents({
+      sources,
+      fromCheckpoint: checkpoint,
+      toCheckpoint: newCheckpoint,
+      limit: 5_000,
+    })) {
+      if (rawEvents.length === 0) break;
+
+      const events = decodeEvents(indexingService, rawEvents);
+      const result = await processEvents(indexingService, {
+        events,
+      });
+
+      if (result.status === "error") {
+        onReloadableError(result.error);
+        break;
+      } else if (indexingService.isKilled) {
+        break;
+      }
+    }
+
+    await updateLastEventPromise;
+
+    checkpoint = newCheckpoint;
+
+    if (
+      !isHealthy &&
+      isCheckpointGreaterThanOrEqualTo(checkpoint, finalizedCheckpoint)
+    ) {
       isHealthy = true;
 
       common.logger.info({
@@ -138,21 +186,77 @@ export async function run({
         msg: "Started responding as healthy",
       });
     }
+
+    // TODO(kyle) update per network checkpoint
+  };
+
+  const handleReorg = async (safeCheckpoint: Checkpoint) => {
+    // No-op if realtime indexing hasn't started
+    if (isCheckpointGreaterThan(finalizedCheckpoint, checkpoint)) return;
+
+    await indexingStore.revert({
+      checkpoint: safeCheckpoint,
+      isCheckpointSafe: true,
+    });
+    checkpoint = safeCheckpoint;
+    await handleCheckpoint(syncService.checkpoint);
+  };
+
+  type SyncEvent =
+    | {
+        type: "checkpoint";
+        newCheckpoint: Checkpoint;
+      }
+    | {
+        type: "reorg";
+        safeCheckpoint: Checkpoint;
+      };
+
+  const runQueue = createQueue({
+    initialStart: true,
+    browser: false,
+    concurrency: 1,
+    worker: async (syncEvent: SyncEvent) => {
+      switch (syncEvent.type) {
+        case "checkpoint":
+          await handleCheckpoint(syncEvent.newCheckpoint);
+          break;
+
+        case "reorg":
+          await handleReorg(syncEvent.safeCheckpoint);
+          break;
+
+        default:
+          never(syncEvent);
+      }
+    },
   });
 
-  await indexingService.start({
-    indexingFunctions,
-    schema,
-    tableAccess,
-    cachedToCheckpoint,
-  });
+  syncService.on("checkpoint", async (newCheckpoint) =>
+    runQueue.add({
+      type: "checkpoint",
+      newCheckpoint,
+    }),
+  );
 
-  indexingService.processEvents();
+  syncService.on("reorg", async (safeCheckpoint) =>
+    runQueue.add({
+      type: "reorg",
+      safeCheckpoint,
+    }),
+  );
+
+  syncService.on("fatal", onFatalError);
+
+  // start sync
+  const finalizedCheckpoint = await syncService.start();
 
   return async () => {
+    runQueue.pause();
+    runQueue.clear();
+    kill(indexingService);
     await serverService.kill();
     await syncService.kill();
-    await indexingService.kill();
     await database.kill();
   };
 }

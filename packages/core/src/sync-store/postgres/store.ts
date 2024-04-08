@@ -1,5 +1,13 @@
 import type { Common } from "@/common/common.js";
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import {
+  type Factory,
+  type FactoryCriteria,
+  type LogFilter,
+  type LogFilterCriteria,
+  type Source,
+  sourceIsFactory,
+  sourceIsLogFilter,
+} from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
@@ -823,277 +831,276 @@ export class PostgresSyncStore implements SyncStore {
     });
   };
 
-  async getLogEvents({
+  async *getLogEvents({
+    sources,
     fromCheckpoint,
     toCheckpoint,
     limit,
-    logFilters = undefined,
-    factories = undefined,
   }: {
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
-  } & (
-    | {
-        logFilters: {
-          id: string;
-          chainId: number;
-          criteria: LogFilterCriteria;
-          fromBlock?: number;
-          toBlock?: number;
-          eventSelector: Hex;
-        }[];
-        factories: undefined;
-      }
-    | {
-        logFilters: undefined;
-        factories: {
-          id: string;
-          chainId: number;
-          criteria: FactoryCriteria;
-          fromBlock?: number;
-          toBlock?: number;
-          eventSelector: Hex;
-        }[];
-      }
-  )) {
-    return this.db.wrap({ method: "getLogEvents" }, async () => {
-      // Get full log objects, including the eventSelector clause.
-      const [requestedLogs, lastCheckpointRows] = await Promise.all([
-        this.db
-          .selectFrom("logs")
-          .leftJoin("blocks", "blocks.hash", "logs.blockHash")
-          .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
-          .where((eb) => {
-            const logFilterCmprs =
-              logFilters?.map((logFilter) => {
-                const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+  }) {
+    let cursor = encodeCheckpoint(fromCheckpoint);
+    const encodedToCheckpoint = encodeCheckpoint(toCheckpoint);
 
-                exprs.push(eb("logs.topic0", "=", logFilter.eventSelector));
+    while (true) {
+      const events = await this.db.wrap(
+        { method: "getLogEvents" },
+        async () => {
+          // Get full log objects, including the eventSelector clause.
+          const requestedLogs = await this.db
+            .with(
+              "sources(source_id)",
+              () =>
+                sql`( values ${sql.join(
+                  sources.map((source) => sql`( ${sql.val(source.id)} )`),
+                )} )`,
+            )
+            .selectFrom("logs")
+            .leftJoin("blocks", "blocks.hash", "logs.blockHash")
+            .leftJoin(
+              "transactions",
+              "transactions.hash",
+              "logs.transactionHash",
+            )
+            .innerJoin("sources", (join) => join.onTrue())
+            .where((eb) => {
+              const logFilterCmprs = sources
+                .filter(sourceIsLogFilter)
+                .map((logFilter) => {
+                  const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+                  exprs.push(eb("source_id", "=", logFilter.id));
+                  return eb.and(exprs);
+                });
 
-                return eb.and(exprs);
-              }) ?? [];
+              const factoryCmprs = sources
+                .filter(sourceIsFactory)
+                .map((factory) => {
+                  const exprs = this.buildFactoryCmprs({ eb, factory });
+                  exprs.push(eb("source_id", "=", factory.id));
+                  return eb.and(exprs);
+                });
 
-            const factoryCmprs =
-              factories?.map((factory) => {
-                const exprs = this.buildFactoryCmprs({ eb, factory });
+              return eb.or([...logFilterCmprs, ...factoryCmprs]);
+            })
+            .select([
+              "source_id",
 
-                exprs.push(eb("logs.topic0", "=", factory.eventSelector));
+              "logs.address as log_address",
+              "logs.blockHash as log_blockHash",
+              "logs.blockNumber as log_blockNumber",
+              "logs.chainId as log_chainId",
+              "logs.data as log_data",
+              "logs.id as log_id",
+              "logs.logIndex as log_logIndex",
+              "logs.topic0 as log_topic0",
+              "logs.topic1 as log_topic1",
+              "logs.topic2 as log_topic2",
+              "logs.topic3 as log_topic3",
+              "logs.transactionHash as log_transactionHash",
+              "logs.transactionIndex as log_transactionIndex",
+              "logs.checkpoint as log_checkpoint",
 
-                return eb.and(exprs);
-              }) ?? [];
+              "blocks.baseFeePerGas as block_baseFeePerGas",
+              "blocks.difficulty as block_difficulty",
+              "blocks.extraData as block_extraData",
+              "blocks.gasLimit as block_gasLimit",
+              "blocks.gasUsed as block_gasUsed",
+              "blocks.hash as block_hash",
+              "blocks.logsBloom as block_logsBloom",
+              "blocks.miner as block_miner",
+              "blocks.mixHash as block_mixHash",
+              "blocks.nonce as block_nonce",
+              "blocks.number as block_number",
+              "blocks.parentHash as block_parentHash",
+              "blocks.receiptsRoot as block_receiptsRoot",
+              "blocks.sha3Uncles as block_sha3Uncles",
+              "blocks.size as block_size",
+              "blocks.stateRoot as block_stateRoot",
+              "blocks.timestamp as block_timestamp",
+              "blocks.totalDifficulty as block_totalDifficulty",
+              "blocks.transactionsRoot as block_transactionsRoot",
 
-            return eb.or([...logFilterCmprs, ...factoryCmprs]);
-          })
-          .select([
-            "logs.address as log_address",
-            "logs.blockHash as log_blockHash",
-            "logs.blockNumber as log_blockNumber",
-            "logs.chainId as log_chainId",
-            "logs.data as log_data",
-            "logs.id as log_id",
-            "logs.logIndex as log_logIndex",
-            "logs.topic0 as log_topic0",
-            "logs.topic1 as log_topic1",
-            "logs.topic2 as log_topic2",
-            "logs.topic3 as log_topic3",
-            "logs.transactionHash as log_transactionHash",
-            "logs.transactionIndex as log_transactionIndex",
-            "logs.checkpoint as log_checkpoint",
+              "transactions.accessList as tx_accessList",
+              "transactions.blockHash as tx_blockHash",
+              "transactions.blockNumber as tx_blockNumber",
+              "transactions.from as tx_from",
+              "transactions.gas as tx_gas",
+              "transactions.gasPrice as tx_gasPrice",
+              "transactions.hash as tx_hash",
+              "transactions.input as tx_input",
+              "transactions.maxFeePerGas as tx_maxFeePerGas",
+              "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
+              "transactions.nonce as tx_nonce",
+              "transactions.r as tx_r",
+              "transactions.s as tx_s",
+              "transactions.to as tx_to",
+              "transactions.transactionIndex as tx_transactionIndex",
+              "transactions.type as tx_type",
+              "transactions.value as tx_value",
+              "transactions.v as tx_v",
+            ])
+            .where("logs.checkpoint", ">", cursor)
+            .where("logs.checkpoint", "<=", encodedToCheckpoint)
+            .orderBy("logs.checkpoint", "asc")
+            .limit(limit + 1)
+            .execute();
 
-            "blocks.baseFeePerGas as block_baseFeePerGas",
-            "blocks.difficulty as block_difficulty",
-            "blocks.extraData as block_extraData",
-            "blocks.gasLimit as block_gasLimit",
-            "blocks.gasUsed as block_gasUsed",
-            "blocks.hash as block_hash",
-            "blocks.logsBloom as block_logsBloom",
-            "blocks.miner as block_miner",
-            "blocks.mixHash as block_mixHash",
-            "blocks.nonce as block_nonce",
-            "blocks.number as block_number",
-            "blocks.parentHash as block_parentHash",
-            "blocks.receiptsRoot as block_receiptsRoot",
-            "blocks.sha3Uncles as block_sha3Uncles",
-            "blocks.size as block_size",
-            "blocks.stateRoot as block_stateRoot",
-            "blocks.timestamp as block_timestamp",
-            "blocks.totalDifficulty as block_totalDifficulty",
-            "blocks.transactionsRoot as block_transactionsRoot",
+          return requestedLogs.map((_row) => {
+            // Without this cast, the block_ and tx_ fields are all nullable
+            // which makes this very annoying. Should probably add a runtime check
+            // that those fields are indeed present before continuing here.
+            const row = _row as NonNull<(typeof requestedLogs)[number]>;
 
-            "transactions.accessList as tx_accessList",
-            "transactions.blockHash as tx_blockHash",
-            "transactions.blockNumber as tx_blockNumber",
-            "transactions.from as tx_from",
-            "transactions.gas as tx_gas",
-            "transactions.gasPrice as tx_gasPrice",
-            "transactions.hash as tx_hash",
-            "transactions.input as tx_input",
-            "transactions.maxFeePerGas as tx_maxFeePerGas",
-            "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
-            "transactions.nonce as tx_nonce",
-            "transactions.r as tx_r",
-            "transactions.s as tx_s",
-            "transactions.to as tx_to",
-            "transactions.transactionIndex as tx_transactionIndex",
-            "transactions.type as tx_type",
-            "transactions.value as tx_value",
-            "transactions.v as tx_v",
-          ])
-          .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
-          .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
-          .orderBy("logs.checkpoint", "asc")
-          .limit(limit + 1)
-          .execute(),
-
-        this.db
-          .selectFrom("logs")
-          .leftJoin("blocks", "blocks.hash", "logs.blockHash")
-          .select(["logs.checkpoint"])
-          .where((eb) => {
-            const logFilterCmprs =
-              logFilters?.map((logFilter) => {
-                const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-
-                exprs.push(eb("logs.topic0", "=", logFilter.eventSelector));
-
-                return eb.and(exprs);
-              }) ?? [];
-
-            const factoryCmprs =
-              factories?.map((factory) => {
-                const exprs = this.buildFactoryCmprs({ eb, factory });
-                exprs.push(eb("logs.topic0", "=", factory.eventSelector));
-
-                return eb.and(exprs);
-              }) ?? [];
-
-            return eb.or([...logFilterCmprs, ...factoryCmprs]);
-          })
-          .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
-          .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
-          .orderBy("logs.checkpoint", "desc")
-          .limit(1)
-          .execute(),
-      ]);
-
-      const events = requestedLogs.map((_row) => {
-        // Without this cast, the block_ and tx_ fields are all nullable
-        // which makes this very annoying. Should probably add a runtime check
-        // that those fields are indeed present before continuing here.
-        const row = _row as NonNull<(typeof requestedLogs)[number]>;
-
-        return {
-          chainId: row.log_chainId,
-          checkpoint: decodeCheckpoint(row.log_checkpoint),
-          log: {
-            address: checksumAddress(row.log_address),
-            blockHash: row.log_blockHash,
-            blockNumber: row.log_blockNumber,
-            data: row.log_data,
-            id: row.log_id as Log["id"],
-            logIndex: Number(row.log_logIndex),
-            removed: false,
-            topics: [
-              row.log_topic0,
-              row.log_topic1,
-              row.log_topic2,
-              row.log_topic3,
-            ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
-            transactionHash: row.log_transactionHash,
-            transactionIndex: Number(row.log_transactionIndex),
-          },
-          block: {
-            baseFeePerGas: row.block_baseFeePerGas,
-            difficulty: row.block_difficulty,
-            extraData: row.block_extraData,
-            gasLimit: row.block_gasLimit,
-            gasUsed: row.block_gasUsed,
-            hash: row.block_hash,
-            logsBloom: row.block_logsBloom,
-            miner: checksumAddress(row.block_miner),
-            mixHash: row.block_mixHash,
-            nonce: row.block_nonce,
-            number: row.block_number,
-            parentHash: row.block_parentHash,
-            receiptsRoot: row.block_receiptsRoot,
-            sha3Uncles: row.block_sha3Uncles,
-            size: row.block_size,
-            stateRoot: row.block_stateRoot,
-            timestamp: row.block_timestamp,
-            totalDifficulty: row.block_totalDifficulty,
-            transactionsRoot: row.block_transactionsRoot,
-          },
-          transaction: {
-            blockHash: row.tx_blockHash,
-            blockNumber: row.tx_blockNumber,
-            from: checksumAddress(row.tx_from),
-            gas: row.tx_gas,
-            hash: row.tx_hash,
-            input: row.tx_input,
-            nonce: Number(row.tx_nonce),
-            r: row.tx_r,
-            s: row.tx_s,
-            to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
-            transactionIndex: Number(row.tx_transactionIndex),
-            value: row.tx_value,
-            v: row.tx_v,
-            ...(row.tx_type === "0x0"
-              ? { type: "legacy", gasPrice: row.tx_gasPrice }
-              : row.tx_type === "0x1"
-                ? {
-                    type: "eip2930",
-                    gasPrice: row.tx_gasPrice,
-                    accessList: JSON.parse(row.tx_accessList),
-                  }
-                : row.tx_type === "0x2"
-                  ? {
-                      type: "eip1559",
-                      maxFeePerGas: row.tx_maxFeePerGas,
-                      maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
-                    }
-                  : row.tx_type === "0x7e"
+            return {
+              sourceId: row.source_id,
+              chainId: row.log_chainId,
+              encodedCheckpoint: row.log_checkpoint,
+              log: {
+                address: checksumAddress(row.log_address),
+                blockHash: row.log_blockHash,
+                blockNumber: row.log_blockNumber,
+                data: row.log_data,
+                id: row.log_id as Log["id"],
+                logIndex: Number(row.log_logIndex),
+                removed: false,
+                topics: [
+                  row.log_topic0,
+                  row.log_topic1,
+                  row.log_topic2,
+                  row.log_topic3,
+                ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
+                transactionHash: row.log_transactionHash,
+                transactionIndex: Number(row.log_transactionIndex),
+              },
+              block: {
+                baseFeePerGas: row.block_baseFeePerGas,
+                difficulty: row.block_difficulty,
+                extraData: row.block_extraData,
+                gasLimit: row.block_gasLimit,
+                gasUsed: row.block_gasUsed,
+                hash: row.block_hash,
+                logsBloom: row.block_logsBloom,
+                miner: checksumAddress(row.block_miner),
+                mixHash: row.block_mixHash,
+                nonce: row.block_nonce,
+                number: row.block_number,
+                parentHash: row.block_parentHash,
+                receiptsRoot: row.block_receiptsRoot,
+                sha3Uncles: row.block_sha3Uncles,
+                size: row.block_size,
+                stateRoot: row.block_stateRoot,
+                timestamp: row.block_timestamp,
+                totalDifficulty: row.block_totalDifficulty,
+                transactionsRoot: row.block_transactionsRoot,
+              },
+              transaction: {
+                blockHash: row.tx_blockHash,
+                blockNumber: row.tx_blockNumber,
+                from: checksumAddress(row.tx_from),
+                gas: row.tx_gas,
+                hash: row.tx_hash,
+                input: row.tx_input,
+                nonce: Number(row.tx_nonce),
+                r: row.tx_r,
+                s: row.tx_s,
+                to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
+                transactionIndex: Number(row.tx_transactionIndex),
+                value: row.tx_value,
+                v: row.tx_v,
+                ...(row.tx_type === "0x0"
+                  ? { type: "legacy", gasPrice: row.tx_gasPrice }
+                  : row.tx_type === "0x1"
                     ? {
-                        type: "deposit",
-                        maxFeePerGas: row.tx_maxFeePerGas ?? undefined,
-                        maxPriorityFeePerGas:
-                          row.tx_maxPriorityFeePerGas ?? undefined,
+                        type: "eip2930",
+                        gasPrice: row.tx_gasPrice,
+                        accessList: JSON.parse(row.tx_accessList),
                       }
-                    : { type: row.tx_type }),
-          },
-        } satisfies {
-          chainId: number;
-          log: Log;
-          block: Block;
-          transaction: Transaction;
-          checkpoint: Checkpoint;
-        };
-      });
+                    : row.tx_type === "0x2"
+                      ? {
+                          type: "eip1559",
+                          maxFeePerGas: row.tx_maxFeePerGas,
+                          maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
+                        }
+                      : row.tx_type === "0x7e"
+                        ? {
+                            type: "deposit",
+                            maxFeePerGas: row.tx_maxFeePerGas ?? undefined,
+                            maxPriorityFeePerGas:
+                              row.tx_maxPriorityFeePerGas ?? undefined,
+                          }
+                        : { type: row.tx_type }),
+              },
+            } satisfies {
+              chainId: number;
+              sourceId: string;
+              log: Log;
+              block: Block;
+              transaction: Transaction;
+              encodedCheckpoint: string;
+            };
+          });
+        },
+      );
 
-      const lastCheckpointRow = lastCheckpointRows[0];
-      const lastCheckpoint =
-        lastCheckpointRow?.checkpoint !== undefined
-          ? decodeCheckpoint(lastCheckpointRow.checkpoint)
-          : undefined;
+      const hasNextPage = events.length === limit + 1;
 
-      if (events.length === limit + 1) {
-        events.pop();
-
-        const lastEventInPage = events[events.length - 1];
-        return {
-          events,
-          hasNextPage: true,
-          lastCheckpointInPage: lastEventInPage.checkpoint,
-          lastCheckpoint,
-        } as const;
+      if (!hasNextPage) {
+        yield events;
+        break;
       } else {
-        return {
-          events,
-          hasNextPage: false,
-          lastCheckpointInPage: undefined,
-          lastCheckpoint,
-        } as const;
+        events.pop();
+        cursor = events[events.length - 1].encodedCheckpoint;
+        yield events;
       }
+    }
+  }
+
+  async getLastEventCheckpoint({
+    sources,
+    toCheckpoint,
+  }: {
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
+    toCheckpoint: Checkpoint;
+  }): Promise<Checkpoint | undefined> {
+    return this.db.wrap({ method: "getLastEventCheckpoint" }, async () => {
+      const checkpoint = await this.db
+        .selectFrom("logs")
+        .where((eb) => {
+          const logFilterCmprs = sources
+            .filter(sourceIsLogFilter)
+            .map((logFilter) => {
+              const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+              return eb.and(exprs);
+            });
+
+          const factoryCmprs = sources
+            .filter(sourceIsFactory)
+            .map((factory) => {
+              const exprs = this.buildFactoryCmprs({ eb, factory });
+              return eb.and(exprs);
+            });
+
+          return eb.or([...logFilterCmprs, ...factoryCmprs]);
+        })
+        .select("checkpoint")
+        .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
+        .orderBy("logs.checkpoint", "desc")
+        .executeTakeFirst();
+
+      return checkpoint
+        ? checkpoint.checkpoint
+          ? decodeCheckpoint(checkpoint.checkpoint)
+          : undefined
+        : undefined;
     });
   }
 
@@ -1102,13 +1109,7 @@ export class PostgresSyncStore implements SyncStore {
     logFilter,
   }: {
     eb: ExpressionBuilder<any, any>;
-    logFilter: {
-      id: string;
-      chainId: number;
-      criteria: LogFilterCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    };
+    logFilter: LogFilter;
   }) => {
     const exprs = [];
 
@@ -1149,10 +1150,10 @@ export class PostgresSyncStore implements SyncStore {
       }
     }
 
-    if (logFilter.fromBlock)
-      exprs.push(eb("blocks.number", ">=", BigInt(logFilter.fromBlock)));
-    if (logFilter.toBlock)
-      exprs.push(eb("blocks.number", "<=", BigInt(logFilter.toBlock)));
+    if (logFilter.startBlock !== undefined && logFilter.startBlock !== 0)
+      exprs.push(eb("logs.blockNumber", ">=", BigInt(logFilter.startBlock)));
+    if (logFilter.endBlock)
+      exprs.push(eb("logs.blockNumber", "<=", BigInt(logFilter.endBlock)));
 
     return exprs;
   };
@@ -1162,13 +1163,7 @@ export class PostgresSyncStore implements SyncStore {
     factory,
   }: {
     eb: ExpressionBuilder<any, any>;
-    factory: {
-      id: string;
-      chainId: number;
-      criteria: FactoryCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    };
+    factory: Factory;
   }) => {
     const exprs = [];
 
@@ -1198,10 +1193,10 @@ export class PostgresSyncStore implements SyncStore {
       ),
     );
 
-    if (factory.fromBlock)
-      exprs.push(eb("blocks.number", ">=", BigInt(factory.fromBlock)));
-    if (factory.toBlock)
-      exprs.push(eb("blocks.number", "<=", BigInt(factory.toBlock)));
+    if (factory.startBlock !== undefined && factory.startBlock !== 0)
+      exprs.push(eb("logs.blockNumber", ">=", BigInt(factory.startBlock)));
+    if (factory.endBlock)
+      exprs.push(eb("logs.blockNumber", "<=", BigInt(factory.endBlock)));
 
     return exprs;
   };

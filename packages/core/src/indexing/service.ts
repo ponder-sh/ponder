@@ -1,1187 +1,547 @@
 import type { IndexingFunctions } from "@/build/functions/functions.js";
-import {
-  type TableAccess,
-  getTableAccessInverse,
-  isReadStoreMethod,
-  isWriteStoreMethod,
-} from "@/build/static/getTableAccess.js";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
-import {
-  type Source,
-  sourceIsFactory,
-  sourceIsLogFilter,
-} from "@/config/sources.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
+import { type Source } from "@/config/sources.js";
+import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";
-import type { Block, Log, Transaction } from "@/types/eth.js";
-import type { StoreMethod } from "@/types/model.js";
+import type { DatabaseModel } from "@/types/model.js";
 import {
   type Checkpoint,
-  checkpointMax,
-  checkpointMin,
-  isCheckpointEqual,
-  isCheckpointGreaterThan,
-  isCheckpointGreaterThanOrEqualTo,
+  decodeCheckpoint,
+  encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { Emittery } from "@/utils/emittery.js";
-import { formatPercentage } from "@/utils/format.js";
 import { prettyPrint } from "@/utils/print.js";
-import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
-import { dedupe } from "@ponder/common";
-import type { AbiEvent } from "abitype";
-import { E_CANCELED, Mutex } from "async-mutex";
-import { type Hex, decodeEventLog } from "viem";
+import type { Abi, Address } from "viem";
+import { checksumAddress, createClient } from "viem";
+import type { Event, LogEvent, SetupEvent } from "./events.js";
 import {
-  type Context,
-  buildClient,
-  buildContracts,
+  type ReadOnlyClient,
+  buildCachedActions,
   buildDb,
-  buildNetwork,
-} from "./context.js";
+} from "./ponderActions.js";
 import { addUserStackTrace } from "./trace.js";
 
-type IndexingEvents = {
-  eventsProcessed: { toCheckpoint: Checkpoint };
-  error: Error;
+export type Context = {
+  network: { chainId: number; name: string };
+  client: ReadOnlyClient;
+  db: Record<string, DatabaseModel<Row>>;
+  contracts: Record<
+    string,
+    {
+      abi: Abi;
+      address?: Address | readonly Address[];
+      startBlock: number;
+      endBlock?: number;
+      maxBlockRange?: number;
+    }
+  >;
 };
 
-type SetupTask = {
-  kind: "SETUP";
-  data: {
-    networkName: string;
-    contractName: string;
-    checkpoint: Checkpoint;
+export type IndexingService = {
+  // static
+  common: Common;
+  indexingFunctions: IndexingFunctions;
+  indexingStore: IndexingStore;
+
+  // state
+  isKilled: boolean;
+
+  eventCount: {
+    [indexingFunctionKey: string]: { [networkName: string]: number };
   };
-};
-type LogEventTask = {
-  kind: "LOG";
-  data: {
-    networkName: string;
-    contractName: string;
-    eventName: string;
-    event: {
-      args: any;
-      log: Log;
-      block: Block;
-      transaction: Transaction;
+  firstEventCheckpoint: Checkpoint | undefined;
+  lastEventCheckpoint: Checkpoint | undefined;
+
+  /**
+   * Reduce memory usage by reserving space for objects ahead of time
+   * instead of creating a new one for each event.
+   */
+  currentEvent: {
+    contextState: {
+      encodedCheckpoint: string;
+      blockNumber: bigint;
     };
-    checkpoint: Checkpoint;
-    endCheckpoint?: Checkpoint;
-    eventsProcessed?: number;
+    context: Context;
   };
+
+  // static cache
+  networkByChainId: { [chainId: number]: Network };
+  sourceById: { [sourceId: string]: Source };
+  clientByChainId: { [chainId: number]: Context["client"] };
+  contractsByChainId: { [chainId: number]: Context["contracts"] };
 };
 
-type IndexingFunctionTask = SetupTask | LogEventTask;
-type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
+export const createIndexingService = ({
+  indexingFunctions,
+  common,
+  sources,
+  networks,
+  syncService,
+  indexingStore,
+  schema,
+}: {
+  indexingFunctions: IndexingFunctions;
+  common: Common;
+  sources: Source[];
+  networks: Network[];
+  syncService: SyncService;
+  indexingStore: IndexingStore;
+  schema: Schema;
+}): IndexingService => {
+  const contextState: IndexingService["currentEvent"]["contextState"] = {
+    encodedCheckpoint: undefined!,
+    blockNumber: undefined!,
+  };
+  const clientByChainId: IndexingService["clientByChainId"] = {};
+  const contractsByChainId: IndexingService["contractsByChainId"] = {};
 
-const MAX_BATCH_SIZE = 10_000;
+  const networkByChainId = networks.reduce<IndexingService["networkByChainId"]>(
+    (acc, cur) => {
+      acc[cur.chainId] = cur;
+      return acc;
+    },
+    {},
+  );
+  const sourceById = sources.reduce<IndexingService["sourceById"]>(
+    (acc, cur) => {
+      acc[cur.id] = cur;
+      return acc;
+    },
+    {},
+  );
 
-export class IndexingService extends Emittery<IndexingEvents> {
-  private common: Common;
-  private indexingStore: IndexingStore;
-  // private database: DatabaseService;
-  private syncService: SyncService;
-  private sources: Source[];
-  private networks: Network[];
+  // build contractsByChainId
+  for (const source of sources) {
+    const address =
+      typeof source.criteria.address === "string"
+        ? source.criteria.address
+        : undefined;
 
-  private isPaused = false;
-
-  private indexingFunctions?: IndexingFunctions;
-  private schema?: Schema;
-  private tableAccess?: TableAccess;
-
-  queue?: IndexingFunctionQueue;
-
-  private getNetwork: (checkpoint: Checkpoint) => Context["network"] =
-    undefined!;
-  private getClient: (checkpoint: Checkpoint) => Context["client"] = undefined!;
-  private getDb: ReturnType<typeof buildDb> = undefined!;
-  private getContracts: (checkpoint: Checkpoint) => Context["contracts"] =
-    undefined!;
-
-  private isSetupStarted;
-
-  private setupFunctionStates: Record<
-    /* Indexing function key: "{ContractName}:setup */
-    string,
-    {
-      contractName: string;
-      isComplete: boolean;
+    if (contractsByChainId[source.chainId] === undefined) {
+      contractsByChainId[source.chainId] = {};
     }
-  > = {};
 
-  /* Mutex ensuring tasks are not loaded twice. */
-  private loadingMutex: Mutex;
-
-  private indexingFunctionStates: Record<
-    /* Indexing function key: "{ContractName}:{EventName}" */
-    string,
-    {
-      contractName: string;
-      eventName: string;
-      /* Indexing function keys that write to tables that this indexing function key reads from. */
-      parents: string[];
-      /* True if this key is a parent of itself. */
-      isSelfDependent: boolean;
-      /* Sources that contribute to this indexing function. */
-      sources: Source[];
-      abiEvent: AbiEvent;
-      eventSelector: Hex;
-
-      /* Checkpoint of max completed task. */
-      tasksProcessedToCheckpoint: Checkpoint;
-      /* Checkpoint of the least recent task loaded from db. */
-      tasksLoadedFromCheckpoint: Checkpoint;
-      /* Checkpoint of the most recent task loaded from db. */
-      tasksLoadedToCheckpoint: Checkpoint;
-      /* Buffer of in memory tasks that haven't been enqueued yet. */
-      loadedTasks: LogEventTask[];
-      /* Checkpoint of the first loaded event (for metrics). */
-      firstEventCheckpoint?: Checkpoint;
-      /* Checkpoint of the last loaded event (for metrics). */
-      lastEventCheckpoint?: Checkpoint;
-
-      eventCount: number;
-    }
-  > = {};
-
-  private sourceById: { [sourceId: Source["id"]]: Source } = {};
-
-  constructor({
-    common,
-    syncService,
-    indexingStore,
-    networks,
-    sources,
-  }: {
-    common: Common;
-    syncService: SyncService;
-    indexingStore: IndexingStore;
-    networks: Network[];
-    sources: Source[];
-  }) {
-    super();
-    this.common = common;
-    this.indexingStore = indexingStore;
-    this.syncService = syncService;
-    this.sources = sources;
-    this.networks = networks;
-
-    this.isSetupStarted = false;
-
-    this.buildSourceById();
-
-    this.getNetwork = buildNetwork({ networks });
-    this.getClient = buildClient({ networks, syncService });
-    this.getContracts = buildContracts({ sources });
-
-    this.loadingMutex = new Mutex();
+    contractsByChainId[source.chainId][source.contractName] = {
+      abi: source.abi,
+      address: address ? checksumAddress(address) : address,
+      startBlock: source.startBlock,
+      endBlock: source.endBlock,
+      maxBlockRange: source.maxBlockRange,
+    };
   }
 
-  kill = async () => {
-    this.clearListeners();
-    this.isPaused = true;
+  // build db
+  const db = buildDb({ common, schema, indexingStore, contextState });
 
-    this.queue?.pause();
-    this.queue?.clear();
-    this.loadingMutex.cancel();
+  // build cachedActions
+  const cachedActions = buildCachedActions(contextState);
 
-    await this.onIdle();
+  // build clientByChainId
+  for (const network of networks) {
+    const transport = syncService.getCachedTransport(network.chainId);
+    clientByChainId[network.chainId] = createClient({
+      transport,
+      chain: network.chain,
+    }).extend(cachedActions);
+  }
 
-    this.common.logger.debug({
-      service: "indexing",
-      msg: "Killed indexing service",
-    });
-  };
+  // build eventCount
+  const eventCount: IndexingService["eventCount"] = {};
+  for (const contractName of Object.keys(indexingFunctions)) {
+    for (const eventName of Object.keys(indexingFunctions[contractName])) {
+      const indexingFunctionKey = `${contractName}:${eventName}`;
+      eventCount[indexingFunctionKey] = {};
+      for (const network of networks) {
+        eventCount[indexingFunctionKey][network.name] = 0;
+      }
+    }
+  }
 
-  onIdle = () => this.queue!.onIdle();
-
-  /**
-   * Registers a new set of indexing functions, schema, or table accesss, cancels
-   * the database mutexes & event queue, and rebuilds the indexing function map state.
-   *
-   * Note: Caller should (probably) call processEvents shortly after this method.
-   */
-  start = async ({
+  return {
+    common,
     indexingFunctions,
-    schema,
-    tableAccess,
-    cachedToCheckpoint,
+    indexingStore,
+    isKilled: false,
+    eventCount,
+    firstEventCheckpoint: undefined,
+    lastEventCheckpoint: undefined,
+    currentEvent: {
+      contextState,
+      context: {
+        network: { name: undefined!, chainId: undefined! },
+        contracts: undefined!,
+        client: undefined!,
+        db,
+      },
+    },
+    networkByChainId,
+    sourceById,
+    clientByChainId,
+    contractsByChainId,
+  };
+};
+
+export const processSetupEvents = async (
+  indexingService: IndexingService,
+  {
+    sources,
+    networks,
   }: {
-    indexingFunctions: IndexingFunctions;
-    schema: Schema;
-    tableAccess: TableAccess;
-    cachedToCheckpoint: Checkpoint;
-  }) => {
-    this.schema = schema;
-    this.indexingFunctions = indexingFunctions;
-    this.tableAccess = tableAccess;
+    sources: Source[];
+    networks: Network[];
+  },
+): Promise<
+  | { status: "error"; error: Error }
+  | { status: "success" }
+  | { status: "killed" }
+> => {
+  for (const contractName of Object.keys(indexingService.indexingFunctions)) {
+    for (const eventName of Object.keys(
+      indexingService.indexingFunctions[contractName],
+    )) {
+      if (eventName !== "setup") continue;
 
-    this.getDb = buildDb({
-      common: this.common,
-      indexingStore: this.indexingStore,
-      schema: this.schema,
-    });
-
-    for (const contractName of Object.keys(this.indexingFunctions)) {
-      // Not sure why this is necessary
-      // @ts-ignore
-      for (const eventName of Object.keys(
-        this.indexingFunctions[contractName],
-      )) {
-        const indexingFunctionKey = `${contractName}:${eventName}`;
-
-        if (eventName === "setup") {
-          this.setupFunctionStates[indexingFunctionKey] = {
-            contractName,
-            isComplete: false,
-          };
-          continue;
-        }
-
-        // All tables that this indexing function key reads
-        const tableReads = this.tableAccess[indexingFunctionKey]?.access
-          ?.filter((t) => isReadStoreMethod(t.storeMethod))
-          .map((t) => t.tableName);
-
-        // All indexing function keys that write to a table in `tableReads`
-        // except for itself.
-        const parents: string[] = [];
-        const inverseTableAccess = getTableAccessInverse(this.tableAccess);
-        for (const tableName of tableReads) {
-          for (const {
-            indexingFunctionKey: parentIndexingFunctionKey,
-            storeMethod,
-          } of inverseTableAccess[tableName]) {
-            if (
-              !parentIndexingFunctionKey.includes(":setup") &&
-              isWriteStoreMethod(storeMethod) &&
-              parentIndexingFunctionKey !== indexingFunctionKey
-            )
-              parents.push(parentIndexingFunctionKey);
-          }
-        }
-
-        const isSelfDependent = this.tableAccess[
-          indexingFunctionKey
-        ]?.access?.some(
-          (t) =>
-            isWriteStoreMethod(t.storeMethod) &&
-            tableReads.includes(t.tableName),
-        );
-
-        const keySources = this.sources.filter(
-          (s) => s.contractName === contractName,
-        );
-
-        // Note: Assumption is that all sources with the same contract name have the same abi.
-        const i = this.sources.findIndex(
-          (s) =>
-            s.contractName === contractName &&
-            s.abiEvents.bySafeName[eventName] !== undefined,
-        );
-
-        const abiEvent = this.sources[i].abiEvents.bySafeName[eventName]!.item;
-        const eventSelector =
-          this.sources[i].abiEvents.bySafeName[eventName]!.selector;
-
-        this.common.logger.debug({
-          service: "indexing",
-          msg: `Registered indexing function "${indexingFunctionKey}" with table access [${
-            this.tableAccess[indexingFunctionKey]?.access
-              ?.map(
-                ({ storeMethod, tableName }) => `${tableName}.${storeMethod}()`,
-              )
-              ?.join(", ") ?? ""
-          }]`,
-        });
-
-        this.indexingFunctionStates[indexingFunctionKey] = {
-          eventName,
-          contractName,
-          parents: dedupe(parents),
-          isSelfDependent,
-          sources: keySources,
-          abiEvent,
-          eventSelector,
-
-          tasksProcessedToCheckpoint: cachedToCheckpoint,
-          tasksLoadedFromCheckpoint: cachedToCheckpoint,
-          tasksLoadedToCheckpoint: cachedToCheckpoint,
-          firstEventCheckpoint: undefined,
-          loadedTasks: [],
-          eventCount: 0,
-        };
-      }
-    }
-
-    this.createEventQueue();
-  };
-
-  /**
-   * Processes all newly available events.
-   */
-  processEvents = async () => {
-    if (
-      Object.keys(this.indexingFunctionStates).length === 0 ||
-      this.queue === undefined ||
-      this.isPaused
-    )
-      return;
-
-    // Only enqueue setup tasks if no checkpoints have been advanced.
-    if (!this.isSetupStarted) {
-      this.isSetupStarted = true;
-      this.enqueueSetupTasks();
-    }
-
-    // Mark setup functions as complete
-    for (const setupKey of Object.keys(this.setupFunctionStates)) {
-      this.setupFunctionStates[setupKey].isComplete = true;
-    }
-
-    this.queue!.start();
-    await this.queue.onIdle();
-
-    if (isCheckpointEqual(this.syncService.checkpoint, zeroCheckpoint)) {
-      return;
-    }
-
-    await this.loadingMutex.runExclusive(async () => {
-      const loadKeys = this.getLoadKeys();
-
-      await Promise.all(
-        loadKeys.map((key) => this.loadIndexingFunctionTasks(key)),
-      );
-    });
-
-    this.enqueueLogEventTasks();
-
-    await this.queue.onIdle();
-  };
-
-  /**
-   * This method is triggered by the realtime sync service detecting a reorg,
-   * which can happen at any time. The event queue and the indexing store can be
-   * in one of several different states that we need to keep in mind:
-   *
-   * 1) No events have been added to the queue yet.
-   * 2) No unsafe events have been processed (checkpoint <= safeCheckpoint).
-   * 3) Unsafe events may have been processed (checkpoint > safeCheckpoint).
-   * 4) The queue has encountered a user error and is waiting for a reload.
-   *
-   * Note: It's crucial that we acquire all mutex locks while handling the reorg.
-   * This will only ever run while the queue is idle, so we can be confident
-   * that checkpoint matches the current state of the indexing store,
-   * and that no unsafe events will get processed after handling the reorg.
-   *
-   * Note: Caller should (probably) immediately call processEvents after this method.
-   */
-  handleReorg = async (safeCheckpoint: Checkpoint) => {
-    await this.loadingMutex.runExclusive(async () => {
-      try {
-        const hasProcessedInvalidEvents = Object.values(
-          this.indexingFunctionStates,
-        ).some((state) =>
-          isCheckpointGreaterThan(
-            state.tasksProcessedToCheckpoint,
-            safeCheckpoint,
-          ),
-        );
-
-        if (!hasProcessedInvalidEvents) {
-          // No unsafe events have been processed, so no need to revert (case 1 & case 2).
-          this.common.logger.debug({
-            service: "indexing",
-            msg: "No unsafe events were detected while reconciling a reorg, no-op",
-          });
-          return;
-        }
-
-        // Unsafe events have been processed, must revert the indexing store and update
-        // eventsProcessedToTimestamp accordingly (case 3).
-        await this.indexingStore.revert({ checkpoint: safeCheckpoint });
-
-        this.common.metrics.ponder_indexing_completed_timestamp.set(
-          safeCheckpoint.blockTimestamp,
-        );
-
-        // Note: There's currently no way to know how many events are "thrown out"
-        // during the reorg reconciliation, so the event count metrics
-        // (e.g. ponder_indexing_processed_events) will be slightly inflated.
-
-        this.common.logger.debug({
-          service: "indexing",
-          msg: `Reverted indexing store to safe timestamp ${safeCheckpoint.blockTimestamp}`,
-        });
-
-        for (const state of Object.values(this.indexingFunctionStates)) {
-          if (
-            isCheckpointGreaterThan(
-              state.tasksProcessedToCheckpoint,
-              safeCheckpoint,
-            )
-          ) {
-            state.tasksProcessedToCheckpoint = safeCheckpoint;
-          }
-          if (
-            isCheckpointGreaterThan(
-              state.tasksLoadedFromCheckpoint,
-              safeCheckpoint,
-            )
-          ) {
-            state.tasksLoadedFromCheckpoint = safeCheckpoint;
-          }
-          if (
-            isCheckpointGreaterThan(
-              state.tasksLoadedToCheckpoint,
-              safeCheckpoint,
-            )
-          ) {
-            state.tasksLoadedToCheckpoint = safeCheckpoint;
-          }
-        }
-      } catch (error) {
-        // Pending locks get cancelled in reset(). This is expected, so it's safe to
-        // ignore the error that is thrown when a pending lock is cancelled.
-        if (error !== E_CANCELED) throw error;
-      }
-    });
-  };
-
-  /**
-   * Adds "setup" tasks to the queue for all chains if the indexing function is defined.
-   */
-  enqueueSetupTasks = () => {
-    for (const contractName of Object.keys(this.indexingFunctions!)) {
-      if (this.indexingFunctions![contractName].setup === undefined) continue;
-
-      if (this.setupFunctionStates[`${contractName}:setup`].isComplete)
-        continue;
-
-      for (const network of this.networks) {
-        const source = this.sources.find(
+      for (const network of networks) {
+        const source = sources.find(
           (s) =>
             s.contractName === contractName && s.chainId === network.chainId,
         )!;
 
-        // The "setup" event uses the contract start block number for contract calls.
-        // TODO: Consider implications of this "synthetic" checkpoint on record versioning.
-        const checkpoint = {
-          ...zeroCheckpoint,
-          chainId: network.chainId,
-          blockNumber: source.startBlock,
-        };
+        if (indexingService.isKilled) return { status: "killed" };
+        indexingService.eventCount[`${source.contractName}:setup`][
+          source.networkName
+        ]++;
 
-        this.queue!.addTask({
-          kind: "SETUP",
-          data: {
-            networkName: network.name,
-            contractName,
-            checkpoint,
-          },
-        });
-      }
-    }
-  };
-
-  /**
-   * Implements the core concurrency engine, responsible for ordering tasks.
-   * There are several cases to consider and optimize:
-   *
-   * 1) A task is only dependent on itself, should be run serially.
-   * 2) A task is not dependent, can be run entirely concurrently.
-   * 3) A task is dependent on a combination of parents and itself,
-   *    should be run serially.
-   * 4) A task is dependent on parents, and should onlybe run when
-   *    all previous dependent tasks are complete.
-   */
-  enqueueLogEventTasks = () => {
-    if (this.isPaused) return;
-
-    for (const key of Object.keys(this.indexingFunctionStates)) {
-      const state = this.indexingFunctionStates[key];
-      const tasks = state.loadedTasks;
-
-      if (tasks.length === 0) continue;
-
-      if (
-        state.parents.length === 0 &&
-        state.isSelfDependent &&
-        isCheckpointGreaterThanOrEqualTo(
-          state.tasksLoadedFromCheckpoint,
-          tasks[0].data.checkpoint,
-        )
-      ) {
-        // Case 1
-        const taskToEnqueue = tasks.shift()!;
-
-        this.common.logger.trace({
-          service: "indexing",
-          msg: `Enqueing ${key} event (chainId=${taskToEnqueue.data.checkpoint.chainId}, block=${taskToEnqueue.data.checkpoint.blockNumber}, eventIndex=${taskToEnqueue.data.checkpoint.eventIndex})`,
-        });
-
-        this.queue!.addTask(taskToEnqueue);
-      } else if (state.parents.length === 0 && !state.isSelfDependent) {
-        // Case 2
-        for (const task of tasks) {
-          this.common.logger.trace({
-            service: "indexing",
-            msg: `Enqueing ${key} event (chainId=${task.data.checkpoint.chainId}, block=${task.data.checkpoint.blockNumber}, eventIndex=${task.data.checkpoint.eventIndex})`,
-          });
-
-          this.queue!.addTask(task);
-        }
-        state.loadedTasks = [];
-      } else if (state.parents.length !== 0) {
-        const parentLoadedFromCheckpoints = state.parents.map(
-          (p) => this.indexingFunctionStates[p].tasksLoadedFromCheckpoint,
-        );
-
-        if (
-          state.isSelfDependent &&
-          isCheckpointGreaterThanOrEqualTo(
-            checkpointMin(
-              ...parentLoadedFromCheckpoints,
-              state.tasksLoadedFromCheckpoint,
-            ),
-            tasks[0].data.checkpoint,
-          )
-        ) {
-          // Case 3
-          const taskToEnqueue = tasks.shift()!;
-
-          this.common.logger.trace({
-            service: "indexing",
-            msg: `Enqueing ${key} event (chainId=${taskToEnqueue.data.checkpoint.chainId}, block=${taskToEnqueue.data.checkpoint.blockNumber}, eventIndex=${taskToEnqueue.data.checkpoint.eventIndex})`,
-          });
-
-          this.queue!.addTask(taskToEnqueue);
-        } else if (!state.isSelfDependent) {
-          // Case 4
-          // Determine limiting factor and enqueue tasks up to that limit.
-          const minParentCheckpoint = checkpointMin(
-            ...parentLoadedFromCheckpoints,
-          );
-
-          // Maximum checkpoint that is less than `minParentCheckpoint`.
-          const maxCheckpointIndex = tasks.findIndex((task) =>
-            isCheckpointGreaterThan(task.data.checkpoint, minParentCheckpoint),
-          );
-
-          if (maxCheckpointIndex === -1) {
-            for (const task of tasks) {
-              this.common.logger.trace({
-                service: "indexing",
-                msg: `Enqueing ${key} event (chainId=${task.data.checkpoint.chainId}, block=${task.data.checkpoint.blockNumber}, eventIndex=${task.data.checkpoint.eventIndex})`,
-              });
-
-              this.queue!.addTask(task);
-            }
-            state.loadedTasks = [];
-          } else {
-            const tasksToEnqueue = tasks.splice(0, maxCheckpointIndex);
-            for (const task of tasksToEnqueue) {
-              this.common.logger.trace({
-                service: "indexing",
-                msg: `Enqueing ${key} event (chainId=${task.data.checkpoint.chainId}, block=${task.data.checkpoint.blockNumber}, eventIndex=${task.data.checkpoint.eventIndex})`,
-              });
-
-              this.queue!.addTask(task);
-            }
-          }
-        }
-      }
-    }
-  };
-
-  private executeSetupTask = async (task: SetupTask) => {
-    if (this.isPaused) return;
-
-    const data = task.data;
-
-    const fullEventName = `${data.contractName}:setup`;
-    const metricLabels = { network: data.networkName, event: fullEventName };
-
-    const indexingFunction = this.indexingFunctions![data.contractName].setup;
-
-    for (let i = 0; i < 4; i++) {
-      try {
-        this.common.logger.trace({
-          service: "indexing",
-          msg: `Started indexing function (event="${fullEventName}", chainId=${data.checkpoint.chainId})`,
-        });
-
-        const endClock = startClock();
-
-        // Running user code here!
-        await indexingFunction({
-          context: {
-            network: this.getNetwork(data.checkpoint),
-            client: this.getClient(data.checkpoint),
-            db: this.getDb({
-              checkpoint: data.checkpoint,
-              onTableAccess: this.onTableAccess(fullEventName),
-            }),
-            contracts: this.getContracts(data.checkpoint),
-          },
-        });
-
-        this.common.metrics.ponder_indexing_function_duration.observe(
-          metricLabels,
-          endClock(),
-        );
-
-        this.common.logger.trace({
-          service: "indexing",
-          msg: `Completed indexing function (event="${fullEventName}", chainId=${data.checkpoint.chainId})`,
-        });
-
-        this.common.metrics.ponder_indexing_completed_events.inc(metricLabels);
-
-        break;
-      } catch (error_) {
-        const error = error_ as Error & { meta: string };
-
-        this.common.metrics.ponder_indexing_function_error_total.inc(
-          metricLabels,
-        );
-
-        if (error_ instanceof NonRetryableError) i = 3;
-
-        if (i === 3) {
-          this.isPaused = true;
-          this.queue!.pause();
-          this.queue!.clear();
-
-          addUserStackTrace(error, this.common.options);
-
-          this.common.logger.error({
-            service: "indexing",
-            msg: `Error while processing "setup" event at chainId=${data.checkpoint.chainId}: ${error.message}`,
-            error,
-          });
-
-          this.common.metrics.ponder_indexing_has_error.set(1);
-          this.emit("error", error);
-        } else {
-          if (this.isPaused) return;
-          this.common.logger.warn({
-            service: "indexing",
-            msg: `Indexing function failed, retrying... (event=${fullEventName}, chainId=${data.checkpoint.chainId}, error=${error.name}: ${error.message})`,
-          });
-          await this.indexingStore.revert({
-            checkpoint: data.checkpoint,
-          });
-        }
-      }
-    }
-  };
-
-  private executeLogEventTask = async (task: LogEventTask) => {
-    const data = task.data;
-
-    const fullEventName = `${data.contractName}:${data.eventName}`;
-    const metricLabels = { network: data.networkName, event: fullEventName };
-
-    const indexingFunction =
-      this.indexingFunctions![data.contractName][data.eventName];
-
-    for (let i = 0; i < 4; i++) {
-      try {
-        this.common.logger.trace({
-          service: "indexing",
-          msg: `Started indexing function (event="${fullEventName}", chainId=${data.checkpoint.chainId}, block=${data.checkpoint.blockNumber}, logIndex=${data.checkpoint.eventIndex})`,
-        });
-
-        const endClock = startClock();
-
-        // Running user code here!
-        await indexingFunction({
+        const result = await executeSetup(indexingService, {
           event: {
-            name: data.eventName,
-            ...data.event,
-          },
-          context: {
-            network: this.getNetwork(data.checkpoint),
-            client: this.getClient(data.checkpoint),
-            db: this.getDb({
-              checkpoint: data.checkpoint,
-              onTableAccess: this.onTableAccess(fullEventName),
+            type: "setup",
+            chainId: network.chainId,
+            contractName: source.contractName,
+            eventName: "setup",
+            startBlock: BigInt(source.startBlock),
+            encodedCheckpoint: encodeCheckpoint({
+              ...zeroCheckpoint,
+              chainId: network.chainId,
+              blockNumber: source.startBlock,
             }),
-            contracts: this.getContracts(data.checkpoint),
           },
         });
 
-        this.common.metrics.ponder_indexing_function_duration.observe(
-          metricLabels,
-          endClock(),
-        );
-
-        const state = this.indexingFunctionStates[fullEventName];
-
-        // Update tasksProcessedToCheckpoint
-        state.tasksProcessedToCheckpoint = checkpointMax(
-          state.tasksProcessedToCheckpoint,
-          data.checkpoint,
-        );
-
-        // Update tasksLoadedFromCheckpoint
-        if (state.loadedTasks.length > 0) {
-          state.tasksLoadedFromCheckpoint =
-            state.loadedTasks[0].data.checkpoint;
-        } else {
-          state.tasksLoadedFromCheckpoint = state.tasksLoadedToCheckpoint;
-        }
-
-        // Emit log if this is the end of a batch of logs
-        if (data.eventsProcessed) {
-          this.emitCheckpoint();
-
-          const num = data.eventsProcessed;
-          this.common.logger.info({
-            service: "indexing",
-            msg: `Indexed ${
-              num === 1
-                ? `1 ${fullEventName} event`
-                : `${num} ${fullEventName} events`
-            } (chainId=${data.checkpoint.chainId} block=${
-              data.checkpoint.blockNumber
-            } eventIndex=${data.checkpoint.eventIndex})`,
-          });
-        }
-
-        this.common.logger.trace({
-          service: "indexing",
-          msg: `Completed indexing function (event="${fullEventName}", chainId=${data.checkpoint.chainId}, block=${data.checkpoint.blockNumber}, eventIndex=${data.checkpoint.eventIndex})`,
-        });
-
-        this.updateCompletedSeconds(fullEventName);
-
-        this.common.metrics.ponder_indexing_completed_events.inc(metricLabels);
-
-        state.eventCount++;
-
-        break;
-      } catch (error_) {
-        const error = error_ as Error & { meta?: string };
-
-        this.common.metrics.ponder_indexing_function_error_total.inc(
-          metricLabels,
-        );
-
-        if (error_ instanceof NonRetryableError) i = 3;
-
-        if (i === 3) {
-          this.isPaused = true;
-          this.queue!.pause();
-          this.queue!.clear();
-
-          addUserStackTrace(error, this.common.options);
-
-          if (error.meta) {
-            error.meta += `\nEvent args:\n${prettyPrint(data.event.args)}`;
-          } else {
-            error.meta = `Event args:\n${prettyPrint(data.event.args)}`;
-          }
-
-          this.common.logger.error({
-            service: "indexing",
-            msg: `Error while processing "${fullEventName}" event at chainId=${data.checkpoint.chainId}, block=${data.checkpoint.blockNumber}, eventIndex=${data.checkpoint.eventIndex}:`,
-            error,
-          });
-
-          this.common.metrics.ponder_indexing_has_error.set(1);
-          this.emit("error", error);
-        } else {
-          if (this.isPaused) return;
-          this.common.logger.warn({
-            service: "indexing",
-            msg: `Indexing function failed, retrying... (event=${fullEventName}, chainId=${
-              data.checkpoint.chainId
-            }, block=${data.checkpoint.blockNumber}, eventIndex=${
-              data.checkpoint.eventIndex
-            } error=${`${error.name}: ${error.message}`})`,
-          });
-          await this.indexingStore.revert({
-            checkpoint: data.checkpoint,
-          });
+        if (result.status === "error") {
+          return { status: "error", error: result.error };
         }
       }
     }
+  }
 
-    await this.loadingMutex.runExclusive(async () => {
-      const loadKeys = this.getLoadKeys();
+  return { status: "success" };
+};
 
-      await Promise.all(
-        loadKeys.map((key) => this.loadIndexingFunctionTasks(key)),
+export const processEvents = async (
+  indexingService: IndexingService,
+  { events }: { events: Event[] },
+): Promise<
+  | { status: "error"; error: Error }
+  | { status: "success" }
+  | { status: "killed" }
+> => {
+  // set first event checkpoint
+  if (events.length > 0 && indexingService.firstEventCheckpoint === undefined) {
+    indexingService.firstEventCheckpoint = decodeCheckpoint(
+      events[0].encodedCheckpoint,
+    );
+
+    // set total seconds
+    if (indexingService.lastEventCheckpoint !== undefined) {
+      indexingService.common.metrics.ponder_indexing_total_seconds.set(
+        indexingService.lastEventCheckpoint.blockTimestamp -
+          indexingService.firstEventCheckpoint.blockTimestamp,
       );
-    });
-
-    this.enqueueLogEventTasks();
-  };
-
-  private createEventQueue = () => {
-    const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
-      task,
-    }) => {
-      // This is a hack to ensure that the eventsProcessed method is called and updates
-      // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
-      // It does, however, slow down event processing a bit. Too frequent waits cause massive performance loses.
-      if (Math.floor(Math.random() * 100) === 69) await wait(0);
-
-      switch (task.kind) {
-        case "SETUP": {
-          await this.executeSetupTask(task);
-          break;
-        }
-        case "LOG": {
-          await this.executeLogEventTask(task);
-          break;
-        }
-      }
-    };
-
-    this.queue = createQueue({
-      worker: indexingFunctionWorker,
-      options: {
-        concurrency: 10,
-        autoStart: false,
-      },
-    });
-  };
-
-  /**
-   * Load a batch of indexing function tasks from the sync store into memory.
-   */
-  loadIndexingFunctionTasks = async (key: string) => {
-    const state = this.indexingFunctionStates[key];
-    const tasks = state.loadedTasks;
-
-    // TODO: Deep copy these.
-    const fromCheckpoint = state.tasksLoadedToCheckpoint;
-    const toCheckpoint = this.syncService.checkpoint;
-
-    if (
-      isCheckpointGreaterThanOrEqualTo(fromCheckpoint, toCheckpoint) &&
-      state.lastEventCheckpoint !== undefined
-    ) {
-      return;
     }
+  }
 
-    const taskBatchSize = this.calculateTaskBatchSize(key);
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i];
+    const indexingFunctionKey = `${event.contractName}:${event.eventName}`;
 
-    const sourcesHasFactory = state.sources.some(sourceIsFactory);
+    if (indexingService.isKilled) return { status: "killed" };
+    indexingService.eventCount[indexingFunctionKey][
+      indexingService.networkByChainId[event.chainId].name
+    ]++;
 
-    const result = await this.syncService.getEvents({
-      fromCheckpoint,
-      toCheckpoint,
-      limit: taskBatchSize,
-      ...(sourcesHasFactory
-        ? {
-            factories: state.sources.filter(sourceIsFactory).map((factory) => ({
-              id: factory.id,
-              chainId: factory.chainId,
-              criteria: factory.criteria,
-              fromBlock: factory.startBlock,
-              toBlock: factory.endBlock,
-              eventSelector: state.eventSelector,
-            })),
-          }
-        : {
-            logFilters: state.sources
-              .filter(sourceIsLogFilter)
-              .map((logFilter) => ({
-                id: logFilter.id,
-                chainId: logFilter.chainId,
-                criteria: logFilter.criteria,
-                fromBlock: logFilter.startBlock,
-                toBlock: logFilter.endBlock,
-                eventSelector: state.eventSelector,
-              })),
-          }),
-    });
-
-    const { events, hasNextPage, lastCheckpointInPage, lastCheckpoint } =
-      result;
-
-    const previousLength = tasks.length;
-
-    for (const event of events) {
-      try {
-        const decodedLog = decodeEventLog({
-          abi: [state.abiEvent],
-          data: event.log.data,
-          topics: event.log.topics,
-        });
-
-        tasks.push({
-          kind: "LOG",
-          data: {
-            networkName: "mainnet",
-            contractName: state.contractName,
-            eventName: state.eventName,
-            event: {
-              args: decodedLog.args ?? {},
-              log: event.log,
-              block: event.block,
-              transaction: event.transaction,
-            },
-            checkpoint: event.checkpoint,
-          },
-        });
-      } catch (err) {
-        // Sometimes, logs match a selector but cannot be decoded using the provided ABI.
-        // This happens often when using custom event filters, because the indexed-ness
-        // of an event parameter is not taken into account when generating the selector.
-        this.common.logger.debug({
-          service: "app",
-          msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
-        });
-      }
-    }
-
-    // Update tasksLoadedToCheckpoint
-    state.tasksLoadedToCheckpoint = hasNextPage
-      ? lastCheckpointInPage
-      : toCheckpoint;
-
-    // Update tasksLoadedFromCheckpoint
-    if (tasks.length > 0) {
-      if (previousLength === 0) {
-        state.tasksLoadedFromCheckpoint = tasks[0].data.checkpoint;
-      }
-
-      // Add a flag to emit logs and checkpoints
-      tasks[tasks.length - 1].data.eventsProcessed = events.length;
-
-      // Update firstEventCheckpoint
-      if (state.firstEventCheckpoint === undefined) {
-        state.firstEventCheckpoint = tasks[0].data.checkpoint;
-      }
-    } else {
-      state.tasksLoadedFromCheckpoint = state.tasksLoadedToCheckpoint;
-
-      this.emitCheckpoint();
-    }
-
-    // Update lastEventCheckpoint
-    if (
-      lastCheckpoint === undefined &&
-      state.lastEventCheckpoint === undefined
-    ) {
-      // Fully cached path, first load
-      state.lastEventCheckpoint = toCheckpoint;
-
-      this.logCachedProgress(key);
-      this.updateTotalSeconds(key);
-      this.updateCompletedSeconds(key);
-    } else if (
-      lastCheckpoint !== undefined &&
-      state.lastEventCheckpoint === undefined
-    ) {
-      // Partially cached path, first load
-      state.lastEventCheckpoint = lastCheckpoint;
-
-      this.logCachedProgress(key);
-      this.updateTotalSeconds(key);
-      this.updateCompletedSeconds(key);
-    } else if (
-      lastCheckpoint !== undefined &&
-      state.lastEventCheckpoint !== undefined
-    ) {
-      // Subsequent loads
-      state.lastEventCheckpoint = checkpointMax(
-        lastCheckpoint,
-        state.lastEventCheckpoint,
-      );
-
-      this.updateTotalSeconds(key);
-      this.updateCompletedSeconds(key);
-    }
-  };
-
-  private emitCheckpoint = () => {
-    const checkpoint = checkpointMin(
-      ...Object.keys(this.indexingFunctionStates).map((key) => {
-        return this.getStateCheckpoint(key);
-      }),
-    );
-
-    this.emit("eventsProcessed", { toCheckpoint: checkpoint });
-    this.common.metrics.ponder_indexing_completed_timestamp.set(
-      checkpoint.blockTimestamp,
-    );
-  };
-
-  private buildSourceById = () => {
-    for (const source of this.sources) {
-      this.sourceById[source.id] = source;
-    }
-  };
-
-  private updateCompletedSeconds = (key: string) => {
-    const state = this.indexingFunctionStates[key];
-    if (
-      state.firstEventCheckpoint === undefined ||
-      state.lastEventCheckpoint === undefined
-    )
-      return;
-
-    this.common.metrics.ponder_indexing_completed_seconds.set(
-      { event: `${state.contractName}:${state.eventName}` },
-      Math.min(
-        state.tasksLoadedFromCheckpoint.blockTimestamp,
-        state.lastEventCheckpoint.blockTimestamp,
-      ) - state.firstEventCheckpoint.blockTimestamp,
-    );
-  };
-
-  private updateTotalSeconds = (key: string) => {
-    const state = this.indexingFunctionStates[key];
-    if (
-      state.firstEventCheckpoint === undefined ||
-      state.lastEventCheckpoint === undefined
-    )
-      return;
-
-    this.common.metrics.ponder_indexing_total_seconds.set(
-      { event: `${state.contractName}:${state.eventName}` },
-      state.lastEventCheckpoint.blockTimestamp -
-        state.firstEventCheckpoint.blockTimestamp,
-    );
-  };
-
-  /** Determine the task batch size to use accounting for tasks that already finished loading. */
-  private calculateTaskBatchSize = (key: string): number => {
-    let totalBatchSize = MAX_BATCH_SIZE;
-    let unfinishedCount = Object.keys(this.indexingFunctionStates).length;
-
-    for (const [indexingFunctionKey, state] of Object.entries(
-      this.indexingFunctionStates,
-    )) {
-      if (key === indexingFunctionKey) continue;
-
-      if (this.isIndexingFunctionFullLoaded(indexingFunctionKey)) {
-        totalBatchSize -= state.loadedTasks.length;
-        unfinishedCount -= 1;
-      }
-    }
-
-    return Math.floor(totalBatchSize / unfinishedCount);
-  };
-
-  private logCachedProgress = (key: string) => {
-    const state = this.indexingFunctionStates[key];
-
-    const numerator =
-      state.firstEventCheckpoint === undefined ||
-      state.lastEventCheckpoint === undefined
-        ? 0
-        : Math.min(
-            state.tasksProcessedToCheckpoint.blockTimestamp,
-            state.lastEventCheckpoint.blockTimestamp,
-          ) - state.firstEventCheckpoint.blockTimestamp;
-
-    const denominator =
-      state.firstEventCheckpoint === undefined ||
-      state.lastEventCheckpoint === undefined
-        ? 1
-        : state.lastEventCheckpoint.blockTimestamp -
-          state.firstEventCheckpoint.blockTimestamp;
-
-    const cache = formatPercentage(Math.max(numerator / denominator, 0));
-    this.common.logger.info({
+    indexingService.common.logger.trace({
       service: "indexing",
-      msg: `Started indexing ${state.contractName}:${state.eventName} with ${cache} cached`,
-    });
-  };
-
-  /** Get keys that need to be loaded. */
-  private getLoadKeys = (): string[] => {
-    const emptyKey = Object.keys(this.indexingFunctionStates).find((key) => {
-      const state = this.indexingFunctionStates[key];
-
-      return (
-        state.loadedTasks.length === 0 &&
-        !this.isIndexingFunctionFullLoaded(key)
-      );
+      msg: `Started indexing function (event="${indexingFunctionKey}", checkpoint=${event.encodedCheckpoint})`,
     });
 
-    if (emptyKey === undefined) return [];
-
-    const minBatchSize = this.calculateTaskBatchSize(emptyKey) / 3;
-
-    const loadKeys: string[] = [];
-
-    for (const [indexingFunctionKey, state] of Object.entries(
-      this.indexingFunctionStates,
-    )) {
-      if (!state.lastEventCheckpoint) loadKeys.push(indexingFunctionKey);
-      else if (
-        !this.isIndexingFunctionFullLoaded(indexingFunctionKey) &&
-        state.loadedTasks.length < minBatchSize
-      ) {
-        loadKeys.push(indexingFunctionKey);
+    switch (event.type) {
+      case "log": {
+        const result = await executeLog(indexingService, { event });
+        if (result.status === "error") {
+          return { status: "error", error: result.error };
+        }
+        break;
       }
     }
 
-    return loadKeys;
-  };
+    indexingService.common.logger.trace({
+      service: "indexing",
+      msg: `Completed indexing function (event="${indexingFunctionKey}", checkpoint=${event.encodedCheckpoint})`,
+    });
 
-  /**
-   * Returns true is all known events have been processed or loaded.
-   */
-  private isIndexingFunctionFullLoaded = (key: string): boolean => {
-    const state = this.indexingFunctionStates[key];
+    // periodically update metrics
+    if (i % 93 === 0) {
+      updateCompletedEvents(indexingService);
 
-    if (state.lastEventCheckpoint === undefined) return false;
-    // Function is loaded when the "loadedToCheckpoint" is greater than
-    // the "lastEventCheckpoint" and the "syncService.checkpoint"
-    return (
-      isCheckpointGreaterThanOrEqualTo(
-        state.tasksLoadedToCheckpoint,
-        state.lastEventCheckpoint,
-      ) &&
-      isCheckpointGreaterThanOrEqualTo(
-        state.tasksLoadedToCheckpoint,
-        this.syncService.checkpoint,
-      )
-    );
-  };
-
-  /** Returns the most generous checkpoint possible for an indexing function. */
-  private getStateCheckpoint = (key: string): Checkpoint => {
-    const state = this.indexingFunctionStates[key];
-
-    return state.loadedTasks.length === 0
-      ? state.tasksLoadedToCheckpoint
-      : state.tasksProcessedToCheckpoint;
-  };
-
-  private onTableAccess =
-    (indexingFunctionKey: string) =>
-    ({
-      storeMethod,
-      tableName,
-    }: { storeMethod: StoreMethod; tableName: string }) => {
-      const matchedAccess = this.tableAccess?.[
-        indexingFunctionKey
-      ]?.access?.find(
-        (t) => t.storeMethod === storeMethod && t.tableName === tableName,
+      indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+        decodeCheckpoint(event.encodedCheckpoint).blockTimestamp -
+          indexingService.firstEventCheckpoint!.blockTimestamp,
       );
 
-      if (matchedAccess === undefined) {
-        this.common.logger.warn({
+      // Note(kyle) this is only needed for sqlite
+      await new Promise(setImmediate);
+    }
+  }
+
+  // set completed seconds
+  if (
+    events.length > 0 &&
+    indexingService.firstEventCheckpoint !== undefined &&
+    indexingService.lastEventCheckpoint !== undefined
+  ) {
+    indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+      decodeCheckpoint(events[events.length - 1].encodedCheckpoint)
+        .blockTimestamp - indexingService.firstEventCheckpoint.blockTimestamp,
+    );
+  }
+  // set completed events
+  updateCompletedEvents(indexingService);
+
+  indexingService.common.logger.info({
+    service: "indexing",
+    msg: `Indexed ${
+      events.length === 1 ? "1 event" : `${events.length} events`
+    }`,
+  });
+
+  return { status: "success" };
+};
+
+export const kill = (indexingService: IndexingService) => {
+  indexingService.common.logger.debug({
+    service: "indexing",
+    msg: "Killed indexing service",
+  });
+  indexingService.isKilled = true;
+};
+
+export const updateLastEventCheckpoint = (
+  indexingService: IndexingService,
+  lastEventCheckpoint: Checkpoint,
+) => {
+  indexingService.lastEventCheckpoint = lastEventCheckpoint;
+
+  if (indexingService.firstEventCheckpoint !== undefined) {
+    indexingService.common.metrics.ponder_indexing_total_seconds.set(
+      indexingService.lastEventCheckpoint.blockTimestamp -
+        indexingService.firstEventCheckpoint.blockTimestamp,
+    );
+  }
+};
+
+const updateCompletedEvents = (indexingService: IndexingService) => {
+  for (const event of Object.keys(indexingService.eventCount)) {
+    for (const network of Object.keys(indexingService.eventCount[event])) {
+      const metricLabel = {
+        event,
+        network,
+      };
+      indexingService.common.metrics.ponder_indexing_completed_events.set(
+        metricLabel,
+        indexingService.eventCount[event][network],
+      );
+    }
+  }
+};
+
+const executeSetup = async (
+  indexingService: IndexingService,
+  { event }: { event: SetupEvent },
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
+  const {
+    common,
+    indexingFunctions,
+    currentEvent,
+    networkByChainId,
+    contractsByChainId,
+    clientByChainId,
+  } = indexingService;
+  const indexingFunction =
+    indexingFunctions[event.contractName][event.eventName];
+
+  const metricLabel = {
+    event: event.eventName,
+    network: networkByChainId[event.chainId].name,
+  };
+
+  for (let i = 0; i < 4; i++) {
+    try {
+      // set currentEvent
+      currentEvent.context.network.chainId = event.chainId;
+      currentEvent.context.network.name = networkByChainId[event.chainId].name;
+      currentEvent.context.client = clientByChainId[event.chainId];
+      currentEvent.context.contracts = contractsByChainId[event.chainId];
+      currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
+      currentEvent.contextState.blockNumber = event.startBlock;
+
+      const endClock = startClock();
+
+      await indexingFunction({
+        context: currentEvent.context,
+      });
+
+      common.metrics.ponder_indexing_function_duration.observe(
+        metricLabel,
+        endClock(),
+      );
+
+      break;
+    } catch (error_) {
+      const error = error_ as Error & { meta?: string };
+
+      common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
+
+      if (error_ instanceof NonRetryableError) i = 3;
+
+      const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
+
+      if (i === 3) {
+        addUserStackTrace(error, common.options);
+
+        common.logger.error({
           service: "indexing",
-          msg: `Unexpected table access "${tableName}.${storeMethod}()" in indexing function "${indexingFunctionKey}". This may cause event ordering issues. Please open an issue http://github.com/ponder-sh/ponder/issues.`,
+          msg: `Error while processing "${event.contractName}:${event.eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+          error,
+        });
+
+        common.metrics.ponder_indexing_has_error.set(1);
+        return { status: "error", error: error };
+      } else {
+        common.logger.warn({
+          service: "indexing",
+          msg: `Indexing function failed, retrying... (event="${
+            event.contractName
+          }:${event.eventName}", chainId=${decodedCheckpoint.chainId}, block=${
+            decodedCheckpoint.blockNumber
+          }, error=${`${error.name}: ${error.message}`})`,
+        });
+        await indexingService.indexingStore.revert({
+          checkpoint: decodedCheckpoint,
+          isCheckpointSafe: false,
         });
       }
-    };
-}
+    }
+  }
+
+  return { status: "success" };
+};
+
+const executeLog = async (
+  indexingService: IndexingService,
+  { event }: { event: LogEvent },
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
+  const {
+    common,
+    indexingFunctions,
+    currentEvent,
+    networkByChainId,
+    contractsByChainId,
+    clientByChainId,
+  } = indexingService;
+  const indexingFunction =
+    indexingFunctions[event.contractName][event.eventName];
+
+  const metricLabel = {
+    event: `${event.contractName}:${event.eventName}`,
+    network: networkByChainId[event.chainId].name,
+  };
+
+  for (let i = 0; i < 4; i++) {
+    try {
+      // set currentEvent
+      currentEvent.context.network.chainId = event.chainId;
+      currentEvent.context.network.name = networkByChainId[event.chainId].name;
+      currentEvent.context.client = clientByChainId[event.chainId];
+      currentEvent.context.contracts = contractsByChainId[event.chainId];
+      currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
+      currentEvent.contextState.blockNumber = event.event.block.number;
+
+      const endClock = startClock();
+
+      await indexingFunction({
+        event: {
+          name: event.eventName,
+          args: event.event.args,
+          log: event.event.log,
+          block: event.event.block,
+          transaction: event.event.transaction,
+        },
+        context: currentEvent.context,
+      });
+
+      common.metrics.ponder_indexing_function_duration.observe(
+        metricLabel,
+        endClock(),
+      );
+
+      break;
+    } catch (error_) {
+      const error = error_ as Error & { meta?: string };
+
+      common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
+
+      if (error_ instanceof NonRetryableError) i = 3;
+
+      const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
+
+      if (i === 3) {
+        addUserStackTrace(error, common.options);
+
+        if (error.meta) {
+          error.meta += `\nEvent args:\n${prettyPrint(event.event.args)}`;
+        } else {
+          error.meta = `Event args:\n${prettyPrint(event.event.args)}`;
+        }
+
+        common.logger.error({
+          service: "indexing",
+          msg: `Error while processing "${event.contractName}:${event.eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+          error,
+        });
+
+        common.metrics.ponder_indexing_has_error.set(1);
+
+        return { status: "error", error: error };
+      } else {
+        common.logger.warn({
+          service: "indexing",
+          msg: `Indexing function failed, retrying... (event="${
+            event.contractName
+          }:${event.eventName}", chainId=${decodedCheckpoint.chainId}, block=${
+            decodedCheckpoint.blockNumber
+          }, error=${`${error.name}: ${error.message}`})`,
+        });
+        await indexingService.indexingStore.revert({
+          checkpoint: decodedCheckpoint,
+          isCheckpointSafe: false,
+        });
+      }
+    }
+  }
+
+  return { status: "success" };
+};

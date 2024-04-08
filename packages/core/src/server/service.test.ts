@@ -1,7 +1,7 @@
 import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
 import { getFreePort, postGraphql } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
-import { zeroCheckpoint } from "@/utils/checkpoint.js";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import { buildGqlSchema } from "./graphql/schema.js";
@@ -79,7 +79,7 @@ export const setup = async ({
   const createTestEntity = async ({ id }: { id: number }) => {
     await indexingStore.create({
       tableName: "TestEntity",
-      checkpoint: zeroCheckpoint,
+      encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
       id: String(id),
       data: {
         string: id.toString(),
@@ -104,7 +104,7 @@ export const setup = async ({
   }: { id: bigint; testEntityId: string }) => {
     await indexingStore.create({
       tableName: "EntityWithBigIntId",
-      checkpoint: zeroCheckpoint,
+      encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
       id,
       data: {
         testEntityId,
@@ -115,7 +115,7 @@ export const setup = async ({
   const createEntityWithIntId = async ({ id }: { id: number }) => {
     await indexingStore.create({
       tableName: "EntityWithIntId",
-      checkpoint: zeroCheckpoint,
+      encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
       id,
     });
   };
@@ -129,7 +129,7 @@ export const setup = async ({
   }) => {
     await indexingStore.create({
       tableName: "EntityWithStringId",
-      checkpoint: zeroCheckpoint,
+      encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
       id,
       data: {
         testEntityId,
@@ -140,7 +140,7 @@ export const setup = async ({
   const createEntityWithNullRef = async ({ id }: { id: string }) => {
     await indexingStore.create({
       tableName: "EntityWithNullRef",
-      checkpoint: zeroCheckpoint,
+      encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
       id,
     });
   };
