@@ -48,7 +48,7 @@ test("create() inserts a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -69,7 +69,7 @@ test("create() throws on unique constraint violation", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip" },
   });
@@ -77,11 +77,13 @@ test("create() throws on unique constraint violation", async (context) => {
   await expect(() =>
     indexingStore.create({
       tableName: "Pet",
-      checkpoint: createCheckpoint(10),
+      encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
       id: "id1",
       data: { name: "Skip", age: 13 },
     }),
-  ).rejects.toThrow();
+  ).rejects.toThrow(
+    "Cannot create Pet record with ID id1 because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using Pet.upsert().",
+  );
 
   await cleanup();
 });
@@ -93,7 +95,7 @@ test("create() respects optional fields", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", kind: "CAT" },
   });
@@ -115,7 +117,7 @@ test("create() accepts enums", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", kind: "CAT" },
   });
@@ -138,7 +140,7 @@ test("create() throws on invalid enum value", async (context) => {
   await expect(() =>
     indexingStore.create({
       tableName: "Pet",
-      checkpoint: createCheckpoint(10),
+      encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
       id: "id1",
       data: { name: "Skip", kind: "NOTACAT" },
     }),
@@ -154,7 +156,7 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
@@ -176,7 +178,7 @@ test("create() accepts float fields as float and returns as float", async (conte
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", rating: 1.0 },
   });
@@ -199,7 +201,7 @@ test("create() inserts into the log table", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -228,7 +230,7 @@ test("update() updates a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
@@ -241,7 +243,7 @@ test("update() updates a record", async (context) => {
 
   await indexingStore.update({
     tableName: "Pet",
-    checkpoint: createCheckpoint(11),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
     id: "id1",
     data: { name: "Peanut Butter" },
   });
@@ -262,7 +264,7 @@ test("update() updates a record using an update function", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
@@ -275,7 +277,7 @@ test("update() updates a record using an update function", async (context) => {
 
   await indexingStore.update({
     tableName: "Pet",
-    checkpoint: createCheckpoint(11),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
     id: "id1",
     data: ({ current }) => ({
       name: `${current.name} and Skipper`,
@@ -302,7 +304,7 @@ test("update() inserts into the log table", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
@@ -315,7 +317,7 @@ test("update() inserts into the log table", async (context) => {
 
   await indexingStore.update({
     tableName: "Pet",
-    checkpoint: createCheckpoint(11),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
     id: "id1",
     data: { name: "Peanut Butter" },
   });
@@ -343,7 +345,7 @@ test("upsert() inserts a new record", async (context) => {
 
   await indexingStore.upsert({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     create: { name: "Skip", age: 12 },
   });
@@ -364,7 +366,7 @@ test("upsert() updates a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -376,7 +378,7 @@ test("upsert() updates a record", async (context) => {
 
   await indexingStore.upsert({
     tableName: "Pet",
-    checkpoint: createCheckpoint(12),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
     id: "id1",
     create: { name: "Skip", age: 24 },
     update: { name: "Jelly" },
@@ -398,7 +400,7 @@ test("upsert() updates a record using an update function", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -410,7 +412,7 @@ test("upsert() updates a record using an update function", async (context) => {
 
   await indexingStore.upsert({
     tableName: "Pet",
-    checkpoint: createCheckpoint(12),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
     id: "id1",
     create: { name: "Skip", age: 24 },
     update: ({ current }) => ({
@@ -435,7 +437,7 @@ test("upsert() inserts into the log table", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -447,7 +449,7 @@ test("upsert() inserts into the log table", async (context) => {
 
   await indexingStore.upsert({
     tableName: "Pet",
-    checkpoint: createCheckpoint(12),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
     id: "id1",
     create: { name: "Skip", age: 24 },
     update: { name: "Jelly" },
@@ -476,7 +478,7 @@ test("delete() removes a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -488,7 +490,7 @@ test("delete() removes a record", async (context) => {
 
   await indexingStore.delete({
     tableName: "Pet",
-    checkpoint: createCheckpoint(15),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(15)),
     id: "id1",
   });
 
@@ -509,7 +511,7 @@ test("delete() inserts into the log table", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -521,7 +523,7 @@ test("delete() inserts into the log table", async (context) => {
 
   await indexingStore.delete({
     tableName: "Pet",
-    checkpoint: createCheckpoint(15),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(15)),
     id: "id1",
   });
 
@@ -548,25 +550,25 @@ test("findMany() returns current versions of all records", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(8),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(8)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
   await indexingStore.update({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "SkipUpdated" },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id2",
     data: { name: "Foo" },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id3",
     data: { name: "Bar", bigAge: 100n },
   });
@@ -585,25 +587,25 @@ test("findMany() orders by bigint field", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", bigAge: 105n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id2",
     data: { name: "Foo", bigAge: 10n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id3",
     data: { name: "Bar", bigAge: 190n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id4",
     data: { name: "Patch" },
   });
@@ -624,25 +626,25 @@ test("findMany() filters on bigint gt", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", bigAge: 105n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id2",
     data: { name: "Foo", bigAge: 10n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id3",
     data: { name: "Bar", bigAge: 190n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id4",
     data: { name: "Patch" },
   });
@@ -664,7 +666,7 @@ test("findMany() filters with complex OR condition", async (context) => {
 
   await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -700,25 +702,25 @@ test("findMany() sorts and filters together", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", bigAge: 105n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id2",
     data: { name: "Foo", bigAge: 10n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id3",
     data: { name: "Bar", bigAge: 190n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id4",
     data: { name: "Zarbar" },
   });
@@ -758,7 +760,7 @@ test("findMany() cursor pagination ascending", async (context) => {
 
   await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip" },
       { id: "id2", name: "Foo" },
@@ -845,7 +847,7 @@ test("findMany() cursor pagination descending", async (context) => {
 
   await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -921,7 +923,7 @@ test("findMany() returns start and end cursor if limited", async (context) => {
 
   await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -962,7 +964,7 @@ test("findMany() returns hasPreviousPage if no results", async (context) => {
 
   await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -1016,7 +1018,7 @@ test("findMany() ordering secondary sort inherits primary", async (context) => {
 
   await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -1059,7 +1061,7 @@ test("createMany() inserts multiple entities", async (context) => {
 
   const createdItems = await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -1083,7 +1085,7 @@ test("createMany() inserts a large number of entities", async (context) => {
 
   const createdItems = await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [...Array(RECORD_COUNT).keys()].map((i) => ({
       id: `id${i}`,
       name: "Alice",
@@ -1114,7 +1116,7 @@ test("createMany() inserts into the log table", async (context) => {
 
   await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -1157,7 +1159,7 @@ test("updateMany() updates multiple entities", async (context) => {
 
   await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -1167,7 +1169,7 @@ test("updateMany() updates multiple entities", async (context) => {
 
   const updateditems = await indexingStore.updateMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(11),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
     where: { bigAge: { gt: 50n } },
     data: { bigAge: 300n },
   });
@@ -1189,7 +1191,7 @@ test("updateMany() inserts into the log table", async (context) => {
 
   await indexingStore.createMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -1199,7 +1201,7 @@ test("updateMany() inserts into the log table", async (context) => {
 
   await indexingStore.updateMany({
     tableName: "Pet",
-    checkpoint: createCheckpoint(11),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
     where: { bigAge: { gt: 50n } },
     data: { bigAge: 300n },
   });
@@ -1233,42 +1235,45 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip" },
   });
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(13),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(13)),
     id: "id2",
     data: { name: "Foo" },
   });
   await indexingStore.update({
     tableName: "Pet",
-    checkpoint: createCheckpoint(15),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(15)),
     id: "id1",
     data: { name: "SkipUpdated" },
   });
   await indexingStore.create({
     tableName: "Person",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Bob" },
   });
   await indexingStore.update({
     tableName: "Person",
-    checkpoint: createCheckpoint(11),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
     id: "id1",
     data: { name: "Bobby" },
   });
   await indexingStore.create({
     tableName: "Person",
-    checkpoint: createCheckpoint(12),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
     id: "id2",
     data: { name: "Kevin" },
   });
 
-  await indexingStore.revert({ checkpoint: createCheckpoint(12) });
+  await indexingStore.revert({
+    checkpoint: createCheckpoint(12),
+    isCheckpointSafe: true,
+  });
 
   const { items: pets } = await indexingStore.findMany({ tableName: "Pet" });
 
@@ -1309,17 +1314,20 @@ test("revert() updates versions with intermediate logs", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    checkpoint: createCheckpoint(9),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(9)),
     id: "id1",
     data: { name: "Skip" },
   });
   await indexingStore.delete({
     tableName: "Pet",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
   });
 
-  await indexingStore.revert({ checkpoint: createCheckpoint(8) });
+  await indexingStore.revert({
+    checkpoint: createCheckpoint(8),
+    isCheckpointSafe: true,
+  });
 
   const instancePet = await indexingStore.findUnique({
     tableName: "Pet",
@@ -1344,7 +1352,7 @@ test("findUnique() works with hex case sensitivity", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0x0a",
     data: { n: 1 },
   });
@@ -1365,14 +1373,14 @@ test("update() works with hex case sensitivity", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0x0a",
     data: { n: 1 },
   });
 
   await indexingStore.update({
     tableName: "table",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0x0A",
     data: { n: 2 },
   });
@@ -1393,14 +1401,14 @@ test("updateMany() works with hex case sensitivity", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0x0a",
     data: { n: 1 },
   });
 
   await indexingStore.updateMany({
     tableName: "table",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     where: { n: { gt: 0 } },
     data: { n: 2 },
   });
@@ -1421,14 +1429,14 @@ test("upsert() works with hex case sensitivity", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0x0a",
     data: { n: 1 },
   });
 
   await indexingStore.upsert({
     tableName: "table",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0xA",
     update: { n: 2 },
   });
@@ -1449,14 +1457,14 @@ test("delete() works with hex case sensitivity", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: createCheckpoint(10),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0xa",
     data: { n: 1 },
   });
 
   await indexingStore.delete({
     tableName: "table",
-    checkpoint: createCheckpoint(25),
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(25)),
     id: "0xA",
   });
 

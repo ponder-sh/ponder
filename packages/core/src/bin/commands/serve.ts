@@ -56,12 +56,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   // Once we have the initial build, we can kill the build service.
   await buildService.kill();
 
-  if (initialResult.error) {
-    logger.error({
-      service: "process",
-      msg: "Failed initial build with error:",
-      error: initialResult.error,
-    });
+  if (!initialResult.success) {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
@@ -85,16 +80,20 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  const { poolConfig } = databaseConfig;
-  const database = new PostgresDatabaseService({ common, poolConfig });
+  const { poolConfig, schema: userNamespace } = databaseConfig;
+  const database = new PostgresDatabaseService({
+    common,
+    poolConfig,
+    userNamespace,
+  });
 
   const indexingStore = new RealtimeIndexingStore({
     kind: "postgres",
     schema,
     // Note: `ponder serve` only uses findUnique and findMany, which only
-    // use the user namespaace tables. Eventually, they should probably be
+    // use the user namespace tables. Eventually, they should probably be
     // in their own PublicStore class.
-    namespaceInfo: { userNamespace: "public" } as unknown as NamespaceInfo,
+    namespaceInfo: { userNamespace } as unknown as NamespaceInfo,
     db: database.indexingDb,
   });
 

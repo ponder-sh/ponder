@@ -1,5 +1,25 @@
 # @ponder/core
 
+## 0.3.11
+
+### Patch Changes
+
+- [#778](https://github.com/ponder-sh/ponder/pull/778) [`c55fdd1f0199d6bfd70e21774042a8741a5cecfa`](https://github.com/ponder-sh/ponder/commit/c55fdd1f0199d6bfd70e21774042a8741a5cecfa) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where GraphQL queries that include a many -> `p.one()` path with a limit greater than 50 would fail with the error: "Cannot return null for non-nullable field".
+
+## 0.3.10
+
+### Patch Changes
+
+- [#775](https://github.com/ponder-sh/ponder/pull/775) [`334f4c2b2fcbdaa0ad66f61ccd4f3a64cd74a6bc`](https://github.com/ponder-sh/ponder/commit/334f4c2b2fcbdaa0ad66f61ccd4f3a64cd74a6bc) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for the `getEnsName` Viem action in `context.client`.
+
+## 0.3.9
+
+### Patch Changes
+
+- [#765](https://github.com/ponder-sh/ponder/pull/765) [`3f9c52f3b00bc10bf7b581616e0acb550a1598b9`](https://github.com/ponder-sh/ponder/commit/3f9c52f3b00bc10bf7b581616e0acb550a1598b9) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where some error messages and stack traces were not logged if the initial build failed.
+
+- [#763](https://github.com/ponder-sh/ponder/pull/763) [`80b8e26b7b138ed4b0e84af16e203013580f5b0c`](https://github.com/ponder-sh/ponder/commit/80b8e26b7b138ed4b0e84af16e203013580f5b0c) Thanks [@jaylmiller](https://github.com/jaylmiller)! - Fixed a bug where malformed requests to the `/metrics` path could cause the process to exit.
+
 ## 0.3.8
 
 ## 0.3.7

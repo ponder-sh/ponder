@@ -1,9 +1,7 @@
+import type { Source } from "@/config/sources.js";
+import { formatEta, formatPercentage } from "@/utils/format.js";
 import { Box, Text, render as inkRender } from "ink";
 import React from "react";
-
-import type { Source } from "@/config/sources.js";
-
-import { formatEta, formatPercentage } from "@/utils/format.js";
 import { ProgressBar } from "./ProgressBar.js";
 
 export type UiState = {
@@ -23,13 +21,19 @@ export type UiState = {
   }[];
 
   indexingStats: {
-    event: string;
     totalSeconds: number | undefined;
     completedSeconds: number | undefined;
-    completedEventCount: number;
-  }[];
+  };
   indexingCompletedToTimestamp: number;
   indexingError: boolean;
+
+  indexingTable: {
+    eventName: string;
+    networkName: string;
+    count: number;
+    averageDuration: number;
+    errorCount: number;
+  }[];
 };
 
 export const buildUiState = ({ sources }: { sources: Source[] }) => {
@@ -40,9 +44,14 @@ export const buildUiState = ({ sources }: { sources: Source[] }) => {
     isHistoricalSyncComplete: false,
     realtimeSyncNetworks: [],
 
-    indexingStats: [],
+    indexingStats: {
+      completedSeconds: 0,
+      totalSeconds: 0,
+    },
     indexingCompletedToTimestamp: 0,
     indexingError: false,
+
+    indexingTable: [],
   };
 
   sources.forEach((source) => {
@@ -65,6 +74,7 @@ const App = (ui: UiState) => {
     // realtimeSyncNetworks,
     indexingStats,
     indexingError,
+    indexingTable,
   } = ui;
 
   if (indexingError) {
@@ -83,18 +93,29 @@ const App = (ui: UiState) => {
 
   const titleWidth = Math.max(
     ...historicalSyncStats.map((s) => s.contract.length + s.network.length + 4),
-    ...indexingStats.map((s) => s.event.length + 1),
   );
 
-  const maxEventCount = Math.max(
-    ...indexingStats.map((s) => s.completedEventCount),
-  );
-  const metricsWidth = 15 + maxEventCount.toString().length;
+  const indexingTotalEventCount = indexingTable.reduce((acc, r) => {
+    acc += r.count;
+    return acc;
+  }, 0);
+
+  const metricsWidth = 15 + indexingTotalEventCount.toString().length;
 
   const barWidth = Math.min(
     Math.max(maxWidth - titleWidth - metricsWidth - 12, 24),
     48,
   );
+
+  const rate =
+    indexingStats.totalSeconds === undefined ||
+    indexingStats.completedSeconds === undefined ||
+    indexingStats.totalSeconds === 0
+      ? 1
+      : indexingStats.completedSeconds / indexingStats.totalSeconds;
+
+  const rateText =
+    rate === 1 ? <Text color="greenBright">done</Text> : formatPercentage(rate);
 
   return (
     <Box flexDirection="column">
@@ -129,46 +150,97 @@ const App = (ui: UiState) => {
       </Box>
       <Text> </Text>
 
-      <Text bold={true}>Indexing </Text>
-      {indexingStats.map(
-        ({ event, totalSeconds, completedSeconds, completedEventCount }) => {
-          const rate =
-            totalSeconds === undefined ||
-            completedSeconds === undefined ||
-            totalSeconds === 0
-              ? 1
-              : completedSeconds / totalSeconds;
+      <Text bold={true}>Indexing progress</Text>
+      <Box flexDirection="column">
+        <Box flexDirection="row">
+          {indexingStats.completedSeconds !== undefined &&
+          indexingStats.totalSeconds !== undefined ? (
+            <>
+              <ProgressBar current={rate} end={1} width={barWidth} />
+              <Text>
+                {" "}
+                {rateText} ({indexingTotalEventCount} events)
+              </Text>
+            </>
+          ) : (
+            <Text>Waiting to start...</Text>
+          )}
+        </Box>
+      </Box>
+      <Text> </Text>
 
-          const titleText = event.padEnd(titleWidth, " ");
+      <Box flexDirection="column">
+        <Box flexDirection="row" key="title" columnGap={1}>
+          <Box width={16}>
+            <Text>│ </Text>
+            <Text bold>Event</Text>
+          </Box>
+          <Box width={12}>
+            <Text>│ </Text>
+            <Text bold>Network</Text>
+          </Box>
+          <Box width={10}>
+            <Text>│ </Text>
+            <Text bold>Count</Text>
+          </Box>
+          <Box width={16}>
+            <Text>│ </Text>
+            <Text bold>Duration (avg)</Text>
+          </Box>
+          <Box width={13}>
+            <Text>│ </Text>
+            <Text bold>Error count</Text>
+          </Box>
+          <Text>│</Text>
+        </Box>
 
-          const rateText =
-            rate === 1 ? (
-              <Text color="greenBright">done</Text>
-            ) : (
-              formatPercentage(rate)
-            );
+        <Box flexDirection="row" key="border">
+          <Text>├</Text>
+          <Text>{"─".repeat(16)}┼</Text>
+          <Text>{"─".repeat(12)}┼</Text>
+          <Text>{"─".repeat(10)}┼</Text>
+          <Text>{"─".repeat(16)}┼</Text>
+          <Text>{"─".repeat(13)}┤</Text>
+        </Box>
 
-          return (
-            <Box flexDirection="column" key={event}>
-              <Box flexDirection="row">
-                <Text>{titleText} </Text>
-                {completedSeconds !== undefined &&
-                totalSeconds !== undefined ? (
-                  <>
-                    <ProgressBar current={rate} end={1} width={barWidth} />
-                    <Text>
-                      {" "}
-                      {rateText} ({completedEventCount} events)
-                    </Text>
-                  </>
-                ) : (
-                  <Text>Waiting to start...</Text>
-                )}
+        {indexingTable.map(
+          ({ eventName, networkName, count, errorCount, averageDuration }) => {
+            return (
+              <Box
+                flexDirection="row"
+                key={`${eventName}-${networkName}`}
+                columnGap={1}
+              >
+                <Box width={16}>
+                  <Text>│ </Text>
+                  <Text>{eventName}</Text>
+                </Box>
+                <Box width={12}>
+                  <Text>│ </Text>
+                  <Text>{networkName}</Text>
+                </Box>
+                <Box width={10} justifyContent="space-between">
+                  <Text>│</Text>
+                  <Text>{count}</Text>
+                </Box>
+                <Box width={16} justifyContent="space-between">
+                  <Text>│</Text>
+                  <Text>
+                    {averageDuration > 0
+                      ? `${averageDuration.toFixed(2)}ms`
+                      : "-"}
+                  </Text>
+                </Box>
+                <Box width={13} justifyContent="space-between">
+                  <Text>│</Text>
+                  <Text>{count > 0 ? errorCount : "-"}</Text>
+                </Box>
+                <Text>│</Text>
               </Box>
-            </Box>
-          );
-        },
-      )}
+            );
+          },
+        )}
+      </Box>
       <Text> </Text>
 
       {/* {realtimeSyncNetworks.length > 0 && (

@@ -25,13 +25,15 @@ import {
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
-import { safeGetAppId } from "./static/getAppId.js";
+import { safeGetBuildId } from "./static/getBuildId.js";
 import {
   type TableAccess,
   safeGetTableAccess,
 } from "./static/getTableAccess.js";
 
 export type Build = {
+  // Build ID for caching
+  buildId: string;
   // Config
   databaseConfig: DatabaseConfig;
   sources: Source[];
@@ -41,9 +43,6 @@ export type Build = {
   graphqlSchema: GraphQLSchema;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
-  // Static analysis
-  tableAccess: TableAccess;
-  appId: string;
 };
 
 export type BuildResult =
@@ -73,7 +72,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   private graphqlSchema?: GraphQLSchema;
   private indexingFunctions?: IndexingFunctions;
   private tableAccess?: TableAccess;
-  private appId?: string;
+  private buildId?: string;
 
   constructor({ common }: { common: Common }) {
     super();
@@ -241,14 +240,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.emit("rebuild", {
         success: true,
         build: {
+          buildId: this.buildId!,
           databaseConfig: this.databaseConfig!,
           sources: this.sources!,
           networks: this.networks!,
           schema: this.schema!,
           graphqlSchema: this.graphqlSchema!,
           indexingFunctions: this.indexingFunctions!,
-          tableAccess: this.tableAccess!,
-          appId: this.appId!,
         },
       });
     };
@@ -268,44 +266,51 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async initialLoad() {
+    const logAndReturnError = (error: Error) => {
+      this.common.logger.error({
+        service: "build",
+        msg: "Failed initial build with error:",
+        error,
+      });
+      return { success: false, error } as const;
+    };
+
     const configResult = await this.loadConfig();
-    if (!configResult.success) return { error: configResult.error } as const;
+    if (!configResult.success) return logAndReturnError(configResult.error);
 
     const schemaResult = await this.loadSchema();
-    if (!schemaResult.success) return { error: schemaResult.error } as const;
+    if (!schemaResult.success) return logAndReturnError(schemaResult.error);
 
     const files = glob.sync(
       path.join(this.common.options.srcDir, "**/*.{js,mjs,ts,mts}"),
     );
     const indexingFunctionsResult = await this.loadIndexingFunctions({ files });
     if (!indexingFunctionsResult.success)
-      return { error: indexingFunctionsResult.error } as const;
+      return logAndReturnError(indexingFunctionsResult.error);
 
     const validationResult = this.validate();
     if (validationResult.error)
-      return { error: validationResult.error } as const;
+      return logAndReturnError(validationResult.error);
     const parseResult = this.parse();
-    if (parseResult.error) return { error: parseResult.error } as const;
+    if (parseResult.error) return logAndReturnError(parseResult.error);
     const analyzeResult = this.analyze();
-    if (analyzeResult.error) return { error: analyzeResult.error } as const;
+    if (analyzeResult.error) return logAndReturnError(analyzeResult.error);
 
     const { databaseConfig, sources, networks } = configResult;
     const { schema, graphqlSchema } = schemaResult;
     const { indexingFunctions } = indexingFunctionsResult;
-    const { tableAccess } = parseResult;
-    const { appId } = analyzeResult;
+    const { buildId } = analyzeResult;
 
     return {
       success: true,
       build: {
+        buildId,
         databaseConfig,
         networks,
         sources,
         schema,
         graphqlSchema,
         indexingFunctions,
-        tableAccess,
-        appId,
       },
     } satisfies BuildResult;
   }
@@ -408,37 +413,76 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return { success: true } as const;
 
     for (const [sourceName, fns] of Object.entries(this.indexingFunctions)) {
+      const source = this.sources.find((s) => s.contractName === sourceName);
+      if (!source) {
+        // Multi-network contracts have N sources, but the hint here should not have duplicates.
+        const uniqueContractNames = [
+          ...new Set(this.sources.map((s) => s.contractName)),
+        ];
+        const error = new Error(
+          `Validation failed: Invalid contract name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueContractNames
+            .map((n) => `'${n}'`)
+            .join(", ")}].`,
+        );
+        return { success: false, error } as const;
+      }
+
       for (const eventName of Object.keys(fns)) {
         const eventKey = `${sourceName}:${eventName}`;
 
-        const source = this.sources.find((s) => s.contractName === sourceName);
-        if (!source) {
-          // Multi-network contracts have N sources, but the hint here should not have duplicates.
-          const uniqueContractNames = [
-            ...new Set(this.sources.map((s) => s.contractName)),
-          ];
-          const error = new Error(
-            `Validation failed: Invalid contract name for event '${eventKey}'. Got '${sourceName}', expected one of [${uniqueContractNames
-              .map((n) => `'${n}'`)
-              .join(", ")}].`,
-          );
-          error.stack = undefined;
-          return { success: false, error } as const;
-        }
+        if (eventName === "setup") continue;
 
-        const eventNames = [
-          ...Object.keys(source.abiEvents.bySafeName),
-          "setup",
-        ];
-        if (!eventNames.find((e) => e === eventName)) {
+        // Validate that the event name is found in the contract ABI.
+        if (source.abiEvents.bySafeName[eventName] === undefined) {
           const error = new Error(
-            `Validation failed: Invalid event name for event '${eventKey}'. Got '${eventName}', expected one of [${eventNames
+            `Validation failed: Event name for event '${eventKey}' not found in the contract ABI. Got '${eventName}', expected one of [${Object.keys(
+              source.abiEvents.bySafeName,
+            )
               .map((eventName) => `'${eventName}'`)
               .join(", ")}].`,
           );
-          error.stack = undefined;
           return { success: false, error } as const;
         }
+      }
+    }
+
+    // Validate source topics
+    for (const [sourceName, fns] of Object.entries(this.indexingFunctions)) {
+      for (const source of this.sources.filter(
+        (s) => s.contractName === sourceName,
+      )) {
+        for (const eventName of Object.keys(fns)) {
+          const eventKey = `${sourceName}:${eventName}`;
+
+          if (eventName === "setup") continue;
+          const filteredEventSelectors = source.criteria.topics?.[0]
+            ? Array.isArray(source.criteria.topics[0])
+              ? source.criteria.topics[0]
+              : [source.criteria.topics[0]]
+            : [];
+
+          // Validate that the selector for this event was not filtered out by the user via an event filter.
+          const eventSelector =
+            source.abiEvents.bySafeName[eventName]!.selector;
+          if (
+            filteredEventSelectors.length > 0 &&
+            !filteredEventSelectors.includes(eventSelector)
+          ) {
+            const error = new Error(
+              `Validation failed: Event '${eventKey}' is excluded by the event filter defined on the contract '${sourceName}'. Got '${eventName}', expected one of [${filteredEventSelectors
+                .map((s) => source.abiEvents.bySelector[s]!.safeName)
+                .map((eventName) => `'${eventName}'`)
+                .join(", ")}].`,
+            );
+            return { success: false, error } as const;
+          }
+        }
+
+        // Update source topic0 to include only registered event selectors
+        const registeredEventSelectors = Object.keys(fns)
+          .filter((eventName) => eventName !== "setup")
+          .map((eventName) => source.abiEvents.bySafeName[eventName]!.selector);
+        (source.criteria.topics ??= [])[0] = registeredEventSelectors;
       }
     }
 
@@ -481,7 +525,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         ),
       } as const;
 
-    const result = safeGetAppId({
+    const result = safeGetBuildId({
       sources: this.sources,
       tableAccess: this.tableAccess,
       schema: this.schema,
@@ -490,7 +534,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return { success: false, error: result.error } as const;
     }
 
-    this.appId = result.data.appId;
+    this.buildId = result.data.buildId;
 
     return { success: true, ...result.data } as const;
   }

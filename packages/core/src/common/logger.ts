@@ -29,8 +29,11 @@ export class LoggerService {
             console.log(prettyLog);
 
             // If there is an "error" property, log the stack trace.
-            if (log.error?.stack) console.log(log.error.stack);
-            if (log.error?.meta) console.log(log.error.meta);
+            if (log.error) {
+              const message = log.error.stack ?? log.error.message ?? log.error;
+              console.log(message);
+              if (log.error?.meta) console.log(log.error.meta);
+            }
 
             // TODO: Consider also logging any inner `cause` errors.
             // if (log.error?.cause?.stack) {

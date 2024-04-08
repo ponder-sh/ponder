@@ -1,10 +1,6 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import type {
-  FactoryCriteria,
-  LogFilterCriteria,
-  Source,
-} from "@/config/sources.js";
+import type { Source } from "@/config/sources.js";
 import { HistoricalSyncService } from "@/sync-historical/service.js";
 import { RealtimeSyncService } from "@/sync-realtime/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -16,7 +12,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { Emittery } from "@/utils/emittery.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
-import type { Hex, Transport } from "viem";
+import type { Transport } from "viem";
 import { cachedTransport } from "./transport.js";
 
 type SyncServiceEvents = {
@@ -158,9 +154,10 @@ export class SyncService extends Emittery<SyncServiceEvents> {
       });
 
       realtime.on("fatal", (error) => {
-        this.common.logger.fatal({
-          service: "app",
+        this.common.logger.error({
+          service: "realtime",
           msg: "Realtime sync service failed",
+          error,
         });
         this.emit("fatal", error);
       });
@@ -179,7 +176,11 @@ export class SyncService extends Emittery<SyncServiceEvents> {
       );
     } catch (error_) {
       const error = error_ as Error;
-      error.stack = undefined;
+      this.common.logger.error({
+        service: "sync",
+        msg: "Sync service failed during setup:",
+        error,
+      });
       this.emit("fatal", error);
     }
 
@@ -212,37 +213,13 @@ export class SyncService extends Emittery<SyncServiceEvents> {
    * @param options.fromCheckpoint Checkpoint to include events from (exclusive).
    * @param options.toCheckpoint Checkpoint to include events to (inclusive).
    */
-  getEvents(
-    arg: {
-      fromCheckpoint: Checkpoint;
-      toCheckpoint: Checkpoint;
-      limit: number;
-    } & (
-      | {
-          logFilters: {
-            id: string;
-            chainId: number;
-            criteria: LogFilterCriteria;
-            fromBlock?: number;
-            toBlock?: number;
-            eventSelector: Hex;
-          }[];
-          factories?: undefined;
-        }
-      | {
-          logFilters?: undefined;
-          factories: {
-            id: string;
-            chainId: number;
-            criteria: FactoryCriteria;
-            fromBlock?: number;
-            toBlock?: number;
-            eventSelector: Hex;
-          }[];
-        }
-    ),
-  ) {
-    return this.syncStore.getLogEvents(arg);
+  getEvents(options: {
+    sources: Source[];
+    fromCheckpoint: Checkpoint;
+    toCheckpoint: Checkpoint;
+    limit: number;
+  }) {
+    return this.syncStore.getLogEvents(options);
   }
 
   getCachedTransport(chainId: number) {
@@ -255,7 +232,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
     this.networks[chainId].historicalCheckpoint = checkpoint;
 
     this.common.logger.trace({
-      service: "gateway",
+      service: "sync",
       msg: `New historical checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
     });
 
@@ -270,8 +247,8 @@ export class SyncService extends Emittery<SyncServiceEvents> {
     const networkCheckpoints = Object.values(this.networks);
     if (networkCheckpoints.every((n) => n.isHistoricalSyncComplete)) {
       this.isHistoricalSyncComplete = true;
-      this.common.logger.debug({
-        service: "gateway",
+      this.common.logger.info({
+        service: "sync",
         msg: "Completed historical sync across all networks",
       });
     }
@@ -283,7 +260,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
     this.networks[chainId].realtimeCheckpoint = checkpoint;
 
     this.common.logger.trace({
-      service: "gateway",
+      service: "sync",
       msg: `New realtime checkpoint at (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
     });
 
@@ -315,7 +292,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
 
       const { chainId, blockTimestamp, blockNumber } = this.checkpoint;
       this.common.logger.trace({
-        service: "gateway",
+        service: "sync",
         msg: `New checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
       });
 
@@ -335,7 +312,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
 
       const { chainId, blockTimestamp, blockNumber } = this.finalityCheckpoint;
       this.common.logger.trace({
-        service: "gateway",
+        service: "sync",
         msg: `New finality checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
       });
 

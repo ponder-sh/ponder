@@ -466,12 +466,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // requested range was cached, so the sync is complete.
     if (this.queue.size === 0) {
       clearInterval(this.progressLogInterval);
-      this.emit("syncComplete");
       this.common.logger.info({
         service: "historical",
         msg: `Completed sync (network=${this.network.name})`,
         network: this.network.name,
       });
+      this.emit("syncComplete");
     }
 
     this.queue.start();
@@ -521,7 +521,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       // If this is the final task, run the cleanup/completion logic.
       clearInterval(this.progressLogInterval);
-      this.emit("syncComplete");
       const startTimestamp =
         (await this.common.metrics.ponder_historical_start_timestamp.get())
           .values?.[0]?.value ?? Date.now();
@@ -532,6 +531,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           this.network.name
         })`,
       });
+      this.emit("syncComplete");
     };
 
     const queue = createQueue<HistoricalSyncTask>({

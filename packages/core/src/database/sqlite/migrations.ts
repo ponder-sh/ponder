@@ -10,7 +10,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("namespace", "text", (col) => col.notNull().primaryKey())
         .addColumn("is_locked", "integer", (col) => col.notNull())
         .addColumn("heartbeat_at", "integer", (col) => col.notNull())
-        .addColumn("app_id", "text", (col) => col.notNull())
+        .addColumn("build_id", "text", (col) => col.notNull())
         .addColumn("finalized_checkpoint", "varchar(75)", (col) =>
           col.notNull(),
         )
@@ -33,7 +33,7 @@ export type InternalTables = {
     namespace: string;
     is_locked: number;
     heartbeat_at: number;
-    app_id: string;
+    build_id: string;
     finalized_checkpoint: string;
     schema: string;
   };

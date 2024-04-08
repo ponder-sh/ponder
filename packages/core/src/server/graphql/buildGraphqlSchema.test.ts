@@ -1,7 +1,7 @@
 import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
-import { zeroCheckpoint } from "@/utils/checkpoint.js";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { execute, parse } from "graphql";
 import { beforeEach, expect, test } from "vitest";
 import { buildGraphqlSchema } from "./buildGraphqlSchema.js";
@@ -12,7 +12,7 @@ beforeEach((context) => setupIsolatedDatabase(context));
 const create = async (id: string, indexingStore: IndexingStore) => {
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id,
     data: {
       string: "0",
@@ -100,7 +100,7 @@ test("scalar list", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: ["0"],
@@ -168,7 +168,7 @@ test("scalar optional", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: null,
@@ -236,7 +236,7 @@ test("scalar optional list", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: null,
@@ -300,7 +300,7 @@ test("enum", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       enum: "A",
@@ -349,7 +349,7 @@ test("enum optional", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       enum: null,
@@ -398,7 +398,7 @@ test("enum list", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       enum: ["A"],
@@ -407,7 +407,7 @@ test("enum list", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "1",
     data: {
       enum: ["B"],
@@ -456,7 +456,7 @@ test("enum optional list", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       enum: null,
@@ -465,7 +465,7 @@ test("enum optional list", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "1",
     data: {
       enum: null,
@@ -518,7 +518,7 @@ test("one", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       ref: "0",
@@ -584,7 +584,7 @@ test("many", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       ref: "0",
@@ -594,7 +594,7 @@ test("many", async (context) => {
 
   await indexingStore.create({
     tableName: "many",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
   });
 
@@ -650,7 +650,7 @@ test("bigint id", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: 0n,
   });
 
@@ -692,7 +692,7 @@ test("hex id", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0x00",
   });
 
@@ -864,7 +864,7 @@ test("filter string contains", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: "string",
@@ -938,7 +938,7 @@ test("filter string starts with", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: "string",
@@ -1012,7 +1012,7 @@ test("filter string not ends with", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: "string",
@@ -1148,7 +1148,7 @@ test("filter int gt", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: "0",
@@ -1408,7 +1408,7 @@ test("filter float gt", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: "0",
@@ -1668,7 +1668,7 @@ test("filter bigint gt", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: "0",
@@ -1928,7 +1928,7 @@ test("filter hex gt", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: "0",
@@ -2002,7 +2002,7 @@ test("filter string list eq", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: ["0"],
@@ -2076,7 +2076,7 @@ test("filter string list has", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: ["0"],
@@ -2146,7 +2146,7 @@ test("filter enum eq", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       enum: "A",
@@ -2201,7 +2201,7 @@ test("filter enum in", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       enum: "A",
@@ -2260,7 +2260,7 @@ test("filter ref eq", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       ref: "0",
@@ -2328,7 +2328,7 @@ test("filter ref in", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       ref: "0",
@@ -2397,7 +2397,7 @@ test("order int asc", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "1",
     data: {
       string: "0",
@@ -2411,7 +2411,7 @@ test("order int asc", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "2",
     data: {
       string: "0",
@@ -2481,7 +2481,7 @@ test("order bigint asc", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "1",
     data: {
       string: "0",
@@ -2495,7 +2495,7 @@ test("order bigint asc", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "2",
     data: {
       string: "0",
@@ -2565,7 +2565,7 @@ test("order bigint desc", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "1",
     data: {
       string: "0",
@@ -2579,7 +2579,7 @@ test("order bigint desc", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "2",
     data: {
       string: "0",
@@ -2804,7 +2804,10 @@ test("timestamp", async (context) => {
 
   await indexingStore.update({
     tableName: "table",
-    checkpoint: { ...zeroCheckpoint, blockTimestamp: 10 },
+    encodedCheckpoint: encodeCheckpoint({
+      ...zeroCheckpoint,
+      blockTimestamp: 10,
+    }),
     id: "0",
     data: {
       string: "updated",

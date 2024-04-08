@@ -47,13 +47,13 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    const { checkpoint } = await database.setup({ schema, appId: "abc" });
+    const { checkpoint } = await database.setup({ schema, buildId: "abc" });
 
     expect(checkpoint).toMatchObject(zeroCheckpoint);
 
     expect(await getTableNames(database.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -74,7 +74,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    const { checkpoint } = await database.setup({ schema, appId: "abc" });
+    const { checkpoint } = await database.setup({ schema, buildId: "abc" });
     expect(checkpoint).toMatchObject(zeroCheckpoint);
 
     await database.kill();
@@ -85,8 +85,8 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -96,11 +96,11 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       "Person",
     ]);
 
-    await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "def", "Dog"]),
       hash(["public", "def", "Apple"]),
@@ -120,7 +120,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
     await database.kill();
 
     const databaseTwo = new SqliteDatabaseService({
@@ -144,7 +144,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       "AnotherTable",
     ]);
 
-    await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
       "not_a_ponder_table",
@@ -157,7 +157,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
   });
 
   test.todo(
-    "setup with the same app ID and namespace reverts to and returns the finality checkpoint",
+    "setup with the same build ID and namespace reverts to and returns the finality checkpoint",
     async (context) => {
       if (context.databaseConfig.kind !== "sqlite") return;
       const database = new SqliteDatabaseService({
@@ -165,7 +165,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
         directory: context.databaseConfig.directory,
       });
 
-      await database.setup({ schema, appId: "abc" });
+      await database.setup({ schema, buildId: "abc" });
 
       // Simulate progress being made by updating the checkpoints.
       // TODO: Actually use the indexing store.
@@ -189,7 +189,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
 
       const { checkpoint } = await databaseTwo.setup({
         schema: schema,
-        appId: "abc",
+        buildId: "abc",
       });
 
       expect(checkpoint).toMatchObject(newCheckpoint);
@@ -205,7 +205,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const databaseTwo = new SqliteDatabaseService({
       common: context.common,
@@ -213,9 +213,9 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     await expect(() =>
-      databaseTwo.setup({ schema: schemaTwo, appId: "def" }),
+      databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
     ).rejects.toThrow(
-      "Failed to acquire namespace 'public' because it is locked by a different app",
+      "Database file 'public.db' is in use by a different Ponder app (lock expires in",
     );
 
     await database.kill();
@@ -229,7 +229,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const databaseTwo = new SqliteDatabaseService({
       common: context.common,
@@ -237,9 +237,9 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     await expect(() =>
-      databaseTwo.setup({ schema: schemaTwo, appId: "def" }),
+      databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
     ).rejects.toThrow(
-      "Failed to acquire namespace 'public' because it is locked by a different app",
+      "Database file 'public.db' is in use by a different Ponder app (lock expires in",
     );
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
@@ -254,7 +254,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       },
     });
 
-    await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
       "Dog",
@@ -267,6 +267,28 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     vi.unstubAllGlobals();
   });
 
+  test("setup throws if there is a table name collision", async (context) => {
+    if (context.databaseConfig.kind !== "sqlite") return;
+    const database = new SqliteDatabaseService({
+      common: context.common,
+      directory: context.databaseConfig.directory,
+    });
+
+    await database.db.executeQuery(
+      sql`CREATE TABLE public.'Pet' (id TEXT)`.compile(database.db),
+    );
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual(["Pet"]);
+
+    await expect(() =>
+      database.setup({ schema, buildId: "abc" }),
+    ).rejects.toThrow(
+      "Unable to create table 'public'.'Pet' because a table with that name already exists. Is there another application using the 'public.db' database file?",
+    );
+
+    await database.kill();
+  });
+
   test("heartbeat updates the heartbeat_at value", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
@@ -276,7 +298,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
 
     vi.useFakeTimers();
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const row = await database.db
       .selectFrom("namespace_lock")
@@ -306,7 +328,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const row = await database.db
       .selectFrom("namespace_lock")
@@ -339,7 +361,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const databaseTwo = new SqliteDatabaseService({
       common: context.common,
@@ -348,18 +370,18 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
     ]);
 
-    await databaseTwo.setup({ schema: schemaTwo, appId: "def" });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
@@ -375,14 +397,14 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.kill();
   });
 
-  test("setup succeeds with a live app in a different namespace using the same app ID", async (context) => {
+  test("setup succeeds with a live app in a different namespace using the same build ID", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup({ schema, appId: "abc" });
+    await database.setup({ schema, buildId: "abc" });
 
     const databaseTwo = new SqliteDatabaseService({
       common: context.common,
@@ -391,18 +413,18 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
     ]);
 
-    await databaseTwo.setup({ schema: schemaTwo, appId: "abc" });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "abc" });
 
     expect(await getTableNames(databaseTwo.db)).toStrictEqual([
-      "migration",
-      "migration_lock",
+      "kysely_migration",
+      "kysely_migration_lock",
       "namespace_lock",
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),

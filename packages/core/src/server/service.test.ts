@@ -1,7 +1,7 @@
 import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
-import { zeroCheckpoint } from "@/utils/checkpoint.js";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import type { GraphQLSchema } from "graphql";
 import { expect, test, vi } from "vitest";
 import { buildGraphqlSchema } from "./graphql/buildGraphqlSchema.js";
@@ -100,7 +100,7 @@ test("graphql", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    checkpoint: zeroCheckpoint,
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
       string: "0",

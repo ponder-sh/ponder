@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.3.11
+
+## 0.3.10
+
+## 0.3.9
+
 ## 0.3.8
 
 ### Patch Changes

@@ -85,7 +85,10 @@ export interface IndexingStore {
   db: HeadlessKysely<any>;
   schema: Schema;
 
-  revert({ checkpoint }: { checkpoint: Checkpoint }): Promise<void>;
+  revert({
+    checkpoint,
+    isCheckpointSafe,
+  }: { checkpoint: Checkpoint; isCheckpointSafe: boolean }): Promise<void>;
 
   findUnique(options: {
     tableName: string;
@@ -111,20 +114,20 @@ export interface IndexingStore {
 
   create(options: {
     tableName: string;
-    checkpoint?: Checkpoint;
+    encodedCheckpoint: string;
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }): Promise<Row>;
 
   createMany(options: {
     tableName: string;
-    checkpoint?: Checkpoint;
+    encodedCheckpoint: string;
     data: Row[];
   }): Promise<Row[]>;
 
   update(options: {
     tableName: string;
-    checkpoint?: Checkpoint;
+    encodedCheckpoint: string;
     id: string | number | bigint;
     data?:
       | Partial<Omit<Row, "id">>
@@ -133,7 +136,7 @@ export interface IndexingStore {
 
   updateMany(options: {
     tableName: string;
-    checkpoint?: Checkpoint;
+    encodedCheckpoint: string;
     where?: WhereInput<any>;
     data?:
       | Partial<Omit<Row, "id">>
@@ -142,7 +145,7 @@ export interface IndexingStore {
 
   upsert(options: {
     tableName: string;
-    checkpoint?: Checkpoint;
+    encodedCheckpoint: string;
     id: string | number | bigint;
     create?: Omit<Row, "id">;
     update?:
@@ -152,7 +155,7 @@ export interface IndexingStore {
 
   delete(options: {
     tableName: string;
-    checkpoint?: Checkpoint;
+    encodedCheckpoint: string;
     id: string | number | bigint;
   }): Promise<boolean>;
 }

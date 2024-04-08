@@ -45,7 +45,10 @@ export class RealtimeIndexingStore implements IndexingStore {
     this.db = db;
   }
 
-  async revert({ checkpoint }: { checkpoint: Checkpoint }) {
+  async revert({
+    checkpoint,
+    isCheckpointSafe,
+  }: { checkpoint: Checkpoint; isCheckpointSafe: boolean }) {
     await this.db.wrap({ method: "revert" }, async () => {
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
@@ -57,7 +60,11 @@ export class RealtimeIndexingStore implements IndexingStore {
                 .withSchema(this.namespaceInfo.internalNamespace)
                 .deleteFrom(tableId)
                 .returningAll()
-                .where("checkpoint", ">", encodedCheckpoint)
+                .where(
+                  "checkpoint",
+                  isCheckpointSafe ? ">" : ">=",
+                  encodedCheckpoint,
+                )
                 .execute();
 
               const reversed = rows.sort(
@@ -341,12 +348,12 @@ export class RealtimeIndexingStore implements IndexingStore {
 
   create = async ({
     tableName,
-    checkpoint,
+    encodedCheckpoint,
     id,
     data = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
+    encodedCheckpoint: string;
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
@@ -354,7 +361,6 @@ export class RealtimeIndexingStore implements IndexingStore {
 
     return this.db.wrap({ method: `${tableName}.create` }, async () => {
       const createRow = encodeRow({ id, ...data }, table, this.kind);
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       try {
         return await this.db.transaction().execute(async (tx) => {
@@ -393,18 +399,16 @@ export class RealtimeIndexingStore implements IndexingStore {
 
   createMany = async ({
     tableName,
-    checkpoint,
+    encodedCheckpoint,
     data,
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
+    encodedCheckpoint: string;
     data: Row[];
   }) => {
     const table = this.schema.tables[tableName];
 
     return this.db.wrap({ method: `${tableName}.createMany` }, async () => {
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
-
       try {
         const rows: Row[] = [];
         await this.db.transaction().execute(async (tx) => {
@@ -453,12 +457,12 @@ export class RealtimeIndexingStore implements IndexingStore {
 
   update = async ({
     tableName,
-    checkpoint,
+    encodedCheckpoint,
     id,
     data = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
+    encodedCheckpoint: string;
     id: string | number | bigint;
     data?:
       | Partial<Omit<Row, "id">>
@@ -468,7 +472,6 @@ export class RealtimeIndexingStore implements IndexingStore {
 
     return this.db.wrap({ method: `${tableName}.update` }, async () => {
       const encodedId = encodeValue(id, table.id, this.kind);
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
@@ -522,12 +525,12 @@ export class RealtimeIndexingStore implements IndexingStore {
 
   updateMany = async ({
     tableName,
-    checkpoint,
+    encodedCheckpoint,
     where,
     data = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
+    encodedCheckpoint: string;
     where: WhereInput<any>;
     data?:
       | Partial<Omit<Row, "id">>
@@ -536,8 +539,6 @@ export class RealtimeIndexingStore implements IndexingStore {
     const table = this.schema.tables[tableName];
 
     return this.db.wrap({ method: `${tableName}.updateMany` }, async () => {
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
-
       const rows = await this.db.transaction().execute(async (tx) => {
         // TODO(kyle) can remove this from the tx
 
@@ -602,13 +603,13 @@ export class RealtimeIndexingStore implements IndexingStore {
 
   upsert = async ({
     tableName,
-    checkpoint,
+    encodedCheckpoint,
     id,
     create = {},
     update = {},
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
+    encodedCheckpoint: string;
     id: string | number | bigint;
     create?: Omit<Row, "id">;
     update?:
@@ -620,7 +621,6 @@ export class RealtimeIndexingStore implements IndexingStore {
     return this.db.wrap({ method: `${tableName}.upsert` }, async () => {
       const encodedId = encodeValue(id, table.id, this.kind);
       const createRow = encodeRow({ id, ...create }, table, this.kind);
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
@@ -690,18 +690,17 @@ export class RealtimeIndexingStore implements IndexingStore {
 
   delete = async ({
     tableName,
-    checkpoint,
+    encodedCheckpoint,
     id,
   }: {
     tableName: string;
-    checkpoint: Checkpoint;
+    encodedCheckpoint: string;
     id: string | number | bigint;
   }) => {
     const table = this.schema.tables[tableName];
 
     return this.db.wrap({ method: `${tableName}.delete` }, async () => {
       const encodedId = encodeValue(id, table.id, this.kind);
-      const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const isDeleted = await this.db.transaction().execute(async (tx) => {
         const row = await tx

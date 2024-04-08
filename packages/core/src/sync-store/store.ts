@@ -1,8 +1,21 @@
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type {
+  FactoryCriteria,
+  LogFilterCriteria,
+  Source,
+} from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import type { Address, RpcBlock, RpcLog, RpcTransaction } from "viem";
+
+export type RawEvent = {
+  chainId: number;
+  sourceId: string;
+  log: Log;
+  block: Block;
+  transaction: Transaction;
+  encodedCheckpoint: string;
+};
 
 export interface SyncStore {
   kind: "sqlite" | "postgres";
@@ -143,54 +156,21 @@ export interface SyncStore {
 
   /** EVENTS METHOD */
 
-  getLogEvents(
-    arg: {
-      fromCheckpoint: Checkpoint;
-      toCheckpoint: Checkpoint;
-      limit: number;
-    } & (
-      | {
-          logFilters: {
-            id: string;
-            chainId: number;
-            criteria: LogFilterCriteria;
-            fromBlock?: number;
-            toBlock?: number;
-            eventSelector: Hex;
-          }[];
-          factories?: undefined;
-        }
-      | {
-          logFilters?: undefined;
-          factories: {
-            id: string;
-            chainId: number;
-            criteria: FactoryCriteria;
-            fromBlock?: number;
-            toBlock?: number;
-            eventSelector: Hex;
-          }[];
-        }
-    ),
-  ): Promise<
-    {
-      events: {
-        chainId: number;
-        log: Log;
-        block: Block;
-        transaction: Transaction;
-        checkpoint: Checkpoint;
-      }[];
-      lastCheckpoint: Checkpoint | undefined;
-    } & (
-      | {
-          hasNextPage: true;
-          lastCheckpointInPage: Checkpoint;
-        }
-      | {
-          hasNextPage: false;
-          lastCheckpointInPage: undefined;
-        }
-    )
-  >;
+  getLogEvents(arg: {
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
+    fromCheckpoint: Checkpoint;
+    toCheckpoint: Checkpoint;
+    limit: number;
+  }): AsyncGenerator<RawEvent[]>;
+
+  getLastEventCheckpoint(arg: {
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
+    toCheckpoint: Checkpoint;
+  }): Promise<Checkpoint | undefined>;
 }

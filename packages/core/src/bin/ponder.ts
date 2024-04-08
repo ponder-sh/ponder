@@ -2,7 +2,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { cac } from "cac";
+import type { Prettify } from "@/types/utils.js";
+import { Command } from "@commander-js/extra-typings";
 import { codegen } from "./commands/codegen.js";
 import { dev } from "./commands/dev.js";
 import { serve } from "./commands/serve.js";
@@ -14,113 +15,106 @@ const packageJson = JSON.parse(
   readFileSync(packageJsonPath, { encoding: "utf8" }),
 );
 
-/**
- * CLI options for `ponder` commands. Note that we don't always use CAC's built-in
- * default value behavior, because we want to know downstream if the user explicitly
- * set a value or not.
- */
-export type CliOptions = {
-  help?: boolean;
-  root?: string;
-  config: string;
-  port?: number;
-  hostname?: string;
-  // CAC converts `-vv` to { v: [true, true], debug: [true, true] }
-  v?: boolean | boolean[];
-  debug?: boolean | boolean[];
-  trace?: boolean;
-};
-
-const cli = cac("ponder")
-  .version(packageJson.version)
+const ponder = new Command("ponder")
   .usage("<command> [OPTIONS]")
+  .helpOption("-h, --help", "Show this help message")
+  .helpCommand(false)
   .option(
-    "--root [PATH]",
+    "--root <PATH>",
     "Path to the project root directory (default: working directory)",
   )
-  .option("--config [PATH]", "Path to the project config file", {
-    default: "ponder.config.ts",
-  })
-  .help();
-
-cli
-  .command("dev", "Start the app in development mode")
   .option(
-    "-p, --port [PORT]",
-    "Port number for the the web server (default: 42069)",
-  )
-  .option(
-    "-H, --hostname [HOSTNAME]",
-    "Hostname for the web server (default: 0.0.0.0)",
+    "--config <PATH>",
+    "Path to the project config file",
+    "ponder.config.ts",
   )
   .option(
     "-v, --debug",
-    "Enable debug logs including realtime blocks, internal events, etc",
+    "Enable debug-level logs, e.g. realtime blocks, internal events",
   )
   .option(
     "-vv, --trace",
-    "Enable trace logs including db queries, indexing checkpoints, etc",
+    "Enable trace-level logs, e.g. db queries, indexing checkpoints",
   )
-  .action(async (cliOptions: CliOptions) => {
-    if (cliOptions.help) process.exit(0);
+  .version(packageJson.version, "-V, --version", "Show the version number")
+  .configureHelp({ showGlobalOptions: true })
+  .allowExcessArguments(false)
+  .showHelpAfterError()
+  .enablePositionalOptions(false);
 
+type GlobalOptions = ReturnType<typeof ponder.opts>;
+
+const devCommand = new Command("dev")
+  .description("Start the development server with hot reloading")
+  .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
+  .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .action(async (_, command) => {
+    const cliOptions = command.optsWithGlobals() as GlobalOptions &
+      ReturnType<typeof command.opts>;
     await dev({ cliOptions });
   });
 
-cli
-  .command("start", "Start the app in production mode")
-  .option(
-    "-p, --port [PORT]",
-    "Port number for the the web server (default: 42069)",
-  )
-  .option(
-    "-H, --hostname [HOSTNAME]",
-    "Hostname for the web server (default: 0.0.0.0)",
-  )
-  .option(
-    "-v, --debug",
-    "Enable debug logs including realtime blocks, internal events, etc",
-  )
-  .option(
-    "-vv, --trace",
-    "Enable trace logs including db queries, indexing checkpoints, etc",
-  )
-  .action(async (cliOptions: CliOptions) => {
-    if (cliOptions.help) process.exit(0);
-
+const startCommand = new Command("start")
+  .description("Start the production server")
+  .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
+  .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .action(async (_, command) => {
+    const cliOptions = command.optsWithGlobals() as GlobalOptions &
+      ReturnType<typeof command.opts>;
     await start({ cliOptions });
   });
 
-cli
-  .command("serve", "Start the web server (experimental)")
-  .option(
-    "-p, --port [PORT]",
-    "Port number for the the web server (default: 42069)",
-  )
-  .option(
-    "-H, --hostname [HOSTNAME]",
-    "Hostname for the web server (default: 0.0.0.0)",
-  )
-  .option(
-    "-v, --debug",
-    "Enable debug logs including realtime blocks, internal events, etc",
-  )
-  .option(
-    "-vv, --trace",
-    "Enable trace logs including db queries, indexing checkpoints, etc",
-  )
-  .action(async (cliOptions: CliOptions) => {
-    if (cliOptions.help) process.exit(0);
-
+const serveCommand = new Command("serve")
+  .description("Start the production HTTP server without the indexer")
+  .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
+  .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .action(async (_, command) => {
+    const cliOptions = command.optsWithGlobals() as GlobalOptions &
+      ReturnType<typeof command.opts>;
     await serve({ cliOptions });
   });
 
-cli
-  .command("codegen", "Generate the schema.graphql file, then exit")
-  .action(async (cliOptions: CliOptions) => {
-    if (cliOptions.help) process.exit(0);
-
+const codegenCommand = new Command("codegen")
+  .description("Generate the schema.graphql file, then exit")
+  .action(async (_, command) => {
+    const cliOptions = command.optsWithGlobals() as GlobalOptions &
+      ReturnType<typeof command.opts>;
     await codegen({ cliOptions });
   });
 
-cli.parse();
+// const cache = new Command("cache");
+
+// cache
+//   .command("drop")
+//   .description("Dangerously drop all cached RPC data")
+//   .action(async (_, command) => {
+//     const cliOptions = command.optsWithGlobals() as GlobalOptions &
+//       ReturnType<typeof command.opts>;
+//     console.log("ponder db drop");
+//   });
+
+// ponder.addCommand(cache);
+
+// cli
+//   .command("cache prune", "Drop stale indexed data tables")
+//   .action(async (cliOptions: DbOptions) => {
+//     // if (cliOptions.help) process.exit(0);
+//     console.log("ponder cache prune");
+//   });
+
+ponder.addCommand(devCommand);
+ponder.addCommand(startCommand);
+ponder.addCommand(serveCommand);
+ponder.addCommand(codegenCommand);
+
+export type CliOptions = Prettify<
+  GlobalOptions &
+    Partial<
+      ReturnType<typeof devCommand.opts> &
+        ReturnType<typeof startCommand.opts> &
+        ReturnType<typeof serveCommand.opts> &
+        ReturnType<typeof codegenCommand.opts>
+    >
+>;
+
+await ponder.parseAsync();

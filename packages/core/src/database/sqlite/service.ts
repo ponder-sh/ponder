@@ -1,3 +1,4 @@
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
@@ -5,9 +6,9 @@ import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/sqlite/encoding.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
-import { createSqliteDatabase } from "@/utils/sqlite.js";
-import { startClock } from "@/utils/timer.js";
+import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
 import {
   type CreateTableBuilder,
   type Insertable,
@@ -28,14 +29,19 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   kind = "sqlite" as const;
 
   private common: Common;
+  private directory: string;
+
   private userNamespace: string;
   private internalNamespace: string;
+
+  private internalDatabase: SqliteDatabase;
+  private syncDatabase: SqliteDatabase;
 
   db: HeadlessKysely<InternalTables>;
   indexingDb: HeadlessKysely<InternalTables>;
   syncDb: HeadlessKysely<SyncStoreTables>;
 
-  private appId: string = null!;
+  private buildId: string = null!;
   private heartbeatInterval?: NodeJS.Timeout;
 
   constructor({
@@ -48,6 +54,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     userNamespace?: string;
   }) {
     this.common = common;
+    this.directory = directory;
+
+    this.deleteV3DatabaseFiles();
 
     this.userNamespace = userNamespace;
     const userDatabaseFile = path.join(directory, `${userNamespace}.db`);
@@ -59,18 +68,20 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.internalNamespace = "main";
     const internalDatabaseFile = path.join(directory, "ponder.db");
 
-    const internalDatabase = createSqliteDatabase(internalDatabaseFile);
-    internalDatabase.exec(
+    this.internalDatabase = createSqliteDatabase(internalDatabaseFile);
+    this.internalDatabase.exec(
       `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
     );
 
     this.db = new HeadlessKysely<InternalTables>({
       name: "admin",
       common,
-      dialect: new SqliteDialect({ database: internalDatabase }),
+      dialect: new SqliteDialect({ database: this.internalDatabase }),
       log(event) {
         if (event.level === "query") {
-          common.metrics.ponder_sqlite_query_total.inc({ database: "admin" });
+          common.metrics.ponder_sqlite_query_total.inc({
+            database: "internal",
+          });
         }
       },
     });
@@ -78,7 +89,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.indexingDb = new HeadlessKysely<InternalTables>({
       name: "indexing",
       common,
-      dialect: new SqliteDialect({ database: internalDatabase }),
+      dialect: new SqliteDialect({ database: this.internalDatabase }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_sqlite_query_total.inc({
@@ -89,11 +100,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     });
 
     const syncDatabaseFile = path.join(directory, "ponder_sync.db");
-    const syncDatabase = createSqliteDatabase(syncDatabaseFile);
+    this.syncDatabase = createSqliteDatabase(syncDatabaseFile);
     this.syncDb = new HeadlessKysely<SyncStoreTables>({
       name: "sync",
       common,
-      dialect: new SqliteDialect({ database: syncDatabase }),
+      dialect: new SqliteDialect({ database: this.syncDatabase }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_sqlite_query_total.inc({ database: "sync" });
@@ -104,14 +115,12 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.registerMetrics();
   }
 
-  async setup({ schema, appId }: { schema: Schema; appId: string }) {
-    this.appId = appId;
+  async setup({ schema, buildId }: { schema: Schema; buildId: string }) {
+    this.buildId = buildId;
 
     const migrator = new Migrator({
       db: this.db.withPlugin(new WithSchemaPlugin(this.internalNamespace)),
       provider: migrationProvider,
-      migrationTableName: "migration",
-      migrationLockTableName: "migration_lock",
     });
     const result = await migrator.migrateToLatest();
     if (result.error) throw result.error;
@@ -120,14 +129,14 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       userNamespace: this.userNamespace,
       internalNamespace: this.internalNamespace,
       internalTableIds: Object.keys(schema.tables).reduce((acc, tableName) => {
-        acc[tableName] = hash([this.userNamespace, this.appId, tableName]);
+        acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
         return acc;
       }, {} as { [tableName: string]: string }),
     } satisfies NamespaceInfo;
 
-    return this.wrap({ method: "setup" }, async () => {
+    return this.db.wrap({ method: "setup" }, async () => {
       const checkpoint = await this.db.transaction().execute(async (tx) => {
-        const priorLockRow = await tx
+        const previousLockRow = await tx
           .withSchema(this.internalNamespace)
           .selectFrom("namespace_lock")
           .selectAll()
@@ -138,30 +147,34 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           namespace: this.userNamespace,
           is_locked: 1,
           heartbeat_at: Date.now(),
-          app_id: this.appId,
+          build_id: this.buildId,
           finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
           schema: JSON.stringify(schema),
         } satisfies Insertable<InternalTables["namespace_lock"]>;
 
         // If no lock row is found for this namespace, we can acquire the lock.
-        if (priorLockRow === undefined) {
+        if (previousLockRow === undefined) {
           await tx
             .withSchema(this.internalNamespace)
             .insertInto("namespace_lock")
             .values(newLockRow)
             .execute();
+          this.common.logger.debug({
+            service: "database",
+            msg: `Acquired lock on new namespace '${this.userNamespace}'`,
+          });
         }
         // If there is a row, but the lock is not held or has expired,
-        // we can acquire the lock and drop the prior app's tables.
+        // we can acquire the lock and drop the previous app's tables.
         else if (
-          priorLockRow.is_locked === 0 ||
-          Date.now() > priorLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
+          previousLockRow.is_locked === 0 ||
+          Date.now() > previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
         ) {
-          // // If the prior row has the same app ID, continue where the prior app left off
+          // // If the previous row has the same build ID, continue where the previous app left off
           // // by reverting tables to the finalized checkpoint, then returning.
-          // if (priorLockRow.app_id === this.appId) {
+          // if (previousLockRow.build_id === this.buildId) {
           //   const finalizedCheckpoint = decodeCheckpoint(
-          //     priorLockRow.finalized_checkpoint,
+          //     previousLockRow.finalized_checkpoint,
           //   );
 
           //   const duration =
@@ -172,10 +185,10 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           //       : "with no progress";
           //   this.common.logger.debug({
           //     service: "database",
-          //     msg: `Cache hit for app ID '${this.appId}' on namespace '${this.userNamespace}' ${progressText}`,
+          //     msg: `Cache hit for build ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
           //   });
 
-          //   // Acquire the lock and update the heartbeat (app_id, schema, ).
+          //   // Acquire the lock and update the heartbeat (build_id, schema, ).
           //   await tx
           //     .withSchema(this.internalNamespace)
           //     .updateTable("namespace_lock")
@@ -192,12 +205,22 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           //   return finalizedCheckpoint;
           // }
 
-          // If the prior row has a different app ID, drop the prior app's tables.
-          const priorAppId = priorLockRow.app_id;
-          const priorSchema = JSON.parse(priorLockRow.schema) as Schema;
+          // If the previous row has a different build ID, drop the previous app's tables.
+          const previousBuildId = previousLockRow.build_id;
+          const previousSchema = JSON.parse(previousLockRow.schema) as Schema;
 
-          for (const tableName of Object.keys(priorSchema.tables)) {
-            const tableId = hash([this.userNamespace, priorAppId, tableName]);
+          this.common.logger.debug({
+            service: "database",
+            msg: `Acquired lock on namespace '${this.userNamespace}' previously used by app '${previousBuildId}'`,
+          });
+
+          for (const tableName of Object.keys(previousSchema.tables)) {
+            const tableId = hash([
+              this.userNamespace,
+              previousBuildId,
+              tableName,
+            ]);
+
             await tx.schema
               .withSchema(this.internalNamespace)
               .dropTable(tableId)
@@ -209,19 +232,27 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               .dropTable(tableName)
               .ifExists()
               .execute();
+
+            this.common.logger.debug({
+              service: "database",
+              msg: `Dropped '${tableName}' table left by previous app`,
+            });
           }
 
-          // Update the lock row to reflect the new app ID and checkpoint progress.
+          // Update the lock row to reflect the new build ID and checkpoint progress.
           await tx
             .withSchema(this.internalNamespace)
             .updateTable("namespace_lock")
             .set(newLockRow)
             .execute();
         }
-        // Otherwise, the prior app still holds the lock.
+        // Otherwise, the previous app still holds the lock.
         else {
+          const expiresIn = formatEta(
+            previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS - Date.now(),
+          );
           throw new NonRetryableError(
-            `Failed to acquire namespace '${this.userNamespace}' because it is locked by a different app`,
+            `Database file '${this.userNamespace}.db' is in use by a different Ponder app (lock expires in ${expiresIn})`,
           );
         }
 
@@ -236,10 +267,29 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             .execute();
 
           await tx.schema
-            .withSchema(this.userNamespace)
-            .createTable(tableName)
-            .$call((builder) => this.buildColumns(builder, schema, columns))
+            .createIndex(`${tableId}_checkpointIndex`)
+            .on(tableId)
+            .column("checkpoint")
             .execute();
+
+          try {
+            await tx.schema
+              .withSchema(this.userNamespace)
+              .createTable(tableName)
+              .$call((builder) => this.buildColumns(builder, schema, columns))
+              .execute();
+          } catch (err) {
+            const error = err as Error;
+            if (!error.message.includes("already exists")) throw error;
+            throw new Error(
+              `Unable to create table '${this.userNamespace}'.'${tableName}' because a table with that name already exists. Is there another application using the '${this.userNamespace}.db' database file?`,
+            );
+          }
+
+          this.common.logger.info({
+            service: "database",
+            msg: `Created table '${tableName}' in '${this.userNamespace}.db'`,
+          });
         }
 
         return zeroCheckpoint;
@@ -247,17 +297,28 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
       // Start the heartbeat interval to hold the lock for as long as the process is running.
       this.heartbeatInterval = setInterval(async () => {
-        const lockRow = await this.db
-          .withSchema(this.internalNamespace)
-          .updateTable("namespace_lock")
-          .set({ heartbeat_at: Date.now() })
-          .returningAll()
-          .executeTakeFirst();
+        try {
+          const lockRow = await this.db
+            .withSchema(this.internalNamespace)
+            .updateTable("namespace_lock")
+            .set({ heartbeat_at: Date.now() })
+            .returningAll()
+            .executeTakeFirst();
 
-        this.common.logger.debug({
-          service: "database",
-          msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (app_id=${this.appId})`,
-        });
+          this.common.logger.debug({
+            service: "database",
+            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (build_id=${this.buildId})`,
+          });
+        } catch (err) {
+          const error = err as Error;
+          this.common.logger.error({
+            service: "database",
+            msg: `Failed to update heartbeat timestamp, retrying in ${formatEta(
+              HEARTBEAT_INTERVAL_MS,
+            )}`,
+            error,
+          });
+        }
       }, HEARTBEAT_INTERVAL_MS);
 
       return { checkpoint, namespaceInfo };
@@ -265,7 +326,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   }
 
   async kill() {
-    await this.wrap({ method: "kill" }, async () => {
+    await this.db.wrap({ method: "kill" }, async () => {
       clearInterval(this.heartbeatInterval);
 
       await this.db
@@ -284,6 +345,14 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       await this.indexingDb.destroy();
       await this.syncDb.destroy();
       await this.db.destroy();
+
+      this.syncDatabase.close();
+      this.internalDatabase.close();
+
+      this.common.logger.debug({
+        service: "database",
+        msg: "Closed connection to database",
+      });
     });
   }
 
@@ -366,56 +435,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     return builder;
   }
 
-  private wrap = async <T>(
-    options: { method: string },
-    fn: () => Promise<T>,
-  ) => {
-    const endClock = startClock();
-    const RETRY_COUNT = 3;
-    const BASE_DURATION = 100;
-
-    let error: any;
-    let hasError = false;
-
-    for (let i = 0; i < RETRY_COUNT + 1; i++) {
-      try {
-        const result = await fn();
-        this.common.metrics.ponder_database_method_duration.observe(
-          { service: "database", method: options.method },
-          endClock(),
-        );
-        return result;
-      } catch (_error) {
-        if (_error instanceof NonRetryableError) {
-          throw _error;
-        }
-
-        if (!hasError) {
-          hasError = true;
-          error = _error;
-        }
-
-        if (i < RETRY_COUNT) {
-          const duration = BASE_DURATION * 2 ** i;
-          this.common.logger.warn({
-            service: "database",
-            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-          });
-          await new Promise((_resolve) => {
-            setTimeout(_resolve, duration);
-          });
-        }
-      }
-    }
-
-    this.common.metrics.ponder_database_method_error_total.inc({
-      service: "database",
-      method: options.method,
-    });
-
-    throw error;
-  };
-
   private registerMetrics() {
     this.common.metrics.registry.removeSingleMetric(
       "ponder_sqlite_query_total",
@@ -425,6 +444,36 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       help: "Number of queries submitted to the database",
       labelNames: ["database"] as const,
       registers: [this.common.metrics.registry],
+    });
+  }
+
+  private async deleteV3DatabaseFiles() {
+    // Detect if the `.ponder/sqlite` directly contains 0.3 database files.
+    const hasV3Files = existsSync(path.join(this.directory, "ponder_cache.db"));
+
+    if (!hasV3Files) return;
+
+    this.common.logger.debug({
+      service: "database",
+      msg: "Migrating '.ponder/sqlite' database from 0.3.x to 0.4.x",
+    });
+
+    // Drop 'ponder_cache' database files.
+    rmSync(path.join(this.directory, "ponder_cache.db"), { force: true });
+    rmSync(path.join(this.directory, "ponder_cache.db-shm"), { force: true });
+    rmSync(path.join(this.directory, "ponder_cache.db-wal"), { force: true });
+    this.common.logger.debug({
+      service: "database",
+      msg: `Removed '.ponder/sqlite/ponder_cache.db' file`,
+    });
+
+    // Drop 'ponder' database files (they will be created again).
+    rmSync(path.join(this.directory, "ponder.db"), { force: true });
+    rmSync(path.join(this.directory, "ponder.db-shm"), { force: true });
+    rmSync(path.join(this.directory, "ponder.db-wal"), { force: true });
+    this.common.logger.debug({
+      service: "database",
+      msg: `Removed '.ponder/sqlite/ponder.db' file`,
     });
   }
 }

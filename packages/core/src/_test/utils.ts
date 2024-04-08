@@ -3,8 +3,8 @@ import { buildConfig } from "@/build/config/config.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";
-import type { SyncService } from "@/sync/service.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
+import type { RawEvent } from "@/sync-store/store.js";
+import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import type {
   BlockTag,
@@ -194,17 +194,17 @@ export const getRawRPCData = async (sources: Source[]) => {
   } as {
     block1: {
       logs: [RpcLog, RpcLog];
-      block: RpcBlock<BlockTag, true>;
+      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction, RpcTransaction];
     };
     block2: {
       logs: [RpcLog];
-      block: RpcBlock<BlockTag, true>;
+      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
     };
     block3: {
       logs: [RpcLog];
-      block: RpcBlock<BlockTag, true>;
+      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
     };
   };
@@ -215,55 +215,49 @@ export const getRawRPCData = async (sources: Source[]) => {
  */
 export const getEventsErc20 = async (
   sources: Source[],
-  toCheckpoint: Checkpoint,
-): ReturnType<SyncService["getEvents"]> => {
+): Promise<RawEvent[]> => {
   const rpcData = await getRawRPCData(sources);
 
-  return {
-    events: [
-      {
-        log: rpcData.block1.logs[0],
-        block: rpcData.block1.block,
-        transaction: rpcData.block1.transactions[0]!,
+  return [
+    {
+      log: rpcData.block1.logs[0],
+      block: rpcData.block1.block,
+      transaction: rpcData.block1.transactions[0]!,
+    },
+    {
+      log: rpcData.block1.logs[1],
+      block: rpcData.block1.block,
+      transaction: rpcData.block1.transactions[1]!,
+    },
+  ]
+    .map((e) => ({
+      log: formatLog(e.log),
+      block: formatBlock(e.block),
+      transaction: formatTransaction(e.transaction),
+    }))
+    .map(({ log, block, transaction }) => ({
+      sourceId: sources[0].id,
+      chainId: sources[0].chainId,
+      log: {
+        ...log,
+        id: `${log.blockHash}-${toHex(log.logIndex!)}`,
+        address: checksumAddress(log.address),
       },
-      {
-        log: rpcData.block1.logs[1],
-        block: rpcData.block1.block,
-        transaction: rpcData.block1.transactions[1]!,
+      block: { ...block, miner: checksumAddress(block.miner) },
+      transaction: {
+        ...transaction,
+        from: checksumAddress(transaction.from),
+        to: transaction.to ? checksumAddress(transaction.to) : transaction.to,
       },
-    ]
-      .map((e) => ({
-        log: formatLog(e.log),
-        block: formatBlock(e.block),
-        transaction: formatTransaction(e.transaction),
-      }))
-      .map(({ log, block, transaction }) => ({
-        sourceId: sources[0].id,
+      encodedCheckpoint: encodeCheckpoint({
+        blockTimestamp: Number(block.timestamp),
         chainId: sources[0].chainId,
-        log: {
-          ...log,
-          id: `${log.blockHash}-${toHex(log.logIndex!)}`,
-          address: checksumAddress(log.address),
-        },
-        block: { ...block, miner: checksumAddress(block.miner) },
-        transaction: {
-          ...transaction,
-          from: checksumAddress(transaction.from),
-          to: transaction.to ? checksumAddress(transaction.to) : transaction.to,
-        },
-        checkpoint: {
-          blockTimestamp: Number(block.timestamp),
-          chainId: sources[0].chainId,
-          blockNumber: Number(block.number!),
-          transactionIndex: transaction.transactionIndex!,
-          eventType: 5,
-          eventIndex: log.logIndex!,
-        },
-      })),
-    lastCheckpoint: toCheckpoint,
-    hasNextPage: true,
-    lastCheckpointInPage: toCheckpoint,
-  } as Awaited<ReturnType<SyncService["getEvents"]>>;
+        blockNumber: Number(block.number!),
+        transactionIndex: transaction.transactionIndex!,
+        eventType: 5,
+        eventIndex: log.logIndex!,
+      }),
+    })) as RawEvent[];
 };
 
 export function getFreePort(): Promise<number> {
@@ -305,4 +299,16 @@ export async function postGraphql(port: number, query: string) {
 export async function getMetrics(port: number) {
   const response = await fetch(`http://localhost:${port}/metrics`);
   return await response.text();
+}
+
+export async function drainAsyncGenerator<t extends unknown[]>(
+  asyncGenerator: AsyncGenerator<t>,
+) {
+  const result = [] as unknown as t;
+
+  for await (const x of asyncGenerator) {
+    result.push(...x);
+  }
+
+  return result;
 }

@@ -17,7 +17,7 @@ type Identifier = {
   schema: object;
 };
 
-export const getAppId = ({
+export const getBuildId = ({
   sources,
   tableAccess,
   schema,
@@ -48,7 +48,7 @@ const hashIdentifier = (schema: Omit<Identifier, "version">) => {
     .slice(0, 10);
 };
 
-export function safeGetAppId({
+export function safeGetBuildId({
   sources,
   tableAccess,
   schema,
@@ -58,16 +58,11 @@ export function safeGetAppId({
   tableAccess: TableAccess;
 }) {
   try {
-    const appId = getAppId({
-      sources,
-      schema,
-      tableAccess,
-    });
+    const buildId = getBuildId({ sources, schema, tableAccess });
 
-    return { success: true, data: { appId } } as const;
+    return { success: true, data: { buildId } } as const;
   } catch (error_) {
     const error = error_ as Error;
-    error.stack = undefined;
     return { success: false, error } as const;
   }
 }
