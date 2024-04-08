@@ -427,12 +427,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         return { success: false, error } as const;
       }
 
-      const filteredEventSelectors = source.criteria.topics?.[0]
-        ? Array.isArray(source.criteria.topics[0])
-          ? source.criteria.topics[0]
-          : [source.criteria.topics[0]]
-        : [];
-
       for (const eventName of Object.keys(fns)) {
         const eventKey = `${sourceName}:${eventName}`;
 
@@ -449,28 +443,47 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           );
           return { success: false, error } as const;
         }
-
-        // Validate that the selector for this event was not filtered out by the user via an event filter.
-        const eventSelector = source.abiEvents.bySafeName[eventName]!.selector;
-        if (
-          filteredEventSelectors.length > 0 &&
-          !filteredEventSelectors.includes(eventSelector)
-        ) {
-          const error = new Error(
-            `Validation failed: Event '${eventKey}' is excluded by the event filter defined on the contract '${sourceName}'. Got '${eventName}', expected one of [${filteredEventSelectors
-              .map((s) => source.abiEvents.bySelector[s]!.safeName)
-              .map((eventName) => `'${eventName}'`)
-              .join(", ")}].`,
-          );
-          return { success: false, error } as const;
-        }
       }
+    }
 
-      // Update source topic0 to include only registered event selectors
-      const registeredEventSelectors = Object.keys(fns).map(
-        (eventName) => source.abiEvents.bySafeName[eventName]!.selector,
-      );
-      (source.criteria.topics ??= [])[0] = registeredEventSelectors;
+    // Validate source topics
+    for (const [sourceName, fns] of Object.entries(this.indexingFunctions)) {
+      for (const source of this.sources.filter(
+        (s) => s.contractName === sourceName,
+      )) {
+        for (const eventName of Object.keys(fns)) {
+          const eventKey = `${sourceName}:${eventName}`;
+
+          if (eventName === "setup") continue;
+          const filteredEventSelectors = source.criteria.topics?.[0]
+            ? Array.isArray(source.criteria.topics[0])
+              ? source.criteria.topics[0]
+              : [source.criteria.topics[0]]
+            : [];
+
+          // Validate that the selector for this event was not filtered out by the user via an event filter.
+          const eventSelector =
+            source.abiEvents.bySafeName[eventName]!.selector;
+          if (
+            filteredEventSelectors.length > 0 &&
+            !filteredEventSelectors.includes(eventSelector)
+          ) {
+            const error = new Error(
+              `Validation failed: Event '${eventKey}' is excluded by the event filter defined on the contract '${sourceName}'. Got '${eventName}', expected one of [${filteredEventSelectors
+                .map((s) => source.abiEvents.bySelector[s]!.safeName)
+                .map((eventName) => `'${eventName}'`)
+                .join(", ")}].`,
+            );
+            return { success: false, error } as const;
+          }
+        }
+
+        // Update source topic0 to include only registered event selectors
+        const registeredEventSelectors = Object.keys(fns).map(
+          (eventName) => source.abiEvents.bySafeName[eventName]!.selector,
+        );
+        (source.criteria.topics ??= [])[0] = registeredEventSelectors;
+      }
     }
 
     return { success: true } as const;
