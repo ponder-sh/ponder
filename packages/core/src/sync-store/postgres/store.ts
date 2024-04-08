@@ -846,6 +846,7 @@ export class PostgresSyncStore implements SyncStore {
     limit: number;
   }) {
     let cursor = encodeCheckpoint(fromCheckpoint);
+    const encodedToCheckpoint = encodeCheckpoint(toCheckpoint);
 
     while (true) {
       const events = await this.db.wrap(
@@ -945,7 +946,7 @@ export class PostgresSyncStore implements SyncStore {
               "transactions.v as tx_v",
             ])
             .where("logs.checkpoint", ">", cursor)
-            .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
+            .where("logs.checkpoint", "<=", encodedToCheckpoint)
             .orderBy("logs.checkpoint", "asc")
             .limit(limit + 1)
             .execute();
@@ -1047,7 +1048,7 @@ export class PostgresSyncStore implements SyncStore {
         },
       );
 
-      const hasNextPage = events.length > limit;
+      const hasNextPage = events.length === limit + 1;
 
       if (!hasNextPage) {
         yield events;

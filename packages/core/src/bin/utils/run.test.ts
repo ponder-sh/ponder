@@ -1,5 +1,6 @@
 import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
 import type { Build } from "@/build/service.js";
+import * as codegen from "@/common/codegen.js";
 import { createSchema } from "@/schema/schema.js";
 import { buildGqlSchema } from "@/server/graphql/schema.js";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -32,12 +33,16 @@ test("run() kill", async (context) => {
     indexingFunctions: {},
   };
 
+  const codegenSpy = vi.spyOn(codegen, "runCodegen");
+
   const kill = await run({
     common: context.common,
     build,
     onFatalError: vi.fn(),
     onReloadableError: vi.fn(),
   });
+
+  expect(codegenSpy).toHaveBeenCalledOnce();
 
   await kill();
 });
