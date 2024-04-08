@@ -15,38 +15,13 @@ import {
 } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import type {
-  Abi,
-  Account,
-  Address,
-  Chain,
-  Client,
-  ContractFunctionConfig,
-  GetBalanceParameters,
-  GetBalanceReturnType,
-  GetBytecodeParameters,
-  GetBytecodeReturnType,
-  GetStorageAtParameters,
-  GetStorageAtReturnType,
-  MulticallParameters,
-  MulticallReturnType,
-  ReadContractParameters,
-  ReadContractReturnType,
-  Transport,
-} from "viem";
+import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
-import {
-  getBalance as viemGetBalance,
-  getBytecode as viemGetBytecode,
-  getStorageAt as viemGetStorageAt,
-  multicall as viemMulticall,
-  readContract as viemReadContract,
-} from "viem/actions";
 import type { Event, LogEvent, SetupEvent } from "./events.js";
 import {
-  type BlockOptions,
-  type PonderActions,
   type ReadOnlyClient,
+  buildCachedActions,
+  buildDb,
 } from "./ponderActions.js";
 import { addUserStackTrace } from "./trace.js";
 
@@ -160,191 +135,10 @@ export const createIndexingService = ({
   }
 
   // build db
-  const db = Object.keys(schema.tables).reduce<
-    IndexingService["currentEvent"]["context"]["db"]
-  >((acc, tableName) => {
-    acc[tableName] = {
-      findUnique: async ({ id }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.findUnique(id=${id})`,
-        });
-        return indexingStore.findUnique({
-          tableName,
-          id,
-        });
-      },
-      findMany: async ({ where, orderBy, limit, before, after } = {}) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.findMany`,
-        });
-        return indexingStore.findMany({
-          tableName,
-          where,
-          orderBy,
-          limit,
-          before,
-          after,
-        });
-      },
-      create: async ({ id, data }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.create(id=${id})`,
-        });
-        return indexingStore.create({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          id,
-          data,
-        });
-      },
-      createMany: async ({ data }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.createMany(count=${data.length})`,
-        });
-        return indexingStore.createMany({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          data,
-        });
-      },
-      update: async ({ id, data }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.update(id=${id})`,
-        });
-        return indexingStore.update({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          id,
-          data,
-        });
-      },
-      updateMany: async ({ where, data }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.updateMany`,
-        });
-        return indexingStore.updateMany({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          where,
-          data,
-        });
-      },
-      upsert: async ({ id, create, update }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.upsert(id=${id})`,
-        });
-        return indexingStore.upsert({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          id,
-          create,
-          update,
-        });
-      },
-      delete: async ({ id }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.delete(id=${id})`,
-        });
-        return indexingStore.delete({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          id,
-        });
-      },
-    };
-    return acc;
-  }, {});
+  const db = buildDb({ common, schema, indexingStore, contextState });
 
   // build cachedActions
-  const cachedActions = <
-    TTransport extends Transport = Transport,
-    TChain extends Chain | undefined = Chain | undefined,
-    TAccount extends Account | undefined = Account | undefined,
-  >(
-    client: Client<TTransport, TChain, TAccount>,
-  ): PonderActions => ({
-    getBalance: ({
-      cache,
-      blockNumber: userBlockNumber,
-      ...args
-    }: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> &
-      BlockOptions): Promise<GetBalanceReturnType> =>
-      viemGetBalance(client, {
-        ...args,
-        ...(cache === "immutable"
-          ? { blockTag: "latest" }
-          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
-      }),
-    getBytecode: ({
-      cache,
-      blockNumber: userBlockNumber,
-      ...args
-    }: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> &
-      BlockOptions): Promise<GetBytecodeReturnType> =>
-      viemGetBytecode(client, {
-        ...args,
-        ...(cache === "immutable"
-          ? { blockTag: "latest" }
-          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
-      }),
-    getStorageAt: ({
-      cache,
-      blockNumber: userBlockNumber,
-      ...args
-    }: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> &
-      BlockOptions): Promise<GetStorageAtReturnType> =>
-      viemGetStorageAt(client, {
-        ...args,
-        ...(cache === "immutable"
-          ? { blockTag: "latest" }
-          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
-      }),
-    multicall: <
-      TContracts extends ContractFunctionConfig[],
-      TAllowFailure extends boolean = true,
-    >({
-      cache,
-      blockNumber: userBlockNumber,
-      ...args
-    }: Omit<
-      MulticallParameters<TContracts, TAllowFailure>,
-      "blockTag" | "blockNumber"
-    > &
-      BlockOptions): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
-      viemMulticall(client, {
-        ...args,
-        ...(cache === "immutable"
-          ? { blockTag: "latest" }
-          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
-      }),
-    // @ts-ignore
-    readContract: <
-      const TAbi extends Abi | readonly unknown[],
-      TFunctionName extends string,
-    >({
-      cache,
-      blockNumber: userBlockNumber,
-      ...args
-    }: Omit<
-      ReadContractParameters<TAbi, TFunctionName>,
-      "blockTag" | "blockNumber"
-    > &
-      BlockOptions): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
-      viemReadContract(client, {
-        ...args,
-        ...(cache === "immutable"
-          ? { blockTag: "latest" }
-          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
-      } as ReadContractParameters<TAbi, TFunctionName>),
-  });
+  const cachedActions = buildCachedActions(contextState);
 
   // build clientByChainId
   for (const network of networks) {
