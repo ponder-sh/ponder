@@ -466,7 +466,7 @@ const executeLog = async (
     indexingFunctions[event.contractName][event.eventName];
 
   const metricLabel = {
-    event: event.eventName,
+    event: `${event.contractName}:${event.eventName}`,
     network: networkByChainId[event.chainId].name,
   };
 
