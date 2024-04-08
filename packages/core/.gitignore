@@ -1,5 +1,6 @@
 dist/
 .ponder/
+ponder-env.d.ts
 generated/
 .env.local
 **/*.node

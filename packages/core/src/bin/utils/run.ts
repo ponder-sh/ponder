@@ -117,11 +117,14 @@ export async function run({
   });
   if (result.status === "error") {
     onReloadableError(result.error);
-    // TODO(kyle) return
-  }
 
-  // start sync
-  const finalizedCheckpoint = await syncService.start();
+    return async () => {
+      kill(indexingService);
+      await serverService.kill();
+      await syncService.kill();
+      await database.kill();
+    };
+  }
 
   let checkpoint: Checkpoint = zeroCheckpoint;
 
@@ -140,7 +143,7 @@ export async function run({
       sources,
       fromCheckpoint: checkpoint,
       toCheckpoint: newCheckpoint,
-      limit: 1_000,
+      limit: 5_000,
     })) {
       const events = decodeEvents(indexingService, rawEvents);
       const result = await processEvents(indexingService, {
@@ -229,6 +232,9 @@ export async function run({
   );
 
   syncService.on("fatal", onFatalError);
+
+  // start sync
+  const finalizedCheckpoint = await syncService.start();
 
   return async () => {
     runQueue.pause();
