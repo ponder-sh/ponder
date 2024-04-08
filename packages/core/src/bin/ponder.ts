@@ -104,6 +104,8 @@ const codegenCommand = new Command("codegen")
 
 ponder.addCommand(devCommand);
 ponder.addCommand(startCommand);
+ponder.addCommand(serveCommand);
+ponder.addCommand(codegenCommand);
 
 export type CliOptions = Prettify<
   GlobalOptions &

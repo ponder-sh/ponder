@@ -91,9 +91,9 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     kind: "postgres",
     schema,
     // Note: `ponder serve` only uses findUnique and findMany, which only
-    // use the user namespaace tables. Eventually, they should probably be
+    // use the user namespace tables. Eventually, they should probably be
     // in their own PublicStore class.
-    namespaceInfo: { userNamespace: "public" } as unknown as NamespaceInfo,
+    namespaceInfo: { userNamespace } as unknown as NamespaceInfo,
     db: database.indexingDb,
   });
 

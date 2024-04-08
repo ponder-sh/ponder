@@ -57,7 +57,7 @@ export async function buildConfig({
         level: "info",
         msg: `Using Postgres database '${getDatabaseName(
           connectionString,
-        )}' ${source}`,
+        )}' (${source})`,
       });
 
       let schema: string | undefined = undefined;
@@ -80,7 +80,7 @@ export async function buildConfig({
       }
       logs.push({
         level: "info",
-        msg: `Using '${schema}' database schema ${source}`,
+        msg: `Using '${schema}' database schema for indexed tables (${source})`,
       });
 
       let publishSchema: string | undefined = undefined;
@@ -95,7 +95,7 @@ export async function buildConfig({
       if (publishSchema !== undefined) {
         logs.push({
           level: "info",
-          msg: `Publishing views to '${schema}' database schema ${source}`,
+          msg: `Using '${publishSchema}' database schema for published views (${source})`,
         });
       }
 
@@ -108,7 +108,7 @@ export async function buildConfig({
     } else {
       logs.push({
         level: "info",
-        msg: `Using SQLite database in '${sqlitePrintPath}'(from ponder.config.ts`,
+        msg: `Using SQLite database in '${sqlitePrintPath}' (from ponder.config.ts)`,
       });
 
       databaseConfig = { kind: "sqlite", directory: sqliteDir };
@@ -130,7 +130,7 @@ export async function buildConfig({
         level: "info",
         msg: `Using Postgres database ${getDatabaseName(
           connectionString,
-        )} ${source}`,
+        )} (${source})`,
       });
 
       let schema: string | undefined = undefined;
@@ -151,7 +151,7 @@ export async function buildConfig({
       }
       logs.push({
         level: "info",
-        msg: `Using '${schema}' database schema ${source}`,
+        msg: `Using '${schema}' database schema for indexed tables (${source})`,
       });
 
       let publishSchema: string | undefined = undefined;
@@ -161,7 +161,7 @@ export async function buildConfig({
         // Note: Only log if publishSchema is defined.
         logs.push({
           level: "info",
-          msg: `Publishing views to '${schema}' database schema ${source}`,
+          msg: `Using '${publishSchema}' database schema for published views (${source})`,
         });
       }
 

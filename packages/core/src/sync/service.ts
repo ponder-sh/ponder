@@ -260,7 +260,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
     this.networks[chainId].historicalCheckpoint = checkpoint;
 
     this.common.logger.trace({
-      service: "gateway",
+      service: "sync",
       msg: `New historical checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
     });
 
@@ -275,8 +275,8 @@ export class SyncService extends Emittery<SyncServiceEvents> {
     const networkCheckpoints = Object.values(this.networks);
     if (networkCheckpoints.every((n) => n.isHistoricalSyncComplete)) {
       this.isHistoricalSyncComplete = true;
-      this.common.logger.debug({
-        service: "gateway",
+      this.common.logger.info({
+        service: "sync",
         msg: "Completed historical sync across all networks",
       });
     }
@@ -288,7 +288,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
     this.networks[chainId].realtimeCheckpoint = checkpoint;
 
     this.common.logger.trace({
-      service: "gateway",
+      service: "sync",
       msg: `New realtime checkpoint at (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
     });
 
@@ -320,7 +320,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
 
       const { chainId, blockTimestamp, blockNumber } = this.checkpoint;
       this.common.logger.trace({
-        service: "gateway",
+        service: "sync",
         msg: `New checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
       });
 
@@ -340,7 +340,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
 
       const { chainId, blockTimestamp, blockNumber } = this.finalityCheckpoint;
       this.common.logger.trace({
-        service: "gateway",
+        service: "sync",
         msg: `New finality checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
       });
 
