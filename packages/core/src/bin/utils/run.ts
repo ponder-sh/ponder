@@ -127,6 +127,7 @@ export async function run({
   }
 
   let checkpoint: Checkpoint = zeroCheckpoint;
+  let isHealthy = false;
 
   const handleCheckpoint = async (newCheckpoint: Checkpoint) => {
     const updateLastEventPromise = syncStore
@@ -145,6 +146,8 @@ export async function run({
       toCheckpoint: newCheckpoint,
       limit: 5_000,
     })) {
+      if (rawEvents.length === 0) break;
+
       const events = decodeEvents(indexingService, rawEvents);
       const result = await processEvents(indexingService, {
         events,
@@ -162,7 +165,6 @@ export async function run({
 
     checkpoint = newCheckpoint;
 
-    let isHealthy = false;
     if (
       !isHealthy &&
       isCheckpointGreaterThanOrEqualTo(checkpoint, finalizedCheckpoint)
