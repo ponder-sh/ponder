@@ -224,7 +224,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.emit("rebuild", {
         success: true,
         build: {
-          buildId: randomBytes(16).toString("hex"),
+          buildId: randomBytes(5).toString("hex"),
           databaseConfig: this.databaseConfig!,
           sources: this.sources!,
           networks: this.networks!,
@@ -283,7 +283,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     return {
       success: true,
       build: {
-        buildId: randomBytes(16).toString("hex"),
+        buildId: randomBytes(5).toString("hex"),
         databaseConfig,
         networks,
         sources,
