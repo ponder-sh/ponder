@@ -204,6 +204,62 @@ test("graphql interactive", async (context) => {
   expect(response.status).toBe(200);
 });
 
+test("graphql extra filter", async (context) => {
+  const shutdown = await setupIsolatedDatabase(context);
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      string: p.string(),
+      int: p.int(),
+      float: p.float(),
+      boolean: p.boolean(),
+      hex: p.hex(),
+      bigint: p.bigint(),
+    }),
+  }));
+
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const server = await createServer({
+    graphqlSchema: graphqlSchema,
+    common: context.common,
+    indexingStore: indexingStore,
+  });
+  server.setHealthy();
+
+  const response = await server.hono.request("/graphql", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `
+      query {
+        table(id: "0", doesntExist: "kevin") {
+          id
+          string
+          int
+          float
+          boolean
+          hex
+          bigint
+        }
+      }
+    `,
+    }),
+  });
+
+  expect(response.status).toBe(400);
+
+  await cleanup();
+
+  await shutdown();
+});
+
 test("missing route", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
