@@ -246,6 +246,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           await tx
             .withSchema(this.internalNamespace)
             .updateTable("namespace_lock")
+            .where("namespace", "=", this.userNamespace)
             .set(newLockRow)
             .execute();
         }
@@ -305,6 +306,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           const lockRow = await this.db
             .withSchema(this.internalNamespace)
             .updateTable("namespace_lock")
+            .where("namespace", "=", this.userNamespace)
             .set({ heartbeat_at: Date.now() })
             .returningAll()
             .executeTakeFirst();
@@ -407,8 +409,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       await this.db
         .withSchema(this.internalNamespace)
         .updateTable("namespace_lock")
-        .set({ is_locked: 0 })
         .where("namespace", "=", this.userNamespace)
+        .set({ is_locked: 0 })
         .returningAll()
         .executeTakeFirst();
 
