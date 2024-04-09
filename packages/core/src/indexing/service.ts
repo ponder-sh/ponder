@@ -231,8 +231,8 @@ export const processSetupEvents = async (
           },
         });
 
-        if (result.status === "error") {
-          return { status: "error", error: result.error };
+        if (result.status !== "success") {
+          return result;
         }
       }
     }
@@ -281,8 +281,8 @@ export const processEvents = async (
     switch (event.type) {
       case "log": {
         const result = await executeLog(indexingService, { event });
-        if (result.status === "error") {
-          return { status: "error", error: result.error };
+        if (result.status !== "success") {
+          return result;
         }
         break;
       }
@@ -371,7 +371,11 @@ const updateCompletedEvents = (indexingService: IndexingService) => {
 const executeSetup = async (
   indexingService: IndexingService,
   { event }: { event: SetupEvent },
-): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
+): Promise<
+  | { status: "error"; error: Error }
+  | { status: "success" }
+  | { status: "killed" }
+> => {
   const {
     common,
     indexingFunctions,
@@ -411,6 +415,7 @@ const executeSetup = async (
 
       break;
     } catch (error_) {
+      if (indexingService.isKilled) return { status: "killed" };
       const error = error_ as Error & { meta?: string };
 
       common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
@@ -453,7 +458,11 @@ const executeSetup = async (
 const executeLog = async (
   indexingService: IndexingService,
   { event }: { event: LogEvent },
-): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
+): Promise<
+  | { status: "error"; error: Error }
+  | { status: "success" }
+  | { status: "killed" }
+> => {
   const {
     common,
     indexingFunctions,
@@ -500,6 +509,7 @@ const executeLog = async (
 
       break;
     } catch (error_) {
+      if (indexingService.isKilled) return { status: "killed" };
       const error = error_ as Error & { meta?: string };
 
       common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
