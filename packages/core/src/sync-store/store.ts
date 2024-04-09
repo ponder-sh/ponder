@@ -171,6 +171,7 @@ export interface SyncStore {
       Source,
       "id" | "startBlock" | "endBlock" | "criteria" | "type"
     >[];
+    fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
   }): Promise<Checkpoint | undefined>;
 }

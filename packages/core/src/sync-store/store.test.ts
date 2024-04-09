@@ -1706,6 +1706,7 @@ test("getLastEventCheckpoint", async (context) => {
 
   const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
     sources,
+    fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
   });
 
@@ -1723,6 +1724,7 @@ test("getLastEventCheckpoint empty", async (context) => {
 
   const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
     sources,
+    fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
   });
   expect(lastEventCheckpoint).toBe(undefined);
@@ -1747,6 +1749,7 @@ test("getLastEventCheckpoint no topics", async (context) => {
         criteria: { ...sources[0].criteria, topics: undefined },
       },
     ],
+    fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
   });
 
