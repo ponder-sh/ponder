@@ -88,6 +88,9 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
         abi: erc20ABI,
         network: "mainnet",
         address: addresses.erc20Address,
+        filter: {
+          event: ["Transfer", "Approval"],
+        },
       },
       Pair: {
         abi: pairABI,
@@ -96,6 +99,9 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
           address: addresses.factoryAddress,
           event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
           parameter: "pair",
+        },
+        filter: {
+          event: ["Swap"],
         },
       },
     },

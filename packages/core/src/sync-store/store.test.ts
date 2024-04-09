@@ -1210,6 +1210,7 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
         ...sources[0],
         criteria: {
           address: [erc20.address, factory.pair],
+          topics: [],
         },
       },
     ],
@@ -1330,6 +1331,42 @@ test("getLogEvents filters on log filter with multiple topics", async (context) 
     },
   });
   expect(events).toHaveLength(1);
+  await cleanup();
+});
+
+test("getLogEvents no topics", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block1,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block2,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block3,
+  });
+
+  const ag = syncStore.getLogEvents({
+    sources: [
+      {
+        ...sources[0],
+        criteria: { ...sources[0].criteria, topics: undefined },
+      },
+    ],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(0);
+
   await cleanup();
 });
 
@@ -1508,6 +1545,10 @@ test("getLogEvents multiple sources", async (context) => {
     ...rpcData.block1,
   });
 
+  const transferSelector = getEventSelector(
+    getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+  );
+
   const ag = syncStore.getLogEvents({
     sources: [
       sources[0],
@@ -1516,7 +1557,7 @@ test("getLogEvents multiple sources", async (context) => {
         id: "kevin",
         criteria: {
           ...sources[0].criteria,
-          topics: [null, padHex(ALICE).toLowerCase() as Address],
+          topics: [transferSelector, padHex(ALICE).toLowerCase() as Address],
         },
       },
     ],
@@ -1684,6 +1725,31 @@ test("getLastEventCheckpoint empty", async (context) => {
     sources,
     toCheckpoint: maxCheckpoint,
   });
+  expect(lastEventCheckpoint).toBe(undefined);
+
+  await cleanup();
+});
+
+test("getLastEventCheckpoint no topics", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block1,
+  });
+
+  const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
+    sources: [
+      {
+        ...sources[0],
+        criteria: { ...sources[0].criteria, topics: undefined },
+      },
+    ],
+    toCheckpoint: maxCheckpoint,
+  });
+
   expect(lastEventCheckpoint).toBe(undefined);
 
   await cleanup();

@@ -11,15 +11,11 @@ import {
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
+import type { Factory, LogFilter, Source } from "@/config/sources.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import parse from "pg-connection-string";
-import type {
-  Factory,
-  LogFilter,
-  Source,
-  Topics,
-} from "../../config/sources.js";
+import type { LogTopic } from "viem";
 
 export async function buildConfig({
   config,
@@ -310,7 +306,7 @@ export async function buildConfig({
       // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.
       const abiEvents = buildAbiEvents({ abi: rawContract.abi });
 
-      let topics: Topics | undefined = undefined;
+      let topics: LogTopic[] | undefined = undefined;
 
       if (rawContract.filter !== undefined) {
         if (

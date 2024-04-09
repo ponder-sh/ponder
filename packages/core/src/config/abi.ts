@@ -1,16 +1,15 @@
+import { getDuplicateElements } from "@/utils/duplicates.js";
 import { type Abi, type AbiEvent, formatAbiItem } from "abitype";
 import {
   type GetEventArgs,
   type Hex,
+  type LogTopic,
   encodeEventTopics,
   getAbiItem,
   getEventSelector,
   parseAbiItem,
 } from "viem";
-
-import { getDuplicateElements } from "@/utils/duplicates.js";
 import type { Config } from "./config.js";
-import type { Topics } from "./sources.js";
 
 /**
  * Fix issue with Array.isArray not checking readonly arrays
@@ -70,7 +69,7 @@ export const buildAbiEvents = ({ abi }: { abi: Abi }) => {
 export function buildTopics(
   abi: Abi,
   filter: NonNullable<Config["contracts"][string]["filter"]>,
-): Topics {
+): LogTopic[] {
   if (Array.isArray(filter.event)) {
     // List of event signatures
     return [
