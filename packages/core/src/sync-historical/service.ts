@@ -1,5 +1,5 @@
 import type { Common } from "@/common/common.js";
-import { getHistoricalSyncStats } from "@/common/metrics.js";
+import { getHistoricalSyncProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Factory,
@@ -445,18 +445,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     // Emit status update logs on an interval for each active log filter.
     this.progressLogInterval = setInterval(async () => {
-      const completionStats = await getHistoricalSyncStats({
-        metrics: this.common.metrics,
-        sources: this.sources,
-      });
+      const historical = await getHistoricalSyncProgress(this.common.metrics);
 
-      completionStats.forEach(({ contract, rate, eta }) => {
-        if (rate === 1) return;
+      historical.contracts.forEach(({ contractName, progress, eta }) => {
+        if (progress === 1) return;
         this.common.logger.info({
           service: "historical",
-          msg: `Sync is ${formatPercentage(rate)} complete${
+          msg: `Sync is ${formatPercentage(progress ?? 0)} complete${
             eta !== undefined ? ` with ~${formatEta(eta)} remaining` : ""
-          } (contract=${contract})`,
+          } (contract=${contractName})`,
           network: this.network.name,
         });
       });
