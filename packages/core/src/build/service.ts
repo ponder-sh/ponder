@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { safeBuildSchema } from "@/build/schema/schema.js";
 import type { Common } from "@/common/common.js";
@@ -66,7 +67,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   private schema?: Schema;
   private graphqlSchema?: GraphQLSchema;
   private indexingFunctions?: IndexingFunctions;
-  private buildId?: string;
 
   constructor({ common }: { common: Common }) {
     super();
@@ -111,12 +111,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       publicDir: false,
       customLogger: viteLogger,
       server: { hmr: false },
-      plugins: [
-        viteTsconfigPathsPlugin(),
-        vitePluginPonder((buildId) => {
-          this.buildId = buildId;
-        }),
-      ],
+      plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
     });
 
     // This is Vite boilerplate (initializes the Rollup container).
@@ -229,7 +224,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.emit("rebuild", {
         success: true,
         build: {
-          buildId: this.buildId!,
+          buildId: randomBytes(16).toString("hex"),
           databaseConfig: this.databaseConfig!,
           sources: this.sources!,
           networks: this.networks!,
@@ -288,7 +283,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     return {
       success: true,
       build: {
-        buildId: this.buildId!,
+        buildId: randomBytes(16).toString("hex"),
         databaseConfig,
         networks,
         sources,
