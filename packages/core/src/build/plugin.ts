@@ -1,5 +1,7 @@
+import { hash } from "@/utils/hash.js";
 import MagicString from "magic-string";
 import type { Plugin } from "vite";
+import { parseAst } from "vite";
 
 export const regex =
   /^import\s+\{[^}]*\bponder\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
@@ -22,7 +24,9 @@ export function replaceStateless(code: string) {
   return s;
 }
 
-export const vitePluginPonder = (): Plugin => {
+export const vitePluginPonder = (
+  setBuildId: (buildId: string) => void,
+): Plugin => {
   return {
     name: "ponder",
     transform: (code, id) => {
@@ -30,7 +34,11 @@ export const vitePluginPonder = (): Plugin => {
         const s = replaceStateless(code);
         const transformed = s.toString();
         const sourcemap = s.generateMap({ source: id });
-        return { code: transformed, map: sourcemap };
+        const ast = parseAst(transformed);
+
+        setBuildId(hash(JSON.stringify(ast)));
+
+        return { code: transformed, map: sourcemap, ast };
       } else {
         return null;
       }
