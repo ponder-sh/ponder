@@ -9,6 +9,7 @@ import { getEventsErc20 } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { SyncService } from "@/sync/service.js";
 import { decodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { promiseWithResolvers } from "@ponder/common";
 import { type Address, checksumAddress, parseEther, toHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { decodeEvents } from "./events.js";
@@ -759,6 +760,45 @@ test("executeLog() error", async (context) => {
   });
   expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(4);
   expect(revertSpy).toHaveBeenCalledTimes(3);
+
+  await cleanup();
+});
+
+test("executeLog() error after killed", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = new SyncService({ common, syncStore, networks, sources });
+
+  const { promise, reject } = promiseWithResolvers();
+  const indexingFunctions = {
+    Erc20: {
+      Transfer: () => promise,
+    },
+  };
+
+  const indexingService = createIndexingService({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const rawEvents = await getEventsErc20(sources);
+  const events = decodeEvents(indexingService, rawEvents);
+  const resultPromise = processEvents(indexingService, { events });
+  kill(indexingService);
+
+  reject(new Error("anything"));
+
+  const result = await resultPromise;
+  expect(result).toStrictEqual({ status: "killed" });
 
   await cleanup();
 });
