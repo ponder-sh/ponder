@@ -3,6 +3,7 @@ import { formatEta, formatPercentage } from "@/utils/format.js";
 import { Box, Text, render as inkRender } from "ink";
 import React from "react";
 import { ProgressBar } from "./ProgressBar.js";
+import Table from "./Table.js";
 
 export type UiState = {
   port: number;
@@ -169,78 +170,26 @@ const App = (ui: UiState) => {
       </Box>
       <Text> </Text>
 
-      <Box flexDirection="column">
-        <Box flexDirection="row" key="title" columnGap={1}>
-          <Box width={16}>
-            <Text>│ </Text>
-            <Text bold>Event</Text>
-          </Box>
-          <Box width={12}>
-            <Text>│ </Text>
-            <Text bold>Network</Text>
-          </Box>
-          <Box width={10}>
-            <Text>│ </Text>
-            <Text bold>Count</Text>
-          </Box>
-          <Box width={16}>
-            <Text>│ </Text>
-            <Text bold>Duration (avg)</Text>
-          </Box>
-          <Box width={13}>
-            <Text>│ </Text>
-            <Text bold>Error count</Text>
-          </Box>
-          <Text>│</Text>
-        </Box>
-
-        <Box flexDirection="row" key="border">
-          <Text>├</Text>
-          <Text>{"─".repeat(16)}┼</Text>
-          <Text>{"─".repeat(12)}┼</Text>
-          <Text>{"─".repeat(10)}┼</Text>
-          <Text>{"─".repeat(16)}┼</Text>
-          <Text>{"─".repeat(13)}┤</Text>
-        </Box>
-
-        {indexingTable.map(
-          ({ eventName, networkName, count, errorCount, averageDuration }) => {
-            return (
-              <Box
-                flexDirection="row"
-                key={`${eventName}-${networkName}`}
-                columnGap={1}
-              >
-                <Box width={16}>
-                  <Text>│ </Text>
-                  <Text>{eventName}</Text>
-                </Box>
-                <Box width={12}>
-                  <Text>│ </Text>
-                  <Text>{networkName}</Text>
-                </Box>
-                <Box width={10} justifyContent="space-between">
-                  <Text>│</Text>
-                  <Text>{count}</Text>
-                </Box>
-                <Box width={16} justifyContent="space-between">
-                  <Text>│</Text>
-                  <Text>
-                    {averageDuration > 0
-                      ? `${averageDuration.toFixed(2)}ms`
-                      : "-"}
-                  </Text>
-                </Box>
-                <Box width={13} justifyContent="space-between">
-                  <Text>│</Text>
-                  <Text>{count > 0 ? errorCount : "-"}</Text>
-                </Box>
-                <Text>│</Text>
-              </Box>
-            );
+      <Table
+        columns={[
+          { title: "Event", key: "eventName", align: "left" },
+          { title: "Network", key: "networkName", align: "left" },
+          { title: "Count", key: "count", align: "right" },
+          {
+            title: "Duration (avg)",
+            key: "averageDuration",
+            align: "right",
+            format: (v) => (v > 0 ? `${v.toFixed(2)}ms` : "-"),
           },
-        )}
-      </Box>
+          {
+            title: "Error count",
+            key: "errorCount",
+            align: "right",
+            format: (v, row) => (row.count > 0 ? v : "-"),
+          },
+        ]}
+        rows={indexingTable}
+      />
       <Text> </Text>
 
       {/* {realtimeSyncNetworks.length > 0 && (
