@@ -4,10 +4,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Prettify } from "@/types/utils.js";
 import { Command } from "@commander-js/extra-typings";
+import dotenv from "dotenv";
 import { codegen } from "./commands/codegen.js";
 import { dev } from "./commands/dev.js";
 import { serve } from "./commands/serve.js";
 import { start } from "./commands/start.js";
+
+dotenv.config({ path: ".env.local" });
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = resolve(__dirname, "../../package.json");

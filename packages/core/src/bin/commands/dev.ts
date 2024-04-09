@@ -7,13 +7,11 @@ import { buildOptions } from "@/common/options.js";
 import { TelemetryService } from "@/common/telemetry.js";
 import { UiService } from "@/ui/service.js";
 import { createQueue } from "@ponder/common";
-import dotenv from "dotenv";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
 export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
-  dotenv.config({ path: ".env.local" });
   const options = buildOptions({ cliOptions });
 
   const logger = new LoggerService({

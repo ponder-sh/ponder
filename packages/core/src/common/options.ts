@@ -1,8 +1,6 @@
 import path from "node:path";
-
-import type { LevelWithSilent } from "pino";
-
 import type { CliOptions } from "@/bin/ponder.js";
+import type { LevelWithSilent } from "pino";
 
 export type Options = {
   configFile: string;
@@ -48,14 +46,12 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     logLevel = "info";
   }
 
-  let port: number;
-  if (cliOptions.port !== undefined) {
-    port = Number(cliOptions.port);
-  } else if (process.env.PORT !== undefined) {
-    port = Number(process.env.PORT);
-  } else {
-    port = 42069;
-  }
+  const port =
+    process.env.PORT !== undefined
+      ? Number(process.env.PORT)
+      : cliOptions.port !== undefined
+        ? cliOptions.port
+        : 42069;
 
   const hostname = cliOptions.hostname;
 
