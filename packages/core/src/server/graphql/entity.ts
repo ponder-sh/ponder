@@ -19,10 +19,10 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
+import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { buildWhereObject } from "./filter.js";
 import type { PluralResolver } from "./plural.js";
-import type { Context, Parent } from "./schema.js";
-import { tsTypeToGqlScalar } from "./schema.js";
+import { SCALARS } from "./scalar.js";
 
 const GraphQLPageInfo = new GraphQLObjectType({
   name: "PageInfo",
@@ -74,7 +74,7 @@ export const buildEntityTypes = ({
               if (relatedRecordId === null || relatedRecordId === undefined)
                 return null;
 
-              const loader = context.getLoader({
+              const loader = context.get("getLoader")({
                 tableName: referencedTable,
               });
 
@@ -89,7 +89,7 @@ export const buildEntityTypes = ({
             };
           } else if (isManyColumn(column)) {
             const resolver: PluralResolver = async (parent, args, context) => {
-              const { store } = context;
+              const store = context.get("store");
 
               const { where, orderBy, orderDirection, limit, after, before } =
                 args;
@@ -115,7 +115,7 @@ export const buildEntityTypes = ({
               });
 
               // Load entire records objects using the loader.
-              const loader = context.getLoader({
+              const loader = context.get("getLoader")({
                 tableName: column.referenceTable,
               });
 
@@ -140,7 +140,7 @@ export const buildEntityTypes = ({
           } else {
             const type = isEnumColumn(column)
               ? enumTypes[column.type]
-              : tsTypeToGqlScalar[column.type];
+              : SCALARS[column.type];
             if (column.list) {
               const listType = new GraphQLList(new GraphQLNonNull(type));
               fieldConfigMap[columnName] = {

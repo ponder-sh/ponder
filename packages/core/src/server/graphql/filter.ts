@@ -6,7 +6,7 @@ import {
   GraphQLInputObjectType,
 } from "graphql";
 import { GraphQLList } from "graphql";
-import { tsTypeToGqlScalar } from "./schema.js";
+import { SCALARS } from "./scalar.js";
 
 const filterOperators = {
   universal: ["", "_not"],
@@ -46,7 +46,7 @@ export const buildEntityFilterTypes = ({
 
           const type = isEnumColumn(column)
             ? enumTypes[column.type]
-            : tsTypeToGqlScalar[column.type];
+            : SCALARS[column.type];
 
           if (column.list) {
             // List fields => universal, plural

@@ -1,7 +1,7 @@
 import type { IndexingStore } from "@/indexing-store/store.js";
 import DataLoader from "dataloader";
 
-export type GetLoader = ReturnType<typeof buildLoaderCache>["getLoader"];
+export type GetLoader = ReturnType<typeof buildLoaderCache>;
 
 export function buildLoaderCache({ store }: { store: IndexingStore }) {
   const loaderCache: Record<
@@ -9,7 +9,7 @@ export function buildLoaderCache({ store }: { store: IndexingStore }) {
     DataLoader<string | number | bigint, any> | undefined
   > = {};
 
-  const getLoader = ({ tableName }: { tableName: string }) => {
+  return ({ tableName }: { tableName: string }) => {
     const loader = (loaderCache[tableName] ??= new DataLoader(
       async (ids) => {
         const rows = await store.findMany({
@@ -25,6 +25,4 @@ export function buildLoaderCache({ store }: { store: IndexingStore }) {
 
     return loader;
   };
-
-  return { getLoader };
 }

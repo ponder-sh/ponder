@@ -2,7 +2,7 @@ import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
 import type { Build } from "@/build/service.js";
 import * as codegen from "@/common/codegen.js";
 import { createSchema } from "@/schema/schema.js";
-import { buildGqlSchema } from "@/server/graphql/schema.js";
+import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
 
@@ -20,7 +20,7 @@ const schema = createSchema((p) => ({
   }),
 }));
 
-const graphqlSchema = buildGqlSchema(schema);
+const graphqlSchema = buildGraphqlSchema(schema);
 
 test("run() kill", async (context) => {
   const build: Build = {

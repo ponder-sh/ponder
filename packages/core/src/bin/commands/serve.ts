@@ -7,7 +7,7 @@ import { TelemetryService } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
-import { ServerService } from "@/server/service.js";
+import { createServer } from "@/server/service.js";
 import dotenv from "dotenv";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
@@ -97,14 +97,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     db: database.indexingDb,
   });
 
-  const serverService = new ServerService({ common, indexingStore });
-  serverService.setup();
-  await serverService.start();
-  serverService.reloadGraphqlSchema({ graphqlSchema });
-  serverService.setIsHealthy(true);
+  const server = await createServer({ graphqlSchema, indexingStore, common });
+  server.setHealthy();
 
   cleanupReloadable = async () => {
-    await serverService.kill();
+    await server.kill();
     await database.kill();
   };
 

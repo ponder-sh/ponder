@@ -6,7 +6,7 @@ import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
-import { buildGqlSchema } from "@/server/graphql/schema.js";
+import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { Emittery } from "@/utils/emittery.js";
 import { glob } from "glob";
 import { GraphQLSchema } from "graphql";
@@ -360,7 +360,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     this.schema = schema;
 
     // TODO: Probably move this elsewhere. Also, handle errors.
-    const graphqlSchema = buildGqlSchema(buildResult.data.schema);
+    const graphqlSchema = buildGraphqlSchema(buildResult.data.schema);
     this.graphqlSchema = graphqlSchema;
 
     return { success: true, schema, graphqlSchema } as const;

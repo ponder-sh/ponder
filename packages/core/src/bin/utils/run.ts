@@ -14,7 +14,7 @@ import {
   processSetupEvents,
   updateLastEventCheckpoint,
 } from "@/indexing/service.js";
-import { ServerService } from "@/server/service.js";
+import { createServer } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -91,10 +91,7 @@ export async function run({
     await syncStore.migrateUp();
   }
 
-  const serverService = new ServerService({ common, indexingStore });
-  serverService.setup();
-  await serverService.start();
-  serverService.reloadGraphqlSchema({ graphqlSchema });
+  const server = await createServer({ common, graphqlSchema, indexingStore });
 
   runCodegen({ common, graphqlSchema });
 
@@ -120,7 +117,7 @@ export async function run({
 
     return async () => {
       kill(indexingService);
-      await serverService.kill();
+      await server.kill();
       await syncService.kill();
       await database.kill();
     };
@@ -180,7 +177,7 @@ export async function run({
         await database.publish();
       }
 
-      serverService.setIsHealthy(true);
+      server.setHealthy();
       common.logger.info({
         service: "server",
         msg: "Started responding as healthy",
@@ -255,7 +252,7 @@ export async function run({
     runQueue.pause();
     runQueue.clear();
     kill(indexingService);
-    await serverService.kill();
+    await server.kill();
     await syncService.kill();
     await database.kill();
   };
