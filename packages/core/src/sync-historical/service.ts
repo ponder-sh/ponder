@@ -6,7 +6,6 @@ import {
   type LogFilter,
   type LogFilterCriteria,
   type Source,
-  type Topics,
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -34,6 +33,7 @@ import {
   BlockNotFoundError,
   type Hash,
   type Hex,
+  type LogTopic,
   type RpcBlock,
   RpcError,
   type RpcLog,
@@ -933,7 +933,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    */
   private _eth_getLogs = async (params: {
     address?: Address | Address[];
-    topics?: Topics;
+    topics?: LogTopic[];
     fromBlock: Hex;
     toBlock: Hex;
   }): Promise<RpcLog[]> => {

@@ -872,6 +872,7 @@ export class PostgresSyncStore implements SyncStore {
             .where((eb) => {
               const logFilterCmprs = sources
                 .filter(sourceIsLogFilter)
+                .filter((source) => source.criteria.topics !== undefined)
                 .map((logFilter) => {
                   const exprs = this.buildLogFilterCmprs({ eb, logFilter });
                   exprs.push(eb("source_id", "=", logFilter.id));
@@ -880,6 +881,7 @@ export class PostgresSyncStore implements SyncStore {
 
               const factoryCmprs = sources
                 .filter(sourceIsFactory)
+                .filter((source) => source.criteria.topics !== undefined)
                 .map((factory) => {
                   const exprs = this.buildFactoryCmprs({ eb, factory });
                   exprs.push(eb("source_id", "=", factory.id));
@@ -1077,6 +1079,7 @@ export class PostgresSyncStore implements SyncStore {
         .where((eb) => {
           const logFilterCmprs = sources
             .filter(sourceIsLogFilter)
+            .filter((source) => source.criteria.topics !== undefined)
             .map((logFilter) => {
               const exprs = this.buildLogFilterCmprs({ eb, logFilter });
               return eb.and(exprs);
@@ -1084,6 +1087,7 @@ export class PostgresSyncStore implements SyncStore {
 
           const factoryCmprs = sources
             .filter(sourceIsFactory)
+            .filter((source) => source.criteria.topics !== undefined)
             .map((factory) => {
               const exprs = this.buildFactoryCmprs({ eb, factory });
               return eb.and(exprs);

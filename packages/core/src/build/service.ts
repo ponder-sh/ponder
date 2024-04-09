@@ -409,8 +409,18 @@ export class BuildService extends Emittery<BuildServiceEvents> {
    * Returns an error if validation fails.
    */
   private validate() {
-    if (!this.sources || !this.indexingFunctions)
+    if (this.sources === undefined || this.sources.length === 0) {
       return { success: true } as const;
+    }
+    if (
+      this.indexingFunctions === undefined ||
+      Object.keys(this.indexingFunctions).length === 0
+    ) {
+      for (const source of this.sources) {
+        source.criteria.topics = undefined;
+      }
+      return { success: true } as const;
+    }
 
     for (const [sourceName, fns] of Object.entries(this.indexingFunctions)) {
       const source = this.sources.find((s) => s.contractName === sourceName);

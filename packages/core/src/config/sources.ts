@@ -1,21 +1,16 @@
-import type { Abi, Address, Hex } from "viem";
+import type { Abi, Address, Hex, LogTopic } from "viem";
 import type { AbiEvents } from "./abi.js";
-
-/**
- * There are up to 4 topics in an EVM log, so given that this could be more strict.
- */
-export type Topics = (Hex | Hex[] | null)[];
 
 export type LogFilterCriteria = {
   address?: Address | Address[];
-  topics?: Topics;
+  topics?: LogTopic[];
 };
 
 export type FactoryCriteria = {
   address: Address;
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
-  topics?: Topics;
+  topics?: LogTopic[];
 };
 
 type BaseSource = {
