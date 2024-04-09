@@ -1076,12 +1076,14 @@ export class SqliteSyncStore implements SyncStore {
 
   async getLastEventCheckpoint({
     sources,
+    fromCheckpoint,
     toCheckpoint,
   }: {
     sources: Pick<
       Source,
       "id" | "startBlock" | "endBlock" | "criteria" | "type"
     >[];
+    fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
   }): Promise<Checkpoint | undefined> {
     return this.db.wrap({ method: "getLastEventCheckpoint" }, async () => {
@@ -1107,6 +1109,7 @@ export class SqliteSyncStore implements SyncStore {
           return eb.or([...logFilterCmprs, ...factoryCmprs]);
         })
         .select("checkpoint")
+        .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
         .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
         .orderBy("logs.checkpoint", "desc")
         .executeTakeFirst();

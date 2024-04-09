@@ -133,6 +133,7 @@ export async function run({
     const updateLastEventPromise = syncStore
       .getLastEventCheckpoint({
         sources,
+        fromCheckpoint: checkpoint,
         toCheckpoint: newCheckpoint,
       })
       .then((lastEventCheckpoint) => {
