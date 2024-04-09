@@ -8,7 +8,7 @@ export function Table<TRow extends { [key: string]: any }>(props: {
     title: string;
     key: keyof TRow;
     align: "left" | "right";
-    format?: (value: any, row: TRow) => string;
+    format?: (value: any, row: TRow) => string | number | React.JSX.Element;
   }[];
   rows: TRow[];
 }) {
@@ -28,7 +28,9 @@ export function Table<TRow extends { [key: string]: any }>(props: {
 
   const columnWidths = columns.map((column) => {
     let maxWidth = Math.max(
-      ...formattedRows.map((row) => row[column.key].toString().length),
+      ...formattedRows.map((row) =>
+        row[column.key] !== undefined ? row[column.key].toString().length : 9,
+      ),
       column.title.length,
     );
     maxWidth = Math.min(maxWidth, MAX_COLUMN_WIDTH);
@@ -39,11 +41,10 @@ export function Table<TRow extends { [key: string]: any }>(props: {
     <Box flexDirection="column">
       {/* Column Titles */}
       <Box flexDirection="row" key="title">
-        {columns.map(({ title, key, align }, index) => (
+        {columns.map(({ title, align }, index) => (
           <React.Fragment key={`title-${index}`}>
             <Text>│</Text>
             <Box
-              key={key.toString()}
               width={columnWidths[index]}
               justifyContent={align === "left" ? "flex-start" : "flex-end"}
               marginX={1}

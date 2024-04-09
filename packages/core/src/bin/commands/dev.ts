@@ -85,7 +85,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       await cleanupReloadable();
 
       if (result.success) {
-        uiService.reset(result.build.sources);
+        uiService.reset();
         metrics.resetMetrics();
 
         cleanupReloadable = await run({
