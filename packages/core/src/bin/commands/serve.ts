@@ -78,6 +78,14 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
+  if (databaseConfig.publishSchema === undefined) {
+    await shutdown({
+      reason: "The 'ponder serve' command requires 'publishSchema' to be set",
+      code: 1,
+    });
+    return cleanup;
+  }
+
   const { poolConfig, schema: userNamespace } = databaseConfig;
   const database = new PostgresDatabaseService({
     common,
@@ -88,10 +96,12 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const indexingStore = new RealtimeIndexingStore({
     kind: "postgres",
     schema,
-    // Note: `ponder serve` only uses findUnique and findMany, which only
-    // use the user namespace tables. Eventually, they should probably be
-    // in their own PublicStore class.
-    namespaceInfo: { userNamespace } as unknown as NamespaceInfo,
+    // Note: `ponder serve` serves data from the `publishSchema`. Also, it does
+    // not need the other fields in NamespaceInfo because it only uses findUnique
+    // and findMany. We should ultimately add a PublicStore interface for this.
+    namespaceInfo: {
+      userNamespace: databaseConfig.publishSchema,
+    } as unknown as NamespaceInfo,
     db: database.indexingDb,
   });
 

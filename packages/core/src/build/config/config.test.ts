@@ -549,8 +549,9 @@ test("buildConfig() database throws with RAILWAY_DEPLOYMENT_ID but no RAILWAY_SE
   vi.unstubAllEnvs();
 });
 
-test("buildConfig() database with postgres uses RAILWAY_SERVICE_NAME as publish schema if defined", async () => {
+test("buildConfig() database with postgres uses publish schema defined in config", async () => {
   const config = createConfig({
+    database: { kind: "postgres", publishSchema: "custom-publish" },
     networks: { mainnet: { chainId: 1, transport: http() } },
     contracts: { a: { network: "mainnet", abi: [event0] } },
   });
@@ -566,13 +567,13 @@ test("buildConfig() database with postgres uses RAILWAY_SERVICE_NAME as publish 
       connectionString: "postgres://username@localhost:5432/database",
     },
     schema: "multichain-indexer_b39cb9b7",
-    publishSchema: "multichain-indexer",
+    publishSchema: "custom-publish",
   });
 
   vi.unstubAllEnvs();
 });
 
-test("buildConfig() database without RAILWAY_SERVICE_NAME does not set publishSchema", async () => {
+test("buildConfig() database with postgres uses 'public' as publish schema if on Railway", async () => {
   const config = createConfig({
     networks: { mainnet: { chainId: 1, transport: http() } },
     contracts: { a: { network: "mainnet", abi: [event0] } },
@@ -589,8 +590,24 @@ test("buildConfig() database without RAILWAY_SERVICE_NAME does not set publishSc
       connectionString: "postgres://username@localhost:5432/database",
     },
     schema: "multichain-indexer_b39cb9b7",
-    publishSchema: "multichain-indexer",
+    publishSchema: "public",
   });
+
+  vi.unstubAllEnvs();
+});
+
+test("buildConfig() database with postgres throws if schema and publishSchema are the same", async () => {
+  const config = createConfig({
+    database: { kind: "postgres", schema: "public", publishSchema: "public" },
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
+
+  await expect(() => buildConfig({ config, options })).rejects.toThrow(
+    "Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('public').",
+  );
 
   vi.unstubAllEnvs();
 });
