@@ -21,7 +21,7 @@ export async function buildConfig({
   config,
   options,
 }: { config: Config; options: Pick<Options, "ponderDir" | "rootDir"> }) {
-  const logs: { level: "warn" | "info"; msg: string }[] = [];
+  const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
 
   // Build database.
   let databaseConfig: DatabaseConfig;
@@ -80,19 +80,29 @@ export async function buildConfig({
       });
 
       let publishSchema: string | undefined = undefined;
-      if (config.database.publishSchema) {
+      if (config.database.publishSchema !== undefined) {
         publishSchema = config.database.publishSchema;
         source = "from ponder.config.ts";
-      } else if (process.env.RAILWAY_SERVICE_NAME !== undefined) {
-        publishSchema = process.env.RAILWAY_SERVICE_NAME;
-        source = "from RAILWAY_SERVICE_NAME env var";
+      } else if (process.env.RAILWAY_DEPLOYMENT_ID !== undefined) {
+        publishSchema = "public";
+        source = "default for Railway deployment";
       }
-      // Note: Only log if publishSchema is defined.
       if (publishSchema !== undefined) {
         logs.push({
           level: "info",
           msg: `Using '${publishSchema}' database schema for published views (${source})`,
         });
+      } else {
+        logs.push({
+          level: "debug",
+          msg: "Not publishing views (publish schema was not set in ponder.config.ts)",
+        });
+      }
+
+      if (schema !== undefined && schema === publishSchema) {
+        throw new Error(
+          `Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('${schema}').`,
+        );
       }
 
       databaseConfig = {
@@ -151,14 +161,26 @@ export async function buildConfig({
       });
 
       let publishSchema: string | undefined = undefined;
-      if (process.env.RAILWAY_SERVICE_NAME !== undefined) {
-        publishSchema = process.env.RAILWAY_SERVICE_NAME;
-        source = "from RAILWAY_SERVICE_NAME env var";
-        // Note: Only log if publishSchema is defined.
+      if (process.env.RAILWAY_DEPLOYMENT_ID !== undefined) {
+        publishSchema = "public";
+        source = "default for Railway deployment";
+      }
+      if (publishSchema !== undefined) {
         logs.push({
           level: "info",
           msg: `Using '${publishSchema}' database schema for published views (${source})`,
         });
+      } else {
+        logs.push({
+          level: "debug",
+          msg: "Not publishing views (publish schema was not set in ponder.config.ts)",
+        });
+      }
+
+      if (schema !== undefined && schema === publishSchema) {
+        throw new Error(
+          `Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('${schema}').`,
+        );
       }
 
       databaseConfig = {
