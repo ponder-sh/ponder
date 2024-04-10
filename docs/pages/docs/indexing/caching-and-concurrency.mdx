@@ -5,15 +5,13 @@ description: "An overview of how cached and concurrent indexing works."
 
 import { Callout, FileTree, Steps } from "nextra/components";
 
-# Caching and concurrency
+# Caching and concurrency 🚧
+
+<Callout type="error">
+  **Note:** As of `0.4.0`, Ponder no longer runs indexing functions concurrently, and caches indexing progress in fewer scenarios. This guide is only applicable for apps using `0.3.x`. We intend to reintroduce concurrent indexing in a follow-up release.
+</Callout>
 
 Ponder's indexing engine caches progress and runs concurrently when possible. This guide explains the key concepts, and offers tips for getting the most out of these features in your app.
-
-<Callout>
-  **Note:** This guide discusses how Ponder caches _indexing_ progress, which is
-  new as of version `0.3`. The _sync_ engine (requests for historical RPC data)
-  has supported caching since before `0.1`.
-</Callout>
 
 ## Caching
 
