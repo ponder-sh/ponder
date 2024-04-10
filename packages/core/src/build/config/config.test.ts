@@ -603,7 +603,11 @@ test("buildConfig() database with postgres throws if schema and publishSchema ar
     contracts: { a: { network: "mainnet", abi: [event0] } },
   });
 
+  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
+
   await expect(() => buildConfig({ config, options })).rejects.toThrow(
     "Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('public').",
   );
+
+  vi.unstubAllEnvs();
 });
