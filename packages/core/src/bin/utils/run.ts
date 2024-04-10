@@ -142,7 +142,7 @@ export async function run({
       sources,
       fromCheckpoint: checkpoint,
       toCheckpoint: newCheckpoint,
-      limit: 5_000,
+      limit: 1_000,
     })) {
       if (rawEvents.length === 0) break;
 
@@ -153,9 +153,9 @@ export async function run({
 
       if (result.status === "error") {
         onReloadableError(result.error);
-        break;
+        return;
       } else if (indexingService.isKilled) {
-        break;
+        return;
       }
     }
 
