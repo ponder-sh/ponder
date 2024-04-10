@@ -8,19 +8,19 @@ import { Callout } from "nextra/components";
 
 # Horizontal scaling
 
-By default, Ponder runs the sync engine, indexing engine, and GraphQL API server in the same Node.js process. This works well for small apps, but can lead to performance issues as your app grows.
+By default, Ponder runs the sync engine, indexing engine, and GraphQL HTTP server in the same Node.js process. This works well for small apps, but can lead to performance issues as your app grows.
 
-If the GraphQL API experiences high request volume, it contends with the indexing services for CPU and memory resources on the host. This can quickly lead to degraded indexing performance.
+If the HTTP server experiences high request volume, it contends with the indexing services for CPU and memory resources on the host. This can quickly lead to degraded indexing performance.
 
-To solve this, you can use the `ponder serve` command to horizontally scale the API layer. `ponder serve` is similar to `ponder start`, but only runs the GraphQL server. It doesn't run the indexing or sync engines.
+To solve this, you can use the `ponder serve` command to horizontally scale the HTTP service. `ponder serve` is similar to `ponder start`, but only runs the HTTP server. It doesn't run the indexing or sync engines.
 
 ```mermaid
 graph LR
   A[Clients]
   B[Proxy]
-  C["API server (ponder serve)"]
-  D["API server (ponder serve)"]
-  E["API server (ponder serve)"]
+  C["HTTP server (ponder serve)"]
+  D["HTTP server (ponder serve)"]
+  E["HTTP server (ponder serve)"]
   F["Database"]
   G["Indexer (ponder start)"]
   A --> B
