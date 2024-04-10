@@ -9,179 +9,77 @@ import { Callout, FileTree, Steps } from "nextra/components";
 
 This guide explains how to connect to the database (either SQLite or Postgres) and run direct SQL queries.
 
-## Overview
-
-Here are a few things you can do with direct SQL.
-
-1. **Connect to the database** using `psql`, `sqlite3`, or a driver for your language of choice like `node-postgres`.
-
-2. **Run custom SQL queries** against any table in the `ponder` schema (Postgres) or `ponder.db` file (SQLite).
-
-```sql
-SELECT COUNT(*) FROM ponder."Account" WHERE balance > 5000;
-```
-
-3. **Join data with other tables** in your database, including tables that you write to using other software.
-
-```sql
-SELECT user_id, balance
-FROM users
-  JOIN ponder."Account" ON users.eth_address = "Account".address
-WHERE users.name LIKE 'Bo%';
-```
-
-With that said, there are also a few important [limitations](#limitations) to be aware of.
-
-### Example schema
-
-For the remainder of this guide, assume that there is a Ponder app running with the following schema.
-
-```ts filename="ponder.schema.ts"
-import { createSchema } from "@ponder/core";
-
-export default createSchema((p) => ({
-  Account: p.createTable({
-    id: p.hex(),
-    balance: p.bigint(),
-    isOwner: p.boolean(),
-  }),
-  TransferEvent: p.createTable({
-    id: p.string(),
-    amount: p.bigint(),
-    timestamp: p.int(),
-    fromId: p.hex().references("Account.id"),
-    toId: p.hex().references("Account.id"),
-  }),
-}));
-```
-
-## Postgres
-
-For each table you define in `ponder.schema.ts`, Ponder creates a [view](https://www.postgresqltutorial.com/postgresql-views/) in the `ponder` schema. For most use cases, you can treat these views just like normal tables.
-
-<Callout type="info">
-  **What's this view nonsense? Why can't I access the actual tables?** TL;DR,
-  views are the best way for Ponder to offer zero-downtime during schema
-  migrations. For more information, check out the [zero downtime
-  deployments](/docs/production/zero-downtime) guide.
-</Callout>
-
-Ponder also creates a few other internal schemas that you can safely ignore, including `ponder_cache`, `ponder_sync`, and `ponder_instance_{number}`.
-
-### Connect with `psql`
-
-To get oriented, connect to the database using `psql` and run a few test queries. First, make sure that you have `psql` installed ([guide](https://www.timescale.com/blog/how-to-install-psql-on-mac-ubuntu-debian-windows/)).
-
-<Steps>
-
-#### Connection string
-
-Connect using the same connection string that your Ponder app uses (the `DATABASE_URL` environment variable).
-
-```bash filename="shell"
-psql 'postgresql://username:password@localhost:5432/your_database'
-```
-
-#### List `ponder` views
-
-Use the `\dv` command with a pattern to list all views in the `ponder` schema.
-
-```bash filename="psql"
-\dv ponder.*
-```
-
-```plaintext filename="psql (result)"
-                List of relations
- Schema |        Name        | Type |  Owner
---------+--------------------+------+----------
- ponder | Account            | view | username
- ponder | TransferEvent      | view | username
- ponder | _raw_Account       | view | username
- ponder | _raw_TransferEvent | view | username
-```
-
-The views prefixed with `_raw_` contain the entire versioned history of each record. The views without the prefix (`Account{:ts}` and `TransferEvent{:ts}`) contain the latest version of each record. In most cases, you should use the latest views.
-
-#### Select rows
-
-Select a few `Account` rows.
-
-```sql filename="psql"
-SELECT * FROM ponder."Account" LIMIT 5;
-```
-
-```plaintext filename="psql (result)"
-                     id                     |         balance         | isOwner
---------------------------------------------+-------------------------+---------
- \x4620550c97fe6fd67bd6d91b3e64c57af2a74d54 |  5211039914681545623679 |       0
- \xab9b81aadd04e7cf16057f0fa492729ad61d70be | 20000000000000000000000 |       0
- \xd23c95145bcfd53d184919b2bcec125a83128fc2 |   586759351492948713448 |       0
- \x823b92d6a4b2aed4b15675c7917c9f922ea8adad | 10000000000000000000000 |       0
- \x0de9abbbbeeb15cb446c3daaaab128d15a16c220 | 60000000000000000000000 |       0
-```
-
-Note that the `id` column uses the `p.hex(){:ts}` column type in `ponder.schema.ts`, which corresponds to the Postgres `BYTEA{:sql}` data type. See the [column types](#column-types) section for more details.
-
-#### Aggregate data
-
-Find the total number of transfers sent to each account.
-
-```sql filename="psql"
-SELECT "toId", COUNT(*) AS transfer_count
-FROM ponder."TransferEvent"
-GROUP BY "toId"
-ORDER BY transfer_count DESC
-LIMIT 5;
-```
-
-```plaintext filename="psql (result)"
-                   toId                     | transfer_count
---------------------------------------------+----------------
- \x5d752f322befb038991579972e912b02f61a3dda |           2342
- \x1337f7970e8399ccbc625647fce58a9dada5aa66 |            313
- \x9726041047644626468922598128349778349982 |            306
- \x27239549dd40e1d60f5b80b0c4196923745b1fd2 |            256
- \x450638daf0caedbdd9f8cb4a41fa1b24788b123e |            238
-(5 rows)
-
-```
-
-</Steps>
-
-### Column types
-
-These are the Postgres data types corresponding to each `ponder.schema.ts` column type.
-
-| Schema column type | Postgres column type          | Notes                                                     |
-| :----------------- | :---------------------------- | :-------------------------------------------------------- |
-| `p.string(){:ts}`  | `TEXT`                        |                                                           |
-| `p.hex(){:ts}`     | `BYTEA{:sql}`                 |                                                           |
-| `p.int(){:ts}`     | `INTEGER{:sql}`               |                                                           |
-| `p.bigint(){:ts}`  | `NUMERIC(78, 0){:sql}`        | Supports EVM `uint256{:solidity}` and `int256{:solidity}` |
-| `p.float(){:ts}`   | `FLOAT8{:sql}`/`DOUBLE{:sql}` |                                                           |
-| `p.boolean(){:ts}` | `INTEGER{:sql}`               | `0` is `false{:ts}`, `1` is `true{:ts}`                   |
-
 ## SQLite
 
-For each table you define in `ponder.schema.ts`, Ponder creates a table in the `.ponder/sqlite/ponder.db` database file. You can connect to the database using the `sqlite3` command-line tool or a driver for your language of choice like `sqlite3` for Node.js.
+### Database files
 
-Ponder also creates two other database files in that directory (`ponder_cache.db` and `ponder_sync.db`). You can safely ignore them.
+During local development, Ponder uses SQLite database files located in the `.ponder/sqlite` directory.
+
+<FileTree>
+  <FileTree.Folder name=".ponder/sqlite" open>
+    <FileTree.File name="public.db" />
+    <FileTree.File name="ponder.db" />
+    <FileTree.File name="ponder_sync.db" />
+  </FileTree.Folder>
+</FileTree>
+
+- **`public.db`**: Contains a live indexed table for each table in `ponder.schema.ts`. It's safe to read data from this database during local development and testing.
+- **`ponder.db`**: Contains internal tables that support chain reorg reconciliation.
+- **`ponder_sync.db`**: Contains raw blockchain data that has been cached locally.
+
+Note: SQLite sometimes creates a `-shm` and `-wal` file alongside database files. Do not modify or delete them.
 
 ### Connect with `sqlite3`
 
-To get oriented, it's recommended to connect to the database using `sqlite3` and run a few test queries. First, make sure that you have `sqlite3` installed. You probably already do, but here's a [guide](https://www.sqlitetutorial.net/download-install-sqlite/).
+To get oriented, connect to the SQLite database using `sqlite3` ([installation guide](https://www.sqlitetutorial.net/download-install-sqlite/)) and run a few test queries. For the queries that follow, assume there is a Ponder app running with this `ponder.schema.ts`.
+
+<details>
+  <summary><p>Example `ponder.schema.ts`</p></summary>
+  <p />
+
+  ```ts filename="ponder.schema.ts"
+  import { createSchema } from "@ponder/core";
+
+  export default createSchema((p) => ({
+    Account: p.createTable({
+      id: p.hex(),
+      balance: p.bigint(),
+      isOwner: p.boolean(),
+    }),
+    TransferEvent: p.createTable({
+      id: p.string(),
+      amount: p.bigint(),
+      timestamp: p.int(),
+      fromId: p.hex().references("Account.id"),
+      toId: p.hex().references("Account.id"),
+    }),
+  }));
+  ```
+</details>
 
 <Steps>
 
 #### File path
 
-Connect using an absolute file path to the `.ponder/sqlite/ponder.db` file in your project directory.
+Connect to the database by passing a file path to `sqlite3`.
 
 ```bash filename="shell"
-sqlite3 /workspace/my-app/.ponder/sqlite/ponder.db
+# From your project root
+sqlite3 .ponder/sqlite/public.db
+
+# Or, an absolute path
+sqlite3 /workspace/my-app/.ponder/sqlite/public.db
 ```
 
-#### List `ponder` views
+Once connected, you'll see a `sqlite>` prompt.
+
+```plaintext filename="shell"
+SQLite version 3.37.0 2021-12-09 01:34:53
+Enter ".help" for usage hints.
+sqlite> 
+```
+
+#### Display tables
 
 Use the `.tables` command to list all tables in the database.
 
@@ -190,35 +88,80 @@ Use the `.tables` command to list all tables in the database.
 ```
 
 ```plaintext filename="sqlite3 (result)"
-Account             ApprovalEvent       _raw_Account        _raw_ApprovalEvent
-Allowance           TransferEvent       _raw_Allowance      _raw_TransferEvent
+sqlite> .tables
+Account        TransferEvent
 ```
 
-The tables prefixed with `_raw_` contain the entire versioned history of each record. The tables without the prefix (`Account{:ts}` and `TransferEvent{:ts}`) contain the latest version of each record. In most cases, you should use the latest views.
+#### Display schema
 
-#### Select rows
+Use the `.schema` command to print CREATE TABLE statements for each table.
 
-Select a few `Account` rows.
-
-```sql filename="sqlite3"
-SELECT * FROM "Account" LIMIT 5;
+```bash filename="sqlite3"
+.schema
 ```
 
 ```plaintext filename="sqlite3 (result)"
-???\???<0???%d??|0000000000000000000000000000000000000000000000000000000010000000000000000000000|0
-&?{,Vj'z??0?&??r|0000000000000000000000000000000000000000000000000000000010000000000000000000000|0
-h???^?ݎ|0000000000000000000000000000000000000000000000000000000050000000000000000000000|0
-=|0000000000000000000000000000000000000000000000000000000020000000000000000000000|0
-??'?O?z??II?)??(??|0000000000000000000000000000000000000000000000000000000050000000000000000000000|0
+sqlite> .schema
+CREATE TABLE IF NOT EXISTS "Account" ("id" blob not null primary key, "balance" varchar(79) not null, "isOwner" integer not null);
+CREATE TABLE IF NOT EXISTS "TransferEvent" ("id" text not null primary key, "amount" varchar(79) not null, "timestamp" integer not null, "fromId" blob not null, "toId" blob not null);
 ```
 
-Clearly, `sqlite3` results are not as easy on the eyes as `psql`. The `id` and `balance` columns are encoded as `BLOB{:sql}` and `VARCHAR(79){:sql}` respectively. See the [column types](#column-types-1) section for more details.
+#### Select rows
+
+First, adjust some settings to make `sqlite3` results easier to read.
+
+```sql filename="sqlite3"
+.headers ON
+.mode columns
+```
+
+Select a few `TransferEvent` rows.
+
+```sql filename="sqlite3"
+SELECT * FROM TransferEvent LIMIT 3;
+```
+
+```plaintext filename="sqlite3 (result)"
+sqlite> SELECT * FROM TransferEvent LIMIT 3;
+id                                                                        amount                                                                           timestamp   fromId  toId             
+------------------------------------------------------------------------  -------------------------------------------------------------------------------  ----------  ------  -----------------
+0x3783f4bba84605ffa296db73fcbdb010caf0542b460035d7bed4129db02fd0e2-0x1a5  0000000000000000000000000000000000000000000000000000000010000000000000000000000  1630539461          ???\???<0???%d?? 
+0xd8612316d81529ccc73faf26318594a50cc4dffbbe0553ccf7a14a514f889fff-0xd5   0000000000000000000000000000000000000000000000000000000010000000000000000000000  1630541604          ??ÉhP/w?~?mrrW???R
+0x1605392466b635d4eb1552f66832ade6da40a904b00566502b4ba3bdb08ab6a8-0x1a3  0000000000000000000000000000000000000000000000000000000010000000000000000000000  1630541770          ?7g?ʲo&??<}?x
+```
+
+Clearly, raw `sqlite3` results are not easy on the eyes. The `balance` column is encoded as `VARCHAR(79){:sql}`, and the `toId` column contains hex values encoded as `BLOB{:sql}`. See the [column types](#column-types) section for more details.
+
+#### Aggregate data
+
+Select all `Account` records that have received more than 10 transfers.
+
+```sql filename="sqlite3"
+SELECT *
+  FROM Account
+  WHERE id IN (
+    SELECT toId
+      FROM TransferEvent
+      GROUP BY toId
+      HAVING COUNT(*) > 10
+  )
+  LIMIT 3;
+```
+
+```plaintext filename="sqlite3 (result)"
+sqlite> SELECT * FROM Account WHERE id IN ( SELECT toId FROM TransferEvent GROUP BY toId HAVING COUNT(*) > 10 ) LIMIT 3;
+id                balance                                                                          isOwner
+----------------  -------------------------------------------------------------------------------  -------
+.?˟???(?4[W?      0000000000000000000000000000000000000000000000000000000140000000000000000000000  0      
+y?D???ꎇ ?[?>      0000000000000000000000000000000000000000000000000000000290000000000000000000000  0      
+3?ek{3F4oi}??B?   0000000000000000000000000000000000000000000000000000000230000000000000000000000  0      
+```
 
 </Steps>
 
 ### Column types
 
-These are the Postgres data types corresponding to each `ponder.schema.ts` column type.
+These are the [SQLite data types](https://www.sqlite.org/datatype3.html) used by each `ponder.schema.ts` column type.
 
 | Schema column type | SQLite column type  | Notes                                                                       |
 | :----------------- | :------------------ | :-------------------------------------------------------------------------- |
@@ -233,12 +176,155 @@ These are the Postgres data types corresponding to each `ponder.schema.ts` colum
 
 SQLite does not natively support integers larger than 8 bytes. To safely store and compare large integers (such as 32-byte EVM `uint256{:solidity}` values) in SQLite, we designed an encoding that uses `VARCHAR(79){:sql}` and takes advantage of SQLite's native lexicographic sort. [Here is the reference implementation](https://github.com/ponder-sh/ponder/blob/main/packages/core/src/utils/encoding.ts) used by Ponder internally.
 
-## Limitations
+## Postgres
 
-To safely reconcile chain reorganizations and manage indexing error retries, Ponder imposes a few important constraints on database usage.
+### Database schema
 
-1. **Indexed data is read-only**. All writes _must_ happen within indexing function code through the Store API (e.g. `context.db.Account.upsert(){:ts}`). If you modify Ponder-managed tables any other way, the database will be corrupted and you will encounter undefined behavior.
+By default, Ponder uses the **`public`** database schema for indexed data, one table for each table in `ponder.schema.ts`. To use a different schema, set the `schema` option in `ponder.config.ts`.
 
-2. **Internal tables must not be modified**. Ponder creates and maintains 3-5 schemas (Postgres) or database files (SQLite) for internal use. They are all prefixed with `ponder_`. Do not modify, drop, or read from them.
+```ts filename="ponder.config.ts" {6}
+import { createConfig } from "@ponder/core"
 
-3. **Redeployments are nuanced**. Apps that rely on direct SQL must take care during schema migrations. For more details, see the [zero downtime deployments](/docs/production/zero-downtime#zero-downtime-with-direct-sql) guide.
+export default createConfig({
+  database: {
+    kind: "postgres",
+    schema: "dev", // Defaults to "public"
+  },
+});
+```
+
+Like with SQLite, Ponder also uses the `ponder` and `ponder_sync` Postgres database schemas for internal tables and cached RPC data.
+
+#### Multiple instances
+
+To run multiple Ponder instances against the same database, each instance **must** use a different database schema.
+
+Before `0.4`, Ponder used a random schema name for each instance. This solved the isolation problem, but made it difficult to know where to look for indexed data, and cluttered the database.
+
+<Callout>
+	When using a platform with zero-downtime deployments like Railway, Ponder uses a unique schema for each deployment. [Read more](/docs/production/zero-downtime#direct-sql-with-zero-downtime) on zero-downtime deployments for direct SQL.
+</Callout>
+
+### Connect using `psql`
+
+To get oriented, connect to the database using `psql` ([installation guide](https://www.timescale.com/blog/how-to-install-psql-on-mac-ubuntu-debian-windows/)) and run a few test queries. For the queries that follow, assume there is a Ponder app running with this `ponder.schema.ts`.
+
+<details>
+  <summary><p>Example `ponder.schema.ts`</p></summary>
+  <p />
+
+  ```ts filename="ponder.schema.ts"
+  import { createSchema } from "@ponder/core";
+
+  export default createSchema((p) => ({
+    Account: p.createTable({
+      id: p.hex(),
+      balance: p.bigint(),
+      isOwner: p.boolean(),
+    }),
+    TransferEvent: p.createTable({
+      id: p.string(),
+      amount: p.bigint(),
+      timestamp: p.int(),
+      fromId: p.hex().references("Account.id"),
+      toId: p.hex().references("Account.id"),
+    }),
+  }));
+  ```
+</details>
+
+<Steps>
+
+#### Connection string
+
+Connect using the same connection string that your Ponder app uses (the `DATABASE_URL` environment variable).
+
+```bash filename="shell"
+psql 'postgresql://username:password@localhost:5432/your_database'
+```
+
+#### Display tables
+
+Use the `\dt` command to list all tables in the `public` schema.
+
+```bash filename="psql"
+\dt
+```
+
+```plaintext filename="psql (result)"
+username=# \dt
+              List of relations
+ Schema |     Name      | Type  |  Owner    
+--------+---------------+-------+----------
+ public | Account       | table | username
+ public | TransferEvent | table | username
+(4 rows)
+```
+
+If you're using a schema other than `public`, you'll need to include a pattern:
+
+```bash filename="psql"
+\dt another_schema.*
+```
+
+#### Select rows
+
+Select a few `Account` rows.
+
+```sql filename="psql"
+SELECT * FROM "Account" LIMIT 5;
+```
+
+```plaintext filename="psql (result)"
+username=# SELECT * FROM "Account" LIMIT 5;
+                     id                     |         balance         | isOwner 
+--------------------------------------------+-------------------------+---------
+ \xf73fe15cfb88ea3c7f301f16ade3c02564aca407 | 10000000000000000000000 |       0
+ \xb0659bc97ed61b37d6b140f3e12a41d471781714 | 20000000000000000000000 |       0
+ \x52932f5b2767d917c3134140168f2176c94e8b2c | 10000000000000000000000 |       0
+ \xfb7ca75b3ce099120602b5ab7104cff030ee43f8 |                       0 |       0
+ \x9ccc6c5a9d25429f55ad9af6363c1c4f16b179ad |  7000000000000000000000 |       0
+(5 rows)
+```
+
+Note that the `id` column uses the `p.hex(){:ts}` column type in `ponder.schema.ts`, which corresponds to the Postgres `BYTEA{:sql}` data type. See the [column types](#column-types-1) section for more details.
+
+#### Aggregate data
+
+Find the total number of transfers sent to each account.
+
+```sql filename="psql"
+SELECT "toId", COUNT(*) AS transfer_count
+  FROM "TransferEvent"
+  GROUP BY "toId"
+  ORDER BY transfer_count DESC
+  LIMIT 5;
+```
+
+```plaintext filename="psql (result)"
+username=# SELECT "toId", COUNT(*) AS transfer_count FROM "TransferEvent" GROUP BY "toId" ORDER BY transfer_count DESC LIMIT 5;
+                    toId                    | transfer_count 
+--------------------------------------------+----------------
+ \x5d752f322befb038991579972e912b02f61a3dda |           2342
+ \x1337f7970e8399ccbc625647fce58a9dada5aa66 |            313
+ \x9726041047644626468922598128349778349982 |            306
+ \x27239549dd40e1d60f5b80b0c4196923745b1fd2 |            256
+ \x450638daf0caedbdd9f8cb4a41fa1b24788b123e |            238
+(5 rows)
+```
+
+</Steps>
+
+### Column types
+
+These are the [Postgres data types](https://www.postgresql.org/docs/current/datatype.html) used by each `ponder.schema.ts` column type.
+
+| Schema column type | Postgres column type          | Notes                                                     |
+| :----------------- | :---------------------------- | :-------------------------------------------------------- |
+| `p.string(){:ts}`  | `TEXT`                        |                                                           |
+| `p.hex(){:ts}`     | `BYTEA{:sql}`                 |                                                           |
+| `p.int(){:ts}`     | `INTEGER{:sql}`               |                                                           |
+| `p.bigint(){:ts}`  | `NUMERIC(78, 0){:sql}`        | Supports EVM `uint256{:solidity}` and `int256{:solidity}` |
+| `p.float(){:ts}`   | `FLOAT8{:sql}`/`DOUBLE{:sql}` |                                                           |
+| `p.boolean(){:ts}` | `INTEGER{:sql}`               | `0` is `false{:ts}`, `1` is `true{:ts}`                   |
+
