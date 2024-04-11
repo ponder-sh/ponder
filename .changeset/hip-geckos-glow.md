@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Fixed a bug where reorg would occasionally cause the process to exit.
+Fixed a bug where reorgs would occasionally cause the process to exit.
