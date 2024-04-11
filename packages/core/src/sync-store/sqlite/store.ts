@@ -1,4 +1,3 @@
-import type { Common } from "@/common/common.js";
 import {
   type Factory,
   type FactoryCriteria,
@@ -26,8 +25,6 @@ import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
 import {
   type ExpressionBuilder,
-  type Kysely,
-  Migrator,
   type Transaction as KyselyTransaction,
   sql,
 } from "kysely";
@@ -46,28 +43,14 @@ import {
   rpcToSqliteLog,
   rpcToSqliteTransaction,
 } from "./encoding.js";
-import { migrationProvider } from "./migrations.js";
 
 export class SqliteSyncStore implements SyncStore {
   kind = "sqlite" as const;
-
   db: HeadlessKysely<SyncStoreTables>;
 
-  constructor({ db }: { common: Common; db: HeadlessKysely<SyncStoreTables> }) {
+  constructor({ db }: { db: HeadlessKysely<SyncStoreTables> }) {
     this.db = db;
   }
-
-  migrateUp = async () => {
-    return this.db.wrap({ method: "migrateUp" }, async () => {
-      const migrator = new Migrator({
-        db: this.db as Kysely<any>,
-        provider: migrationProvider,
-      });
-
-      const { error } = await migrator.migrateToLatest();
-      if (error) throw error;
-    });
-  };
 
   insertLogFilterInterval = async ({
     chainId,

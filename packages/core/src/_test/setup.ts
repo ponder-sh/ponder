@@ -134,6 +134,8 @@ export async function setupDatabaseServices(
 
     const result = await database.setup(config);
 
+    await database.migrateSyncStore();
+
     const indexingStore = new RealtimeIndexingStore({
       kind: "sqlite",
       schema: config.schema,
@@ -141,12 +143,7 @@ export async function setupDatabaseServices(
       db: database.indexingDb,
     });
 
-    const syncStore = new SqliteSyncStore({
-      common: context.common,
-      db: database.syncDb,
-    });
-
-    await syncStore.migrateUp();
+    const syncStore = new SqliteSyncStore({ db: database.syncDb });
 
     const cleanup = () => database.kill();
 
@@ -166,6 +163,8 @@ export async function setupDatabaseServices(
 
     const result = await database.setup(config);
 
+    await database.migrateSyncStore();
+
     const indexingStore = new RealtimeIndexingStore({
       kind: "postgres",
       schema: config.schema,
@@ -173,12 +172,7 @@ export async function setupDatabaseServices(
       db: database.indexingDb,
     });
 
-    const syncStore = new PostgresSyncStore({
-      common: context.common,
-      db: database.syncDb,
-    });
-
-    await syncStore.migrateUp();
+    const syncStore = new PostgresSyncStore({ db: database.syncDb });
 
     const cleanup = () => database.kill();
 

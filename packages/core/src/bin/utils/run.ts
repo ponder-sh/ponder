@@ -61,6 +61,8 @@ export async function run({
     database = new SqliteDatabaseService({ common, directory });
     const result = await database.setup({ schema, buildId });
 
+    await database.migrateSyncStore();
+
     indexingStore = new RealtimeIndexingStore({
       kind: "sqlite",
       schema,
@@ -68,8 +70,7 @@ export async function run({
       db: database.indexingDb,
     });
 
-    syncStore = new SqliteSyncStore({ common, db: database.syncDb });
-    await syncStore.migrateUp();
+    syncStore = new SqliteSyncStore({ db: database.syncDb });
   } else {
     const { poolConfig, schema: userNamespace, publishSchema } = databaseConfig;
     database = new PostgresDatabaseService({
@@ -80,6 +81,8 @@ export async function run({
     });
     const result = await database.setup({ buildId, schema });
 
+    await database.migrateSyncStore();
+
     indexingStore = new RealtimeIndexingStore({
       kind: "postgres",
       schema,
@@ -87,8 +90,7 @@ export async function run({
       db: database.indexingDb,
     });
 
-    syncStore = new PostgresSyncStore({ common, db: database.syncDb });
-    await syncStore.migrateUp();
+    syncStore = new PostgresSyncStore({ db: database.syncDb });
   }
 
   const server = await createServer({ common, graphqlSchema, indexingStore });

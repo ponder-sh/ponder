@@ -5,6 +5,7 @@ import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/sqlite/encoding.js";
+import { migrationProvider as syncMigrationProvider } from "@/sync-store/sqlite/migrations.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
@@ -12,6 +13,7 @@ import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
 import {
   type CreateTableBuilder,
   type Insertable,
+  Kysely,
   Migrator,
   SqliteDialect,
   WithSchemaPlugin,
@@ -355,6 +357,18 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         service: "database",
         msg: "Closed connection to database",
       });
+    });
+  }
+
+  async migrateSyncStore() {
+    await this.db.wrap({ method: "migrateSyncStore" }, async () => {
+      const migrator = new Migrator({
+        db: this.syncDb as Kysely<any>,
+        provider: syncMigrationProvider,
+      });
+
+      const { error } = await migrator.migrateToLatest();
+      if (error) throw error;
     });
   }
 

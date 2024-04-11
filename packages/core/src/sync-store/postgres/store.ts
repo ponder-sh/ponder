@@ -1,4 +1,3 @@
-import type { Common } from "@/common/common.js";
 import {
   type Factory,
   type FactoryCriteria,
@@ -25,8 +24,6 @@ import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
 import {
   type ExpressionBuilder,
-  Kysely,
-  Migrator,
   type Transaction as KyselyTransaction,
   sql,
 } from "kysely";
@@ -45,41 +42,14 @@ import {
   rpcToPostgresLog,
   rpcToPostgresTransaction,
 } from "./encoding.js";
-import { migrationProvider, moveLegacyTables } from "./migrations.js";
 
 export class PostgresSyncStore implements SyncStore {
   kind = "postgres" as const;
-  private common: Common;
-
   db: HeadlessKysely<SyncStoreTables>;
 
-  constructor({
-    common,
-    db,
-  }: { common: Common; db: HeadlessKysely<SyncStoreTables> }) {
-    this.common = common;
+  constructor({ db }: { db: HeadlessKysely<SyncStoreTables> }) {
     this.db = db;
   }
-
-  migrateUp = async () => {
-    return this.db.wrap({ method: "migrateUp" }, async () => {
-      // TODO: Probably remove this at 1.0 to speed up startup time.
-      await moveLegacyTables({
-        common: this.common,
-        db: this.db as Kysely<any>,
-        newSchemaName: "ponder_sync",
-      });
-
-      const migrator = new Migrator({
-        db: this.db as Kysely<any>,
-        provider: migrationProvider,
-        migrationTableSchema: "ponder_sync",
-      });
-
-      const { error } = await migrator.migrateToLatest();
-      if (error) throw error;
-    });
-  };
 
   insertLogFilterInterval = async ({
     chainId,

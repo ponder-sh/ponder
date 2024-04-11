@@ -3,6 +3,10 @@ import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
+import {
+  migrationProvider as syncMigrationProvider,
+  moveLegacyTables,
+} from "@/sync-store/postgres/migrations.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
@@ -64,7 +68,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.userNamespace = userNamespace;
     this.publishSchema = publishSchema;
 
-    this.adminPool = createPool({ ...poolConfig, min: 2, max: 2 });
+    this.adminPool = createPool({
+      ...poolConfig,
+      // 10 minutes to accommodate slow sync store migrations.
+      statement_timeout: 10 * 60 * 1000,
+    });
     this.indexingPool = createPool(this.poolConfig);
     this.syncPool = createPool(this.poolConfig);
 
@@ -431,6 +439,26 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         service: "database",
         msg: "Closed database connection pools",
       });
+    });
+  }
+
+  async migrateSyncStore() {
+    await this.db.wrap({ method: "migrateSyncStore" }, async () => {
+      // TODO: Probably remove this at 1.0 to speed up startup time.
+      await moveLegacyTables({
+        common: this.common,
+        db: this.db as Kysely<any>,
+        newSchemaName: "ponder_sync",
+      });
+
+      const migrator = new Migrator({
+        db: this.db.withPlugin(new WithSchemaPlugin("ponder_sync")),
+        provider: syncMigrationProvider,
+        migrationTableSchema: "ponder_sync",
+      });
+
+      const { error } = await migrator.migrateToLatest();
+      if (error) throw error;
     });
   }
 
