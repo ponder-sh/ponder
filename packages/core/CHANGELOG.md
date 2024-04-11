@@ -1,5 +1,19 @@
 # @ponder/core
 
+## 0.4.0
+
+### Minor Changes
+
+- [#770](https://github.com/ponder-sh/ponder/pull/770) [`85a5e03e17a00554f1977f4c761ebb100bc5ea3f`](https://github.com/ponder-sh/ponder/commit/85a5e03e17a00554f1977f4c761ebb100bc5ea3f) Thanks [@kyscott18](https://github.com/kyscott18)! - _BREAKING_. Updated location of database tables for direct SQL. Please read the [guide](https://ponder.sh/docs/query/direct-sql) for more information.
+
+- [#770](https://github.com/ponder-sh/ponder/pull/770) [`85a5e03e17a00554f1977f4c761ebb100bc5ea3f`](https://github.com/ponder-sh/ponder/commit/85a5e03e17a00554f1977f4c761ebb100bc5ea3f) Thanks [@kyscott18](https://github.com/kyscott18)! - _BREAKING_. Removed support for time-travel queries. Please read the [time-series guide](https://ponder.sh/docs/indexing/time-series) to learn about alternative patterns.
+
+### Patch Changes
+
+- [#770](https://github.com/ponder-sh/ponder/pull/770) [`85a5e03e17a00554f1977f4c761ebb100bc5ea3f`](https://github.com/ponder-sh/ponder/commit/85a5e03e17a00554f1977f4c761ebb100bc5ea3f) Thanks [@kyscott18](https://github.com/kyscott18)! - Added a `checkpoint` column to the internal `logs` table, which speeds up the internal `getEvents` query by ~6x. Apps with many contracts will see the greatest gains.
+
+- [#770](https://github.com/ponder-sh/ponder/pull/770) [`85a5e03e17a00554f1977f4c761ebb100bc5ea3f`](https://github.com/ponder-sh/ponder/commit/85a5e03e17a00554f1977f4c761ebb100bc5ea3f) Thanks [@kyscott18](https://github.com/kyscott18)! - Migrated the HTTP server from Express to Hono.
+
 ## 0.3.11
 
 ### Patch Changes
