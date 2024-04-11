@@ -490,59 +490,7 @@ const migrations: Record<string, Migration> = {
       if (await hasDoneCheckpointMigration(db)) {
         return;
       }
-      await db.executeQuery(
-        sql`
-          WITH checkpoint_vals AS (
-            SELECT logs.id, blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex"
-            FROM ponder_sync.logs logs
-            JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
-          )
-          UPDATE ponder_sync.logs
-          SET checkpoint=
-              (lpad(checkpoint_vals.timestamp::text, 10, '0') ||
-              lpad(checkpoint_vals."chainId"::text, 16, '0') ||
-              lpad(checkpoint_vals.number::text, 16, '0') ||
-              lpad(checkpoint_vals."transactionIndex"::text, 16, '0') ||
-              '5' ||
-              lpad(checkpoint_vals."logIndex"::text, 16, '0'))
-          FROM checkpoint_vals
-          WHERE ponder_sync.logs.id = checkpoint_vals.id;
-        `.compile(db),
-      );
-
-      // sanity check our checkpoint encoding on the first 10 rows of the table
-      const checkRes = await db.executeQuery<{
-        timestamp: number;
-        chainId: number;
-        number: number;
-        transactionIndex: number;
-        logIndex: number;
-        checkpoint: bigint;
-      }>(
-        sql`
-          SELECT blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex", logs.checkpoint
-          FROM ponder_sync.logs logs
-          JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
-          LIMIT 10
-        `.compile(db),
-      );
-
-      for (const row of checkRes.rows) {
-        const expected = encodeCheckpoint({
-          blockTimestamp: row.timestamp,
-          chainId: row.chainId,
-          blockNumber: row.number,
-          transactionIndex: row.transactionIndex,
-          eventType: EVENT_TYPES.logs,
-          eventIndex: row.logIndex,
-        });
-
-        if (row.checkpoint.toString() !== expected) {
-          throw new Error(
-            `data migration failed: expected new checkpoint column to have value ${expected} but got ${row.checkpoint}`,
-          );
-        }
-      }
+      await setCheckpointsInLogsTable(db);
     },
   },
   "2024_04_11_2_index_on_logs_checkpoint": {
@@ -552,6 +500,21 @@ const migrations: Record<string, Migration> = {
       }
       await db.schema
         .createIndex("logs_checkpoint_index")
+        .on("logs")
+        .column("checkpoint")
+        .execute();
+    },
+  },
+  "2024_04_11_3_set_checkpoint_in_logs_table": {
+    async up(db: Kysely<any>) {
+      await setCheckpointsInLogsTable(db);
+    },
+  },
+  "2024_04_11_4_index_on_logs_checkpoint": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createIndex("logs_checkpoint_index")
+        .ifNotExists()
         .on("logs")
         .column("checkpoint")
         .execute();
@@ -576,6 +539,62 @@ async function hasDoneCheckpointMigration(db: Kysely<any>) {
         `.compile(db),
   );
   return res.rows.length > 0;
+}
+
+async function setCheckpointsInLogsTable(db: Kysely<any>) {
+  await db.executeQuery(
+    sql`
+      WITH checkpoint_vals AS (
+        SELECT logs.id, blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex"
+        FROM ponder_sync.logs logs
+        JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
+      )
+      UPDATE ponder_sync.logs
+      SET checkpoint=
+          (lpad(checkpoint_vals.timestamp::text, 10, '0') ||
+          lpad(checkpoint_vals."chainId"::text, 16, '0') ||
+          lpad(checkpoint_vals.number::text, 16, '0') ||
+          lpad(checkpoint_vals."transactionIndex"::text, 16, '0') ||
+          '5' ||
+          lpad(checkpoint_vals."logIndex"::text, 16, '0'))
+      FROM checkpoint_vals
+      WHERE ponder_sync.logs.id = checkpoint_vals.id;
+    `.compile(db),
+  );
+
+  // sanity check our checkpoint encoding on the first 10 rows of the table
+  const checkRes = await db.executeQuery<{
+    timestamp: number;
+    chainId: number;
+    number: number;
+    transactionIndex: number;
+    logIndex: number;
+    checkpoint: bigint;
+  }>(
+    sql`
+      SELECT blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex", logs.checkpoint
+      FROM ponder_sync.logs logs
+      JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
+      LIMIT 10
+    `.compile(db),
+  );
+
+  for (const row of checkRes.rows) {
+    const expected = encodeCheckpoint({
+      blockTimestamp: row.timestamp,
+      chainId: row.chainId,
+      blockNumber: row.number,
+      transactionIndex: row.transactionIndex,
+      eventType: EVENT_TYPES.logs,
+      eventIndex: row.logIndex,
+    });
+
+    if (row.checkpoint.toString() !== expected) {
+      throw new Error(
+        `data migration failed: expected new checkpoint column to have value ${expected} but got ${row.checkpoint}`,
+      );
+    }
+  }
 }
 
 export async function moveLegacyTables({
