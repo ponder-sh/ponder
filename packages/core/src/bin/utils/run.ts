@@ -61,8 +61,6 @@ export async function run({
     database = new SqliteDatabaseService({ common, directory });
     const result = await database.setup({ schema, buildId });
 
-    await database.migrateSyncStore();
-
     indexingStore = new RealtimeIndexingStore({
       kind: "sqlite",
       schema,
@@ -81,8 +79,6 @@ export async function run({
     });
     const result = await database.setup({ buildId, schema });
 
-    await database.migrateSyncStore();
-
     indexingStore = new RealtimeIndexingStore({
       kind: "postgres",
       schema,
@@ -94,6 +90,10 @@ export async function run({
   }
 
   const server = await createServer({ common, graphqlSchema, indexingStore });
+
+  // This can be a long-running operation, so it's best to do it after
+  // starting the server so the app can become responsive more quickly.
+  await database.migrateSyncStore();
 
   runCodegen({ common, graphqlSchema });
 
