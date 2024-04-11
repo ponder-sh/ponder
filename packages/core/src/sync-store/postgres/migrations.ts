@@ -476,7 +476,6 @@ const migrations: Record<string, Migration> = {
   },
   "2024_04_11_0_add_checkpoint_column_to_logs_table": {
     async up(db: Kysely<any>) {
-      console.log("2024_04_11_0_add_checkpoint_column_to_logs_table");
       if (await hasDoneCheckpointMigration(db)) {
         return;
       }
@@ -488,7 +487,6 @@ const migrations: Record<string, Migration> = {
   },
   "2024_04_11_1_set_checkpoint_in_logs_table": {
     async up(db: Kysely<any>) {
-      console.log("2024_04_11_1_set_checkpoint_in_logs_table");
       if (await hasDoneCheckpointMigration(db)) {
         return;
       }
@@ -549,7 +547,6 @@ const migrations: Record<string, Migration> = {
   },
   "2024_04_11_2_index_on_logs_checkpoint": {
     async up(db: Kysely<any>) {
-      console.log("2024_04_11_2_index_on_logs_checkpoint");
       if (await hasDoneCheckpointMigration(db)) {
         return;
       }
