@@ -457,11 +457,41 @@ const migrations: Record<string, Migration> = {
     },
   },
   "2024_03_20_0_checkpoint_in_logs_table": {
+    async up(_db: Kysely<any>) {
+      // no-op migration to avoid crashing databases that successfully ran this migration
+      return;
+    },
+  },
+  "2024_04_04_0_log_events_indexes": {
     async up(db: Kysely<any>) {
+      await db.schema.dropIndex("blockNumberIndex").ifExists().execute();
+      await db.schema.dropIndex("blockTimestampIndex").ifExists().execute();
+
+      await db.schema
+        .createIndex("logBlockNumberIndex")
+        .on("logs")
+        .column("blockNumber")
+        .execute();
+    },
+  },
+  "2024_04_11_0_add_checkpoint_column_to_logs_table": {
+    async up(db: Kysely<any>) {
+      console.log("2024_04_11_0_add_checkpoint_column_to_logs_table");
+      if (await hasDoneCheckpointMigration(db)) {
+        return;
+      }
       await db.schema
         .alterTable("logs")
         .addColumn("checkpoint", "varchar(75)")
         .execute();
+    },
+  },
+  "2024_04_11_1_set_checkpoint_in_logs_table": {
+    async up(db: Kysely<any>) {
+      console.log("2024_04_11_1_set_checkpoint_in_logs_table");
+      if (await hasDoneCheckpointMigration(db)) {
+        return;
+      }
       await db.executeQuery(
         sql`
           WITH checkpoint_vals AS (
@@ -515,23 +545,18 @@ const migrations: Record<string, Migration> = {
           );
         }
       }
-
+    },
+  },
+  "2024_04_11_2_index_on_logs_checkpoint": {
+    async up(db: Kysely<any>) {
+      console.log("2024_04_11_2_index_on_logs_checkpoint");
+      if (await hasDoneCheckpointMigration(db)) {
+        return;
+      }
       await db.schema
         .createIndex("logs_checkpoint_index")
         .on("logs")
         .column("checkpoint")
-        .execute();
-    },
-  },
-  "2024_04_04_0_log_events_indexes": {
-    async up(db: Kysely<any>) {
-      await db.schema.dropIndex("blockNumberIndex").ifExists().execute();
-      await db.schema.dropIndex("blockTimestampIndex").ifExists().execute();
-
-      await db.schema
-        .createIndex("logBlockNumberIndex")
-        .on("logs")
-        .column("blockNumber")
         .execute();
     },
   },
@@ -544,6 +569,17 @@ class StaticMigrationProvider implements MigrationProvider {
 }
 
 export const migrationProvider = new StaticMigrationProvider();
+
+async function hasDoneCheckpointMigration(db: Kysely<any>) {
+  const res = await db.executeQuery(
+    sql`select * from information_schema.columns
+        where table_schema='ponder_sync' 
+          and table_name='logs' 
+          and column_name = 'checkpoint';
+        `.compile(db),
+  );
+  return res.rows.length > 0;
+}
 
 export async function moveLegacyTables({
   common,
