@@ -1,16 +1,15 @@
 import type { Common } from "@/common/common.js";
-import { getHistoricalSyncStats } from "@/common/metrics.js";
+import { getHistoricalSyncProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import {
   type Factory,
   type LogFilter,
   type LogFilterCriteria,
   type Source,
-  type Topics,
   sourceIsLogFilter,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
+import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { Emittery } from "@/utils/emittery.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
@@ -34,6 +33,7 @@ import {
   BlockNotFoundError,
   type Hash,
   type Hex,
+  type LogTopic,
   type RpcBlock,
   RpcError,
   type RpcLog,
@@ -445,18 +445,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     // Emit status update logs on an interval for each active log filter.
     this.progressLogInterval = setInterval(async () => {
-      const completionStats = await getHistoricalSyncStats({
-        metrics: this.common.metrics,
-        sources: this.sources,
-      });
+      const historical = await getHistoricalSyncProgress(this.common.metrics);
 
-      completionStats.forEach(({ contract, rate, eta }) => {
-        if (rate === 1) return;
+      historical.contracts.forEach(({ contractName, progress, eta }) => {
+        if (progress === 1) return;
         this.common.logger.info({
           service: "historical",
-          msg: `Sync is ${formatPercentage(rate)} complete${
+          msg: `Sync is ${formatPercentage(progress ?? 0)} complete${
             eta !== undefined ? ` with ~${formatEta(eta)} remaining` : ""
-          } (contract=${contract})`,
+          } (contract=${contractName})`,
           network: this.network.name,
         });
       });
@@ -466,12 +463,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // requested range was cached, so the sync is complete.
     if (this.queue.size === 0) {
       clearInterval(this.progressLogInterval);
-      this.emit("syncComplete");
       this.common.logger.info({
         service: "historical",
         msg: `Completed sync (network=${this.network.name})`,
         network: this.network.name,
       });
+      this.emit("syncComplete");
     }
 
     this.queue.start();
@@ -521,7 +518,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       // If this is the final task, run the cleanup/completion logic.
       clearInterval(this.progressLogInterval);
-      this.emit("syncComplete");
       const startTimestamp =
         (await this.common.metrics.ponder_historical_start_timestamp.get())
           .values?.[0]?.value ?? Date.now();
@@ -532,6 +528,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           this.network.name
         })`,
       });
+      this.emit("syncComplete");
     };
 
     const queue = createQueue<HistoricalSyncTask>({
@@ -815,6 +812,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     if (newBlockCheckpoint) {
       this.debouncedEmitCheckpoint.call({
+        ...maxCheckpoint,
         blockTimestamp: newBlockCheckpoint.blockTimestamp,
         chainId: this.network.chainId,
         blockNumber: newBlockCheckpoint.blockNumber,
@@ -932,7 +930,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    */
   private _eth_getLogs = async (params: {
     address?: Address | Address[];
-    topics?: Topics;
+    topics?: LogTopic[];
     fromBlock: Hex;
     toBlock: Hex;
   }): Promise<RpcLog[]> => {

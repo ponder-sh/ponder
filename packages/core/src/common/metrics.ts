@@ -1,4 +1,3 @@
-import type { Source } from "@/config/sources.js";
 import prometheus from "prom-client";
 
 const httpRequestBucketsInMs = [
@@ -27,8 +26,8 @@ export class MetricsService {
   ponder_realtime_latest_block_timestamp: prometheus.Gauge<"network">;
   ponder_realtime_reorg_total: prometheus.Counter<"network">;
 
-  ponder_indexing_total_seconds: prometheus.Gauge<"event">;
-  ponder_indexing_completed_seconds: prometheus.Gauge<"event">;
+  ponder_indexing_total_seconds: prometheus.Gauge;
+  ponder_indexing_completed_seconds: prometheus.Gauge;
   ponder_indexing_completed_events: prometheus.Gauge<"network" | "event">;
 
   ponder_indexing_completed_timestamp: prometheus.Gauge;
@@ -130,13 +129,11 @@ export class MetricsService {
     this.ponder_indexing_total_seconds = new prometheus.Gauge({
       name: "ponder_indexing_total_seconds",
       help: "Total number of seconds that are required",
-      labelNames: ["event"] as const,
       registers: [this.registry],
     });
     this.ponder_indexing_completed_seconds = new prometheus.Gauge({
       name: "ponder_indexing_completed_seconds",
       help: "Number of seconds that have been completed",
-      labelNames: ["event"] as const,
       registers: [this.registry],
     });
     this.ponder_indexing_completed_events = new prometheus.Gauge({
@@ -224,16 +221,11 @@ export class MetricsService {
   }
 }
 
-export async function getHistoricalSyncStats({
-  sources,
-  metrics,
-}: {
-  sources: Source[];
-  metrics: MetricsService;
-}) {
-  const startTimestampMetric = (
-    await metrics.ponder_historical_start_timestamp.get()
-  ).values?.[0]?.value;
+export async function getHistoricalSyncProgress(metrics: MetricsService) {
+  // Historical sync table
+  const startTimestampMetric =
+    (await metrics.ponder_historical_start_timestamp.get()).values?.[0]
+      ?.value ?? Date.now();
   const cachedBlocksMetric = (
     await metrics.ponder_historical_cached_blocks.get()
   ).values;
@@ -243,69 +235,129 @@ export async function getHistoricalSyncStats({
     await metrics.ponder_historical_completed_blocks.get()
   ).values;
 
-  return sources.map((source) => {
-    const { contractName, networkName } = source;
+  const contracts = totalBlocksMetric.map((m) => {
+    const contract = m.labels.contract as string;
+    const network = m.labels.network as string;
+    const totalBlocks = m.value;
 
-    const totalBlocks = totalBlocksMetric.find(
-      ({ labels }) =>
-        labels.contract === contractName && labels.network === networkName,
-    )?.value;
     const cachedBlocks = cachedBlocksMetric.find(
-      ({ labels }) =>
-        labels.contract === contractName && labels.network === networkName,
+      (c) => c.labels.contract === contract && c.labels.network === network,
     )?.value;
+
     const completedBlocks =
       completedBlocksMetric.find(
-        ({ labels }) =>
-          labels.contract === contractName && labels.network === networkName,
+        (c) => c.labels.contract === contract && c.labels.network === network,
       )?.value ?? 0;
 
-    // If the total_blocks metric is set and equals zero, the sync was skipped and
-    // should be considered complete.
-    if (totalBlocks === 0) {
+    // If cachedBlocks is not set, setup is not complete.
+    if (cachedBlocks === undefined) {
       return {
-        network: networkName,
-        contract: contractName,
-        rate: 1,
-        eta: 0,
+        contractName: contract,
+        networkName: network,
+        totalBlocks,
+        completedBlocks,
       };
     }
 
-    // Any of these mean setup is not complete.
-    if (
-      totalBlocks === undefined ||
-      cachedBlocks === undefined ||
-      !startTimestampMetric
-    ) {
-      return { network: networkName, contract: contractName, rate: 0 };
-    }
+    const progress = (completedBlocks + cachedBlocks) / totalBlocks;
 
-    const rate = (cachedBlocks + completedBlocks) / totalBlocks;
-
-    // If fewer than 3 blocks have been processsed, the ETA will be low quality.
-    if (completedBlocks < 3)
-      return { network: networkName, contract: contractName, rate };
-
-    // If rate is 1, sync is complete, so set the ETA to zero.
-    if (rate === 1)
-      return {
-        network: networkName,
-        contract: contractName,
-        rate,
-        eta: 0,
-      };
-
-    // (time elapsed) / (% completion of remaining block range)
     const elapsed = Date.now() - startTimestampMetric;
-    const estimatedTotalDuration =
-      elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
-    const estimatedTimeRemaining = estimatedTotalDuration - elapsed;
+    const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
+    // The ETA is low quality if we've completed only one or two blocks.
+    const eta = completedBlocks >= 3 ? total - elapsed : undefined;
 
     return {
-      network: networkName,
-      contract: contractName,
-      rate,
-      eta: estimatedTimeRemaining,
+      contractName: contract,
+      networkName: network,
+      totalBlocks,
+      cachedBlocks,
+      completedBlocks,
+      progress,
+      eta,
     };
   });
+
+  const totalBlocks = contracts.reduce((a, c) => a + c.totalBlocks, 0);
+  const cachedBlocks = contracts.reduce((a, c) => a + (c.cachedBlocks ?? 0), 0);
+  const completedBlocks = contracts.reduce(
+    (a, c) => a + (c.completedBlocks ?? 0),
+    0,
+  );
+  const progress =
+    totalBlocks === 0 ? 0 : (completedBlocks + cachedBlocks) / totalBlocks;
+
+  return {
+    overall: { totalBlocks, cachedBlocks, completedBlocks, progress },
+    contracts,
+  };
+}
+
+export async function getIndexingProgress(metrics: MetricsService) {
+  const hasErrorMetric = (await metrics.ponder_indexing_has_error.get())
+    .values[0]?.value;
+  const hasError = hasErrorMetric === 1;
+
+  const totalSeconds =
+    (await metrics.ponder_indexing_total_seconds.get()).values[0]?.value ?? 0;
+  const completedSeconds =
+    (await metrics.ponder_indexing_completed_seconds.get()).values[0]?.value ??
+    0;
+  const completedToTimestamp =
+    (await metrics.ponder_indexing_completed_timestamp.get()).values[0].value ??
+    0;
+
+  const progress = totalSeconds === 0 ? 0 : completedSeconds / totalSeconds;
+
+  const indexingCompletedEventsMetric = (
+    await metrics.ponder_indexing_completed_events.get()
+  ).values;
+  const indexingFunctionErrorMetric = (
+    await metrics.ponder_indexing_function_error_total.get()
+  ).values;
+  const indexingFunctionDurationMetric = (
+    await metrics.ponder_indexing_function_duration.get()
+  ).values;
+
+  const indexingDurationSum: Record<string, Record<string, number>> = {};
+  const indexingDurationCount: Record<string, Record<string, number>> = {};
+  for (const m of indexingFunctionDurationMetric) {
+    if (m.metricName === "ponder_indexing_function_duration_sum")
+      (indexingDurationSum[m.labels.event!] ??= {})[m.labels.network!] =
+        m.value;
+    if (m.metricName === "ponder_indexing_function_duration_count")
+      (indexingDurationCount[m.labels.event!] ??= {})[m.labels.network!] =
+        m.value;
+  }
+
+  const events = indexingCompletedEventsMetric.map((m) => {
+    const eventName = m.labels.event as string;
+    const networkName = m.labels.network as string;
+    const count = m.value;
+
+    const durationSum = indexingDurationSum[eventName]?.[networkName] ?? 0;
+    const durationCount = indexingDurationCount[eventName]?.[networkName] ?? 0;
+    const averageDuration =
+      durationCount === 0 ? 0 : durationSum / durationCount;
+
+    const errorCount =
+      indexingFunctionErrorMetric.find(
+        (e) => e.labels.event === eventName && e.labels.network === networkName,
+      )?.value ?? 0;
+
+    return { eventName, networkName, count, averageDuration, errorCount };
+  });
+
+  const totalEvents = events.reduce((a, e) => a + e.count, 0);
+
+  return {
+    hasError,
+    overall: {
+      completedSeconds,
+      totalSeconds,
+      progress,
+      completedToTimestamp,
+      totalEvents,
+    },
+    events,
+  };
 }

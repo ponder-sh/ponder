@@ -12,11 +12,10 @@ import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Factory, LogFilter } from "@/config/sources.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import type { DatabaseService } from "@/database/service.js";
+import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { createSchema } from "@/index.js";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
-import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
+import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
@@ -26,12 +25,7 @@ import pg from "pg";
 import type { Address } from "viem";
 import { type TestContext, beforeEach } from "vitest";
 import { deploy, simulate } from "./simulate.js";
-import {
-  getConfig,
-  getNetworkAndSources,
-  getTableIds,
-  testClient,
-} from "./utils.js";
+import { getConfig, getNetworkAndSources, testClient } from "./utils.js";
 
 declare module "vitest" {
   export interface TestContext {
@@ -91,7 +85,11 @@ export async function setupIsolatedDatabase(context: TestContext) {
     await client.query(`CREATE DATABASE "${databaseName}"`);
     await client.end();
 
-    context.databaseConfig = { kind: "postgres", poolConfig };
+    context.databaseConfig = {
+      kind: "postgres",
+      poolConfig,
+      schema: "public",
+    };
 
     return async () => {};
   } else {
@@ -106,13 +104,14 @@ export async function setupIsolatedDatabase(context: TestContext) {
   }
 }
 
-type DatabaseServiceSetup = Parameters<DatabaseService["setup"]>[0];
+type DatabaseServiceSetup = Parameters<DatabaseService["setup"]>[0] & {
+  indexing: "realtime" | "historical";
+};
 const defaultSchema = createSchema(() => ({}));
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
+  buildId: "test",
   schema: defaultSchema,
-  tableIds: getTableIds(defaultSchema),
-  functionIds: {},
-  tableAccess: {},
+  indexing: "historical",
 };
 
 export async function setupDatabaseServices(
@@ -120,6 +119,7 @@ export async function setupDatabaseServices(
   overrides: Partial<DatabaseServiceSetup> = {},
 ): Promise<{
   database: DatabaseService;
+  namespaceInfo: NamespaceInfo;
   syncStore: SyncStore;
   indexingStore: IndexingStore;
   cleanup: () => Promise<void>;
@@ -132,52 +132,57 @@ export async function setupDatabaseServices(
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup(config);
+    const result = await database.setup(config);
 
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore = new SqliteIndexingStore({
-      common: context.common,
+    await database.migrateSyncStore();
+
+    const indexingStore = new RealtimeIndexingStore({
+      kind: "sqlite",
       schema: config.schema,
-      ...indexingStoreConfig,
+      namespaceInfo: result.namespaceInfo,
+      db: database.indexingDb,
     });
 
-    const syncStoreConfig = database.getSyncStoreConfig();
-    const syncStore = new SqliteSyncStore({
-      common: context.common,
-      ...syncStoreConfig,
-    });
-
-    await syncStore.migrateUp();
+    const syncStore = new SqliteSyncStore({ db: database.syncDb });
 
     const cleanup = () => database.kill();
 
-    return { database, indexingStore, syncStore, cleanup };
+    return {
+      database,
+      namespaceInfo: result.namespaceInfo,
+      indexingStore,
+      syncStore,
+      cleanup,
+    };
   } else {
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup(config);
+    const result = await database.setup(config);
 
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore = new PostgresIndexingStore({
-      common: context.common,
+    await database.migrateSyncStore();
+
+    const indexingStore = new RealtimeIndexingStore({
+      kind: "postgres",
       schema: config.schema,
-      ...indexingStoreConfig,
+      namespaceInfo: result.namespaceInfo,
+      db: database.indexingDb,
     });
 
-    const syncStoreConfig = await database.getSyncStoreConfig();
-    const syncStore = new PostgresSyncStore({
-      common: context.common,
-      ...syncStoreConfig,
-    });
-
-    await syncStore.migrateUp();
+    const syncStore = new PostgresSyncStore({ db: database.syncDb });
 
     const cleanup = () => database.kill();
 
-    return { database, indexingStore, syncStore, cleanup };
+    return {
+      database,
+      namespaceInfo: result.namespaceInfo,
+      indexingStore,
+      syncStore,
+      cleanup,
+    };
   }
 }
 

@@ -11,21 +11,17 @@ import {
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
+import type { Factory, LogFilter, Source } from "@/config/sources.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import parse from "pg-connection-string";
-import type {
-  Factory,
-  LogFilter,
-  Source,
-  Topics,
-} from "../../config/sources.js";
+import type { LogTopic } from "viem";
 
 export async function buildConfig({
   config,
   options,
 }: { config: Config; options: Pick<Options, "ponderDir" | "rootDir"> }) {
-  const logs: { level: "warn" | "info"; msg: string }[] = [];
+  const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
 
   // Build database.
   let databaseConfig: DatabaseConfig;
@@ -40,31 +36,85 @@ export async function buildConfig({
 
       if (config.database.connectionString) {
         connectionString = config.database.connectionString;
-        source = "ponder.config.ts";
+        source = "from ponder.config.ts";
       } else if (process.env.DATABASE_PRIVATE_URL) {
         connectionString = process.env.DATABASE_PRIVATE_URL;
-        source = "DATABASE_PRIVATE_URL env var";
+        source = "from DATABASE_PRIVATE_URL env var";
       } else if (process.env.DATABASE_URL) {
         connectionString = process.env.DATABASE_URL;
-        source = "DATABASE_URL env var";
+        source = "from DATABASE_URL env var";
       } else {
         throw new Error(
-          `Invalid database configuration: "kind" is set to "postgres" but no connection string was provided.`,
+          `Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.`,
         );
       }
 
       logs.push({
         level: "info",
-        msg: `Using Postgres database ${getDatabaseName(
+        msg: `Using Postgres database '${getDatabaseName(
           connectionString,
-        )} (from ${source})`,
+        )}' (${source})`,
       });
 
-      databaseConfig = { kind: "postgres", poolConfig: { connectionString } };
+      let schema: string | undefined = undefined;
+      if (config.database.schema) {
+        schema = config.database.schema;
+        source = "from ponder.config.ts";
+      } else if (process.env.RAILWAY_DEPLOYMENT_ID) {
+        if (process.env.RAILWAY_SERVICE_NAME === undefined) {
+          throw new Error(
+            "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
+          );
+        }
+        schema = `${
+          process.env.RAILWAY_SERVICE_NAME
+        }_${process.env.RAILWAY_DEPLOYMENT_ID.slice(0, 8)}`;
+        source = "from RAILWAY_DEPLOYMENT_ID env var";
+      } else {
+        schema = "public";
+        source = "default";
+      }
+      logs.push({
+        level: "info",
+        msg: `Using '${schema}' database schema for indexed tables (${source})`,
+      });
+
+      let publishSchema: string | undefined = undefined;
+      if (config.database.publishSchema !== undefined) {
+        publishSchema = config.database.publishSchema;
+        source = "from ponder.config.ts";
+      } else if (process.env.RAILWAY_DEPLOYMENT_ID !== undefined) {
+        publishSchema = "public";
+        source = "default for Railway deployment";
+      }
+      if (publishSchema !== undefined) {
+        logs.push({
+          level: "info",
+          msg: `Using '${publishSchema}' database schema for published views (${source})`,
+        });
+      } else {
+        logs.push({
+          level: "debug",
+          msg: "Not publishing views (publish schema was not set in ponder.config.ts)",
+        });
+      }
+
+      if (schema !== undefined && schema === publishSchema) {
+        throw new Error(
+          `Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('${schema}').`,
+        );
+      }
+
+      databaseConfig = {
+        kind: "postgres",
+        poolConfig: { connectionString },
+        schema,
+        publishSchema,
+      };
     } else {
       logs.push({
         level: "info",
-        msg: `Using SQLite database at ${sqlitePrintPath} (from ponder.config.ts)`,
+        msg: `Using SQLite database in '${sqlitePrintPath}' (from ponder.config.ts)`,
       });
 
       databaseConfig = { kind: "sqlite", directory: sqliteDir };
@@ -74,22 +124,71 @@ export async function buildConfig({
     let source: string | undefined = undefined;
     if (process.env.DATABASE_PRIVATE_URL) {
       connectionString = process.env.DATABASE_PRIVATE_URL;
-      source = "DATABASE_PRIVATE_URL env var";
+      source = "from DATABASE_PRIVATE_URL env var";
     } else if (process.env.DATABASE_URL) {
       connectionString = process.env.DATABASE_URL;
-      source = "DATABASE_URL env var";
+      source = "from DATABASE_URL env var";
     }
 
+    // If either of the DATABASE_URL env vars are set, use Postgres.
     if (connectionString !== undefined) {
-      // If either of the DATABASE_URL env vars are set, use them.
       logs.push({
         level: "info",
         msg: `Using Postgres database ${getDatabaseName(
           connectionString,
-        )} (from ${source})`,
+        )} (${source})`,
       });
 
-      databaseConfig = { kind: "postgres", poolConfig: { connectionString } };
+      let schema: string | undefined = undefined;
+      if (process.env.RAILWAY_DEPLOYMENT_ID !== undefined) {
+        schema = process.env.RAILWAY_DEPLOYMENT_ID;
+        if (process.env.RAILWAY_SERVICE_NAME === undefined) {
+          throw new Error(
+            "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
+          );
+        }
+        schema = `${
+          process.env.RAILWAY_SERVICE_NAME
+        }_${process.env.RAILWAY_DEPLOYMENT_ID.slice(0, 8)}`;
+        source = "from RAILWAY_DEPLOYMENT_ID env var";
+      } else {
+        schema = "public";
+        source = "default";
+      }
+      logs.push({
+        level: "info",
+        msg: `Using '${schema}' database schema for indexed tables (${source})`,
+      });
+
+      let publishSchema: string | undefined = undefined;
+      if (process.env.RAILWAY_DEPLOYMENT_ID !== undefined) {
+        publishSchema = "public";
+        source = "default for Railway deployment";
+      }
+      if (publishSchema !== undefined) {
+        logs.push({
+          level: "info",
+          msg: `Using '${publishSchema}' database schema for published views (${source})`,
+        });
+      } else {
+        logs.push({
+          level: "debug",
+          msg: "Not publishing views (publish schema was not set in ponder.config.ts)",
+        });
+      }
+
+      if (schema !== undefined && schema === publishSchema) {
+        throw new Error(
+          `Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('${schema}').`,
+        );
+      }
+
+      databaseConfig = {
+        kind: "postgres",
+        poolConfig: { connectionString },
+        schema,
+        publishSchema,
+      };
     } else {
       // Fall back to SQLite.
       logs.push({
@@ -229,7 +328,7 @@ export async function buildConfig({
       // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.
       const abiEvents = buildAbiEvents({ abi: rawContract.abi });
 
-      let topics: Topics | undefined = undefined;
+      let topics: LogTopic[] | undefined = undefined;
 
       if (rawContract.filter !== undefined) {
         if (

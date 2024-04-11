@@ -12,5 +12,5 @@ export function startClock() {
  * @returns The timestamp in milliseconds (ms).
  */
 export function hrTimeToMs(diff: [number, number]) {
-  return Math.round(diff[0] * 1000 + diff[1] / 1000000);
+  return Math.round(diff[0] * 1000 + diff[1] / 1_000) / 1_000;
 }

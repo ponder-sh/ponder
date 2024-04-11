@@ -30,6 +30,7 @@ export const vitePluginPonder = (): Plugin => {
         const s = replaceStateless(code);
         const transformed = s.toString();
         const sourcemap = s.generateMap({ source: id });
+
         return { code: transformed, map: sourcemap };
       } else {
         return null;

@@ -6,48 +6,65 @@ description: "A guide for deploying Ponder apps to production"
 import { Steps } from "nextra/components";
 import { Callout } from "nextra/components";
 
-# Zero-downtime deployments 🚧
+# Zero-downtime deployments
 
-This page is still under construction.
+Ponder supports zero-downtime deployments using health checks. This guide describes how to enable zero-downtime deployments for both HTTP (GraphQL) requests and direct SQL queries.
 
 ## Healthchecks
 
-Ponder supports zero-downtime deployments by waiting until all events have been processed before responding as healthy. To support long-running backfills, Ponder apps will begin responding as healthy _before_ the backfill is complete if it exceeds the `maxHealthcheckDuration`. This option defaults 240 seconds (4 minutes), and is configurable using [`options.maxHealthcheckDuration`](/docs/api-reference/config#options).
+The `/health` route returns `200` once the app becomes healthy, and `503` before. This route can be used by load balancers and platform services to determine if an instance is ready to receive traffic.
 
-If you're using Railway, Ponder will set `maxHealthcheckDuration` automatically according to the **Healthcheck Timeout** specified in your app service settings.
+Here is the logic Ponder users to decide if it should respond as healthy:
+- If historical indexing is not complete, and the process uptime is **less than** `maxHealthcheckDuration` seconds, respond as not healthy.
+- If historical indexing is not complete, but the process uptime is **greater than** `maxHealthcheckDuration` seconds, respond as healthy.
+- If historical indexing is complete, respond as healthy.
 
-## Zero downtime with direct SQL
+The [`maxHealthcheckDuration`](/docs/api-reference/config#options) option is configurable, and defaults to 240 seconds (4 minutes).
 
-This section is included to answer advanced questions about zero-downtime deployments as it pertains to direct SQL.
+## HTTP / GraphQL with zero downtime
 
-If you deploy a new version of your app that updates the database schema, you should first ensure that any downstream services are compatible with both the old and new schema. As soon as the instance running the new version becomes healthy, it will replace the views in `ponder` using the new schema.
+To ensure zero downtime for GraphQL queries across redeployments, only begin routing GraphQL HTTP requests to an instance once it is healthy.
 
-## Instance states
+Ponder should work out-of-the box with most deployment tools that support health checks, including platform-as-a-service offerings like [Railway](https://railway.app) and [Render](https://render.com) as well as container orchestration tools like [Kubernetes](https://kubernetes.io).
 
-A Ponder instance can be in one of the following states (as it pertains to the database):
+## Direct SQL with zero downtime
 
-<Steps>
+<Callout type="warning">
+  Zero downtime for direct SQL is an advanced feature that requires experience with SQL, database management, and orchestration.
+</Callout>
 
-### Starting up
+Ponder supports zero-downtime deployments for direct SQL queries by creating or updating views in a **publish schema** that serve data from the latest healthy deployment. The deployment-specific schemas (which contain the actual indexed data tables) have an unstable name that is unique to each deployment. [Read more](/docs/query/direct-sql#multiple-instances) about database schema isolation.
 
-On start up, the instance inserts a new row into the `ponder_cache.instance_metadata` table and acquires an **instance ID**. Then, it creates a new private database schema with the name ``    `ponder_instance_${instanceId}`{:ts}``. Finally, it creates tables in that schema according to `ponder.schema.ts` and begins inserting indexed data into them.
+When using this pattern, you should run SQL queries against the publish schema (stable name), not deployment-specific schemas (unstable names).
 
-### Healthy
+To enable publishing, set the `publishSchema` option in `ponder.config.ts`.
 
-When the instance has finished indexing historical events, it creates (or updates) database views in the `ponder` schema that point at the tables in its private schema. At this moment, the server also starts returning `200` responses at the healthcheck path (`/health`).
+```ts filename="ponder.config.ts" {6}
+import { createConfig } from "@ponder/core"
 
-### Live
+export default createConfig({
+  database: {
+    kind: "postgres",
+    publishSchema: "indexer", // Default: undefined
+  },
+});
+```
 
-After it becomes healthy, the instance continues indexing as you would expect. As long as the instance remains live, the views in `ponder` will continue to serve the latest available data.
+In most scenarios, `publishSchema` should be set to an environment variable provided by the deployment environment. To improve the experience on Railway, Ponder automatically sets `publishSchema` to the value of the Railway-provided environment variable `RAILWAY_SERVICE_NAME`.
 
-### Replaced
+### Example scenario (Railway)
 
-If a different instance (using the same database) starts up and becomes healthy, the current instance gets replaced. The new instance will update the views in `ponder` to point to its tables.
+Here's a zero-downtime for direct SQL works on Railway.
+1. You create a new Postgres database service for the app.
+2. You create a new service named `indexer` linked to the GitHub repository of your Ponder app. Once created, Railway initiates the first deployment for this service.
+3. When the first deployment starts up, it creates and begins indexing in an isolated schema named `${RAILWAY_SERVICE_NAME}-${RAILWAY_DEPLOYMENT_ID.slice(0,8)}`, e.g. `indexer-87cbd10a`.
+4. When the deployment becomes healthy, it creates a schema named `${RAILWAY_SERVICE_NAME}` (in our example, `indexer`) and creates views in that schema that "serve" data from the tables in `indexer-87cbd10a`.
+5. You push a commit to your repository, which triggers a new deployment. The new deployment starts indexing in an isolated schema, this time named `indexer-9b3c4d21`.
+6. When the 2nd deployment becomes healthy, it drops the views in the `indexer` schema and creates new ones that "serve" data from `indexer-9b3c4d21`.
 
-### Shutting down
+Using this scheme, the views in the `indexer` schema always serve data from the latest deployment. This mirrors the behavior of the public GraphQL endpoint for the service.
 
-If the instance is still live, it will exit immediately on shutdown and leave the views in `ponder` pointing at its schema. So, you can safely shut down a live instance and run queries against the (now static) data. The next instance that becomes healthy will replace the views.
+### Updating `ponder.schema.ts`
 
-If the instance has been replaced, it will attempt to drop its ``    `ponder_instance_${instanceId}`{:ts}`` schema before exiting to avoid cluttering the database with stale data. If this process fails, the next instance that connects to the same database will drop the stale schema when it starts up.
+If you deploy a version of your app that makes a breaking change to `ponder.schema.ts`, you should first ensure that any downstream services are compatible with both the old and new column definitions. As soon as the new deployment becomes healthy, it will replace the views in the publish schema using the new column definitions. If you're not careful, this process will break downstream services and may cause downtime.
 
-</Steps>

@@ -5,14 +5,13 @@ import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { TelemetryService } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
-import { ServerService } from "@/server/service.js";
-import dotenv from "dotenv";
+import type { NamespaceInfo } from "@/database/service.js";
+import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
+import { createServer } from "@/server/service.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
 export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
-  dotenv.config({ path: ".env.local" });
   const options = buildOptions({ cliOptions });
 
   const logger = new LoggerService({
@@ -79,27 +78,39 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  const { poolConfig } = databaseConfig;
-  const database = new PostgresDatabaseService({ common, poolConfig });
+  if (databaseConfig.publishSchema === undefined) {
+    await shutdown({
+      reason: "The 'ponder serve' command requires 'publishSchema' to be set",
+      code: 1,
+    });
+    return cleanup;
+  }
 
-  const indexingStoreConfig = database.getIndexingStoreConfig();
-  const indexingStore = new PostgresIndexingStore({
+  const { poolConfig, schema: userNamespace } = databaseConfig;
+  const database = new PostgresDatabaseService({
     common,
-    schema,
-    pool: indexingStoreConfig.pool,
-    schemaName: "ponder",
-    tablePrefix: "_raw_",
+    poolConfig,
+    userNamespace,
   });
 
-  const serverService = new ServerService({ common, indexingStore });
-  serverService.setup();
-  await serverService.start();
-  serverService.reloadGraphqlSchema({ graphqlSchema });
-  serverService.setIsHealthy(true);
+  const indexingStore = new RealtimeIndexingStore({
+    kind: "postgres",
+    schema,
+    // Note: `ponder serve` serves data from the `publishSchema`. Also, it does
+    // not need the other fields in NamespaceInfo because it only uses findUnique
+    // and findMany. We should ultimately add a PublicStore interface for this.
+    namespaceInfo: {
+      userNamespace: databaseConfig.publishSchema,
+    } as unknown as NamespaceInfo,
+    db: database.indexingDb,
+  });
+
+  const server = await createServer({ graphqlSchema, indexingStore, common });
+  server.setHealthy();
 
   cleanupReloadable = async () => {
-    await serverService.kill();
-    indexingStore.kill();
+    await server.kill();
+    await database.kill();
   };
 
   return cleanup;

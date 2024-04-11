@@ -1,14 +1,10 @@
 import { setupIsolatedDatabase } from "@/_test/setup.js";
-import { getTableIds } from "@/_test/utils.js";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { createSchema } from "@/schema/schema.js";
-import {
-  type Checkpoint,
-  encodeCheckpoint,
-  zeroCheckpoint,
-} from "@/utils/checkpoint.js";
-import { Kysely, sql } from "kysely";
-import { beforeEach, describe, expect, test } from "vitest";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { hash } from "@/utils/hash.js";
+import { sql } from "kysely";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import type { HeadlessKysely } from "../kysely.js";
 import { PostgresDatabaseService } from "./service.js";
 
 beforeEach(setupIsolatedDatabase);
@@ -41,1220 +37,578 @@ const schemaTwo = createSchema((p) => ({
   }),
 }));
 
-function createCheckpoint(index: number): Checkpoint {
-  return { ...zeroCheckpoint, blockTimestamp: index };
-}
-
 const shouldSkip = process.env.DATABASE_URL === undefined;
 
 describe.skipIf(shouldSkip)("postgres database", () => {
-  test("setup with fresh database", async (context) => {
+  test("setup succeeds with a fresh database", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {},
-    });
+    const { checkpoint } = await database.setup({ schema, buildId: "abc" });
 
-    // Cache database, metadata tables, and cache tables were created
-    expect(await getTableNames(database.db, "ponder_cache")).toStrictEqual([
+    expect(checkpoint).toMatchObject(zeroCheckpoint);
+
+    expect(await getTableNames(database.db, "ponder")).toStrictEqual([
       "kysely_migration",
       "kysely_migration_lock",
-      "function_metadata",
-      "table_metadata",
-      "instance_metadata",
-      "0xPet",
-      "0xPerson",
+      "namespace_lock",
+      hash(["public", "abc", "Pet"]),
+      hash(["public", "abc", "Person"]),
     ]);
 
-    // Instance tables were created in the instance schema
-    expect(await getTableNames(database.db, "ponder_instance_1")).toStrictEqual(
-      ["Pet", "Person"],
-    );
-
-    // Row was inserted to public metadata
-    const { rows: metadataRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.instance_metadata`.compile(database.db),
-    );
-    expect(metadataRows).toEqual([
-      {
-        created_at: expect.any(Number),
-        hash_version: 2,
-        heartbeat_at: expect.any(Number),
-        instance_id: 1,
-        published_at: null,
-        schema: schema,
-      },
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
     ]);
-
-    // No views were created in public
-    expect(await getViewNames(database.db, "ponder")).toStrictEqual([]);
 
     await database.kill();
   });
 
-  test("setup with cache hit", async (context) => {
+  test("setup succeeds with a prior app in the same namespace", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: { function: "0xfunction" },
-      tableAccess: {
-        function: {
-          access: [
-            {
-              storeMethod: "create",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-      },
-    });
-
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore = new PostgresIndexingStore({
-      common: context.common,
-      ...indexingStoreConfig,
-      schema,
-    });
-
-    await indexingStore.createMany({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(1),
-      data: [
-        { id: "11", name: "Fido", age: 3, kind: "DOG" },
-        { id: "12", name: "Fido", age: 3, kind: "DOG" },
-        { id: "13", name: "Fido", age: 3, kind: "DOG" },
-      ],
-    });
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(1),
-        eventCount: 3,
-      },
-    ]);
-
-    const { rows: instancePetRows1 } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-    expect(instancePetRows1).toHaveLength(3);
+    const { checkpoint } = await database.setup({ schema, buildId: "abc" });
+    expect(checkpoint).toMatchObject(zeroCheckpoint);
 
     await database.kill();
 
     const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await databaseTwo.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: { function: "0xfunction" },
-      tableAccess: {},
-    });
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "abc", "Pet"]),
+      hash(["public", "abc", "Person"]),
+    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
 
-    const { rows: instancePetRows } = await databaseTwo.db.executeQuery(
-      sql`SELECT * FROM ponder_instance_2."Pet"`.compile(databaseTwo.db),
-    );
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
-    expect(instancePetRows).length(3);
-
-    expect(databaseTwo.functionMetadata).toStrictEqual([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(1),
-        eventCount: 3,
-      },
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "def", "Dog"]),
+      hash(["public", "def", "Apple"]),
+    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
+      "Dog",
+      "Apple",
     ]);
 
     await databaseTwo.kill();
   });
 
-  test("publish with fresh database", async (context) => {
+  test("setup succeeds with a prior app that used the same publish schema", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
-    const database = new PostgresDatabaseService({
+    const config = {
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
-    });
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "publish",
+    };
 
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {},
-    });
-
+    const database = new PostgresDatabaseService(config);
+    await database.setup({ schema, buildId: "abc" });
     await database.publish();
+    await database.kill();
 
-    // Views were created in public
-    expect(await getViewNames(database.db, "ponder")).toStrictEqual([
+    const databaseTwo = new PostgresDatabaseService(config);
+
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "abc", "Pet"]),
+      hash(["public", "abc", "Person"]),
+    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
       "Pet",
       "Person",
-      "_raw_Pet",
-      "_raw_Person",
+    ]);
+    expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual([
+      "Pet",
+      "Person",
     ]);
 
-    // Public metadata row was updated to include "published_at"
-    const { rows: metadataRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.instance_metadata`.compile(database.db),
-    );
-    expect(metadataRows).toEqual([
-      {
-        created_at: expect.any(Number),
-        hash_version: 2,
-        heartbeat_at: expect.any(Number),
-        instance_id: 1,
-        published_at: expect.any(Number),
-        schema: schema,
-      },
-    ]);
-
-    await database.kill();
-  });
-
-  test("publish with another instance live", async (context) => {
-    if (context.databaseConfig.kind !== "postgres") return;
-    const database = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {},
-    });
-
-    const databaseTwo = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-    await databaseTwo.setup({
-      schema: schemaTwo,
-      tableIds: getTableIds(schemaTwo),
-      functionIds: {},
-      tableAccess: {},
-    });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
     await databaseTwo.publish();
 
-    expect(await getViewNames(database.db, "ponder")).toStrictEqual([
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "def", "Dog"]),
+      hash(["public", "def", "Apple"]),
+    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
       "Dog",
       "Apple",
-      "_raw_Dog",
-      "_raw_Apple",
+    ]);
+    expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual([
+      "Dog",
+      "Apple",
     ]);
 
-    const { rows: firstMetadataRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.instance_metadata ORDER BY instance_id asc`.compile(
-        database.db,
+    await databaseTwo.kill();
+  });
+
+  test("setup does not drop tables that are not managed by ponder", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+    await database.kill();
+
+    const databaseTwo = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await databaseTwo.db.executeQuery(
+      sql`CREATE TABLE public.not_a_ponder_table (id TEXT)`.compile(
+        databaseTwo.db,
       ),
     );
-    expect(firstMetadataRows).toEqual([
-      {
-        created_at: expect.any(Number),
-        hash_version: 2,
-        heartbeat_at: expect.any(Number),
-        instance_id: 1,
-        published_at: null,
-        schema: schema,
-      },
-      {
-        created_at: expect.any(Number),
-        hash_version: 2,
-        heartbeat_at: expect.any(Number),
-        instance_id: 2,
-        published_at: expect.any(Number),
-        schema: schemaTwo,
-      },
-    ]);
+    await databaseTwo.db.executeQuery(
+      sql`CREATE TABLE public."AnotherTable" (id TEXT)`.compile(databaseTwo.db),
+    );
 
-    await database.publish();
-
-    // Previous views were dropped from public
-    expect(await getViewNames(database.db, "ponder")).toStrictEqual([
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
       "Pet",
       "Person",
-      "_raw_Pet",
-      "_raw_Person",
+      "not_a_ponder_table",
+      "AnotherTable",
     ]);
 
-    // Public metadata row was updated to include "published_at"
-    const { rows: metadataRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.instance_metadata ORDER BY instance_id asc`.compile(
-        database.db,
-      ),
-    );
-    expect(metadataRows).toEqual([
-      {
-        created_at: expect.any(Number),
-        hash_version: 2,
-        heartbeat_at: expect.any(Number),
-        instance_id: 1,
-        published_at: expect.any(Number),
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
+
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
+      "not_a_ponder_table",
+      "AnotherTable",
+      "Dog",
+      "Apple",
+    ]);
+
+    await databaseTwo.kill();
+  });
+
+  test.todo(
+    "setup with the same build ID and namespace reverts to and returns the finality checkpoint",
+    async (context) => {
+      if (context.databaseConfig.kind !== "postgres") return;
+      const database = new PostgresDatabaseService({
+        common: context.common,
+        poolConfig: context.databaseConfig.poolConfig,
+        userNamespace: context.databaseConfig.schema,
+      });
+
+      await database.setup({ schema, buildId: "abc" });
+
+      // Simulate progress being made by updating the checkpoints.
+      // TODO: Actually use the indexing store.
+      const newCheckpoint = {
+        ...zeroCheckpoint,
+        blockNumber: 10,
+      };
+
+      await database.db
+        .updateTable("namespace_lock")
+        .set({ finalized_checkpoint: encodeCheckpoint(newCheckpoint) })
+        .where("namespace", "=", "public")
+        .execute();
+
+      await database.kill();
+
+      const databaseTwo = new PostgresDatabaseService({
+        common: context.common,
+        poolConfig: context.databaseConfig.poolConfig,
+        userNamespace: context.databaseConfig.schema,
+      });
+
+      const { checkpoint } = await databaseTwo.setup({
         schema: schema,
-      },
-      {
-        created_at: expect.any(Number),
-        hash_version: 2,
-        heartbeat_at: expect.any(Number),
-        instance_id: 2,
-        published_at: expect.any(Number),
-        schema: schemaTwo,
-      },
+        buildId: "abc",
+      });
+
+      expect(checkpoint).toMatchObject(newCheckpoint);
+
+      await databaseTwo.kill();
+    },
+  );
+
+  test("setup throws if the namespace is locked", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    const databaseTwo = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await expect(() =>
+      databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
+    ).rejects.toThrow(
+      "Schema 'public' is in use by a different Ponder app (lock expires in",
+    );
+
+    await database.kill();
+    await databaseTwo.kill();
+  });
+
+  test("setup succeeds if the previous lock has timed out", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    const databaseTwo = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await expect(() =>
+      databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
+    ).rejects.toThrow(
+      "Schema 'public' is in use by a different Ponder app (lock expires in",
+    );
+
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    // Stubbing Date.now() breaks the Kysely Migrator, so just update the row instead.
+    await databaseTwo.db
+      .withSchema("ponder")
+      .updateTable("namespace_lock")
+      .set({ heartbeat_at: Date.now() - 1000 * 120 })
+      .where("namespace", "=", "public")
+      .execute();
+
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
+
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
+      "Dog",
+      "Apple",
     ]);
 
     await database.kill();
     await databaseTwo.kill();
   });
 
-  test("publish twice for same instance", async (context) => {
+  test("setup throws if there is a table name collision", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {},
-    });
+    await database.db.executeQuery(
+      sql`CREATE TABLE public."Pet" (id TEXT)`.compile(database.db),
+    );
 
-    await database.publish();
+    expect(await getTableNames(database.db, "public")).toStrictEqual(["Pet"]);
 
-    await expect(() => database.publish()).rejects.toThrowError(
-      "Invariant violation: Attempted to publish twice within one process.",
+    await expect(() =>
+      database.setup({ schema, buildId: "abc" }),
+    ).rejects.toThrow(
+      "Unable to create table 'public'.'Pet' because a table with that name already exists. Is there another application using the 'public' database schema?",
     );
 
     await database.kill();
   });
 
-  test("flush with no existing cache tables", async (context) => {
+  test("heartbeat updates the heartbeat_at value", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {
-        function: {
-          access: [
-            {
-              storeMethod: "create",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-      },
-    });
+    vi.useFakeTimers();
 
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore = new PostgresIndexingStore({
-      common: context.common,
-      ...indexingStoreConfig,
-      schema,
-    });
-    await indexingStore.createMany({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(1),
-      data: [
-        { id: "1", name: "Fido", age: 3, kind: "DOG" },
-        { id: "2", name: "Fido", age: 3, kind: "DOG" },
-        { id: "3", name: "Fido", age: 3, kind: "DOG" },
-      ],
-    });
+    await database.setup({ schema, buildId: "abc" });
 
-    const { rows: instancePetRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_instance_1."Pet"`.compile(database.db),
+    const row = await database.db
+      .withSchema("ponder")
+      .selectFrom("namespace_lock")
+      .select(["heartbeat_at"])
+      .executeTakeFirst();
+
+    await vi.advanceTimersToNextTimerAsync();
+
+    const rowAfterHeartbeat = await database.db
+      .withSchema("ponder")
+      .selectFrom("namespace_lock")
+      .select(["heartbeat_at"])
+      .executeTakeFirst();
+
+    expect(BigInt(rowAfterHeartbeat!.heartbeat_at)).toBeGreaterThan(
+      BigInt(row!.heartbeat_at),
     );
-    expect(instancePetRows).toHaveLength(3);
-
-    const { rows: functionMetadataRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(functionMetadataRowsBefore).toStrictEqual([]);
-
-    const { rows: tableMetadataRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.table_metadata`.compile(database.db),
-    );
-    expect(tableMetadataRowsBefore).toStrictEqual([]);
-
-    const { rows: petRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-    expect(petRowsBefore).toStrictEqual([]);
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(1),
-        eventCount: 3,
-      },
-    ]);
-
-    const { rows: functionMetadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(functionMetadataRowsAfter).toStrictEqual([
-      {
-        function_id: "0xfunction",
-        function_name: "function",
-        from_checkpoint: null,
-        hash_version: 2,
-        to_checkpoint: encodeCheckpoint(createCheckpoint(1)),
-        event_count: 3,
-      },
-    ]);
-
-    const { rows: tableMetadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.table_metadata`.compile(database.db),
-    );
-    expect(tableMetadataRowsAfter).toStrictEqual([
-      {
-        hash_version: 2,
-        table_id: "0xPet",
-        table_name: "Pet",
-        to_checkpoint: encodeCheckpoint(createCheckpoint(1)),
-        schema: expect.any(Object),
-      },
-    ]);
-
-    const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-    expect(petRowsAfter).length(3);
 
     await database.kill();
+
+    vi.useRealTimers();
   });
 
-  test("flush with no new rows", async (context) => {
+  test("kill releases the namespace lock", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {
-        function: {
-          access: [
-            {
-              storeMethod: "create",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-      },
-    });
+    await database.setup({ schema, buildId: "abc" });
 
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore = new PostgresIndexingStore({
-      common: context.common,
-      ...indexingStoreConfig,
-      schema,
-    });
-    await indexingStore.createMany({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(1),
-      data: [
-        { id: "1", name: "Fido", age: 3, kind: "DOG" },
-        { id: "2", name: "Fido", age: 3, kind: "DOG" },
-        { id: "3", name: "Fido", age: 3, kind: "DOG" },
-      ],
-    });
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(1),
-        eventCount: 3,
-      },
-    ]);
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(2),
-        eventCount: 3,
-      },
-    ]);
-
-    const { rows: functionMetadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(functionMetadataRowsAfter).toStrictEqual([
-      {
-        function_id: "0xfunction",
-        function_name: "function",
-        from_checkpoint: null,
-        hash_version: 2,
-        to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
-        event_count: 3,
-      },
-    ]);
-
-    const { rows: tableMetadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.table_metadata`.compile(database.db),
-    );
-    expect(tableMetadataRowsAfter).toStrictEqual([
-      {
-        hash_version: 2,
-        table_id: "0xPet",
-        table_name: "Pet",
-        to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
-        schema: expect.any(Object),
-      },
-    ]);
-
-    const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-    expect(petRowsAfter).length(3);
+    const row = await database.db
+      .withSchema("ponder")
+      .selectFrom("namespace_lock")
+      .select(["namespace", "is_locked"])
+      .executeTakeFirst();
 
     await database.kill();
+
+    // Only creating this database to use the `db` object.
+    const databaseTwo = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    const rowAfterKill = await databaseTwo.db
+      .withSchema("ponder")
+      .selectFrom("namespace_lock")
+      .select(["namespace", "is_locked"])
+      .executeTakeFirst();
+
+    expect(row?.is_locked).toBe(1);
+    expect(rowAfterKill?.is_locked).toBe(0);
+
+    await databaseTwo.kill();
   });
 
-  test("flush with existing cache tables", async (context) => {
+  test("setup succeeds with a live app in a different namespace", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {
-        function: {
-          access: [
-            {
-              storeMethod: "create",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-      },
-    });
+    await database.setup({ schema, buildId: "abc" });
 
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore = new PostgresIndexingStore({
-      common: context.common,
-      ...indexingStoreConfig,
-      schema,
-    });
-    await indexingStore.createMany({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(1),
-      data: [
-        { id: "1", name: "Fido", age: 3, kind: "DOG" },
-        { id: "2", name: "Fido", age: 3, kind: "DOG" },
-        { id: "3", name: "Fido", age: 3, kind: "DOG" },
-      ],
-    });
-
-    const { rows: instancePetRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_instance_1."Pet"`.compile(database.db),
-    );
-    expect(instancePetRows).toHaveLength(3);
-
-    const { rows: metadataRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(metadataRowsBefore).toStrictEqual([]);
-
-    const { rows: tableMetadataRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.table_metadata`.compile(database.db),
-    );
-    expect(tableMetadataRowsBefore).toStrictEqual([]);
-
-    const { rows: petRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-    expect(petRowsBefore).toStrictEqual([]);
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(1),
-        eventCount: 3,
-      },
-    ]);
-
-    await indexingStore.createMany({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(2),
-      data: [
-        { id: "11", name: "Fido", age: 3, kind: "DOG" },
-        { id: "12", name: "Fido", age: 3, kind: "DOG" },
-        { id: "13", name: "Fido", age: 3, kind: "DOG" },
-      ],
-    });
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(2),
-        eventCount: 6,
-      },
-    ]);
-
-    const { rows: functionMetadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(functionMetadataRowsAfter).toStrictEqual([
-      {
-        function_id: "0xfunction",
-        function_name: "function",
-        from_checkpoint: null,
-        hash_version: 2,
-        to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
-        event_count: 6,
-      },
-    ]);
-
-    const { rows: tableMetadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.table_metadata`.compile(database.db),
-    );
-    expect(tableMetadataRowsAfter).toStrictEqual([
-      {
-        hash_version: 2,
-        table_id: "0xPet",
-        table_name: "Pet",
-        to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
-        schema: expect.any(Object),
-      },
-    ]);
-
-    const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-    expect(petRowsAfter).length(6);
-
-    await database.kill();
-  });
-
-  test("flush updates cache tables with new rows", async (context) => {
-    if (context.databaseConfig.kind !== "postgres") return;
-    const database = new PostgresDatabaseService({
+    const databaseTwo = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
-    });
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {
-        function: {
-          access: [
-            {
-              storeMethod: "create",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-      },
+      userNamespace: "public2",
     });
 
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore = new PostgresIndexingStore({
-      common: context.common,
-      ...indexingStoreConfig,
-      schema,
-    });
-    await indexingStore.createMany({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(1),
-      data: [
-        { id: "1", name: "Fido", age: 3, kind: "DOG" },
-        { id: "2", name: "Fido", age: 3, kind: "DOG" },
-        { id: "3", name: "Fido", age: 3, kind: "DOG" },
-      ],
-    });
-
-    const { rows: instancePetRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_instance_1."Pet"`.compile(database.db),
-    );
-    expect(instancePetRows).toHaveLength(3);
-
-    const { rows: metadataRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(metadataRowsBefore).toStrictEqual([]);
-
-    const { rows: petRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-    expect(petRowsBefore).toStrictEqual([]);
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(1),
-        eventCount: 3,
-      },
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "abc", "Pet"]),
+      hash(["public", "abc", "Person"]),
     ]);
 
-    await indexingStore.update({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(2),
-      id: "1",
-      data: { name: "Fido", age: 4, kind: "DOG" },
-    });
-    await indexingStore.update({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(2),
-      id: "2",
-      data: { name: "Fido", age: 4, kind: "DOG" },
-    });
-    await indexingStore.update({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(3),
-      id: "1",
-      data: { name: "Fido", age: 5, kind: "DOG" },
-    });
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(3),
-        eventCount: 4,
-      },
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "abc", "Pet"]),
+      hash(["public", "abc", "Person"]),
+      hash(["public2", "def", "Dog"]),
+      hash(["public2", "def", "Apple"]),
     ]);
-
-    const { rows: metadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(metadataRowsAfter).toStrictEqual([
-      {
-        function_id: "0xfunction",
-        function_name: "function",
-        from_checkpoint: null,
-        hash_version: 2,
-        to_checkpoint: encodeCheckpoint(createCheckpoint(3)),
-        event_count: 4,
-      },
-    ]);
-
-    const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-
-    expect(petRowsAfter).length(6);
-
-    await database.kill();
-  });
-
-  test("flush updates cache tables with multiple versions of same id", async (context) => {
-    if (context.databaseConfig.kind !== "postgres") return;
-    const database = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {
-        function: {
-          access: [
-            {
-              storeMethod: "create",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-      },
-    });
-
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore = new PostgresIndexingStore({
-      common: context.common,
-      ...indexingStoreConfig,
-      schema,
-    });
-    await indexingStore.createMany({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(1),
-      data: [
-        { id: "1", name: "Fido", age: 3, kind: "DOG" },
-        { id: "2", name: "Fido", age: 3, kind: "DOG" },
-        { id: "3", name: "Fido", age: 3, kind: "DOG" },
-      ],
-    });
-
-    await indexingStore.update({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(2),
-      id: "1",
-      data: { name: "Fido", age: 4, kind: "DOG" },
-    });
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(2),
-        eventCount: 3,
-      },
-    ]);
-
-    await indexingStore.update({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(3),
-      id: "2",
-      data: { name: "Fido", age: 4, kind: "DOG" },
-    });
-    await indexingStore.update({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(3),
-      id: "1",
-      data: { name: "Fido", age: 5, kind: "DOG" },
-    });
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(3),
-        eventCount: 4,
-      },
-    ]);
-
-    const { rows: metadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(metadataRowsAfter).toStrictEqual([
-      {
-        function_id: "0xfunction",
-        function_name: "function",
-        from_checkpoint: null,
-        hash_version: 2,
-        to_checkpoint: encodeCheckpoint(createCheckpoint(3)),
-        event_count: 4,
-      },
-    ]);
-
-    const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-
-    expect(petRowsAfter).length(6);
-
-    await database.kill();
-  });
-
-  test("flush with table checkpoints", async (context) => {
-    if (context.databaseConfig.kind !== "postgres") return;
-    const database = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {
-        function1: {
-          access: [
-            {
-              storeMethod: "create",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-        function2: {
-          access: [
-            {
-              storeMethod: "upsert",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-        function3: {
-          access: [
-            {
-              storeMethod: "create",
-              tableName: "Person",
-            },
-            {
-              storeMethod: "findUnique",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-      },
-    });
-
-    await database.flush([
-      {
-        functionId: "0xfunction1",
-        functionName: "function1",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(4),
-        eventCount: 3,
-      },
-      {
-        functionId: "0xfunction2",
-        functionName: "function2",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(5),
-        eventCount: 3,
-      },
-      {
-        functionId: "0xfunction3",
-        functionName: "function3",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(12),
-        eventCount: 3,
-      },
-    ]);
-
-    const { rows: functionMetadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(functionMetadataRowsAfter).toStrictEqual([
-      {
-        function_id: "0xfunction1",
-        function_name: "function1",
-        from_checkpoint: null,
-        hash_version: 2,
-        to_checkpoint: encodeCheckpoint(createCheckpoint(4)),
-        event_count: 3,
-      },
-      {
-        function_id: "0xfunction2",
-        function_name: "function2",
-        from_checkpoint: null,
-        hash_version: 2,
-        to_checkpoint: encodeCheckpoint(createCheckpoint(5)),
-        event_count: 3,
-      },
-      {
-        function_id: "0xfunction3",
-        function_name: "function3",
-        from_checkpoint: null,
-        hash_version: 2,
-        to_checkpoint: encodeCheckpoint(createCheckpoint(12)),
-        event_count: 3,
-      },
-    ]);
-
-    const { rows: tableMetadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.table_metadata`.compile(database.db),
-    );
-    expect(tableMetadataRowsAfter).toStrictEqual([
-      {
-        hash_version: 2,
-        table_id: "0xPet",
-        table_name: "Pet",
-        to_checkpoint: encodeCheckpoint(createCheckpoint(5)),
-        schema: expect.any(Object),
-      },
-      {
-        hash_version: 2,
-        table_id: "0xPerson",
-        table_name: "Person",
-        to_checkpoint: encodeCheckpoint(createCheckpoint(12)),
-        schema: expect.any(Object),
-      },
-    ]);
-
-    await database.kill();
-  });
-
-  test("flush with truncated tables", async (context) => {
-    if (context.databaseConfig.kind !== "postgres") return;
-    const database = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {
-        function: {
-          access: [
-            {
-              storeMethod: "create",
-              tableName: "Pet",
-            },
-          ],
-          hash: "",
-        },
-      },
-    });
-
-    const indexingStoreConfig = database.getIndexingStoreConfig();
-    const indexingStore = new PostgresIndexingStore({
-      common: context.common,
-      ...indexingStoreConfig,
-      schema,
-    });
-    await indexingStore.createMany({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(1),
-      data: [
-        { id: "1", name: "Fido", age: 3, kind: "DOG" },
-        { id: "2", name: "Fido", age: 3, kind: "DOG" },
-        { id: "3", name: "Fido", age: 3, kind: "DOG" },
-      ],
-    });
-
-    const { rows: instancePetRows } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_instance_1."Pet"`.compile(database.db),
-    );
-    expect(instancePetRows).toHaveLength(3);
-
-    const { rows: metadataRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(metadataRowsBefore).toStrictEqual([]);
-
-    const { rows: petRowsBefore } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-    expect(petRowsBefore).toStrictEqual([]);
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(1),
-        eventCount: 3,
-      },
-    ]);
-
-    await indexingStore.update({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(2),
-      id: "1",
-      data: { name: "Fido", age: 4, kind: "DOG" },
-    });
-    await indexingStore.update({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(2),
-      id: "2",
-      data: { name: "Fido", age: 4, kind: "DOG" },
-    });
-    await indexingStore.update({
-      tableName: "Pet",
-      checkpoint: createCheckpoint(3),
-      id: "1",
-      data: { name: "Fido", age: 5, kind: "DOG" },
-    });
-
-    await database.flush([
-      {
-        functionId: "0xfunction",
-        functionName: "function",
-        fromCheckpoint: null,
-        toCheckpoint: createCheckpoint(2),
-        eventCount: 4,
-      },
-    ]);
-
-    const { rows: metadataRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache.function_metadata`.compile(database.db),
-    );
-    expect(metadataRowsAfter).toStrictEqual([
-      {
-        function_id: "0xfunction",
-        function_name: "function",
-        from_checkpoint: null,
-        hash_version: 2,
-        to_checkpoint: encodeCheckpoint(createCheckpoint(2)),
-        event_count: 4,
-      },
-    ]);
-
-    const { rows: petRowsAfter } = await database.db.executeQuery(
-      sql`SELECT * FROM ponder_cache."0xPet"`.compile(database.db),
-    );
-
-    expect(petRowsAfter).length(5);
-
-    await database.kill();
-  });
-
-  test("kill before publish", async (context) => {
-    if (context.databaseConfig.kind !== "postgres") return;
-    const database = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {},
-    });
-
-    await database.kill();
-
-    const tempDb = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-
-    // Instance schema was dropped
-    expect(await getTableNames(tempDb.db, "ponder_instance_1")).toStrictEqual(
-      [],
-    );
-
-    await tempDb.db.destroy();
-  });
-
-  test("kill after publish", async (context) => {
-    if (context.databaseConfig.kind !== "postgres") return;
-    const database = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {},
-    });
-
-    await database.publish();
-
-    await database.kill();
-
-    const tempDb = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-
-    // Instance schema was not dropped
-    expect(await getTableNames(tempDb.db, "ponder_instance_1")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
-
-    // Views are still present in public schema
-    expect(await getViewNames(tempDb.db, "ponder")).toStrictEqual([
-      "Pet",
-      "Person",
-      "_raw_Pet",
-      "_raw_Person",
-    ]);
-
-    await tempDb.db.destroy();
-  });
-
-  test("kill after publish with another instance live", async (context) => {
-    if (context.databaseConfig.kind !== "postgres") return;
-    const database = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-
-    await database.setup({
-      schema: schema,
-      tableIds: getTableIds(schema),
-      functionIds: {},
-      tableAccess: {},
-    });
-    await database.publish();
-
-    const otherDatabase = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-
-    await otherDatabase.setup({
-      schema: schemaTwo,
-      tableIds: getTableIds(schemaTwo),
-      functionIds: {},
-      tableAccess: {},
-    });
-    await otherDatabase.publish();
-
-    await database.kill();
-
-    const tempDb = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-    });
-
-    // Instance schema was dropped
-    expect(await getTableNames(tempDb.db, "ponder_instance_1")).toStrictEqual(
-      [],
-    );
-
-    // Other instance views are still present in public schema
-    expect(await getViewNames(tempDb.db, "ponder")).toStrictEqual([
+    expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual([
       "Dog",
       "Apple",
-      "_raw_Dog",
-      "_raw_Apple",
     ]);
 
-    await tempDb.db.destroy();
+    await databaseTwo.kill();
+    await database.kill();
+  });
 
-    await otherDatabase.kill();
+  test("setup succeeds with a live app in a different namespace using the same build ID", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    const databaseTwo = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: "public2",
+    });
+
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "abc", "Pet"]),
+      hash(["public", "abc", "Person"]),
+    ]);
+
+    await databaseTwo.setup({ schema: schemaTwo, buildId: "abc" });
+
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "abc", "Pet"]),
+      hash(["public", "abc", "Person"]),
+      hash(["public2", "abc", "Dog"]),
+      hash(["public2", "abc", "Apple"]),
+    ]);
+    expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual([
+      "Dog",
+      "Apple",
+    ]);
+
+    await database.kill();
+    await databaseTwo.kill();
+  });
+
+  test("publish succeeds if there are no name collisions", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "publish",
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.publish();
+
+    expect(await getViewNames(database.db, "publish")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.kill();
+  });
+
+  test("publish succeeds and skips creating view if there is a name collision with a table", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "publish",
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.db.schema.createSchema("publish").ifNotExists().execute();
+    await database.db.executeQuery(
+      sql`CREATE TABLE publish."Pet" (id TEXT)`.compile(database.db),
+    );
+
+    await database.publish();
+
+    expect(await getTableNames(database.db, "publish")).toStrictEqual(["Pet"]);
+    expect(await getViewNames(database.db, "publish")).toStrictEqual([
+      "Person",
+    ]);
+
+    await database.kill();
+  });
+
+  test("publish succeeds and replaces view if there is a name collision with a view", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "nice_looks-great",
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    expect(await getTableNames(database.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.db.schema
+      .createSchema("nice_looks-great")
+      .ifNotExists()
+      .execute();
+    await database.db.executeQuery(
+      sql`CREATE VIEW "nice_looks-great"."Pet" AS SELECT 1`.compile(
+        database.db,
+      ),
+    );
+
+    await database.publish();
+
+    expect(await getViewNames(database.db, "nice_looks-great")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await database.kill();
   });
 });
 
-async function getTableNames(db: Kysely<any>, schemaName: string) {
+async function getTableNames(db: HeadlessKysely<any>, schemaName: string) {
   const { rows } = await db.executeQuery<{
     table_name: string;
   }>(
@@ -1262,19 +616,21 @@ async function getTableNames(db: Kysely<any>, schemaName: string) {
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = '${sql.raw(schemaName)}'
+      AND table_type = 'BASE TABLE'
     `.compile(db),
   );
   return rows.map((r) => r.table_name);
 }
 
-async function getViewNames(db: Kysely<any>, schemaName: string) {
+async function getViewNames(db: HeadlessKysely<any>, schemaName: string) {
   const { rows } = await db.executeQuery<{
     table_name: string;
   }>(
     sql`
       SELECT table_name
-      FROM information_schema.views
+      FROM information_schema.tables
       WHERE table_schema = '${sql.raw(schemaName)}'
+      AND table_type = 'VIEW'
     `.compile(db),
   );
   return rows.map((r) => r.table_name);

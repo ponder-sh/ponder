@@ -6,6 +6,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { drainAsyncGenerator } from "@/_test/utils.js";
 import type { LogFilterCriteria } from "@/config/sources.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
@@ -161,7 +162,6 @@ const setupStore = async () => {
         tables: {},
         enums: {},
       },
-      tableIds: {},
     });
 
   cleanup = async () => {
@@ -316,24 +316,25 @@ for (const c of LOG_FILTER_CASES) {
           totalBlocks,
         );
 
-        const res = await syncStore.getLogEvents({
-          toCheckpoint,
-          fromCheckpoint,
-          limit: 5000,
-          logFilters: [
+        const ag = syncStore.getLogEvents({
+          sources: [
             {
               id: "benchFilter",
-              chainId: 1,
-              eventSelector: TOPIC_0,
+              startBlock: 0,
+              type: "logFilter",
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
               },
             },
           ],
+          toCheckpoint,
+          fromCheckpoint,
+          limit: 5000,
         });
+        const events = await drainAsyncGenerator(ag);
 
-        assert(res.events.length > 0);
+        assert(events.length > 0);
       },
       {
         warmupIterations: WARMUP_ITERS,
@@ -356,24 +357,25 @@ for (const c of LOG_FILTER_CASES) {
           totalBlocks,
         );
 
-        const res = await syncStore.getLogEvents({
-          toCheckpoint,
-          fromCheckpoint,
-          limit: 5000,
-          logFilters: [
+        const ag = syncStore.getLogEvents({
+          sources: [
             {
               id: "benchFilter",
-              chainId: 1,
-              eventSelector: TOPIC_0,
+              startBlock: 0,
+              type: "logFilter",
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
               },
             },
           ],
+          toCheckpoint,
+          fromCheckpoint,
+          limit: 5000,
         });
+        const events = await drainAsyncGenerator(ag);
 
-        assert(res.events.length > 0);
+        assert(events.length > 0);
       },
       {
         warmupIterations: WARMUP_ITERS,
@@ -396,24 +398,25 @@ for (const c of LOG_FILTER_CASES) {
           endBlock,
         );
 
-        const res = await syncStore.getLogEvents({
-          toCheckpoint,
-          fromCheckpoint,
-          limit: 5000,
-          logFilters: [
+        const ag = syncStore.getLogEvents({
+          sources: [
             {
               id: "benchFilter",
-              chainId: 1,
-              eventSelector: TOPIC_0,
+              startBlock: 0,
+              type: "logFilter",
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
               },
             },
           ],
+          toCheckpoint,
+          fromCheckpoint,
+          limit: 5000,
         });
+        const events = await drainAsyncGenerator(ag);
 
-        assert(res.events.length === 0);
+        assert(events.length === 0);
       },
       {
         teardown,

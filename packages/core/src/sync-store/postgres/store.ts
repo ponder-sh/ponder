@@ -1,32 +1,39 @@
-import type { Common } from "@/common/common.js";
-import { NonRetryableError } from "@/common/errors.js";
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import {
+  type Factory,
+  type FactoryCriteria,
+  type LogFilter,
+  type LogFilterCriteria,
+  type Source,
+  sourceIsFactory,
+  sourceIsLogFilter,
+} from "@/config/sources.js";
+import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
-import type { Checkpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  EVENT_TYPES,
+  decodeCheckpoint,
+  encodeCheckpoint,
+} from "@/utils/checkpoint.js";
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
-import { startClock } from "@/utils/timer.js";
 import {
   type ExpressionBuilder,
-  Kysely,
-  Migrator,
-  PostgresDialect,
   type Transaction as KyselyTransaction,
-  WithSchemaPlugin,
   sql,
 } from "kysely";
-import type { Pool } from "pg";
 import {
   type Hex,
   type RpcBlock,
   type RpcLog,
   type RpcTransaction,
   checksumAddress,
+  hexToNumber,
 } from "viem";
 import type { SyncStore } from "../store.js";
 import {
@@ -35,56 +42,14 @@ import {
   rpcToPostgresLog,
   rpcToPostgresTransaction,
 } from "./encoding.js";
-import { migrationProvider, moveLegacyTables } from "./migrations.js";
 
 export class PostgresSyncStore implements SyncStore {
   kind = "postgres" as const;
-  private common: Common;
-  private schemaName: string;
-  private isKilled = false;
+  db: HeadlessKysely<SyncStoreTables>;
 
-  db: Kysely<SyncStoreTables>;
-
-  constructor({
-    common,
-    pool,
-    schemaName,
-  }: { common: Common; pool: Pool; schemaName: string }) {
-    this.common = common;
-    this.schemaName = schemaName;
-    this.db = new Kysely<SyncStoreTables>({
-      dialect: new PostgresDialect({ pool }),
-      log(event) {
-        if (event.level === "query") {
-          common.metrics.ponder_postgres_query_total.inc({ pool: "sync" });
-        }
-      },
-    }).withPlugin(new WithSchemaPlugin(schemaName));
+  constructor({ db }: { db: HeadlessKysely<SyncStoreTables> }) {
+    this.db = db;
   }
-
-  kill = () => {
-    this.isKilled = true;
-  };
-
-  migrateUp = async () => {
-    return this.wrap({ method: "migrateUp" }, async () => {
-      // TODO: Probably remove this at 1.0 to speed up startup time.
-      await moveLegacyTables({
-        common: this.common,
-        db: this.db,
-        newSchemaName: this.schemaName,
-      });
-
-      const migrator = new Migrator({
-        db: this.db,
-        provider: migrationProvider,
-        migrationTableSchema: this.schemaName,
-      });
-
-      const { error } = await migrator.migrateToLatest();
-      if (error) throw error;
-    });
-  };
 
   insertLogFilterInterval = async ({
     chainId,
@@ -101,7 +66,7 @@ export class PostgresSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    return this.wrap({ method: "insertLogFilterInterval" }, async () => {
+    return this.db.wrap({ method: "insertLogFilterInterval" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await tx
           .insertInto("blocks")
@@ -129,6 +94,7 @@ export class PostgresSyncStore implements SyncStore {
               rpcLogs.map((log) => ({
                 ...rpcToPostgresLog(log),
                 chainId,
+                checkpoint: this.createCheckpoint(log, rpcBlock, chainId),
               })),
             )
             .onConflict((oc) => oc.column("id").doNothing())
@@ -152,7 +118,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     logFilter: LogFilterCriteria;
   }) => {
-    return this.wrap({ method: "getLogFilterIntervals" }, async () => {
+    return this.db.wrap({ method: "getLogFilterIntervals" }, async () => {
       const fragments = buildLogFilterFragments({ ...logFilter, chainId });
 
       // First, attempt to merge overlapping and adjacent intervals.
@@ -262,22 +228,25 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     logs: RpcLog[];
   }) => {
-    return this.wrap({ method: "insertFactoryChildAddressLogs" }, async () => {
-      await this.db.transaction().execute(async (tx) => {
-        if (rpcLogs.length > 0) {
-          await tx
-            .insertInto("logs")
-            .values(
-              rpcLogs.map((log) => ({
-                ...rpcToPostgresLog(log),
-                chainId,
-              })),
-            )
-            .onConflict((oc) => oc.column("id").doNothing())
-            .execute();
-        }
-      });
-    });
+    return this.db.wrap(
+      { method: "insertFactoryChildAddressLogs" },
+      async () => {
+        await this.db.transaction().execute(async (tx) => {
+          if (rpcLogs.length > 0) {
+            await tx
+              .insertInto("logs")
+              .values(
+                rpcLogs.map((log) => ({
+                  ...rpcToPostgresLog(log),
+                  chainId,
+                })),
+              )
+              .onConflict((oc) => oc.column("id").doNothing())
+              .execute();
+          }
+        });
+      },
+    );
   };
 
   async *getFactoryChildAddresses({
@@ -313,7 +282,7 @@ export class PostgresSyncStore implements SyncStore {
         query = query.where("blockNumber", ">", cursor);
       }
 
-      const batch = await this.wrap(
+      const batch = await this.db.wrap(
         { method: "getFactoryChildAddresses" },
         () => query.execute(),
       );
@@ -346,38 +315,45 @@ export class PostgresSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    return this.wrap({ method: "insertFactoryLogFilterInterval" }, async () => {
-      await this.db.transaction().execute(async (tx) => {
-        await tx
-          .insertInto("blocks")
-          .values({ ...rpcToPostgresBlock(rpcBlock), chainId })
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute();
-
-        for (const rpcTransaction of rpcTransactions) {
+    return this.db.wrap(
+      { method: "insertFactoryLogFilterInterval" },
+      async () => {
+        await this.db.transaction().execute(async (tx) => {
           await tx
-            .insertInto("transactions")
-            .values({ ...rpcToPostgresTransaction(rpcTransaction), chainId })
+            .insertInto("blocks")
+            .values({ ...rpcToPostgresBlock(rpcBlock), chainId })
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
-        }
 
-        for (const rpcLog of rpcLogs) {
-          await tx
-            .insertInto("logs")
-            .values({ ...rpcToPostgresLog(rpcLog), chainId })
-            .onConflict((oc) => oc.column("id").doNothing())
-            .execute();
-        }
+          for (const rpcTransaction of rpcTransactions) {
+            await tx
+              .insertInto("transactions")
+              .values({ ...rpcToPostgresTransaction(rpcTransaction), chainId })
+              .onConflict((oc) => oc.column("hash").doNothing())
+              .execute();
+          }
 
-        await this._insertFactoryLogFilterInterval({
-          tx,
-          chainId,
-          factories: [factory],
-          interval,
+          for (const rpcLog of rpcLogs) {
+            await tx
+              .insertInto("logs")
+              .values({
+                ...rpcToPostgresLog(rpcLog),
+                chainId,
+                checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+              })
+              .onConflict((oc) => oc.column("id").doNothing())
+              .execute();
+          }
+
+          await this._insertFactoryLogFilterInterval({
+            tx,
+            chainId,
+            factories: [factory],
+            interval,
+          });
         });
-      });
-    });
+      },
+    );
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -387,115 +363,141 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     factory: FactoryCriteria;
   }) => {
-    return this.wrap({ method: "getFactoryLogFilterIntervals" }, async () => {
-      const fragments = buildFactoryFragments({
-        ...factory,
-        chainId,
-      });
+    return this.db.wrap(
+      { method: "getFactoryLogFilterIntervals" },
+      async () => {
+        const fragments = buildFactoryFragments({
+          ...factory,
+          chainId,
+        });
 
-      await Promise.all(
-        fragments.map(async (fragment) => {
-          await this.db.transaction().execute(async (tx) => {
-            const { id: factoryId } = await tx
-              .insertInto("factories")
-              .values(fragment)
-              .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
-              .returningAll()
-              .executeTakeFirstOrThrow();
+        await Promise.all(
+          fragments.map(async (fragment) => {
+            await this.db.transaction().execute(async (tx) => {
+              const { id: factoryId } = await tx
+                .insertInto("factories")
+                .values(fragment)
+                .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+                .returningAll()
+                .executeTakeFirstOrThrow();
 
-            const existingIntervals = await tx
-              .deleteFrom("factoryLogFilterIntervals")
-              .where("factoryId", "=", factoryId)
-              .returningAll()
-              .execute();
+              const existingIntervals = await tx
+                .deleteFrom("factoryLogFilterIntervals")
+                .where("factoryId", "=", factoryId)
+                .returningAll()
+                .execute();
 
-            const mergedIntervals = intervalUnion(
-              existingIntervals.map((i) => [
-                Number(i.startBlock),
-                Number(i.endBlock),
+              const mergedIntervals = intervalUnion(
+                existingIntervals.map((i) => [
+                  Number(i.startBlock),
+                  Number(i.endBlock),
+                ]),
+              );
+
+              const mergedIntervalRows = mergedIntervals.map(
+                ([startBlock, endBlock]) => ({
+                  factoryId,
+                  startBlock: BigInt(startBlock),
+                  endBlock: BigInt(endBlock),
+                }),
+              );
+
+              if (mergedIntervalRows.length > 0) {
+                await tx
+                  .insertInto("factoryLogFilterIntervals")
+                  .values(mergedIntervalRows)
+                  .execute();
+              }
+
+              return mergedIntervals;
+            });
+          }),
+        );
+
+        const intervals = await this.db
+          .with(
+            "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
+            () =>
+              sql`( values ${sql.join(
+                fragments.map(
+                  (f) =>
+                    sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
+                      f.eventSelector,
+                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
+                      f.topic0,
+                    )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
+                      f.topic3,
+                    )} )`,
+                ),
+              )} )`,
+          )
+          .selectFrom("factoryLogFilterIntervals")
+          .leftJoin("factories", "factoryId", "factories.id")
+          .innerJoin("factoryFilterFragments", (join) => {
+            let baseJoin = join.on(({ and, cmpr }) =>
+              and([
+                cmpr("fragmentAddress", "=", sql.ref("address")),
+                cmpr("fragmentEventSelector", "=", sql.ref("eventSelector")),
+                cmpr(
+                  "fragmentChildAddressLocation",
+                  "=",
+                  sql.ref("childAddressLocation"),
+                ),
               ]),
             );
-
-            const mergedIntervalRows = mergedIntervals.map(
-              ([startBlock, endBlock]) => ({
-                factoryId,
-                startBlock: BigInt(startBlock),
-                endBlock: BigInt(endBlock),
-              }),
-            );
-
-            if (mergedIntervalRows.length > 0) {
-              await tx
-                .insertInto("factoryLogFilterIntervals")
-                .values(mergedIntervalRows)
-                .execute();
+            for (const idx_ of range(0, 4)) {
+              baseJoin = baseJoin.on(({ or, cmpr }) => {
+                const idx = idx_ as 0 | 1 | 2 | 3;
+                return or([
+                  cmpr(`topic${idx}`, "is", null),
+                  cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
+                ]);
+              });
             }
 
-            return mergedIntervals;
-          });
-        }),
-      );
+            return baseJoin;
+          })
+          .select(["fragmentId", "startBlock", "endBlock"])
+          .where("chainId", "=", chainId)
+          .execute();
 
-      const intervals = await this.db
-        .with(
-          "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
-          () =>
-            sql`( values ${sql.join(
-              fragments.map(
-                (f) =>
-                  sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                    f.eventSelector,
-                  )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
-                    f.topic0,
-                  )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                    f.topic3,
-                  )} )`,
-              ),
-            )} )`,
-        )
-        .selectFrom("factoryLogFilterIntervals")
-        .leftJoin("factories", "factoryId", "factories.id")
-        .innerJoin("factoryFilterFragments", (join) => {
-          let baseJoin = join.on(({ and, cmpr }) =>
-            and([
-              cmpr("fragmentAddress", "=", sql.ref("address")),
-              cmpr("fragmentEventSelector", "=", sql.ref("eventSelector")),
-              cmpr(
-                "fragmentChildAddressLocation",
-                "=",
-                sql.ref("childAddressLocation"),
-              ),
-            ]),
-          );
-          for (const idx_ of range(0, 4)) {
-            baseJoin = baseJoin.on(({ or, cmpr }) => {
-              const idx = idx_ as 0 | 1 | 2 | 3;
-              return or([
-                cmpr(`topic${idx}`, "is", null),
-                cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
-              ]);
-            });
-          }
+        const intervalsByFragmentId = intervals.reduce(
+          (acc, cur) => {
+            const { fragmentId, startBlock, endBlock } = cur;
+            (acc[fragmentId] ||= []).push([
+              Number(startBlock),
+              Number(endBlock),
+            ]);
+            return acc;
+          },
+          {} as Record<string, [number, number][]>,
+        );
 
-          return baseJoin;
-        })
-        .select(["fragmentId", "startBlock", "endBlock"])
-        .where("chainId", "=", chainId)
-        .execute();
+        const intervalsForEachFragment = fragments.map((f) =>
+          intervalUnion(intervalsByFragmentId[f.id] ?? []),
+        );
+        return intervalIntersectionMany(intervalsForEachFragment);
+      },
+    );
+  };
 
-      const intervalsByFragmentId = intervals.reduce(
-        (acc, cur) => {
-          const { fragmentId, startBlock, endBlock } = cur;
-          (acc[fragmentId] ||= []).push([Number(startBlock), Number(endBlock)]);
-          return acc;
-        },
-        {} as Record<string, [number, number][]>,
-      );
-
-      const intervalsForEachFragment = fragments.map((f) =>
-        intervalUnion(intervalsByFragmentId[f.id] ?? []),
-      );
-      return intervalIntersectionMany(intervalsForEachFragment);
+  createCheckpoint = (log: RpcLog, block: RpcBlock, chainId: number) => {
+    if (block.number === null) {
+      throw new Error("Number is missing from RPC block");
+    }
+    if (log.transactionIndex === null) {
+      throw new Error("Transaction index is missing from RPC log");
+    }
+    if (log.logIndex === null) {
+      throw new Error("Log index is missing from RPC log");
+    }
+    return encodeCheckpoint({
+      blockTimestamp: hexToNumber(block.timestamp),
+      chainId,
+      blockNumber: hexToNumber(block.number),
+      transactionIndex: hexToNumber(log.transactionIndex),
+      eventType: EVENT_TYPES.logs,
+      eventIndex: hexToNumber(log.logIndex),
     });
   };
 
@@ -510,7 +512,7 @@ export class PostgresSyncStore implements SyncStore {
     transactions: RpcTransaction[];
     logs: RpcLog[];
   }) => {
-    return this.wrap({ method: "insertRealtimeBlock" }, async () => {
+    return this.db.wrap({ method: "insertRealtimeBlock" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await tx
           .insertInto("blocks")
@@ -529,7 +531,11 @@ export class PostgresSyncStore implements SyncStore {
         for (const rpcLog of rpcLogs) {
           await tx
             .insertInto("logs")
-            .values({ ...rpcToPostgresLog(rpcLog), chainId })
+            .values({
+              ...rpcToPostgresLog(rpcLog),
+              chainId,
+              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            })
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
         }
@@ -548,7 +554,7 @@ export class PostgresSyncStore implements SyncStore {
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    return this.wrap({ method: "insertRealtimeInterval" }, async () => {
+    return this.db.wrap({ method: "insertRealtimeInterval" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await this._insertLogFilterInterval({
           tx,
@@ -580,7 +586,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     fromBlock: bigint;
   }) => {
-    return this.wrap({ method: "deleteRealtimeData" }, async () => {
+    return this.db.wrap({ method: "deleteRealtimeData" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await tx
           .deleteFrom("blocks")
@@ -762,7 +768,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     result: string;
   }) => {
-    return this.wrap({ method: "insertRpcRequestResult" }, async () => {
+    return this.db.wrap({ method: "insertRpcRequestResult" }, async () => {
       await this.db
         .insertInto("rpcRequestResults")
         .values({ request, blockNumber, chainId, result })
@@ -782,7 +788,7 @@ export class PostgresSyncStore implements SyncStore {
     blockNumber: bigint;
     chainId: number;
   }) => {
-    return this.wrap({ method: "getRpcRequestResult" }, async () => {
+    return this.db.wrap({ method: "getRpcRequestResult" }, async () => {
       const contractReadResult = await this.db
         .selectFrom("rpcRequestResults")
         .selectAll()
@@ -795,378 +801,292 @@ export class PostgresSyncStore implements SyncStore {
     });
   };
 
-  async getLogEvents({
+  async *getLogEvents({
+    sources,
     fromCheckpoint,
     toCheckpoint,
     limit,
-    logFilters = undefined,
-    factories = undefined,
   }: {
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
-  } & (
-    | {
-        logFilters: {
-          id: string;
-          chainId: number;
-          criteria: LogFilterCriteria;
-          fromBlock?: number;
-          toBlock?: number;
-          eventSelector: Hex;
-        }[];
-        factories: undefined;
-      }
-    | {
-        logFilters: undefined;
-        factories: {
-          id: string;
-          chainId: number;
-          criteria: FactoryCriteria;
-          fromBlock?: number;
-          toBlock?: number;
-          eventSelector: Hex;
-        }[];
-      }
-  )) {
-    return this.wrap({ method: "getLogEvents" }, async () => {
-      // Get full log objects, including the eventSelector clause.
-      const [requestedLogs, lastCheckpointRows] = await Promise.all([
-        this.db
-          .selectFrom("logs")
-          .leftJoin("blocks", "blocks.hash", "logs.blockHash")
-          .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
-          .where((eb) => {
-            const logFilterCmprs =
-              logFilters?.map((logFilter) => {
-                const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+  }) {
+    let cursor = encodeCheckpoint(fromCheckpoint);
+    const encodedToCheckpoint = encodeCheckpoint(toCheckpoint);
 
-                exprs.push(eb("logs.topic0", "=", logFilter.eventSelector));
+    while (true) {
+      const events = await this.db.wrap(
+        { method: "getLogEvents" },
+        async () => {
+          // Get full log objects, including the eventSelector clause.
+          const requestedLogs = await this.db
+            .with(
+              "sources(source_id)",
+              () =>
+                sql`( values ${sql.join(
+                  sources.map((source) => sql`( ${sql.val(source.id)} )`),
+                )} )`,
+            )
+            .selectFrom("logs")
+            .leftJoin("blocks", "blocks.hash", "logs.blockHash")
+            .leftJoin(
+              "transactions",
+              "transactions.hash",
+              "logs.transactionHash",
+            )
+            .innerJoin("sources", (join) => join.onTrue())
+            .where((eb) => {
+              const logFilterCmprs = sources
+                .filter(sourceIsLogFilter)
+                .filter((source) => source.criteria.topics !== undefined)
+                .map((logFilter) => {
+                  const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+                  exprs.push(eb("source_id", "=", logFilter.id));
+                  return eb.and(exprs);
+                });
 
-                return eb.and(exprs);
-              }) ?? [];
+              const factoryCmprs = sources
+                .filter(sourceIsFactory)
+                .filter((source) => source.criteria.topics !== undefined)
+                .map((factory) => {
+                  const exprs = this.buildFactoryCmprs({ eb, factory });
+                  exprs.push(eb("source_id", "=", factory.id));
+                  return eb.and(exprs);
+                });
 
-            const factoryCmprs =
-              factories?.map((factory) => {
-                const exprs = this.buildFactoryCmprs({ eb, factory });
+              return eb.or([...logFilterCmprs, ...factoryCmprs]);
+            })
+            .select([
+              "source_id",
 
-                exprs.push(eb("logs.topic0", "=", factory.eventSelector));
+              "logs.address as log_address",
+              "logs.blockHash as log_blockHash",
+              "logs.blockNumber as log_blockNumber",
+              "logs.chainId as log_chainId",
+              "logs.data as log_data",
+              "logs.id as log_id",
+              "logs.logIndex as log_logIndex",
+              "logs.topic0 as log_topic0",
+              "logs.topic1 as log_topic1",
+              "logs.topic2 as log_topic2",
+              "logs.topic3 as log_topic3",
+              "logs.transactionHash as log_transactionHash",
+              "logs.transactionIndex as log_transactionIndex",
+              "logs.checkpoint as log_checkpoint",
 
-                return eb.and(exprs);
-              }) ?? [];
+              "blocks.baseFeePerGas as block_baseFeePerGas",
+              "blocks.difficulty as block_difficulty",
+              "blocks.extraData as block_extraData",
+              "blocks.gasLimit as block_gasLimit",
+              "blocks.gasUsed as block_gasUsed",
+              "blocks.hash as block_hash",
+              "blocks.logsBloom as block_logsBloom",
+              "blocks.miner as block_miner",
+              "blocks.mixHash as block_mixHash",
+              "blocks.nonce as block_nonce",
+              "blocks.number as block_number",
+              "blocks.parentHash as block_parentHash",
+              "blocks.receiptsRoot as block_receiptsRoot",
+              "blocks.sha3Uncles as block_sha3Uncles",
+              "blocks.size as block_size",
+              "blocks.stateRoot as block_stateRoot",
+              "blocks.timestamp as block_timestamp",
+              "blocks.totalDifficulty as block_totalDifficulty",
+              "blocks.transactionsRoot as block_transactionsRoot",
 
-            return eb.or([...logFilterCmprs, ...factoryCmprs]);
-          })
-          .select([
-            "logs.address as log_address",
-            "logs.blockHash as log_blockHash",
-            "logs.blockNumber as log_blockNumber",
-            "logs.chainId as log_chainId",
-            "logs.data as log_data",
-            "logs.id as log_id",
-            "logs.logIndex as log_logIndex",
-            "logs.topic0 as log_topic0",
-            "logs.topic1 as log_topic1",
-            "logs.topic2 as log_topic2",
-            "logs.topic3 as log_topic3",
-            "logs.transactionHash as log_transactionHash",
-            "logs.transactionIndex as log_transactionIndex",
+              "transactions.accessList as tx_accessList",
+              "transactions.blockHash as tx_blockHash",
+              "transactions.blockNumber as tx_blockNumber",
+              "transactions.from as tx_from",
+              "transactions.gas as tx_gas",
+              "transactions.gasPrice as tx_gasPrice",
+              "transactions.hash as tx_hash",
+              "transactions.input as tx_input",
+              "transactions.maxFeePerGas as tx_maxFeePerGas",
+              "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
+              "transactions.nonce as tx_nonce",
+              "transactions.r as tx_r",
+              "transactions.s as tx_s",
+              "transactions.to as tx_to",
+              "transactions.transactionIndex as tx_transactionIndex",
+              "transactions.type as tx_type",
+              "transactions.value as tx_value",
+              "transactions.v as tx_v",
+            ])
+            .where("logs.checkpoint", ">", cursor)
+            .where("logs.checkpoint", "<=", encodedToCheckpoint)
+            .orderBy("logs.checkpoint", "asc")
+            .limit(limit + 1)
+            .execute();
 
-            "blocks.baseFeePerGas as block_baseFeePerGas",
-            "blocks.difficulty as block_difficulty",
-            "blocks.extraData as block_extraData",
-            "blocks.gasLimit as block_gasLimit",
-            "blocks.gasUsed as block_gasUsed",
-            "blocks.hash as block_hash",
-            "blocks.logsBloom as block_logsBloom",
-            "blocks.miner as block_miner",
-            "blocks.mixHash as block_mixHash",
-            "blocks.nonce as block_nonce",
-            "blocks.number as block_number",
-            "blocks.parentHash as block_parentHash",
-            "blocks.receiptsRoot as block_receiptsRoot",
-            "blocks.sha3Uncles as block_sha3Uncles",
-            "blocks.size as block_size",
-            "blocks.stateRoot as block_stateRoot",
-            "blocks.timestamp as block_timestamp",
-            "blocks.totalDifficulty as block_totalDifficulty",
-            "blocks.transactionsRoot as block_transactionsRoot",
+          return requestedLogs.map((_row) => {
+            // Without this cast, the block_ and tx_ fields are all nullable
+            // which makes this very annoying. Should probably add a runtime check
+            // that those fields are indeed present before continuing here.
+            const row = _row as NonNull<(typeof requestedLogs)[number]>;
 
-            "transactions.accessList as tx_accessList",
-            "transactions.blockHash as tx_blockHash",
-            "transactions.blockNumber as tx_blockNumber",
-            "transactions.from as tx_from",
-            "transactions.gas as tx_gas",
-            "transactions.gasPrice as tx_gasPrice",
-            "transactions.hash as tx_hash",
-            "transactions.input as tx_input",
-            "transactions.maxFeePerGas as tx_maxFeePerGas",
-            "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
-            "transactions.nonce as tx_nonce",
-            "transactions.r as tx_r",
-            "transactions.s as tx_s",
-            "transactions.to as tx_to",
-            "transactions.transactionIndex as tx_transactionIndex",
-            "transactions.type as tx_type",
-            "transactions.value as tx_value",
-            "transactions.v as tx_v",
-          ])
-          .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
-          .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
-          .orderBy("blocks.timestamp", "asc")
-          .orderBy("logs.chainId", "asc")
-          .orderBy("blocks.number", "asc")
-          .orderBy("logs.logIndex", "asc")
-          .limit(limit + 1)
-          .execute(),
-
-        this.db
-          .selectFrom("logs")
-          .leftJoin("blocks", "blocks.hash", "logs.blockHash")
-          .where((eb) => {
-            const logFilterCmprs =
-              logFilters?.map((logFilter) => {
-                const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-
-                exprs.push(eb("logs.topic0", "=", logFilter.eventSelector));
-
-                return eb.and(exprs);
-              }) ?? [];
-
-            const factoryCmprs =
-              factories?.map((factory) => {
-                const exprs = this.buildFactoryCmprs({ eb, factory });
-                exprs.push(eb("logs.topic0", "=", factory.eventSelector));
-
-                return eb.and(exprs);
-              }) ?? [];
-
-            return eb.or([...logFilterCmprs, ...factoryCmprs]);
-          })
-          .select([
-            "blocks.timestamp as block_timestamp",
-            "logs.chainId as log_chainId",
-            "blocks.number as block_number",
-            "logs.logIndex as log_logIndex",
-          ])
-          .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
-          .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint))
-          .orderBy("blocks.timestamp", "desc")
-          .orderBy("logs.chainId", "desc")
-          .orderBy("blocks.number", "desc")
-          .orderBy("logs.logIndex", "desc")
-          .limit(1)
-          .execute(),
-      ]);
-
-      const events = requestedLogs.map((_row) => {
-        // Without this cast, the block_ and tx_ fields are all nullable
-        // which makes this very annoying. Should probably add a runtime check
-        // that those fields are indeed present before continuing here.
-        const row = _row as NonNull<(typeof requestedLogs)[number]>;
-
-        return {
-          chainId: row.log_chainId,
-          log: {
-            address: checksumAddress(row.log_address),
-            blockHash: row.log_blockHash,
-            blockNumber: row.log_blockNumber,
-            data: row.log_data,
-            id: row.log_id as Log["id"],
-            logIndex: Number(row.log_logIndex),
-            removed: false,
-            topics: [
-              row.log_topic0,
-              row.log_topic1,
-              row.log_topic2,
-              row.log_topic3,
-            ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
-            transactionHash: row.log_transactionHash,
-            transactionIndex: Number(row.log_transactionIndex),
-          },
-          block: {
-            baseFeePerGas: row.block_baseFeePerGas,
-            difficulty: row.block_difficulty,
-            extraData: row.block_extraData,
-            gasLimit: row.block_gasLimit,
-            gasUsed: row.block_gasUsed,
-            hash: row.block_hash,
-            logsBloom: row.block_logsBloom,
-            miner: checksumAddress(row.block_miner),
-            mixHash: row.block_mixHash,
-            nonce: row.block_nonce,
-            number: row.block_number,
-            parentHash: row.block_parentHash,
-            receiptsRoot: row.block_receiptsRoot,
-            sha3Uncles: row.block_sha3Uncles,
-            size: row.block_size,
-            stateRoot: row.block_stateRoot,
-            timestamp: row.block_timestamp,
-            totalDifficulty: row.block_totalDifficulty,
-            transactionsRoot: row.block_transactionsRoot,
-          },
-          transaction: {
-            blockHash: row.tx_blockHash,
-            blockNumber: row.tx_blockNumber,
-            from: checksumAddress(row.tx_from),
-            gas: row.tx_gas,
-            hash: row.tx_hash,
-            input: row.tx_input,
-            nonce: Number(row.tx_nonce),
-            r: row.tx_r,
-            s: row.tx_s,
-            to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
-            transactionIndex: Number(row.tx_transactionIndex),
-            value: row.tx_value,
-            v: row.tx_v,
-            ...(row.tx_type === "0x0"
-              ? { type: "legacy", gasPrice: row.tx_gasPrice }
-              : row.tx_type === "0x1"
-                ? {
-                    type: "eip2930",
-                    gasPrice: row.tx_gasPrice,
-                    accessList: JSON.parse(row.tx_accessList),
-                  }
-                : row.tx_type === "0x2"
-                  ? {
-                      type: "eip1559",
-                      maxFeePerGas: row.tx_maxFeePerGas,
-                      maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
-                    }
-                  : row.tx_type === "0x7e"
+            return {
+              sourceId: row.source_id,
+              chainId: row.log_chainId,
+              encodedCheckpoint: row.log_checkpoint,
+              log: {
+                address: checksumAddress(row.log_address),
+                blockHash: row.log_blockHash,
+                blockNumber: row.log_blockNumber,
+                data: row.log_data,
+                id: row.log_id as Log["id"],
+                logIndex: Number(row.log_logIndex),
+                removed: false,
+                topics: [
+                  row.log_topic0,
+                  row.log_topic1,
+                  row.log_topic2,
+                  row.log_topic3,
+                ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
+                transactionHash: row.log_transactionHash,
+                transactionIndex: Number(row.log_transactionIndex),
+              },
+              block: {
+                baseFeePerGas: row.block_baseFeePerGas,
+                difficulty: row.block_difficulty,
+                extraData: row.block_extraData,
+                gasLimit: row.block_gasLimit,
+                gasUsed: row.block_gasUsed,
+                hash: row.block_hash,
+                logsBloom: row.block_logsBloom,
+                miner: checksumAddress(row.block_miner),
+                mixHash: row.block_mixHash,
+                nonce: row.block_nonce,
+                number: row.block_number,
+                parentHash: row.block_parentHash,
+                receiptsRoot: row.block_receiptsRoot,
+                sha3Uncles: row.block_sha3Uncles,
+                size: row.block_size,
+                stateRoot: row.block_stateRoot,
+                timestamp: row.block_timestamp,
+                totalDifficulty: row.block_totalDifficulty,
+                transactionsRoot: row.block_transactionsRoot,
+              },
+              transaction: {
+                blockHash: row.tx_blockHash,
+                blockNumber: row.tx_blockNumber,
+                from: checksumAddress(row.tx_from),
+                gas: row.tx_gas,
+                hash: row.tx_hash,
+                input: row.tx_input,
+                nonce: Number(row.tx_nonce),
+                r: row.tx_r,
+                s: row.tx_s,
+                to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
+                transactionIndex: Number(row.tx_transactionIndex),
+                value: row.tx_value,
+                v: row.tx_v,
+                ...(row.tx_type === "0x0"
+                  ? { type: "legacy", gasPrice: row.tx_gasPrice }
+                  : row.tx_type === "0x1"
                     ? {
-                        type: "deposit",
-                        maxFeePerGas: row.tx_maxFeePerGas ?? undefined,
-                        maxPriorityFeePerGas:
-                          row.tx_maxPriorityFeePerGas ?? undefined,
+                        type: "eip2930",
+                        gasPrice: row.tx_gasPrice,
+                        accessList: JSON.parse(row.tx_accessList),
                       }
-                    : { type: row.tx_type }),
-          },
-        } satisfies {
-          chainId: number;
-          log: Log;
-          block: Block;
-          transaction: Transaction;
-        };
-      });
+                    : row.tx_type === "0x2"
+                      ? {
+                          type: "eip1559",
+                          maxFeePerGas: row.tx_maxFeePerGas,
+                          maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
+                        }
+                      : row.tx_type === "0x7e"
+                        ? {
+                            type: "deposit",
+                            maxFeePerGas: row.tx_maxFeePerGas ?? undefined,
+                            maxPriorityFeePerGas:
+                              row.tx_maxPriorityFeePerGas ?? undefined,
+                          }
+                        : { type: row.tx_type }),
+              },
+            } satisfies {
+              chainId: number;
+              sourceId: string;
+              log: Log;
+              block: Block;
+              transaction: Transaction;
+              encodedCheckpoint: string;
+            };
+          });
+        },
+      );
 
-      const lastCheckpointRow = lastCheckpointRows[0];
-      const lastCheckpoint =
-        lastCheckpointRow !== undefined
-          ? ({
-              blockTimestamp: Number(lastCheckpointRow.block_timestamp!),
-              blockNumber: Number(lastCheckpointRow.block_number!),
-              chainId: lastCheckpointRow.log_chainId,
-              logIndex: lastCheckpointRow.log_logIndex,
-            } satisfies Checkpoint)
-          : undefined;
+      const hasNextPage = events.length === limit + 1;
 
-      if (events.length === limit + 1) {
-        events.pop();
-
-        const lastEventInPage = events[events.length - 1];
-        const lastCheckpointInPage = {
-          blockTimestamp: Number(lastEventInPage.block.timestamp),
-          chainId: lastEventInPage.chainId,
-          blockNumber: Number(lastEventInPage.block.number),
-          logIndex: lastEventInPage.log.logIndex,
-        } satisfies Checkpoint;
-
-        return {
-          events,
-          hasNextPage: true,
-          lastCheckpointInPage,
-          lastCheckpoint,
-        } as const;
+      if (!hasNextPage) {
+        yield events;
+        break;
       } else {
-        return {
-          events,
-          hasNextPage: false,
-          lastCheckpointInPage: undefined,
-          lastCheckpoint,
-        } as const;
+        events.pop();
+        cursor = events[events.length - 1].encodedCheckpoint;
+        yield events;
       }
-    });
+    }
   }
 
-  /**
-   * Builds an expression that filters for events that are greater or
-   * less than the provided checkpoint. If the log index is not specific,
-   * the expression will use a block-level granularity.
-   */
-  private buildCheckpointCmprs = (
-    eb: ExpressionBuilder<any, any>,
-    op: ">" | ">=" | "<" | "<=",
-    checkpoint: Checkpoint,
-  ) => {
-    const { and, or } = eb;
+  async getLastEventCheckpoint({
+    sources,
+    fromCheckpoint,
+    toCheckpoint,
+  }: {
+    sources: Pick<
+      Source,
+      "id" | "startBlock" | "endBlock" | "criteria" | "type"
+    >[];
+    fromCheckpoint: Checkpoint;
+    toCheckpoint: Checkpoint;
+  }): Promise<Checkpoint | undefined> {
+    return this.db.wrap({ method: "getLastEventCheckpoint" }, async () => {
+      const checkpoint = await this.db
+        .selectFrom("logs")
+        .where((eb) => {
+          const logFilterCmprs = sources
+            .filter(sourceIsLogFilter)
+            .filter((source) => source.criteria.topics !== undefined)
+            .map((logFilter) => {
+              const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+              return eb.and(exprs);
+            });
 
-    const { blockTimestamp, chainId, blockNumber, logIndex } = checkpoint;
+          const factoryCmprs = sources
+            .filter(sourceIsFactory)
+            .filter((source) => source.criteria.topics !== undefined)
+            .map((factory) => {
+              const exprs = this.buildFactoryCmprs({ eb, factory });
+              return eb.and(exprs);
+            });
 
-    const operand = op.startsWith(">") ? (">" as const) : ("<" as const);
-    const operandOrEquals = `${operand}=` as const;
-    const isInclusive = op.endsWith("=");
+          return eb.or([...logFilterCmprs, ...factoryCmprs]);
+        })
+        .select("checkpoint")
+        .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
+        .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
+        .orderBy("logs.checkpoint", "desc")
+        .executeTakeFirst();
 
-    // If the execution index is not defined, the checkpoint is at block granularity.
-    // Include (or exclude) all events in the block.
-    if (logIndex === undefined) {
-      return and([
-        eb("blocks.timestamp", operandOrEquals, BigInt(blockTimestamp)),
-        or([
-          eb("blocks.timestamp", operand, BigInt(blockTimestamp)),
-          and([
-            eb("logs.chainId", operandOrEquals, chainId),
-            or([
-              eb("logs.chainId", operand, chainId),
-              eb(
-                "blocks.number",
-                isInclusive ? operandOrEquals : operand,
-                BigInt(blockNumber),
-              ),
-            ]),
-          ]),
-        ]),
-      ]);
-    }
-
-    // Otherwise, apply the filter down to the log index.
-    return and([
-      eb("blocks.timestamp", operandOrEquals, BigInt(blockTimestamp)),
-      or([
-        eb("blocks.timestamp", operand, BigInt(blockTimestamp)),
-        and([
-          eb("logs.chainId", operandOrEquals, chainId),
-          or([
-            eb("logs.chainId", operand, chainId),
-            and([
-              eb("blocks.number", operandOrEquals, BigInt(blockNumber)),
-              or([
-                eb("blocks.number", operand, BigInt(blockNumber)),
-                eb(
-                  "logs.logIndex",
-                  isInclusive ? operandOrEquals : operand,
-                  logIndex,
-                ),
-              ]),
-            ]),
-          ]),
-        ]),
-      ]),
-    ]);
-  };
+      return checkpoint
+        ? checkpoint.checkpoint
+          ? decodeCheckpoint(checkpoint.checkpoint)
+          : undefined
+        : undefined;
+    });
+  }
 
   private buildLogFilterCmprs = ({
     eb,
     logFilter,
   }: {
     eb: ExpressionBuilder<any, any>;
-    logFilter: {
-      id: string;
-      chainId: number;
-      criteria: LogFilterCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    };
+    logFilter: LogFilter;
   }) => {
     const exprs = [];
 
@@ -1207,10 +1127,10 @@ export class PostgresSyncStore implements SyncStore {
       }
     }
 
-    if (logFilter.fromBlock)
-      exprs.push(eb("blocks.number", ">=", BigInt(logFilter.fromBlock)));
-    if (logFilter.toBlock)
-      exprs.push(eb("blocks.number", "<=", BigInt(logFilter.toBlock)));
+    if (logFilter.startBlock !== undefined && logFilter.startBlock !== 0)
+      exprs.push(eb("logs.blockNumber", ">=", BigInt(logFilter.startBlock)));
+    if (logFilter.endBlock)
+      exprs.push(eb("logs.blockNumber", "<=", BigInt(logFilter.endBlock)));
 
     return exprs;
   };
@@ -1220,13 +1140,7 @@ export class PostgresSyncStore implements SyncStore {
     factory,
   }: {
     eb: ExpressionBuilder<any, any>;
-    factory: {
-      id: string;
-      chainId: number;
-      criteria: FactoryCriteria;
-      fromBlock?: number;
-      toBlock?: number;
-    };
+    factory: Factory;
   }) => {
     const exprs = [];
 
@@ -1256,62 +1170,12 @@ export class PostgresSyncStore implements SyncStore {
       ),
     );
 
-    if (factory.fromBlock)
-      exprs.push(eb("blocks.number", ">=", BigInt(factory.fromBlock)));
-    if (factory.toBlock)
-      exprs.push(eb("blocks.number", "<=", BigInt(factory.toBlock)));
+    if (factory.startBlock !== undefined && factory.startBlock !== 0)
+      exprs.push(eb("logs.blockNumber", ">=", BigInt(factory.startBlock)));
+    if (factory.endBlock)
+      exprs.push(eb("logs.blockNumber", "<=", BigInt(factory.endBlock)));
 
     return exprs;
-  };
-
-  private wrap = async <T>(
-    options: { method: string },
-    fn: () => Promise<T>,
-  ) => {
-    const endClock = startClock();
-    const RETRY_COUNT = 3;
-    const BASE_DURATION = 100;
-
-    let error: any;
-    let hasError = false;
-
-    for (let i = 0; i < RETRY_COUNT + 1; i++) {
-      try {
-        const result = await fn();
-        this.common.metrics.ponder_database_method_duration.observe(
-          { service: "sync", method: options.method },
-          endClock(),
-        );
-        return result;
-      } catch (_error) {
-        if (this.isKilled || _error instanceof NonRetryableError) {
-          throw _error;
-        }
-
-        if (!hasError) {
-          hasError = true;
-          error = _error;
-        }
-
-        if (i < RETRY_COUNT) {
-          const duration = BASE_DURATION * 2 ** i;
-          this.common.logger.warn({
-            service: "database",
-            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-          });
-          await new Promise((_resolve) => {
-            setTimeout(_resolve, duration);
-          });
-        }
-      }
-    }
-
-    this.common.metrics.ponder_database_method_error_total.inc({
-      service: "sync",
-      method: options.method,
-    });
-
-    throw error;
   };
 }
 

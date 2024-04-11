@@ -1,28 +1,18 @@
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
-import {
-  type FunctionIds,
-  HASH_VERSION,
-  type TableIds,
-} from "@/build/static/getFunctionAndTableIds.js";
-import {
-  type TableAccess,
-  getTableAccessInverse,
-  isWriteStoreMethod,
-} from "@/build/static/getTableAccess.js";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import {
-  type Checkpoint,
-  checkpointMax,
-  decodeCheckpoint,
-  encodeCheckpoint,
-} from "@/utils/checkpoint.js";
+import type { SyncStoreTables } from "@/sync-store/sqlite/encoding.js";
+import { migrationProvider as syncMigrationProvider } from "@/sync-store/sqlite/migrations.js";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { formatEta } from "@/utils/format.js";
+import { hash } from "@/utils/hash.js";
 import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
-import { startClock } from "@/utils/timer.js";
 import {
-  CreateTableBuilder,
+  type CreateTableBuilder,
+  type Insertable,
   Kysely,
   Migrator,
   SqliteDialect,
@@ -30,13 +20,12 @@ import {
   sql,
 } from "kysely";
 import prometheus from "prom-client";
-import type { BaseDatabaseService, FunctionMetadata } from "../service.js";
-import { type PonderCoreSchema, migrationProvider } from "./migrations.js";
+import { HeadlessKysely } from "../kysely.js";
+import type { BaseDatabaseService, NamespaceInfo } from "../service.js";
+import { type InternalTables, migrationProvider } from "./migrations.js";
 
-const PUBLIC_DB_NAME = "ponder";
-const CACHE_DB_NAME = "ponder_cache";
-const SYNC_DB_NAME = "ponder_sync";
-const RAW_TABLE_PREFIX = "_raw_";
+const HEARTBEAT_INTERVAL_MS = 1000 * 10; // 10 seconds
+const HEARTBEAT_TIMEOUT_MS = 1000 * 60; // 60 seconds
 
 export class SqliteDatabaseService implements BaseDatabaseService {
   kind = "sqlite" as const;
@@ -44,41 +33,83 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   private common: Common;
   private directory: string;
 
-  db: Kysely<PonderCoreSchema>;
+  private userNamespace: string;
+  private internalNamespace: string;
 
-  private sqliteDatabase: SqliteDatabase;
-  private syncDatabase?: SqliteDatabase;
+  private internalDatabase: SqliteDatabase;
+  private syncDatabase: SqliteDatabase;
 
-  schema?: Schema;
-  tableIds?: TableIds;
-  functionIds?: FunctionIds;
-  tableAccess?: TableAccess;
+  db: HeadlessKysely<InternalTables>;
+  indexingDb: HeadlessKysely<InternalTables>;
+  syncDb: HeadlessKysely<SyncStoreTables>;
 
-  functionMetadata: FunctionMetadata[] = undefined!;
+  private buildId: string = null!;
+  private heartbeatInterval?: NodeJS.Timeout;
 
   constructor({
     common,
     directory,
+    userNamespace = "public",
   }: {
     common: Common;
     directory: string;
+    userNamespace?: string;
   }) {
     this.common = common;
     this.directory = directory;
 
-    const publicDbPath = path.join(directory, `${PUBLIC_DB_NAME}.db`);
-    const cacheDbPath = path.join(directory, `${CACHE_DB_NAME}.db`);
+    this.deleteV3DatabaseFiles();
 
-    this.sqliteDatabase = createSqliteDatabase(publicDbPath);
-    this.sqliteDatabase.exec(
-      `ATTACH DATABASE '${cacheDbPath}' AS ${CACHE_DB_NAME}`,
+    this.userNamespace = userNamespace;
+    const userDatabaseFile = path.join(directory, `${userNamespace}.db`);
+
+    // Note that SQLite supports using "main" as the schema name for tables
+    // in the primary database (as opposed to attached databases). We include
+    // it here to more closely match Postgres, where it's required.
+    // https://www.sqlite.org/lang_attach.html
+    this.internalNamespace = "main";
+    const internalDatabaseFile = path.join(directory, "ponder.db");
+
+    this.internalDatabase = createSqliteDatabase(internalDatabaseFile);
+    this.internalDatabase.exec(
+      `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
     );
 
-    this.db = new Kysely({
-      dialect: new SqliteDialect({ database: this.sqliteDatabase }),
+    this.db = new HeadlessKysely<InternalTables>({
+      name: "admin",
+      common,
+      dialect: new SqliteDialect({ database: this.internalDatabase }),
       log(event) {
         if (event.level === "query") {
-          common.metrics.ponder_sqlite_query_total.inc({ database: "admin" });
+          common.metrics.ponder_sqlite_query_total.inc({
+            database: "internal",
+          });
+        }
+      },
+    });
+
+    this.indexingDb = new HeadlessKysely<InternalTables>({
+      name: "indexing",
+      common,
+      dialect: new SqliteDialect({ database: this.internalDatabase }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_sqlite_query_total.inc({
+            database: "indexing",
+          });
+        }
+      },
+    });
+
+    const syncDatabaseFile = path.join(directory, "ponder_sync.db");
+    this.syncDatabase = createSqliteDatabase(syncDatabaseFile);
+    this.syncDb = new HeadlessKysely<SyncStoreTables>({
+      name: "sync",
+      common,
+      dialect: new SqliteDialect({ database: this.syncDatabase }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_sqlite_query_total.inc({ database: "sync" });
         }
       },
     });
@@ -86,343 +117,264 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.registerMetrics();
   }
 
-  getIndexingStoreConfig(): { database: SqliteDatabase; tablePrefix: string } {
-    return { database: this.sqliteDatabase, tablePrefix: RAW_TABLE_PREFIX };
-  }
+  async setup({ schema, buildId }: { schema: Schema; buildId: string }) {
+    this.buildId = buildId;
 
-  getSyncStoreConfig(): { database: SqliteDatabase } {
-    const syncDbPath = path.join(this.directory, `${SYNC_DB_NAME}.db`);
-    this.syncDatabase = createSqliteDatabase(syncDbPath);
-    return { database: this.syncDatabase };
-  }
+    const migrator = new Migrator({
+      db: this.db.withPlugin(new WithSchemaPlugin(this.internalNamespace)),
+      provider: migrationProvider,
+    });
+    const result = await migrator.migrateToLatest();
+    if (result.error) throw result.error;
 
-  async setup({
-    schema,
-    tableIds,
-    functionIds,
-    tableAccess,
-  }: {
-    schema: Schema;
-    tableIds: TableIds;
-    functionIds: FunctionIds;
-    tableAccess: TableAccess;
-  }) {
-    this.schema = schema;
-    this.tableIds = tableIds;
-    this.functionIds = functionIds;
-    this.tableAccess = tableAccess;
+    const namespaceInfo = {
+      userNamespace: this.userNamespace,
+      internalNamespace: this.internalNamespace,
+      internalTableIds: Object.keys(schema.tables).reduce((acc, tableName) => {
+        acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
+        return acc;
+      }, {} as { [tableName: string]: string }),
+    } satisfies NamespaceInfo;
 
-    return this.wrap({ method: "setup" }, async () => {
-      // 1) Run cache database migrations.
-      const migrator = new Migrator({
-        db: this.db.withPlugin(new WithSchemaPlugin(CACHE_DB_NAME)),
-        provider: migrationProvider,
-      });
-      const result = await migrator.migrateToLatest();
-      if (result.error) throw result.error;
+    return this.db.wrap({ method: "setup" }, async () => {
+      const checkpoint = await this.db.transaction().execute(async (tx) => {
+        const previousLockRow = await tx
+          .withSchema(this.internalNamespace)
+          .selectFrom("namespace_lock")
+          .selectAll()
+          .where("namespace", "=", this.userNamespace)
+          .executeTakeFirst();
 
-      const { functionMetadata } = await this.db
-        .transaction()
-        .execute(async (tx) => {
-          // 2) Drop any existing views and tables in the public database.
-          const oldViewRows = await tx.executeQuery<{ name: string }>(
-            sql`SELECT name FROM sqlite_master WHERE type='view'`.compile(tx),
-          );
-          const oldViewNames = oldViewRows.rows.map((row) => row.name);
-          if (oldViewNames.length > 0) {
-            await Promise.all(
-              oldViewNames.map((viewName) =>
-                tx.schema.dropView(viewName).ifExists().execute(),
-              ),
-            );
+        const newLockRow = {
+          namespace: this.userNamespace,
+          is_locked: 1,
+          heartbeat_at: Date.now(),
+          build_id: this.buildId,
+          finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
+          schema: JSON.stringify(schema),
+        } satisfies Insertable<InternalTables["namespace_lock"]>;
+
+        // If no lock row is found for this namespace, we can acquire the lock.
+        if (previousLockRow === undefined) {
+          await tx
+            .withSchema(this.internalNamespace)
+            .insertInto("namespace_lock")
+            .values(newLockRow)
+            .execute();
+          this.common.logger.debug({
+            service: "database",
+            msg: `Acquired lock on new namespace '${this.userNamespace}'`,
+          });
+        }
+        // If there is a row, but the lock is not held or has expired,
+        // we can acquire the lock and drop the previous app's tables.
+        else if (
+          previousLockRow.is_locked === 0 ||
+          Date.now() > previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
+        ) {
+          // // If the previous row has the same build ID, continue where the previous app left off
+          // // by reverting tables to the finalized checkpoint, then returning.
+          // if (previousLockRow.build_id === this.buildId) {
+          //   const finalizedCheckpoint = decodeCheckpoint(
+          //     previousLockRow.finalized_checkpoint,
+          //   );
+
+          //   const duration =
+          //     Math.floor(Date.now() / 1000) - finalizedCheckpoint.blockTimestamp;
+          //   const progressText =
+          //     finalizedCheckpoint.blockTimestamp > 0
+          //       ? `last used ${formatShortDate(duration)} ago`
+          //       : "with no progress";
+          //   this.common.logger.debug({
+          //     service: "database",
+          //     msg: `Cache hit for build ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
+          //   });
+
+          //   // Acquire the lock and update the heartbeat (build_id, schema, ).
+          //   await tx
+          //     .withSchema(this.internalNamespace)
+          //     .updateTable("namespace_lock")
+          //     .set({
+          //       is_locked: 1,
+          //       heartbeat_at: encodeAsText(BigInt(Date.now())),
+          //     })
+          //     .execute();
+
+          //   // Revert the tables to the finalized checkpoint. Note that this also updates
+          //   // the namespace_lock table to reflect the new finalized checkpoint.
+          //   // TODO MOVE THIS BACK await this.revert({ checkpoint: finalizedCheckpoint });
+
+          //   return finalizedCheckpoint;
+          // }
+
+          // If the previous row has a different build ID, drop the previous app's tables.
+          const previousBuildId = previousLockRow.build_id;
+          const previousSchema = JSON.parse(previousLockRow.schema) as Schema;
+
+          this.common.logger.debug({
+            service: "database",
+            msg: `Acquired lock on namespace '${this.userNamespace}' previously used by app '${previousBuildId}'`,
+          });
+
+          for (const tableName of Object.keys(previousSchema.tables)) {
+            const tableId = hash([
+              this.userNamespace,
+              previousBuildId,
+              tableName,
+            ]);
+
+            await tx.schema
+              .withSchema(this.internalNamespace)
+              .dropTable(tableId)
+              .ifExists()
+              .execute();
+
+            await tx.schema
+              .withSchema(this.userNamespace)
+              .dropTable(tableName)
+              .ifExists()
+              .execute();
+
             this.common.logger.debug({
               service: "database",
-              msg: `Dropped stale table${
-                oldViewNames.length > 1 ? "s" : ""
-              } from ponder.db (${oldViewNames.join(", ")})`,
+              msg: `Dropped '${tableName}' table left by previous app`,
             });
           }
 
-          const oldTableRows = await tx.executeQuery<{
-            name: string;
-          }>(
-            sql`SELECT name FROM sqlite_master WHERE type='table'`.compile(tx),
+          // Update the lock row to reflect the new build ID and checkpoint progress.
+          await tx
+            .withSchema(this.internalNamespace)
+            .updateTable("namespace_lock")
+            .where("namespace", "=", this.userNamespace)
+            .set(newLockRow)
+            .execute();
+        }
+        // Otherwise, the previous app still holds the lock.
+        else {
+          const expiresIn = formatEta(
+            previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS - Date.now(),
           );
-          const oldTableNames = oldTableRows.rows.map((row) => row.name);
-          if (oldTableNames.length > 0) {
-            await Promise.all(
-              oldTableNames.map((tableName) =>
-                tx.schema.dropTable(tableName).ifExists().execute(),
-              ),
+          throw new NonRetryableError(
+            `Database file '${this.userNamespace}.db' is in use by a different Ponder app (lock expires in ${expiresIn})`,
+          );
+        }
+
+        // Create the operation log tables and user tables.
+        for (const [tableName, columns] of Object.entries(schema.tables)) {
+          const tableId = namespaceInfo.internalTableIds[tableName];
+
+          await tx.schema
+            .withSchema(this.internalNamespace)
+            .createTable(tableId)
+            .$call((builder) => this.buildOperationLogColumns(builder, columns))
+            .execute();
+
+          await tx.schema
+            .createIndex(`${tableId}_checkpointIndex`)
+            .on(tableId)
+            .column("checkpoint")
+            .execute();
+
+          try {
+            await tx.schema
+              .withSchema(this.userNamespace)
+              .createTable(tableName)
+              .$call((builder) => this.buildColumns(builder, schema, columns))
+              .execute();
+          } catch (err) {
+            const error = err as Error;
+            if (!error.message.includes("already exists")) throw error;
+            throw new Error(
+              `Unable to create table '${this.userNamespace}'.'${tableName}' because a table with that name already exists. Is there another application using the '${this.userNamespace}.db' database file?`,
             );
           }
 
-          // 3) Create tables in the instance schema, copying cached data if available.
-          const tables = Object.entries(this.schema!.tables);
-          await Promise.all(
-            tables.map(async ([tableName, columns]) => {
-              const tableId = this.tableIds![tableName];
-              const viewColumnNames = Object.entries(columns)
-                .filter(([, c]) => !isOneColumn(c) && !isManyColumn(c))
-                .map(([name]) => name);
+          this.common.logger.info({
+            service: "database",
+            msg: `Created table '${tableName}' in '${this.userNamespace}.db'`,
+          });
+        }
 
-              // a) Create a table in the cache schema if it doesn't already exist.
-              await tx.schema
-                .withSchema(CACHE_DB_NAME)
-                .createTable(tableId)
-                .$call((builder) =>
-                  this.buildColumns(builder, tableId, columns),
-                )
-                .ifNotExists()
-                .execute();
+        return zeroCheckpoint;
+      });
 
-              // b) Create a table in the public schema.
-              await tx.schema
-                .createTable(`${RAW_TABLE_PREFIX}${tableName}`)
-                .$call((builder) =>
-                  this.buildColumns(
-                    builder,
-                    `${RAW_TABLE_PREFIX}${tableName}`,
-                    columns,
-                  ),
-                )
-                .execute();
+      // Start the heartbeat interval to hold the lock for as long as the process is running.
+      this.heartbeatInterval = setInterval(async () => {
+        try {
+          const lockRow = await this.db
+            .withSchema(this.internalNamespace)
+            .updateTable("namespace_lock")
+            .where("namespace", "=", this.userNamespace)
+            .set({ heartbeat_at: Date.now() })
+            .returningAll()
+            .executeTakeFirst();
 
-              // c) Create the latest view in the public schema.
-              await tx.schema
-                .createView(tableName)
-                .as(
-                  (tx as Kysely<any>)
-                    .selectFrom(`${RAW_TABLE_PREFIX}${tableName}`)
-                    .select(viewColumnNames)
-                    .where("effective_to", "=", "latest"),
-                )
-                .execute();
+          this.common.logger.debug({
+            service: "database",
+            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (build_id=${this.buildId})`,
+          });
+        } catch (err) {
+          const error = err as Error;
+          this.common.logger.error({
+            service: "database",
+            msg: `Failed to update heartbeat timestamp, retrying in ${formatEta(
+              HEARTBEAT_INTERVAL_MS,
+            )}`,
+            error,
+          });
+        }
+      }, HEARTBEAT_INTERVAL_MS);
 
-              // d) Copy data from the cache table to the new table.
-              await tx.executeQuery(
-                sql`INSERT INTO "${sql.raw(
-                  `${RAW_TABLE_PREFIX}${tableName}`,
-                )}" SELECT * FROM ${sql.raw(
-                  `"${CACHE_DB_NAME}"."${tableId}"`,
-                )}`.compile(tx),
-              );
-            }),
-          );
-
-          const functionIds_ = Object.values(functionIds);
-
-          // Get the functionMetadata for the data that we (maybe) copied over from the cache.
-          const functionMetadata =
-            functionIds_.length === 0
-              ? []
-              : await tx
-                  .selectFrom("ponder_cache.function_metadata")
-                  .selectAll()
-                  .where("function_id", "in", functionIds_)
-                  .execute();
-
-          return { functionMetadata };
-        });
-
-      this.functionMetadata = functionMetadata.map((m) => ({
-        functionId: m.function_id,
-        functionName: m.function_name,
-        fromCheckpoint: m.from_checkpoint
-          ? decodeCheckpoint(m.from_checkpoint)
-          : null,
-        toCheckpoint: decodeCheckpoint(m.to_checkpoint),
-        eventCount: m.event_count,
-      }));
+      return { checkpoint, namespaceInfo };
     });
   }
 
   async kill() {
-    await this.wrap({ method: "kill" }, async () => {
-      await this.db.destroy();
-      this.syncDatabase?.close();
-    });
-  }
+    await this.db.wrap({ method: "kill" }, async () => {
+      clearInterval(this.heartbeatInterval);
 
-  async flush(metadata: FunctionMetadata[]): Promise<void> {
-    const newFunctionMetadata = metadata.map((m) => ({
-      function_id: m.functionId,
-      function_name: m.functionName,
-      hash_version: HASH_VERSION,
-      from_checkpoint: m.fromCheckpoint
-        ? encodeCheckpoint(m.fromCheckpoint)
-        : null,
-      to_checkpoint: encodeCheckpoint(m.toCheckpoint),
-      event_count: m.eventCount,
-    }));
+      await this.db
+        .withSchema(this.internalNamespace)
+        .updateTable("namespace_lock")
+        .where("namespace", "=", this.userNamespace)
+        .set({ is_locked: 0 })
+        .returningAll()
+        .executeTakeFirst();
 
-    const newTableMetadata: Omit<
-      PonderCoreSchema["ponder_cache.table_metadata"],
-      "schema"
-    >[] = [];
-
-    const inverseTableAccess = getTableAccessInverse(this.tableAccess!);
-
-    for (const [tableName, tableId] of Object.entries(this.tableIds!)) {
-      const checkpoints: Checkpoint[] = [];
-
-      // Table checkpoint is the max checkpoint of all the functions that write to the table
-      for (const { indexingFunctionKey, storeMethod } of inverseTableAccess[
-        tableName
-      ] ?? []) {
-        if (isWriteStoreMethod(storeMethod)) {
-          const checkpoint = metadata.find(
-            (m) => m.functionName === indexingFunctionKey,
-          )?.toCheckpoint;
-          if (checkpoint !== undefined) checkpoints.push(checkpoint);
-        }
-      }
-
-      if (checkpoints.length !== 0) {
-        newTableMetadata.push({
-          table_name: tableName,
-          table_id: tableId,
-          hash_version: HASH_VERSION,
-          to_checkpoint: encodeCheckpoint(checkpointMax(...checkpoints)),
-        });
-      }
-    }
-
-    return this.wrap({ method: "flush" }, async () => {
       this.common.logger.debug({
         service: "database",
-        msg: `Starting flush with table IDs [${Object.values(
-          this.tableIds!,
-        ).join(", ")}] and function IDs [${Object.values(
-          this.functionIds!,
-        ).join(", ")}]`,
+        msg: `Released lock on namespace '${this.userNamespace}'`,
       });
 
-      await this.db.transaction().execute(async (tx) => {
-        const tables = Object.entries(this.schema!.tables);
+      await this.indexingDb.destroy();
+      await this.syncDb.destroy();
+      await this.db.destroy();
 
-        await Promise.all(
-          tables.map(async ([tableName]) => {
-            const tableId = this.tableIds![tableName];
+      this.syncDatabase.close();
+      this.internalDatabase.close();
 
-            const tableMetadata = await tx
-              .selectFrom("ponder_cache.table_metadata")
-              .select("to_checkpoint")
-              .where("table_id", "=", tableId)
-              .executeTakeFirst();
-
-            // new to_checkpoint of the table. Table may contain some rows that need to be truncated.
-            const newTableToCheckpoint = newTableMetadata.find(
-              (t) => t.table_id === tableId,
-            )?.to_checkpoint;
-            if (newTableToCheckpoint === undefined) return;
-
-            if (tableMetadata === undefined) {
-              // Occurs on the first flush() for this table.
-              await tx.executeQuery(
-                sql`INSERT INTO ${sql.raw(
-                  `"${CACHE_DB_NAME}"."${tableId}"`,
-                )} SELECT * FROM "${sql.raw(
-                  `${RAW_TABLE_PREFIX}${tableName}`,
-                )}" WHERE "effective_from" <= '${sql.raw(
-                  newTableToCheckpoint,
-                )}'`.compile(tx),
-              );
-
-              // Truncate cache tables to match metadata.
-              await tx
-                .withSchema(CACHE_DB_NAME)
-                .updateTable(tableId)
-                .set({ effective_to: "latest" })
-                .where("effective_to", ">", newTableToCheckpoint)
-                .execute();
-            } else {
-              // Update effective_to of overwritten rows
-              await tx.executeQuery(
-                sql`WITH earliest_new_records AS (SELECT id, MIN(effective_from) as new_effective_to FROM "${sql.raw(
-                  `${RAW_TABLE_PREFIX}${tableName}`,
-                )}" WHERE effective_from > '${sql.raw(
-                  tableMetadata.to_checkpoint,
-                )}' GROUP BY id) UPDATE "${sql.raw(CACHE_DB_NAME)}"."${sql.raw(
-                  tableId,
-                )}" SET effective_to = earliest_new_records.new_effective_to FROM earliest_new_records WHERE "${sql.raw(
-                  CACHE_DB_NAME,
-                )}"."${sql.raw(
-                  tableId,
-                )}".id = earliest_new_records.id AND effective_to = 'latest'`.compile(
-                  tx,
-                ),
-              );
-
-              // Insert new rows into cache
-              await tx.executeQuery(
-                sql`INSERT INTO ${sql.raw(
-                  `"${CACHE_DB_NAME}"."${tableId}"`,
-                )} SELECT * FROM "${sql.raw(
-                  `${RAW_TABLE_PREFIX}${tableName}`,
-                )}" WHERE "effective_from" > '${sql.raw(
-                  tableMetadata.to_checkpoint,
-                )}' AND "effective_from" <= '${sql.raw(
-                  newTableToCheckpoint,
-                )}'`.compile(tx),
-              );
-
-              await tx
-                .withSchema(CACHE_DB_NAME)
-                .updateTable(tableId)
-                .set({ effective_to: "latest" })
-                .where("effective_to", ">", newTableToCheckpoint)
-                .execute();
-            }
-          }),
-        );
-
-        await Promise.all(
-          newFunctionMetadata.map(async (metadata) => {
-            await tx
-              .insertInto("ponder_cache.function_metadata")
-              .values(metadata)
-              .onConflict((oc) =>
-                oc.column("function_id").doUpdateSet(metadata as any),
-              )
-              .execute();
-          }),
-        );
-
-        await Promise.all(
-          newTableMetadata.map(async (metadata) => {
-            await tx
-              .insertInto("ponder_cache.table_metadata")
-              .values({
-                ...metadata,
-                schema: JSON.stringify(
-                  this.schema!.tables[metadata.table_name],
-                ),
-              })
-              .onConflict((oc) =>
-                oc.column("table_id").doUpdateSet(metadata as any),
-              )
-              .execute();
-          }),
-        );
-
-        this.common.logger.debug({
-          service: "database",
-          msg: "Finished flush",
-        });
+      this.common.logger.debug({
+        service: "database",
+        msg: "Closed connection to database",
       });
     });
   }
 
-  async publish() {
-    return this.wrap({ method: "publish" }, async () => {
-      // no-op
+  async migrateSyncStore() {
+    await this.db.wrap({ method: "migrateSyncStore" }, async () => {
+      const migrator = new Migrator({
+        db: this.syncDb as Kysely<any>,
+        provider: syncMigrationProvider,
+      });
+
+      const { error } = await migrator.migrateToLatest();
+      if (error) throw error;
     });
   }
 
-  private buildColumns(
-    builder: CreateTableBuilder<string>,
-    tableId: string,
+  private buildColumns<T extends string, C extends string = never>(
+    builder: CreateTableBuilder<T, C>,
+    schema: Schema,
     columns: Schema["tables"][string],
   ) {
     Object.entries(columns).forEach(([columnName, column]) => {
@@ -435,7 +387,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           if (!column.list) {
             col = col.check(
               sql`${sql.ref(columnName)} in (${sql.join(
-                this.schema!.enums[column.type].map((v) => sql.lit(v)),
+                schema.enums[column.type].map((v) => sql.lit(v)),
               )})`,
             );
           }
@@ -454,75 +406,50 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           scalarToSqlType[column.type],
           (col) => {
             if (!column.optional) col = col.notNull();
+            if (columnName === "id") col = col.primaryKey();
             return col;
           },
         );
       }
     });
 
-    builder = builder.addColumn("effective_from", "varchar(58)", (col) =>
-      col.notNull(),
-    );
-    builder = builder.addColumn("effective_to", "varchar(58)", (col) =>
-      col.notNull(),
-    );
-    builder = builder.addPrimaryKeyConstraint(
-      `${tableId}_id_checkpoint_unique`,
-      ["id", "effective_to"] as never[],
-    );
-
     return builder;
   }
 
-  private wrap = async <T>(
-    options: { method: string },
-    fn: () => Promise<T>,
-  ) => {
-    const endClock = startClock();
-    const RETRY_COUNT = 3;
-    const BASE_DURATION = 100;
-
-    let error: any;
-    let hasError = false;
-
-    for (let i = 0; i < RETRY_COUNT + 1; i++) {
-      try {
-        const result = await fn();
-        this.common.metrics.ponder_database_method_duration.observe(
-          { service: "database", method: options.method },
-          endClock(),
+  private buildOperationLogColumns<T extends string, C extends string = never>(
+    builder: CreateTableBuilder<T, C>,
+    columns: Schema["tables"][string],
+  ) {
+    Object.entries(columns).forEach(([columnName, column]) => {
+      if (isOneColumn(column)) return;
+      if (isManyColumn(column)) return;
+      if (isEnumColumn(column)) {
+        // Handle enum types
+        // Omit the CHECK constraint because its included in the user table
+        builder = builder.addColumn(columnName, "text");
+      } else if (column.list) {
+        // Handle scalar list columns
+        builder = builder.addColumn(columnName, "text");
+      } else {
+        // Non-list base columns
+        builder = builder.addColumn(
+          columnName,
+          scalarToSqlType[column.type],
+          (col) => {
+            if (columnName === "id") col = col.notNull();
+            return col;
+          },
         );
-        return result;
-      } catch (_error) {
-        if (_error instanceof NonRetryableError) {
-          throw _error;
-        }
-
-        if (!hasError) {
-          hasError = true;
-          error = _error;
-        }
-
-        if (i < RETRY_COUNT) {
-          const duration = BASE_DURATION * 2 ** i;
-          this.common.logger.warn({
-            service: "database",
-            msg: `Database error while running ${options.method}, retrying after ${duration} milliseconds. Error: ${error.message}`,
-          });
-          await new Promise((_resolve) => {
-            setTimeout(_resolve, duration);
-          });
-        }
       }
-    }
-
-    this.common.metrics.ponder_database_method_error_total.inc({
-      service: "database",
-      method: options.method,
     });
 
-    throw error;
-  };
+    builder = builder
+      .addColumn("operation_id", "integer", (col) => col.notNull().primaryKey())
+      .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
+      .addColumn("operation", "integer", (col) => col.notNull());
+
+    return builder;
+  }
 
   private registerMetrics() {
     this.common.metrics.registry.removeSingleMetric(
@@ -533,6 +460,36 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       help: "Number of queries submitted to the database",
       labelNames: ["database"] as const,
       registers: [this.common.metrics.registry],
+    });
+  }
+
+  private async deleteV3DatabaseFiles() {
+    // Detect if the `.ponder/sqlite` directly contains 0.3 database files.
+    const hasV3Files = existsSync(path.join(this.directory, "ponder_cache.db"));
+
+    if (!hasV3Files) return;
+
+    this.common.logger.debug({
+      service: "database",
+      msg: "Migrating '.ponder/sqlite' database from 0.3.x to 0.4.x",
+    });
+
+    // Drop 'ponder_cache' database files.
+    rmSync(path.join(this.directory, "ponder_cache.db"), { force: true });
+    rmSync(path.join(this.directory, "ponder_cache.db-shm"), { force: true });
+    rmSync(path.join(this.directory, "ponder_cache.db-wal"), { force: true });
+    this.common.logger.debug({
+      service: "database",
+      msg: `Removed '.ponder/sqlite/ponder_cache.db' file`,
+    });
+
+    // Drop 'ponder' database files (they will be created again).
+    rmSync(path.join(this.directory, "ponder.db"), { force: true });
+    rmSync(path.join(this.directory, "ponder.db-shm"), { force: true });
+    rmSync(path.join(this.directory, "ponder.db-wal"), { force: true });
+    this.common.logger.debug({
+      service: "database",
+      msg: `Removed '.ponder/sqlite/ponder.db' file`,
     });
   }
 }

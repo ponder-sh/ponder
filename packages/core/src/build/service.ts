@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { safeBuildSchema } from "@/build/schema/schema.js";
 import type { Common } from "@/common/common.js";
@@ -6,7 +7,7 @@ import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
-import { buildGqlSchema } from "@/server/graphql/schema.js";
+import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { Emittery } from "@/utils/emittery.js";
 import { glob } from "glob";
 import { GraphQLSchema } from "graphql";
@@ -25,17 +26,10 @@ import {
 import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
-import {
-  type FunctionIds,
-  type TableIds,
-  safeGetFunctionAndTableIds,
-} from "./static/getFunctionAndTableIds.js";
-import {
-  type TableAccess,
-  safeGetTableAccess,
-} from "./static/getTableAccess.js";
 
 export type Build = {
+  // Build ID for caching
+  buildId: string;
   // Config
   databaseConfig: DatabaseConfig;
   sources: Source[];
@@ -45,10 +39,6 @@ export type Build = {
   graphqlSchema: GraphQLSchema;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
-  // Static analysis
-  tableAccess: TableAccess;
-  tableIds: TableIds;
-  functionIds: FunctionIds;
 };
 
 export type BuildResult =
@@ -77,9 +67,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   private schema?: Schema;
   private graphqlSchema?: GraphQLSchema;
   private indexingFunctions?: IndexingFunctions;
-  private tableAccess?: TableAccess;
-  private tableIds?: TableIds;
-  private functionIds?: FunctionIds;
 
   constructor({ common }: { common: Common }) {
     super();
@@ -193,10 +180,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       if (invalidated.includes(this.common.options.configFile)) {
         const configResult = await this.loadConfig();
         const validationResult = this.validate();
-        const analyzeResult = this.analyze();
 
-        const error =
-          configResult.error ?? validationResult.error ?? analyzeResult.error;
+        const error = configResult.error ?? validationResult.error;
 
         if (error) {
           this.common.logger.error({ service: "build", error });
@@ -208,10 +193,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       if (invalidated.includes(this.common.options.schemaFile)) {
         const schemaResult = await this.loadSchema();
         const validationResult = this.validate();
-        const analyzeResult = this.analyze();
 
-        const error =
-          schemaResult.error ?? validationResult.error ?? analyzeResult.error;
+        const error = schemaResult.error ?? validationResult.error;
 
         if (error) {
           this.common.logger.error({ service: "build", error });
@@ -228,14 +211,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           files: indexingFunctionFiles,
         });
         const validationResult = this.validate();
-        const parseResult = this.parse();
-        const analyzeResult = this.analyze();
 
-        const error =
-          indexingFunctionsResult.error ??
-          validationResult.error ??
-          parseResult.error ??
-          analyzeResult.error;
+        const error = indexingFunctionsResult.error ?? validationResult.error;
 
         if (error) {
           this.common.logger.error({ service: "build", error });
@@ -247,15 +224,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.emit("rebuild", {
         success: true,
         build: {
+          buildId: randomBytes(5).toString("hex"),
           databaseConfig: this.databaseConfig!,
           sources: this.sources!,
           networks: this.networks!,
           schema: this.schema!,
           graphqlSchema: this.graphqlSchema!,
           indexingFunctions: this.indexingFunctions!,
-          tableAccess: this.tableAccess!,
-          tableIds: this.tableIds!,
-          functionIds: this.functionIds!,
         },
       });
     };
@@ -300,29 +275,21 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const validationResult = this.validate();
     if (validationResult.error)
       return logAndReturnError(validationResult.error);
-    const parseResult = this.parse();
-    if (parseResult.error) return logAndReturnError(parseResult.error);
-    const analyzeResult = this.analyze();
-    if (analyzeResult.error) return logAndReturnError(analyzeResult.error);
 
     const { databaseConfig, sources, networks } = configResult;
     const { schema, graphqlSchema } = schemaResult;
     const { indexingFunctions } = indexingFunctionsResult;
-    const { tableAccess } = parseResult;
-    const { tableIds, functionIds } = analyzeResult;
 
     return {
       success: true,
       build: {
+        buildId: randomBytes(5).toString("hex"),
         databaseConfig,
         networks,
         sources,
         schema,
         graphqlSchema,
         indexingFunctions,
-        tableAccess,
-        tableIds,
-        functionIds,
       },
     } satisfies BuildResult;
   }
@@ -372,7 +339,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     this.schema = schema;
 
     // TODO: Probably move this elsewhere. Also, handle errors.
-    const graphqlSchema = buildGqlSchema(buildResult.data.schema);
+    const graphqlSchema = buildGraphqlSchema(buildResult.data.schema);
     this.graphqlSchema = graphqlSchema;
 
     return { success: true, schema, graphqlSchema } as const;
@@ -421,34 +388,45 @@ export class BuildService extends Emittery<BuildServiceEvents> {
    * Returns an error if validation fails.
    */
   private validate() {
-    if (!this.sources || !this.indexingFunctions)
+    if (this.sources === undefined || this.sources.length === 0) {
       return { success: true } as const;
+    }
+    if (
+      this.indexingFunctions === undefined ||
+      Object.keys(this.indexingFunctions).length === 0
+    ) {
+      for (const source of this.sources) {
+        source.criteria.topics = undefined;
+      }
+      return { success: true } as const;
+    }
 
     for (const [sourceName, fns] of Object.entries(this.indexingFunctions)) {
+      const source = this.sources.find((s) => s.contractName === sourceName);
+      if (!source) {
+        // Multi-network contracts have N sources, but the hint here should not have duplicates.
+        const uniqueContractNames = [
+          ...new Set(this.sources.map((s) => s.contractName)),
+        ];
+        const error = new Error(
+          `Validation failed: Invalid contract name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueContractNames
+            .map((n) => `'${n}'`)
+            .join(", ")}].`,
+        );
+        return { success: false, error } as const;
+      }
+
       for (const eventName of Object.keys(fns)) {
         const eventKey = `${sourceName}:${eventName}`;
 
-        const source = this.sources.find((s) => s.contractName === sourceName);
-        if (!source) {
-          // Multi-network contracts have N sources, but the hint here should not have duplicates.
-          const uniqueContractNames = [
-            ...new Set(this.sources.map((s) => s.contractName)),
-          ];
-          const error = new Error(
-            `Validation failed: Invalid contract name for event '${eventKey}'. Got '${sourceName}', expected one of [${uniqueContractNames
-              .map((n) => `'${n}'`)
-              .join(", ")}].`,
-          );
-          return { success: false, error } as const;
-        }
+        if (eventName === "setup") continue;
 
-        const eventNames = [
-          ...Object.keys(source.abiEvents.bySafeName),
-          "setup",
-        ];
-        if (!eventNames.find((e) => e === eventName)) {
+        // Validate that the event name is found in the contract ABI.
+        if (source.abiEvents.bySafeName[eventName] === undefined) {
           const error = new Error(
-            `Validation failed: Invalid event name for event '${eventKey}'. Got '${eventName}', expected one of [${eventNames
+            `Validation failed: Event name for event '${eventKey}' not found in the contract ABI. Got '${eventName}', expected one of [${Object.keys(
+              source.abiEvents.bySafeName,
+            )
               .map((eventName) => `'${eventName}'`)
               .join(", ")}].`,
           );
@@ -457,59 +435,47 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       }
     }
 
+    // Validate source topics
+    for (const [sourceName, fns] of Object.entries(this.indexingFunctions)) {
+      for (const source of this.sources.filter(
+        (s) => s.contractName === sourceName,
+      )) {
+        for (const eventName of Object.keys(fns)) {
+          const eventKey = `${sourceName}:${eventName}`;
+
+          if (eventName === "setup") continue;
+          const filteredEventSelectors = source.criteria.topics?.[0]
+            ? Array.isArray(source.criteria.topics[0])
+              ? source.criteria.topics[0]
+              : [source.criteria.topics[0]]
+            : [];
+
+          // Validate that the selector for this event was not filtered out by the user via an event filter.
+          const eventSelector =
+            source.abiEvents.bySafeName[eventName]!.selector;
+          if (
+            filteredEventSelectors.length > 0 &&
+            !filteredEventSelectors.includes(eventSelector)
+          ) {
+            const error = new Error(
+              `Validation failed: Event '${eventKey}' is excluded by the event filter defined on the contract '${sourceName}'. Got '${eventName}', expected one of [${filteredEventSelectors
+                .map((s) => source.abiEvents.bySelector[s]!.safeName)
+                .map((eventName) => `'${eventName}'`)
+                .join(", ")}].`,
+            );
+            return { success: false, error } as const;
+          }
+        }
+
+        // Update source topic0 to include only registered event selectors
+        const registeredEventSelectors = Object.keys(fns)
+          .filter((eventName) => eventName !== "setup")
+          .map((eventName) => source.abiEvents.bySafeName[eventName]!.selector);
+        (source.criteria.topics ??= [])[0] = registeredEventSelectors;
+      }
+    }
+
     return { success: true } as const;
-  }
-
-  private parse() {
-    if (!this.rawIndexingFunctions || !this.schema || !this.sources)
-      return {
-        success: false,
-        error: new Error(
-          "Invariant violation: BuildService.parse() called before config, schema, or indexing functions were built.",
-        ),
-      } as const;
-
-    const tableNames = Object.keys(this.schema.tables);
-    const filePaths = Object.keys(this.rawIndexingFunctions);
-
-    const result = safeGetTableAccess({ tableNames, filePaths });
-    if (!result.success) {
-      return { success: false, error: result.error } as const;
-    }
-
-    this.tableAccess = result.data;
-
-    return { success: true, tableAccess: result.data } as const;
-  }
-
-  private analyze() {
-    if (
-      !this.tableAccess ||
-      !this.schema ||
-      !this.sources ||
-      !this.indexingFunctions
-    )
-      return {
-        success: false,
-        error: new Error(
-          "Invariant violation: BuildService.analyze() called before config, schema, or indexing functions were built.",
-        ),
-      } as const;
-
-    const result = safeGetFunctionAndTableIds({
-      sources: this.sources,
-      tableAccess: this.tableAccess,
-      schema: this.schema,
-      indexingFunctions: this.indexingFunctions,
-    });
-    if (!result.success) {
-      return { success: false, error: result.error } as const;
-    }
-
-    this.tableIds = result.data.tableIds;
-    this.functionIds = result.data.functionIds;
-
-    return { success: true, ...result.data } as const;
   }
 
   private async executeFile(file: string) {

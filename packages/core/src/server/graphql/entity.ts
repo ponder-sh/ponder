@@ -5,13 +5,10 @@ import {
   isOneColumn,
   referencedTableName,
 } from "@/schema/utils.js";
-import { maxCheckpoint } from "@/utils/checkpoint.js";
 import {
-  type FieldNode,
   GraphQLBoolean,
   type GraphQLFieldResolver,
   GraphQLInputObjectType,
-  type GraphQLResolveInfo,
 } from "graphql";
 import {
   GraphQLEnumType,
@@ -22,10 +19,10 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
+import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { buildWhereObject } from "./filter.js";
 import type { PluralResolver } from "./plural.js";
-import type { Context, Parent } from "./schema.js";
-import { tsTypeToGqlScalar } from "./schema.js";
+import { SCALARS } from "./scalar.js";
 
 const GraphQLPageInfo = new GraphQLObjectType({
   name: "PageInfo",
@@ -70,24 +67,15 @@ export const buildEntityTypes = ({
               parent,
               _args,
               context,
-              info,
             ) => {
-              // Analyze the `info` object to determine if the user passed a "timestamp"
-              // argument to the plural or singular root query field.
-              const timestamp = getTimestampArgument(info);
-              const checkpoint = timestamp
-                ? { ...maxCheckpoint, blockTimestamp: timestamp }
-                : undefined; // Latest.
-
               // The parent object gets passed in here containing reference column values.
               const relatedRecordId = parent[column.referenceColumn];
               // Note: Don't query with a null or undefined id, indexing store will throw error.
               if (relatedRecordId === null || relatedRecordId === undefined)
                 return null;
 
-              const loader = context.getLoader({
+              const loader = context.get("getLoader")({
                 tableName: referencedTable,
-                checkpoint,
               });
 
               return await loader.load(relatedRecordId);
@@ -100,18 +88,8 @@ export const buildEntityTypes = ({
               resolve: resolver,
             };
           } else if (isManyColumn(column)) {
-            const resolver: PluralResolver = async (
-              parent,
-              args,
-              context,
-              info,
-            ) => {
-              const { store } = context;
-
-              const timestamp = getTimestampArgument(info);
-              const checkpoint = timestamp
-                ? { ...maxCheckpoint, blockTimestamp: timestamp }
-                : undefined; // Latest.
+            const resolver: PluralResolver = async (parent, args, context) => {
+              const store = context.get("store");
 
               const { where, orderBy, orderDirection, limit, after, before } =
                 args;
@@ -129,7 +107,6 @@ export const buildEntityTypes = ({
               // TODO: Update query to only fetch IDs, not entire records.
               const result = await store.findMany({
                 tableName: column.referenceTable,
-                checkpoint,
                 where: whereObject,
                 orderBy: orderByObject,
                 limit,
@@ -138,9 +115,8 @@ export const buildEntityTypes = ({
               });
 
               // Load entire records objects using the loader.
-              const loader = context.getLoader({
+              const loader = context.get("getLoader")({
                 tableName: column.referenceTable,
-                checkpoint,
               });
 
               const ids = result.items.map((item) => item.id);
@@ -164,7 +140,7 @@ export const buildEntityTypes = ({
           } else {
             const type = isEnumColumn(column)
               ? enumTypes[column.type]
-              : tsTypeToGqlScalar[column.type];
+              : SCALARS[column.type];
             if (column.list) {
               const listType = new GraphQLList(new GraphQLNonNull(type));
               fieldConfigMap[columnName] = {
@@ -197,41 +173,3 @@ export const buildEntityTypes = ({
 
   return { entityTypes, entityPageTypes };
 };
-
-/**
- * Analyze the `info` object to determine if the user passed a "timestamp"
- * argument to the plural or singular root query field.
- */
-function getTimestampArgument(info: GraphQLResolveInfo) {
-  let rootQueryFieldName: string | undefined = undefined;
-  let pathNode = info.path;
-  while (true) {
-    if (pathNode.typename === "Query") {
-      if (typeof pathNode.key === "string") rootQueryFieldName = pathNode.key;
-      break;
-    }
-    if (pathNode.prev === undefined) break;
-    pathNode = pathNode.prev;
-  }
-
-  if (!rootQueryFieldName) return undefined;
-
-  const selectionNode = info.operation.selectionSet.selections
-    .filter((s): s is FieldNode => s.kind === "Field")
-    .find((s) => s.name.value === rootQueryFieldName);
-  const timestampArgumentNode = selectionNode?.arguments?.find(
-    (a) => a.name.value === "timestamp",
-  );
-
-  if (!timestampArgumentNode) return undefined;
-
-  switch (timestampArgumentNode.value.kind) {
-    case "IntValue":
-      return parseInt(timestampArgumentNode.value.value);
-    case "Variable":
-      // TODO: Handle variables.
-      return undefined;
-    default:
-      return undefined;
-  }
-}
