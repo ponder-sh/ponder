@@ -832,8 +832,8 @@ export class PostgresSyncStore implements SyncStore {
                 )} )`,
             )
             .selectFrom("logs")
-            .leftJoin("blocks", "blocks.hash", "logs.blockHash")
-            .leftJoin(
+            .innerJoin("blocks", "blocks.hash", "logs.blockHash")
+            .innerJoin(
               "transactions",
               "transactions.hash",
               "logs.transactionHash",
