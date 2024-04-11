@@ -542,26 +542,34 @@ async function hasDoneCheckpointMigration(db: Kysely<any>) {
 }
 
 async function setCheckpointsInLogsTable(db: Kysely<any>) {
-  await db.executeQuery(sql`SET enable_seqscan = OFF;`.compile(db));
+  console.log("starting temp table creation");
   await db.executeQuery(
     sql`
-      WITH checkpoint_vals AS (
-        SELECT logs.id, blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex"
-        FROM ponder_sync.logs logs
-        JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
-      )
-      UPDATE ponder_sync.logs
-      SET checkpoint=
-          (lpad(checkpoint_vals.timestamp::text, 10, '0') ||
-          lpad(checkpoint_vals."chainId"::text, 16, '0') ||
-          lpad(checkpoint_vals.number::text, 16, '0') ||
-          lpad(checkpoint_vals."transactionIndex"::text, 16, '0') ||
-          '5' ||
-          lpad(checkpoint_vals."logIndex"::text, 16, '0'))
-      FROM checkpoint_vals
-      WHERE ponder_sync.logs.id = checkpoint_vals.id;
-    `.compile(db),
+      CREATE TEMP TABLE checkpoint_vals AS 
+      SELECT
+        logs.id,
+        (lpad(blocks.timestamp::text, 10, '0') ||
+        lpad(blocks."chainId"::text, 16, '0') ||
+        lpad(blocks.number::text, 16, '0') ||
+        lpad(logs."transactionIndex"::text, 16, '0') ||
+        '5' ||
+        lpad(logs."logIndex"::text, 16, '0')) AS checkpoint
+      FROM ponder_sync.logs logs
+      JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash;
+  `.compile(db),
   );
+  console.log("created temp table, now doing update");
+
+  await db.executeQuery(
+    sql`
+    UPDATE ponder_sync.logs
+    SET checkpoint=checkpoint_vals.checkpoint
+    FROM checkpoint_vals
+    WHERE ponder_sync.logs.id = checkpoint_vals.id
+  `.compile(db),
+  );
+
+  console.log("finished update");
 
   // sanity check our checkpoint encoding on the first 10 rows of the table
   const checkRes = await db.executeQuery<{
