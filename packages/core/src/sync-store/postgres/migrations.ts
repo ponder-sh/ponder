@@ -456,12 +456,16 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
-  "2024_03_20_0_checkpoint_in_logs_table": {
+  "2024_03_20_0_add_checkpoint_column_to_logs_table": {
     async up(db: Kysely<any>) {
       await db.schema
         .alterTable("logs")
         .addColumn("checkpoint", "varchar(75)")
         .execute();
+    },
+  },
+  "2024_03_20_1_set_checkpoint_in_logs_table": {
+    async up(db: Kysely<any>) {
       await db.executeQuery(
         sql`
           WITH checkpoint_vals AS (
@@ -515,7 +519,10 @@ const migrations: Record<string, Migration> = {
           );
         }
       }
-
+    },
+  },
+  "2024_03_20_2_index_on_logs_checkpoint": {
+    async up(db: Kysely<any>) {
       await db.schema
         .createIndex("logs_checkpoint_index")
         .on("logs")
