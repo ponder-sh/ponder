@@ -1,5 +1,5 @@
 ---
-"@ponder/core": minor
+"@ponder/core": patch
 ---
 
-Updated internal checkpoint logic to eliminate costly SQL queries, which led to a 30-50% speed up for a key query.
+Added a `checkpoint` column to the internal `logs` table, which speeds up the internal `getEvents` query by ~6x. Apps with many contracts will see the greatest gains.
