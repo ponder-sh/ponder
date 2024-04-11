@@ -542,6 +542,7 @@ async function hasDoneCheckpointMigration(db: Kysely<any>) {
 }
 
 async function setCheckpointsInLogsTable(db: Kysely<any>) {
+  await db.executeQuery(sql`SET enable_seqscan = OFF;`.compile(db));
   await db.executeQuery(
     sql`
       WITH checkpoint_vals AS (
