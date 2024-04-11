@@ -542,22 +542,8 @@ async function hasDoneCheckpointMigration(db: Kysely<any>) {
 }
 
 async function setCheckpointsInLogsTable(db: Kysely<any>) {
-  // "logs_pkey" PRIMARY KEY, btree (id)
-  // "logAddressIndex" btree (address)
-  // "logBlockHashIndex" btree ("blockHash")
-  // "logBlockNumberIndex" btree ("blockNumber")
-  // "logChainIdIndex" btree ("chainId")
-  // "logTopic0Index" btree (topic0)
-  // "log_transaction_hash_index" btree ("transactionHash")
-
-  await db.schema.dropIndex("logAddressIndex").execute();
-  await db.schema.dropIndex("logBlockHashIndex").execute();
-  await db.schema.dropIndex("logBlockNumberIndex").execute();
-  await db.schema.dropIndex("logChainIdIndex").execute();
-  await db.schema.dropIndex("logTopic0Index").execute();
-  await db.schema.dropIndex("log_transaction_hash_index").execute();
-  console.log("dropped indices");
-
+  const start = Date.now();
+  await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
   await db.executeQuery(
     sql`
       CREATE TEMP TABLE cp_vals AS 
@@ -573,13 +559,12 @@ async function setCheckpointsInLogsTable(db: Kysely<any>) {
       JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash;
   `.compile(db),
   );
-  console.log("created temp table, now making index");
+
   await db.executeQuery(
     sql`
     CREATE INDEX ON cp_vals(id)
   `.compile(db),
   );
-  console.log("created temp table, now doing update");
 
   await db.executeQuery(
     sql`
@@ -590,7 +575,7 @@ async function setCheckpointsInLogsTable(db: Kysely<any>) {
   `.compile(db),
   );
 
-  console.log("finished update");
+  console.log("[MIGRATION_FINISHED]: took", Date.now() - start);
 
   // sanity check our checkpoint encoding on the first 10 rows of the table
   const checkRes = await db.executeQuery<{
@@ -625,38 +610,6 @@ async function setCheckpointsInLogsTable(db: Kysely<any>) {
       );
     }
   }
-  console.log("creating logs table indices again");
-  await db.schema
-    .createIndex("logBlockHashIndex")
-    .on("logs")
-    .column("blockHash")
-    .execute();
-  await db.schema
-    .createIndex("logChainIdIndex")
-    .on("logs")
-    .column("chainId")
-    .execute();
-  await db.schema
-    .createIndex("logAddressIndex")
-    .on("logs")
-    .column("address")
-    .execute();
-  await db.schema
-    .createIndex("logTopic0Index")
-    .on("logs")
-    .column("topic0")
-    .execute();
-  await db.schema
-    .createIndex("log_transaction_hash_index")
-    .on("logs")
-    .column("transactionHash")
-    .execute();
-  await db.schema
-    .createIndex("logBlockNumberIndex")
-    .on("logs")
-    .column("blockNumber")
-    .execute();
-  console.log("created indices");
 }
 
 export async function moveLegacyTables({
