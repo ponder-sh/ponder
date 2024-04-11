@@ -545,7 +545,7 @@ async function setCheckpointsInLogsTable(db: Kysely<any>) {
   console.log("starting temp table creation");
   await db.executeQuery(
     sql`
-      CREATE TEMP TABLE checkpoint_vals AS 
+      CREATE TEMP TABLE cp_vals AS 
       SELECT
         logs.id,
         (lpad(blocks.timestamp::text, 10, '0') ||
@@ -558,14 +558,20 @@ async function setCheckpointsInLogsTable(db: Kysely<any>) {
       JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash;
   `.compile(db),
   );
+  console.log("created temp table, now making index");
+  await db.executeQuery(
+    sql`
+    CREATE INDEX ON cp_vals(id)
+  `.compile(db),
+  );
   console.log("created temp table, now doing update");
 
   await db.executeQuery(
     sql`
     UPDATE ponder_sync.logs
-    SET checkpoint=checkpoint_vals.checkpoint
-    FROM checkpoint_vals
-    WHERE ponder_sync.logs.id = checkpoint_vals.id
+    SET checkpoint=cp_vals.checkpoint
+    FROM cp_vals
+    WHERE ponder_sync.logs.id = cp_vals.id
   `.compile(db),
   );
 
