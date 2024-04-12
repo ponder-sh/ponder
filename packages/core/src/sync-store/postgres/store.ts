@@ -75,28 +75,26 @@ export class PostgresSyncStore implements SyncStore {
           .execute();
 
         if (rpcTransactions.length > 0) {
+          const transactions = rpcTransactions.map((transaction) => ({
+            ...rpcToPostgresTransaction(transaction),
+            chainId,
+          }));
           await tx
             .insertInto("transactions")
-            .values(
-              rpcTransactions.map((transaction) => ({
-                ...rpcToPostgresTransaction(transaction),
-                chainId,
-              })),
-            )
+            .values(transactions)
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
         }
 
         if (rpcLogs.length > 0) {
+          const logs = rpcLogs.map((rpcLog) => ({
+            ...rpcToPostgresLog(rpcLog),
+            chainId,
+            checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+          }));
           await tx
             .insertInto("logs")
-            .values(
-              rpcLogs.map((rpcLog) => ({
-                ...rpcToPostgresLog(rpcLog),
-                chainId,
-                checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
-              })),
-            )
+            .values(logs)
             .onConflict((oc) =>
               oc.column("id").doUpdateSet((eb) => ({
                 checkpoint: eb.ref("excluded.checkpoint"),
@@ -236,11 +234,13 @@ export class PostgresSyncStore implements SyncStore {
       { method: "insertFactoryChildAddressLogs" },
       async () => {
         if (rpcLogs.length > 0) {
+          const logs = rpcLogs.map((rpcLog) => ({
+            ...rpcToPostgresLog(rpcLog),
+            chainId,
+          }));
           await this.db
             .insertInto("logs")
-            .values(
-              rpcLogs.map((log) => ({ ...rpcToPostgresLog(log), chainId })),
-            )
+            .values(logs)
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
         }
@@ -325,28 +325,26 @@ export class PostgresSyncStore implements SyncStore {
             .execute();
 
           if (rpcTransactions.length > 0) {
+            const transactions = rpcTransactions.map((transaction) => ({
+              ...rpcToPostgresTransaction(transaction),
+              chainId,
+            }));
             await tx
               .insertInto("transactions")
-              .values(
-                rpcTransactions.map((transaction) => ({
-                  ...rpcToPostgresTransaction(transaction),
-                  chainId,
-                })),
-              )
+              .values(transactions)
               .onConflict((oc) => oc.column("hash").doNothing())
               .execute();
           }
 
           if (rpcLogs.length > 0) {
+            const logs = rpcLogs.map((rpcLog) => ({
+              ...rpcToPostgresLog(rpcLog),
+              chainId,
+              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            }));
             await tx
               .insertInto("logs")
-              .values(
-                rpcLogs.map((rpcLog) => ({
-                  ...rpcToPostgresLog(rpcLog),
-                  chainId,
-                  checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
-                })),
-              )
+              .values(logs)
               .onConflict((oc) =>
                 oc.column("id").doUpdateSet((eb) => ({
                   checkpoint: eb.ref("excluded.checkpoint"),
@@ -531,28 +529,26 @@ export class PostgresSyncStore implements SyncStore {
           .execute();
 
         if (rpcTransactions.length > 0) {
+          const transactions = rpcTransactions.map((transaction) => ({
+            ...rpcToPostgresTransaction(transaction),
+            chainId,
+          }));
           await tx
             .insertInto("transactions")
-            .values(
-              rpcTransactions.map((transaction) => ({
-                ...rpcToPostgresTransaction(transaction),
-                chainId,
-              })),
-            )
+            .values(transactions)
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
         }
 
         if (rpcLogs.length > 0) {
+          const logs = rpcLogs.map((rpcLog) => ({
+            ...rpcToPostgresLog(rpcLog),
+            chainId,
+            checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+          }));
           await tx
             .insertInto("logs")
-            .values(
-              rpcLogs.map((rpcLog) => ({
-                ...rpcToPostgresLog(rpcLog),
-                chainId,
-                checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
-              })),
-            )
+            .values(logs)
             .onConflict((oc) =>
               oc.column("id").doUpdateSet((eb) => ({
                 checkpoint: eb.ref("excluded.checkpoint"),

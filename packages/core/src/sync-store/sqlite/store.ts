@@ -76,26 +76,26 @@ export class SqliteSyncStore implements SyncStore {
           .execute();
 
         if (rpcTransactions.length > 0) {
-          const values = rpcTransactions.map((rpcTransaction) => ({
+          const transactions = rpcTransactions.map((rpcTransaction) => ({
             ...rpcToSqliteTransaction(rpcTransaction),
             chainId,
           }));
           await tx
             .insertInto("transactions")
-            .values(values)
+            .values(transactions)
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
         }
 
         if (rpcLogs.length > 0) {
-          const values = rpcLogs.map((rpcLog) => ({
+          const logs = rpcLogs.map((rpcLog) => ({
             ...rpcToSqliteLog(rpcLog),
             chainId,
             checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
           }));
           await tx
             .insertInto("logs")
-            .values(values)
+            .values(logs)
             .onConflict((oc) =>
               oc.column("id").doUpdateSet((eb) => ({
                 checkpoint: eb.ref("excluded.checkpoint"),
@@ -238,13 +238,13 @@ export class SqliteSyncStore implements SyncStore {
       { method: "insertFactoryChildAddressLogs" },
       async () => {
         if (rpcLogs.length > 0) {
-          const values = rpcLogs.map((rpcLog) => ({
+          const logs = rpcLogs.map((rpcLog) => ({
             ...rpcToSqliteLog(rpcLog),
             chainId,
           }));
           await this.db
             .insertInto("logs")
-            .values(values)
+            .values(logs)
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
         }
@@ -329,26 +329,26 @@ export class SqliteSyncStore implements SyncStore {
             .execute();
 
           if (rpcTransactions.length > 0) {
-            const values = rpcTransactions.map((rpcTransaction) => ({
+            const transactions = rpcTransactions.map((rpcTransaction) => ({
               ...rpcToSqliteTransaction(rpcTransaction),
               chainId,
             }));
             await tx
               .insertInto("transactions")
-              .values(values)
+              .values(transactions)
               .onConflict((oc) => oc.column("hash").doNothing())
               .execute();
           }
 
           if (rpcLogs.length > 0) {
-            const values = rpcLogs.map((rpcLog) => ({
+            const logs = rpcLogs.map((rpcLog) => ({
               ...rpcToSqliteLog(rpcLog),
               chainId,
               checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
             }));
             await tx
               .insertInto("logs")
-              .values(values)
+              .values(logs)
               .onConflict((oc) =>
                 oc.column("id").doUpdateSet((eb) => ({
                   checkpoint: eb.ref("excluded.checkpoint"),
@@ -510,26 +510,26 @@ export class SqliteSyncStore implements SyncStore {
           .execute();
 
         if (rpcTransactions.length > 0) {
-          const values = rpcTransactions.map((rpcTransaction) => ({
+          const transactions = rpcTransactions.map((rpcTransaction) => ({
             ...rpcToSqliteTransaction(rpcTransaction),
             chainId,
           }));
           await tx
             .insertInto("transactions")
-            .values(values)
+            .values(transactions)
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
         }
 
         if (rpcLogs.length > 0) {
-          const values = rpcLogs.map((rpcLog) => ({
+          const logs = rpcLogs.map((rpcLog) => ({
             ...rpcToSqliteLog(rpcLog),
             chainId,
             checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
           }));
           await tx
             .insertInto("logs")
-            .values(values)
+            .values(logs)
             .onConflict((oc) =>
               oc.column("id").doUpdateSet((eb) => ({
                 checkpoint: eb.ref("excluded.checkpoint"),
