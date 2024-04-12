@@ -368,20 +368,6 @@ const validateAndBuild = async (
     common.logger[log.level]({ service: "build", msg: log.msg });
   }
 
-  // Validate and build the indexing functions
-  const buildIndexingFunctionsResult = safeBuildIndexingFunctions({
-    rawIndexingFunctions: rawBuild.indexingFunctions,
-    sources: buildConfigResult.sources,
-  });
-  if (buildIndexingFunctionsResult.status === "error") {
-    logError({ common }, buildIndexingFunctionsResult.error);
-    return buildIndexingFunctionsResult;
-  }
-
-  for (const warning of buildIndexingFunctionsResult.warnings) {
-    common.logger.warn({ service: "build", msg: warning });
-  }
-
   return {
     status: "success",
     build: {
