@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.1
+
+### Patch Changes
+
+- [#791](https://github.com/ponder-sh/ponder/pull/791) [`c1f93cc5ced3ece9ae46e87f05c1decdb92dba8b`](https://github.com/ponder-sh/ponder/commit/c1f93cc5ced3ece9ae46e87f05c1decdb92dba8b) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where reorgs would occasionally cause the process to exit.
+
 ## 0.4.0
 
 ### Minor Changes
