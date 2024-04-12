@@ -10,7 +10,10 @@ const llamaFactoryEventAbiItem = parseAbiItem(
 );
 
 test("buildLogFilterFragments generates 1 log filter fragment for null filter", () => {
-  const logFilterFragments = buildLogFilterFragments({ chainId: 1 });
+  const logFilterFragments = buildLogFilterFragments({
+    chainId: 1,
+    topics: [null, null, null, null],
+  });
 
   expect(logFilterFragments).toMatchObject([
     {
@@ -28,6 +31,7 @@ test("buildLogFilterFragments generates 1 log filter fragment for simple filter"
   const logFilterFragments = buildLogFilterFragments({
     chainId: 1,
     address: "0xa",
+    topics: [null, null, null, null],
   });
 
   expect(logFilterFragments).toMatchObject([
@@ -102,7 +106,13 @@ test("buildFactoryFragments builds id containing topic", () => {
     parameter: "deployer",
   });
 
-  expect(buildFactoryFragments({ chainId: 1, ...criteria })[0].id).toBe(
+  expect(
+    buildFactoryFragments({
+      chainId: 1,
+      topics: [null, null, null, null],
+      ...criteria,
+    })[0].id,
+  ).toBe(
     "1_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_topic1_null_null_null_null",
   );
 });
@@ -114,7 +124,13 @@ test("buildFactoryFragments builds id containing offset", () => {
     parameter: "llamaPolicy",
   });
 
-  expect(buildFactoryFragments({ chainId: 115511, ...criteria })[0].id).toBe(
+  expect(
+    buildFactoryFragments({
+      chainId: 115511,
+      topics: [null, null, null, null],
+      ...criteria,
+    })[0].id,
+  ).toBe(
     "115511_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null",
   );
 });

@@ -19,7 +19,7 @@ import {
   type IndexingFunctions,
   type RawIndexingFunctions,
   safeBuildConfigAndIndexingFunctions,
-} from "./config/config.js";
+} from "./configAndIndexingFunctions/configAndIndexingFunctions.js";
 import { vitePluginPonder } from "./plugin.js";
 import { safeBuildSchema } from "./schema/schema.js";
 import { parseViteNodeError } from "./stacktrace.js";

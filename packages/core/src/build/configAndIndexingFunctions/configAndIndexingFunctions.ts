@@ -387,7 +387,7 @@ export async function buildConfigAndIndexingFunctions({
 
       // Get indexing function that were registered for this source
       const registeredLogEvents = Object.keys(
-        indexingFunctions[rawContract.contractName],
+        indexingFunctions[rawContract.contractName] ?? {},
       );
 
       // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.

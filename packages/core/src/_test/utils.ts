@@ -1,5 +1,5 @@
 import { type AddressInfo, createServer } from "node:net";
-import { buildConfigAndIndexingFunctions } from "@/build/config/config.js";
+import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";

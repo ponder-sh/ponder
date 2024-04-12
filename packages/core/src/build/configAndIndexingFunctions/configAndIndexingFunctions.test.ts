@@ -6,7 +6,7 @@ import { type Config, createConfig } from "../../config/config.js";
 import {
   buildConfigAndIndexingFunctions,
   safeBuildConfigAndIndexingFunctions,
-} from "./config.js";
+} from "./configAndIndexingFunctions.js";
 
 const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
 const event1 = parseAbiItem("event Event1()");
@@ -44,6 +44,10 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [
+      { name: "a:Event0", fn: () => {} },
+      { name: "a:Event1", fn: () => {} },
+    ],
     options,
   });
 
@@ -58,7 +62,7 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
-      BaseRegistrartImplementation: {
+      a: {
         network: { mainnet: {} },
         abi: [event1, event1Overloaded],
         filter: {
@@ -74,6 +78,10 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [
+      { name: "a:Event1()", fn: () => {} },
+      { name: "a:Event1(bytes32 indexed)", fn: () => {} },
+    ],
     options,
   });
 
@@ -98,6 +106,7 @@ test("buildConfigAndIndexingFunctions() creates a source for each network for mu
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
 
@@ -129,11 +138,12 @@ test("buildConfigAndIndexingFunctions() builds topics for event with args", asyn
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
 
   expect(sources[0].criteria.topics).toMatchObject([
-    getEventSelector(event0),
+    [getEventSelector(event0)],
     bytes1,
   ]);
 });
@@ -161,11 +171,12 @@ test("buildConfigAndIndexingFunctions() builds topics for event with unnamed par
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [{ name: "a:Event1", fn: () => {} }],
     options,
   });
 
   expect(sources[0].criteria.topics).toMatchObject([
-    getEventSelector(event1Overloaded),
+    [getEventSelector(event1Overloaded)],
     [bytes1, bytes2],
   ]);
 });
@@ -194,6 +205,7 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
 
@@ -220,6 +232,7 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
 
@@ -241,7 +254,11 @@ test("buildConfigAndIndexingFunctions() validates network name", async () => {
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
@@ -263,7 +280,11 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(result.status).toBe("success");
   expect(result.logs!.filter((l) => l.level === "warn")).toMatchObject([
@@ -292,7 +313,11 @@ test("buildConfigAndIndexingFunctions() validates against multiple events and in
     },
   }) as any;
 
-  const result = await safeBuildConfigAndIndexingFunctions({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
@@ -317,7 +342,11 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
@@ -345,7 +374,11 @@ test("buildConfigAndIndexingFunctions() validates against specifying both factor
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
@@ -368,7 +401,11 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
     },
   }) as Config;
 
-  const result = await safeBuildConfigAndIndexingFunctions({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [],
+    options,
+  });
 
   expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
@@ -390,7 +427,11 @@ test("buildConfigAndIndexingFunctions() validates address length", async () => {
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
@@ -414,6 +455,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to 0", async () =
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
 
@@ -436,6 +478,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
 
@@ -454,6 +497,7 @@ test("buildConfigAndIndexingFunctions() database uses sqlite by default", async 
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -475,6 +519,7 @@ test("buildConfigAndIndexingFunctions() database uses sqlite if specified even i
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -495,6 +540,7 @@ test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_URL e
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -522,6 +568,7 @@ test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_PRIVA
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -547,7 +594,11 @@ test("buildConfigAndIndexingFunctions() throws for postgres database with no con
   delete process.env.DATABASE_URL;
 
   await expect(() =>
-    buildConfigAndIndexingFunctions({ config, options }),
+    buildConfigAndIndexingFunctions({
+      config,
+      rawIndexingFunctions: [],
+      options,
+    }),
   ).rejects.toThrow(
     "Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.",
   );
@@ -567,6 +618,7 @@ test("buildConfigAndIndexingFunctions() database with postgres uses RAILWAY_DEPL
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -590,7 +642,11 @@ test("buildConfigAndIndexingFunctions() database throws with RAILWAY_DEPLOYMENT_
   vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
 
   await expect(() =>
-    buildConfigAndIndexingFunctions({ config, options }),
+    buildConfigAndIndexingFunctions({
+      config,
+      rawIndexingFunctions: [],
+      options,
+    }),
   ).rejects.toThrow(
     "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
   );
@@ -611,6 +667,7 @@ test("buildConfigAndIndexingFunctions() database with postgres uses publish sche
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -637,6 +694,7 @@ test("buildConfigAndIndexingFunctions() database with postgres uses 'public' as 
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -661,7 +719,11 @@ test("buildConfigAndIndexingFunctions() database with postgres throws if schema 
   vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
 
   await expect(() =>
-    buildConfigAndIndexingFunctions({ config, options }),
+    buildConfigAndIndexingFunctions({
+      config,
+      rawIndexingFunctions: [],
+      options,
+    }),
   ).rejects.toThrow(
     "Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('public').",
   );

@@ -1,8 +1,7 @@
-import type { AbiEvent } from "abitype";
-import { type LogTopic, getEventSelector } from "viem";
-
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
+import type { AbiEvent } from "abitype";
+import { getEventSelector } from "viem";
 import type { FactoryCriteria } from "./sources.js";
 
 export function buildFactoryCriteria({
