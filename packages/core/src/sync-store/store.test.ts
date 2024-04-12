@@ -1,4 +1,4 @@
-import { ALICE, BOB } from "@/_test/constants.js";
+import { ALICE, BOB, zeroHash } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
@@ -10,7 +10,11 @@ import {
   getRawRPCData,
   publicClient,
 } from "@/_test/utils.js";
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type {
+  FactoryCriteria,
+  LogFilterCriteria,
+  Topics,
+} from "@/config/sources.js";
 import {
   EVENT_TYPES,
   maxCheckpoint,
@@ -57,7 +61,7 @@ test("insertLogFilterInterval inserts block, transactions, and logs", async (con
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { address: erc20.address, topics: [null, null, null, null] },
+    logFilter: { address: erc20.address, topics: [zeroHash, null, null, null] },
     ...rpcData.block1,
     interval: {
       startBlock: blockNumber - 3n,
@@ -87,7 +91,7 @@ test("insertLogFilterInterval updates sync db metrics", async (context) => {
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { address: erc20.address, topics: [null, null, null, null] },
+    logFilter: { address: erc20.address, topics: [zeroHash, null, null, null] },
     ...rpcData.block1,
     interval: {
       startBlock: blockNumber - 3n,
@@ -141,7 +145,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { address: erc20.address, topics: [null, null, null, null] },
+    logFilter: { address: erc20.address, topics: [zeroHash, null, null, null] },
     ...rpcData.block1,
     interval: {
       startBlock: hexToBigInt(rpcData.block1.block.number!),
@@ -151,7 +155,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { address: erc20.address, topics: [null, null, null, null] },
+    logFilter: { address: erc20.address, topics: [zeroHash, null, null, null] },
     ...rpcData.block3,
     interval: {
       startBlock: hexToBigInt(rpcData.block3.block.number!),
@@ -161,7 +165,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
 
   let logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { address: erc20.address, topics: [null, null, null, null] },
+    logFilter: { address: erc20.address, topics: [zeroHash, null, null, null] },
   });
 
   expect(logFilterRanges).toMatchObject([
@@ -177,7 +181,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { address: erc20.address, topics: [null, null, null, null] },
+    logFilter: { address: erc20.address, topics: [zeroHash, null, null, null] },
     ...rpcData.block2,
     interval: {
       startBlock: hexToBigInt(rpcData.block2.block.number!),
@@ -187,7 +191,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
 
   logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { address: erc20.address, topics: [null, null, null, null] },
+    logFilter: { address: erc20.address, topics: [zeroHash, null, null, null] },
   });
 
   expect(logFilterRanges).toMatchObject([
@@ -207,7 +211,10 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
   await Promise.all([
     syncStore.insertLogFilterInterval({
       chainId: 1,
-      logFilter: { address: erc20.address, topics: [null, null, null, null] },
+      logFilter: {
+        address: erc20.address,
+        topics: [zeroHash, null, null, null],
+      },
       ...rpcData.block1,
       interval: {
         startBlock: hexToBigInt(rpcData.block1.block.number!),
@@ -216,7 +223,10 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
     }),
     syncStore.insertLogFilterInterval({
       chainId: 1,
-      logFilter: { address: erc20.address, topics: [null, null, null, null] },
+      logFilter: {
+        address: erc20.address,
+        topics: [zeroHash, null, null, null],
+      },
       ...rpcData.block2,
       interval: {
         startBlock: hexToBigInt(rpcData.block2.block.number!),
@@ -225,7 +235,10 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
     }),
     syncStore.insertLogFilterInterval({
       chainId: 1,
-      logFilter: { address: erc20.address, topics: [null, null, null, null] },
+      logFilter: {
+        address: erc20.address,
+        topics: [zeroHash, null, null, null],
+      },
       ...rpcData.block3,
       interval: {
         startBlock: hexToBigInt(rpcData.block3.block.number!),
@@ -236,7 +249,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
 
   const logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { address: erc20.address, topics: [null, null, null, null] },
+    logFilter: { address: erc20.address, topics: [zeroHash, null, null, null] },
   });
 
   expect(logFilterRanges).toMatchObject([
@@ -296,14 +309,14 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { topics: [null, null, null, null] },
+    logFilter: { topics: [zeroHash, null, null, null] },
     ...rpcData.block1,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { topics: [null, ["0xc", "0xd"], null, null] },
+    logFilter: { topics: [zeroHash, ["0xc", "0xd"], null, null] },
     ...rpcData.block1,
     interval: { startBlock: 150n, endBlock: 250n },
   });
@@ -311,14 +324,14 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
   // Broad criteria only includes broad intervals.
   let logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { topics: [null, null, null, null] },
+    logFilter: { topics: [zeroHash, null, null, null] },
   });
   expect(logFilterIntervals).toMatchObject([[0, 100]]);
 
   // Narrower criteria includes both broad and specific intervals.
   logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { topics: [null, "0xc", null, null] },
+    logFilter: { topics: [zeroHash, "0xc", null, null] },
   });
   expect(logFilterIntervals).toMatchObject([
     [0, 100],
@@ -397,7 +410,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies FactoryCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
@@ -466,7 +479,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "offset32",
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies FactoryCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
@@ -519,7 +532,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies FactoryCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
@@ -583,7 +596,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies FactoryCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
@@ -655,7 +668,7 @@ test("getFactoryChildAddresses does not yield empty list", async (context) => {
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies FactoryCriteria;
 
   const iterator = syncStore.getFactoryChildAddresses({
@@ -683,7 +696,7 @@ test("insertFactoryLogFilterInterval inserts block, transactions, and logs", asy
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies FactoryCriteria;
 
   await syncStore.insertFactoryLogFilterInterval({
@@ -717,7 +730,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies FactoryCriteria;
 
   await syncStore.insertFactoryLogFilterInterval({
@@ -770,7 +783,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
-    topics: [null, null, null, null],
+    topics: [] as unknown as Topics,
   } satisfies FactoryCriteria;
 
   await syncStore.insertFactoryLogFilterInterval({
@@ -834,21 +847,21 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
 
   const logFilterCriteria = {
     address: erc20.address,
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies LogFilterCriteria;
 
   const factoryCriteriaOne = {
     address: "0xparent",
     eventSelector: "0xa",
     childAddressLocation: "topic1",
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies FactoryCriteria;
 
   const factoryCriteriaTwo = {
     address: "0xparent",
     eventSelector: "0xa",
     childAddressLocation: "offset64",
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies FactoryCriteria;
 
   await syncStore.insertRealtimeInterval({
@@ -908,7 +921,7 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async (context)
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { address: erc20.address, topics: [null, null, null, null] },
+    logFilter: { address: erc20.address, topics: [zeroHash, null, null, null] },
     ...rpcData.block1,
     interval: {
       startBlock: hexToBigInt(rpcData.block1.block.number!),
@@ -918,7 +931,7 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async (context)
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { address: erc20.address, topics: [null, null, null, null] },
+    logFilter: { address: erc20.address, topics: [zeroHash, null, null, null] },
     ...rpcData.block2,
     interval: {
       startBlock: hexToBigInt(rpcData.block2.block.number!),
@@ -964,14 +977,14 @@ test("deleteRealtimeData updates interval data", async (context) => {
 
   const logFilterCriteria = {
     address: erc20.address,
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies LogFilterCriteria;
 
   const factoryCriteria = {
     address: "0xparent",
     eventSelector: "0xa",
     childAddressLocation: "topic1",
-    topics: [null, null, null, null],
+    topics: [zeroHash, null, null, null],
   } satisfies FactoryCriteria;
 
   await syncStore.insertLogFilterInterval({
@@ -1223,7 +1236,7 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
         ...sources[0],
         criteria: {
           address: [erc20.address, factory.pair],
-          topics: [],
+          topics: [] as unknown as Topics,
         },
       },
     ],

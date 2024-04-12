@@ -1,8 +1,7 @@
+import { buildFactoryCriteria } from "@/config/factories.js";
+import type { Topics } from "@/config/sources.js";
 import { parseAbiItem } from "viem";
 import { expect, test } from "vitest";
-
-import { buildFactoryCriteria } from "@/config/factories.js";
-
 import { buildFactoryFragments, buildLogFilterFragments } from "./fragments.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
@@ -12,7 +11,7 @@ const llamaFactoryEventAbiItem = parseAbiItem(
 test("buildLogFilterFragments generates 1 log filter fragment for null filter", () => {
   const logFilterFragments = buildLogFilterFragments({
     chainId: 1,
-    topics: [null, null, null, null],
+    topics: [null, null, null, null] as unknown as Topics,
   });
 
   expect(logFilterFragments).toMatchObject([
@@ -31,7 +30,7 @@ test("buildLogFilterFragments generates 1 log filter fragment for simple filter"
   const logFilterFragments = buildLogFilterFragments({
     chainId: 1,
     address: "0xa",
-    topics: [null, null, null, null],
+    topics: [null, null, null, null] as unknown as Topics,
   });
 
   expect(logFilterFragments).toMatchObject([
@@ -109,7 +108,7 @@ test("buildFactoryFragments builds id containing topic", () => {
   expect(
     buildFactoryFragments({
       chainId: 1,
-      topics: [null, null, null, null],
+      topics: [null, null, null, null] as unknown as Topics,
       ...criteria,
     })[0].id,
   ).toBe(
@@ -127,7 +126,7 @@ test("buildFactoryFragments builds id containing offset", () => {
   expect(
     buildFactoryFragments({
       chainId: 115511,
-      topics: [null, null, null, null],
+      topics: [null, null, null, null] as unknown as Topics,
       ...criteria,
     })[0].id,
   ).toBe(

@@ -4,6 +4,7 @@ import {
   type LogFilter,
   type LogFilterCriteria,
   type Source,
+  type Topics,
   sourceIsFactory,
   sourceIsLogFilter,
 } from "@/config/sources.js";
@@ -556,7 +557,7 @@ export class SqliteSyncStore implements SyncStore {
             ...logFilters,
             ...factories.map((f) => ({
               address: f.address,
-              topics: [f.eventSelector],
+              topics: [f.eventSelector] satisfies Topics,
             })),
           ],
           interval,

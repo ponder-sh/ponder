@@ -7,7 +7,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { drainAsyncGenerator } from "@/_test/utils.js";
-import type { LogFilterCriteria } from "@/config/sources.js";
+import type { LogFilterCriteria, Topics } from "@/config/sources.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import { type RpcBlock, type RpcLog, type RpcTransaction } from "viem";
@@ -39,7 +39,7 @@ type GenBlockOptions = {
   logsPerTx: number;
   txPerBlock: number;
   addr: `0x${string}`;
-  topics: [`0x${string}`, ...`0x${string}`[]] | [];
+  topics: Topics;
 };
 
 /**
@@ -72,7 +72,7 @@ const generateBlock = (
         data: randomBlob(2048),
         logIndex: `0x${logIdx.toString(16)}`,
         removed: false,
-        topics: opts.topics,
+        topics: opts.topics as RpcLog["topics"],
         transactionHash,
         transactionIndex: `0x${txIdx.toString(16)}`,
       };

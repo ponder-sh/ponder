@@ -1,5 +1,6 @@
+import type { Topics } from "@/config/sources.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { type Address, type Hex, type LogTopic } from "viem";
+import { type Address, type Hex } from "viem";
 import type { RealtimeLog } from "./format.js";
 
 export function filterLogs({
@@ -9,7 +10,7 @@ export function filterLogs({
   logs: RealtimeLog[];
   logFilters: {
     address?: Address | Address[];
-    topics?: LogTopic[];
+    topics?: Topics;
   }[];
 }) {
   return logs.filter((log) => {
@@ -30,7 +31,7 @@ export function isLogMatchedByFilter({
     topics: Hex[];
   };
   address?: Address | Address[];
-  topics?: LogTopic[];
+  topics?: Topics;
 }) {
   const logAddress = toLowerCase(log.address);
 
