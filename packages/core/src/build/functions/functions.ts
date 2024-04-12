@@ -1,6 +1,7 @@
 export type RawIndexingFunctions = {
-  [fileName: string]: { name: string; fn: (...args: any) => any }[];
-};
+  name: string;
+  fn: (...args: any) => any;
+}[];
 
 export type IndexingFunctions = {
   [sourceName: string]: {
@@ -16,27 +17,25 @@ export function buildIndexingFunctions({
   let indexingFunctionCount = 0;
   const indexingFunctions: IndexingFunctions = {};
 
-  for (const fileFns of Object.values(rawIndexingFunctions)) {
-    for (const { name: eventKey, fn } of fileFns) {
-      const eventNameComponents = eventKey.split(":");
-      const [sourceName, eventName] = eventNameComponents;
-      if (eventNameComponents.length !== 2 || !sourceName || !eventName) {
-        throw new Error(
-          `Validation failed: Invalid event '${eventKey}', expected format '{contractName}:{eventName}'.`,
-        );
-      }
-
-      indexingFunctions[sourceName] ||= {};
-
-      if (eventName in indexingFunctions[sourceName]) {
-        throw new Error(
-          `Validation failed: Multiple indexing functions registered for event '${eventKey}'.`,
-        );
-      }
-
-      indexingFunctions[sourceName][eventName] = fn;
-      indexingFunctionCount += 1;
+  for (const { name: eventKey, fn } of rawIndexingFunctions) {
+    const eventNameComponents = eventKey.split(":");
+    const [sourceName, eventName] = eventNameComponents;
+    if (eventNameComponents.length !== 2 || !sourceName || !eventName) {
+      throw new Error(
+        `Validation failed: Invalid event '${eventKey}', expected format '{contractName}:{eventName}'.`,
+      );
     }
+
+    indexingFunctions[sourceName] ||= {};
+
+    if (eventName in indexingFunctions[sourceName]) {
+      throw new Error(
+        `Validation failed: Multiple indexing functions registered for event '${eventKey}'.`,
+      );
+    }
+
+    indexingFunctions[sourceName][eventName] = fn;
+    indexingFunctionCount += 1;
   }
 
   if (indexingFunctionCount === 0) {
@@ -52,9 +51,13 @@ export function safeBuildIndexingFunctions({
   try {
     const result = buildIndexingFunctions({ rawIndexingFunctions });
 
-    return { success: true, data: result } as const;
+    return {
+      status: "success",
+      indexingFunctions: result.indexingFunctions,
+      warnings: result.warnings,
+    } as const;
   } catch (error_) {
     const error = error_ as Error;
-    return { success: false, error } as const;
+    return { status: "error", error } as const;
   }
 }

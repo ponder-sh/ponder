@@ -454,10 +454,16 @@ export async function safeBuildConfig({
   try {
     const result = await buildConfig({ config, options });
 
-    return { success: true, data: result } as const;
+    return {
+      status: "success",
+      sources: result.sources,
+      networks: result.networks,
+      databaseConfig: result.databaseConfig,
+      logs: result.logs,
+    } as const;
   } catch (error_) {
     const error = error_ as Error;
-    return { success: false, error } as const;
+    return { status: "error", error } as const;
   }
 }
 

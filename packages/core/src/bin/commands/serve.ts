@@ -1,5 +1,9 @@
 import path from "node:path";
-import { BuildService } from "@/build/service.js";
+import {
+  createBuildService,
+  killBuildService,
+  startBuildService,
+} from "@/build/service.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
@@ -38,8 +42,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = new TelemetryService({ options });
   const common = { options, logger, metrics, telemetry };
 
-  const buildService = new BuildService({ common });
-  await buildService.setup({ watch: false });
+  const buildService = await createBuildService({ common });
 
   let cleanupReloadable = () => Promise.resolve();
 
@@ -50,11 +53,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const initialResult = await buildService.initialLoad();
+  const initialResult = await startBuildService(buildService, { watch: false });
   // Once we have the initial build, we can kill the build service.
-  await buildService.kill();
+  await killBuildService(buildService);
 
-  if (!initialResult.success) {
+  if (initialResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }

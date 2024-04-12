@@ -219,7 +219,7 @@ test("buildConfig() validates network name", async () => {
 
   const result = await safeBuildConfig({ config, options });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid network for contract 'a'. Got 'mainnetz', expected one of ['mainnet'].",
   );
@@ -241,8 +241,8 @@ test("buildConfig() warns for public RPC URL", async () => {
 
   const result = await safeBuildConfig({ config, options });
 
-  expect(result.success).toBe(true);
-  expect(result.data?.logs.filter((l) => l.level === "warn")).toMatchObject([
+  expect(result.status).toBe("success");
+  expect(result.logs!.filter((l) => l.level === "warn")).toMatchObject([
     {
       level: "warn",
       msg: "Network 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
@@ -270,7 +270,7 @@ test("buildConfig() validates against multiple events and indexed argument value
 
   const result = await safeBuildConfig({ config, options });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Event filter for contract 'a' cannot contain indexed argument values if multiple events are provided.",
   );
@@ -295,7 +295,7 @@ test("buildConfig() validates event filter event name must be present in ABI", a
 
   const result = await safeBuildConfig({ config, options });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid filter for contract 'a'. Got event name 'Event2', expected one of ['Event0'].",
   );
@@ -323,7 +323,7 @@ test("buildConfig() validates against specifying both factory and address", asyn
 
   const result = await safeBuildConfig({ config, options });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Contract 'a' cannot specify both 'factory' and 'address' options.",
   );
@@ -346,7 +346,7 @@ test("buildConfig() validates address prefix", async () => {
 
   const result = await safeBuildConfig({ config, options });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid prefix for address '0b0000000000000000000000000000000000000001'. Got '0b', expected '0x'.",
   );
@@ -368,7 +368,7 @@ test("buildConfig() validates address length", async () => {
 
   const result = await safeBuildConfig({ config, options });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid length for address '0x000000000001'. Got 14, expected 42 characters.",
   );

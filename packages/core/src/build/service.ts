@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 import path from "node:path";
-import { safeBuildSchema } from "@/build/schema/schema.js";
 import type { Common } from "@/common/common.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
@@ -8,9 +7,8 @@ import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
 import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
-import { Emittery } from "@/utils/emittery.js";
 import { glob } from "glob";
-import { GraphQLSchema } from "graphql";
+import type { GraphQLSchema } from "graphql";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -24,8 +22,19 @@ import {
   safeBuildIndexingFunctions,
 } from "./functions/functions.js";
 import { vitePluginPonder } from "./plugin.js";
-import type { ViteNodeError } from "./stacktrace.js";
+import { safeBuildSchema } from "./schema/schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
+
+export type BuildService = {
+  // static
+  common: Common;
+  indexingFunctionRegex: RegExp;
+
+  // vite
+  viteDevServer: ViteDevServer;
+  viteNodeServer: ViteNodeServer;
+  viteNodeRunner: ViteNodeRunner;
+};
 
 export type Build = {
   // Build ID for caching
@@ -42,105 +51,134 @@ export type Build = {
 };
 
 export type BuildResult =
-  | { success: true; build: Build }
-  | { success: false; error: Error };
+  | { status: "success"; build: Build }
+  | { status: "error"; error: Error };
 
-type BuildServiceEvents = {
-  rebuild: BuildResult;
+type RawBuild = {
+  config: Config;
+  schema: Schema;
+  indexingFunctions: RawIndexingFunctions;
 };
 
-export class BuildService extends Emittery<BuildServiceEvents> {
-  private common: Common;
-  private indexingFunctionRegex: RegExp;
+export const createBuildService = async ({
+  common,
+}: {
+  common: Common;
+}): Promise<BuildService> => {
+  const indexingFunctionRegex = new RegExp(
+    `^${common.options.srcDir.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&",
+    )}/.*\\.(js|ts)$`,
+  );
 
-  private viteDevServer: ViteDevServer = undefined!;
-  private viteNodeServer: ViteNodeServer = undefined!;
-  private viteNodeRunner: ViteNodeRunner = undefined!;
+  const viteLogger = {
+    warnedMessages: new Set<string>(),
+    loggedErrors: new WeakSet<Error>(),
+    hasWarned: false,
+    clearScreen() {},
+    hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
+    info: (msg: string) => {
+      common.logger.trace({ service: "build(vite)", msg });
+    },
+    warn: (msg: string) => {
+      viteLogger.hasWarned = true;
+      common.logger.trace({ service: "build(vite)", msg });
+    },
+    warnOnce: (msg: string) => {
+      if (viteLogger.warnedMessages.has(msg)) return;
+      viteLogger.hasWarned = true;
+      common.logger.trace({ service: "build(vite)", msg });
+      viteLogger.warnedMessages.add(msg);
+    },
+    error: (msg: string) => {
+      viteLogger.hasWarned = true;
+      common.logger.trace({ service: "build(vite)", msg });
+    },
+  };
 
-  private rawIndexingFunctions: RawIndexingFunctions = {};
+  const viteDevServer = await createServer({
+    root: common.options.rootDir,
+    cacheDir: path.join(common.options.ponderDir, "vite"),
+    publicDir: false,
+    customLogger: viteLogger,
+    server: { hmr: false },
+    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
+  });
 
-  // Maintain the latest version of built user code to support validation.
-  // Note that `networks` and `schema` are not currently needed for validation.
-  private databaseConfig?: DatabaseConfig;
-  private networks?: Network[];
-  private sources?: Source[];
-  private schema?: Schema;
-  private graphqlSchema?: GraphQLSchema;
-  private indexingFunctions?: IndexingFunctions;
+  // This is Vite boilerplate (initializes the Rollup container).
+  await viteDevServer.pluginContainer.buildStart({});
 
-  constructor({ common }: { common: Common }) {
-    super();
-    this.common = common;
-    this.indexingFunctionRegex = new RegExp(
-      `^${this.common.options.srcDir.replace(
-        /[.*+?^${}()|[\]\\]/g,
-        "\\$&",
-      )}/.*\\.(js|ts)$`,
-    );
+  const viteNodeServer = new ViteNodeServer(viteDevServer);
+  installSourcemapsSupport({
+    getSourceMap: (source) => viteNodeServer.getSourceMap(source),
+  });
+
+  const viteNodeRunner = new ViteNodeRunner({
+    root: viteDevServer.config.root,
+    fetchModule: (id) => viteNodeServer.fetchModule(id, "ssr"),
+    resolveId: (id, importer) => viteNodeServer.resolveId(id, importer, "ssr"),
+  });
+
+  return {
+    common,
+    indexingFunctionRegex,
+    viteDevServer,
+    viteNodeServer,
+    viteNodeRunner,
+  };
+};
+
+/**
+ * ...
+ */
+export const startBuildService = async (
+  buildService: BuildService,
+  {
+    watch,
+    onBuild,
+  }:
+    | { watch: true; onBuild: (buildResult: BuildResult) => void }
+    | { watch: false; onBuild?: never },
+): Promise<BuildResult> => {
+  const { common } = buildService;
+
+  const [
+    executeConfigResult,
+    executeSchemaResult,
+    executeIndexingFunctionsResult,
+  ] = await Promise.all([
+    executeConfig(buildService),
+    executeSchema(buildService),
+    executeIndexingFunctions(buildService),
+  ]);
+
+  if (executeConfigResult.status === "error") {
+    return { status: "error", error: executeConfigResult.error };
+  }
+  if (executeSchemaResult.status === "error") {
+    return { status: "error", error: executeSchemaResult.error };
+  }
+  if (executeIndexingFunctionsResult.status === "error") {
+    return { status: "error", error: executeIndexingFunctionsResult.error };
   }
 
-  async setup({ watch }: { watch: boolean }) {
-    const viteLogger = {
-      warnedMessages: new Set<string>(),
-      loggedErrors: new WeakSet<Error>(),
-      hasWarned: false,
-      clearScreen() {},
-      hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
-      info: (msg: string) => {
-        this.common.logger.trace({ service: "build(vite)", msg });
-      },
-      warn: (msg: string) => {
-        viteLogger.hasWarned = true;
-        this.common.logger.trace({ service: "build(vite)", msg });
-      },
-      warnOnce: (msg: string) => {
-        if (viteLogger.warnedMessages.has(msg)) return;
-        viteLogger.hasWarned = true;
-        this.common.logger.trace({ service: "build(vite)", msg });
-        viteLogger.warnedMessages.add(msg);
-      },
-      error: (msg: string) => {
-        viteLogger.hasWarned = true;
-        this.common.logger.trace({ service: "build(vite)", msg });
-      },
-    };
+  const rawBuild: RawBuild = {
+    config: executeConfigResult.config,
+    schema: executeSchemaResult.schema,
+    indexingFunctions: executeIndexingFunctionsResult.indexingFunctions,
+  };
 
-    this.viteDevServer = await createServer({
-      root: this.common.options.rootDir,
-      cacheDir: path.join(this.common.options.ponderDir, "vite"),
-      publicDir: false,
-      customLogger: viteLogger,
-      server: { hmr: false },
-      plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
-    });
+  const buildResult = await validateAndBuild(buildService, rawBuild);
 
-    // This is Vite boilerplate (initializes the Rollup container).
-    await this.viteDevServer.pluginContainer.buildStart({});
-
-    this.viteNodeServer = new ViteNodeServer(this.viteDevServer);
-    installSourcemapsSupport({
-      getSourceMap: (source) => this.viteNodeServer.getSourceMap(source),
-    });
-
-    this.viteNodeRunner = new ViteNodeRunner({
-      root: this.viteDevServer.config.root,
-      fetchModule: (id) => this.viteNodeServer.fetchModule(id, "ssr"),
-      resolveId: (id, importer) =>
-        this.viteNodeServer.resolveId(id, importer, "ssr"),
-    });
-
-    // If watch is false (`ponder start` or `ponder serve`),
-    // don't register  any event handlers on the watcher.
-    if (watch === false) return;
-
+  // If watch is false (`ponder start` or `ponder serve`),
+  // don't register  any event handlers on the watcher.
+  if (watch) {
     // Define the directories and files to ignore
-    const ignoredDirs = [
-      this.common.options.generatedDir,
-      this.common.options.ponderDir,
-    ];
+    const ignoredDirs = [common.options.generatedDir, common.options.ponderDir];
     const ignoredFiles = [
-      path.join(this.common.options.rootDir, "ponder-env.d.ts"),
-      path.join(this.common.options.rootDir, ".env.local"),
+      path.join(common.options.rootDir, "ponder-env.d.ts"),
+      path.join(common.options.rootDir, ".env.local"),
     ];
 
     const isFileIgnored = (filePath: string) => {
@@ -153,339 +191,233 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return isInIgnoredDir || isIgnoredFile;
     };
 
-    const onFileChange = async (files_: string[]) => {
-      const files = files_
-        .filter((file) => !isFileIgnored(file))
-        .map(
-          (file) =>
-            toFilePath(normalizeModuleId(file), this.common.options.rootDir)
-              .path,
-        );
+    const onFileChange = async (_file: string) => {
+      if (isFileIgnored(_file)) return;
+
+      const file = toFilePath(
+        normalizeModuleId(_file),
+        common.options.rootDir,
+      ).path;
 
       // Invalidate all modules that depend on the updated files.
       const invalidated = [
-        ...this.viteNodeRunner.moduleCache.invalidateDepTree(files),
+        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree([file]),
       ];
 
       // If no files were invalidated, no need to reload.
       if (invalidated.length === 0) return;
 
-      this.common.logger.info({
+      common.logger.info({
         service: "build",
         msg: `Hot reload ${invalidated
-          .map((f) => `'${path.relative(this.common.options.rootDir, f)}'`)
+          .map((f) => `'${path.relative(common.options.rootDir, f)}'`)
           .join(", ")}`,
       });
 
-      if (invalidated.includes(this.common.options.configFile)) {
-        const configResult = await this.loadConfig();
-        const validationResult = this.validate();
-
-        const error = configResult.error ?? validationResult.error;
-
-        if (error) {
-          this.common.logger.error({ service: "build", error });
-          this.emit("rebuild", { success: false, error });
+      if (invalidated.includes(common.options.configFile)) {
+        const executeConfigResult = await executeConfig(buildService);
+        if (executeConfigResult.status === "error") {
+          onBuild({ status: "error", error: executeConfigResult.error });
           return;
         }
+        rawBuild.config = executeConfigResult.config;
       }
 
-      if (invalidated.includes(this.common.options.schemaFile)) {
-        const schemaResult = await this.loadSchema();
-        const validationResult = this.validate();
-
-        const error = schemaResult.error ?? validationResult.error;
-
-        if (error) {
-          this.common.logger.error({ service: "build", error });
-          this.emit("rebuild", { success: false, error });
+      if (invalidated.includes(common.options.schemaFile)) {
+        const executeSchemaResult = await executeSchema(buildService);
+        if (executeSchemaResult.status === "error") {
+          onBuild({ status: "error", error: executeSchemaResult.error });
           return;
         }
+        rawBuild.schema = executeSchemaResult.schema;
       }
 
-      const indexingFunctionFiles = invalidated.filter((file) =>
-        this.indexingFunctionRegex.test(file),
+      const hasIndexingFunctionUpdate = invalidated.some((file) =>
+        buildService.indexingFunctionRegex.test(file),
       );
-      if (indexingFunctionFiles.length > 0) {
-        const indexingFunctionsResult = await this.loadIndexingFunctions({
-          files: indexingFunctionFiles,
-        });
-        const validationResult = this.validate();
-
-        const error = indexingFunctionsResult.error ?? validationResult.error;
-
-        if (error) {
-          this.common.logger.error({ service: "build", error });
-          this.emit("rebuild", { success: false, error });
+      if (hasIndexingFunctionUpdate) {
+        const executeIndexingFunctionsResult =
+          await executeIndexingFunctions(buildService);
+        if (executeIndexingFunctionsResult.status === "error") {
+          onBuild({
+            status: "error",
+            error: executeIndexingFunctionsResult.error,
+          });
           return;
         }
+        rawBuild.indexingFunctions =
+          executeIndexingFunctionsResult.indexingFunctions;
       }
 
-      this.emit("rebuild", {
-        success: true,
-        build: {
-          buildId: randomBytes(5).toString("hex"),
-          databaseConfig: this.databaseConfig!,
-          sources: this.sources!,
-          networks: this.networks!,
-          schema: this.schema!,
-          graphqlSchema: this.graphqlSchema!,
-          indexingFunctions: this.indexingFunctions!,
-        },
-      });
+      const buildResult = await validateAndBuild(buildService, rawBuild);
+      onBuild(buildResult);
     };
 
-    this.viteDevServer.watcher.on("change", async (file) => {
-      await onFileChange([file]);
-    });
+    buildService.viteDevServer.watcher.on("change", onFileChange);
   }
 
-  async kill() {
-    this.cancelMutexes();
-    await this.viteDevServer?.close();
-    this.common.logger.debug({
-      service: "build",
-      msg: "Killed build service",
-    });
+  return buildResult;
+};
+
+export const killBuildService = async (
+  buildService: BuildService,
+): Promise<void> => {
+  await buildService.viteDevServer?.close();
+  buildService.common.logger.debug({
+    service: "build",
+    msg: "Killed build service",
+  });
+};
+
+const executeConfig = async (
+  buildService: BuildService,
+): Promise<
+  { status: "success"; config: Config } | { status: "error"; error: Error }
+> => {
+  const executeResult = await executeFile(buildService, {
+    file: buildService.common.options.configFile,
+  });
+
+  if (executeResult.status === "error") {
+    logError(buildService, executeResult.error);
+    return executeResult;
   }
 
-  async initialLoad() {
-    const logAndReturnError = (error: Error) => {
-      this.common.logger.error({
-        service: "build",
-        msg: "Failed initial build with error:",
-        error,
-      });
-      return { success: false, error } as const;
-    };
+  const config = executeResult.exports.default as Config;
 
-    const configResult = await this.loadConfig();
-    if (!configResult.success) return logAndReturnError(configResult.error);
+  return { status: "success", config } as const;
+};
 
-    const schemaResult = await this.loadSchema();
-    if (!schemaResult.success) return logAndReturnError(schemaResult.error);
+const executeSchema = async (
+  buildService: BuildService,
+): Promise<
+  { status: "success"; schema: Schema } | { status: "error"; error: Error }
+> => {
+  const executeResult = await executeFile(buildService, {
+    file: buildService.common.options.schemaFile,
+  });
 
-    const files = glob.sync(
-      path.join(this.common.options.srcDir, "**/*.{js,mjs,ts,mts}"),
-    );
-    const indexingFunctionsResult = await this.loadIndexingFunctions({ files });
-    if (!indexingFunctionsResult.success)
-      return logAndReturnError(indexingFunctionsResult.error);
-
-    const validationResult = this.validate();
-    if (validationResult.error)
-      return logAndReturnError(validationResult.error);
-
-    const { databaseConfig, sources, networks } = configResult;
-    const { schema, graphqlSchema } = schemaResult;
-    const { indexingFunctions } = indexingFunctionsResult;
-
-    return {
-      success: true,
-      build: {
-        buildId: randomBytes(5).toString("hex"),
-        databaseConfig,
-        networks,
-        sources,
-        schema,
-        graphqlSchema,
-        indexingFunctions,
-      },
-    } satisfies BuildResult;
+  if (executeResult.status === "error") {
+    logError(buildService, executeResult.error);
+    return executeResult;
   }
 
-  async loadConfig() {
-    const loadResult = await this.executeFile(this.common.options.configFile);
-    if (!loadResult.success) {
-      return { success: false, error: loadResult.error } as const;
+  const schema = executeResult.exports.default as Schema;
+
+  return { status: "success", schema };
+};
+
+const executeIndexingFunctions = async (
+  buildService: BuildService,
+): Promise<
+  | { status: "success"; indexingFunctions: RawIndexingFunctions }
+  | { status: "error"; error: Error }
+> => {
+  const files = glob.sync(
+    path.join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}"),
+  );
+
+  const executeResults = await Promise.all(
+    files.map((file) => executeFile(buildService, { file })),
+  );
+
+  const indexingFunctions: RawIndexingFunctions = [];
+
+  for (const executeResult of executeResults) {
+    if (executeResult.status === "error") {
+      logError(buildService, executeResult.error);
+      return executeResult;
     }
 
-    const rawConfig = loadResult.exports.default as Config;
-    const buildResult = await safeBuildConfig({
-      config: rawConfig,
-      options: this.common.options,
-    });
-
-    if (buildResult.error) {
-      return { success: false, error: buildResult.error } as const;
-    }
-
-    for (const log of buildResult.data.logs) {
-      this.common.logger[log.level]({ service: "build", msg: log.msg });
-    }
-
-    const { databaseConfig, sources, networks } = buildResult.data;
-    this.databaseConfig = databaseConfig;
-    this.networks = networks;
-    this.sources = sources;
-
-    return { success: true, databaseConfig, sources, networks } as const;
+    indexingFunctions.push(executeResult.exports?.ponder?.fns ?? []);
   }
 
-  async loadSchema() {
-    const loadResult = await this.executeFile(this.common.options.schemaFile);
-    if (loadResult.error) {
-      return { success: false, error: loadResult.error } as const;
-    }
+  return { status: "success", indexingFunctions };
+};
 
-    const rawSchema = loadResult.exports.default as Schema;
-
-    const buildResult = safeBuildSchema({ schema: rawSchema });
-    if (buildResult.error) {
-      return { success: false, error: buildResult.error } as const;
-    }
-
-    const schema = buildResult.data.schema;
-    this.schema = schema;
-
-    // TODO: Probably move this elsewhere. Also, handle errors.
-    const graphqlSchema = buildGraphqlSchema(buildResult.data.schema);
-    this.graphqlSchema = graphqlSchema;
-
-    return { success: true, schema, graphqlSchema } as const;
+const validateAndBuild = async (
+  { common }: Pick<BuildService, "common">,
+  rawBuild: RawBuild,
+): Promise<BuildResult> => {
+  // Validate and build the schema
+  const buildSchemaResult = safeBuildSchema({
+    schema: rawBuild.schema,
+  });
+  if (buildSchemaResult.status === "error") {
+    logError({ common }, buildSchemaResult.error);
+    return buildSchemaResult;
   }
 
-  async loadIndexingFunctions({ files }: { files: string[] }) {
-    const rawLoadResults = await Promise.all(
-      files.map((file) => this.executeFile(file)),
-    );
-    const loadResultErrors = rawLoadResults.filter(
-      (r): r is { success: false; error: ViteNodeError } => !r.success,
-    );
-    const loadResults = rawLoadResults.filter(
-      (r): r is { success: true; file: string; exports: any } => r.success,
-    );
+  const graphqlSchema = buildGraphqlSchema(buildSchemaResult.schema);
 
-    if (loadResultErrors.length > 0) {
-      return { success: false, error: loadResultErrors[0].error } as const;
-    }
-
-    for (const result of loadResults) {
-      const { file, exports } = result;
-      const fns = (exports?.ponder?.fns ?? []) as { name: string; fn: any }[];
-      (this.rawIndexingFunctions || {})[file] = fns;
-    }
-
-    const buildResult = safeBuildIndexingFunctions({
-      rawIndexingFunctions: this.rawIndexingFunctions,
-    });
-    if (!buildResult.success) {
-      return { success: false, error: buildResult.error } as const;
-    }
-
-    for (const warning of buildResult.data.warnings) {
-      this.common.logger.warn({ service: "build", msg: warning });
-    }
-
-    const indexingFunctions = buildResult.data.indexingFunctions;
-    this.indexingFunctions = indexingFunctions;
-
-    return { success: true, indexingFunctions } as const;
+  // Validate and build the indexing functions
+  const buildIndexingFunctionsResult = safeBuildIndexingFunctions({
+    rawIndexingFunctions: rawBuild.indexingFunctions,
+  });
+  if (buildIndexingFunctionsResult.status === "error") {
+    logError({ common }, buildIndexingFunctionsResult.error);
+    return buildIndexingFunctionsResult;
   }
 
-  /**
-   * Validates and builds the latest config, schema, and indexing functions.
-   * Returns an error if validation fails.
-   */
-  private validate() {
-    if (this.sources === undefined || this.sources.length === 0) {
-      return { success: true } as const;
-    }
-    if (
-      this.indexingFunctions === undefined ||
-      Object.keys(this.indexingFunctions).length === 0
-    ) {
-      for (const source of this.sources) {
-        source.criteria.topics = undefined;
-      }
-      return { success: true } as const;
-    }
-
-    for (const [sourceName, fns] of Object.entries(this.indexingFunctions)) {
-      const source = this.sources.find((s) => s.contractName === sourceName);
-      if (!source) {
-        // Multi-network contracts have N sources, but the hint here should not have duplicates.
-        const uniqueContractNames = [
-          ...new Set(this.sources.map((s) => s.contractName)),
-        ];
-        const error = new Error(
-          `Validation failed: Invalid contract name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueContractNames
-            .map((n) => `'${n}'`)
-            .join(", ")}].`,
-        );
-        return { success: false, error } as const;
-      }
-
-      for (const eventName of Object.keys(fns)) {
-        const eventKey = `${sourceName}:${eventName}`;
-
-        if (eventName === "setup") continue;
-
-        // Validate that the event name is found in the contract ABI.
-        if (source.abiEvents.bySafeName[eventName] === undefined) {
-          const error = new Error(
-            `Validation failed: Event name for event '${eventKey}' not found in the contract ABI. Got '${eventName}', expected one of [${Object.keys(
-              source.abiEvents.bySafeName,
-            )
-              .map((eventName) => `'${eventName}'`)
-              .join(", ")}].`,
-          );
-          return { success: false, error } as const;
-        }
-      }
-    }
-
-    // Validate source topics
-    for (const [sourceName, fns] of Object.entries(this.indexingFunctions)) {
-      for (const source of this.sources.filter(
-        (s) => s.contractName === sourceName,
-      )) {
-        for (const eventName of Object.keys(fns)) {
-          const eventKey = `${sourceName}:${eventName}`;
-
-          if (eventName === "setup") continue;
-          const filteredEventSelectors = source.criteria.topics?.[0]
-            ? Array.isArray(source.criteria.topics[0])
-              ? source.criteria.topics[0]
-              : [source.criteria.topics[0]]
-            : [];
-
-          // Validate that the selector for this event was not filtered out by the user via an event filter.
-          const eventSelector =
-            source.abiEvents.bySafeName[eventName]!.selector;
-          if (
-            filteredEventSelectors.length > 0 &&
-            !filteredEventSelectors.includes(eventSelector)
-          ) {
-            const error = new Error(
-              `Validation failed: Event '${eventKey}' is excluded by the event filter defined on the contract '${sourceName}'. Got '${eventName}', expected one of [${filteredEventSelectors
-                .map((s) => source.abiEvents.bySelector[s]!.safeName)
-                .map((eventName) => `'${eventName}'`)
-                .join(", ")}].`,
-            );
-            return { success: false, error } as const;
-          }
-        }
-
-        // Update source topic0 to include only registered event selectors
-        const registeredEventSelectors = Object.keys(fns)
-          .filter((eventName) => eventName !== "setup")
-          .map((eventName) => source.abiEvents.bySafeName[eventName]!.selector);
-        (source.criteria.topics ??= [])[0] = registeredEventSelectors;
-      }
-    }
-
-    return { success: true } as const;
+  for (const warning of buildIndexingFunctionsResult.warnings) {
+    common.logger.warn({ service: "build", msg: warning });
   }
 
-  private async executeFile(file: string) {
-    try {
-      const exports = await this.viteNodeRunner.executeFile(file);
-      return { success: true, file, exports } as const;
-    } catch (error_) {
-      const relativePath = path.relative(this.common.options.rootDir, file);
-      const error = parseViteNodeError(relativePath, error_ as Error);
-      return { success: false, error } as const;
-    }
+  // Validates and build the config
+  const buildConfigResult = await safeBuildConfig({
+    config: rawBuild.config,
+    options: common.options,
+  });
+  if (buildConfigResult.status === "error") {
+    logError({ common }, buildConfigResult.error);
+    return buildConfigResult;
   }
-}
+
+  for (const log of buildConfigResult.logs) {
+    common.logger[log.level]({ service: "build", msg: log.msg });
+  }
+
+  return {
+    status: "success",
+    build: {
+      buildId: randomBytes(5).toString("hex"),
+      databaseConfig: buildConfigResult.databaseConfig,
+      networks: buildConfigResult.networks,
+      sources: buildConfigResult.sources,
+      schema: buildSchemaResult.schema,
+      graphqlSchema,
+      indexingFunctions: buildIndexingFunctionsResult.indexingFunctions,
+    },
+  };
+};
+
+const executeFile = async (
+  { common, viteNodeRunner }: BuildService,
+  { file }: { file: string },
+): Promise<
+  | {
+      status: "success";
+      exports: any;
+    }
+  | {
+      status: "error";
+      error: Error;
+    }
+> => {
+  try {
+    const exports = await viteNodeRunner.executeFile(file);
+    return { status: "success", exports } as const;
+  } catch (error_) {
+    const relativePath = path.relative(common.options.rootDir, file);
+    const error = parseViteNodeError(relativePath, error_ as Error);
+    return { status: "error", error } as const;
+  }
+};
+
+const logError = ({ common }: Pick<BuildService, "common">, error: Error) => {
+  common.logger.error({
+    service: "build",
+    msg: "Failed build with error:",
+    error,
+  });
+};

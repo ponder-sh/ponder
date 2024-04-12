@@ -1,6 +1,11 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { type BuildResult, BuildService } from "@/build/service.js";
+import {
+  type BuildResult,
+  createBuildService,
+  killBuildService,
+  startBuildService,
+} from "@/build/service.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
@@ -45,8 +50,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = new TelemetryService({ options });
   const common = { options, logger, metrics, telemetry };
 
-  const buildService = new BuildService({ common });
-  await buildService.setup({ watch: true });
+  const buildService = await createBuildService({ common });
 
   const uiService = new UiService({ common });
 
@@ -54,27 +58,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const cleanup = async () => {
     await cleanupReloadable();
-    await buildService.kill();
+    await killBuildService(buildService);
     await telemetry.kill();
     uiService.kill();
   };
 
   const shutdown = setupShutdown({ common, cleanup });
-
-  const initialResult = await buildService.initialLoad();
-  if (!initialResult.success) {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-
-  telemetry.record({
-    event: "App Started",
-    properties: {
-      command: "ponder dev",
-      contractCount: initialResult.build.sources.length,
-      databaseKind: initialResult.build.databaseConfig.kind,
-    },
-  });
 
   const buildQueue = createQueue({
     initialStart: true,
@@ -82,7 +71,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     worker: async (result: BuildResult) => {
       await cleanupReloadable();
 
-      if (result.success) {
+      if (result.status === "success") {
         uiService.reset();
         metrics.resetMetrics();
 
@@ -94,7 +83,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           },
           onReloadableError: (error) => {
             buildQueue.clear();
-            buildQueue.add({ success: false, error });
+            buildQueue.add({ status: "error", error });
           },
         });
       } else {
@@ -105,9 +94,26 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  buildService.on("rebuild", (build) => {
-    buildQueue.clear();
-    buildQueue.add(build);
+  const initialResult = await startBuildService(buildService, {
+    watch: true,
+    onBuild: (buildResult) => {
+      buildQueue.clear();
+      buildQueue.add(buildResult);
+    },
+  });
+
+  if (initialResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  telemetry.record({
+    event: "App Started",
+    properties: {
+      command: "ponder dev",
+      contractCount: initialResult.build.sources.length,
+      databaseKind: initialResult.build.databaseConfig.kind,
+    },
   });
 
   buildQueue.add(initialResult);
