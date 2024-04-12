@@ -3,14 +3,14 @@ import type { AbiEvents } from "./abi.js";
 
 export type LogFilterCriteria = {
   address?: Address | Address[];
-  topics?: LogTopic[];
+  topics: LogTopic[];
 };
 
 export type FactoryCriteria = {
   address: Address;
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
-  topics?: LogTopic[];
+  topics: LogTopic[];
 };
 
 type BaseSource = {

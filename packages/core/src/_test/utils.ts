@@ -1,5 +1,5 @@
 import { type AddressInfo, createServer } from "node:net";
-import { buildConfig } from "@/build/config/config.js";
+import { buildConfigAndIndexingFunctions } from "@/build/config/config.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
 import { type Source } from "@/config/sources.js";
@@ -116,8 +116,12 @@ export const getNetworkAndSources = async (
   common: Common,
 ) => {
   const config = getConfig(addresses);
-  const { networks, sources } = await buildConfig({
+  const { networks, sources } = await buildConfigAndIndexingFunctions({
     config,
+    rawIndexingFunctions: [
+      { name: "Erc20:Transfer", fn: () => {} },
+      { name: "Pair:Swap", fn: () => {} },
+    ],
     options: common.options,
   });
   const mainnet = { ...networks[0], finalityBlockCount: 4 };

@@ -15,12 +15,11 @@ import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
-import { safeBuildConfig } from "./config/config.js";
 import {
   type IndexingFunctions,
   type RawIndexingFunctions,
-  safeBuildIndexingFunctions,
-} from "./functions/functions.js";
+  safeBuildConfigAndIndexingFunctions,
+} from "./config/config.js";
 import { vitePluginPonder } from "./plugin.js";
 import { safeBuildSchema } from "./schema/schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
@@ -332,7 +331,7 @@ const executeIndexingFunctions = async (
       return executeResult;
     }
 
-    indexingFunctions.push(executeResult.exports?.ponder?.fns ?? []);
+    indexingFunctions.push(...(executeResult.exports?.ponder?.fns ?? []));
   }
 
   return { status: "success", indexingFunctions };
@@ -354,16 +353,18 @@ const validateAndBuild = async (
   const graphqlSchema = buildGraphqlSchema(buildSchemaResult.schema);
 
   // Validates and build the config
-  const buildConfigResult = await safeBuildConfig({
-    config: rawBuild.config,
-    options: common.options,
-  });
-  if (buildConfigResult.status === "error") {
-    logError({ common }, buildConfigResult.error);
-    return buildConfigResult;
+  const buildConfigAndIndexingFunctionsResult =
+    await safeBuildConfigAndIndexingFunctions({
+      config: rawBuild.config,
+      rawIndexingFunctions: rawBuild.indexingFunctions,
+      options: common.options,
+    });
+  if (buildConfigAndIndexingFunctionsResult.status === "error") {
+    logError({ common }, buildConfigAndIndexingFunctionsResult.error);
+    return buildConfigAndIndexingFunctionsResult;
   }
 
-  for (const log of buildConfigResult.logs) {
+  for (const log of buildConfigAndIndexingFunctionsResult.logs) {
     common.logger[log.level]({ service: "build", msg: log.msg });
   }
 
@@ -385,12 +386,13 @@ const validateAndBuild = async (
     status: "success",
     build: {
       buildId: randomBytes(5).toString("hex"),
-      databaseConfig: buildConfigResult.databaseConfig,
-      networks: buildConfigResult.networks,
-      sources: buildConfigResult.sources,
+      databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
+      networks: buildConfigAndIndexingFunctionsResult.networks,
+      sources: buildConfigAndIndexingFunctionsResult.sources,
       schema: buildSchemaResult.schema,
       graphqlSchema,
-      indexingFunctions: buildIndexingFunctionsResult.indexingFunctions,
+      indexingFunctions:
+        buildConfigAndIndexingFunctionsResult.indexingFunctions,
     },
   };
 };

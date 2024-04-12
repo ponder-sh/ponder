@@ -14,13 +14,30 @@ import {
 import type { Factory, LogFilter, Source } from "@/config/sources.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { dedupe } from "@ponder/common";
 import parse from "pg-connection-string";
-import type { LogTopic } from "viem";
+import type { Hex, LogTopic } from "viem";
 
-export async function buildConfig({
+export type RawIndexingFunctions = {
+  name: string;
+  fn: (...args: any) => any;
+}[];
+
+export type IndexingFunctions = {
+  [sourceName: string]: {
+    [eventName: string]: (...args: any) => any;
+  };
+};
+
+export async function buildConfigAndIndexingFunctions({
   config,
+  rawIndexingFunctions,
   options,
-}: { config: Config; options: Pick<Options, "ponderDir" | "rootDir"> }) {
+}: {
+  config: Config;
+  rawIndexingFunctions: RawIndexingFunctions;
+  options: Pick<Options, "ponderDir" | "rootDir">;
+}) {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
 
   // Build database.
@@ -236,6 +253,49 @@ export async function buildConfig({
     }),
   );
 
+  // Validate and build indexing functions
+  let indexingFunctionCount = 0;
+  const indexingFunctions: IndexingFunctions = {};
+
+  for (const { name: eventKey, fn } of rawIndexingFunctions) {
+    const eventNameComponents = eventKey.split(":");
+    const [sourceName, eventName] = eventNameComponents;
+    if (eventNameComponents.length !== 2 || !sourceName || !eventName) {
+      throw new Error(
+        `Validation failed: Invalid event '${eventKey}', expected format '{contractName}:{eventName}'.`,
+      );
+    }
+
+    indexingFunctions[sourceName] ||= {};
+
+    if (eventName in indexingFunctions[sourceName]) {
+      throw new Error(
+        `Validation failed: Multiple indexing functions registered for event '${eventKey}'.`,
+      );
+    }
+
+    // Validate that the indexing function uses a contractName that is present in the config.
+    const matchedContractName = Object.keys(config.contracts).find(
+      (contractName) => contractName === sourceName,
+    );
+    if (!matchedContractName) {
+      // Multi-network contracts have N sources, but the hint here should not have duplicates.
+      const uniqueContractNames = dedupe(Object.keys(config.contracts));
+      throw new Error(
+        `Validation failed: Invalid contract name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueContractNames
+          .map((n) => `'${n}'`)
+          .join(", ")}].`,
+      );
+    }
+
+    indexingFunctions[sourceName][eventName] = fn;
+    indexingFunctionCount += 1;
+  }
+
+  if (indexingFunctionCount === 0) {
+    logs.push({ level: "warn", msg: "No indexing functions were registered." });
+  }
+
   const sources: Source[] = Object.entries(config.contracts)
     // First, apply any network-specific overrides and flatten the result.
     .flatMap(([contractName, contract]) => {
@@ -325,10 +385,32 @@ export async function buildConfig({
         );
       }
 
+      // Get indexing function that were registered for this source
+      const registeredLogEvents = Object.keys(
+        indexingFunctions[rawContract.contractName],
+      );
+
       // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.
       const abiEvents = buildAbiEvents({ abi: rawContract.abi });
 
-      let topics: LogTopic[] | undefined = undefined;
+      const registeredEventSelectors: Hex[] = [];
+      // Validate that the registered log events exist in the abi
+      for (const logEvent of registeredLogEvents) {
+        const abiEvent = abiEvents.bySafeName[logEvent];
+        if (abiEvent === undefined) {
+          throw new Error(
+            `Validation failed: Event name for event '${logEvent}' not found in the contract ABI. Got '${logEvent}', expected one of [${Object.keys(
+              abiEvents.bySafeName,
+            )
+              .map((eventName) => `'${eventName}'`)
+              .join(", ")}].`,
+          );
+        }
+
+        registeredEventSelectors.push(abiEvent.selector);
+      }
+
+      let topics: LogTopic[] = [registeredEventSelectors];
 
       if (rawContract.filter !== undefined) {
         if (
@@ -361,7 +443,37 @@ export async function buildConfig({
 
         // TODO: Explicit validation of indexed argument value format (array or object).
         // Note: This can throw.
-        topics = buildTopics(rawContract.abi, rawContract.filter);
+        const [topic0FromFilter, ...topicsFromFilter] = buildTopics(
+          rawContract.abi,
+          rawContract.filter,
+        );
+
+        // Validate that the topic0 value defined by the `eventFilter` is a superset of the
+        // registered indexing functions. Simply put, no indexing function is defined for a
+        // log event that is filtered out.
+        if (topic0FromFilter !== null) {
+          for (const registeredEventSelector of registeredEventSelectors) {
+            const filteredEventSelectors = Array.isArray(topic0FromFilter)
+              ? topic0FromFilter
+              : [topic0FromFilter];
+
+            if (!filteredEventSelectors.includes(registeredEventSelector)) {
+              const logEventName =
+                abiEvents.bySelector[registeredEventSelector]!.safeName;
+
+              throw new Error(
+                `Validation failed: Event '${logEventName}' is excluded by the event filter defined on the contract '${
+                  rawContract.contractName
+                }'. Got '${logEventName}', expected one of [${filteredEventSelectors
+                  .map((s) => abiEvents.bySelector[s]!.safeName)
+                  .map((eventName) => `'${eventName}'`)
+                  .join(", ")}].`,
+              );
+            }
+          }
+        }
+
+        topics = [registeredEventSelectors, ...topicsFromFilter];
       }
 
       const baseContract = {
@@ -428,7 +540,9 @@ export async function buildConfig({
           topics,
         },
       } satisfies LogFilter;
-    });
+    })
+    // Remove sources with no registered indexing functions
+    .filter((source) => source.criteria.topics[0]!.length !== 0);
 
   // Filter out any networks that don't have any sources registered.
   const networksWithSources = networks.filter((network) => {
@@ -444,20 +558,36 @@ export async function buildConfig({
     return hasSources;
   });
 
-  return { databaseConfig, networks: networksWithSources, sources, logs };
+  return {
+    databaseConfig,
+    networks: networksWithSources,
+    sources,
+    indexingFunctions,
+    logs,
+  };
 }
 
-export async function safeBuildConfig({
+export async function safeBuildConfigAndIndexingFunctions({
   config,
+  rawIndexingFunctions,
   options,
-}: { config: Config; options: Pick<Options, "rootDir" | "ponderDir"> }) {
+}: {
+  config: Config;
+  rawIndexingFunctions: RawIndexingFunctions;
+  options: Pick<Options, "rootDir" | "ponderDir">;
+}) {
   try {
-    const result = await buildConfig({ config, options });
+    const result = await buildConfigAndIndexingFunctions({
+      config,
+      rawIndexingFunctions,
+      options,
+    });
 
     return {
       status: "success",
       sources: result.sources,
       networks: result.networks,
+      indexingFunctions: result.indexingFunctions,
       databaseConfig: result.databaseConfig,
       logs: result.logs,
     } as const;
