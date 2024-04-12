@@ -248,6 +248,37 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
   await cleanup();
 });
 
+test("insertLogFilterInterval updates log checkpoints on conflict", async (context) => {
+  const { erc20, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertFactoryChildAddressLogs({
+    chainId: 1,
+    logs: rpcData.block2.logs,
+  });
+
+  let logs = await syncStore.db.selectFrom("logs").selectAll().execute();
+  expect(logs).toHaveLength(1);
+  expect(logs[0].checkpoint).toBe(null);
+
+  await syncStore.insertLogFilterInterval({
+    chainId: 1,
+    logFilter: { address: erc20.address },
+    ...rpcData.block2,
+    interval: {
+      startBlock: hexToBigInt(rpcData.block2.block.number!),
+      endBlock: hexToBigInt(rpcData.block2.block.number!),
+    },
+  });
+
+  logs = await syncStore.db.selectFrom("logs").selectAll().execute();
+  expect(logs).toHaveLength(1);
+  expect(logs[0].checkpoint).toBeTruthy();
+
+  await cleanup();
+});
+
 test("getLogFilterIntervals respects log filter inclusivity rules", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -1584,6 +1615,40 @@ test("getLogEvents multiple sources", async (context) => {
   expect(events[2].block.hash).toBe(rpcData.block1.block.hash);
   expect(events[2].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
 
+  await cleanup();
+});
+
+test("getLogEvents event filter on factory", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertFactoryChildAddressLogs({
+    chainId: 1,
+    logs: rpcData.block2.logs,
+  });
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    block: rpcData.block3.block,
+    transactions: rpcData.block3.transactions,
+    logs: rpcData.block3.logs,
+  });
+
+  const ag = syncStore.getLogEvents({
+    sources: [
+      {
+        ...sources[1],
+        criteria: { ...sources[1].criteria, topics: [`0x${"0".repeat(64)}`] },
+      },
+    ],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(0);
   await cleanup();
 });
 

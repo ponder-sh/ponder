@@ -75,23 +75,32 @@ export class SqliteSyncStore implements SyncStore {
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
 
-        for (const rpcTransaction of rpcTransactions) {
+        if (rpcTransactions.length > 0) {
+          const values = rpcTransactions.map((rpcTransaction) => ({
+            ...rpcToSqliteTransaction(rpcTransaction),
+            chainId,
+          }));
           await tx
             .insertInto("transactions")
-            .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
+            .values(values)
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
         }
 
-        for (const rpcLog of rpcLogs) {
+        if (rpcLogs.length > 0) {
+          const values = rpcLogs.map((rpcLog) => ({
+            ...rpcToSqliteLog(rpcLog),
+            chainId,
+            checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+          }));
           await tx
             .insertInto("logs")
-            .values({
-              ...rpcToSqliteLog(rpcLog),
-              chainId,
-              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
-            })
-            .onConflict((oc) => oc.column("id").doNothing())
+            .values(values)
+            .onConflict((oc) =>
+              oc.column("id").doUpdateSet((eb) => ({
+                checkpoint: eb.ref("excluded.checkpoint"),
+              })),
+            )
             .execute();
         }
 
@@ -228,15 +237,17 @@ export class SqliteSyncStore implements SyncStore {
     return this.db.wrap(
       { method: "insertFactoryChildAddressLogs" },
       async () => {
-        await this.db.transaction().execute(async (tx) => {
-          for (const rpcLog of rpcLogs) {
-            await tx
-              .insertInto("logs")
-              .values({ ...rpcToSqliteLog(rpcLog), chainId })
-              .onConflict((oc) => oc.column("id").doNothing())
-              .execute();
-          }
-        });
+        if (rpcLogs.length > 0) {
+          const values = rpcLogs.map((rpcLog) => ({
+            ...rpcToSqliteLog(rpcLog),
+            chainId,
+          }));
+          await this.db
+            .insertInto("logs")
+            .values(values)
+            .onConflict((oc) => oc.column("id").doNothing())
+            .execute();
+        }
       },
     );
   };
@@ -317,23 +328,32 @@ export class SqliteSyncStore implements SyncStore {
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
 
-          for (const rpcTransaction of rpcTransactions) {
+          if (rpcTransactions.length > 0) {
+            const values = rpcTransactions.map((rpcTransaction) => ({
+              ...rpcToSqliteTransaction(rpcTransaction),
+              chainId,
+            }));
             await tx
               .insertInto("transactions")
-              .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
+              .values(values)
               .onConflict((oc) => oc.column("hash").doNothing())
               .execute();
           }
 
-          for (const rpcLog of rpcLogs) {
+          if (rpcLogs.length > 0) {
+            const values = rpcLogs.map((rpcLog) => ({
+              ...rpcToSqliteLog(rpcLog),
+              chainId,
+              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            }));
             await tx
               .insertInto("logs")
-              .values({
-                ...rpcToSqliteLog(rpcLog),
-                chainId,
-                checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
-              })
-              .onConflict((oc) => oc.column("id").doNothing())
+              .values(values)
+              .onConflict((oc) =>
+                oc.column("id").doUpdateSet((eb) => ({
+                  checkpoint: eb.ref("excluded.checkpoint"),
+                })),
+              )
               .execute();
           }
 
@@ -489,23 +509,32 @@ export class SqliteSyncStore implements SyncStore {
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
 
-        for (const rpcTransaction of rpcTransactions) {
+        if (rpcTransactions.length > 0) {
+          const values = rpcTransactions.map((rpcTransaction) => ({
+            ...rpcToSqliteTransaction(rpcTransaction),
+            chainId,
+          }));
           await tx
             .insertInto("transactions")
-            .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
+            .values(values)
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
         }
 
-        for (const rpcLog of rpcLogs) {
+        if (rpcLogs.length > 0) {
+          const values = rpcLogs.map((rpcLog) => ({
+            ...rpcToSqliteLog(rpcLog),
+            chainId,
+            checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+          }));
           await tx
             .insertInto("logs")
-            .values({
-              ...rpcToSqliteLog(rpcLog),
-              chainId,
-              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
-            })
-            .onConflict((oc) => oc.column("id").doNothing())
+            .values(values)
+            .onConflict((oc) =>
+              oc.column("id").doUpdateSet((eb) => ({
+                checkpoint: eb.ref("excluded.checkpoint"),
+              })),
+            )
             .execute();
         }
       });
@@ -1185,6 +1214,21 @@ export class SqliteSyncStore implements SyncStore {
           .where("topic0", "=", factory.criteria.eventSelector),
       ),
     );
+
+    if (factory.criteria.topics) {
+      for (const idx_ of range(0, 4)) {
+        const idx = idx_ as 0 | 1 | 2 | 3;
+        // If it's an array of length 1, collapse it.
+        const raw = factory.criteria.topics[idx] ?? null;
+        if (raw === null) continue;
+        const topic = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
+        if (Array.isArray(topic)) {
+          exprs.push(eb.or(topic.map((a) => eb(`logs.topic${idx}`, "=", a))));
+        } else {
+          exprs.push(eb(`logs.topic${idx}`, "=", topic));
+        }
+      }
+    }
 
     if (factory.startBlock !== undefined && factory.startBlock !== 0)
       exprs.push(
