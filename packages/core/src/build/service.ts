@@ -130,7 +130,10 @@ export const createBuildService = async ({
 };
 
 /**
- * ...
+ * Execute, validate, and build the files the make up a Ponder app.
+ * If `watch` is true (dev server), then use vite to re-execute changed files,
+ * and validate and build again. This function only re-executes changes files,
+ * but doesn't attempt to skip any validation or build steps.
  */
 export const startBuildService = async (
   buildService: BuildService,
@@ -350,19 +353,6 @@ const validateAndBuild = async (
 
   const graphqlSchema = buildGraphqlSchema(buildSchemaResult.schema);
 
-  // Validate and build the indexing functions
-  const buildIndexingFunctionsResult = safeBuildIndexingFunctions({
-    rawIndexingFunctions: rawBuild.indexingFunctions,
-  });
-  if (buildIndexingFunctionsResult.status === "error") {
-    logError({ common }, buildIndexingFunctionsResult.error);
-    return buildIndexingFunctionsResult;
-  }
-
-  for (const warning of buildIndexingFunctionsResult.warnings) {
-    common.logger.warn({ service: "build", msg: warning });
-  }
-
   // Validates and build the config
   const buildConfigResult = await safeBuildConfig({
     config: rawBuild.config,
@@ -375,6 +365,20 @@ const validateAndBuild = async (
 
   for (const log of buildConfigResult.logs) {
     common.logger[log.level]({ service: "build", msg: log.msg });
+  }
+
+  // Validate and build the indexing functions
+  const buildIndexingFunctionsResult = safeBuildIndexingFunctions({
+    rawIndexingFunctions: rawBuild.indexingFunctions,
+    sources: buildConfigResult.sources,
+  });
+  if (buildIndexingFunctionsResult.status === "error") {
+    logError({ common }, buildIndexingFunctionsResult.error);
+    return buildIndexingFunctionsResult;
+  }
+
+  for (const warning of buildIndexingFunctionsResult.warnings) {
+    common.logger.warn({ service: "build", msg: warning });
   }
 
   return {
