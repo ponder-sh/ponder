@@ -487,30 +487,10 @@ const migrations: Record<string, Migration> = {
   },
   "2024_04_11_1_set_checkpoint_in_logs_table": {
     async up(db: Kysely<any>) {
-      if (await hasDoneCheckpointMigration(db)) {
-        return;
-      }
       await setCheckpointsInLogsTable(db);
     },
   },
   "2024_04_11_2_index_on_logs_checkpoint": {
-    async up(db: Kysely<any>) {
-      if (await hasDoneCheckpointMigration(db)) {
-        return;
-      }
-      await db.schema
-        .createIndex("logs_checkpoint_index")
-        .on("logs")
-        .column("checkpoint")
-        .execute();
-    },
-  },
-  "2024_04_11_3_set_checkpoint_in_logs_table": {
-    async up(db: Kysely<any>) {
-      await setCheckpointsInLogsTable(db);
-    },
-  },
-  "2024_04_11_4_index_on_logs_checkpoint": {
     async up(db: Kysely<any>) {
       await db.schema
         .createIndex("logs_checkpoint_index")
@@ -542,7 +522,6 @@ async function hasDoneCheckpointMigration(db: Kysely<any>) {
 }
 
 async function setCheckpointsInLogsTable(db: Kysely<any>) {
-  const start = Date.now();
   await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
   await db.executeQuery(
     sql`
@@ -574,8 +553,6 @@ async function setCheckpointsInLogsTable(db: Kysely<any>) {
     WHERE ponder_sync.logs.id = cp_vals.id
   `.compile(db),
   );
-
-  console.log("[MIGRATION_FINISHED]: took", Date.now() - start);
 
   // sanity check our checkpoint encoding on the first 10 rows of the table
   const checkRes = await db.executeQuery<{
