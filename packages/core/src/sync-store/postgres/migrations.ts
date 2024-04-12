@@ -487,7 +487,71 @@ const migrations: Record<string, Migration> = {
   },
   "2024_04_11_1_set_checkpoint_in_logs_table": {
     async up(db: Kysely<any>) {
-      await setCheckpointsInLogsTable(db);
+      await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
+      await db.executeQuery(
+        sql`
+        CREATE TEMP TABLE cp_vals AS 
+        SELECT
+          logs.id,
+          (lpad(blocks.timestamp::text, 10, '0') ||
+          lpad(blocks."chainId"::text, 16, '0') ||
+          lpad(blocks.number::text, 16, '0') ||
+          lpad(logs."transactionIndex"::text, 16, '0') ||
+          '5' ||
+          lpad(logs."logIndex"::text, 16, '0')) AS checkpoint
+        FROM ponder_sync.logs logs
+        JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash;
+        `.compile(db),
+      );
+
+      await db.executeQuery(
+        sql`
+        CREATE INDEX ON cp_vals(id)
+        `.compile(db),
+      );
+
+      await db.executeQuery(
+        sql`
+          UPDATE ponder_sync.logs
+          SET checkpoint=cp_vals.checkpoint
+          FROM cp_vals
+          WHERE ponder_sync.logs.id = cp_vals.id
+        `.compile(db),
+      );
+
+      // sanity check our checkpoint encoding on the first 10 rows of the table
+      const checkRes = await db.executeQuery<{
+        timestamp: number;
+        chainId: number;
+        number: number;
+        transactionIndex: number;
+        logIndex: number;
+        checkpoint: bigint;
+      }>(
+        sql`
+        SELECT blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex", logs.checkpoint
+        FROM ponder_sync.logs logs
+        JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
+        LIMIT 10
+        `.compile(db),
+      );
+
+      for (const row of checkRes.rows) {
+        const expected = encodeCheckpoint({
+          blockTimestamp: row.timestamp,
+          chainId: row.chainId,
+          blockNumber: row.number,
+          transactionIndex: row.transactionIndex,
+          eventType: EVENT_TYPES.logs,
+          eventIndex: row.logIndex,
+        });
+
+        if (row.checkpoint.toString() !== expected) {
+          throw new Error(
+            `data migration failed: expected new checkpoint column to have value ${expected} but got ${row.checkpoint}`,
+          );
+        }
+      }
     },
   },
   "2024_04_11_2_index_on_logs_checkpoint": {
@@ -519,74 +583,6 @@ async function hasDoneCheckpointMigration(db: Kysely<any>) {
         `.compile(db),
   );
   return res.rows.length > 0;
-}
-
-async function setCheckpointsInLogsTable(db: Kysely<any>) {
-  await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
-  await db.executeQuery(
-    sql`
-      CREATE TEMP TABLE cp_vals AS 
-      SELECT
-        logs.id,
-        (lpad(blocks.timestamp::text, 10, '0') ||
-        lpad(blocks."chainId"::text, 16, '0') ||
-        lpad(blocks.number::text, 16, '0') ||
-        lpad(logs."transactionIndex"::text, 16, '0') ||
-        '5' ||
-        lpad(logs."logIndex"::text, 16, '0')) AS checkpoint
-      FROM ponder_sync.logs logs
-      JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash;
-  `.compile(db),
-  );
-
-  await db.executeQuery(
-    sql`
-    CREATE INDEX ON cp_vals(id)
-  `.compile(db),
-  );
-
-  await db.executeQuery(
-    sql`
-    UPDATE ponder_sync.logs
-    SET checkpoint=cp_vals.checkpoint
-    FROM cp_vals
-    WHERE ponder_sync.logs.id = cp_vals.id
-  `.compile(db),
-  );
-
-  // sanity check our checkpoint encoding on the first 10 rows of the table
-  const checkRes = await db.executeQuery<{
-    timestamp: number;
-    chainId: number;
-    number: number;
-    transactionIndex: number;
-    logIndex: number;
-    checkpoint: bigint;
-  }>(
-    sql`
-      SELECT blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex", logs.checkpoint
-      FROM ponder_sync.logs logs
-      JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
-      LIMIT 10
-    `.compile(db),
-  );
-
-  for (const row of checkRes.rows) {
-    const expected = encodeCheckpoint({
-      blockTimestamp: row.timestamp,
-      chainId: row.chainId,
-      blockNumber: row.number,
-      transactionIndex: row.transactionIndex,
-      eventType: EVENT_TYPES.logs,
-      eventIndex: row.logIndex,
-    });
-
-    if (row.checkpoint.toString() !== expected) {
-      throw new Error(
-        `data migration failed: expected new checkpoint column to have value ${expected} but got ${row.checkpoint}`,
-      );
-    }
-  }
 }
 
 export async function moveLegacyTables({
