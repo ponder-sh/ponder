@@ -1,220 +1,262 @@
-import { createHash } from "node:crypto";
-import fs from "node:fs";
-
-import { randomBytes } from "crypto";
-import os from "os";
-import path from "path";
-import Conf from "conf";
-// @ts-ignore
-import { detect, getNpmVersion } from "detect-package-manager";
-import PQueue from "p-queue";
-import pc from "picocolors";
-import process from "process";
-
+import { exec } from "child_process";
+import { createHash, randomBytes } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "util";
+import type { Build } from "@/build/service.js";
 import type { Options } from "@/common/options.js";
-import { getGitRemoteUrl } from "@/utils/git.js";
-import { wait } from "@/utils/wait.js";
+import { createQueue } from "@/utils/queue.js";
+import Conf from "conf";
+import { type PM, detect, getNpmVersion } from "detect-package-manager";
+import type { LoggerService } from "./logger.js";
 
-type TelemetryEvent = {
-  event: string;
-  properties?: any;
-};
-
-type TelemetryDeviceConfig = {
-  enabled: boolean;
-  notifiedAt: string;
-  anonymousId: string;
-  salt: string;
-};
-
-type TelemetryEventContext = {
-  projectId: string;
-  sessionId: string;
-  packageManager: string;
-  packageManagerVersion: string;
-  nodeVersion: string;
-  ponderVersion: string;
-  systemPlatform: NodeJS.Platform;
-  systemRelease: string;
-  systemArchitecture: string;
-  cpuCount: number;
-  cpuModel: string | null;
-  cpuSpeed: number | null;
-  memoryInMb: number;
-  isExampleProject: boolean;
-};
-
-export class TelemetryService {
-  private options: Options;
-  private conf: Conf<TelemetryDeviceConfig>;
-
-  private queue = new PQueue({ concurrency: 1 });
-  private events: TelemetryEvent[] = [];
-
-  private controller = new AbortController();
-  private context?: TelemetryEventContext;
-  private heartbeatIntervalId?: NodeJS.Timeout;
-
-  constructor({ options }: { options: Options }) {
-    this.options = options;
-    this.conf = new Conf({ projectName: "ponder" });
-    this.notify();
-    this.heartbeatIntervalId = setInterval(() => {
-      this.record({ event: "Heartbeat" });
-    }, 60_000);
-  }
-
-  record(event: TelemetryEvent) {
-    if (this.disabled) return;
-    this.events.push(event);
-    this.queue.add(() => this.processEvent());
-  }
-
-  async flush() {
-    await this.queue.onIdle();
-  }
-
-  private processEvent = async () => {
-    const event = this.events.pop();
-    if (!event) return;
-
-    // Build the context. If it's already been built, this will return immediately.
-    try {
-      await this.getContext();
-    } catch (e) {
-      // Do nothing
+type TelemetryEvent =
+  | {
+      name: "lifecycle:session_start";
+      properties: { cli_command: string };
     }
-
-    // See https://segment.com/docs/connections/spec/track
-    const serializedEvent = {
-      ...event,
-      anonymousId: this.anonymousId,
-      context: this.context,
+  | {
+      name: "lifecycle:session_end";
+      properties: { duration_seconds: number };
+    }
+  | {
+      name: "lifecycle:heartbeat_send";
+      properties: { duration_seconds: number };
     };
 
-    try {
-      await fetch(this.options.telemetryUrl, {
-        method: "POST",
-        body: JSON.stringify(serializedEvent),
-        headers: { "Content-Type": "application/json" },
-        signal: this.controller.signal,
-      });
-    } catch (e) {
-      // Do nothing
-    }
-  };
+type CommonProperties = {
+  // Identification
+  project_id: string;
+  session_id: string;
+  is_internal: boolean;
+};
 
-  async kill() {
-    clearInterval(this.heartbeatIntervalId);
-    this.queue.pause();
-    this.queue.clear();
-    await Promise.race([wait(500), this.queue.onIdle()]);
-    if (this.queue.pending > 0) {
-      this.controller.abort();
-    }
+type SessionProperties = {
+  // Environment & package versions
+  package_manager: string;
+  package_manager_version: string;
+  node_version: string;
+  ponder_core_version: string;
+  viem_version: string;
+  // System and hardware
+  system_platform: NodeJS.Platform;
+  system_release: string;
+  system_architecture: string;
+  cpu_count: number;
+  cpu_model: string;
+  cpu_speed: number;
+  total_memory_bytes: number;
+};
+
+type DeviceConf = {
+  notifiedAt?: string;
+  anonymousId?: string;
+  salt?: string;
+};
+
+export type Telemetry = ReturnType<typeof createTelemetry>;
+
+export function createTelemetry({
+  options,
+  logger,
+}: { options: Options; logger: LoggerService }) {
+  if (options.telemetryDisabled) {
+    return { record: (_event: TelemetryEvent) => {}, kill: async () => {} };
   }
 
-  private notify() {
-    if (
-      this.disabled ||
-      this.conf.get("notifiedAt") ||
-      process.env.NODE_ENV === "test"
-    ) {
-      return;
-    }
+  const conf = new Conf<DeviceConf>({
+    projectName: "ponder",
+    cwd: options.telemetryConfigDir,
+  });
 
-    this.conf.set("notifiedAt", Date.now().toString());
-
-    console.log(
-      `${pc.magenta(
-        "Attention",
-      )}: Ponder collects anonymous telemetry data to identify issues and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`,
-    );
+  if (conf.get("notifiedAt") === undefined) {
+    conf.set("notifiedAt", Date.now().toString());
+    logger.info({
+      msg: "Ponder collects anonymous telemetry data to identify issues and prioritize features. See https://ponder.sh/advanced/telemetry for more information.",
+    });
   }
 
-  get disabled() {
-    return (
-      this.options.telemetryDisabled ||
-      (this.conf.has("enabled") && !this.conf.get("enabled"))
-    );
+  const sessionId = randomBytes(32).toString("hex");
+
+  let anonymousId = conf.get("anonymousId") as string;
+  if (anonymousId === undefined) {
+    anonymousId = randomBytes(32).toString("hex");
+    conf.set("anonymousId", anonymousId);
   }
 
-  private get anonymousId() {
-    const storedAnonymousId = this.conf.get("anonymousId");
-    if (storedAnonymousId) return storedAnonymousId;
-
-    const createdId = randomBytes(32).toString("hex");
-    this.conf.set("anonymousId", createdId);
-    return createdId;
+  let salt = conf.get("salt") as string;
+  if (salt === undefined) {
+    salt = randomBytes(32).toString("hex");
+    conf.set("salt", salt);
   }
 
-  private get salt() {
-    const storedSalt = this.conf.get("salt");
-    if (storedSalt) return storedSalt;
-
-    const createdSalt = randomBytes(32).toString("hex");
-    this.conf.set("salt", createdSalt);
-    return createdSalt;
-  }
-
-  private oneWayHash(value: string) {
+  // Prepend the value with a secret salt to ensure a credible one-way hash.
+  const oneWayHash = (value: string) => {
     const hash = createHash("sha256");
-    // Always prepend the payload value with salt. This ensures the hash is truly
-    // one-way.
-    hash.update(this.salt);
+    hash.update(salt);
     hash.update(value);
     return hash.digest("hex");
-  }
+  };
 
-  private async getContext() {
-    if (this.context) return this.context;
+  const buildContext = async () => {
+    // Project ID is a one-way hash of the git remote URL OR the current working directory.
+    const gitRemoteUrl = await getGitRemoteUrl();
+    const projectIdRaw = gitRemoteUrl ?? process.cwd();
+    const projectId = oneWayHash(projectIdRaw);
 
-    const sessionId = randomBytes(32).toString("hex");
-    const projectIdRaw = (await getGitRemoteUrl()) ?? process.cwd();
-    const projectId = this.oneWayHash(projectIdRaw);
+    const { packageManager, packageManagerVersion } = await getPackageManager();
 
-    let packageManager: any = "unknown";
-    let packageManagerVersion: any = "unknown";
-    try {
-      packageManager = await detect();
-      packageManagerVersion = await getNpmVersion(packageManager);
-    } catch (e) {
-      // Ignore
-    }
+    // Attempt to find and read the users package.json file.
+    const packageJson = getPackageJson(options.rootDir);
+    const ponderCoreVersion =
+      packageJson?.dependencies?.["@ponder/core"] ?? "unknown";
+    const viemVersion = packageJson?.dependencies?.viem ?? "unknown";
 
-    const packageJsonCwdPath = path.join(process.cwd(), "package.json");
-    const packageJsonRootPath = path.join(this.options.rootDir, "package.json");
-    const packageJsonPath = fs.existsSync(packageJsonCwdPath)
-      ? packageJsonCwdPath
-      : fs.existsSync(packageJsonRootPath)
-        ? packageJsonRootPath
+    // Make a guess as to whether the project is internal (within the monorepo) or not.
+    const isInternal = ponderCoreVersion === "workspace:*";
+
+    const cpus = os.cpus();
+
+    return {
+      common: {
+        session_id: sessionId,
+        project_id: projectId,
+        is_internal: isInternal,
+      } satisfies CommonProperties,
+      session: {
+        ponder_core_version: ponderCoreVersion,
+        viem_version: viemVersion,
+        package_manager: packageManager,
+        package_manager_version: packageManagerVersion,
+        node_version: process.versions.node,
+        system_platform: os.platform(),
+        system_release: os.release(),
+        system_architecture: os.arch(),
+        cpu_count: cpus.length,
+        cpu_model: cpus.length > 0 ? cpus[0].model : "unknown",
+        cpu_speed: cpus.length > 0 ? cpus[0].speed : 0,
+        total_memory_bytes: os.totalmem(),
+      } satisfies SessionProperties,
+    };
+  };
+
+  const contextPromise = buildContext();
+
+  const controller = new AbortController();
+  const { signal } = controller;
+
+  const queue = createQueue<TelemetryEvent>({
+    options: { concurrency: 1, autoStart: true },
+    worker: async ({ task }) => {
+      const context = await contextPromise;
+
+      const properties =
+        task.name === "lifecycle:session_start"
+          ? { ...task.properties, ...context.common, ...context.session }
+          : { ...task.properties, ...context.common };
+
+      const body = JSON.stringify({
+        distinctId: anonymousId,
+        event: task.name,
+        properties,
+      });
+
+      await fetch(options.telemetryUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal,
+      });
+    },
+  });
+
+  const record = async (event: TelemetryEvent) => {
+    queue.addTask(event);
+  };
+
+  const kill = async () => {
+    await new Promise<void>((resolve) => {
+      if (queue.pending === 0) resolve();
+
+      const timeout = setTimeout(() => {
+        queue.pause();
+        queue.clear();
+        controller.abort();
+        resolve();
+      }, 1_000);
+
+      queue.onIdle().then(() => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+  };
+
+  return { record, kill };
+}
+
+async function getPackageManager() {
+  let packageManager: PM = "unknown" as PM;
+  let packageManagerVersion = "unknown";
+  try {
+    packageManager = await detect();
+    packageManagerVersion = await getNpmVersion(packageManager);
+  } catch (e) {}
+  return { packageManager, packageManagerVersion };
+}
+
+const execa = promisify(exec);
+
+async function getGitRemoteUrl() {
+  const result = await execa("git config --local --get remote.origin.url", {
+    timeout: 100,
+    windowsHide: true,
+  }).catch(() => undefined);
+
+  return result?.stdout.trim();
+}
+
+type PackageJson = {
+  name?: string;
+  version?: string;
+  dependencies?: { [key: string]: string };
+  devDependencies?: { [key: string]: string };
+};
+
+function getPackageJson(rootDir: string) {
+  try {
+    const rootPath = path.join(rootDir, "package.json");
+    const cwdPath = path.join(process.cwd(), "package.json");
+
+    const packageJsonPath = existsSync(rootPath)
+      ? rootPath
+      : existsSync(cwdPath)
+        ? cwdPath
         : undefined;
-    const packageJson = packageJsonPath
-      ? JSON.parse(fs.readFileSync("package.json", "utf8"))
-      : undefined;
-    const ponderVersion = packageJson
-      ? packageJson.dependencies["@ponder/core"]
-      : "unknown";
+    if (packageJsonPath === undefined) return undefined;
 
-    const cpus = os.cpus() || [];
+    const packageJsonString = readFileSync(packageJsonPath, "utf8");
+    const packageJson = JSON.parse(packageJsonString) as PackageJson;
 
-    this.context = {
-      sessionId,
-      projectId,
-      nodeVersion: process.version,
-      packageManager,
-      packageManagerVersion,
-      ponderVersion,
-      systemPlatform: os.platform(),
-      systemRelease: os.release(),
-      systemArchitecture: os.arch(),
-      cpuCount: cpus.length,
-      cpuModel: cpus.length ? cpus[0].model : null,
-      cpuSpeed: cpus.length ? cpus[0].speed : null,
-      memoryInMb: Math.trunc(os.totalmem() / 1024 ** 2),
-      isExampleProject: this.options.telemetryIsExampleProject,
-    } satisfies TelemetryEventContext;
-
-    return this.context;
+    return packageJson;
+  } catch (e) {
+    return undefined;
   }
+}
+
+export function buildPayload(build: Build) {
+  const table_count = Object.keys(build.schema.tables).length;
+  const indexing_function_count = Object.values(build.indexingFunctions).reduce(
+    (acc, f) => acc + Object.keys(f).length,
+    0,
+  );
+
+  return {
+    database_kind: build.databaseConfig.kind,
+    contract_count: build.sources.length,
+    network_count: build.networks.length,
+    table_count,
+    indexing_function_count,
+  };
 }

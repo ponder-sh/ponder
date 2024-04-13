@@ -17,7 +17,7 @@ export type Options = {
 
   telemetryUrl: string;
   telemetryDisabled: boolean;
-  telemetryIsExampleProject: boolean;
+  telemetryConfigDir: string | undefined;
 
   logLevel: LevelWithSilent;
 };
@@ -76,11 +76,9 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     hostname,
     maxHealthcheckDuration,
 
-    telemetryUrl: "https://ponder.sh/api/telemetry",
+    telemetryUrl: "http://localhost:3000/api/telemetry",
     telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),
-    telemetryIsExampleProject: Boolean(
-      process.env.PONDER_TELEMETRY_IS_EXAMPLE_PROJECT,
-    ),
+    telemetryConfigDir: undefined,
 
     logLevel,
   } satisfies Options;

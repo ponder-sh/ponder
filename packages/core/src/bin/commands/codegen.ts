@@ -3,7 +3,7 @@ import { runCodegen } from "@/common/codegen.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
-import { TelemetryService } from "@/common/telemetry.js";
+import { createTelemetry } from "@/common/telemetry.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
@@ -25,7 +25,7 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   const metrics = new MetricsService();
-  const telemetry = new TelemetryService({ options });
+  const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
   const buildService = new BuildService({ common });
@@ -48,6 +48,11 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
     await shutdown({ reason: "Failed schema build", code: 1 });
     return;
   }
+
+  telemetry.record({
+    name: "lifecycle:session_start",
+    properties: { cli_command: "codegen" },
+  });
 
   runCodegen({ common, graphqlSchema: schemaResult.graphqlSchema });
 
