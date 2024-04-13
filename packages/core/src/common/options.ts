@@ -76,7 +76,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     hostname,
     maxHealthcheckDuration,
 
-    telemetryUrl: "http://localhost:3000/api/telemetry",
+    telemetryUrl: "https://ponder.sh/api/telemetry",
     telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),
     telemetryConfigDir: undefined,
 
