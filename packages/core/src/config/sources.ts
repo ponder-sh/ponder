@@ -1,23 +1,16 @@
 import type { Abi, Address, Hex, LogTopic } from "viem";
 import type { AbiEvents } from "./abi.js";
 
-type Topic0 = Hex | Hex[];
-export type Topics =
-  | [Topic0]
-  | [Topic0, LogTopic]
-  | [Topic0, LogTopic, LogTopic]
-  | [Topic0, LogTopic, LogTopic, LogTopic];
-
 export type LogFilterCriteria = {
   address?: Address | Address[];
-  topics: Topics;
+  topics: LogTopic[];
 };
 
 export type FactoryCriteria = {
   address: Address;
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
-  topics: Topics;
+  topics: LogTopic[];
 };
 
 type BaseSource = {

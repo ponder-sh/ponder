@@ -1,13 +1,14 @@
-import { zeroHash } from "@/_test/constants.js";
 import { erc20ABI, pairABI } from "@/_test/generated.js";
 import { setupAnvil } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
-import type { Topics } from "@/config/sources.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getAbiItem, getEventSelector, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { filterLogs } from "./filter.js";
 import type { RealtimeLog } from "./format.js";
+
+const zeroHash =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 beforeEach((context) => setupAnvil(context));
 
@@ -142,10 +143,10 @@ test("filterLogs handles two logFilters, one topic each", async () => {
     logs,
     logFilters: [
       {
-        topics: [null, zeroHash, null, null] as unknown as Topics,
+        topics: [null, zeroHash, null, null],
       },
       {
-        topics: [null, null, BobHex, null] as unknown as Topics,
+        topics: [null, null, BobHex, null],
       },
     ],
   });
@@ -171,7 +172,7 @@ test("filterLogs handles one logFilter, one topic, list of values", async () => 
     logs,
     logFilters: [
       {
-        topics: [null, null, [AliceHex, BobHex], null] as unknown as Topics,
+        topics: [null, null, [AliceHex, BobHex], null],
       },
     ],
   });

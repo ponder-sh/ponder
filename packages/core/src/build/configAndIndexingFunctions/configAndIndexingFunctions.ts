@@ -11,12 +11,12 @@ import {
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
-import type { Factory, LogFilter, Source, Topics } from "@/config/sources.js";
+import type { Factory, LogFilter, Source } from "@/config/sources.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { dedupe } from "@ponder/common";
 import parse from "pg-connection-string";
-import type { Hex } from "viem";
+import type { Hex, LogTopic } from "viem";
 
 export type RawIndexingFunctions = {
   name: string;
@@ -410,7 +410,7 @@ export async function buildConfigAndIndexingFunctions({
         registeredEventSelectors.push(abiEvent.selector);
       }
 
-      let topics: Topics = [registeredEventSelectors];
+      let topics: LogTopic[] = [registeredEventSelectors];
 
       if (rawContract.filter !== undefined) {
         if (
@@ -473,7 +473,7 @@ export async function buildConfigAndIndexingFunctions({
           }
         }
 
-        topics = [registeredEventSelectors, ...topicsFromFilter] as Topics;
+        topics = [registeredEventSelectors, ...topicsFromFilter];
       }
 
       const baseContract = {
