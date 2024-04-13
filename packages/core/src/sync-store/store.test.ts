@@ -264,7 +264,7 @@ test("insertLogFilterInterval updates log checkpoints on conflict", async (conte
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { address: erc20.address },
+    logFilter: { address: erc20.address, topics: [] },
     ...rpcData.block2,
     interval: {
       startBlock: hexToBigInt(rpcData.block2.block.number!),
