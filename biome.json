@@ -13,7 +13,7 @@
       "**/cache",
       "**/out",
       "**/.ponder",
-      "docs/**/*.mdx",
+      "docs/",
       "benchmarks/apps/subgraph-*",
       "pnpm-lock.yaml"
     ]
