@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  detect-package-manager@3.0.1:
+    hash: tkhlb7gk5ij4zxchvtwu3teirq
+    path: patches/detect-package-manager@3.0.1.patch
   graphql@16.8.1:
     hash: 3zvcnrptpojleshpmtp6be677a
     path: patches/graphql@16.8.1.patch
@@ -542,7 +545,7 @@ importers:
         version: 2.2.2
       detect-package-manager:
         specifier: ^3.0.1
-        version: 3.0.1
+        version: 3.0.1(patch_hash=tkhlb7gk5ij4zxchvtwu3teirq)
       dotenv:
         specifier: ^16.3.1
         version: 16.3.1
@@ -6376,12 +6379,13 @@ packages:
       execa: 5.1.1
     dev: true
 
-  /detect-package-manager@3.0.1:
+  /detect-package-manager@3.0.1(patch_hash=tkhlb7gk5ij4zxchvtwu3teirq):
     resolution: {integrity: sha512-qoHDH6+lMcpJPAScE7+5CYj91W0mxZNXTwZPrCqi1KMk+x+AoQScQ2V1QyqTln1rHU5Haq5fikvOGHv+leKD8A==}
     engines: {node: '>=12'}
     dependencies:
       execa: 5.1.1
     dev: false
+    patched: true
 
   /devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
