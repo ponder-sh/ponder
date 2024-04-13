@@ -442,34 +442,34 @@ export async function buildConfigAndIndexingFunctions({
         }
 
         // TODO: Explicit validation of indexed argument value format (array or object).
+        // The first element of the array return from `buildTopics` being defined
+        // is an invariant of the current filter design.
         // Note: This can throw.
         const [topic0FromFilter, ...topicsFromFilter] = buildTopics(
           rawContract.abi,
           rawContract.filter,
-        );
+        ) as [Exclude<LogTopic, null>, ...LogTopic[]];
 
         // Validate that the topic0 value defined by the `eventFilter` is a superset of the
-        // registered indexing functions. Simply put, no indexing function is defined for a
-        // log event that is filtered out.
-        if (topic0FromFilter !== null) {
-          for (const registeredEventSelector of registeredEventSelectors) {
-            const filteredEventSelectors = Array.isArray(topic0FromFilter)
-              ? topic0FromFilter
-              : [topic0FromFilter];
+        // registered indexing functions. Simply put, confirm that no indexing function is
+        // defined for a log event that is excluded by the filter.
+        for (const registeredEventSelector of registeredEventSelectors) {
+          const filteredEventSelectors = Array.isArray(topic0FromFilter)
+            ? topic0FromFilter
+            : [topic0FromFilter];
 
-            if (!filteredEventSelectors.includes(registeredEventSelector)) {
-              const logEventName =
-                abiEvents.bySelector[registeredEventSelector]!.safeName;
+          if (!filteredEventSelectors.includes(registeredEventSelector)) {
+            const logEventName =
+              abiEvents.bySelector[registeredEventSelector]!.safeName;
 
-              throw new Error(
-                `Validation failed: Event '${logEventName}' is excluded by the event filter defined on the contract '${
-                  rawContract.contractName
-                }'. Got '${logEventName}', expected one of [${filteredEventSelectors
-                  .map((s) => abiEvents.bySelector[s]!.safeName)
-                  .map((eventName) => `'${eventName}'`)
-                  .join(", ")}].`,
-              );
-            }
+            throw new Error(
+              `Validation failed: Event '${logEventName}' is excluded by the event filter defined on the contract '${
+                rawContract.contractName
+              }'. Got '${logEventName}', expected one of [${filteredEventSelectors
+                .map((s) => abiEvents.bySelector[s]!.safeName)
+                .map((eventName) => `'${eventName}'`)
+                .join(", ")}].`,
+            );
           }
         }
 
@@ -542,7 +542,17 @@ export async function buildConfigAndIndexingFunctions({
       } satisfies LogFilter;
     })
     // Remove sources with no registered indexing functions
-    .filter((source) => source.criteria.topics[0]!.length !== 0);
+    .filter((source) => {
+      const hasRegisteredIndexingFunctions =
+        source.criteria.topics[0]?.length !== 0;
+      if (!hasRegisteredIndexingFunctions) {
+        logs.push({
+          level: "debug",
+          msg: `No indexing functions were registered for contract ${source.contractName}`,
+        });
+      }
+      return hasRegisteredIndexingFunctions;
+    });
 
   // Filter out any networks that don't have any sources registered.
   const networksWithSources = networks.filter((network) => {

@@ -1,11 +1,11 @@
-import type { Schema } from "../../schema/types.js";
+import type { Schema } from "../schema/types.js";
 import {
   isEnumColumn,
   isManyColumn,
   isOneColumn,
   isReferenceColumn,
   referencedTableName,
-} from "../../schema/utils.js";
+} from "../schema/utils.js";
 
 export const buildSchema = ({ schema }: { schema: Schema }) => {
   // Validate enums

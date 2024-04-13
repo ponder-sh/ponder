@@ -2,7 +2,7 @@ import path from "path";
 import type { Options } from "@/common/options.js";
 import { http, getEventSelector, parseAbiItem } from "viem";
 import { expect, test, vi } from "vitest";
-import { type Config, createConfig } from "../../config/config.js";
+import { type Config, createConfig } from "../config/config.js";
 import {
   buildConfigAndIndexingFunctions,
   safeBuildConfigAndIndexingFunctions,

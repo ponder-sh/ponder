@@ -19,9 +19,9 @@ import {
   type IndexingFunctions,
   type RawIndexingFunctions,
   safeBuildConfigAndIndexingFunctions,
-} from "./configAndIndexingFunctions/configAndIndexingFunctions.js";
+} from "./configAndIndexingFunctions.js";
 import { vitePluginPonder } from "./plugin.js";
-import { safeBuildSchema } from "./schema/schema.js";
+import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 export type BuildService = {
