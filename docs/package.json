@@ -16,6 +16,7 @@
     "next": "^14.0.2",
     "nextra": "3.0.0-alpha.10",
     "nextra-theme-docs": "3.0.0-alpha.10",
+    "posthog-node": "^4.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwind-merge": "^2.1.0",
