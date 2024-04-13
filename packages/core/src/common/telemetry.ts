@@ -11,6 +11,8 @@ import Conf from "conf";
 import { type PM, detect, getNpmVersion } from "detect-package-manager";
 import type { LoggerService } from "./logger.js";
 
+const HEARTBEAT_INTERVAL_MS = 60_000;
+
 type TelemetryEvent =
   | {
       name: "lifecycle:session_start";
@@ -175,7 +177,15 @@ export function createTelemetry({
     queue.addTask(event);
   };
 
+  const heartbeatInterval = setInterval(() => {
+    record({
+      name: "lifecycle:heartbeat_send",
+      properties: { duration_seconds: process.uptime() },
+    });
+  }, HEARTBEAT_INTERVAL_MS);
+
   const kill = async () => {
+    clearInterval(heartbeatInterval);
     await new Promise<void>((resolve) => {
       if (queue.pending === 0) resolve();
 
