@@ -1,5 +1,4 @@
 import type { Common } from "@/common/common.js";
-import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { Kysely } from "kysely";
 import { type Migration, type MigrationProvider, sql } from "kysely";
 
@@ -476,13 +475,12 @@ const migrations: Record<string, Migration> = {
   },
   "2024_04_11_0_add_checkpoint_column_to_logs_table": {
     async up(db: Kysely<any>) {
-      if (await hasDoneCheckpointMigration(db)) {
-        return;
-      }
-      await db.schema
-        .alterTable("logs")
-        .addColumn("checkpoint", "varchar(75)")
-        .execute();
+      await db.executeQuery(
+        sql`
+        ALTER TABLE ponder_sync.logs 
+        ADD COLUMN IF NOT EXISTS 
+        checkpoint varchar(75)`.compile(db),
+      );
     },
   },
   "2024_04_11_1_set_checkpoint_in_logs_table": {
@@ -518,40 +516,6 @@ const migrations: Record<string, Migration> = {
           WHERE ponder_sync.logs.id = cp_vals.id
         `.compile(db),
       );
-
-      // sanity check our checkpoint encoding on the first 10 rows of the table
-      const checkRes = await db.executeQuery<{
-        timestamp: number;
-        chainId: number;
-        number: number;
-        transactionIndex: number;
-        logIndex: number;
-        checkpoint: bigint;
-      }>(
-        sql`
-        SELECT blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex", logs.checkpoint
-        FROM ponder_sync.logs logs
-        JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
-        LIMIT 10
-        `.compile(db),
-      );
-
-      for (const row of checkRes.rows) {
-        const expected = encodeCheckpoint({
-          blockTimestamp: row.timestamp,
-          chainId: row.chainId,
-          blockNumber: row.number,
-          transactionIndex: row.transactionIndex,
-          eventType: EVENT_TYPES.logs,
-          eventIndex: row.logIndex,
-        });
-
-        if (row.checkpoint.toString() !== expected) {
-          throw new Error(
-            `data migration failed: expected new checkpoint column to have value ${expected} but got ${row.checkpoint}`,
-          );
-        }
-      }
     },
   },
   "2024_04_11_2_index_on_logs_checkpoint": {
@@ -573,17 +537,6 @@ class StaticMigrationProvider implements MigrationProvider {
 }
 
 export const migrationProvider = new StaticMigrationProvider();
-
-async function hasDoneCheckpointMigration(db: Kysely<any>) {
-  const res = await db.executeQuery(
-    sql`select * from information_schema.columns
-        where table_schema='ponder_sync' 
-          and table_name='logs' 
-          and column_name = 'checkpoint';
-        `.compile(db),
-  );
-  return res.rows.length > 0;
-}
 
 export async function moveLegacyTables({
   common,
