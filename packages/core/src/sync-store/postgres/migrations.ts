@@ -535,6 +535,14 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_04_14_0_nullable_block_total_difficulty": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("totalDifficulty", (col) => col.dropNotNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

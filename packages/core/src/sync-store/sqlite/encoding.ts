@@ -30,7 +30,7 @@ type BlocksTable = {
   size: BigIntText;
   stateRoot: Hash;
   timestamp: BigIntText;
-  totalDifficulty: BigIntText;
+  totalDifficulty: BigIntText | null;
   transactionsRoot: Hash;
 
   chainId: number;
@@ -61,7 +61,9 @@ export function rpcToSqliteBlock(
     size: encodeAsText(block.size),
     stateRoot: block.stateRoot,
     timestamp: encodeAsText(block.timestamp),
-    totalDifficulty: encodeAsText(block.totalDifficulty!),
+    totalDifficulty: block.totalDifficulty
+      ? encodeAsText(block.totalDifficulty)
+      : null,
     transactionsRoot: block.transactionsRoot,
   };
 }
