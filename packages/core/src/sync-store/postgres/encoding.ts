@@ -27,7 +27,7 @@ type BlocksTable = {
   size: bigint;
   stateRoot: Hash;
   timestamp: bigint;
-  totalDifficulty: bigint;
+  totalDifficulty: bigint | null;
   transactionsRoot: Hash;
 
   chainId: number;
@@ -56,7 +56,9 @@ export function rpcToPostgresBlock(
     size: BigInt(block.size),
     stateRoot: block.stateRoot,
     timestamp: BigInt(block.timestamp),
-    totalDifficulty: BigInt(block.totalDifficulty!),
+    totalDifficulty: block.totalDifficulty
+      ? BigInt(block.totalDifficulty)
+      : null,
     transactionsRoot: block.transactionsRoot,
   };
 }

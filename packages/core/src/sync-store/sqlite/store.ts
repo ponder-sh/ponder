@@ -1011,7 +1011,9 @@ export class SqliteSyncStore implements SyncStore {
                 size: decodeToBigInt(row.block_size),
                 stateRoot: row.block_stateRoot,
                 timestamp: decodeToBigInt(row.block_timestamp),
-                totalDifficulty: decodeToBigInt(row.block_totalDifficulty),
+                totalDifficulty: row.block_totalDifficulty
+                  ? decodeToBigInt(row.block_totalDifficulty)
+                  : null,
                 transactionsRoot: row.block_transactionsRoot,
               },
               transaction: {
