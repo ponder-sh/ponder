@@ -473,7 +473,15 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
-  "2024_04_11_0_add_checkpoint_column_to_logs_table": {
+  "2024_04_14_0_nullable_block_total_difficulty": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("totalDifficulty", (col) => col.dropNotNull())
+        .execute();
+    },
+  },
+  "2024_04_14_1_add_checkpoint_column_to_logs_table": {
     async up(db: Kysely<any>) {
       await db.executeQuery(
         sql`
@@ -483,7 +491,7 @@ const migrations: Record<string, Migration> = {
       );
     },
   },
-  "2024_04_11_1_set_checkpoint_in_logs_table": {
+  "2024_04_14_2_set_checkpoint_in_logs_table": {
     async up(db: Kysely<any>) {
       await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
       await db.executeQuery(
@@ -518,7 +526,7 @@ const migrations: Record<string, Migration> = {
       );
     },
   },
-  "2024_04_11_2_index_on_logs_checkpoint": {
+  "2024_04_14_3_index_on_logs_checkpoint": {
     async up(db: Kysely<any>) {
       await db.schema
         .createIndex("logs_checkpoint_index")

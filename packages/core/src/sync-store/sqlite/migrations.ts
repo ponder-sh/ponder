@@ -541,6 +541,16 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_04_14_0_nullable_block_total_difficulty": {
+    async up(db: Kysely<any>) {
+      await columnDropNotNull({
+        db,
+        table: "blocks",
+        column: "totalDifficulty",
+        columnType: "varchar(79)",
+      });
+    },
+  },
 };
 
 const columnDropNotNull = async ({

@@ -1,5 +1,27 @@
 # @ponder/core
 
+## 0.4.3
+
+### Patch Changes
+
+- [#799](https://github.com/ponder-sh/ponder/pull/799) [`f526c79ceeee880df611ed592de06e7fb3146af5`](https://github.com/ponder-sh/ponder/commit/f526c79ceeee880df611ed592de06e7fb3146af5) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for Harmony by updating the "totalDifficulty" block property to be nullable.
+
+## 0.4.2
+
+### Patch Changes
+
+- [#795](https://github.com/ponder-sh/ponder/pull/795) [`23db73ee6e7984976d2d7888026fbf7513cbbada`](https://github.com/ponder-sh/ponder/commit/23db73ee6e7984976d2d7888026fbf7513cbbada) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where child contract creation events that are also being indexed via a normal contract would sometimes not be processed.
+
+- [#795](https://github.com/ponder-sh/ponder/pull/795) [`23db73ee6e7984976d2d7888026fbf7513cbbada`](https://github.com/ponder-sh/ponder/commit/23db73ee6e7984976d2d7888026fbf7513cbbada) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where including a factory contract in `ponder.config.ts` without registering an indexing function for every event that it emits would throw an error.
+
+- [#795](https://github.com/ponder-sh/ponder/pull/795) [`23db73ee6e7984976d2d7888026fbf7513cbbada`](https://github.com/ponder-sh/ponder/commit/23db73ee6e7984976d2d7888026fbf7513cbbada) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where transaction and log insertion during the realtime sync was not using a bulk insert. This improves realtime indexing latency, particularly for apps with many matched transactions and logs per block in realtime.
+
+## 0.4.1
+
+### Patch Changes
+
+- [#791](https://github.com/ponder-sh/ponder/pull/791) [`c1f93cc5ced3ece9ae46e87f05c1decdb92dba8b`](https://github.com/ponder-sh/ponder/commit/c1f93cc5ced3ece9ae46e87f05c1decdb92dba8b) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where reorgs would occasionally cause the process to exit.
+
 ## 0.4.0
 
 ### Minor Changes
