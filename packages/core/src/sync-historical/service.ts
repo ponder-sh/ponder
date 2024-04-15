@@ -2,11 +2,11 @@ import type { Common } from "@/common/common.js";
 import { getHistoricalSyncProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import {
-  type Factory,
-  type LogFilter,
+  type EventSource,
+  type FactorySource,
   type LogFilterCriteria,
-  type Source,
-  sourceIsLogFilter,
+  type LogSource,
+  sourceIsLog,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
@@ -61,21 +61,21 @@ type HistoricalSyncEvents = {
 
 type LogFilterTask = {
   kind: "LOG_FILTER";
-  logFilter: LogFilter;
+  logFilter: LogSource;
   fromBlock: number;
   toBlock: number;
 };
 
 type FactoryChildAddressTask = {
   kind: "FACTORY_CHILD_ADDRESS";
-  factory: Factory;
+  factory: FactorySource;
   fromBlock: number;
   toBlock: number;
 };
 
 type FactoryLogFilterTask = {
   kind: "FACTORY_LOG_FILTER";
-  factory: Factory;
+  factory: FactorySource;
   fromBlock: number;
   toBlock: number;
 };
@@ -106,7 +106,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private syncStore: SyncStore;
   private network: Network;
   private requestQueue: RequestQueue;
-  private sources: Source[];
+  private sources: EventSource[];
 
   /**
    * Block progress trackers for each task type.
@@ -153,7 +153,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     syncStore: SyncStore;
     network: Network;
     requestQueue: RequestQueue;
-    sources?: Source[];
+    sources?: EventSource[];
   }) {
     super();
 
@@ -187,7 +187,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             latestBlockNumber,
           });
 
-        if (sourceIsLogFilter(source)) {
+        if (sourceIsLog(source)) {
           // Log filter
           if (!isHistoricalSyncRequired) {
             this.logFilterProgressTrackers[source.id] = new ProgressTracker({

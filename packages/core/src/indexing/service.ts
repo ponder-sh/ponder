@@ -2,7 +2,7 @@ import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
-import { type Source } from "@/config/sources.js";
+import { type EventSource } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";
@@ -70,7 +70,7 @@ export type Service = {
 
   // static cache
   networkByChainId: { [chainId: number]: Network };
-  sourceById: { [sourceId: string]: Source };
+  sourceById: { [sourceId: string]: EventSource };
   clientByChainId: { [chainId: number]: Context["client"] };
   contractsByChainId: { [chainId: number]: Context["contracts"] };
 };
@@ -86,7 +86,7 @@ export const create = ({
 }: {
   indexingFunctions: IndexingFunctions;
   common: Common;
-  sources: Source[];
+  sources: EventSource[];
   networks: Network[];
   syncService: SyncService;
   indexingStore: IndexingStore;
@@ -188,7 +188,7 @@ export const processSetupEvents = async (
     sources,
     networks,
   }: {
-    sources: Source[];
+    sources: EventSource[];
     networks: Network[];
   },
 ): Promise<

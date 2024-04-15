@@ -2,7 +2,7 @@ import { type AddressInfo, createServer } from "node:net";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
-import { type Source } from "@/config/sources.js";
+import { type EventSource } from "@/config/sources.js";
 import type { RawEvent } from "@/sync-store/store.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
@@ -138,7 +138,7 @@ export const getNetworkAndSources = async (
  * Block 2 has a pair creation event.
  * Block 3 has a swap event from the newly created pair.
  */
-export const getRawRPCData = async (sources: Source[]) => {
+export const getRawRPCData = async (sources: EventSource[]) => {
   const latestBlock = await publicClient.getBlockNumber();
   const logs = (
     await Promise.all(
@@ -224,7 +224,7 @@ export const getRawRPCData = async (sources: Source[]) => {
  * Mock function for `getLogEvents` that specifically returns the event data for the erc20 source.
  */
 export const getEventsErc20 = async (
-  sources: Source[],
+  sources: EventSource[],
 ): Promise<RawEvent[]> => {
   const rpcData = await getRawRPCData(sources);
 

@@ -25,22 +25,22 @@ type BaseSource = {
   maxBlockRange?: number;
 };
 
-export type LogFilter = BaseSource & {
-  type: "logFilter";
+export type LogSource = BaseSource & {
+  type: "log";
   criteria: LogFilterCriteria;
 };
 
-export type Factory = BaseSource & {
+export type FactorySource = BaseSource & {
   type: "factory";
   criteria: FactoryCriteria;
 };
 
-export type Source = LogFilter | Factory;
+export type EventSource = LogSource | FactorySource;
 
-export const sourceIsLogFilter = (
-  source: Pick<Source, "type">,
-): source is LogFilter => source.type === "logFilter";
+export const sourceIsLog = (
+  source: Pick<EventSource, "type">,
+): source is LogSource => source.type === "log";
 
 export const sourceIsFactory = (
-  source: Pick<Source, "type">,
-): source is Factory => source.type === "factory";
+  source: Pick<EventSource, "type">,
+): source is FactorySource => source.type === "factory";

@@ -11,7 +11,11 @@ import {
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
-import type { Factory, LogFilter, Source } from "@/config/sources.js";
+import type {
+  EventSource,
+  FactorySource,
+  LogSource,
+} from "@/config/sources.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { dedupe } from "@ponder/common";
@@ -296,7 +300,7 @@ export async function buildConfigAndIndexingFunctions({
     logs.push({ level: "warn", msg: "No indexing functions were registered." });
   }
 
-  const sources: Source[] = Object.entries(config.contracts)
+  const sources: EventSource[] = Object.entries(config.contracts)
     // First, apply any network-specific overrides and flatten the result.
     .flatMap(([contractName, contract]) => {
       if (contract.network === null || contract.network === undefined) {
@@ -505,7 +509,7 @@ export async function buildConfigAndIndexingFunctions({
           ...baseContract,
           type: "factory",
           criteria: { ...factoryCriteria, topics },
-        } satisfies Factory;
+        } satisfies FactorySource;
       }
 
       const validatedAddress = Array.isArray(resolvedAddress)
@@ -534,12 +538,12 @@ export async function buildConfigAndIndexingFunctions({
 
       return {
         ...baseContract,
-        type: "logFilter",
+        type: "log",
         criteria: {
           address: validatedAddress,
           topics,
         },
-      } satisfies LogFilter;
+      } satisfies LogSource;
     })
     // Remove sources with no registered indexing functions
     .filter((source) => {
