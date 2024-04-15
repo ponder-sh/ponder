@@ -1,5 +1,4 @@
 import type { Common } from "@/common/common.js";
-import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { Kysely } from "kysely";
 import { type Migration, type MigrationProvider, sql } from "kysely";
 
@@ -457,70 +456,9 @@ const migrations: Record<string, Migration> = {
     },
   },
   "2024_03_20_0_checkpoint_in_logs_table": {
-    async up(db: Kysely<any>) {
-      await db.schema
-        .alterTable("logs")
-        .addColumn("checkpoint", "varchar(75)")
-        .execute();
-      await db.executeQuery(
-        sql`
-          WITH checkpoint_vals AS (
-            SELECT logs.id, blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex"
-            FROM ponder_sync.logs logs
-            JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
-          )
-          UPDATE ponder_sync.logs
-          SET checkpoint=
-              (lpad(checkpoint_vals.timestamp::text, 10, '0') ||
-              lpad(checkpoint_vals."chainId"::text, 16, '0') ||
-              lpad(checkpoint_vals.number::text, 16, '0') ||
-              lpad(checkpoint_vals."transactionIndex"::text, 16, '0') ||
-              '5' ||
-              lpad(checkpoint_vals."logIndex"::text, 16, '0'))
-          FROM checkpoint_vals
-          WHERE ponder_sync.logs.id = checkpoint_vals.id;
-        `.compile(db),
-      );
-
-      // sanity check our checkpoint encoding on the first 10 rows of the table
-      const checkRes = await db.executeQuery<{
-        timestamp: number;
-        chainId: number;
-        number: number;
-        transactionIndex: number;
-        logIndex: number;
-        checkpoint: bigint;
-      }>(
-        sql`
-          SELECT blocks.timestamp, blocks."chainId", blocks.number, logs."transactionIndex", logs."logIndex", logs.checkpoint
-          FROM ponder_sync.logs logs
-          JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash
-          LIMIT 10
-        `.compile(db),
-      );
-
-      for (const row of checkRes.rows) {
-        const expected = encodeCheckpoint({
-          blockTimestamp: row.timestamp,
-          chainId: row.chainId,
-          blockNumber: row.number,
-          transactionIndex: row.transactionIndex,
-          eventType: EVENT_TYPES.logs,
-          eventIndex: row.logIndex,
-        });
-
-        if (row.checkpoint.toString() !== expected) {
-          throw new Error(
-            `data migration failed: expected new checkpoint column to have value ${expected} but got ${row.checkpoint}`,
-          );
-        }
-      }
-
-      await db.schema
-        .createIndex("logs_checkpoint_index")
-        .on("logs")
-        .column("checkpoint")
-        .execute();
+    async up(_db: Kysely<any>) {
+      // no-op migration to avoid crashing databases that successfully ran this migration
+      return;
     },
   },
   "2024_04_04_0_log_events_indexes": {
@@ -532,6 +470,69 @@ const migrations: Record<string, Migration> = {
         .createIndex("logBlockNumberIndex")
         .on("logs")
         .column("blockNumber")
+        .execute();
+    },
+  },
+  "2024_04_14_0_nullable_block_total_difficulty": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("totalDifficulty", (col) => col.dropNotNull())
+        .execute();
+    },
+  },
+  "2024_04_14_1_add_checkpoint_column_to_logs_table": {
+    async up(db: Kysely<any>) {
+      await db.executeQuery(
+        sql`
+        ALTER TABLE ponder_sync.logs 
+        ADD COLUMN IF NOT EXISTS 
+        checkpoint varchar(75)`.compile(db),
+      );
+    },
+  },
+  "2024_04_14_2_set_checkpoint_in_logs_table": {
+    async up(db: Kysely<any>) {
+      await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
+      await db.executeQuery(
+        sql`
+        CREATE TEMP TABLE cp_vals AS 
+        SELECT
+          logs.id,
+          (lpad(blocks.timestamp::text, 10, '0') ||
+          lpad(blocks."chainId"::text, 16, '0') ||
+          lpad(blocks.number::text, 16, '0') ||
+          lpad(logs."transactionIndex"::text, 16, '0') ||
+          '5' ||
+          lpad(logs."logIndex"::text, 16, '0')) AS checkpoint
+        FROM ponder_sync.logs logs
+        JOIN ponder_sync.blocks blocks ON logs."blockHash" = blocks.hash;
+        `.compile(db),
+      );
+
+      await db.executeQuery(
+        sql`
+        CREATE INDEX ON cp_vals(id)
+        `.compile(db),
+      );
+
+      await db.executeQuery(
+        sql`
+          UPDATE ponder_sync.logs
+          SET checkpoint=cp_vals.checkpoint
+          FROM cp_vals
+          WHERE ponder_sync.logs.id = cp_vals.id
+        `.compile(db),
+      );
+    },
+  },
+  "2024_04_14_3_index_on_logs_checkpoint": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createIndex("logs_checkpoint_index")
+        .ifNotExists()
+        .on("logs")
+        .column("checkpoint")
         .execute();
     },
   },

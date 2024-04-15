@@ -1,8 +1,8 @@
-import type { IndexingFunctions } from "@/build/functions/functions.js";
+import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
-import { type Source } from "@/config/sources.js";
+import { type EventSource } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/service.js";
@@ -41,7 +41,7 @@ export type Context = {
   >;
 };
 
-export type IndexingService = {
+export type Service = {
   // static
   common: Common;
   indexingFunctions: IndexingFunctions;
@@ -51,7 +51,7 @@ export type IndexingService = {
   isKilled: boolean;
 
   eventCount: {
-    [indexingFunctionKey: string]: { [networkName: string]: number };
+    [eventName: string]: { [networkName: string]: number };
   };
   firstEventCheckpoint: Checkpoint | undefined;
   lastEventCheckpoint: Checkpoint | undefined;
@@ -70,12 +70,12 @@ export type IndexingService = {
 
   // static cache
   networkByChainId: { [chainId: number]: Network };
-  sourceById: { [sourceId: string]: Source };
+  sourceById: { [sourceId: string]: EventSource };
   clientByChainId: { [chainId: number]: Context["client"] };
   contractsByChainId: { [chainId: number]: Context["contracts"] };
 };
 
-export const createIndexingService = ({
+export const create = ({
   indexingFunctions,
   common,
   sources,
@@ -86,33 +86,30 @@ export const createIndexingService = ({
 }: {
   indexingFunctions: IndexingFunctions;
   common: Common;
-  sources: Source[];
+  sources: EventSource[];
   networks: Network[];
   syncService: SyncService;
   indexingStore: IndexingStore;
   schema: Schema;
-}): IndexingService => {
-  const contextState: IndexingService["currentEvent"]["contextState"] = {
+}): Service => {
+  const contextState: Service["currentEvent"]["contextState"] = {
     encodedCheckpoint: undefined!,
     blockNumber: undefined!,
   };
-  const clientByChainId: IndexingService["clientByChainId"] = {};
-  const contractsByChainId: IndexingService["contractsByChainId"] = {};
+  const clientByChainId: Service["clientByChainId"] = {};
+  const contractsByChainId: Service["contractsByChainId"] = {};
 
-  const networkByChainId = networks.reduce<IndexingService["networkByChainId"]>(
+  const networkByChainId = networks.reduce<Service["networkByChainId"]>(
     (acc, cur) => {
       acc[cur.chainId] = cur;
       return acc;
     },
     {},
   );
-  const sourceById = sources.reduce<IndexingService["sourceById"]>(
-    (acc, cur) => {
-      acc[cur.id] = cur;
-      return acc;
-    },
-    {},
-  );
+  const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
+    acc[cur.id] = cur;
+    return acc;
+  }, {});
 
   // build contractsByChainId
   for (const source of sources) {
@@ -150,14 +147,11 @@ export const createIndexingService = ({
   }
 
   // build eventCount
-  const eventCount: IndexingService["eventCount"] = {};
-  for (const contractName of Object.keys(indexingFunctions)) {
-    for (const eventName of Object.keys(indexingFunctions[contractName])) {
-      const indexingFunctionKey = `${contractName}:${eventName}`;
-      eventCount[indexingFunctionKey] = {};
-      for (const network of networks) {
-        eventCount[indexingFunctionKey][network.name] = 0;
-      }
+  const eventCount: Service["eventCount"] = {};
+  for (const eventName of Object.keys(indexingFunctions)) {
+    eventCount[eventName] = {};
+    for (const network of networks) {
+      eventCount[eventName][network.name] = 0;
     }
   }
 
@@ -186,12 +180,12 @@ export const createIndexingService = ({
 };
 
 export const processSetupEvents = async (
-  indexingService: IndexingService,
+  indexingService: Service,
   {
     sources,
     networks,
   }: {
-    sources: Source[];
+    sources: EventSource[];
     networks: Network[];
   },
 ): Promise<
@@ -199,41 +193,35 @@ export const processSetupEvents = async (
   | { status: "success" }
   | { status: "killed" }
 > => {
-  for (const contractName of Object.keys(indexingService.indexingFunctions)) {
-    for (const eventName of Object.keys(
-      indexingService.indexingFunctions[contractName],
-    )) {
-      if (eventName !== "setup") continue;
+  for (const eventName of Object.keys(indexingService.indexingFunctions)) {
+    if (!eventName.endsWith(":setup")) continue;
 
-      for (const network of networks) {
-        const source = sources.find(
-          (s) =>
-            s.contractName === contractName && s.chainId === network.chainId,
-        )!;
+    const [contractName] = eventName.split(":");
 
-        if (indexingService.isKilled) return { status: "killed" };
-        indexingService.eventCount[`${source.contractName}:setup`][
-          source.networkName
-        ]++;
+    for (const network of networks) {
+      const source = sources.find(
+        (s) => s.contractName === contractName && s.chainId === network.chainId,
+      )!;
 
-        const result = await executeSetup(indexingService, {
-          event: {
-            type: "setup",
+      if (indexingService.isKilled) return { status: "killed" };
+      indexingService.eventCount[eventName][source.networkName]++;
+
+      const result = await executeSetup(indexingService, {
+        event: {
+          type: "setup",
+          chainId: network.chainId,
+          contractName: source.contractName,
+          startBlock: BigInt(source.startBlock),
+          encodedCheckpoint: encodeCheckpoint({
+            ...zeroCheckpoint,
             chainId: network.chainId,
-            contractName: source.contractName,
-            eventName: "setup",
-            startBlock: BigInt(source.startBlock),
-            encodedCheckpoint: encodeCheckpoint({
-              ...zeroCheckpoint,
-              chainId: network.chainId,
-              blockNumber: source.startBlock,
-            }),
-          },
-        });
+            blockNumber: source.startBlock,
+          }),
+        },
+      });
 
-        if (result.status !== "success") {
-          return result;
-        }
+      if (result.status !== "success") {
+        return result;
       }
     }
   }
@@ -242,7 +230,7 @@ export const processSetupEvents = async (
 };
 
 export const processEvents = async (
-  indexingService: IndexingService,
+  indexingService: Service,
   { events }: { events: Event[] },
 ): Promise<
   | { status: "error"; error: Error }
@@ -266,16 +254,16 @@ export const processEvents = async (
 
   for (let i = 0; i < events.length; i++) {
     const event = events[i];
-    const indexingFunctionKey = `${event.contractName}:${event.eventName}`;
+    const eventName = `${event.contractName}:${event.logEventName}`;
 
     if (indexingService.isKilled) return { status: "killed" };
-    indexingService.eventCount[indexingFunctionKey][
+    indexingService.eventCount[eventName][
       indexingService.networkByChainId[event.chainId].name
     ]++;
 
     indexingService.common.logger.trace({
       service: "indexing",
-      msg: `Started indexing function (event="${indexingFunctionKey}", checkpoint=${event.encodedCheckpoint})`,
+      msg: `Started indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
     });
 
     switch (event.type) {
@@ -290,7 +278,7 @@ export const processEvents = async (
 
     indexingService.common.logger.trace({
       service: "indexing",
-      msg: `Completed indexing function (event="${indexingFunctionKey}", checkpoint=${event.encodedCheckpoint})`,
+      msg: `Completed indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
     });
 
     // periodically update metrics
@@ -331,7 +319,7 @@ export const processEvents = async (
   return { status: "success" };
 };
 
-export const kill = (indexingService: IndexingService) => {
+export const kill = (indexingService: Service) => {
   indexingService.common.logger.debug({
     service: "indexing",
     msg: "Killed indexing service",
@@ -340,7 +328,7 @@ export const kill = (indexingService: IndexingService) => {
 };
 
 export const updateLastEventCheckpoint = (
-  indexingService: IndexingService,
+  indexingService: Service,
   lastEventCheckpoint: Checkpoint,
 ) => {
   indexingService.lastEventCheckpoint = lastEventCheckpoint;
@@ -353,7 +341,7 @@ export const updateLastEventCheckpoint = (
   }
 };
 
-const updateCompletedEvents = (indexingService: IndexingService) => {
+const updateCompletedEvents = (indexingService: Service) => {
   for (const event of Object.keys(indexingService.eventCount)) {
     for (const network of Object.keys(indexingService.eventCount[event])) {
       const metricLabel = {
@@ -369,7 +357,7 @@ const updateCompletedEvents = (indexingService: IndexingService) => {
 };
 
 const executeSetup = async (
-  indexingService: IndexingService,
+  indexingService: Service,
   { event }: { event: SetupEvent },
 ): Promise<
   | { status: "error"; error: Error }
@@ -384,11 +372,11 @@ const executeSetup = async (
     contractsByChainId,
     clientByChainId,
   } = indexingService;
-  const indexingFunction =
-    indexingFunctions[event.contractName][event.eventName];
+  const eventName = `${event.contractName}:setup`;
+  const indexingFunction = indexingFunctions[eventName];
 
   const metricLabel = {
-    event: event.eventName,
+    event: eventName,
     network: networkByChainId[event.chainId].name,
   };
 
@@ -429,7 +417,7 @@ const executeSetup = async (
 
         common.logger.error({
           service: "indexing",
-          msg: `Error while processing "${event.contractName}:${event.eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+          msg: `Error while processing "${eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
           error,
         });
 
@@ -438,9 +426,9 @@ const executeSetup = async (
       } else {
         common.logger.warn({
           service: "indexing",
-          msg: `Indexing function failed, retrying... (event="${
-            event.contractName
-          }:${event.eventName}", chainId=${decodedCheckpoint.chainId}, block=${
+          msg: `Indexing function failed, retrying... (event="${eventName}", chainId=${
+            decodedCheckpoint.chainId
+          }, block=${
             decodedCheckpoint.blockNumber
           }, error=${`${error.name}: ${error.message}`})`,
         });
@@ -456,7 +444,7 @@ const executeSetup = async (
 };
 
 const executeLog = async (
-  indexingService: IndexingService,
+  indexingService: Service,
   { event }: { event: LogEvent },
 ): Promise<
   | { status: "error"; error: Error }
@@ -471,11 +459,11 @@ const executeLog = async (
     contractsByChainId,
     clientByChainId,
   } = indexingService;
-  const indexingFunction =
-    indexingFunctions[event.contractName][event.eventName];
+  const eventName = `${event.contractName}:${event.logEventName}`;
+  const indexingFunction = indexingFunctions[eventName];
 
   const metricLabel = {
-    event: `${event.contractName}:${event.eventName}`,
+    event: eventName,
     network: networkByChainId[event.chainId].name,
   };
 
@@ -493,7 +481,7 @@ const executeLog = async (
 
       await indexingFunction({
         event: {
-          name: event.eventName,
+          name: event.logEventName,
           args: event.event.args,
           log: event.event.log,
           block: event.event.block,
@@ -529,7 +517,7 @@ const executeLog = async (
 
         common.logger.error({
           service: "indexing",
-          msg: `Error while processing "${event.contractName}:${event.eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+          msg: `Error while processing "${eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
           error,
         });
 
@@ -539,9 +527,9 @@ const executeLog = async (
       } else {
         common.logger.warn({
           service: "indexing",
-          msg: `Indexing function failed, retrying... (event="${
-            event.contractName
-          }:${event.eventName}", chainId=${decodedCheckpoint.chainId}, block=${
+          msg: `Indexing function failed, retrying... (event="${eventName}", chainId=${
+            decodedCheckpoint.chainId
+          }, block=${
             decodedCheckpoint.blockNumber
           }, error=${`${error.name}: ${error.message}`})`,
         });

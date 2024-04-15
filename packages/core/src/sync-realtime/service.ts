@@ -1,11 +1,11 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import {
-  type Factory,
-  type LogFilter,
-  type Source,
+  type EventSource,
+  type FactorySource,
+  type LogSource,
   sourceIsFactory,
-  sourceIsLogFilter,
+  sourceIsLog,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
@@ -52,14 +52,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private syncStore: SyncStore;
   private network: Network;
   private requestQueue: RequestQueue;
-  private sources: Source[];
+  private sources: EventSource[];
 
   /**
    * Derived source state.
    */
   private hasFactorySource: boolean;
-  private logFilterSources: LogFilter[];
-  private factorySources: Factory[];
+  private logFilterSources: LogSource[];
+  private factorySources: FactorySource[];
   private address: Address[] | undefined;
   private eventSelectors: Hex[];
 
@@ -87,7 +87,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     syncStore: SyncStore;
     network: Network;
     requestQueue: RequestQueue;
-    sources?: Source[];
+    sources?: EventSource[];
   }) {
     super();
 
@@ -98,7 +98,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.sources = sources;
 
     this.hasFactorySource = sources.some(sourceIsFactory);
-    this.logFilterSources = sources.filter(sourceIsLogFilter);
+    this.logFilterSources = sources.filter(sourceIsLog);
     this.factorySources = sources.filter(sourceIsFactory);
 
     const isAddressDefined = this.logFilterSources.every(

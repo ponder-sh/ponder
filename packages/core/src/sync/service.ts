@@ -1,6 +1,6 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import type { Source } from "@/config/sources.js";
+import type { EventSource } from "@/config/sources.js";
 import { HistoricalSyncService } from "@/sync-historical/service.js";
 import { RealtimeSyncService } from "@/sync-realtime/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -44,7 +44,7 @@ type SyncServiceEvents = {
 export class SyncService extends Emittery<SyncServiceEvents> {
   private common: Common;
   private syncStore: SyncStore;
-  private sources: Source[];
+  private sources: EventSource[];
 
   // Minimum timestamp at which events are available (across all networks).
   checkpoint: Checkpoint;
@@ -58,7 +58,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
     number,
     {
       network: Network;
-      sources: Source[];
+      sources: EventSource[];
       requestQueue: RequestQueue;
       cachedTransport: Transport;
 
@@ -81,7 +81,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
     common: Common;
     syncStore: SyncStore;
     networks: Network[];
-    sources: Source[];
+    sources: EventSource[];
   }) {
     super();
 
@@ -214,7 +214,7 @@ export class SyncService extends Emittery<SyncServiceEvents> {
    * @param options.toCheckpoint Checkpoint to include events to (inclusive).
    */
   getEvents(options: {
-    sources: Source[];
+    sources: EventSource[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;

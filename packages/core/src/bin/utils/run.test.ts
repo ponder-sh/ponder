@@ -1,5 +1,5 @@
 import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
-import type { Build } from "@/build/service.js";
+import type { Build } from "@/build/index.js";
 import * as codegen from "@/common/codegen.js";
 import { createSchema } from "@/schema/schema.js";
 import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
@@ -49,9 +49,7 @@ test("run() kill", async (context) => {
 
 test("run() setup", async (context) => {
   const indexingFunctions = {
-    Erc20: {
-      setup: vi.fn(),
-    },
+    "Erc20:setup": vi.fn(),
   };
 
   const build: Build = {
@@ -71,16 +69,14 @@ test("run() setup", async (context) => {
     onReloadableError: vi.fn(),
   });
 
-  expect(indexingFunctions.Erc20.setup).toHaveBeenCalledOnce();
+  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledOnce();
 
   await kill();
 });
 
 test("run() setup error", async (context) => {
   const indexingFunctions = {
-    Erc20: {
-      setup: vi.fn(),
-    },
+    "Erc20:setup": vi.fn(),
   };
   const onReloadableError = vi.fn();
 
@@ -94,7 +90,7 @@ test("run() setup error", async (context) => {
     indexingFunctions,
   };
 
-  indexingFunctions.Erc20.setup.mockRejectedValue(new Error());
+  indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
   const kill = await run({
     common: context.common,
@@ -103,7 +99,7 @@ test("run() setup error", async (context) => {
     onReloadableError,
   });
 
-  expect(indexingFunctions.Erc20.setup).toHaveBeenCalledTimes(4);
+  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(4);
   expect(onReloadableError).toHaveBeenCalledOnce();
 
   await kill();

@@ -42,7 +42,7 @@ export type Block = {
   /** Unix timestamp of when this block was collated */
   timestamp: bigint;
   /** Total difficulty of the chain until this block */
-  totalDifficulty: bigint;
+  totalDifficulty: bigint | null;
   /** Root of this block’s transaction trie */
   transactionsRoot: Hash;
 };

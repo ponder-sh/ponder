@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.3
+
+### Patch Changes
+
+- [#799](https://github.com/ponder-sh/ponder/pull/799) [`f526c79ceeee880df611ed592de06e7fb3146af5`](https://github.com/ponder-sh/ponder/commit/f526c79ceeee880df611ed592de06e7fb3146af5) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for Harmony by updating the "totalDifficulty" block property to be nullable.
+
 ## 0.4.2
 
 ### Patch Changes

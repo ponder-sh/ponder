@@ -2,8 +2,11 @@ import path from "path";
 import type { Options } from "@/common/options.js";
 import { http, getEventSelector, parseAbiItem } from "viem";
 import { expect, test, vi } from "vitest";
-import { type Config, createConfig } from "../../config/config.js";
-import { buildConfig, safeBuildConfig } from "./config.js";
+import { type Config, createConfig } from "../config/config.js";
+import {
+  buildConfigAndIndexingFunctions,
+  safeBuildConfigAndIndexingFunctions,
+} from "./configAndIndexingFunctions.js";
 
 const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
 const event1 = parseAbiItem("event Event1()");
@@ -21,7 +24,7 @@ const options = {
   rootDir: "rootDir",
 } as const satisfies Pick<Options, "rootDir" | "ponderDir">;
 
-test("buildConfig() builds topics for multiple events", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for multiple events", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -39,20 +42,27 @@ test("buildConfig() builds topics for multiple events", async () => {
     },
   });
 
-  const { sources } = await buildConfig({ config, options });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [
+      { name: "a:Event0", fn: () => {} },
+      { name: "a:Event1", fn: () => {} },
+    ],
+    options,
+  });
 
   expect(sources[0].criteria.topics).toMatchObject([
     [getEventSelector(event0), getEventSelector(event1)],
   ]);
 });
 
-test("buildConfig() handles overloaded event signatures and combines topics", async () => {
+test("buildConfigAndIndexingFunctions() handles overloaded event signatures and combines topics", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
-      BaseRegistrartImplementation: {
+      a: {
         network: { mainnet: {} },
         abi: [event1, event1Overloaded],
         filter: {
@@ -66,14 +76,21 @@ test("buildConfig() handles overloaded event signatures and combines topics", as
     },
   });
 
-  const { sources } = await buildConfig({ config, options });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [
+      { name: "a:Event1()", fn: () => {} },
+      { name: "a:Event1(bytes32 indexed)", fn: () => {} },
+    ],
+    options,
+  });
 
   expect(sources[0].criteria.topics).toMatchObject([
     [getEventSelector(event1), getEventSelector(event1Overloaded)],
   ]);
 });
 
-test("buildConfig() creates a source for each network for multi-network contracts", async () => {
+test("buildConfigAndIndexingFunctions() creates a source for each network for multi-network contracts", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -87,12 +104,16 @@ test("buildConfig() creates a source for each network for multi-network contract
     },
   });
 
-  const { sources } = await buildConfig({ config, options });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(sources.length).toBe(2);
 });
 
-test("buildConfig() builds topics for event with args", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for event with args", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -115,15 +136,19 @@ test("buildConfig() builds topics for event with args", async () => {
     },
   });
 
-  const { sources } = await buildConfig({ config, options });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(sources[0].criteria.topics).toMatchObject([
-    getEventSelector(event0),
+    [getEventSelector(event0)],
     bytes1,
   ]);
 });
 
-test("buildConfig() builds topics for event with unnamed parameters", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for event with unnamed parameters", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -144,15 +169,19 @@ test("buildConfig() builds topics for event with unnamed parameters", async () =
     },
   });
 
-  const { sources } = await buildConfig({ config, options });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event1", fn: () => {} }],
+    options,
+  });
 
   expect(sources[0].criteria.topics).toMatchObject([
-    getEventSelector(event1Overloaded),
+    [getEventSelector(event1Overloaded)],
     [bytes1, bytes2],
   ]);
 });
 
-test("buildConfig() overrides default values with network-specific values", async () => {
+test("buildConfigAndIndexingFunctions() overrides default values with network-specific values", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -174,12 +203,16 @@ test("buildConfig() overrides default values with network-specific values", asyn
     },
   });
 
-  const { sources } = await buildConfig({ config, options });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(sources[0].criteria.address).toBe(address2);
 });
 
-test("buildConfig() handles network name shortcut", async () => {
+test("buildConfigAndIndexingFunctions() handles network name shortcut", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -197,12 +230,16 @@ test("buildConfig() handles network name shortcut", async () => {
     },
   });
 
-  const { sources } = await buildConfig({ config, options });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(sources[0].networkName).toBe("mainnet");
 });
 
-test("buildConfig() validates network name", async () => {
+test("buildConfigAndIndexingFunctions() validates network name", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -217,15 +254,19 @@ test("buildConfig() validates network name", async () => {
     },
   });
 
-  const result = await safeBuildConfig({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid network for contract 'a'. Got 'mainnetz', expected one of ['mainnet'].",
   );
 });
 
-test("buildConfig() warns for public RPC URL", async () => {
+test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -239,10 +280,14 @@ test("buildConfig() warns for public RPC URL", async () => {
     },
   });
 
-  const result = await safeBuildConfig({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
-  expect(result.success).toBe(true);
-  expect(result.data?.logs.filter((l) => l.level === "warn")).toMatchObject([
+  expect(result.status).toBe("success");
+  expect(result.logs!.filter((l) => l.level === "warn")).toMatchObject([
     {
       level: "warn",
       msg: "Network 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
@@ -250,7 +295,7 @@ test("buildConfig() warns for public RPC URL", async () => {
   ]);
 });
 
-test("buildConfig() validates against multiple events and indexed argument values", async () => {
+test("buildConfigAndIndexingFunctions() validates against multiple events and indexed argument values", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -268,15 +313,19 @@ test("buildConfig() validates against multiple events and indexed argument value
     },
   }) as any;
 
-  const result = await safeBuildConfig({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Event filter for contract 'a' cannot contain indexed argument values if multiple events are provided.",
   );
 });
 
-test("buildConfig() validates event filter event name must be present in ABI", async () => {
+test("buildConfigAndIndexingFunctions() validates event filter event name must be present in ABI", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -293,15 +342,19 @@ test("buildConfig() validates event filter event name must be present in ABI", a
     },
   });
 
-  const result = await safeBuildConfig({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid filter for contract 'a'. Got event name 'Event2', expected one of ['Event0'].",
   );
 });
 
-test("buildConfig() validates against specifying both factory and address", async () => {
+test("buildConfigAndIndexingFunctions() validates against specifying both factory and address", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -321,15 +374,19 @@ test("buildConfig() validates against specifying both factory and address", asyn
     },
   });
 
-  const result = await safeBuildConfig({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Contract 'a' cannot specify both 'factory' and 'address' options.",
   );
 });
 
-test("buildConfig() validates address prefix", async () => {
+test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -344,15 +401,19 @@ test("buildConfig() validates address prefix", async () => {
     },
   }) as Config;
 
-  const result = await safeBuildConfig({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [],
+    options,
+  });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid prefix for address '0b0000000000000000000000000000000000000001'. Got '0b', expected '0x'.",
   );
 });
 
-test("buildConfig() validates address length", async () => {
+test("buildConfigAndIndexingFunctions() validates address length", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
@@ -366,15 +427,19 @@ test("buildConfig() validates address length", async () => {
     },
   });
 
-  const result = await safeBuildConfig({ config, options });
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid length for address '0x000000000001'. Got 14, expected 42 characters.",
   );
 });
 
-test("buildConfig() coerces NaN startBlock to 0", async () => {
+test("buildConfigAndIndexingFunctions() coerces NaN startBlock to 0", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -388,12 +453,16 @@ test("buildConfig() coerces NaN startBlock to 0", async () => {
     },
   });
 
-  const { sources } = await buildConfig({ config, options });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(sources[0].startBlock).toBe(0);
 });
 
-test("buildConfig() coerces NaN endBlock to undefined", async () => {
+test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -407,12 +476,16 @@ test("buildConfig() coerces NaN endBlock to undefined", async () => {
     },
   });
 
-  const { sources } = await buildConfig({ config, options });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
 
   expect(sources[0].endBlock).toBe(undefined);
 });
 
-test("buildConfig() database uses sqlite by default", async () => {
+test("buildConfigAndIndexingFunctions() database uses sqlite by default", async () => {
   const config = createConfig({
     networks: { mainnet: { chainId: 1, transport: http() } },
     contracts: { a: { network: "mainnet", abi: [event0] } },
@@ -422,7 +495,11 @@ test("buildConfig() database uses sqlite by default", async () => {
   // biome-ignore lint/performance/noDelete: Required to test default behavior.
   delete process.env.DATABASE_URL;
 
-  const { databaseConfig } = await buildConfig({ config, options });
+  const { databaseConfig } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
   expect(databaseConfig).toMatchObject({
     kind: "sqlite",
     directory: expect.stringContaining(path.join(".ponder", "sqlite")),
@@ -431,7 +508,7 @@ test("buildConfig() database uses sqlite by default", async () => {
   process.env.DATABASE_URL = prev;
 });
 
-test("buildConfig() database uses sqlite if specified even if DATABASE_URL env var present", async () => {
+test("buildConfigAndIndexingFunctions() database uses sqlite if specified even if DATABASE_URL env var present", async () => {
   const config = createConfig({
     database: { kind: "sqlite" },
     networks: { mainnet: { chainId: 1, transport: http() } },
@@ -440,7 +517,11 @@ test("buildConfig() database uses sqlite if specified even if DATABASE_URL env v
 
   vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
 
-  const { databaseConfig } = await buildConfig({ config, options });
+  const { databaseConfig } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [],
+    options,
+  });
   expect(databaseConfig).toMatchObject({
     kind: "sqlite",
     directory: expect.stringContaining(path.join(".ponder", "sqlite")),
@@ -449,7 +530,7 @@ test("buildConfig() database uses sqlite if specified even if DATABASE_URL env v
   vi.unstubAllEnvs();
 });
 
-test("buildConfig() database uses postgres if DATABASE_URL env var present", async () => {
+test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_URL env var present", async () => {
   const config = createConfig({
     networks: { mainnet: { chainId: 1, transport: http() } },
     contracts: { a: { network: "mainnet", abi: [event0] } },
@@ -457,7 +538,11 @@ test("buildConfig() database uses postgres if DATABASE_URL env var present", asy
 
   vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
 
-  const { databaseConfig } = await buildConfig({ config, options });
+  const { databaseConfig } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [],
+    options,
+  });
   expect(databaseConfig).toMatchObject({
     kind: "postgres",
     poolConfig: {
@@ -469,7 +554,7 @@ test("buildConfig() database uses postgres if DATABASE_URL env var present", asy
   vi.unstubAllEnvs();
 });
 
-test("buildConfig() database uses postgres if DATABASE_PRIVATE_URL env var present", async () => {
+test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_PRIVATE_URL env var present", async () => {
   const config = createConfig({
     networks: { mainnet: { chainId: 1, transport: http() } },
     contracts: { a: { network: "mainnet", abi: [event0] } },
@@ -481,7 +566,11 @@ test("buildConfig() database uses postgres if DATABASE_PRIVATE_URL env var prese
     "postgres://username@localhost:5432/better_database",
   );
 
-  const { databaseConfig } = await buildConfig({ config, options });
+  const { databaseConfig } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [],
+    options,
+  });
   expect(databaseConfig).toMatchObject({
     kind: "postgres",
     poolConfig: {
@@ -493,7 +582,7 @@ test("buildConfig() database uses postgres if DATABASE_PRIVATE_URL env var prese
   vi.unstubAllEnvs();
 });
 
-test("buildConfig() throws for postgres database with no connection string", async () => {
+test("buildConfigAndIndexingFunctions() throws for postgres database with no connection string", async () => {
   const config = createConfig({
     database: { kind: "postgres" },
     networks: { mainnet: { chainId: 1, transport: http() } },
@@ -504,14 +593,20 @@ test("buildConfig() throws for postgres database with no connection string", asy
   // biome-ignore lint/performance/noDelete: Required to test default behavior.
   delete process.env.DATABASE_URL;
 
-  await expect(() => buildConfig({ config, options })).rejects.toThrow(
+  await expect(() =>
+    buildConfigAndIndexingFunctions({
+      config,
+      rawIndexingFunctions: [],
+      options,
+    }),
+  ).rejects.toThrow(
     "Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.",
   );
 
   process.env.DATABASE_URL = prev;
 });
 
-test("buildConfig() database with postgres uses RAILWAY_DEPLOYMENT_ID if defined", async () => {
+test("buildConfigAndIndexingFunctions() database with postgres uses RAILWAY_DEPLOYMENT_ID if defined", async () => {
   const config = createConfig({
     networks: { mainnet: { chainId: 1, transport: http() } },
     contracts: { a: { network: "mainnet", abi: [event0] } },
@@ -521,7 +616,11 @@ test("buildConfig() database with postgres uses RAILWAY_DEPLOYMENT_ID if defined
   vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
   vi.stubEnv("RAILWAY_SERVICE_NAME", "multichain-indexer");
 
-  const { databaseConfig } = await buildConfig({ config, options });
+  const { databaseConfig } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [],
+    options,
+  });
   expect(databaseConfig).toMatchObject({
     kind: "postgres",
     poolConfig: {
@@ -533,7 +632,7 @@ test("buildConfig() database with postgres uses RAILWAY_DEPLOYMENT_ID if defined
   vi.unstubAllEnvs();
 });
 
-test("buildConfig() database throws with RAILWAY_DEPLOYMENT_ID but no RAILWAY_SERVICE_NAME", async () => {
+test("buildConfigAndIndexingFunctions() database throws with RAILWAY_DEPLOYMENT_ID but no RAILWAY_SERVICE_NAME", async () => {
   const config = createConfig({
     networks: { mainnet: { chainId: 1, transport: http() } },
     contracts: { a: { network: "mainnet", abi: [event0] } },
@@ -542,14 +641,20 @@ test("buildConfig() database throws with RAILWAY_DEPLOYMENT_ID but no RAILWAY_SE
   vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
   vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
 
-  await expect(() => buildConfig({ config, options })).rejects.toThrow(
+  await expect(() =>
+    buildConfigAndIndexingFunctions({
+      config,
+      rawIndexingFunctions: [],
+      options,
+    }),
+  ).rejects.toThrow(
     "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
   );
 
   vi.unstubAllEnvs();
 });
 
-test("buildConfig() database with postgres uses publish schema defined in config", async () => {
+test("buildConfigAndIndexingFunctions() database with postgres uses publish schema defined in config", async () => {
   const config = createConfig({
     database: { kind: "postgres", publishSchema: "custom-publish" },
     networks: { mainnet: { chainId: 1, transport: http() } },
@@ -560,7 +665,11 @@ test("buildConfig() database with postgres uses publish schema defined in config
   vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
   vi.stubEnv("RAILWAY_SERVICE_NAME", "multichain-indexer");
 
-  const { databaseConfig } = await buildConfig({ config, options });
+  const { databaseConfig } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [],
+    options,
+  });
   expect(databaseConfig).toMatchObject({
     kind: "postgres",
     poolConfig: {
@@ -573,7 +682,7 @@ test("buildConfig() database with postgres uses publish schema defined in config
   vi.unstubAllEnvs();
 });
 
-test("buildConfig() database with postgres uses 'public' as publish schema if on Railway", async () => {
+test("buildConfigAndIndexingFunctions() database with postgres uses 'public' as publish schema if on Railway", async () => {
   const config = createConfig({
     networks: { mainnet: { chainId: 1, transport: http() } },
     contracts: { a: { network: "mainnet", abi: [event0] } },
@@ -583,7 +692,11 @@ test("buildConfig() database with postgres uses 'public' as publish schema if on
   vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
   vi.stubEnv("RAILWAY_SERVICE_NAME", "multichain-indexer");
 
-  const { databaseConfig } = await buildConfig({ config, options });
+  const { databaseConfig } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [],
+    options,
+  });
   expect(databaseConfig).toMatchObject({
     kind: "postgres",
     poolConfig: {
@@ -596,7 +709,7 @@ test("buildConfig() database with postgres uses 'public' as publish schema if on
   vi.unstubAllEnvs();
 });
 
-test("buildConfig() database with postgres throws if schema and publishSchema are the same", async () => {
+test("buildConfigAndIndexingFunctions() database with postgres throws if schema and publishSchema are the same", async () => {
   const config = createConfig({
     database: { kind: "postgres", schema: "public", publishSchema: "public" },
     networks: { mainnet: { chainId: 1, transport: http() } },
@@ -605,7 +718,13 @@ test("buildConfig() database with postgres throws if schema and publishSchema ar
 
   vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
 
-  await expect(() => buildConfig({ config, options })).rejects.toThrow(
+  await expect(() =>
+    buildConfigAndIndexingFunctions({
+      config,
+      rawIndexingFunctions: [],
+      options,
+    }),
+  ).rejects.toThrow(
     "Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('public').",
   );
 

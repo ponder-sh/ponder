@@ -1,5 +1,3 @@
-import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { decodeToBigInt } from "@/utils/encoding.js";
 import { type Kysely, sql } from "kysely";
 import { type Migration, type MigrationProvider } from "kysely";
 
@@ -463,70 +461,9 @@ const migrations: Record<string, Migration> = {
     },
   },
   "2024_03_20_0_checkpoint_in_logs_table": {
-    async up(db: Kysely<any>) {
-      await db.schema
-        .alterTable("logs")
-        .addColumn("checkpoint", "varchar(75)")
-        .execute();
-      await db.executeQuery(
-        sql`
-          WITH checkpoint_vals AS (
-              SELECT logs.id, blocks.timestamp, blocks.chainId, blocks.number, logs.transactionIndex, logs.logIndex
-              FROM logs
-              JOIN blocks ON logs."blockHash" = blocks.hash
-          )
-          UPDATE logs
-          SET checkpoint =
-              substr(checkpoint_vals.timestamp, -10, 10) ||
-              substr('0000000000000000' || checkpoint_vals.chainId, -16, 16) ||
-              substr(checkpoint_vals.number, -16, 16) ||
-              substr('0000000000000000' || checkpoint_vals.transactionIndex, -16, 16) ||
-              '5' ||
-              substr('0000000000000000' || checkpoint_vals.logIndex, -16, 16)
-          FROM checkpoint_vals
-          WHERE logs.id = checkpoint_vals.id;
-        `.compile(db),
-      );
-
-      // sanity check our checkpoint encoding on the first 10 rows of the table
-      const checkRes = await db.executeQuery<{
-        timestamp: string;
-        chainId: number;
-        number: string;
-        transactionIndex: number;
-        logIndex: number;
-        checkpoint: string;
-      }>(
-        sql`
-          SELECT blocks.timestamp, blocks.chainId, blocks.number, logs.transactionIndex, logs.logIndex, logs.checkpoint
-          FROM logs
-          JOIN blocks ON logs.blockHash = blocks.hash
-          LIMIT 10;
-        `.compile(db),
-      );
-
-      for (const row of checkRes.rows) {
-        const expected = encodeCheckpoint({
-          blockTimestamp: Number(decodeToBigInt(row.timestamp)),
-          chainId: row.chainId,
-          blockNumber: Number(decodeToBigInt(row.number)),
-          transactionIndex: row.transactionIndex,
-          eventType: EVENT_TYPES.logs,
-          eventIndex: row.logIndex,
-        });
-
-        if (row.checkpoint.toString() !== expected) {
-          throw new Error(
-            `data migration failed: expected new checkpoint column to have value ${expected} but got ${row.checkpoint}`,
-          );
-        }
-      }
-
-      await db.schema
-        .createIndex("logs_checkpoint_index")
-        .on("logs")
-        .column("checkpoint")
-        .execute();
+    async up(_db: Kysely<any>) {
+      // no-op migration to avoid crashing databases that successfully ran this migration
+      return;
     },
   },
   "2024_04_04_0_log_events_indexes": {
@@ -541,7 +478,71 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_04_14_0_nullable_block_total_difficulty": {
+    async up(db: Kysely<any>) {
+      await columnDropNotNull({
+        db,
+        table: "blocks",
+        column: "totalDifficulty",
+        columnType: "varchar(79)",
+      });
+    },
+  },
+  "2024_04_14_1_add_checkpoint_column_to_logs_table": {
+    async up(db: Kysely<any>) {
+      if (await hasCheckpointCol(db)) {
+        return;
+      }
+      await db.schema
+        .alterTable("logs")
+        .addColumn("checkpoint", "varchar(75)")
+        .execute();
+    },
+  },
+  "2024_04_14_2_set_checkpoint_in_logs_table": {
+    async up(db: Kysely<any>) {
+      await db.executeQuery(
+        sql`
+        CREATE TEMPORARY TABLE cp_vals AS
+        SELECT 
+          logs.id,
+          substr(blocks.timestamp, -10, 10) ||
+            substr('0000000000000000' || blocks.chainId, -16, 16) ||
+            substr(blocks.number, -16, 16) ||
+            substr('0000000000000000' || logs.transactionIndex, -16, 16) ||
+            '5' ||
+            substr('0000000000000000' || logs.logIndex, -16, 16) as checkpoint
+          FROM logs
+          JOIN blocks ON logs."blockHash" = blocks.hash
+      `.compile(db),
+      );
+
+      await db.executeQuery(
+        sql`
+        UPDATE logs 
+        SET checkpoint=cp_vals.checkpoint
+        FROM cp_vals
+        WHERE logs.id = cp_vals.id
+      `.compile(db),
+      );
+    },
+  },
+  "2024_04_14_3_index_on_logs_checkpoint": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createIndex("logs_checkpoint_index")
+        .ifNotExists()
+        .on("logs")
+        .column("checkpoint")
+        .execute();
+    },
+  },
 };
+
+async function hasCheckpointCol(db: Kysely<any>) {
+  const res = await db.executeQuery(sql`PRAGMA table_info("logs")`.compile(db));
+  return res.rows.some((x: any) => x.name === "checkpoint");
+}
 
 const columnDropNotNull = async ({
   db,

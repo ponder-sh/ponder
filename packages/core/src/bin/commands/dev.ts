@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { type BuildResult, BuildService } from "@/build/service.js";
+import { type BuildResult, createBuildService } from "@/build/index.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
@@ -45,8 +45,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
-  const buildService = new BuildService({ common });
-  await buildService.setup({ watch: true });
+  const buildService = await createBuildService({ common });
 
   const uiService = new UiService({ common });
 
@@ -61,24 +60,13 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const initialResult = await buildService.initialLoad();
-  if (!initialResult.success) {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-
-  telemetry.record({
-    name: "lifecycle:session_start",
-    properties: { cli_command: "dev", ...buildPayload(initialResult.build) },
-  });
-
   const buildQueue = createQueue({
     initialStart: true,
     concurrency: 1,
     worker: async (result: BuildResult) => {
       await cleanupReloadable();
 
-      if (result.success) {
+      if (result.status === "success") {
         uiService.reset();
         metrics.resetMetrics();
 
@@ -90,7 +78,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           },
           onReloadableError: (error) => {
             buildQueue.clear();
-            buildQueue.add({ success: false, error });
+            buildQueue.add({ status: "error", error });
           },
         });
       } else {
@@ -101,9 +89,22 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  buildService.on("rebuild", (build) => {
-    buildQueue.clear();
-    buildQueue.add(build);
+  const initialResult = await buildService.start({
+    watch: true,
+    onBuild: (buildResult) => {
+      buildQueue.clear();
+      buildQueue.add(buildResult);
+    },
+  });
+
+  if (initialResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  telemetry.record({
+    name: "lifecycle:session_start",
+    properties: { cli_command: "dev", ...buildPayload(initialResult.build) },
   });
 
   buildQueue.add(initialResult);

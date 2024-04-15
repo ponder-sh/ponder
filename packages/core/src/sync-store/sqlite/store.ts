@@ -1,11 +1,11 @@
 import {
-  type Factory,
+  type EventSource,
   type FactoryCriteria,
-  type LogFilter,
+  type FactorySource,
   type LogFilterCriteria,
-  type Source,
+  type LogSource,
   sourceIsFactory,
-  sourceIsLogFilter,
+  sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
@@ -850,7 +850,7 @@ export class SqliteSyncStore implements SyncStore {
     limit,
   }: {
     sources: Pick<
-      Source,
+      EventSource,
       "id" | "startBlock" | "endBlock" | "criteria" | "type"
     >[];
     fromCheckpoint: Checkpoint;
@@ -883,8 +883,7 @@ export class SqliteSyncStore implements SyncStore {
             .innerJoin("sources", (join) => join.onTrue())
             .where((eb) => {
               const logFilterCmprs = sources
-                .filter(sourceIsLogFilter)
-                .filter((source) => source.criteria.topics !== undefined)
+                .filter(sourceIsLog)
                 .map((logFilter) => {
                   const exprs = this.buildLogFilterCmprs({ eb, logFilter });
                   exprs.push(eb("source_id", "=", logFilter.id));
@@ -893,7 +892,6 @@ export class SqliteSyncStore implements SyncStore {
 
               const factoryCmprs = sources
                 .filter(sourceIsFactory)
-                .filter((source) => source.criteria.topics !== undefined)
                 .map((factory) => {
                   const exprs = this.buildFactoryCmprs({ eb, factory });
                   exprs.push(eb("source_id", "=", factory.id));
@@ -1011,7 +1009,9 @@ export class SqliteSyncStore implements SyncStore {
                 size: decodeToBigInt(row.block_size),
                 stateRoot: row.block_stateRoot,
                 timestamp: decodeToBigInt(row.block_timestamp),
-                totalDifficulty: decodeToBigInt(row.block_totalDifficulty),
+                totalDifficulty: row.block_totalDifficulty
+                  ? decodeToBigInt(row.block_totalDifficulty)
+                  : null,
                 transactionsRoot: row.block_transactionsRoot,
               },
               transaction: {
@@ -1092,7 +1092,7 @@ export class SqliteSyncStore implements SyncStore {
     toCheckpoint,
   }: {
     sources: Pick<
-      Source,
+      EventSource,
       "id" | "startBlock" | "endBlock" | "criteria" | "type"
     >[];
     fromCheckpoint: Checkpoint;
@@ -1103,8 +1103,7 @@ export class SqliteSyncStore implements SyncStore {
         .selectFrom("logs")
         .where((eb) => {
           const logFilterCmprs = sources
-            .filter(sourceIsLogFilter)
-            .filter((source) => source.criteria.topics !== undefined)
+            .filter(sourceIsLog)
             .map((logFilter) => {
               const exprs = this.buildLogFilterCmprs({ eb, logFilter });
               return eb.and(exprs);
@@ -1112,7 +1111,6 @@ export class SqliteSyncStore implements SyncStore {
 
           const factoryCmprs = sources
             .filter(sourceIsFactory)
-            .filter((source) => source.criteria.topics !== undefined)
             .map((factory) => {
               const exprs = this.buildFactoryCmprs({ eb, factory });
               return eb.and(exprs);
@@ -1139,7 +1137,7 @@ export class SqliteSyncStore implements SyncStore {
     logFilter,
   }: {
     eb: ExpressionBuilder<any, any>;
-    logFilter: LogFilter;
+    logFilter: LogSource;
   }) => {
     const exprs = [];
 
@@ -1191,7 +1189,7 @@ export class SqliteSyncStore implements SyncStore {
     factory,
   }: {
     eb: ExpressionBuilder<any, any>;
-    factory: Factory;
+    factory: FactorySource;
   }) => {
     const exprs = [];
 

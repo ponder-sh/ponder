@@ -1,14 +1,13 @@
 import type { RawEvent } from "@/sync-store/store.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import { decodeEventLog } from "viem";
-import type { IndexingService } from "./service.js";
+import type { Service } from "./service.js";
 
 export type SetupEvent = {
   type: "setup";
   chainId: number;
   contractName: string;
   startBlock: bigint;
-  eventName: "setup";
   encodedCheckpoint: string;
 };
 
@@ -16,7 +15,7 @@ export type LogEvent = {
   type: "log";
   chainId: number;
   contractName: string;
-  eventName: string;
+  logEventName: string;
   event: {
     args: any;
     log: Log;
@@ -29,7 +28,7 @@ export type LogEvent = {
 export type Event = LogEvent;
 
 export const decodeEvents = (
-  { common, sourceById }: Pick<IndexingService, "sourceById" | "common">,
+  { common, sourceById }: Pick<Service, "sourceById" | "common">,
   rawEvents: RawEvent[],
 ): Event[] => {
   const events: Event[] = [];
@@ -49,7 +48,7 @@ export const decodeEvents = (
         type: "log",
         chainId: event.chainId,
         contractName: source.contractName,
-        eventName: decodedLog.eventName,
+        logEventName: decodedLog.eventName,
         event: {
           args: decodedLog.args,
           log: event.log,

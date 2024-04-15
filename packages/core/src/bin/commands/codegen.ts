@@ -1,4 +1,4 @@
-import { BuildService } from "@/build/service.js";
+import { createBuildService } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
@@ -28,8 +28,7 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
-  const buildService = new BuildService({ common });
-  await buildService.setup({ watch: false });
+  const buildService = await createBuildService({ common });
 
   const cleanup = async () => {
     await buildService.kill();
@@ -38,12 +37,13 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const schemaResult = await buildService.loadSchema();
-  if (schemaResult.error) {
+  const buildResult = await buildService.start({ watch: false });
+
+  if (buildResult.status === "error") {
     logger.error({
       service: "process",
       msg: "Failed schema build with error:",
-      error: schemaResult.error,
+      error: buildResult.error,
     });
     await shutdown({ reason: "Failed schema build", code: 1 });
     return;
@@ -54,7 +54,12 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "codegen" },
   });
 
-  runCodegen({ common, graphqlSchema: schemaResult.graphqlSchema });
+  telemetry.record({
+    name: "lifecycle:session_start",
+    properties: { cli_command: "codegen" },
+  });
+
+  runCodegen({ common, graphqlSchema: buildResult.build.graphqlSchema });
 
   logger.info({ service: "codegen", msg: "Wrote ponder-env.d.ts" });
   logger.info({ service: "codegen", msg: "Wrote schema.graphql" });

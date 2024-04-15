@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-
 import { codeFrameColumns } from "@babel/code-frame";
 import { parse as parseStackTrace } from "stacktrace-parser";
 
@@ -15,7 +14,7 @@ class ESBuildContextError extends Error {
   override name = "ESBuildContextError";
 }
 
-export type ViteNodeError =
+type ViteNodeError =
   | ESBuildTransformError
   | ESBuildBuildError
   | ESBuildContextError

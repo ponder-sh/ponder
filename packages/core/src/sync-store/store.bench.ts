@@ -321,7 +321,7 @@ for (const c of LOG_FILTER_CASES) {
             {
               id: "benchFilter",
               startBlock: 0,
-              type: "logFilter",
+              type: "log",
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
@@ -362,7 +362,7 @@ for (const c of LOG_FILTER_CASES) {
             {
               id: "benchFilter",
               startBlock: 0,
-              type: "logFilter",
+              type: "log",
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
@@ -403,7 +403,7 @@ for (const c of LOG_FILTER_CASES) {
             {
               id: "benchFilter",
               startBlock: 0,
-              type: "logFilter",
+              type: "log",
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
