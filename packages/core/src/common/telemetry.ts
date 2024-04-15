@@ -6,7 +6,7 @@ import path from "node:path";
 import { promisify } from "util";
 import type { Build } from "@/build/service.js";
 import type { Options } from "@/common/options.js";
-import { createQueue } from "@/utils/queue.js";
+import { createQueue } from "@ponder/common";
 import Conf from "conf";
 import { type PM, detect, getNpmVersion } from "detect-package-manager";
 import type { LoggerService } from "./logger.js";
@@ -35,7 +35,7 @@ type CommonProperties = {
 };
 
 type SessionProperties = {
-  // Environment & package versions
+  // Environment and package versions
   package_manager: string;
   package_manager_version: string;
   node_version: string;
@@ -62,7 +62,10 @@ export type Telemetry = ReturnType<typeof createTelemetry>;
 export function createTelemetry({
   options,
   logger,
-}: { options: Options; logger: LoggerService }) {
+}: {
+  options: Options;
+  logger: LoggerService;
+}) {
   if (options.telemetryDisabled) {
     return { record: (_event: TelemetryEvent) => {}, kill: async () => {} };
   }
@@ -143,38 +146,52 @@ export function createTelemetry({
     };
   };
 
+  let context: Awaited<ReturnType<typeof buildContext>> | undefined = undefined;
   const contextPromise = buildContext();
 
-  const controller = new AbortController();
-  const { signal } = controller;
+  let isKilled = false;
 
-  const queue = createQueue<TelemetryEvent>({
-    options: { concurrency: 1, autoStart: true },
-    worker: async ({ task }) => {
-      const context = await contextPromise;
+  const queue = createQueue({
+    initialStart: true,
+    concurrency: 10,
+    worker: async (event: TelemetryEvent) => {
+      try {
+        if (context === undefined) context = await contextPromise;
 
-      const properties =
-        task.name === "lifecycle:session_start"
-          ? { ...task.properties, ...context.common, ...context.session }
-          : { ...task.properties, ...context.common };
+        const properties =
+          event.name === "lifecycle:session_start"
+            ? { ...event.properties, ...context.common, ...context.session }
+            : { ...event.properties, ...context.common };
 
-      const body = JSON.stringify({
-        distinctId: anonymousId,
-        event: task.name,
-        properties,
-      });
+        const body = JSON.stringify({
+          distinctId: anonymousId,
+          event: event.name,
+          properties,
+        });
 
-      await fetch(options.telemetryUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-        signal,
-      });
+        await fetch(options.telemetryUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+          signal: AbortSignal.timeout(500),
+        });
+      } catch (error_) {
+        const error = error_ as Error;
+        logger.trace({
+          service: "telemetry",
+          msg: `Failed to send event due to error: ${error.message}`,
+        });
+      }
     },
   });
 
-  const record = async (event: TelemetryEvent) => {
-    queue.addTask(event);
+  const record = (event: TelemetryEvent) => {
+    if (isKilled) {
+      throw new Error(
+        "Invariant violation, attempted to record event after telemetry service was killed",
+      );
+    }
+    queue.add(event);
   };
 
   const heartbeatInterval = setInterval(() => {
@@ -186,21 +203,11 @@ export function createTelemetry({
 
   const kill = async () => {
     clearInterval(heartbeatInterval);
-    await new Promise<void>((resolve) => {
-      if (queue.pending === 0) resolve();
-
-      const timeout = setTimeout(() => {
-        queue.pause();
-        queue.clear();
-        controller.abort();
-        resolve();
-      }, 1_000);
-
-      queue.onIdle().then(() => {
-        clearTimeout(timeout);
-        resolve();
-      });
-    });
+    isKilled = true;
+    // If there are any events in the queue that have not started, drop them.
+    queue.clear();
+    // Wait for any in-flight events to complete. This will take at most 500ms.
+    await queue.onIdle();
   };
 
   return { record, kill };
@@ -220,7 +227,7 @@ const execa = promisify(exec);
 
 async function getGitRemoteUrl() {
   const result = await execa("git config --local --get remote.origin.url", {
-    timeout: 100,
+    timeout: 250,
     windowsHide: true,
   }).catch(() => undefined);
 

@@ -74,11 +74,45 @@ test("telemetry does not submit events if telemetry is disabled", async (context
   expect(fetchSpy).toHaveBeenCalledTimes(0);
 });
 
-test("telemetry kill times out after 1 second and cancels pending requests", async (context) => {
+test("telemetry throws if event is submitted after kill", async (context) => {
   const telemetry = createTelemetry({
     options: context.common.options,
     logger: context.common.logger,
   });
+
+  for (let i = 0; i < 5; i++) {
+    telemetry.record({
+      name: "lifecycle:heartbeat_send",
+      properties: { duration_seconds: process.uptime() },
+    });
+  }
+
+  await telemetry.kill();
+
+  expect(fetchSpy).toHaveBeenCalledTimes(5);
+
+  expect(() =>
+    telemetry.record({
+      name: "lifecycle:heartbeat_send",
+      properties: { duration_seconds: process.uptime() },
+    }),
+  ).toThrow(
+    "Invariant violation, attempted to record event after telemetry service was killed",
+  );
+
+  expect(fetchSpy).toHaveBeenCalledTimes(5);
+});
+
+test("telemetry kill clears enqueued events", async (context) => {
+  const telemetry = createTelemetry({
+    options: context.common.options,
+    logger: context.common.logger,
+  });
+
+  // Mock fetch to take 500ms to complete.
+  fetchSpy.mockImplementation(
+    () => new Promise((resolve) => setTimeout(resolve, 500)),
+  );
 
   for (let i = 0; i < 100; i++) {
     telemetry.record({
@@ -87,15 +121,9 @@ test("telemetry kill times out after 1 second and cancels pending requests", asy
     });
   }
 
-  // Mock fetch to take 91ms to complete.
-  fetchSpy.mockImplementation(
-    () => new Promise((resolve) => setTimeout(resolve, 95)),
-  );
-
   await telemetry.kill();
 
-  // Only ~10 of the 100 requests should have been completed
-  // because of the 1 second kill timeout.
-  expect(fetchSpy.mock.calls.length).toBeGreaterThan(8);
-  expect(fetchSpy.mock.calls.length).toBeLessThan(12);
+  // Only 10 of the 100 requests should have been completed
+  // because the queue has a concurrency of 10.
+  expect(fetchSpy).toHaveBeenCalledTimes(10);
 });
