@@ -8,7 +8,6 @@ export type SetupEvent = {
   chainId: number;
   contractName: string;
   startBlock: bigint;
-  eventName: "setup";
   encodedCheckpoint: string;
 };
 
@@ -16,7 +15,7 @@ export type LogEvent = {
   type: "log";
   chainId: number;
   contractName: string;
-  eventName: string;
+  logEventName: string;
   event: {
     args: any;
     log: Log;
@@ -49,7 +48,7 @@ export const decodeEvents = (
         type: "log",
         chainId: event.chainId,
         contractName: source.contractName,
-        eventName: decodedLog.eventName,
+        logEventName: decodedLog.eventName,
         event: {
           args: decodedLog.args,
           log: event.log,

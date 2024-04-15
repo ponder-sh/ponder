@@ -10,7 +10,7 @@ import { TelemetryService } from "@/common/telemetry.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
-import type { Factory, LogFilter } from "@/config/sources.js";
+import type { FactorySource, LogSource } from "@/config/sources.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
@@ -31,7 +31,7 @@ declare module "vitest" {
   export interface TestContext {
     common: Common;
     databaseConfig: DatabaseConfig;
-    sources: [LogFilter, Factory];
+    sources: [LogSource, FactorySource];
     networks: Network[];
     requestQueues: RequestQueue[];
     config: Config;
@@ -209,7 +209,7 @@ export async function setupAnvil(context: TestContext) {
   );
   context.networks = networks;
   context.requestQueues = requestQueues;
-  context.sources = sources as [LogFilter, Factory];
+  context.sources = sources as [LogSource, FactorySource];
   context.erc20 = { address: addresses.erc20Address };
   context.factory = { address: addresses.factoryAddress, pair };
 

@@ -1,11 +1,11 @@
 import {
-  type Factory,
+  type EventSource,
   type FactoryCriteria,
-  type LogFilter,
+  type FactorySource,
   type LogFilterCriteria,
-  type Source,
+  type LogSource,
   sourceIsFactory,
-  sourceIsLogFilter,
+  sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
@@ -825,7 +825,7 @@ export class PostgresSyncStore implements SyncStore {
     limit,
   }: {
     sources: Pick<
-      Source,
+      EventSource,
       "id" | "startBlock" | "endBlock" | "criteria" | "type"
     >[];
     fromCheckpoint: Checkpoint;
@@ -858,7 +858,7 @@ export class PostgresSyncStore implements SyncStore {
             .innerJoin("sources", (join) => join.onTrue())
             .where((eb) => {
               const logFilterCmprs = sources
-                .filter(sourceIsLogFilter)
+                .filter(sourceIsLog)
                 .map((logFilter) => {
                   const exprs = this.buildLogFilterCmprs({ eb, logFilter });
                   exprs.push(eb("source_id", "=", logFilter.id));
@@ -1054,7 +1054,7 @@ export class PostgresSyncStore implements SyncStore {
     toCheckpoint,
   }: {
     sources: Pick<
-      Source,
+      EventSource,
       "id" | "startBlock" | "endBlock" | "criteria" | "type"
     >[];
     fromCheckpoint: Checkpoint;
@@ -1065,7 +1065,7 @@ export class PostgresSyncStore implements SyncStore {
         .selectFrom("logs")
         .where((eb) => {
           const logFilterCmprs = sources
-            .filter(sourceIsLogFilter)
+            .filter(sourceIsLog)
             .map((logFilter) => {
               const exprs = this.buildLogFilterCmprs({ eb, logFilter });
               return eb.and(exprs);
@@ -1099,7 +1099,7 @@ export class PostgresSyncStore implements SyncStore {
     logFilter,
   }: {
     eb: ExpressionBuilder<any, any>;
-    logFilter: LogFilter;
+    logFilter: LogSource;
   }) => {
     const exprs = [];
 
@@ -1153,7 +1153,7 @@ export class PostgresSyncStore implements SyncStore {
     factory,
   }: {
     eb: ExpressionBuilder<any, any>;
-    factory: Factory;
+    factory: FactorySource;
   }) => {
     const exprs = [];
 

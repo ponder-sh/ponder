@@ -99,9 +99,7 @@ test("processSetupEvents()", async (context) => {
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const indexingFunctions = {
-    Erc20: {
-      setup: vi.fn(),
-    },
+    "Erc20:setup": vi.fn(),
   };
 
   const indexingService = create({
@@ -121,8 +119,8 @@ test("processSetupEvents()", async (context) => {
 
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(indexingFunctions.Erc20.setup).toHaveBeenCalledOnce();
-  expect(indexingFunctions.Erc20.setup).toHaveBeenCalledWith({
+  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledOnce();
+  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledWith({
     context: {
       network: { chainId: 1, name: "mainnet" },
       contracts: {
@@ -159,9 +157,7 @@ test("processEvent() log events", async (context) => {
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const indexingFunctions = {
-    Erc20: {
-      Transfer: vi.fn(),
-    },
+    "Erc20:Transfer": vi.fn(),
   };
 
   const indexingService = create({
@@ -181,8 +177,8 @@ test("processEvent() log events", async (context) => {
   });
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(2);
-  expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledWith({
+  expect(indexingFunctions["Erc20:Transfer"]).toHaveBeenCalledTimes(2);
+  expect(indexingFunctions["Erc20:Transfer"]).toHaveBeenCalledWith({
     event: {
       name: "Transfer",
       args: expect.any(Object),
@@ -226,9 +222,7 @@ test("processEvents killed", async (context) => {
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const indexingFunctions = {
-    Erc20: {
-      Transfer: vi.fn(),
-    },
+    "Erc20:Transfer": vi.fn(),
   };
 
   const indexingService = create({
@@ -249,7 +243,7 @@ test("processEvents killed", async (context) => {
   });
   expect(result).toStrictEqual({ status: "killed" });
 
-  expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(0);
+  expect(indexingFunctions["Erc20:Transfer"]).toHaveBeenCalledTimes(0);
 
   await cleanup();
 });
@@ -264,9 +258,7 @@ test("processEvents eventCount", async (context) => {
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const indexingFunctions = {
-    Erc20: {
-      Transfer: vi.fn(),
-    },
+    "Erc20:Transfer": vi.fn(),
   };
 
   const indexingService = create({
@@ -305,12 +297,10 @@ test("executeSetup() context.client", async (context) => {
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const indexingFunctions = {
-    Erc20: {
-      setup: async ({ context }: { context: Context }) => {
-        await context.client.getBalance({
-          address: BOB,
-        });
-      },
+    "Erc20:setup": async ({ context }: { context: Context }) => {
+      await context.client.getBalance({
+        address: BOB,
+      });
     },
   };
 
@@ -354,15 +344,13 @@ test("executeSetup() context.db", async (context) => {
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const indexingFunctions = {
-    Erc20: {
-      setup: async ({ context }: { context: Context }) => {
-        await context.db.Supply.create({
-          id: "supply",
-          data: {
-            supply: 0n,
-          },
-        });
-      },
+    "Erc20:setup": async ({ context }: { context: Context }) => {
+      await context.db.Supply.create({
+        id: "supply",
+        data: {
+          supply: 0n,
+        },
+      });
     },
   };
 
@@ -417,9 +405,7 @@ test("executeSetup() metrics", async (context) => {
 
   const indexingService = create({
     indexingFunctions: {
-      Erc20: {
-        setup: vi.fn(),
-      },
+      "Erc20:setup": vi.fn(),
     },
     common,
     sources,
@@ -451,9 +437,7 @@ test("executeSetup() retry", async (context) => {
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const indexingFunctions = {
-    Erc20: {
-      setup: vi.fn(),
-    },
+    "Erc20:setup": vi.fn(),
   };
 
   const revertSpy = vi.spyOn(indexingStore, "revert");
@@ -468,7 +452,7 @@ test("executeSetup() retry", async (context) => {
     schema,
   });
 
-  indexingFunctions.Erc20.setup.mockRejectedValueOnce(new Error());
+  indexingFunctions["Erc20:setup"].mockRejectedValueOnce(new Error());
 
   const result = await processSetupEvents(indexingService, {
     sources,
@@ -476,7 +460,7 @@ test("executeSetup() retry", async (context) => {
   });
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(indexingFunctions.Erc20.setup).toHaveBeenCalledTimes(2);
+  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(2);
 
   expect(revertSpy).toHaveBeenCalledTimes(1);
   expect(revertSpy).toHaveBeenCalledWith({
@@ -501,9 +485,7 @@ test("executeSetup() error", async (context) => {
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const indexingFunctions = {
-    Erc20: {
-      setup: vi.fn(),
-    },
+    "Erc20:setup": vi.fn(),
   };
 
   const revertSpy = vi.spyOn(indexingStore, "revert");
@@ -518,7 +500,7 @@ test("executeSetup() error", async (context) => {
     schema,
   });
 
-  indexingFunctions.Erc20.setup.mockRejectedValue(new Error());
+  indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
   const result = await processSetupEvents(indexingService, {
     sources,
@@ -526,7 +508,7 @@ test("executeSetup() error", async (context) => {
   });
   expect(result).toStrictEqual({ status: "error", error: expect.any(Error) });
 
-  expect(indexingFunctions.Erc20.setup).toHaveBeenCalledTimes(4);
+  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(4);
   expect(revertSpy).toHaveBeenCalledTimes(3);
 
   await cleanup();
@@ -543,12 +525,10 @@ test("executeLog() context.client", async (context) => {
 
   const indexingService = create({
     indexingFunctions: {
-      Erc20: {
-        Transfer: async ({ context }: { context: Context }) => {
-          await context.client.getBalance({
-            address: BOB,
-          });
-        },
+      "Erc20:Transfer": async ({ context }: { context: Context }) => {
+        await context.client.getBalance({
+          address: BOB,
+        });
       },
     },
     common,
@@ -590,18 +570,16 @@ test("executeLog() context.db", async (context) => {
 
   const indexingService = create({
     indexingFunctions: {
-      Erc20: {
-        Transfer: async ({
-          event,
-          context,
-        }: { event: any; context: Context }) => {
-          await context.db.TransferEvent.create({
-            id: event.log.id,
-            data: {
-              timestamp: Number(event.block.timestamp),
-            },
-          });
-        },
+      "Erc20:Transfer": async ({
+        event,
+        context,
+      }: { event: any; context: Context }) => {
+        await context.db.TransferEvent.create({
+          id: event.log.id,
+          data: {
+            timestamp: Number(event.block.timestamp),
+          },
+        });
       },
     },
     common,
@@ -646,9 +624,7 @@ test("executeLog() metrics", async (context) => {
 
   const indexingService = create({
     indexingFunctions: {
-      Erc20: {
-        Transfer: vi.fn(),
-      },
+      "Erc20:Transfer": vi.fn(),
     },
     common,
     sources,
@@ -680,9 +656,7 @@ test("executeLog() retry", async (context) => {
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const indexingFunctions = {
-    Erc20: {
-      Transfer: vi.fn(),
-    },
+    "Erc20:Transfer": vi.fn(),
   };
 
   const revertSpy = vi.spyOn(indexingStore, "revert");
@@ -697,7 +671,7 @@ test("executeLog() retry", async (context) => {
     schema,
   });
 
-  indexingFunctions.Erc20.Transfer.mockRejectedValueOnce(new Error());
+  indexingFunctions["Erc20:Transfer"].mockRejectedValueOnce(new Error());
 
   const rawEvents = await getEventsErc20(sources);
   const events = decodeEvents(indexingService, rawEvents);
@@ -708,7 +682,7 @@ test("executeLog() retry", async (context) => {
   expect(result).toStrictEqual({
     status: "success",
   });
-  expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(3);
+  expect(indexingFunctions["Erc20:Transfer"]).toHaveBeenCalledTimes(3);
 
   expect(revertSpy).toHaveBeenCalledTimes(1);
   expect(revertSpy).toHaveBeenCalledWith({
@@ -729,9 +703,7 @@ test("executeLog() error", async (context) => {
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
   const indexingFunctions = {
-    Erc20: {
-      Transfer: vi.fn(),
-    },
+    "Erc20:Transfer": vi.fn(),
   };
 
   const revertSpy = vi.spyOn(indexingStore, "revert");
@@ -746,7 +718,7 @@ test("executeLog() error", async (context) => {
     schema,
   });
 
-  indexingFunctions.Erc20.Transfer.mockRejectedValue(new Error());
+  indexingFunctions["Erc20:Transfer"].mockRejectedValue(new Error());
 
   const rawEvents = await getEventsErc20(sources);
   const events = decodeEvents(indexingService, rawEvents);
@@ -758,7 +730,7 @@ test("executeLog() error", async (context) => {
     status: "error",
     error: expect.any(Error),
   });
-  expect(indexingFunctions.Erc20.Transfer).toHaveBeenCalledTimes(4);
+  expect(indexingFunctions["Erc20:Transfer"]).toHaveBeenCalledTimes(4);
   expect(revertSpy).toHaveBeenCalledTimes(3);
 
   await cleanup();
@@ -775,9 +747,7 @@ test("executeLog() error after killed", async (context) => {
 
   const { promise, reject } = promiseWithResolvers();
   const indexingFunctions = {
-    Erc20: {
-      Transfer: () => promise,
-    },
+    "Erc20:Transfer": () => promise,
   };
 
   const indexingService = create({

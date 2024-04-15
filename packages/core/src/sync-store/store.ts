@@ -1,7 +1,7 @@
 import type {
+  EventSource,
   FactoryCriteria,
   LogFilterCriteria,
-  Source,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
@@ -156,7 +156,7 @@ export interface SyncStore {
 
   getLogEvents(arg: {
     sources: Pick<
-      Source,
+      EventSource,
       "id" | "startBlock" | "endBlock" | "criteria" | "type"
     >[];
     fromCheckpoint: Checkpoint;
@@ -166,7 +166,7 @@ export interface SyncStore {
 
   getLastEventCheckpoint(arg: {
     sources: Pick<
-      Source,
+      EventSource,
       "id" | "startBlock" | "endBlock" | "criteria" | "type"
     >[];
     fromCheckpoint: Checkpoint;

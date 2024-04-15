@@ -4,7 +4,7 @@ import type { Common } from "@/common/common.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
-import type { Source } from "@/config/sources.js";
+import type { EventSource } from "@/config/sources.js";
 import type { Schema } from "@/schema/types.js";
 import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { glob } from "glob";
@@ -40,7 +40,7 @@ export type Build = {
   buildId: string;
   // Config
   databaseConfig: DatabaseConfig;
-  sources: Source[];
+  sources: EventSource[];
   networks: Network[];
   // Schema
   schema: Schema;
