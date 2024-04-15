@@ -1,4 +1,4 @@
-import { type Build } from "@/build/service.js";
+import type { Build } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
@@ -7,13 +7,7 @@ import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { decodeEvents } from "@/indexing/events.js";
-import {
-  createIndexingService,
-  kill,
-  processEvents,
-  processSetupEvents,
-  updateLastEventCheckpoint,
-} from "@/indexing/service.js";
+import { createIndexingService } from "@/indexing/index.js";
 import { createServer } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
@@ -110,7 +104,7 @@ export async function run({
   });
 
   // process setup events
-  const result = await processSetupEvents(indexingService, {
+  const result = await indexingService.processSetupEvents({
     sources,
     networks,
   });
@@ -118,7 +112,7 @@ export async function run({
     onReloadableError(result.error);
 
     return async () => {
-      kill(indexingService);
+      indexingService.kill();
       await server.kill();
       await syncService.kill();
       await database.kill();
@@ -137,7 +131,7 @@ export async function run({
       })
       .then((lastEventCheckpoint) => {
         if (lastEventCheckpoint !== undefined)
-          updateLastEventCheckpoint(indexingService, lastEventCheckpoint);
+          indexingService.updateLastEventCheckpoint(lastEventCheckpoint);
       });
 
     for await (const rawEvents of syncService.getEvents({
@@ -149,7 +143,7 @@ export async function run({
       if (rawEvents.length === 0) break;
 
       const events = decodeEvents(indexingService, rawEvents);
-      const result = await processEvents(indexingService, {
+      const result = await indexingService.processEvents({
         events,
       });
 
@@ -254,7 +248,7 @@ export async function run({
   return async () => {
     runQueue.pause();
     runQueue.clear();
-    kill(indexingService);
+    indexingService.kill();
     await server.kill();
     await syncService.kill();
     await database.kill();

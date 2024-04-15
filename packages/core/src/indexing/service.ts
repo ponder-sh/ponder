@@ -1,4 +1,4 @@
-import type { IndexingFunctions } from "@/build/functions/functions.js";
+import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
@@ -41,7 +41,7 @@ export type Context = {
   >;
 };
 
-export type IndexingService = {
+export type Service = {
   // static
   common: Common;
   indexingFunctions: IndexingFunctions;
@@ -75,7 +75,7 @@ export type IndexingService = {
   contractsByChainId: { [chainId: number]: Context["contracts"] };
 };
 
-export const createIndexingService = ({
+export const create = ({
   indexingFunctions,
   common,
   sources,
@@ -91,28 +91,25 @@ export const createIndexingService = ({
   syncService: SyncService;
   indexingStore: IndexingStore;
   schema: Schema;
-}): IndexingService => {
-  const contextState: IndexingService["currentEvent"]["contextState"] = {
+}): Service => {
+  const contextState: Service["currentEvent"]["contextState"] = {
     encodedCheckpoint: undefined!,
     blockNumber: undefined!,
   };
-  const clientByChainId: IndexingService["clientByChainId"] = {};
-  const contractsByChainId: IndexingService["contractsByChainId"] = {};
+  const clientByChainId: Service["clientByChainId"] = {};
+  const contractsByChainId: Service["contractsByChainId"] = {};
 
-  const networkByChainId = networks.reduce<IndexingService["networkByChainId"]>(
+  const networkByChainId = networks.reduce<Service["networkByChainId"]>(
     (acc, cur) => {
       acc[cur.chainId] = cur;
       return acc;
     },
     {},
   );
-  const sourceById = sources.reduce<IndexingService["sourceById"]>(
-    (acc, cur) => {
-      acc[cur.id] = cur;
-      return acc;
-    },
-    {},
-  );
+  const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
+    acc[cur.id] = cur;
+    return acc;
+  }, {});
 
   // build contractsByChainId
   for (const source of sources) {
@@ -150,7 +147,7 @@ export const createIndexingService = ({
   }
 
   // build eventCount
-  const eventCount: IndexingService["eventCount"] = {};
+  const eventCount: Service["eventCount"] = {};
   for (const contractName of Object.keys(indexingFunctions)) {
     for (const eventName of Object.keys(indexingFunctions[contractName])) {
       const indexingFunctionKey = `${contractName}:${eventName}`;
@@ -186,7 +183,7 @@ export const createIndexingService = ({
 };
 
 export const processSetupEvents = async (
-  indexingService: IndexingService,
+  indexingService: Service,
   {
     sources,
     networks,
@@ -242,7 +239,7 @@ export const processSetupEvents = async (
 };
 
 export const processEvents = async (
-  indexingService: IndexingService,
+  indexingService: Service,
   { events }: { events: Event[] },
 ): Promise<
   | { status: "error"; error: Error }
@@ -331,7 +328,7 @@ export const processEvents = async (
   return { status: "success" };
 };
 
-export const kill = (indexingService: IndexingService) => {
+export const kill = (indexingService: Service) => {
   indexingService.common.logger.debug({
     service: "indexing",
     msg: "Killed indexing service",
@@ -340,7 +337,7 @@ export const kill = (indexingService: IndexingService) => {
 };
 
 export const updateLastEventCheckpoint = (
-  indexingService: IndexingService,
+  indexingService: Service,
   lastEventCheckpoint: Checkpoint,
 ) => {
   indexingService.lastEventCheckpoint = lastEventCheckpoint;
@@ -353,7 +350,7 @@ export const updateLastEventCheckpoint = (
   }
 };
 
-const updateCompletedEvents = (indexingService: IndexingService) => {
+const updateCompletedEvents = (indexingService: Service) => {
   for (const event of Object.keys(indexingService.eventCount)) {
     for (const network of Object.keys(indexingService.eventCount[event])) {
       const metricLabel = {
@@ -369,7 +366,7 @@ const updateCompletedEvents = (indexingService: IndexingService) => {
 };
 
 const executeSetup = async (
-  indexingService: IndexingService,
+  indexingService: Service,
   { event }: { event: SetupEvent },
 ): Promise<
   | { status: "error"; error: Error }
@@ -456,7 +453,7 @@ const executeSetup = async (
 };
 
 const executeLog = async (
-  indexingService: IndexingService,
+  indexingService: Service,
   { event }: { event: LogEvent },
 ): Promise<
   | { status: "error"; error: Error }

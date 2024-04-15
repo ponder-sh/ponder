@@ -9,7 +9,7 @@ test("safeBuildSchema() returns error for duplicate enum values", () => {
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Enum 'myEnum' contains duplicate value 'duplicate'.",
   );
@@ -22,7 +22,7 @@ test("safeBuildSchema() returns error for table without ID column", () => {
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Table 'myTable' does not have an 'id' column.",
   );
@@ -38,7 +38,7 @@ test("safeBuildSchema() returns error for ID column typed as an enum", () => {
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid type for ID column 'myTable.id'. Got 'enum', expected one of ['string', 'hex', 'bigint', 'int'].",
   );
@@ -57,7 +57,7 @@ test("safeBuildSchema() returns error for ID column typed as a 'one' relationshi
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid type for ID column 'myTable.id'. Got 'one', expected one of ['string', 'hex', 'bigint', 'int'].",
   );
@@ -76,7 +76,7 @@ test("safeBuildSchema() returns error for ID column typed as a 'many' relationsh
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid type for ID column 'myTable.id'. Got 'many', expected one of ['string', 'hex', 'bigint', 'int'].",
   );
@@ -94,7 +94,7 @@ test("safeBuildSchema() returns error for ID column with the references modifier
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid type for ID column 'myTable.id'. ID columns cannot use the '.references' modifier.",
   );
@@ -109,7 +109,7 @@ test("safeBuildSchema() returns error for invalid ID column type boolean", () =>
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid type for ID column 'myTable.id'. Got 'boolean', expected one of ['string', 'hex', 'bigint', 'int'].",
   );
@@ -124,7 +124,7 @@ test("safeBuildSchema() returns error for invalid ID column type float", () => {
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid type for ID column 'myTable.id'. Got 'float', expected one of ['string', 'hex', 'bigint', 'int'].",
   );
@@ -139,7 +139,7 @@ test("safeBuildSchema() returns error for ID column with optional modifier", () 
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid type for ID column 'myTable.id'. ID columns cannot be optional.",
   );
@@ -154,7 +154,7 @@ test("safeBuildSchema() returns error for ID column with list modifier", () => {
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Invalid type for ID column 'myTable.id'. ID columns cannot be a list.",
   );
@@ -169,7 +169,7 @@ test("safeBuildSchema() returns error for empty table or enum name", () => {
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Enum name can't be an empty string.",
   );
@@ -184,7 +184,7 @@ test("safeBuildSchema() returns error for table or enum name with invalid charac
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
     "Validation failed: Enum name 'invalid-name' contains an invalid character.",
   );
@@ -200,7 +200,7 @@ test("safeBuildSchema() returns error for 'one' relationship with non-existent r
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toContain("uses a column that does not exist");
 });
 
@@ -214,7 +214,7 @@ test("safeBuildSchema() returns error for 'one' relationship with reference to n
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toContain(
     "uses a column that is not foreign key column",
   );
@@ -230,7 +230,7 @@ test("safeBuildSchema() returns error for 'many' relationship with non-existent 
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toContain("uses a table that does not exist");
 });
 
@@ -247,7 +247,7 @@ test("safeBuildSchema() returns error for 'many' relationship with non-existent 
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toContain("uses a column that does not exist");
 });
 
@@ -265,7 +265,7 @@ test("safeBuildSchema() returns error for 'many' relationship with reference to 
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toContain(
     "uses a column that is not foreign key column",
   );
@@ -281,7 +281,7 @@ test("safeBuildSchema() returns error for enum column referencing non-existent e
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toContain("doesn't reference a valid enum");
 });
 
@@ -295,7 +295,7 @@ test("safeBuildSchema() returns error for foreign key column referencing non-exi
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toContain(
     "does not reference a valid ID column",
   );
@@ -313,7 +313,7 @@ test("safeBuildSchema() returns error for foreign key column type mismatch", () 
   }));
 
   const result = safeBuildSchema({ schema });
-  expect(result.success).toBe(false);
+  expect(result.status).toBe("error");
   expect(result.error?.message).toContain(
     "type does not match the referenced table's ID column type",
   );

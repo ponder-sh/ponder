@@ -1,11 +1,11 @@
-import type { Schema } from "../../schema/types.js";
+import type { Schema } from "../schema/types.js";
 import {
   isEnumColumn,
   isManyColumn,
   isOneColumn,
   isReferenceColumn,
   referencedTableName,
-} from "../../schema/utils.js";
+} from "../schema/utils.js";
 
 export const buildSchema = ({ schema }: { schema: Schema }) => {
   // Validate enums
@@ -239,9 +239,9 @@ const validateTableOrColumnName = (key: string, type: string) => {
 export function safeBuildSchema({ schema }: { schema: Schema }) {
   try {
     const result = buildSchema({ schema });
-    return { success: true, data: result } as const;
+    return { status: "success", schema: result.schema } as const;
   } catch (error_) {
     const error = error_ as Error;
-    return { success: false, error } as const;
+    return { status: "error", error } as const;
   }
 }

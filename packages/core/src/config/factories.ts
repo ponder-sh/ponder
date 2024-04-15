@@ -1,8 +1,7 @@
-import type { AbiEvent } from "abitype";
-import { getEventSelector } from "viem";
-
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
+import type { AbiEvent } from "abitype";
+import { getEventSelector } from "viem";
 import type { FactoryCriteria } from "./sources.js";
 
 export function buildFactoryCriteria({
@@ -28,7 +27,7 @@ export function buildFactoryCriteria({
       eventSelector,
       // Add 1 because inputs will not contain an element for topic0 (the signature).
       childAddressLocation: `topic${(indexedInputPosition + 1) as 1 | 2 | 3}`,
-    } satisfies FactoryCriteria;
+    } satisfies Omit<FactoryCriteria, "topics">;
   }
 
   const nonIndexedInputs = event.inputs.filter(
@@ -55,5 +54,5 @@ export function buildFactoryCriteria({
     address,
     eventSelector,
     childAddressLocation: `offset${offset}`,
-  } satisfies FactoryCriteria;
+  } satisfies Omit<FactoryCriteria, "topics">;
 }

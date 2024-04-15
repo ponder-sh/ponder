@@ -15,7 +15,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { decodeEvents } from "./events.js";
 import {
   type Context,
-  createIndexingService,
+  create,
   kill,
   processEvents,
   processSetupEvents,
@@ -44,7 +44,7 @@ test("createIndexing()", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {},
     common,
     sources,
@@ -69,7 +69,7 @@ test("processSetupEvents() empty", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {},
     common,
     sources,
@@ -104,7 +104,7 @@ test("processSetupEvents()", async (context) => {
     },
   };
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -164,7 +164,7 @@ test("processEvent() log events", async (context) => {
     },
   };
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -231,7 +231,7 @@ test("processEvents killed", async (context) => {
     },
   };
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -269,7 +269,7 @@ test("processEvents eventCount", async (context) => {
     },
   };
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -314,7 +314,7 @@ test("executeSetup() context.client", async (context) => {
     },
   };
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -366,7 +366,7 @@ test("executeSetup() context.db", async (context) => {
     },
   };
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -415,7 +415,7 @@ test("executeSetup() metrics", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {
       Erc20: {
         setup: vi.fn(),
@@ -458,7 +458,7 @@ test("executeSetup() retry", async (context) => {
 
   const revertSpy = vi.spyOn(indexingStore, "revert");
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -508,7 +508,7 @@ test("executeSetup() error", async (context) => {
 
   const revertSpy = vi.spyOn(indexingStore, "revert");
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -541,7 +541,7 @@ test("executeLog() context.client", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {
       Erc20: {
         Transfer: async ({ context }: { context: Context }) => {
@@ -588,7 +588,7 @@ test("executeLog() context.db", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {
       Erc20: {
         Transfer: async ({
@@ -644,7 +644,7 @@ test("executeLog() metrics", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {
       Erc20: {
         Transfer: vi.fn(),
@@ -687,7 +687,7 @@ test("executeLog() retry", async (context) => {
 
   const revertSpy = vi.spyOn(indexingStore, "revert");
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -736,7 +736,7 @@ test("executeLog() error", async (context) => {
 
   const revertSpy = vi.spyOn(indexingStore, "revert");
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -780,7 +780,7 @@ test("executeLog() error after killed", async (context) => {
     },
   };
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions,
     common,
     sources,
@@ -812,7 +812,7 @@ test("ponderActions getBalance()", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {},
     common,
     sources,
@@ -840,7 +840,7 @@ test("ponderActions getBytecode()", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {},
     common,
     sources,
@@ -868,7 +868,7 @@ test("ponderActions getStorageAt()", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {},
     common,
     sources,
@@ -898,7 +898,7 @@ test("ponderActions readContract()", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {},
     common,
     sources,
@@ -928,7 +928,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {},
     common,
     sources,
@@ -960,7 +960,7 @@ test.skip("ponderActions multicall()", async (context) => {
 
   const syncService = new SyncService({ common, syncStore, networks, sources });
 
-  const indexingService = createIndexingService({
+  const indexingService = create({
     indexingFunctions: {},
     common,
     sources,
