@@ -450,14 +450,14 @@ export async function buildConfigAndIndexingFunctions({
           rawContract.filter,
         ) as [Exclude<LogTopic, null>, ...LogTopic[]];
 
+        const filteredEventSelectors = Array.isArray(topic0FromFilter)
+          ? topic0FromFilter
+          : [topic0FromFilter];
+
         // Validate that the topic0 value defined by the `eventFilter` is a superset of the
         // registered indexing functions. Simply put, confirm that no indexing function is
         // defined for a log event that is excluded by the filter.
         for (const registeredEventSelector of registeredEventSelectors) {
-          const filteredEventSelectors = Array.isArray(topic0FromFilter)
-            ? topic0FromFilter
-            : [topic0FromFilter];
-
           if (!filteredEventSelectors.includes(registeredEventSelector)) {
             const logEventName =
               abiEvents.bySelector[registeredEventSelector]!.safeName;

@@ -1,27 +1,42 @@
 import type { Prettify } from "@/types/utils.js";
 
 export const extend = <
-  TCreate extends (...params: any[]) => Promise<any>,
+  TCreate extends (...params: any[]) => any,
   TMethods extends { [methodName: string]: (...params: any[]) => unknown },
 >(
   create: TCreate,
   _methods: TMethods,
 ): ((
   ...params: Parameters<TCreate>
-) => Promise<Extend<Awaited<ReturnType<TCreate>>, TMethods>>) => {
-  return async (...params: Parameters<TCreate>) => {
-    // TODO(kyle) handle async
-    const service = await create(...params);
+) => ReturnType<TCreate> extends Promise<any>
+  ? Promise<Extend<Awaited<ReturnType<TCreate>>, TMethods>>
+  : Extend<ReturnType<TCreate>, TMethods>) => {
+  return (...params: Parameters<TCreate>) => {
+    const service = create(...params);
 
-    const methods: any = {};
-    for (const [methodName, method] of Object.entries(_methods)) {
-      methods[methodName] = (...params: any) => method(service, ...params);
+    if (service instanceof Promise) {
+      return service.then((s) => {
+        const methods: any = {};
+        for (const [methodName, method] of Object.entries(_methods)) {
+          methods[methodName] = (...params: any) => method(s, ...params);
+        }
+
+        return {
+          ...s,
+          ...methods,
+        };
+      });
+    } else {
+      const methods: any = {};
+      for (const [methodName, method] of Object.entries(_methods)) {
+        methods[methodName] = (...params: any) => method(service, ...params);
+      }
+
+      return {
+        ...service,
+        ...methods,
+      };
     }
-
-    return {
-      ...service,
-      ...methods,
-    };
   };
 };
 
