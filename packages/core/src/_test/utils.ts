@@ -125,10 +125,12 @@ export const getNetworkAndSources = async (
     options: common.options,
   });
   const mainnet = { ...networks[0], finalityBlockCount: 4 };
+
   const requestQueue = createRequestQueue({
     network: networks[0],
     metrics: common.metrics,
   });
+
   return { networks: [mainnet], sources, requestQueues: [requestQueue] };
 };
 

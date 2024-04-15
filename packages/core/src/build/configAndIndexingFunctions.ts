@@ -28,9 +28,7 @@ export type RawIndexingFunctions = {
 }[];
 
 export type IndexingFunctions = {
-  [sourceName: string]: {
-    [eventName: string]: (...args: any) => any;
-  };
+  [eventName: string]: (...args: any) => any;
 };
 
 export async function buildConfigAndIndexingFunctions({
@@ -261,20 +259,18 @@ export async function buildConfigAndIndexingFunctions({
   let indexingFunctionCount = 0;
   const indexingFunctions: IndexingFunctions = {};
 
-  for (const { name: eventKey, fn } of rawIndexingFunctions) {
-    const eventNameComponents = eventKey.split(":");
-    const [sourceName, eventName] = eventNameComponents;
-    if (eventNameComponents.length !== 2 || !sourceName || !eventName) {
+  for (const { name: eventName, fn } of rawIndexingFunctions) {
+    const eventNameComponents = eventName.split(":");
+    const [sourceName, logEventName] = eventNameComponents;
+    if (eventNameComponents.length !== 2 || !sourceName || !logEventName) {
       throw new Error(
-        `Validation failed: Invalid event '${eventKey}', expected format '{contractName}:{eventName}'.`,
+        `Validation failed: Invalid event '${eventName}', expected format '{contractName}:{logEventName}'.`,
       );
     }
 
-    indexingFunctions[sourceName] ||= {};
-
-    if (eventName in indexingFunctions[sourceName]) {
+    if (eventName in indexingFunctions) {
       throw new Error(
-        `Validation failed: Multiple indexing functions registered for event '${eventKey}'.`,
+        `Validation failed: Multiple indexing functions registered for event '${eventName}'.`,
       );
     }
 
@@ -292,7 +288,7 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    indexingFunctions[sourceName][eventName] = fn;
+    indexingFunctions[eventName] = fn;
     indexingFunctionCount += 1;
   }
 
@@ -376,7 +372,7 @@ export async function buildConfigAndIndexingFunctions({
           };
         });
     })
-    // Second, build and validate the factory or log filter.
+    // Second, build and validate the factory or log source.
     .map((rawContract) => {
       const network = networks.find((n) => n.name === rawContract.networkName);
       if (!network) {
@@ -390,9 +386,16 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       // Get indexing function that were registered for this source
-      const registeredLogEvents = Object.keys(
-        indexingFunctions[rawContract.contractName] ?? {},
-      );
+      const registeredLogEvents: string[] = [];
+      for (const eventName of Object.keys(indexingFunctions)) {
+        const [contractName, logEventName] = eventName.split(":");
+        if (
+          contractName === rawContract.contractName &&
+          logEventName !== "setup"
+        ) {
+          registeredLogEvents.push(logEventName);
+        }
+      }
 
       // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.
       const abiEvents = buildAbiEvents({ abi: rawContract.abi });
