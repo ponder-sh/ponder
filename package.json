@@ -32,7 +32,8 @@
   "packageManager": "pnpm@8.6.10",
   "pnpm": {
     "patchedDependencies": {
-      "graphql@16.8.1": "patches/graphql@16.8.1.patch"
+      "graphql@16.8.1": "patches/graphql@16.8.1.patch",
+      "detect-package-manager@3.0.1": "patches/detect-package-manager@3.0.1.patch"
     },
     "peerDependencyRules": {
       "ignoreMissing": ["node-fetch"]

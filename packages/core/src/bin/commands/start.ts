@@ -3,7 +3,7 @@ import { createBuildService } from "@/build/index.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
-import { TelemetryService } from "@/common/telemetry.js";
+import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
 import { setupShutdown } from "../utils/shutdown.js";
@@ -32,7 +32,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  const telemetry = new TelemetryService({ options });
+  const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
   const buildService = await createBuildService({ common });
@@ -56,12 +56,8 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   telemetry.record({
-    event: "App Started",
-    properties: {
-      command: "ponder start",
-      contractCount: initialResult.build.sources.length,
-      databaseKind: initialResult.build.databaseConfig.kind,
-    },
+    name: "lifecycle:session_start",
+    properties: { cli_command: "start", ...buildPayload(initialResult.build) },
   });
 
   cleanupReloadable = await run({

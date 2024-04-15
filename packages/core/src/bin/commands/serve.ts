@@ -3,7 +3,7 @@ import { createBuildService } from "@/build/index.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
-import { TelemetryService } from "@/common/telemetry.js";
+import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
@@ -35,7 +35,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  const telemetry = new TelemetryService({ options });
+  const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
   const buildService = await createBuildService({ common });
@@ -59,12 +59,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   telemetry.record({
-    event: "App Started",
-    properties: {
-      command: "ponder serve",
-      contractCount: initialResult.build.sources.length,
-      databaseKind: initialResult.build.databaseConfig.kind,
-    },
+    name: "lifecycle:session_start",
+    properties: { cli_command: "serve", ...buildPayload(initialResult.build) },
   });
 
   const { databaseConfig, schema, graphqlSchema } = initialResult.build;

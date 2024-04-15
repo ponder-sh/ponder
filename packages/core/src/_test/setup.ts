@@ -6,7 +6,7 @@ import type { Common } from "@/common/common.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
-import { TelemetryService } from "@/common/telemetry.js";
+import { createTelemetry } from "@/common/telemetry.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
@@ -49,11 +49,12 @@ export function setupContext(context: TestContext) {
     }),
     telemetryDisabled: true,
   };
+  const logger = new LoggerService({ level: "silent" });
   context.common = {
     options,
-    logger: new LoggerService({ level: "silent" }),
+    logger,
     metrics: new MetricsService(),
-    telemetry: new TelemetryService({ options }),
+    telemetry: createTelemetry({ options, logger }),
   };
 }
 

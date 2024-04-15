@@ -35,8 +35,8 @@ export function setupShutdown({
       });
     }
     common.telemetry.record({
-      event: "App Killed",
-      properties: { processDuration: process.uptime() },
+      name: "lifecycle:session_end",
+      properties: { duration_seconds: process.uptime() },
     });
 
     await cleanup();

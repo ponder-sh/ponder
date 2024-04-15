@@ -4,7 +4,7 @@ import { type BuildResult, createBuildService } from "@/build/index.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
-import { TelemetryService } from "@/common/telemetry.js";
+import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { UiService } from "@/ui/service.js";
 import { createQueue } from "@ponder/common";
 import type { CliOptions } from "../ponder.js";
@@ -42,7 +42,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  const telemetry = new TelemetryService({ options });
+  const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
   const buildService = await createBuildService({ common });
@@ -103,12 +103,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   telemetry.record({
-    event: "App Started",
-    properties: {
-      command: "ponder dev",
-      contractCount: initialResult.build.sources.length,
-      databaseKind: initialResult.build.databaseConfig.kind,
-    },
+    name: "lifecycle:session_start",
+    properties: { cli_command: "dev", ...buildPayload(initialResult.build) },
   });
 
   buildQueue.add(initialResult);
