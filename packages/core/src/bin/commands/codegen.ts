@@ -54,11 +54,6 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "codegen" },
   });
 
-  telemetry.record({
-    name: "lifecycle:session_start",
-    properties: { cli_command: "codegen" },
-  });
-
   runCodegen({ common, graphqlSchema: buildResult.build.graphqlSchema });
 
   logger.info({ service: "codegen", msg: "Wrote ponder-env.d.ts" });
