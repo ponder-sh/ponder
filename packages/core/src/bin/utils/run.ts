@@ -1,4 +1,4 @@
-import type { Build } from "@/build/service.js";
+import type { Build } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";

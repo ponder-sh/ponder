@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { createBuildService } from "@/build/index.js";
-import { type BuildResult } from "@/build/service.js";
+import { type BuildResult, createBuildService } from "@/build/index.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";

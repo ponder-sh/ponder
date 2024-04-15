@@ -1,5 +1,5 @@
 import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
-import type { Build } from "@/build/service.js";
+import type { Build } from "@/build/index.js";
 import * as codegen from "@/common/codegen.js";
 import { createSchema } from "@/schema/schema.js";
 import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
