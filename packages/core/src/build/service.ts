@@ -24,7 +24,7 @@ import { vitePluginPonder } from "./plugin.js";
 import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
-export type BuildService = {
+export type Service = {
   // static
   common: Common;
   indexingFunctionRegex: RegExp;
@@ -63,7 +63,7 @@ export const create = async ({
   common,
 }: {
   common: Common;
-}): Promise<BuildService> => {
+}): Promise<Service> => {
   const indexingFunctionRegex = new RegExp(
     `^${common.options.srcDir.replace(
       /[.*+?^${}()|[\]\\]/g,
@@ -135,7 +135,7 @@ export const create = async ({
  * but doesn't attempt to skip any validation or build steps.
  */
 export const start = async (
-  buildService: BuildService,
+  buildService: Service,
   {
     watch,
     onBuild,
@@ -261,7 +261,7 @@ export const start = async (
   return buildResult;
 };
 
-export const kill = async (buildService: BuildService): Promise<void> => {
+export const kill = async (buildService: Service): Promise<void> => {
   await buildService.viteDevServer?.close();
   buildService.common.logger.debug({
     service: "build",
@@ -270,7 +270,7 @@ export const kill = async (buildService: BuildService): Promise<void> => {
 };
 
 const executeConfig = async (
-  buildService: BuildService,
+  buildService: Service,
 ): Promise<
   { status: "success"; config: Config } | { status: "error"; error: Error }
 > => {
@@ -289,7 +289,7 @@ const executeConfig = async (
 };
 
 const executeSchema = async (
-  buildService: BuildService,
+  buildService: Service,
 ): Promise<
   { status: "success"; schema: Schema } | { status: "error"; error: Error }
 > => {
@@ -308,7 +308,7 @@ const executeSchema = async (
 };
 
 const executeIndexingFunctions = async (
-  buildService: BuildService,
+  buildService: Service,
 ): Promise<
   | { status: "success"; indexingFunctions: RawIndexingFunctions }
   | { status: "error"; error: Error }
@@ -336,7 +336,7 @@ const executeIndexingFunctions = async (
 };
 
 const validateAndBuild = async (
-  { common }: Pick<BuildService, "common">,
+  { common }: Pick<Service, "common">,
   rawBuild: RawBuild,
 ): Promise<BuildResult> => {
   // Validate and build the schema
@@ -382,7 +382,7 @@ const validateAndBuild = async (
 };
 
 const executeFile = async (
-  { common, viteNodeRunner }: BuildService,
+  { common, viteNodeRunner }: Service,
   { file }: { file: string },
 ): Promise<
   | {
@@ -404,7 +404,7 @@ const executeFile = async (
   }
 };
 
-const logError = ({ common }: Pick<BuildService, "common">, error: Error) => {
+const logError = ({ common }: Pick<Service, "common">, error: Error) => {
   common.logger.error({
     service: "build",
     msg: "Failed build with error:",

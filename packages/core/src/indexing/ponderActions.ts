@@ -27,7 +27,7 @@ import {
   multicall as viemMulticall,
   readContract as viemReadContract,
 } from "viem/actions";
-import type { IndexingService, createIndexingService } from "./service.js";
+import type { Service, create } from "./service.js";
 
 export type BlockOptions =
   | {
@@ -88,10 +88,7 @@ export type ReadOnlyClient<
 >;
 
 export const buildCachedActions = (
-  contextState: Pick<
-    IndexingService["currentEvent"]["contextState"],
-    "blockNumber"
-  >,
+  contextState: Pick<Service["currentEvent"]["contextState"], "blockNumber">,
 ) => {
   return <
     TTransport extends Transport = Transport,
@@ -181,17 +178,14 @@ export const buildDb = ({
   schema,
   indexingStore,
   contextState,
-}: Pick<
-  Parameters<typeof createIndexingService>[0],
-  "common" | "schema" | "indexingStore"
-> & {
+}: Pick<Parameters<typeof create>[0], "common" | "schema" | "indexingStore"> & {
   contextState: Pick<
-    IndexingService["currentEvent"]["contextState"],
+    Service["currentEvent"]["contextState"],
     "encodedCheckpoint"
   >;
 }) => {
   return Object.keys(schema.tables).reduce<
-    IndexingService["currentEvent"]["context"]["db"]
+    Service["currentEvent"]["context"]["db"]
   >((acc, tableName) => {
     acc[tableName] = {
       findUnique: async ({ id }) => {
