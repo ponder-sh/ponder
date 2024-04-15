@@ -59,7 +59,7 @@ type RawBuild = {
   indexingFunctions: RawIndexingFunctions;
 };
 
-export const createBuildService = async ({
+export const create = async ({
   common,
 }: {
   common: Common;
@@ -134,7 +134,7 @@ export const createBuildService = async ({
  * and validate and build again. This function only re-executes changes files,
  * but doesn't attempt to skip any validation or build steps.
  */
-export const startBuildService = async (
+export const start = async (
   buildService: BuildService,
   {
     watch,
@@ -261,9 +261,7 @@ export const startBuildService = async (
   return buildResult;
 };
 
-export const killBuildService = async (
-  buildService: BuildService,
-): Promise<void> => {
+export const kill = async (buildService: BuildService): Promise<void> => {
   await buildService.viteDevServer?.close();
   buildService.common.logger.debug({
     service: "build",

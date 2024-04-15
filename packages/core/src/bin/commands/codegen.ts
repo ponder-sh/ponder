@@ -1,8 +1,4 @@
-import {
-  createBuildService,
-  killBuildService,
-  startBuildService,
-} from "@/build/service.js";
+import { createBuildService } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
@@ -35,13 +31,13 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   const buildService = await createBuildService({ common });
 
   const cleanup = async () => {
-    await killBuildService(buildService);
+    await buildService.kill();
     await telemetry.kill();
   };
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const buildResult = await startBuildService(buildService, { watch: false });
+  const buildResult = await buildService.start({ watch: false });
 
   if (buildResult.status === "error") {
     logger.error({

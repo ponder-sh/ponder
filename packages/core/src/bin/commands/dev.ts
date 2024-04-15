@@ -1,11 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import {
-  type BuildResult,
-  createBuildService,
-  killBuildService,
-  startBuildService,
-} from "@/build/service.js";
+import { createBuildService } from "@/build/index.js";
+import { type BuildResult } from "@/build/service.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
@@ -58,7 +54,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const cleanup = async () => {
     await cleanupReloadable();
-    await killBuildService(buildService);
+    await buildService.kill();
     await telemetry.kill();
     uiService.kill();
   };
@@ -94,7 +90,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  const initialResult = await startBuildService(buildService, {
+  const initialResult = await buildService.start({
     watch: true,
     onBuild: (buildResult) => {
       buildQueue.clear();

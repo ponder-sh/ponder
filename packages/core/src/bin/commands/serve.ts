@@ -1,9 +1,5 @@
 import path from "node:path";
-import {
-  createBuildService,
-  killBuildService,
-  startBuildService,
-} from "@/build/service.js";
+import { createBuildService } from "@/build/index.js";
 import { LoggerService } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
@@ -53,9 +49,9 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const initialResult = await startBuildService(buildService, { watch: false });
+  const initialResult = await buildService.start({ watch: false });
   // Once we have the initial build, we can kill the build service.
-  await killBuildService(buildService);
+  await buildService.kill();
 
   if (initialResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
