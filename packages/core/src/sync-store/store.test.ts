@@ -621,15 +621,6 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
     chainId: 1,
     logs: [
       {
-        ...rpcData.block1.logs[0],
-        address: "0xfactory",
-        topics: [
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
-          "0x000000000000000000000000child10000000000000000000000000000000000",
-        ],
-        blockNumber: toHex(100),
-      },
-      {
         ...rpcData.block1.logs[1],
         address: "0xfactory",
         topics: [
@@ -647,6 +638,33 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
         ],
         blockNumber: toHex(201),
       },
+      {
+        ...rpcData.block1.logs[0],
+        address: "0xfactory",
+        topics: [
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+          "0x000000000000000000000000child10000000000000000000000000000000000",
+        ],
+        blockNumber: toHex(100),
+      },
+      {
+        ...rpcData.block1.logs[1],
+        address: "0xfactory",
+        topics: [
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+          "0x000000000000000000000000child40000000000000000000000000000000000",
+        ],
+        blockNumber: toHex(202),
+      },
+      {
+        ...rpcData.block1.logs[1],
+        address: "0xfactory",
+        topics: [
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+          "0x000000000000000000000000child50000000000000000000000000000000000",
+        ],
+        blockNumber: toHex(203),
+      },
     ],
   });
 
@@ -654,7 +672,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
     chainId: 1,
     factory: factoryCriteria,
     upToBlockNumber: 1000n,
-    pageSize: 1,
+    pageSize: 2,
   });
 
   let idx = 0;
@@ -662,14 +680,16 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
     if (idx === 0)
       expect(page).toMatchObject([
         "0xchild10000000000000000000000000000000000",
+        "0xchild20000000000000000000000000000000000",
       ]);
     if (idx === 1)
       expect(page).toMatchObject([
-        "0xchild20000000000000000000000000000000000",
+        "0xchild30000000000000000000000000000000000",
+        "0xchild40000000000000000000000000000000000",
       ]);
     if (idx === 2) {
       expect(page).toMatchObject([
-        "0xchild30000000000000000000000000000000000",
+        "0xchild50000000000000000000000000000000000",
       ]);
       expect((await iterator.next()).done).toBe(true);
     }

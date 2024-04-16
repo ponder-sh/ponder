@@ -274,32 +274,28 @@ export class SqliteSyncStore implements SyncStore {
       .where("address", "=", address)
       .where("topic0", "=", eventSelector)
       .where("blockNumber", "<=", encodeAsText(upToBlockNumber))
+      .orderBy("blockNumber", "asc")
       .limit(pageSize);
 
     let cursor: BigIntText | undefined = undefined;
 
     while (true) {
       let query = baseQuery;
-
-      if (cursor) {
-        query = query.where("blockNumber", ">", cursor);
-      }
+      if (cursor !== undefined) query = query.where("blockNumber", ">", cursor);
 
       const batch = await this.db.wrap(
         { method: "getFactoryChildAddresses" },
         () => query.execute(),
       );
 
-      const lastRow = batch[batch.length - 1];
-      if (lastRow) {
-        cursor = lastRow.blockNumber;
-      }
-
       if (batch.length > 0) {
         yield batch.map((a) => a.childAddress);
       }
 
+      // If the batch is less than the page size, there are no more pages.
       if (batch.length < pageSize) break;
+      // Otherwise, set the cursor to the last block number in the batch.
+      cursor = batch[batch.length - 1].blockNumber;
     }
   }
 
