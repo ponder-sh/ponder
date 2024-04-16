@@ -142,6 +142,8 @@ export async function run({
   }
 
   const handleEvents = async (events: Event[]) => {
+    if (events.length === 0) return;
+
     const result = await indexingService.processEvents({
       events,
     });

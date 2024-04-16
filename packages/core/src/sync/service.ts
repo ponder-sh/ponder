@@ -290,7 +290,6 @@ export const getHistoricalEvents = async function* (
 
       // ...
       if (networkCheckpoints.some((nc) => nc === undefined)) {
-        yield [];
         continue;
       }
 
@@ -299,7 +298,6 @@ export const getHistoricalEvents = async function* (
       );
 
       if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) {
-        yield [];
         continue;
       }
 
