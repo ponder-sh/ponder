@@ -21,6 +21,7 @@ import {
   intervalSum,
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { never } from "@/utils/never.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { debounce } from "@ponder/common";
@@ -509,6 +510,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           await this.blockTaskWorker(task);
           break;
         }
+
+        default:
+          never(task);
       }
 
       // If this is not the final task, return.

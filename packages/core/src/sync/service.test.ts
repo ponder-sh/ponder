@@ -1,18 +1,14 @@
-import { type TestContext, beforeEach, expect, test, vi } from "vitest";
-
 import {
   setupAnvil,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-
 import {
   type Checkpoint,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-
-import { SyncService } from "./service.js";
+import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 
 beforeEach((context) => setupAnvil(context));
 beforeEach((context) => setupIsolatedDatabase(context));

@@ -1,6 +1,7 @@
 import { setupAnvil } from "@/_test/setup.js";
+import type { SyncLog } from "@/sync/index.js";
 import { beforeEach, expect, test } from "vitest";
-import { type RealtimeLog, sortLogs } from "./format.js";
+import { sortLogs } from "./format.js";
 
 beforeEach((context) => setupAnvil(context));
 
@@ -16,7 +17,7 @@ test("sort logs", async (context) => {
     ],
   });
 
-  const sorted = sortLogs([logs[1], logs[0]] as RealtimeLog[]);
+  const sorted = sortLogs([logs[1], logs[0]] as SyncLog[]);
 
   expect(sorted[0].logIndex).toBe("0x0");
   expect(sorted[1].logIndex).toBe("0x1");

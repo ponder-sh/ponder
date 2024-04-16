@@ -7,12 +7,12 @@ import {
 } from "@/_test/setup.js";
 import { getEventsErc20 } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
-import { SyncService } from "@/sync/service.js";
+import { createSyncService } from "@/sync/service.js";
 import { decodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { type Address, checksumAddress, parseEther, toHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
-import { decodeEvents } from "./events.js";
+import { decodeEvents } from "../sync/events.js";
 import {
   type Context,
   create,
@@ -42,7 +42,14 @@ test("createIndexing()", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {},
@@ -67,7 +74,14 @@ test("processSetupEvents() empty", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {},
@@ -96,7 +110,14 @@ test("processSetupEvents()", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
@@ -154,7 +175,14 @@ test("processEvent() log events", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingFunctions = {
     "Erc20:Transfer": vi.fn(),
@@ -171,7 +199,7 @@ test("processEvent() log events", async (context) => {
   });
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(indexingService, rawEvents);
+  const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -219,7 +247,14 @@ test("processEvents killed", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingFunctions = {
     "Erc20:Transfer": vi.fn(),
@@ -237,7 +272,7 @@ test("processEvents killed", async (context) => {
   kill(indexingService);
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(indexingService, rawEvents);
+  const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -255,7 +290,14 @@ test("processEvents eventCount", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingFunctions = {
     "Erc20:Transfer": vi.fn(),
@@ -272,7 +314,7 @@ test("processEvents eventCount", async (context) => {
   });
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(indexingService, rawEvents);
+  const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -294,7 +336,14 @@ test("executeSetup() context.client", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
@@ -341,7 +390,14 @@ test("executeSetup() context.db", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
@@ -401,7 +457,14 @@ test("executeSetup() metrics", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {
@@ -434,7 +497,14 @@ test("executeSetup() retry", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
@@ -482,7 +552,14 @@ test("executeSetup() error", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
@@ -521,7 +598,14 @@ test("executeLog() context.client", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {
@@ -545,7 +629,7 @@ test("executeLog() context.client", async (context) => {
   );
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(indexingService, rawEvents);
+  const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -566,7 +650,14 @@ test("executeLog() context.db", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {
@@ -596,7 +687,7 @@ test("executeLog() context.db", async (context) => {
   );
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(indexingService, rawEvents);
+  const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -620,7 +711,14 @@ test("executeLog() metrics", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {
@@ -635,7 +733,7 @@ test("executeLog() metrics", async (context) => {
   });
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(indexingService, rawEvents);
+  const events = decodeEvents(syncService, rawEvents);
   await processEvents(indexingService, {
     events,
   });
@@ -653,7 +751,14 @@ test("executeLog() retry", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingFunctions = {
     "Erc20:Transfer": vi.fn(),
@@ -674,7 +779,7 @@ test("executeLog() retry", async (context) => {
   indexingFunctions["Erc20:Transfer"].mockRejectedValueOnce(new Error());
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(indexingService, rawEvents);
+  const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -700,7 +805,14 @@ test("executeLog() error", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingFunctions = {
     "Erc20:Transfer": vi.fn(),
@@ -721,7 +833,7 @@ test("executeLog() error", async (context) => {
   indexingFunctions["Erc20:Transfer"].mockRejectedValue(new Error());
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(indexingService, rawEvents);
+  const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -743,7 +855,14 @@ test("executeLog() error after killed", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const { promise, reject } = promiseWithResolvers();
   const indexingFunctions = {
@@ -761,7 +880,7 @@ test("executeLog() error after killed", async (context) => {
   });
 
   const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(indexingService, rawEvents);
+  const events = decodeEvents(syncService, rawEvents);
   const resultPromise = processEvents(indexingService, { events });
   kill(indexingService);
 
@@ -780,7 +899,14 @@ test("ponderActions getBalance()", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {},
@@ -808,7 +934,14 @@ test("ponderActions getBytecode()", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {},
@@ -836,7 +969,14 @@ test("ponderActions getStorageAt()", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {},
@@ -866,7 +1006,14 @@ test("ponderActions readContract()", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {},
@@ -896,7 +1043,14 @@ test("ponderActions readContract() blockNumber", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {},
@@ -928,7 +1082,14 @@ test.skip("ponderActions multicall()", async (context) => {
     { schema },
   );
 
-  const syncService = new SyncService({ common, syncStore, networks, sources });
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+  });
 
   const indexingService = create({
     indexingFunctions: {},

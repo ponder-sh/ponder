@@ -122,10 +122,8 @@ export interface SyncStore {
   }): Promise<void>;
 
   /**
-   * Deletes ALL data from the store with a block number GREATER than the
-   * specified block number. Any data at fromBlock is not deleted.
-   *
-   * This includes block/transaction/logs, child contracts, and intervals.
+   * Deletes logs and contract calls from the store with a block number GREATER
+   * than the specified block number. Any data at fromBlock is not deleted.
    */
   deleteRealtimeData(options: {
     chainId: number;
