@@ -45,7 +45,6 @@ test("createRealtimeSyncService()", async (context) => {
   expect(realtimeSyncService.localChain).toHaveLength(0);
   expect(realtimeSyncService.eventSelectors).toStrictEqual([
     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
-    getEventSelector(getAbiItem({ abi: erc20ABI, name: "Approval" })),
     getEventSelector(getAbiItem({ abi: factoryABI, name: "PairCreated" })),
     getEventSelector(getAbiItem({ abi: pairABI, name: "Swap" })),
   ]);
@@ -146,7 +145,7 @@ test("start() gets missing block", async (context) => {
   await cleanup();
 });
 
-test.only("start() finds reorg", async (context) => {
+test("start() finds reorg", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 

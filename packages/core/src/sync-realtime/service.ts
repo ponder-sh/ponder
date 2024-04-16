@@ -236,7 +236,7 @@ export const startRealtimeSyncService = (
 
   setInterval(enqueue, realtimeSyncService.network.pollingInterval);
 
-  // Note: this is currently done just for testing.
+  // Note: this is done just for testing.
   return enqueue().then(() => queue);
 };
 
@@ -361,11 +361,6 @@ export const handleBlock = async (
     pendingLatestBlockTimestamp,
   );
 
-  realtimeSyncService.common.logger.debug({
-    service: "realtime",
-    msg: `Finished syncing new head block ${pendingLatestBlockNumber} (network=${realtimeSyncService.network.name})`,
-  });
-
   // Determine if a new range has become finalized by evaluating if the
   // latest block number is 2 * finalityBlockCount >= finalized block number.
   // Essentially, there is a range the width of finalityBlockCount that is entirely
@@ -425,7 +420,7 @@ export const handleBlock = async (
 
     realtimeSyncService.common.logger.debug({
       service: "realtime",
-      msg: `Updated finality checkpoint to ${pendingFinalizedBlock.number} (network=${realtimeSyncService.network.name})`,
+      msg: `Updated finality to block ${pendingFinalizedBlock.number} (network=${realtimeSyncService.network.name})`,
     });
   }
 
@@ -453,22 +448,10 @@ export const handleReorg = async (
     ({ block }) => block.number < hexToNumber(pendingLatestBlock.number),
   );
 
-  let reorgedBlockHash = pendingLatestBlock.parentHash;
+  let reorgedBlock = pendingLatestBlock;
 
-  while (realtimeSyncService.localChain.length > 0) {
-    // Get block where local chain diverges and then remove that block from
-    // the local chain. Ordering is important because the request may fail.
-    const reorgedBlock = await _eth_getBlockByHash(realtimeSyncService, {
-      blockHash: reorgedBlockHash,
-    });
-    realtimeSyncService.localChain.pop();
-
-    const parentBlock =
-      realtimeSyncService.localChain.length === 0
-        ? realtimeSyncService.finalizedBlock
-        : realtimeSyncService.localChain[
-            realtimeSyncService.localChain.length - 1
-          ].block;
+  while (true) {
+    const parentBlock = getLatestLocalBlock(realtimeSyncService);
 
     if (parentBlock.hash === reorgedBlock.parentHash) {
       realtimeSyncService.common.logger.trace({
@@ -498,8 +481,14 @@ export const handleReorg = async (
       });
 
       return;
-    } else {
-      reorgedBlockHash = reorgedBlock.parentHash;
+    }
+
+    if (realtimeSyncService.localChain.length === 0) break;
+    else {
+      realtimeSyncService.localChain.pop();
+      reorgedBlock = await _eth_getBlockByHash(realtimeSyncService, {
+        blockHash: reorgedBlock.parentHash,
+      });
     }
   }
 
