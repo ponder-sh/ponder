@@ -84,17 +84,20 @@ export function createTelemetry({
     });
   }
 
-  const sessionId = randomBytes(32).toString("hex");
+  const sessionId = randomBytes(8).toString("hex");
 
   let anonymousId = conf.get("anonymousId") as string;
   if (anonymousId === undefined) {
-    anonymousId = randomBytes(32).toString("hex");
+    anonymousId = randomBytes(8).toString("hex");
     conf.set("anonymousId", anonymousId);
   }
+  // Before 0.4.3, the anonymous ID was 64 characters long. Truncate it to 16
+  // here to align with new ID lengths.
+  if (anonymousId.length > 16) anonymousId = anonymousId.slice(0, 16);
 
   let salt = conf.get("salt") as string;
   if (salt === undefined) {
-    salt = randomBytes(32).toString("hex");
+    salt = randomBytes(8).toString("hex");
     conf.set("salt", salt);
   }
 
@@ -103,7 +106,7 @@ export function createTelemetry({
     const hash = createHash("sha256");
     hash.update(salt);
     hash.update(value);
-    return hash.digest("hex");
+    return hash.digest("hex").slice(0, 16);
   };
 
   const buildContext = async () => {
