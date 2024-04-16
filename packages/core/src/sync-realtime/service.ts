@@ -31,7 +31,7 @@ import {
   syncLogToLightLog,
 } from "./format.js";
 
-export type RealtimeSyncService = {
+export type Service = {
   // static
   common: Common;
   syncStore: SyncStore;
@@ -80,7 +80,7 @@ type LocalBlockchainState = {
   logs: LightLog[];
 };
 
-export const createRealtimeSyncService = ({
+export const create = ({
   common,
   syncStore,
   network,
@@ -98,7 +98,7 @@ export const createRealtimeSyncService = ({
   finalizedBlock: SyncBlock;
   onEvent: (event: RealtimeSyncEvent) => void;
   onFatalError: (error: Error) => void;
-}): RealtimeSyncService => {
+}): Service => {
   // get event selectors from sources
   const eventSelectors = sources.flatMap((source) => {
     const topics: Hex[] = [];
@@ -134,9 +134,7 @@ export const createRealtimeSyncService = ({
   };
 };
 
-export const startRealtimeSyncService = (
-  realtimeSyncService: RealtimeSyncService,
-) => {
+export const start = (realtimeSyncService: Service) => {
   /**
    * The queue reacts to a new block. The four states are:
    * 1) Block is the same as the one just processed, no-op.
@@ -273,7 +271,7 @@ export const startRealtimeSyncService = (
  * @returns true if a reorg occurred
  */
 export const handleBlock = async (
-  realtimeSyncService: RealtimeSyncService,
+  realtimeSyncService: Service,
   { pendingLatestBlock }: { pendingLatestBlock: SyncBlock },
 ) => {
   const pendingLatestBlockNumber = hexToNumber(pendingLatestBlock.number);
@@ -453,7 +451,7 @@ export const handleBlock = async (
  * Must be at most 1 block ahead of the local chain.
  */
 export const handleReorg = async (
-  realtimeSyncService: RealtimeSyncService,
+  realtimeSyncService: Service,
   pendingLatestBlock: SyncBlock,
 ) => {
   // Prune the local chain of blocks that have been reorged out
@@ -517,7 +515,7 @@ export const handleReorg = async (
 };
 
 const getMatchedLogs = async (
-  realtimeSyncService: RealtimeSyncService,
+  realtimeSyncService: Service,
   {
     logs,
     insertChildAddressLogs,
@@ -587,7 +585,7 @@ const getMatchedLogs = async (
 };
 
 export const validateLocalBlockchainState = async (
-  realtimeSyncService: RealtimeSyncService,
+  realtimeSyncService: Service,
   pendingFinalizedBlock: LightBlock,
 ) => {
   realtimeSyncService.common.logger.debug({
@@ -635,7 +633,7 @@ export const validateLocalBlockchainState = async (
 const getLatestLocalBlock = ({
   localChain,
   finalizedBlock,
-}: Pick<RealtimeSyncService, "localChain" | "finalizedBlock">) => {
+}: Pick<Service, "localChain" | "finalizedBlock">) => {
   if (localChain.length === 0) {
     return finalizedBlock;
   } else return localChain[localChain.length - 1].block;

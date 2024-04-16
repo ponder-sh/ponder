@@ -11,10 +11,10 @@ import { getAbiItem, getEventSelector } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { syncBlockToLightBlock } from "./format.js";
 import {
-  createRealtimeSyncService,
+  create,
   handleBlock,
   handleReorg,
-  startRealtimeSyncService,
+  start,
   validateLocalBlockchainState,
 } from "./service.js";
 
@@ -30,7 +30,7 @@ test("createRealtimeSyncService()", async (context) => {
     params: ["0x0", false],
   });
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -61,7 +61,7 @@ test("start() handles block", async (context) => {
     params: ["0x3", false],
   });
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -72,7 +72,7 @@ test("start() handles block", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await startRealtimeSyncService(realtimeSyncService);
+  const queue = await start(realtimeSyncService);
   await queue.onIdle();
 
   expect(realtimeSyncService.localChain).toHaveLength(1);
@@ -89,7 +89,7 @@ test("start() no-op when receiving same block twice", async (context) => {
     params: ["0x3", false],
   });
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -100,7 +100,7 @@ test("start() no-op when receiving same block twice", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await startRealtimeSyncService(realtimeSyncService);
+  const queue = await start(realtimeSyncService);
 
   await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 4 }).then(
     queue.add,
@@ -124,7 +124,7 @@ test("start() gets missing block", async (context) => {
 
   const insertSpy = vi.spyOn(syncStore, "insertRealtimeBlock");
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -135,7 +135,7 @@ test("start() gets missing block", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await startRealtimeSyncService(realtimeSyncService);
+  const queue = await start(realtimeSyncService);
 
   await queue.onIdle();
 
@@ -156,7 +156,7 @@ test("start() finds reorg", async (context) => {
 
   const onEvent = vi.fn();
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -167,7 +167,7 @@ test("start() finds reorg", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await startRealtimeSyncService(realtimeSyncService);
+  const queue = await start(realtimeSyncService);
 
   await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 3 }).then(
     queue.add,
@@ -194,7 +194,7 @@ test("start() retries on error", async (context) => {
 
   const insertSpy = vi.spyOn(syncStore, "insertRealtimeBlock");
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -207,7 +207,7 @@ test("start() retries on error", async (context) => {
 
   insertSpy.mockRejectedValueOnce(new Error());
 
-  const queue = await startRealtimeSyncService(realtimeSyncService);
+  const queue = await start(realtimeSyncService);
 
   await queue.onIdle();
 
@@ -229,7 +229,7 @@ test("start() emits fatal error", async (context) => {
   const onFatalError = vi.fn();
   const insertSpy = vi.spyOn(syncStore, "insertRealtimeBlock");
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: { ...networks[0], pollingInterval: 10_000 },
@@ -242,7 +242,7 @@ test("start() emits fatal error", async (context) => {
 
   insertSpy.mockRejectedValue(new Error());
 
-  const queue = await startRealtimeSyncService(realtimeSyncService);
+  const queue = await start(realtimeSyncService);
 
   await queue.onIdle();
 
@@ -261,7 +261,7 @@ test("kill()", async (context) => {
     params: ["0x3", false],
   });
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -272,7 +272,7 @@ test("kill()", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  startRealtimeSyncService(realtimeSyncService);
+  start(realtimeSyncService);
 
   await realtimeSyncService.kill();
 
@@ -293,7 +293,7 @@ test("handleBlock() ingests block and logs", async (context) => {
   const onEvent = vi.fn();
   const requestSpy = vi.spyOn(requestQueues[0], "request");
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -359,7 +359,7 @@ test("handleBlock() skips eth_getLogs request", async (context) => {
   const onEvent = vi.fn();
   const requestSpy = vi.spyOn(requestQueues[0], "request");
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -396,7 +396,7 @@ test("handleBlock() finds reorg", async (context) => {
 
   const onEvent = vi.fn();
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -445,7 +445,7 @@ test("handleBlock() finalizes range", async (context) => {
 
   const onEvent = vi.fn();
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -496,7 +496,7 @@ test("handleReorg() finds common ancestor", async (context) => {
 
   const onEvent = vi.fn();
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -556,7 +556,7 @@ test("handleReorg() emits fatal error for deep reorg", async (context) => {
 
   const onFatalError = vi.fn();
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
@@ -605,7 +605,7 @@ test("validateLocalBlockchainState()", async (context) => {
     params: ["0x0", false],
   });
 
-  const realtimeSyncService = createRealtimeSyncService({
+  const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
