@@ -315,7 +315,7 @@ export const startRealtimeSyncServices = (syncService: SyncService) => {
   }
 };
 
-export const killSyncService = (syncService: SyncService) => {
+export const killSyncService = (_syncService: SyncService) => {
   // TODO(kyle)
 };
 
@@ -343,9 +343,7 @@ const setupSyncForNetwork = async ({
 
   // TODO(kyle) validate that the remote chainId
   // matched the user provided chainId
-  const chainId = await requestQueue
-    .request({ method: "eth_chainId" })
-    .then(hexToNumber);
+  await requestQueue.request({ method: "eth_chainId" }).then(hexToNumber);
 
   const finalizedBlockNumber = Math.max(
     0,
