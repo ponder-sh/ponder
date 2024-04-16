@@ -77,6 +77,8 @@ test("start() handles block", async (context) => {
 
   expect(realtimeSyncService.localChain).toHaveLength(1);
 
+  await realtimeSyncService.kill();
+
   await cleanup();
 });
 
@@ -110,6 +112,8 @@ test("start() no-op when receiving same block twice", async (context) => {
 
   expect(realtimeSyncService.localChain).toHaveLength(1);
 
+  await realtimeSyncService.kill();
+
   await cleanup();
 });
 
@@ -141,6 +145,8 @@ test("start() gets missing block", async (context) => {
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
   expect(insertSpy).toHaveBeenCalledTimes(2);
+
+  await realtimeSyncService.kill();
 
   await cleanup();
 });
@@ -180,6 +186,8 @@ test("start() finds reorg", async (context) => {
     safeCheckpoint: expect.any(Object),
   });
 
+  await realtimeSyncService.kill();
+
   await cleanup();
 });
 
@@ -213,6 +221,8 @@ test("start() retries on error", async (context) => {
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
   expect(insertSpy).toHaveBeenCalledTimes(3);
+
+  await realtimeSyncService.kill();
 
   await cleanup();
 });
@@ -249,6 +259,8 @@ test("start() emits fatal error", async (context) => {
   expect(insertSpy).toHaveBeenCalledTimes(6);
   expect(onFatalError).toHaveBeenCalled();
 
+  await realtimeSyncService.kill();
+
   await cleanup();
 }, 20_000);
 
@@ -277,6 +289,8 @@ test("kill()", async (context) => {
   await realtimeSyncService.kill();
 
   expect(realtimeSyncService.localChain).toHaveLength(0);
+
+  await realtimeSyncService.kill();
 
   await cleanup();
 });
@@ -330,7 +344,7 @@ test("handleBlock() ingests block and logs", async (context) => {
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
 
-  expect(onEvent).toHaveBeenCalledTimes(2);
+  expect(onEvent).toHaveBeenCalledTimes(4);
   expect(onEvent).toHaveBeenCalledWith({
     type: "checkpoint",
     chainId: expect.any(Number),
@@ -343,6 +357,8 @@ test("handleBlock() ingests block and logs", async (context) => {
   });
 
   expect(requestSpy).toHaveBeenCalledTimes(8);
+
+  await realtimeSyncService.kill();
 
   await cleanup();
 });
@@ -381,6 +397,8 @@ test("handleBlock() skips eth_getLogs request", async (context) => {
 
   // 2 logs requests are skipped
   expect(requestSpy).toHaveBeenCalledTimes(6);
+
+  await realtimeSyncService.kill();
 
   await cleanup();
 });
@@ -430,6 +448,8 @@ test("handleBlock() finds reorg", async (context) => {
     chainId: expect.any(Number),
     safeCheckpoint: expect.any(Object),
   });
+
+  await realtimeSyncService.kill();
 
   await cleanup();
 });
@@ -481,6 +501,8 @@ test("handleBlock() finalizes range", async (context) => {
   expect(factoryLogFilterIntervals).toMatchObject([[1, 4]]);
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
+
+  await realtimeSyncService.kill();
 
   await cleanup();
 });
@@ -542,6 +564,8 @@ test("handleReorg() finds common ancestor", async (context) => {
     },
   });
 
+  await realtimeSyncService.kill();
+
   await cleanup();
 });
 
@@ -593,6 +617,8 @@ test("handleReorg() emits fatal error for deep reorg", async (context) => {
 
   expect(onFatalError).toHaveBeenCalled();
 
+  await realtimeSyncService.kill();
+
   await cleanup();
 });
 
@@ -636,6 +662,8 @@ test("validateLocalBlockchainState()", async (context) => {
   );
 
   expect(isInvalid).toBe(true);
+
+  await realtimeSyncService.kill();
 
   await cleanup();
 });
