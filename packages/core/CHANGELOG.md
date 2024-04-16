@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.4
+
+### Patch Changes
+
+- [`182d47e1a8ea9b8c1a742cbe987509f1aea5c3b7`](https://github.com/ponder-sh/ponder/commit/182d47e1a8ea9b8c1a742cbe987509f1aea5c3b7) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved performance of sync migrations introduced in 0.4.0.
+
 ## 0.4.3
 
 ### Patch Changes
