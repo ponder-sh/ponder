@@ -17,7 +17,7 @@ export function setupShutdown({
   const shutdown = async ({
     reason,
     code,
-  }: { reason: string; code: number }) => {
+  }: { reason: string; code: 0 | 1 }) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
     setTimeout(() => {
@@ -41,7 +41,8 @@ export function setupShutdown({
 
     await cleanup();
 
-    common.logger.fatal({
+    const level = code === 0 ? "info" : "fatal";
+    common.logger[level]({
       service: "process",
       msg: `Finished shutdown sequence, terminating (exit code ${code})`,
     });
