@@ -10,7 +10,6 @@ import {
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
-import { Emittery } from "@/utils/emittery.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   BlockProgressTracker,
@@ -29,6 +28,7 @@ import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,
 } from "@ponder/utils";
+import Emittery from "emittery";
 import {
   type Address,
   BlockNotFoundError,
