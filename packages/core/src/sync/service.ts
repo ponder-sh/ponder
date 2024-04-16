@@ -7,14 +7,15 @@ import {
   type RealtimeSyncEvent,
   type RealtimeSyncService,
   createRealtimeSyncService,
-  startRealtimeSyncService,
-} from "@/sync-realtime/service.js";
+} from "@/sync-realtime/index.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { type Event, decodeEvents } from "@/sync/events.js";
 import {
   type Checkpoint,
   checkpointMin,
+  isCheckpointEqual,
   isCheckpointGreaterThan,
+  maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
@@ -82,30 +83,23 @@ export const createSyncService = async ({
   const onRealtimeSyncEvent = async (realtimeSyncEvent: RealtimeSyncEvent) => {
     switch (realtimeSyncEvent.type) {
       case "checkpoint": {
-        // set checkpoint
         syncService.networkServices.find(
           (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
-        )!.checkpoint = realtimeSyncEvent.checkpoint;
-
-        const networkCheckpoints = syncService.networkServices.map(
-          (ns) => ns.checkpoint,
-        );
-
-        // ...
-        if (networkCheckpoints.some((nc) => nc === undefined)) break;
+        )!.realtime.checkpoint = realtimeSyncEvent.checkpoint;
 
         const newCheckpoint = checkpointMin(
-          ...(networkCheckpoints as Checkpoint[]),
+          ...syncService.networkServices.map((ns) => ns.realtime.checkpoint),
         );
+
+        if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) return;
 
         for await (const rawEvents of syncStore.getLogEvents({
           sources,
-          fromCheckpoint: syncService.checkpoint ?? zeroCheckpoint,
+          fromCheckpoint: syncService.checkpoint,
           toCheckpoint: newCheckpoint,
           limit: 1_000,
         })) {
           const events = decodeEvents({ common, sourceById }, rawEvents);
-          // TODO(kyle) manage concurrency
           await onRealtimeEvent({
             type: "newEvents",
             events: events,
@@ -119,10 +113,9 @@ export const createSyncService = async ({
       case "reorg": {
         syncService.networkServices.find(
           (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
-        )!.checkpoint = realtimeSyncEvent.safeCheckpoint;
+        )!.realtime.checkpoint = realtimeSyncEvent.safeCheckpoint;
 
         if (
-          syncService.checkpoint !== undefined &&
           isCheckpointGreaterThan(
             realtimeSyncEvent.safeCheckpoint,
             syncService.checkpoint,
@@ -133,7 +126,6 @@ export const createSyncService = async ({
 
         onRealtimeEvent(realtimeSyncEvent);
       }
-      // TODO(kyle) set network specific checkpoint backwards
       break;
 
       default:
@@ -186,21 +178,31 @@ export const createSyncService = async ({
         sources: networkSources,
         requestQueue,
         cachedTransport: cachedTransport({ requestQueue, syncStore }),
-        historicalSync,
-        realtimeSync,
-        checkpoint: zeroCheckpoint,
-        isHistoricalSyncComplete: false,
-        finalizedBlock,
+        realtime: {
+          realtimeSync,
+          checkpoint: {
+            ...maxCheckpoint,
+            blockTimestamp: hexToNumber(finalizedBlock.timestamp),
+            chainId: network.chainId,
+            blockNumber: hexToNumber(finalizedBlock.number),
+          },
+          finalizedBlock,
+        },
+        historical: {
+          historicalSync,
+          checkpoint: undefined,
+          isHistoricalSyncComplete: false,
+        },
       } satisfies SyncService["networkServices"][number];
     }),
   );
 
   // Register historical sync event listeners
   for (const networkService of networkServices) {
-    networkService.historicalSync.on(
+    networkService.historical.historicalSync.on(
       "historicalCheckpoint",
       (checkpoint: Checkpoint) => {
-        networkService.checkpoint = checkpoint;
+        networkService.historical.checkpoint = checkpoint;
 
         common.logger.trace({
           service: "sync",
@@ -208,10 +210,14 @@ export const createSyncService = async ({
         });
       },
     );
-    networkService.historicalSync.on("syncComplete", () => {
-      networkService.isHistoricalSyncComplete = true;
+    networkService.historical.historicalSync.on("syncComplete", () => {
+      networkService.historical.isHistoricalSyncComplete = true;
 
-      if (networkServices.every((ns) => ns.isHistoricalSyncComplete)) {
+      if (
+        networkServices.every(
+          ({ historical }) => historical.isHistoricalSyncComplete,
+        )
+      ) {
         common.logger.info({
           service: "sync",
           msg: "Completed historical sync across all networks",
@@ -225,7 +231,7 @@ export const createSyncService = async ({
     syncStore,
     sources,
     networkServices,
-    checkpoint: undefined,
+    checkpoint: zeroCheckpoint,
     sourceById,
   };
 
@@ -236,8 +242,8 @@ export const createSyncService = async ({
  * Start the historical sync service for all networks.
  */
 export const startHistoricalSyncServices = (syncService: SyncService) => {
-  for (const { historicalSync } of syncService.networkServices) {
-    historicalSync.start();
+  for (const { historical } of syncService.networkServices) {
+    historical.historicalSync.start();
   }
 };
 
@@ -249,39 +255,64 @@ export const getHistoricalEvents = async function* (
   syncService: SyncService,
 ): AsyncGenerator<Event[]> {
   while (true) {
-    await wait(HISTORICAL_CHECKPOINT_INTERVAL);
-
-    const networkCheckpoints = syncService.networkServices.map(
-      (ns) => ns.checkpoint,
+    const isComplete = syncService.networkServices.every(
+      (ns) => ns.historical.isHistoricalSyncComplete,
     );
 
-    // ...
-    if (networkCheckpoints.some((nc) => nc === undefined)) {
-      yield [];
-      continue;
-    }
+    if (isComplete) {
+      const finalityCheckpoint = checkpointMin(
+        ...syncService.networkServices.map(({ realtime, network }) => ({
+          ...maxCheckpoint,
+          blockTimestamp: hexToNumber(realtime.finalizedBlock.timestamp),
+          chainId: network.chainId,
+          blockNumber: hexToNumber(realtime.finalizedBlock.number),
+        })),
+      );
 
-    const newCheckpoint = checkpointMin(
-      ...(networkCheckpoints as Checkpoint[]),
-    );
+      for await (const rawEvents of syncService.syncStore.getLogEvents({
+        sources: syncService.sources,
+        fromCheckpoint: syncService.checkpoint,
+        toCheckpoint: finalityCheckpoint,
+        limit: 1_000,
+      })) {
+        yield decodeEvents(syncService, rawEvents);
+      }
 
-    for await (const rawEvents of syncService.syncStore.getLogEvents({
-      sources: syncService.sources,
-      // Note: would be nice to change the query such that this
-      // isn't required
-      fromCheckpoint: syncService.checkpoint ?? zeroCheckpoint,
-      toCheckpoint: newCheckpoint,
-      limit: 1_000,
-    })) {
-      yield decodeEvents(syncService, rawEvents);
-    }
+      syncService.checkpoint = finalityCheckpoint;
 
-    syncService.checkpoint = newCheckpoint;
-
-    if (
-      syncService.networkServices.every((ns) => ns.isHistoricalSyncComplete)
-    ) {
       break;
+    } else {
+      await wait(HISTORICAL_CHECKPOINT_INTERVAL);
+
+      const networkCheckpoints = syncService.networkServices.map(
+        (ns) => ns.historical.checkpoint,
+      );
+
+      // ...
+      if (networkCheckpoints.some((nc) => nc === undefined)) {
+        yield [];
+        continue;
+      }
+
+      const newCheckpoint = checkpointMin(
+        ...(networkCheckpoints as Checkpoint[]),
+      );
+
+      if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) {
+        yield [];
+        continue;
+      }
+
+      for await (const rawEvents of syncService.syncStore.getLogEvents({
+        sources: syncService.sources,
+        fromCheckpoint: syncService.checkpoint,
+        toCheckpoint: newCheckpoint,
+        limit: 1_000,
+      })) {
+        yield decodeEvents(syncService, rawEvents);
+      }
+
+      syncService.checkpoint = newCheckpoint;
     }
   }
 };
@@ -290,12 +321,7 @@ export const getHistoricalEvents = async function* (
  * Start the realtime sync service for all networks.
  */
 export const startRealtimeSyncServices = (syncService: SyncService) => {
-  for (const {
-    realtimeSync,
-    network,
-    sources,
-    finalizedBlock,
-  } of syncService.networkServices) {
+  for (const { realtime, network, sources } of syncService.networkServices) {
     // If an endBlock is specified for every event source on this network, and the
     // latest end block is less than the finalized block number, we can stop here.
     // The service won't poll for new blocks and won't emit any events.
@@ -303,7 +329,8 @@ export const startRealtimeSyncServices = (syncService: SyncService) => {
     const endBlocks = sources.map((f) => f.endBlock);
     if (
       endBlocks.every(
-        (b) => b !== undefined && b < hexToNumber(finalizedBlock.number),
+        (b) =>
+          b !== undefined && b < hexToNumber(realtime.finalizedBlock.number),
       )
     ) {
       syncService.common.logger.debug({
@@ -315,7 +342,7 @@ export const startRealtimeSyncServices = (syncService: SyncService) => {
         0,
       );
     } else {
-      startRealtimeSyncService(realtimeSync);
+      realtime.realtimeSync.start();
     }
   }
 };
