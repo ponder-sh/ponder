@@ -40,6 +40,7 @@ export type RealtimeSyncService = {
   sources: EventSource[];
 
   // state
+  isKilled: boolean;
   finalizedBlock: LightBlock;
   /**
    * Blocks and logs that have been ingested and are
@@ -48,6 +49,7 @@ export type RealtimeSyncService = {
    * `parentHash` => `hash`.
    */
   localChain: LocalBlockchainState[];
+  kill: () => Promise<void>;
 
   // callbacks
   onEvent: (event: RealtimeSyncEvent) => void;
@@ -119,9 +121,10 @@ export const createRealtimeSyncService = ({
     network,
     requestQueue,
     sources,
-    // isKilled: false,
+    isKilled: false,
     finalizedBlock: syncBlockToLightBlock(finalizedBlock),
     localChain: [],
+    kill: () => Promise.resolve(),
     onEvent,
     onFatalError,
     eventSelectors,
@@ -166,12 +169,15 @@ export const startRealtimeSyncService = (
       // number has not increased, a reorg must have occurred.
       if (latestLocalBlock.number >= newBlockNumber) {
         await handleReorg(realtimeSyncService, newBlock);
+
+        if (realtimeSyncService.isKilled) return;
+
         queue.clear();
         queue.add(newBlock);
         return;
       }
 
-      // missing blocks
+      // Blocks are missing. They should be fetched and enqueued.
       if (latestLocalBlock.number + 1 < newBlockNumber) {
         // Retrieve missing blocks
         const missingBlockRange = range(
@@ -183,6 +189,8 @@ export const startRealtimeSyncService = (
             _eth_getBlockByNumber(realtimeSyncService, { blockNumber }),
           ),
         );
+
+        if (realtimeSyncService.isKilled) return;
 
         queue.clear();
 
@@ -202,6 +210,8 @@ export const startRealtimeSyncService = (
             pendingLatestBlock: newBlock,
           });
 
+          if (realtimeSyncService.isKilled) return;
+
           if (hasReorg) {
             queue.clear();
             queue.add(newBlock);
@@ -209,7 +219,7 @@ export const startRealtimeSyncService = (
 
           return;
         } catch (_error) {
-          // TODO(kyle) handle killed behavior
+          if (realtimeSyncService.isKilled) return;
 
           const error = _error as Error;
 
@@ -232,24 +242,26 @@ export const startRealtimeSyncService = (
       blockTag: "latest",
     }).then(queue.add);
 
-  // TODO(kyle) allow for cancelling poll
+  const interval = setInterval(
+    enqueue,
+    realtimeSyncService.network.pollingInterval,
+  );
 
-  setInterval(enqueue, realtimeSyncService.network.pollingInterval);
+  realtimeSyncService.kill = async () => {
+    realtimeSyncService.isKilled = true;
+    clearInterval(interval);
+    queue.pause();
+    queue.clear();
+
+    await queue.onIdle();
+  };
 
   // Note: this is done just for testing.
   return enqueue().then(() => queue);
 };
 
-export const killRealtimeSyncService = async (
-  _realtimeService: RealtimeSyncService,
-): Promise<void> => {
-  // realtimeService.isKilled = true;
-  // TODO(kyle) cancel timers
-  // TODO(kyle) wait for idle
-};
-
 /**
- * 1) Determine if a reorg occurred, is so evict unsafe data.
+ * 1) Determine if a reorg occurred.
  * 2) Insert new event data into the store.
  * 3) Determine if a new range of events has become finalized,
  *    if so validate the local chain before removing the

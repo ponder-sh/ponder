@@ -31,7 +31,7 @@ export type SyncService = {
   sources: EventSource[];
 
   // state
-  checkpoint: Checkpoint | undefined;
+  checkpoint: Checkpoint;
 
   // network specific services
   networkServices: {
@@ -40,12 +40,17 @@ export type SyncService = {
     requestQueue: RequestQueue;
     cachedTransport: Transport;
 
-    historicalSync: HistoricalSyncService;
-    realtimeSync: RealtimeSyncService;
+    realtime: {
+      realtimeSync: RealtimeSyncService;
+      checkpoint: Checkpoint;
+      finalizedBlock: SyncBlock;
+    };
 
-    checkpoint: Checkpoint | undefined;
-    isHistoricalSyncComplete: boolean;
-    finalizedBlock: SyncBlock;
+    historical: {
+      historicalSync: HistoricalSyncService;
+      checkpoint: Checkpoint | undefined;
+      isHistoricalSyncComplete: boolean;
+    };
   }[];
 
   // cache
@@ -183,7 +188,7 @@ export const createSyncService = async ({
         cachedTransport: cachedTransport({ requestQueue, syncStore }),
         historicalSync,
         realtimeSync,
-        checkpoint: undefined,
+        checkpoint: zeroCheckpoint,
         isHistoricalSyncComplete: false,
         finalizedBlock,
       } satisfies SyncService["networkServices"][number];

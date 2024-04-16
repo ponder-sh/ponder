@@ -252,7 +252,34 @@ test("start() emits fatal error", async (context) => {
   await cleanup();
 }, 20_000);
 
-test.todo("kill()");
+test("kill()", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const finalizedBlock = await requestQueues[0].request({
+    method: "eth_getBlockByNumber",
+    params: ["0x3", false],
+  });
+
+  const realtimeSyncService = createRealtimeSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources,
+    finalizedBlock: finalizedBlock as SyncBlock,
+    onEvent: vi.fn(),
+    onFatalError: vi.fn(),
+  });
+
+  startRealtimeSyncService(realtimeSyncService);
+
+  await realtimeSyncService.kill();
+
+  expect(realtimeSyncService.localChain).toHaveLength(0);
+
+  await cleanup();
+});
 
 test("handleBlock() ingests block and logs", async (context) => {
   const { common, networks, requestQueues, sources, erc20, factory } = context;
