@@ -47,7 +47,7 @@ test("createIndexing()", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -79,7 +79,7 @@ test("processSetupEvents() empty", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -115,7 +115,7 @@ test("processSetupEvents()", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -180,7 +180,7 @@ test("processEvent() log events", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -252,7 +252,7 @@ test("processEvents killed", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -295,7 +295,7 @@ test("processEvents eventCount", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -341,7 +341,7 @@ test("executeSetup() context.client", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -395,7 +395,7 @@ test("executeSetup() context.db", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -462,7 +462,7 @@ test("executeSetup() metrics", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -502,7 +502,7 @@ test("executeSetup() retry", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -557,7 +557,7 @@ test("executeSetup() error", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -603,7 +603,7 @@ test("executeLog() context.client", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -655,7 +655,7 @@ test("executeLog() context.db", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -716,7 +716,7 @@ test("executeLog() metrics", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -756,7 +756,7 @@ test("executeLog() retry", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -810,7 +810,7 @@ test("executeLog() error", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -860,7 +860,7 @@ test("executeLog() error after killed", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -904,7 +904,7 @@ test("ponderActions getBalance()", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -939,7 +939,7 @@ test("ponderActions getBytecode()", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -974,7 +974,7 @@ test("ponderActions getStorageAt()", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -1011,7 +1011,7 @@ test("ponderActions readContract()", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -1048,7 +1048,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
@@ -1087,7 +1087,7 @@ test.skip("ponderActions multicall()", async (context) => {
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
   });
 
