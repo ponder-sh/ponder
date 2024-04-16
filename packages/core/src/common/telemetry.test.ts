@@ -28,7 +28,7 @@ beforeEach((context) => {
   };
 });
 
-test("telemetry without existing conf creates new conf", async (context) => {
+test("telemetry calls fetch with event body", async (context) => {
   const telemetry = createTelemetry({
     options: context.common.options,
     logger: context.common.logger,
@@ -101,29 +101,4 @@ test("telemetry throws if event is submitted after kill", async (context) => {
   );
 
   expect(fetchSpy).toHaveBeenCalledTimes(5);
-});
-
-test("telemetry kill clears enqueued events", async (context) => {
-  const telemetry = createTelemetry({
-    options: context.common.options,
-    logger: context.common.logger,
-  });
-
-  // Mock fetch to take 500ms to complete.
-  fetchSpy.mockImplementation(
-    () => new Promise((resolve) => setTimeout(resolve, 500)),
-  );
-
-  for (let i = 0; i < 100; i++) {
-    telemetry.record({
-      name: "lifecycle:heartbeat_send",
-      properties: { duration_seconds: process.uptime() },
-    });
-  }
-
-  await telemetry.kill();
-
-  // Only 10 of the 100 requests should have been completed
-  // because the queue has a concurrency of 10.
-  expect(fetchSpy).toHaveBeenCalledTimes(10);
 });

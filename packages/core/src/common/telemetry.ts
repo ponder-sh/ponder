@@ -6,6 +6,8 @@ import path from "node:path";
 import { promisify } from "util";
 import type { Build } from "@/build/service.js";
 import type { Options } from "@/common/options.js";
+import { startClock } from "@/utils/timer.js";
+import { wait } from "@/utils/wait.js";
 import { createQueue } from "@ponder/common";
 import Conf from "conf";
 import { type PM, detect, getNpmVersion } from "detect-package-manager";
@@ -149,12 +151,14 @@ export function createTelemetry({
   let context: Awaited<ReturnType<typeof buildContext>> | undefined = undefined;
   const contextPromise = buildContext();
 
+  const controller = new AbortController();
   let isKilled = false;
 
   const queue = createQueue({
     initialStart: true,
     concurrency: 10,
     worker: async (event: TelemetryEvent) => {
+      const endClock = startClock();
       try {
         if (context === undefined) context = await contextPromise;
 
@@ -173,13 +177,19 @@ export function createTelemetry({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body,
-          signal: AbortSignal.timeout(500),
+          signal: controller.signal,
+        });
+        logger.trace({
+          service: "telemetry",
+          msg: `Sent '${event.name}' event in ${endClock()}ms`,
         });
       } catch (error_) {
         const error = error_ as Error;
         logger.trace({
           service: "telemetry",
-          msg: `Failed to send event due to error: ${error.message}`,
+          msg: `Failed to send '${
+            event.name
+          }' event after ${endClock()}ms due to error: ${error.message}`,
         });
       }
     },
@@ -206,8 +216,8 @@ export function createTelemetry({
     isKilled = true;
     // If there are any events in the queue that have not started, drop them.
     queue.clear();
-    // Wait for any in-flight events to complete. This will take at most 500ms.
-    await queue.onIdle();
+    // Wait at most 1 second for any in-flight events to complete.
+    await Promise.race([queue.onIdle(), wait(1_000)]);
   };
 
   return { record, kill };
