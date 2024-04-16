@@ -165,47 +165,48 @@ export const startRealtimeSyncService = (
         return;
       }
 
-      // Quickly check for a reorg by comparing block numbers. If the block
-      // number has not increased, a reorg must have occurred.
-      if (latestLocalBlock.number >= newBlockNumber) {
-        await handleReorg(realtimeSyncService, newBlock);
-
-        if (realtimeSyncService.isKilled) return;
-
-        queue.clear();
-        queue.add(newBlock);
-        return;
-      }
-
-      // Blocks are missing. They should be fetched and enqueued.
-      if (latestLocalBlock.number + 1 < newBlockNumber) {
-        // Retrieve missing blocks
-        const missingBlockRange = range(
-          latestLocalBlock.number + 1,
-          newBlockNumber,
-        );
-        const pendingBlocks = await Promise.all(
-          missingBlockRange.map((blockNumber) =>
-            _eth_getBlockByNumber(realtimeSyncService, { blockNumber }),
-          ),
-        );
-
-        if (realtimeSyncService.isKilled) return;
-
-        queue.clear();
-
-        for (const pendingBlock of pendingBlocks) {
-          queue.add(pendingBlock);
-        }
-
-        queue.add(newBlock);
-
-        return;
-      }
-
-      // Happy path
       for (let i = 0; i < 6; i++) {
         try {
+          // Quickly check for a reorg by comparing block numbers. If the block
+          // number has not increased, a reorg must have occurred.
+          if (latestLocalBlock.number >= newBlockNumber) {
+            await handleReorg(realtimeSyncService, newBlock);
+
+            if (realtimeSyncService.isKilled) return;
+
+            queue.clear();
+            queue.add(newBlock);
+            return;
+          }
+
+          // Blocks are missing. They should be fetched and enqueued.
+          if (latestLocalBlock.number + 1 < newBlockNumber) {
+            // Retrieve missing blocks
+            const missingBlockRange = range(
+              latestLocalBlock.number + 1,
+              newBlockNumber,
+            );
+            const pendingBlocks = await Promise.all(
+              missingBlockRange.map((blockNumber) =>
+                _eth_getBlockByNumber(realtimeSyncService, { blockNumber }),
+              ),
+            );
+
+            if (realtimeSyncService.isKilled) return;
+
+            queue.clear();
+
+            for (const pendingBlock of pendingBlocks) {
+              queue.add(pendingBlock);
+            }
+
+            queue.add(newBlock);
+
+            return;
+          }
+
+          // New block is exactly one block ahead of the local chain.
+          // Attempt to ingest it.
           const hasReorg = await handleBlock(realtimeSyncService, {
             pendingLatestBlock: newBlock,
           });
@@ -460,6 +461,7 @@ export const handleReorg = async (
     ({ block }) => block.number < hexToNumber(pendingLatestBlock.number),
   );
 
+  // Block we are attempting to fit into the local chain.
   let reorgedBlock = pendingLatestBlock;
 
   while (true) {
@@ -497,10 +499,10 @@ export const handleReorg = async (
 
     if (realtimeSyncService.localChain.length === 0) break;
     else {
-      realtimeSyncService.localChain.pop();
       reorgedBlock = await _eth_getBlockByHash(realtimeSyncService, {
         blockHash: reorgedBlock.parentHash,
       });
+      realtimeSyncService.localChain.pop();
     }
   }
 
