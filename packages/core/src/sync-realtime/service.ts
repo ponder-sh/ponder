@@ -340,23 +340,23 @@ export const handleBlock = async (
       service: "realtime",
       msg: `Synced ${matchedLogCountText} from block ${pendingLatestBlockNumber} (network=${realtimeSyncService.network.name})`,
     });
-
-    realtimeSyncService.onEvent({
-      type: "checkpoint",
-      chainId: realtimeSyncService.network.chainId,
-      checkpoint: {
-        ...maxCheckpoint,
-        blockTimestamp: pendingLatestBlockTimestamp,
-        chainId: realtimeSyncService.network.chainId,
-        blockNumber: pendingLatestBlockNumber,
-      } as Checkpoint,
-    });
   } else {
     realtimeSyncService.common.logger.info({
       service: "realtime",
       msg: `Synced 0 matched logs from block ${pendingLatestBlockNumber} (network=${realtimeSyncService.network.name})`,
     });
   }
+
+  realtimeSyncService.onEvent({
+    type: "checkpoint",
+    chainId: realtimeSyncService.network.chainId,
+    checkpoint: {
+      ...maxCheckpoint,
+      blockTimestamp: pendingLatestBlockTimestamp,
+      chainId: realtimeSyncService.network.chainId,
+      blockNumber: pendingLatestBlockNumber,
+    } as Checkpoint,
+  });
 
   realtimeSyncService.localChain.push({
     block: syncBlockToLightBlock(pendingLatestBlock),
