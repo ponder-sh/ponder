@@ -5,17 +5,14 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import {
-  drainAsyncGenerator,
-  getRawRPCData,
-  publicClient,
-} from "@/_test/utils.js";
+import { getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import {
   EVENT_TYPES,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import {
   type Address,
   type Hex,

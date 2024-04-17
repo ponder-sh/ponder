@@ -3,8 +3,8 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { drainAsyncGenerator } from "@/_test/utils.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import {
   createSyncService,

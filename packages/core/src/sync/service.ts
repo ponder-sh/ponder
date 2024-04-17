@@ -1,4 +1,3 @@
-import { drainAsyncGenerator } from "@/_test/utils.js";
 import type { RealtimeEvent } from "@/bin/utils/run.js";
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
@@ -19,6 +18,7 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
