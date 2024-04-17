@@ -350,7 +350,8 @@ test("start() sync realtime data with factory sources", async (context) => {
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: sources[1].chainId,
     factory: sources[1].criteria,
-    upToBlockNumber: BigInt(4),
+    fromBlock: BigInt(sources[1].startBlock),
+    toBlock: BigInt(4),
   });
 
   const childContractAddresses = [];

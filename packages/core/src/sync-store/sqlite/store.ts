@@ -36,7 +36,6 @@ import {
   checksumAddress,
 } from "viem";
 import type { SyncStore } from "../store.js";
-import type { BigIntText } from "./encoding.js";
 import {
   type SyncStoreTables,
   rpcToSqliteBlock,
@@ -254,12 +253,14 @@ export class SqliteSyncStore implements SyncStore {
 
   async *getFactoryChildAddresses({
     chainId,
-    upToBlockNumber,
+    fromBlock,
+    toBlock,
     factory,
     pageSize = 500,
   }: {
     chainId: number;
-    upToBlockNumber: bigint;
+    fromBlock: bigint;
+    toBlock: bigint;
     factory: FactoryCriteria;
     pageSize?: number;
   }) {
@@ -269,37 +270,34 @@ export class SqliteSyncStore implements SyncStore {
 
     const baseQuery = this.db
       .selectFrom("logs")
-      .select([selectChildAddressExpression.as("childAddress"), "blockNumber"])
+      .select(["id", selectChildAddressExpression.as("childAddress")])
       .where("chainId", "=", chainId)
       .where("address", "=", address)
       .where("topic0", "=", eventSelector)
-      .where("blockNumber", "<=", encodeAsText(upToBlockNumber))
+      .where("blockNumber", ">=", encodeAsText(fromBlock))
+      .where("blockNumber", "<=", encodeAsText(toBlock))
+      .orderBy("id", "asc")
       .limit(pageSize);
 
-    let cursor: BigIntText | undefined = undefined;
+    let cursor: string | undefined = undefined;
 
     while (true) {
       let query = baseQuery;
-
-      if (cursor) {
-        query = query.where("blockNumber", ">", cursor);
-      }
+      if (cursor !== undefined) query = query.where("id", ">", cursor);
 
       const batch = await this.db.wrap(
         { method: "getFactoryChildAddresses" },
         () => query.execute(),
       );
 
-      const lastRow = batch[batch.length - 1];
-      if (lastRow) {
-        cursor = lastRow.blockNumber;
-      }
-
       if (batch.length > 0) {
         yield batch.map((a) => a.childAddress);
       }
 
+      // If the batch is less than the page size, there are no more pages.
       if (batch.length < pageSize) break;
+      // Otherwise, set the cursor to the last block number in the batch.
+      cursor = batch[batch.length - 1].id;
     }
   }
 

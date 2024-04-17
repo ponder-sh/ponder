@@ -659,7 +659,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const iterator = this.syncStore.getFactoryChildAddresses({
       chainId: factory.chainId,
       factory: factory.criteria,
-      upToBlockNumber: BigInt(toBlock),
+      fromBlock: BigInt(factory.startBlock),
+      toBlock: BigInt(toBlock),
     });
 
     const logs: RpcLog[] = [];
