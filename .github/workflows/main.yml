@@ -14,10 +14,6 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: ["Node 20"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -37,10 +33,6 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: ["Node 20"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -53,14 +45,13 @@ jobs:
 
   test:
     name: Test [core]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'Ubuntu' && 'ubuntu-latest' || 'windows' }}
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows]
+        os: [Ubuntu, Windows]
         database: [Postgres, SQLite]
-        node-version: ["Node 20"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -83,12 +74,8 @@ jobs:
 
   test-create-ponder:
     name: Test [create-ponder]
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: ["Node 20"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -103,7 +90,7 @@ jobs:
 
   test-common:
     name: Test [common]
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -113,9 +100,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v3
         with:
-          version: latest
+          version: 8.6.10
 
       - name: Install Node
         if: ${{ matrix.runtime-version == 'Node' }}
