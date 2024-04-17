@@ -45,7 +45,7 @@ jobs:
 
   test:
     name: Test [core]
-    runs-on: ${{ matrix.os == 'Ubuntu' && 'ubuntu-latest' || 'windows' }}
+    runs-on: ${{ matrix.os == 'Ubuntu' && 'ubuntu-latest' || 'windows-latest' }}
     timeout-minutes: 5
     strategy:
       fail-fast: false
