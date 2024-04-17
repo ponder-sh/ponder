@@ -116,7 +116,8 @@ test("start() with factory contract inserts child contract addresses", async (co
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: sources[1].chainId,
     factory: sources[1].criteria,
-    upToBlockNumber: BigInt(blockNumbers.finalizedBlockNumber),
+    fromBlock: BigInt(sources[1].startBlock),
+    toBlock: BigInt(blockNumbers.finalizedBlockNumber),
   });
 
   const childContractAddresses = [];

@@ -847,7 +847,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           const iterator = this.syncStore.getFactoryChildAddresses({
             chainId: this.network.chainId,
             factory: factory.criteria,
-            upToBlockNumber: toBlockNumber,
+            fromBlock: BigInt(factory.startBlock),
+            toBlock: toBlockNumber,
           });
           const childContractAddresses: Address[] = [];
           for await (const batch of iterator) {

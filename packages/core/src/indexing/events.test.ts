@@ -26,11 +26,22 @@ test("decodeEvents()", async (context) => {
     to: ALICE,
     amount: parseEther("1"),
   });
+  expect(events[0].event.args).toMatchObject({
+    from: zeroAddress,
+    to: ALICE,
+    amount: parseEther("1"),
+  });
+  expect(events[0].logEventName).toBe(
+    "Transfer(address indexed from, address indexed to, uint256 amount)",
+  );
   expect(events[1].event.args).toMatchObject({
     from: ALICE,
     to: BOB,
     amount: parseEther("1"),
   });
+  expect(events[1].logEventName).toBe(
+    "Transfer(address indexed from, address indexed to, uint256 amount)",
+  );
 });
 
 test("decodeEvents() error", async (context) => {
