@@ -134,7 +134,7 @@ export const create = ({
   };
 };
 
-export const start = (realtimeSyncService: Service) => {
+export const start = (service: Service) => {
   /**
    * The queue reacts to a new block. The four states are:
    * 1) Block is the same as the one just processed, no-op.
@@ -149,15 +149,15 @@ export const start = (realtimeSyncService: Service) => {
     browser: false,
     concurrency: 1,
     initialStart: true,
-    worker: async (newBlock: SyncBlock) => {
-      const latestLocalBlock = getLatestLocalBlock(realtimeSyncService);
-      const newBlockNumber = hexToNumber(newBlock.number);
+    worker: async (newHeadBlock: SyncBlock) => {
+      const latestLocalBlock = getLatestLocalBlock(service);
+      const newHeadBlockNumber = hexToNumber(newHeadBlock.number);
 
       // We already saw and handled this block. No-op.
-      if (latestLocalBlock.hash === newBlock.hash) {
-        realtimeSyncService.common.logger.trace({
+      if (latestLocalBlock.hash === newHeadBlock.hash) {
+        service.common.logger.trace({
           service: "realtime",
-          msg: `Already processed block at ${newBlockNumber} (network=${realtimeSyncService.network.name})`,
+          msg: `Already processed block at ${newHeadBlockNumber} (network=${service.network.name})`,
         });
 
         return;
@@ -167,29 +167,29 @@ export const start = (realtimeSyncService: Service) => {
         try {
           // Quickly check for a reorg by comparing block numbers. If the block
           // number has not increased, a reorg must have occurred.
-          if (latestLocalBlock.number >= newBlockNumber) {
-            await handleReorg(realtimeSyncService, newBlock);
+          if (latestLocalBlock.number >= newHeadBlockNumber) {
+            await handleReorg(service, newHeadBlock);
 
-            if (realtimeSyncService.isKilled) return;
+            if (service.isKilled) return;
 
             queue.clear();
             return;
           }
 
           // Blocks are missing. They should be fetched and enqueued.
-          if (latestLocalBlock.number + 1 < newBlockNumber) {
+          if (latestLocalBlock.number + 1 < newHeadBlockNumber) {
             // Retrieve missing blocks
             const missingBlockRange = range(
               latestLocalBlock.number + 1,
-              newBlockNumber,
+              newHeadBlockNumber,
             );
             const pendingBlocks = await Promise.all(
               missingBlockRange.map((blockNumber) =>
-                _eth_getBlockByNumber(realtimeSyncService, { blockNumber }),
+                _eth_getBlockByNumber(service, { blockNumber }),
               ),
             );
 
-            if (realtimeSyncService.isKilled) return;
+            if (service.isKilled) return;
 
             queue.clear();
 
@@ -197,37 +197,41 @@ export const start = (realtimeSyncService: Service) => {
               queue.add(pendingBlock);
             }
 
-            queue.add(newBlock);
+            queue.add(newHeadBlock);
 
+            return;
+          }
+
+          // Check if a reorg occurred by validating the chain of block hashes.
+          if (newHeadBlock.parentHash !== latestLocalBlock.hash) {
+            await handleReorg(service, newHeadBlock);
+
+            if (service.isKilled) return;
+
+            queue.clear();
             return;
           }
 
           // New block is exactly one block ahead of the local chain.
           // Attempt to ingest it.
-          const hasReorg = await handleBlock(realtimeSyncService, {
-            pendingLatestBlock: newBlock,
+          await handleBlock(service, {
+            newHeadBlock: newHeadBlock,
           });
-
-          if (realtimeSyncService.isKilled) return;
-
-          if (hasReorg) {
-            queue.clear();
-          }
 
           return;
         } catch (_error) {
-          if (realtimeSyncService.isKilled) return;
+          if (service.isKilled) return;
 
           const error = _error as Error;
 
-          realtimeSyncService.common.logger.warn({
+          service.common.logger.warn({
             service: "realtime",
             msg: `Realtime sync task failed (network=${
-              realtimeSyncService.network.name
+              service.network.name
             }, error=${`${error.name}: ${error.message}`})`,
           });
 
-          if (i === 5) realtimeSyncService.onFatalError(error);
+          if (i === 5) service.onFatalError(error);
           else await wait(250 * 2 ** i);
         }
       }
@@ -235,20 +239,17 @@ export const start = (realtimeSyncService: Service) => {
   });
 
   const enqueue = async () => {
-    const block = await _eth_getBlockByNumber(realtimeSyncService, {
+    const block = await _eth_getBlockByNumber(service, {
       blockTag: "latest",
     });
 
     return queue.add(block);
   };
 
-  const interval = setInterval(
-    enqueue,
-    realtimeSyncService.network.pollingInterval,
-  );
+  const interval = setInterval(enqueue, service.network.pollingInterval);
 
-  realtimeSyncService.kill = async () => {
-    realtimeSyncService.isKilled = true;
+  service.kill = async () => {
+    service.isKilled = true;
     clearInterval(interval);
     queue.pause();
     queue.clear();
@@ -267,110 +268,102 @@ export const start = (realtimeSyncService: Service) => {
  *    if so validate the local chain before removing the
  *    finalized data.
  *
- * @param pendingLatestBlock Block to be injested. Must be exactly
+ * @param newHeadBlock Block to be injested. Must be exactly
  * 1 block ahead of the local chain.
  * @returns true if a reorg occurred
  */
 export const handleBlock = async (
-  realtimeSyncService: Service,
-  { pendingLatestBlock }: { pendingLatestBlock: SyncBlock },
+  service: Service,
+  { newHeadBlock }: { newHeadBlock: SyncBlock },
 ) => {
-  const pendingLatestBlockNumber = hexToNumber(pendingLatestBlock.number);
-  const pendingLatestBlockTimestamp = hexToNumber(pendingLatestBlock.timestamp);
-  const latestLocalBlock = getLatestLocalBlock(realtimeSyncService);
-  realtimeSyncService.common.logger.debug({
+  const newHeadBlockNumber = hexToNumber(newHeadBlock.number);
+  const newHeadBlockTimestamp = hexToNumber(newHeadBlock.timestamp);
+
+  service.common.logger.debug({
     service: "realtime",
-    msg: `Syncing new block ${pendingLatestBlockNumber} (network=${realtimeSyncService.network.name})`,
+    msg: `Syncing new block ${newHeadBlockNumber} (network=${service.network.name})`,
   });
 
-  // Check if a reorg occurred by validating the chain of block hashes.
-  if (pendingLatestBlock.parentHash !== latestLocalBlock.hash) {
-    await handleReorg(realtimeSyncService, pendingLatestBlock);
-    return true;
-  }
-
-  let pendingLogs: SyncLog[] = [];
+  let newLogs: SyncLog[] = [];
 
   // "eth_getLogs" calls can be skipped if a negative match is given from "logsBloom".
   const mustRequestGetLogs =
-    realtimeSyncService.hasFactorySource ||
-    pendingLatestBlock.logsBloom === zeroLogsBloom ||
+    service.hasFactorySource ||
+    newHeadBlock.logsBloom === zeroLogsBloom ||
     isMatchedLogInBloomFilter({
-      bloom: pendingLatestBlock.logsBloom,
-      logFilters: realtimeSyncService.logFilterSources.map((s) => s.criteria),
+      bloom: newHeadBlock.logsBloom,
+      logFilters: service.logFilterSources.map((s) => s.criteria),
     });
 
   if (mustRequestGetLogs) {
-    const logs = await _eth_getLogs(realtimeSyncService, {
-      topics: [realtimeSyncService.eventSelectors],
-      blockHash: pendingLatestBlock.hash,
+    const logs = await _eth_getLogs(service, {
+      topics: [service.eventSelectors],
+      blockHash: newHeadBlock.hash,
     });
 
-    pendingLogs = await getMatchedLogs(realtimeSyncService, {
+    newLogs = await getMatchedLogs(service, {
       logs,
       insertChildAddressLogs: true,
-      upToBlockNumber: BigInt(pendingLatestBlockNumber),
+      upToBlockNumber: BigInt(newHeadBlockNumber),
     });
   } else {
-    realtimeSyncService.common.logger.debug({
+    service.common.logger.debug({
       service: "realtime",
-      msg: `Skipping eth_getLogs call because of logs bloom filter result (network=${realtimeSyncService.network.name}`,
+      msg: `Skipping eth_getLogs call because of logs bloom filter result (network=${service.network.name}`,
     });
   }
 
   // Add pending event data to sync store and local event data. Ordering is
   // important because the sync store operation may throw an error, causing a retry.
-  const transactionHashes = new Set(pendingLogs.map((l) => l.transactionHash));
-  const transactions = pendingLatestBlock.transactions.filter((t) =>
+  const transactionHashes = new Set(newLogs.map((l) => l.transactionHash));
+  const transactions = newHeadBlock.transactions.filter((t) =>
     transactionHashes.has(t.hash),
   );
 
-  if (pendingLogs.length > 0) {
-    await realtimeSyncService.syncStore.insertRealtimeBlock({
-      chainId: realtimeSyncService.network.chainId,
-      block: pendingLatestBlock,
+  if (newLogs.length > 0) {
+    await service.syncStore.insertRealtimeBlock({
+      chainId: service.network.chainId,
+      block: newHeadBlock,
       transactions,
-      logs: pendingLogs,
+      logs: newLogs,
     });
 
     const matchedLogCountText =
-      pendingLogs.length === 1
-        ? "1 matched log"
-        : `${pendingLogs.length} matched logs`;
-    realtimeSyncService.common.logger.info({
+      newLogs.length === 1 ? "1 matched log" : `${newLogs.length} matched logs`;
+    service.common.logger.info({
       service: "realtime",
-      msg: `Synced ${matchedLogCountText} from block ${pendingLatestBlockNumber} (network=${realtimeSyncService.network.name})`,
+      msg: `Synced ${matchedLogCountText} from block ${newHeadBlockNumber} (network=${service.network.name})`,
     });
   } else {
-    realtimeSyncService.common.logger.info({
+    service.common.logger.info({
       service: "realtime",
-      msg: `Synced 0 matched logs from block ${pendingLatestBlockNumber} (network=${realtimeSyncService.network.name})`,
+      msg: `Synced 0 matched logs from block ${newHeadBlockNumber} (network=${service.network.name})`,
     });
   }
 
-  realtimeSyncService.onEvent({
+  service.onEvent({
     type: "checkpoint",
-    chainId: realtimeSyncService.network.chainId,
+    chainId: service.network.chainId,
     checkpoint: {
       ...maxCheckpoint,
-      blockTimestamp: pendingLatestBlockTimestamp,
-      chainId: realtimeSyncService.network.chainId,
-      blockNumber: pendingLatestBlockNumber,
+      blockTimestamp: newHeadBlockTimestamp,
+      chainId: service.network.chainId,
+      blockNumber: newHeadBlockNumber,
     } as Checkpoint,
   });
 
-  realtimeSyncService.localChain.push({
-    block: syncBlockToLightBlock(pendingLatestBlock),
-    logs: pendingLogs.map(syncLogToLightLog),
+  service.localChain.push({
+    block: syncBlockToLightBlock(newHeadBlock),
+    logs: newLogs.map(syncLogToLightLog),
   });
 
-  realtimeSyncService.common.metrics.ponder_realtime_latest_block_number.set(
-    { network: realtimeSyncService.network.name },
-    pendingLatestBlockNumber,
+  service.common.metrics.ponder_realtime_latest_block_number.set(
+    { network: service.network.name },
+    newHeadBlockNumber,
   );
-  realtimeSyncService.common.metrics.ponder_realtime_latest_block_timestamp.set(
-    { network: realtimeSyncService.network.name },
-    pendingLatestBlockTimestamp,
+  service.common.metrics.ponder_realtime_latest_block_timestamp.set(
+    { network: service.network.name },
+    newHeadBlockTimestamp,
   );
 
   // Determine if a new range has become finalized by evaluating if the
@@ -378,15 +371,13 @@ export const handleBlock = async (
   // Essentially, there is a range the width of finalityBlockCount that is entirely
   // finalized.
   const blockMovesFinality =
-    pendingLatestBlockNumber >=
-    realtimeSyncService.finalizedBlock.number +
-      2 * realtimeSyncService.network.finalityBlockCount;
+    newHeadBlockNumber >=
+    service.finalizedBlock.number + 2 * service.network.finalityBlockCount;
   if (blockMovesFinality) {
-    const pendingFinalizedBlock = realtimeSyncService.localChain.find(
+    const pendingFinalizedBlock = service.localChain.find(
       ({ block }) =>
         block.number ===
-        pendingLatestBlockNumber -
-          realtimeSyncService.network.finalityBlockCount,
+        newHeadBlockNumber - service.network.finalityBlockCount,
     )!.block;
 
     // Validate the local chain by re-requesting logs and checking for inconsistencies
@@ -394,127 +385,125 @@ export const handleBlock = async (
     // degraded rpc providers have trouble indexing logs near the tip of the chain.
     try {
       const hasInvalidLogs = await validateLocalBlockchainState(
-        realtimeSyncService,
+        service,
         pendingFinalizedBlock,
       );
 
       if (hasInvalidLogs) {
-        realtimeSyncService.common.logger.warn({
+        service.common.logger.warn({
           service: "realtime",
           msg: `Detected inconsistency between local and remote logs in block range ${
-            realtimeSyncService.finalizedBlock.number + 1
+            service.finalizedBlock.number + 1
           } to ${pendingFinalizedBlock.number} (network=${
-            realtimeSyncService.network.name
+            service.network.name
           })`,
         });
       }
     } catch {}
 
-    realtimeSyncService.localChain = realtimeSyncService.localChain.filter(
+    service.localChain = service.localChain.filter(
       ({ block }) => block.number > pendingFinalizedBlock.number,
     );
 
-    await realtimeSyncService.syncStore.insertRealtimeInterval({
-      chainId: realtimeSyncService.network.chainId,
-      logFilters: realtimeSyncService.logFilterSources.map((l) => l.criteria),
-      factories: realtimeSyncService.factorySources.map((f) => f.criteria),
+    await service.syncStore.insertRealtimeInterval({
+      chainId: service.network.chainId,
+      logFilters: service.logFilterSources.map((l) => l.criteria),
+      factories: service.factorySources.map((f) => f.criteria),
       interval: {
-        startBlock: BigInt(realtimeSyncService.finalizedBlock.number + 1),
+        startBlock: BigInt(service.finalizedBlock.number + 1),
         endBlock: BigInt(pendingFinalizedBlock.number),
       },
     });
 
-    realtimeSyncService.finalizedBlock = pendingFinalizedBlock;
+    service.finalizedBlock = pendingFinalizedBlock;
 
     // Note: This is where a finalization event would happen.
 
-    realtimeSyncService.common.logger.debug({
+    service.common.logger.debug({
       service: "realtime",
-      msg: `Updated finality to block ${pendingFinalizedBlock.number} (network=${realtimeSyncService.network.name})`,
+      msg: `Updated finality to block ${pendingFinalizedBlock.number} (network=${service.network.name})`,
     });
   }
 
-  realtimeSyncService.common.logger.debug({
+  service.common.logger.debug({
     service: "realtime",
-    msg: `Finished syncing new head block ${pendingLatestBlockNumber} (network=${realtimeSyncService.network.name})`,
+    msg: `Finished syncing new head block ${newHeadBlockNumber} (network=${service.network.name})`,
   });
-
-  return false;
 };
 
 /**
  * Traverse the remote chain until we find a block that is
  * compatible with out local chain.
  *
- * @param pendingLatestBlock Block that caused reorg to be detected.
+ * @param newHeadBlock Block that caused reorg to be detected.
  * Must be at most 1 block ahead of the local chain.
  */
 export const handleReorg = async (
-  realtimeSyncService: Service,
-  pendingLatestBlock: SyncBlock,
+  service: Service,
+  newHeadBlock: SyncBlock,
 ) => {
   // Prune the local chain of blocks that have been reorged out
-  realtimeSyncService.localChain = realtimeSyncService.localChain.filter(
-    ({ block }) => block.number < hexToNumber(pendingLatestBlock.number),
+  service.localChain = service.localChain.filter(
+    ({ block }) => block.number < hexToNumber(newHeadBlock.number),
   );
 
   // Block we are attempting to fit into the local chain.
-  let remoteBlock = pendingLatestBlock;
+  let remoteBlock = newHeadBlock;
 
   while (true) {
-    const parentBlock = getLatestLocalBlock(realtimeSyncService);
+    const parentBlock = getLatestLocalBlock(service);
 
     if (parentBlock.hash === remoteBlock.parentHash) {
-      realtimeSyncService.common.logger.trace({
+      service.common.logger.trace({
         service: "realtime",
-        msg: `Found common ancestor block ${parentBlock.number} (network=${realtimeSyncService.network.name})`,
+        msg: `Found common ancestor block ${parentBlock.number} (network=${service.network.name})`,
       });
 
-      await realtimeSyncService.syncStore.deleteRealtimeData({
-        chainId: realtimeSyncService.network.chainId,
+      await service.syncStore.deleteRealtimeData({
+        chainId: service.network.chainId,
         fromBlock: BigInt(parentBlock.number),
       });
 
-      realtimeSyncService.onEvent({
+      service.onEvent({
         type: "reorg",
-        chainId: realtimeSyncService.network.chainId,
+        chainId: service.network.chainId,
         safeCheckpoint: {
           ...maxCheckpoint,
           blockTimestamp: parentBlock.timestamp,
-          chainId: realtimeSyncService.network.chainId,
+          chainId: service.network.chainId,
           blockNumber: parentBlock.number,
         },
       });
 
-      realtimeSyncService.common.logger.warn({
+      service.common.logger.warn({
         service: "realtime",
-        msg: `Detected reorg with common ancestor ${parentBlock.number} (network=${realtimeSyncService.network.name})`,
+        msg: `Detected reorg with common ancestor ${parentBlock.number} (network=${service.network.name})`,
       });
 
       return;
     }
 
-    if (realtimeSyncService.localChain.length === 0) break;
+    if (service.localChain.length === 0) break;
     else {
-      remoteBlock = await _eth_getBlockByHash(realtimeSyncService, {
+      remoteBlock = await _eth_getBlockByHash(service, {
         blockHash: remoteBlock.parentHash,
       });
-      realtimeSyncService.localChain.pop();
+      service.localChain.pop();
     }
   }
 
   // No compatible block was found in the local chain, must be a deep reorg.
 
-  const msg = `Detected unrecoverable reorg at block ${realtimeSyncService.finalizedBlock.number} (network=${realtimeSyncService.network.name})`;
+  const msg = `Detected unrecoverable reorg at block ${service.finalizedBlock.number} (network=${service.network.name})`;
 
-  realtimeSyncService.common.logger.warn({ service: "realtime", msg });
-  realtimeSyncService.onFatalError(new Error(msg));
+  service.common.logger.warn({ service: "realtime", msg });
+  service.onFatalError(new Error(msg));
 
-  realtimeSyncService.localChain = [];
+  service.localChain = [];
 };
 
 const getMatchedLogs = async (
-  realtimeSyncService: Service,
+  service: Service,
   {
     logs,
     insertChildAddressLogs,
@@ -525,24 +514,24 @@ const getMatchedLogs = async (
     upToBlockNumber: bigint;
   },
 ) => {
-  if (realtimeSyncService.hasFactorySource === false) {
+  if (service.hasFactorySource === false) {
     return filterLogs({
       logs,
-      logFilters: realtimeSyncService.sources.map((s) => s.criteria),
+      logFilters: service.sources.map((s) => s.criteria),
     });
   } else {
     if (insertChildAddressLogs) {
       // Find and insert any new child contracts.
       const matchedFactoryLogs = filterLogs({
         logs,
-        logFilters: realtimeSyncService.factorySources.map((fs) => ({
+        logFilters: service.factorySources.map((fs) => ({
           address: fs.criteria.address,
           topics: [fs.criteria.eventSelector],
         })),
       });
 
-      await realtimeSyncService.syncStore.insertFactoryChildAddressLogs({
-        chainId: realtimeSyncService.network.chainId,
+      await service.syncStore.insertFactoryChildAddressLogs({
+        chainId: service.network.chainId,
         logs: matchedFactoryLogs,
       });
     }
@@ -554,14 +543,12 @@ const getMatchedLogs = async (
     // NOTE: Also makes sense to hold factoryChildAddresses in memory rather than
     // a query each interval.
     const factoryLogFilters = await Promise.all(
-      realtimeSyncService.factorySources.map(async (factory) => {
-        const iterator = realtimeSyncService.syncStore.getFactoryChildAddresses(
-          {
-            chainId: realtimeSyncService.network.chainId,
-            factory: factory.criteria,
-            upToBlockNumber,
-          },
-        );
+      service.factorySources.map(async (factory) => {
+        const iterator = service.syncStore.getFactoryChildAddresses({
+          chainId: service.network.chainId,
+          factory: factory.criteria,
+          upToBlockNumber,
+        });
         const childContractAddresses: Address[] = [];
         for await (const batch of iterator) {
           childContractAddresses.push(...batch);
@@ -576,7 +563,7 @@ const getMatchedLogs = async (
     return filterLogs({
       logs,
       logFilters: [
-        ...realtimeSyncService.logFilterSources.map((l) => l.criteria),
+        ...service.logFilterSources.map((l) => l.criteria),
         ...factoryLogFilters,
       ],
     });
@@ -584,31 +571,29 @@ const getMatchedLogs = async (
 };
 
 export const validateLocalBlockchainState = async (
-  realtimeSyncService: Service,
+  service: Service,
   pendingFinalizedBlock: LightBlock,
 ) => {
-  realtimeSyncService.common.logger.debug({
+  service.common.logger.debug({
     service: "realtime",
     msg: `Validating local chain from block ${
-      realtimeSyncService.finalizedBlock.number + 1
-    } to ${pendingFinalizedBlock.number} (network=${
-      realtimeSyncService.network.name
-    })`,
+      service.finalizedBlock.number + 1
+    } to ${pendingFinalizedBlock.number} (network=${service.network.name})`,
   });
 
-  const logs = await _eth_getLogs(realtimeSyncService, {
-    fromBlock: realtimeSyncService.finalizedBlock.number + 1,
+  const logs = await _eth_getLogs(service, {
+    fromBlock: service.finalizedBlock.number + 1,
     toBlock: pendingFinalizedBlock.number,
   }).then(sortLogs);
 
-  const remoteLogs = await getMatchedLogs(realtimeSyncService, {
+  const remoteLogs = await getMatchedLogs(service, {
     logs,
     insertChildAddressLogs: false,
     upToBlockNumber: BigInt(pendingFinalizedBlock.number),
   });
 
   const localLogs = sortLogs(
-    realtimeSyncService.localChain
+    service.localChain
       .filter(({ block }) => block.number <= pendingFinalizedBlock.number)
       .flatMap(({ logs }) => logs),
   );

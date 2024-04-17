@@ -151,7 +151,7 @@ test("start() gets missing block", async (context) => {
   await cleanup();
 });
 
-test("start() finds reorg", async (context) => {
+test("start() finds reorg with block number", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -185,6 +185,50 @@ test("start() finds reorg", async (context) => {
     chainId: expect.any(Number),
     safeCheckpoint: expect.any(Object),
   });
+
+  await realtimeSyncService.kill();
+
+  await cleanup();
+});
+
+test("start() finds reorg with block hash", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const finalizedBlock = await requestQueues[0].request({
+    method: "eth_getBlockByNumber",
+    params: ["0x0", false],
+  });
+
+  const onFatalError = vi.fn();
+
+  const realtimeSyncService = create({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources,
+    finalizedBlock: finalizedBlock as SyncBlock,
+    onEvent: vi.fn(),
+    onFatalError,
+  });
+
+  const queue = await start(realtimeSyncService);
+  await queue.onIdle();
+
+  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 4 }).then(
+    (block) => {
+      queue.add({
+        ...block,
+        number: "0x5",
+        parentHash: realtimeSyncService.localChain[2].block.hash,
+        hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+      });
+    },
+  );
+  await queue.onIdle();
+
+  expect(onFatalError).toHaveBeenCalled();
 
   await realtimeSyncService.kill();
 
@@ -320,7 +364,7 @@ test("handleBlock() ingests block and logs", async (context) => {
 
   for (let i = 1; i <= 4; i++) {
     await handleBlock(realtimeSyncService, {
-      pendingLatestBlock: await _eth_getBlockByNumber(
+      newHeadBlock: await _eth_getBlockByNumber(
         { requestQueue: requestQueues[0] },
         { blockNumber: i },
       ),
@@ -388,7 +432,7 @@ test("handleBlock() skips eth_getLogs request", async (context) => {
 
   for (let i = 1; i <= 4; i++) {
     await handleBlock(realtimeSyncService, {
-      pendingLatestBlock: await _eth_getBlockByNumber(
+      newHeadBlock: await _eth_getBlockByNumber(
         { requestQueue: requestQueues[0] },
         { blockNumber: i },
       ),
@@ -397,57 +441,6 @@ test("handleBlock() skips eth_getLogs request", async (context) => {
 
   // 2 logs requests are skipped
   expect(requestSpy).toHaveBeenCalledTimes(6);
-
-  await realtimeSyncService.kill();
-
-  await cleanup();
-});
-
-test("handleBlock() finds reorg", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-
-  const finalizedBlock = await requestQueues[0].request({
-    method: "eth_getBlockByNumber",
-    params: ["0x0", false],
-  });
-
-  const onEvent = vi.fn();
-
-  const realtimeSyncService = create({
-    common,
-    syncStore,
-    network: networks[0],
-    requestQueue: requestQueues[0],
-    sources: [sources[0]],
-    finalizedBlock: finalizedBlock as SyncBlock,
-    onEvent,
-    onFatalError: vi.fn(),
-  });
-
-  for (let i = 1; i <= 4; i++) {
-    await handleBlock(realtimeSyncService, {
-      pendingLatestBlock: await _eth_getBlockByNumber(
-        { requestQueue: requestQueues[0] },
-        { blockNumber: i },
-      ),
-    });
-  }
-
-  const hasReorg = await handleBlock(realtimeSyncService, {
-    pendingLatestBlock: await _eth_getBlockByNumber(
-      { requestQueue: requestQueues[0] },
-      { blockNumber: 4 },
-    ),
-  });
-
-  expect(hasReorg).toBe(true);
-
-  expect(onEvent).toHaveBeenCalledWith({
-    type: "reorg",
-    chainId: expect.any(Number),
-    safeCheckpoint: expect.any(Object),
-  });
 
   await realtimeSyncService.kill();
 
@@ -480,7 +473,7 @@ test("handleBlock() finalizes range", async (context) => {
 
   for (let i = 1; i <= 8; i++) {
     await handleBlock(realtimeSyncService, {
-      pendingLatestBlock: await _eth_getBlockByNumber(
+      newHeadBlock: await _eth_getBlockByNumber(
         { requestQueue: requestQueues[0] },
         { blockNumber: i },
       ),
@@ -531,7 +524,7 @@ test("handleReorg() finds common ancestor", async (context) => {
 
   for (let i = 1; i <= 3; i++) {
     await handleBlock(realtimeSyncService, {
-      pendingLatestBlock: await _eth_getBlockByNumber(
+      newHeadBlock: await _eth_getBlockByNumber(
         { requestQueue: requestQueues[0] },
         { blockNumber: i },
       ),
@@ -593,7 +586,7 @@ test("handleReorg() emits fatal error for deep reorg", async (context) => {
 
   for (let i = 1; i <= 3; i++) {
     await handleBlock(realtimeSyncService, {
-      pendingLatestBlock: await _eth_getBlockByNumber(
+      newHeadBlock: await _eth_getBlockByNumber(
         { requestQueue: requestQueues[0] },
         { blockNumber: i },
       ),
@@ -644,7 +637,7 @@ test("validateLocalBlockchainState()", async (context) => {
 
   for (let i = 1; i <= 4; i++) {
     await handleBlock(realtimeSyncService, {
-      pendingLatestBlock: await _eth_getBlockByNumber(
+      newHeadBlock: await _eth_getBlockByNumber(
         { requestQueue: requestQueues[0] },
         { blockNumber: i },
       ),
