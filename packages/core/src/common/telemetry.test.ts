@@ -2,12 +2,11 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { setupCommon } from "@/_test/setup.js";
 import { createTelemetry } from "@/common/telemetry.js";
 import { rimrafSync } from "rimraf";
 import { beforeEach, expect, test, vi } from "vitest";
-
-beforeEach(setupCommon);
+import type { Common } from "./common.js";
+import { LoggerService } from "./logger.js";
 
 const fetchSpy = vi.fn();
 
@@ -21,11 +20,14 @@ beforeEach((context) => {
   const tempDir = path.join(os.tmpdir(), randomUUID());
   mkdirSync(tempDir, { recursive: true });
 
-  context.common.options = {
-    ...context.common.options,
-    telemetryDisabled: false,
-    telemetryConfigDir: tempDir,
-  };
+  context.common = {
+    logger: new LoggerService({ level: "silent" }),
+    options: {
+      telemetryUrl: "https://ponder.sh/api/telemetry",
+      telemetryDisabled: false,
+      telemetryConfigDir: tempDir,
+    },
+  } as unknown as Common;
 
   return () => {
     rimrafSync(tempDir);
