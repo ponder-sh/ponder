@@ -11,13 +11,7 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Event } from "@/sync/events.js";
-import {
-  createSyncService,
-  getHistoricalEvents,
-  killSyncService,
-  startHistoricalSyncServices,
-  startRealtimeSyncServices,
-} from "@/sync/service.js";
+import { createSyncService } from "@/sync/index.js";
 import { type Checkpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
@@ -114,7 +108,7 @@ export async function run({
     onFatalError,
   });
 
-  startHistoricalSyncServices(syncService);
+  syncService.startHistorical();
 
   const indexingService = createIndexingService({
     indexingFunctions,
@@ -137,7 +131,7 @@ export async function run({
     return async () => {
       indexingService.kill();
       await server.kill();
-      await killSyncService(syncService);
+      await syncService.kill();
       await database.kill();
     };
   }
@@ -158,7 +152,7 @@ export async function run({
   };
 
   // Run historical indexing until complete.
-  for await (const events of getHistoricalEvents(syncService)) {
+  for await (const events of syncService.getHistoricalEvents()) {
     await handleEvents(events);
   }
 
@@ -209,13 +203,13 @@ export async function run({
     },
   });
 
-  startRealtimeSyncServices(syncService);
+  syncService.startRealtime();
 
   return async () => {
     realtimeQueue.pause();
     realtimeQueue.clear();
     indexingService.kill();
-    await killSyncService(syncService);
+    await syncService.kill();
     await server.kill();
     await database.kill();
   };

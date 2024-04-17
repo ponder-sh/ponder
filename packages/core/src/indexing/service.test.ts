@@ -7,7 +7,7 @@ import {
 } from "@/_test/setup.js";
 import { getEventsErc20 } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
-import { createSyncService } from "@/sync/service.js";
+import { createSyncService } from "@/sync/index.js";
 import { decodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { type Address, checksumAddress, parseEther, toHex } from "viem";

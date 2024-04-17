@@ -5,7 +5,7 @@ import type { Network } from "@/config/networks.js";
 import { type EventSource } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
-import { type SyncService, getCachedTransport } from "@/sync/service.js";
+import type { SyncService } from "@/sync/index.js";
 import type { DatabaseModel } from "@/types/model.js";
 import {
   type Checkpoint,
@@ -134,7 +134,7 @@ export const create = ({
 
   // build clientByChainId
   for (const network of networks) {
-    const transport = getCachedTransport(syncService, network);
+    const transport = syncService.getCachedTransport(network);
     clientByChainId[network.chainId] = createClient({
       transport,
       chain: network.chain,

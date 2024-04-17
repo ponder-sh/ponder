@@ -7,11 +7,11 @@ import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import {
-  createSyncService,
+  create,
   getHistoricalEvents,
-  killSyncService,
-  startHistoricalSyncServices,
-  startRealtimeSyncServices,
+  kill,
+  startHistorical,
+  startRealtime,
 } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
@@ -43,7 +43,7 @@ test("createSyncService()", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
-  const syncService = await createSyncService({
+  const syncService = await create({
     common,
     syncStore,
     networks,
@@ -72,7 +72,7 @@ test("createSyncService()", async (context) => {
   expect(syncService.networkServices[0].historical.checkpoint).toBe(undefined);
   expect(syncService.networkServices[1].historical.checkpoint).toBe(undefined);
 
-  await killSyncService(syncService);
+  await kill(syncService);
   await cleanup();
 });
 
@@ -81,7 +81,7 @@ test("createSyncService() no realtime", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
-  const syncService = await createSyncService({
+  const syncService = await create({
     common,
     syncStore,
     networks,
@@ -93,7 +93,7 @@ test("createSyncService() no realtime", async (context) => {
   expect(syncService.networkServices[0].realtime).toBeDefined();
   expect(syncService.networkServices[1].realtime).toBeUndefined();
 
-  await killSyncService(syncService);
+  await kill(syncService);
   await cleanup();
 });
 
@@ -102,7 +102,7 @@ test("kill()", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
-  const syncService = await createSyncService({
+  const syncService = await create({
     common,
     syncStore,
     networks,
@@ -111,11 +111,11 @@ test("kill()", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  startHistoricalSyncServices(syncService);
+  startHistorical(syncService);
 
-  startRealtimeSyncServices(syncService);
+  startRealtime(syncService);
 
-  await killSyncService(syncService);
+  await kill(syncService);
 
   await cleanup();
 });
@@ -127,7 +127,7 @@ test("getHistoricalEvents returns events", async (context) => {
 
   const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
 
-  const syncService = await createSyncService({
+  const syncService = await create({
     common,
     syncStore,
     networks,
@@ -159,7 +159,7 @@ test("getHistoricalEvents returns events", async (context) => {
 
   expect(getLogEventsSpy).toHaveBeenCalledTimes(2);
 
-  await killSyncService(syncService);
+  await kill(syncService);
   await cleanup();
 });
 
@@ -170,7 +170,7 @@ test("getHistoricalEvents resolves when complete", async (context) => {
 
   const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
 
-  const syncService = await createSyncService({
+  const syncService = await create({
     common,
     syncStore,
     networks,
@@ -189,7 +189,7 @@ test("getHistoricalEvents resolves when complete", async (context) => {
 
   expect(syncService.checkpoint.blockNumber).toBe(0);
 
-  await killSyncService(syncService);
+  await kill(syncService);
   await cleanup();
 });
 
@@ -200,7 +200,7 @@ test("onRealtimeSyncEvent gets events", async (context) => {
 
   const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
 
-  const syncService = await createSyncService({
+  const syncService = await create({
     common,
     syncStore,
     networks,
@@ -228,7 +228,7 @@ test("onRealtimeSyncEvent gets events", async (context) => {
 
   expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
 
-  await killSyncService(syncService);
+  await kill(syncService);
   await cleanup();
 });
 
@@ -237,7 +237,7 @@ test("onRealtimeSyncEvent reorg", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
-  const syncService = await createSyncService({
+  const syncService = await create({
     common,
     syncStore,
     networks,
@@ -268,7 +268,7 @@ test("onRealtimeSyncEvent reorg", async (context) => {
     createCheckpoint({ blockNumber: 2 }),
   );
 
-  await killSyncService(syncService);
+  await kill(syncService);
   await cleanup();
 });
 
@@ -279,7 +279,7 @@ test("onRealtimeSyncEvent multi network", async (context) => {
 
   const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
 
-  const syncService = await createSyncService({
+  const syncService = await create({
     common,
     syncStore,
     networks,
@@ -296,6 +296,6 @@ test("onRealtimeSyncEvent multi network", async (context) => {
 
   expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
 
-  await killSyncService(syncService);
+  await kill(syncService);
   await cleanup();
 });

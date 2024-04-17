@@ -1,5 +1,6 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
+import { type Extend, extend } from "@/utils/extend.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
@@ -19,6 +20,27 @@ import {
   hexToBigInt,
   numberToHex,
 } from "viem";
+import {
+  type Service,
+  create,
+  getCachedTransport,
+  getHistoricalEvents,
+  kill,
+  startHistorical,
+  startRealtime,
+} from "./service.js";
+
+const methods = {
+  startHistorical,
+  getHistoricalEvents,
+  startRealtime,
+  getCachedTransport,
+  kill,
+};
+
+export const createSyncService = extend(create, methods);
+
+export type SyncService = Extend<Service, typeof methods>;
 
 export type BaseSyncService = {
   common: Common;

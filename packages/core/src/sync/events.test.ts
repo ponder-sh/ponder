@@ -4,14 +4,14 @@ import { getEventsErc20 } from "@/_test/utils.js";
 import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { decodeEvents } from "./events.js";
-import type { SyncService } from "./service.js";
+import type { Service } from "./service.js";
 
 beforeEach((context) => setupAnvil(context));
 
 test("decodeEvents()", async (context) => {
   const { common, sources } = context;
 
-  const sourceById = sources.reduce<SyncService["sourceById"]>((acc, cur) => {
+  const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
     acc[cur.id] = cur;
     return acc;
   }, {});
@@ -46,7 +46,7 @@ test("decodeEvents()", async (context) => {
 test("decodeEvents() error", async (context) => {
   const { common, sources } = context;
 
-  const sourceById = sources.reduce<SyncService["sourceById"]>((acc, cur) => {
+  const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
     acc[cur.id] = cur;
     return acc;
   }, {});

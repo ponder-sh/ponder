@@ -25,7 +25,7 @@ import { type Transport, hexToNumber } from "viem";
 import { type SyncBlock, _eth_getBlockByNumber } from "./index.js";
 import { cachedTransport } from "./transport.js";
 
-export type SyncService = {
+export type Service = {
   // static
   common: Common;
   syncStore: SyncStore;
@@ -65,7 +65,7 @@ export type SyncService = {
 
 const HISTORICAL_CHECKPOINT_INTERVAL = 500;
 
-export const createSyncService = async ({
+export const create = async ({
   common,
   syncStore,
   networks,
@@ -79,8 +79,8 @@ export const createSyncService = async ({
   sources: EventSource[];
   onRealtimeEvent: (realtimeEvent: RealtimeEvent) => Promise<void>;
   onFatalError: (error: Error) => void;
-}): Promise<SyncService> => {
-  const sourceById = sources.reduce<SyncService["sourceById"]>((acc, cur) => {
+}): Promise<Service> => {
+  const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
     acc[cur.id] = cur;
     return acc;
   }, {});
@@ -157,7 +157,7 @@ export const createSyncService = async ({
     }
   };
 
-  const networkServices: SyncService["networkServices"] = await Promise.all(
+  const networkServices: Service["networkServices"] = await Promise.all(
     networks.map(async (network) => {
       const networkSources = sources.filter(
         (source) => source.networkName === network.name,
@@ -222,7 +222,7 @@ export const createSyncService = async ({
             checkpoint: undefined,
             isHistoricalSyncComplete: false,
           },
-        } satisfies SyncService["networkServices"][number];
+        } satisfies Service["networkServices"][number];
       } else {
         const realtimeSync = createRealtimeSyncService({
           common,
@@ -251,7 +251,7 @@ export const createSyncService = async ({
             checkpoint: undefined,
             isHistoricalSyncComplete: false,
           },
-        } satisfies SyncService["networkServices"][number];
+        } satisfies Service["networkServices"][number];
       }
     }),
   );
@@ -285,7 +285,7 @@ export const createSyncService = async ({
     });
   }
 
-  const syncService: SyncService = {
+  const syncService: Service = {
     common,
     syncStore,
     sources,
@@ -301,7 +301,7 @@ export const createSyncService = async ({
 /**
  * Start the historical sync service for all networks.
  */
-export const startHistoricalSyncServices = (syncService: SyncService) => {
+export const startHistorical = (syncService: Service) => {
   for (const { historical } of syncService.networkServices) {
     historical.historicalSync.start();
   }
@@ -312,7 +312,7 @@ export const startHistoricalSyncServices = (syncService: SyncService) => {
  * when historical sync is complete.
  */
 export const getHistoricalEvents = async function* (
-  syncService: SyncService,
+  syncService: Service,
 ): AsyncGenerator<Event[]> {
   while (true) {
     if (syncService.isKilled) return;
@@ -378,7 +378,7 @@ export const getHistoricalEvents = async function* (
 /**
  * Start the realtime sync service for all networks.
  */
-export const startRealtimeSyncServices = (syncService: SyncService) => {
+export const startRealtime = (syncService: Service) => {
   for (const { realtime, network } of syncService.networkServices) {
     if (realtime === undefined) {
       syncService.common.logger.debug({
@@ -395,7 +395,7 @@ export const startRealtimeSyncServices = (syncService: SyncService) => {
   }
 };
 
-export const killSyncService = async (syncService: SyncService) => {
+export const kill = async (syncService: Service) => {
   syncService.isKilled = true;
 
   const killPromise: Promise<void>[] = [];
@@ -408,10 +408,7 @@ export const killSyncService = async (syncService: SyncService) => {
   await Promise.all(killPromise);
 };
 
-export const getCachedTransport = (
-  syncService: SyncService,
-  network: Network,
-) => {
+export const getCachedTransport = (syncService: Service, network: Network) => {
   const { requestQueue } = syncService.networkServices.find(
     (ns) => ns.network.chainId === network.chainId,
   )!;

@@ -1,7 +1,7 @@
 import type { RawEvent } from "@/sync-store/store.js";
 import type { Block, Log, Transaction } from "@/types/eth.js";
 import { decodeEventLog } from "viem";
-import type { SyncService } from "./service.js";
+import type { Service } from "./service.js";
 
 export type SetupEvent = {
   type: "setup";
@@ -28,7 +28,7 @@ export type LogEvent = {
 export type Event = LogEvent;
 
 export const decodeEvents = (
-  { common, sourceById }: Pick<SyncService, "sourceById" | "common">,
+  { common, sourceById }: Pick<Service, "sourceById" | "common">,
   rawEvents: RawEvent[],
 ): Event[] => {
   const events: Event[] = [];
