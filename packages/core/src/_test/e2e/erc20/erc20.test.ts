@@ -2,7 +2,7 @@ import path from "node:path";
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
   setupAnvil,
-  setupContext,
+  setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
@@ -11,17 +11,17 @@ import { serve } from "@/bin/commands/serve.js";
 import { start } from "@/bin/commands/start.js";
 import { range } from "@/utils/range.js";
 import { wait } from "@/utils/wait.js";
-import { rimraf } from "rimraf";
+import { rimrafSync } from "rimraf";
 import { zeroAddress } from "viem";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "erc20");
-afterEach(async () => {
-  await rimraf(path.join(rootDir, ".ponder"));
-  await rimraf(path.join(rootDir, "generated"));
+beforeEach(() => {
+  rimrafSync(path.join(rootDir, ".ponder"));
+  rimrafSync(path.join(rootDir, "generated"));
 });
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 

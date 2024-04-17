@@ -2,7 +2,7 @@ import path from "node:path";
 import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
-  setupContext,
+  setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { simulatePairSwap } from "@/_test/simulate.js";
@@ -10,15 +10,15 @@ import { getFreePort, postGraphql, waitForHealthy } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
 import { wait } from "@/utils/wait.js";
 import { rimrafSync } from "rimraf";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "factory");
-afterEach(() => {
+beforeEach(() => {
   rimrafSync(path.join(rootDir, ".ponder"));
   rimrafSync(path.join(rootDir, "generated"));
 });
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
