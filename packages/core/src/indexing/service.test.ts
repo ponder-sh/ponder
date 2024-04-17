@@ -920,7 +920,7 @@ test("ponderActions readContract()", async (context) => {
   await cleanup();
 });
 
-test.only("ponderActions readContract() blockNumber", async (context) => {
+test("ponderActions readContract() blockNumber", async (context) => {
   const { common, sources, networks, erc20 } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
