@@ -1,5 +1,5 @@
 import {
-  setupContext,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -12,7 +12,7 @@ import {
 import { hash } from "@/utils/hash.js";
 import { beforeEach, expect, test } from "vitest";
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 const schema = createSchema((p) => ({

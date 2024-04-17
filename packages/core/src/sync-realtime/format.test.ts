@@ -1,8 +1,8 @@
-import { setupAnvil, setupContext } from "@/_test/setup.js";
+import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import { beforeEach, expect, test } from "vitest";
 import { type RealtimeLog, sortLogs } from "./format.js";
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 beforeEach(setupAnvil);
 
 test("sort logs", async (context) => {

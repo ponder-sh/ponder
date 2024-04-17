@@ -1,6 +1,6 @@
 import {
   setupAnvil,
-  setupContext,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -10,7 +10,7 @@ import { getFunctionSelector, toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 import { cachedTransport } from "./transport.js";
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 

@@ -1,5 +1,5 @@
 import {
-  setupContext,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -11,7 +11,7 @@ import { beforeEach, expect, test } from "vitest";
 import { buildGraphqlSchema } from "./buildGraphqlSchema.js";
 import { buildLoaderCache } from "./buildLoaderCache.js";
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 const create = async (id: string, indexingStore: IndexingStore) => {

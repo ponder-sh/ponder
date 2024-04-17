@@ -2,7 +2,7 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
-  setupContext,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -30,7 +30,7 @@ import {
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 

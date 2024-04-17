@@ -1,5 +1,5 @@
 import {
-  setupContext,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -11,7 +11,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { buildGraphqlSchema } from "./graphql/buildGraphqlSchema.js";
 import { createServer } from "./service.js";
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 
 test("port", async (context) => {
   const server1 = await createServer({

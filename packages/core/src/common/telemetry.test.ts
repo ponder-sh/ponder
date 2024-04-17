@@ -2,12 +2,12 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { setupContext } from "@/_test/setup.js";
+import { setupCommon } from "@/_test/setup.js";
 import { createTelemetry } from "@/common/telemetry.js";
 import { rimrafSync } from "rimraf";
 import { beforeEach, expect, test, vi } from "vitest";
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 
 const fetchSpy = vi.fn();
 

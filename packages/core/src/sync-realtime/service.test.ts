@@ -1,6 +1,6 @@
 import {
   setupAnvil,
-  setupContext,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -12,7 +12,7 @@ import { toLowerCase } from "@/utils/lowercase.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { RealtimeSyncService } from "./service.js";
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 

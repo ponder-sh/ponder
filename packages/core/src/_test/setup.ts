@@ -41,7 +41,7 @@ declare module "vitest" {
   }
 }
 
-export function setupContext(context: TestContext) {
+export function setupCommon(context: TestContext) {
   const options = {
     ...buildOptions({ cliOptions: { config: "", root: "" } }),
     telemetryDisabled: true,

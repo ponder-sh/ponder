@@ -1,6 +1,6 @@
 import {
   setupAnvil,
-  setupContext,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -15,7 +15,7 @@ import { wait } from "@/utils/wait.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 

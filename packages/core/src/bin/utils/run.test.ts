@@ -1,6 +1,6 @@
 import {
   setupAnvil,
-  setupContext,
+  setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import type { Build } from "@/build/index.js";
@@ -10,7 +10,7 @@ import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
 
-beforeEach(setupContext);
+beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
