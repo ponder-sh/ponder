@@ -170,8 +170,6 @@ export const start = (service: Service) => {
           if (latestLocalBlock.number >= newHeadBlockNumber) {
             await handleReorg(service, newHeadBlock);
 
-            if (service.isKilled) return;
-
             queue.clear();
             return;
           }
@@ -189,6 +187,9 @@ export const start = (service: Service) => {
               ),
             );
 
+            // This is needed to ensure proper `kill()` behavior. When the service
+            // is killed, nothing should be added to the queue, or else `onIdle()`
+            // will never resolve.
             if (service.isKilled) return;
 
             queue.clear();
@@ -205,9 +206,6 @@ export const start = (service: Service) => {
           // Check if a reorg occurred by validating the chain of block hashes.
           if (newHeadBlock.parentHash !== latestLocalBlock.hash) {
             await handleReorg(service, newHeadBlock);
-
-            if (service.isKilled) return;
-
             queue.clear();
             return;
           }
