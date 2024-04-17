@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.4.5
+
+### Patch Changes
+
+- [#808](https://github.com/ponder-sh/ponder/pull/808) [`b59fda228f3a95702550adf9f86f81f401109b6b`](https://github.com/ponder-sh/ponder/commit/b59fda228f3a95702550adf9f86f81f401109b6b) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression causing indexing overloaded events to error.
+
+- [#805](https://github.com/ponder-sh/ponder/pull/805) [`0873d31163aed8cb16012088735389d7452e3eaf`](https://github.com/ponder-sh/ponder/commit/0873d31163aed8cb16012088735389d7452e3eaf) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where logs for factory contracts would sometimes be fetched twice. This caused an error for some projects using factory contracts.
+
 ## 0.4.4
 
 ### Patch Changes
