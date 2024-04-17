@@ -1,8 +1,9 @@
-import { setupAnvil } from "@/_test/setup.js";
+import { setupAnvil, setupContext } from "@/_test/setup.js";
 import { beforeEach, expect, test } from "vitest";
 import { type RealtimeLog, sortLogs } from "./format.js";
 
-beforeEach((context) => setupAnvil(context));
+beforeEach(setupContext);
+beforeEach(setupAnvil);
 
 test("sort logs", async (context) => {
   const logs = await context.requestQueues[0].request({

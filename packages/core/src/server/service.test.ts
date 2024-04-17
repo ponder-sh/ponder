@@ -1,11 +1,17 @@
-import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupContext,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import type { GraphQLSchema } from "graphql";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { buildGraphqlSchema } from "./graphql/buildGraphqlSchema.js";
 import { createServer } from "./service.js";
+
+beforeEach(setupContext);
 
 test("port", async (context) => {
   const server1 = await createServer({

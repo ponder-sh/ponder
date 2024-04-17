@@ -1,5 +1,6 @@
 import {
   setupAnvil,
+  setupContext,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -9,8 +10,9 @@ import { getFunctionSelector, toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 import { cachedTransport } from "./transport.js";
 
-beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupIsolatedDatabase(context));
+beforeEach(setupContext);
+beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 test("default", async (context) => {
   const { requestQueues } = context;

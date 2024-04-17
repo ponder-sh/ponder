@@ -1,4 +1,8 @@
-import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupAnvil,
+  setupContext,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import type { Build } from "@/build/index.js";
 import * as codegen from "@/common/codegen.js";
 import { createSchema } from "@/schema/schema.js";
@@ -6,8 +10,9 @@ import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
 
-beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupIsolatedDatabase(context));
+beforeEach(setupContext);
+beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 const schema = createSchema((p) => ({
   TransferEvent: p.createTable({

@@ -24,7 +24,7 @@ import type { RequestQueue } from "@/utils/requestQueue.js";
 import pg from "pg";
 import { rimrafSync } from "rimraf";
 import type { Address } from "viem";
-import { type TestContext, beforeEach } from "vitest";
+import { type TestContext } from "vitest";
 import { deploy, simulate } from "./simulate.js";
 import { getConfig, getNetworkAndSources, testClient } from "./utils.js";
 
@@ -40,8 +40,6 @@ declare module "vitest" {
     factory: { address: Address; pair: Address };
   }
 }
-
-beforeEach(setupContext);
 
 export function setupContext(context: TestContext) {
   const options = {

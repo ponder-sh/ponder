@@ -1,12 +1,13 @@
 import { ALICE, BOB } from "@/_test/constants.js";
-import { setupAnvil } from "@/_test/setup.js";
+import { setupAnvil, setupContext } from "@/_test/setup.js";
 import { getEventsErc20 } from "@/_test/utils.js";
 import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { decodeEvents } from "./events.js";
 import type { Service } from "./service.js";
 
-beforeEach((context) => setupAnvil(context));
+beforeEach(setupContext);
+beforeEach(setupAnvil);
 
 test("decodeEvents()", async (context) => {
   const { common, sources } = context;

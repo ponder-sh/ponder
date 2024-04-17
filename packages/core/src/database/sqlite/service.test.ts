@@ -1,4 +1,4 @@
-import { setupIsolatedDatabase } from "@/_test/setup.js";
+import { setupContext, setupIsolatedDatabase } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { HeadlessKysely } from "../kysely.js";
 import { SqliteDatabaseService } from "./service.js";
 
+beforeEach(setupContext);
 beforeEach(setupIsolatedDatabase);
 
 const schema = createSchema((p) => ({

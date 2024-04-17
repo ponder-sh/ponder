@@ -1,6 +1,10 @@
 import path from "node:path";
 import { ALICE, BOB } from "@/_test/constants.js";
-import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupAnvil,
+  setupContext,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { getFreePort, postGraphql, waitForHealthy } from "@/_test/utils.js";
 import { serve } from "@/bin/commands/serve.js";
@@ -11,15 +15,15 @@ import { rimraf } from "rimraf";
 import { zeroAddress } from "viem";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-beforeEach(setupAnvil);
-beforeEach(setupIsolatedDatabase);
-
 const rootDir = path.join(".", "src", "_test", "e2e", "erc20");
-
 afterEach(async () => {
   await rimraf(path.join(rootDir, ".ponder"));
   await rimraf(path.join(rootDir, "generated"));
 });
+
+beforeEach(setupContext);
+beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 test("erc20", async (context) => {
   const port = await getFreePort();

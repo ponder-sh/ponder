@@ -1,5 +1,5 @@
 import { erc20ABI, pairABI } from "@/_test/generated.js";
-import { setupAnvil } from "@/_test/setup.js";
+import { setupAnvil, setupContext } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getAbiItem, getEventSelector, toHex } from "viem";
@@ -7,10 +7,11 @@ import { beforeEach, expect, test } from "vitest";
 import { filterLogs } from "./filter.js";
 import type { RealtimeLog } from "./format.js";
 
+beforeEach(setupContext);
+beforeEach(setupAnvil);
+
 const zeroHash =
   "0x0000000000000000000000000000000000000000000000000000000000000000";
-
-beforeEach((context) => setupAnvil(context));
 
 const AliceHex = toLowerCase(
   "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266",

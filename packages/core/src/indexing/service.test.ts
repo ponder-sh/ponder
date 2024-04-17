@@ -2,6 +2,7 @@ import { BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
+  setupContext,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -21,8 +22,9 @@ import {
   processSetupEvents,
 } from "./service.js";
 
-beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupIsolatedDatabase(context));
+beforeEach(setupContext);
+beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 const schema = createSchema((p) => ({
   TransferEvent: p.createTable({

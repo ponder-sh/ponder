@@ -1,21 +1,20 @@
-import { type TestContext, beforeEach, expect, test, vi } from "vitest";
-
 import {
   setupAnvil,
+  setupContext,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-
 import {
   type Checkpoint,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-
+import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import { SyncService } from "./service.js";
 
-beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupIsolatedDatabase(context));
+beforeEach(setupContext);
+beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 function getMultichainNetworksAndSources(context: TestContext) {
   const mainnet = context.networks[0];
