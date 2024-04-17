@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.1.3
+
+### Patch Changes
+
+- [#811](https://github.com/ponder-sh/ponder/pull/811) [`db106f5ffc302f1a02dcb54f31432420fae3c3cc`](https://github.com/ponder-sh/ponder/commit/db106f5ffc302f1a02dcb54f31432420fae3c3cc) Thanks [@kyscott18](https://github.com/kyscott18)! - Added automatic eth_getLogs retry range detection for the paid version of blast API.
+
 ## 0.1.2
 
 ### Patch Changes
