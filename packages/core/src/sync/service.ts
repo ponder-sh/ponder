@@ -18,7 +18,6 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
@@ -105,21 +104,29 @@ export const createSyncService = async ({
 
         if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) return;
 
-        drainAsyncGenerator(
-          syncStore.getLogEvents({
-            sources,
-            fromCheckpoint: syncService.checkpoint,
-            toCheckpoint: newCheckpoint,
-            limit: 1_000,
-          }),
-        ).then((rawEvents) =>
-          onRealtimeEvent({
-            type: "newEvents",
-            events: decodeEvents({ common, sourceById }, rawEvents),
-          }),
-        );
+        // Pass decoded events while respecting pagination. Must be cautious to deep copy
+        // checkpoints.
+
+        const fromCheckpoint = { ...syncService.checkpoint };
+        const toCheckpoint = { ...newCheckpoint };
 
         syncService.checkpoint = newCheckpoint;
+
+        (async () => {
+          for await (const rawEvents of syncStore.getLogEvents({
+            sources,
+            fromCheckpoint,
+            toCheckpoint,
+            limit: 1_000,
+          })) {
+            if (syncService.isKilled) return;
+
+            await onRealtimeEvent({
+              type: "newEvents",
+              events: decodeEvents({ common, sourceById }, rawEvents),
+            });
+          }
+        })();
 
         break;
       }
