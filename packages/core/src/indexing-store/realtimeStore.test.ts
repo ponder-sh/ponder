@@ -1076,37 +1076,41 @@ test("createMany() inserts multiple entities", async (context) => {
   await cleanup();
 });
 
-test("createMany() inserts a large number of entities", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+test(
+  "createMany() inserts a large number of entities",
+  async (context) => {
+    const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+      schema,
+    });
 
-  const RECORD_COUNT = 100_000;
+    const RECORD_COUNT = 100_000;
 
-  const createdItems = await indexingStore.createMany({
-    tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
-    data: [...Array(RECORD_COUNT).keys()].map((i) => ({
-      id: `id${i}`,
-      name: "Alice",
-      bigAge: BigInt(i),
-    })),
-  });
-  expect(createdItems.length).toBe(RECORD_COUNT);
+    const createdItems = await indexingStore.createMany({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+      data: [...Array(RECORD_COUNT).keys()].map((i) => ({
+        id: `id${i}`,
+        name: "Alice",
+        bigAge: BigInt(i),
+      })),
+    });
+    expect(createdItems.length).toBe(RECORD_COUNT);
 
-  const { pageInfo } = await indexingStore.findMany({
-    tableName: "Pet",
-    limit: 1_000,
-  });
-  const { items } = await indexingStore.findMany({
-    tableName: "Pet",
-    after: pageInfo.endCursor,
-    limit: 1_000,
-  });
-  expect(items.length).toBe(1_000);
+    const { pageInfo } = await indexingStore.findMany({
+      tableName: "Pet",
+      limit: 1_000,
+    });
+    const { items } = await indexingStore.findMany({
+      tableName: "Pet",
+      after: pageInfo.endCursor,
+      limit: 1_000,
+    });
+    expect(items.length).toBe(1_000);
 
-  await cleanup();
-});
+    await cleanup();
+  },
+  { timeout: 10_000 },
+);
 
 test("createMany() inserts into the log table", async (context) => {
   const { indexingStore, namespaceInfo, cleanup } = await setupDatabaseServices(

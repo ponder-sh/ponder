@@ -1,25 +1,21 @@
-import { rmSync } from "node:fs";
+import path from "node:path";
 import { ALICE } from "@/_test/constants.js";
 import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
 import { simulatePairSwap } from "@/_test/simulate.js";
 import { getFreePort, postGraphql, waitForHealthy } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
 import { wait } from "@/utils/wait.js";
+import { rimrafSync } from "rimraf";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
+const rootDir = path.join(".", "src", "_test", "e2e", "factory");
+
 afterEach(() => {
-  rmSync("./src/_test/e2e/factory/.ponder", {
-    recursive: true,
-    force: true,
-    retryDelay: 20,
-  });
-  rmSync("./src/_test/e2e/factory/generated", {
-    recursive: true,
-    force: true,
-  });
+  rimrafSync(path.join(rootDir, ".ponder"));
+  rimrafSync(path.join(rootDir, "generated"));
 });
 
 test("factory", async (context) => {

@@ -1,4 +1,4 @@
-import { rmSync } from "node:fs";
+import path from "node:path";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { setupAnvil, setupIsolatedDatabase } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
@@ -7,22 +7,18 @@ import { serve } from "@/bin/commands/serve.js";
 import { start } from "@/bin/commands/start.js";
 import { range } from "@/utils/range.js";
 import { wait } from "@/utils/wait.js";
+import { rimrafSync } from "rimraf";
 import { zeroAddress } from "viem";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
+const rootDir = path.join(".", "src", "_test", "e2e", "erc20");
+
 afterEach(() => {
-  rmSync("./src/_test/e2e/erc20/.ponder", {
-    recursive: true,
-    force: true,
-    retryDelay: 20,
-  });
-  rmSync("./src/_test/e2e/erc20/generated", {
-    recursive: true,
-    force: true,
-  });
+  rimrafSync(path.join(rootDir, ".ponder"));
+  rimrafSync(path.join(rootDir, "generated"));
 });
 
 test("erc20", async (context) => {
@@ -30,7 +26,7 @@ test("erc20", async (context) => {
 
   const cleanup = await start({
     cliOptions: {
-      root: "./src/_test/e2e/erc20",
+      root: rootDir,
       config: "ponder.config.ts",
       port,
     },

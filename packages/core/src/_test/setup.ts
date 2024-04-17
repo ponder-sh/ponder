@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import fs from "fs";
+import { mkdirSync } from "fs";
 import path from "node:path";
 import os from "os";
 import type { Common } from "@/common/common.js";
@@ -22,6 +22,7 @@ import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import pg from "pg";
+import { rimrafSync } from "rimraf";
 import type { Address } from "viem";
 import { type TestContext, beforeEach } from "vitest";
 import { deploy, simulate } from "./simulate.js";
@@ -44,9 +45,7 @@ beforeEach(setupContext);
 
 export function setupContext(context: TestContext) {
   const options = {
-    ...buildOptions({
-      cliOptions: { config: "", root: "" },
-    }),
+    ...buildOptions({ cliOptions: { config: "", root: "" } }),
     telemetryDisabled: true,
   };
   const logger = new LoggerService({ level: "silent" });
@@ -92,15 +91,15 @@ export async function setupIsolatedDatabase(context: TestContext) {
       schema: "public",
     };
 
-    return async () => {};
+    return () => {};
   } else {
     const tempDir = path.join(os.tmpdir(), randomUUID());
-    fs.mkdirSync(tempDir, { recursive: true });
+    mkdirSync(tempDir, { recursive: true });
 
     context.databaseConfig = { kind: "sqlite", directory: tempDir };
 
-    return async () => {
-      fs.rmSync(tempDir, { force: true, recursive: true });
+    return () => {
+      rimrafSync(tempDir);
     };
   }
 }

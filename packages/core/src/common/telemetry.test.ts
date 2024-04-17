@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createTelemetry } from "@/common/telemetry.js";
+import { rimrafSync } from "rimraf";
 import { beforeEach, expect, test, vi } from "vitest";
 
 const fetchSpy = vi.fn();
@@ -23,8 +24,8 @@ beforeEach((context) => {
     telemetryConfigDir: tempDir,
   };
 
-  return async () => {
-    rmSync(tempDir, { force: true, recursive: true });
+  return () => {
+    rimrafSync(tempDir);
   };
 });
 
