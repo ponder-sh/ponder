@@ -313,9 +313,10 @@ const executeIndexingFunctions = async (
   | { status: "success"; indexingFunctions: RawIndexingFunctions }
   | { status: "error"; error: Error }
 > => {
-  const files = glob.sync(
-    path.join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}"),
-  );
+  const pattern = path
+    .join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}")
+    .replace(/\\/g, "/");
+  const files = glob.sync(pattern);
 
   const executeResults = await Promise.all(
     files.map((file) => executeFile(buildService, { file })),
