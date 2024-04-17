@@ -401,9 +401,8 @@ export const handleBlock = async (
       }
     } catch {}
 
-    service.localChain = service.localChain.filter(
-      ({ block }) => block.number > pendingFinalizedBlock.number,
-    );
+    // Ingest new block and logs into the local chain and database.
+    // Ordering is important here because the database query can fail.
 
     await service.syncStore.insertRealtimeInterval({
       chainId: service.network.chainId,
@@ -414,6 +413,10 @@ export const handleBlock = async (
         endBlock: BigInt(pendingFinalizedBlock.number),
       },
     });
+
+    service.localChain = service.localChain.filter(
+      ({ block }) => block.number > pendingFinalizedBlock.number,
+    );
 
     service.finalizedBlock = pendingFinalizedBlock;
 
@@ -443,7 +446,7 @@ export const handleReorg = async (
   newHeadBlock: SyncBlock,
 ) => {
   // Prune the local chain of blocks that have been reorged out
-  service.localChain = service.localChain.filter(
+  const newLocalChain = service.localChain.filter(
     ({ block }) => block.number < hexToNumber(newHeadBlock.number),
   );
 
@@ -451,7 +454,10 @@ export const handleReorg = async (
   let remoteBlock = newHeadBlock;
 
   while (true) {
-    const parentBlock = getLatestLocalBlock(service);
+    const parentBlock = getLatestLocalBlock({
+      localChain: newLocalChain,
+      finalizedBlock: service.finalizedBlock,
+    });
 
     if (parentBlock.hash === remoteBlock.parentHash) {
       service.common.logger.trace({
@@ -463,6 +469,8 @@ export const handleReorg = async (
         chainId: service.network.chainId,
         fromBlock: BigInt(parentBlock.number),
       });
+
+      service.localChain = newLocalChain;
 
       service.onEvent({
         type: "reorg",
@@ -483,12 +491,12 @@ export const handleReorg = async (
       return;
     }
 
-    if (service.localChain.length === 0) break;
+    if (newLocalChain.length === 0) break;
     else {
       remoteBlock = await _eth_getBlockByHash(service, {
         blockHash: remoteBlock.parentHash,
       });
-      service.localChain.pop();
+      newLocalChain.pop();
     }
   }
 
