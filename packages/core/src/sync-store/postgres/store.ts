@@ -250,12 +250,14 @@ export class PostgresSyncStore implements SyncStore {
 
   async *getFactoryChildAddresses({
     chainId,
-    upToBlockNumber,
+    fromBlock,
+    toBlock,
     factory,
     pageSize = 500,
   }: {
     chainId: number;
-    upToBlockNumber: bigint;
+    fromBlock: bigint;
+    toBlock: bigint;
     factory: FactoryCriteria;
     pageSize?: number;
   }) {
@@ -265,19 +267,20 @@ export class PostgresSyncStore implements SyncStore {
 
     const baseQuery = this.db
       .selectFrom("logs")
-      .select([selectChildAddressExpression.as("childAddress"), "blockNumber"])
+      .select(["id", selectChildAddressExpression.as("childAddress")])
       .where("chainId", "=", chainId)
       .where("address", "=", address)
       .where("topic0", "=", eventSelector)
-      .where("blockNumber", "<=", upToBlockNumber)
-      .orderBy("blockNumber", "asc")
+      .where("blockNumber", ">=", fromBlock)
+      .where("blockNumber", "<=", toBlock)
+      .orderBy("id", "asc")
       .limit(pageSize);
 
-    let cursor: bigint | undefined = undefined;
+    let cursor: string | undefined = undefined;
 
     while (true) {
       let query = baseQuery;
-      if (cursor !== undefined) query = query.where("blockNumber", ">", cursor);
+      if (cursor !== undefined) query = query.where("id", ">", cursor);
 
       const batch = await this.db.wrap(
         { method: "getFactoryChildAddresses" },
@@ -291,7 +294,7 @@ export class PostgresSyncStore implements SyncStore {
       // If the batch is less than the page size, there are no more pages.
       if (batch.length < pageSize) break;
       // Otherwise, set the cursor to the last block number in the batch.
-      cursor = batch[batch.length - 1].blockNumber;
+      cursor = batch[batch.length - 1].id;
     }
   }
 
