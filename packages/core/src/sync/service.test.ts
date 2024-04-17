@@ -212,7 +212,7 @@ test("onRealtimeSyncEvent gets events", async (context) => {
   syncService.networkServices[0].realtime!.checkpoint = zeroCheckpoint;
   syncService.networkServices[1].realtime!.checkpoint = zeroCheckpoint;
 
-  await syncService.networkServices[0].realtime!.realtimeSync.onEvent({
+  syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "checkpoint",
     chainId: networks[0].chainId,
     checkpoint: createCheckpoint({ blockNumber: 4 }),
@@ -220,7 +220,7 @@ test("onRealtimeSyncEvent gets events", async (context) => {
 
   expect(getLogEventsSpy).toHaveBeenCalledTimes(0);
 
-  await syncService.networkServices[0].realtime!.realtimeSync.onEvent({
+  syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "checkpoint",
     chainId: networks[1].chainId,
     checkpoint: createCheckpoint({ blockNumber: 4 }),
@@ -288,7 +288,7 @@ test("onRealtimeSyncEvent multi network", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  await syncService.networkServices[0].realtime!.realtimeSync.onEvent({
+  syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "checkpoint",
     chainId: networks[0].chainId,
     checkpoint: createCheckpoint({ blockNumber: 4 }),

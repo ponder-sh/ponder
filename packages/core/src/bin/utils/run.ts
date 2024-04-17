@@ -214,6 +214,7 @@ export async function run({
     realtimeQueue.pause();
     realtimeQueue.clear();
     indexingService.kill();
+    await killSyncService(syncService);
     await server.kill();
     await database.kill();
   };

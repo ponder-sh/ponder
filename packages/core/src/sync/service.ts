@@ -1,3 +1,4 @@
+import { drainAsyncGenerator } from "@/_test/utils.js";
 import type { RealtimeEvent } from "@/bin/utils/run.js";
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
@@ -85,7 +86,7 @@ export const createSyncService = async ({
     return acc;
   }, {});
 
-  const onRealtimeSyncEvent = async (realtimeSyncEvent: RealtimeSyncEvent) => {
+  const onRealtimeSyncEvent = (realtimeSyncEvent: RealtimeSyncEvent) => {
     switch (realtimeSyncEvent.type) {
       case "checkpoint": {
         if (syncService.isKilled) return;
@@ -104,18 +105,19 @@ export const createSyncService = async ({
 
         if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) return;
 
-        for await (const rawEvents of syncStore.getLogEvents({
-          sources,
-          fromCheckpoint: syncService.checkpoint,
-          toCheckpoint: newCheckpoint,
-          limit: 1_000,
-        })) {
-          const events = decodeEvents({ common, sourceById }, rawEvents);
-          await onRealtimeEvent({
+        drainAsyncGenerator(
+          syncStore.getLogEvents({
+            sources,
+            fromCheckpoint: syncService.checkpoint,
+            toCheckpoint: newCheckpoint,
+            limit: 1_000,
+          }),
+        ).then((rawEvents) =>
+          onRealtimeEvent({
             type: "newEvents",
-            events: events,
-          });
-        }
+            events: decodeEvents({ common, sourceById }, rawEvents),
+          }),
+        );
 
         syncService.checkpoint = newCheckpoint;
 
