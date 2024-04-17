@@ -185,7 +185,8 @@ test("processEvent() log events", async (context) => {
   });
 
   const indexingFunctions = {
-    "Erc20:Transfer": vi.fn(),
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      vi.fn(),
   };
 
   const indexingService = create({
@@ -205,10 +206,18 @@ test("processEvent() log events", async (context) => {
   });
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(indexingFunctions["Erc20:Transfer"]).toHaveBeenCalledTimes(2);
-  expect(indexingFunctions["Erc20:Transfer"]).toHaveBeenCalledWith({
+  expect(
+    indexingFunctions[
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
+    ],
+  ).toHaveBeenCalledTimes(2);
+  expect(
+    indexingFunctions[
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
+    ],
+  ).toHaveBeenCalledWith({
     event: {
-      name: "Transfer",
+      name: "Transfer(address indexed from, address indexed to, uint256 amount)",
       args: expect.any(Object),
       log: expect.any(Object),
       block: expect.any(Object),
@@ -257,7 +266,8 @@ test("processEvents killed", async (context) => {
   });
 
   const indexingFunctions = {
-    "Erc20:Transfer": vi.fn(),
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      vi.fn(),
   };
 
   const indexingService = create({
@@ -278,7 +288,11 @@ test("processEvents killed", async (context) => {
   });
   expect(result).toStrictEqual({ status: "killed" });
 
-  expect(indexingFunctions["Erc20:Transfer"]).toHaveBeenCalledTimes(0);
+  expect(
+    indexingFunctions[
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
+    ],
+  ).toHaveBeenCalledTimes(0);
 
   await cleanup();
 });
@@ -300,7 +314,8 @@ test("processEvents eventCount", async (context) => {
   });
 
   const indexingFunctions = {
-    "Erc20:Transfer": vi.fn(),
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      vi.fn(),
   };
 
   const indexingService = create({
@@ -321,9 +336,10 @@ test("processEvents eventCount", async (context) => {
   expect(result).toStrictEqual({ status: "success" });
 
   expect(indexingService.eventCount).toStrictEqual({
-    "Erc20:Transfer": {
-      mainnet: 2,
-    },
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      {
+        mainnet: 2,
+      },
   });
 
   await cleanup();
@@ -609,11 +625,12 @@ test("executeLog() context.client", async (context) => {
 
   const indexingService = create({
     indexingFunctions: {
-      "Erc20:Transfer": async ({ context }: { context: Context }) => {
-        await context.client.getBalance({
-          address: BOB,
-        });
-      },
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+        async ({ context }: { context: Context }) => {
+          await context.client.getBalance({
+            address: BOB,
+          });
+        },
     },
     common,
     sources,
@@ -661,17 +678,15 @@ test("executeLog() context.db", async (context) => {
 
   const indexingService = create({
     indexingFunctions: {
-      "Erc20:Transfer": async ({
-        event,
-        context,
-      }: { event: any; context: Context }) => {
-        await context.db.TransferEvent.create({
-          id: event.log.id,
-          data: {
-            timestamp: Number(event.block.timestamp),
-          },
-        });
-      },
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+        async ({ event, context }: { event: any; context: Context }) => {
+          await context.db.TransferEvent.create({
+            id: event.log.id,
+            data: {
+              timestamp: Number(event.block.timestamp),
+            },
+          });
+        },
     },
     common,
     sources,
@@ -722,7 +737,8 @@ test("executeLog() metrics", async (context) => {
 
   const indexingService = create({
     indexingFunctions: {
-      "Erc20:Transfer": vi.fn(),
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+        vi.fn(),
     },
     common,
     sources,
@@ -761,7 +777,8 @@ test("executeLog() retry", async (context) => {
   });
 
   const indexingFunctions = {
-    "Erc20:Transfer": vi.fn(),
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      vi.fn(),
   };
 
   const revertSpy = vi.spyOn(indexingStore, "revert");
@@ -776,7 +793,9 @@ test("executeLog() retry", async (context) => {
     schema,
   });
 
-  indexingFunctions["Erc20:Transfer"].mockRejectedValueOnce(new Error());
+  indexingFunctions[
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
+  ].mockRejectedValueOnce(new Error());
 
   const rawEvents = await getEventsErc20(sources);
   const events = decodeEvents(syncService, rawEvents);
@@ -787,7 +806,11 @@ test("executeLog() retry", async (context) => {
   expect(result).toStrictEqual({
     status: "success",
   });
-  expect(indexingFunctions["Erc20:Transfer"]).toHaveBeenCalledTimes(3);
+  expect(
+    indexingFunctions[
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
+    ],
+  ).toHaveBeenCalledTimes(3);
 
   expect(revertSpy).toHaveBeenCalledTimes(1);
   expect(revertSpy).toHaveBeenCalledWith({
@@ -815,7 +838,8 @@ test("executeLog() error", async (context) => {
   });
 
   const indexingFunctions = {
-    "Erc20:Transfer": vi.fn(),
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      vi.fn(),
   };
 
   const revertSpy = vi.spyOn(indexingStore, "revert");
@@ -830,7 +854,9 @@ test("executeLog() error", async (context) => {
     schema,
   });
 
-  indexingFunctions["Erc20:Transfer"].mockRejectedValue(new Error());
+  indexingFunctions[
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
+  ].mockRejectedValue(new Error());
 
   const rawEvents = await getEventsErc20(sources);
   const events = decodeEvents(syncService, rawEvents);
@@ -842,7 +868,11 @@ test("executeLog() error", async (context) => {
     status: "error",
     error: expect.any(Error),
   });
-  expect(indexingFunctions["Erc20:Transfer"]).toHaveBeenCalledTimes(4);
+  expect(
+    indexingFunctions[
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
+    ],
+  ).toHaveBeenCalledTimes(4);
   expect(revertSpy).toHaveBeenCalledTimes(3);
 
   await cleanup();
@@ -866,7 +896,8 @@ test("executeLog() error after killed", async (context) => {
 
   const { promise, reject } = promiseWithResolvers();
   const indexingFunctions = {
-    "Erc20:Transfer": () => promise,
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      () => promise,
   };
 
   const indexingService = create({

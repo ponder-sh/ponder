@@ -1,5 +1,26 @@
 # @ponder/core
 
+## 0.4.6
+
+### Patch Changes
+
+- Updated dependencies [[`db106f5ffc302f1a02dcb54f31432420fae3c3cc`](https://github.com/ponder-sh/ponder/commit/db106f5ffc302f1a02dcb54f31432420fae3c3cc)]:
+  - @ponder/utils@0.1.3
+
+## 0.4.5
+
+### Patch Changes
+
+- [#808](https://github.com/ponder-sh/ponder/pull/808) [`b59fda228f3a95702550adf9f86f81f401109b6b`](https://github.com/ponder-sh/ponder/commit/b59fda228f3a95702550adf9f86f81f401109b6b) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression causing indexing overloaded events to error.
+
+- [#805](https://github.com/ponder-sh/ponder/pull/805) [`0873d31163aed8cb16012088735389d7452e3eaf`](https://github.com/ponder-sh/ponder/commit/0873d31163aed8cb16012088735389d7452e3eaf) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where logs for factory contracts would sometimes be fetched twice. This caused an error for some projects using factory contracts.
+
+## 0.4.4
+
+### Patch Changes
+
+- [`182d47e1a8ea9b8c1a742cbe987509f1aea5c3b7`](https://github.com/ponder-sh/ponder/commit/182d47e1a8ea9b8c1a742cbe987509f1aea5c3b7) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved performance of sync migrations introduced in 0.4.0.
+
 ## 0.4.3
 
 ### Patch Changes

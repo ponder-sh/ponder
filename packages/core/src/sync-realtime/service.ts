@@ -568,7 +568,8 @@ const getMatchedLogs = async (
         const iterator = service.syncStore.getFactoryChildAddresses({
           chainId: service.network.chainId,
           factory: factory.criteria,
-          upToBlockNumber,
+          fromBlock: BigInt(factory.startBlock),
+          toBlock: upToBlockNumber,
         });
         const childContractAddresses: Address[] = [];
         for await (const batch of iterator) {

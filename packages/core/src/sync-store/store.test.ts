@@ -457,7 +457,8 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
   let iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
-    upToBlockNumber: 150n,
+    fromBlock: 0n,
+    toBlock: 150n,
   });
 
   let results = [];
@@ -471,7 +472,8 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
   iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: { ...factoryCriteria, childAddressLocation: "topic2" },
-    upToBlockNumber: 150n,
+    fromBlock: 0n,
+    toBlock: 150n,
   });
 
   results = [];
@@ -524,7 +526,8 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
-    upToBlockNumber: 150n,
+    fromBlock: 0n,
+    toBlock: 150n,
   });
 
   const results = [];
@@ -537,7 +540,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
   await cleanup();
 });
 
-test("getFactoryChildAddresses respects upToBlockNumber argument", async (context) => {
+test("getFactoryChildAddresses respects toBlock argument", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -577,7 +580,8 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
   let iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
-    upToBlockNumber: 150n,
+    fromBlock: 0n,
+    toBlock: 150n,
   });
 
   let results = [];
@@ -588,7 +592,8 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
   iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
-    upToBlockNumber: 250n,
+    fromBlock: 0n,
+    toBlock: 250n,
   });
 
   results = [];
@@ -617,32 +622,79 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
     logs: [
+      // Include one log that doesn't match the factory criteria.
       {
         ...rpcData.block1.logs[0],
+        blockNumber: toHex(150),
+        blockHash:
+          "0x000000000000000000000000child80000000000000000000000000000000000",
+        logIndex: "0x8",
         address: "0xfactory",
         topics: [
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
-          "0x000000000000000000000000child10000000000000000000000000000000000",
+          "0x0000000000000000000000000000000000000000000factoryeventsignaturf",
+          "0x000000000000000000000000child80000000000000000000000000000000000",
         ],
-        blockNumber: toHex(100),
       },
       {
         ...rpcData.block1.logs[1],
+        blockNumber: toHex(200),
+        blockHash:
+          "0x000000000000000000000000child20000000000000000000000000000000000",
+        logIndex: "0x2",
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
           "0x000000000000000000000000child20000000000000000000000000000000000",
         ],
-        blockNumber: toHex(200),
       },
+      // Include two logs in the same block.
       {
         ...rpcData.block1.logs[1],
+        blockNumber: toHex(201),
+        blockHash:
+          "0x000000000000000000000000child30000000000000000000000000000000000",
+        logIndex: "0x3",
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
           "0x000000000000000000000000child30000000000000000000000000000000000",
         ],
+      },
+      {
+        ...rpcData.block1.logs[1],
         blockNumber: toHex(201),
+        blockHash:
+          "0x000000000000000000000000child30000000000000000000000000000000000",
+        logIndex: "0x4",
+        address: "0xfactory",
+        topics: [
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+          "0x000000000000000000000000child40000000000000000000000000000000000",
+        ],
+      },
+      {
+        ...rpcData.block1.logs[0],
+        blockNumber: toHex(100),
+        blockHash:
+          "0x000000000000000000000000child10000000000000000000000000000000000",
+        logIndex: "0x1",
+        address: "0xfactory",
+        topics: [
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+          "0x000000000000000000000000child10000000000000000000000000000000000",
+        ],
+      },
+      {
+        ...rpcData.block1.logs[1],
+        blockNumber: toHex(203),
+        blockHash:
+          "0x000000000000000000000000child50000000000000000000000000000000000",
+        logIndex: "0x5",
+        address: "0xfactory",
+        topics: [
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+          "0x000000000000000000000000child50000000000000000000000000000000000",
+        ],
       },
     ],
   });
@@ -650,28 +702,23 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
-    upToBlockNumber: 1000n,
-    pageSize: 1,
+    fromBlock: 0n,
+    toBlock: 1000n,
+    pageSize: 2,
   });
 
-  let idx = 0;
-  for await (const page of iterator) {
-    if (idx === 0)
-      expect(page).toMatchObject([
-        "0xchild10000000000000000000000000000000000",
-      ]);
-    if (idx === 1)
-      expect(page).toMatchObject([
-        "0xchild20000000000000000000000000000000000",
-      ]);
-    if (idx === 2) {
-      expect(page).toMatchObject([
-        "0xchild30000000000000000000000000000000000",
-      ]);
-      expect((await iterator.next()).done).toBe(true);
-    }
-    idx++;
-  }
+  const results = [];
+  for await (const page of iterator) results.push(...page);
+  expect(results.sort()).toMatchObject(
+    [
+      "0xchild10000000000000000000000000000000000",
+      "0xchild20000000000000000000000000000000000",
+      "0xchild30000000000000000000000000000000000",
+      "0xchild40000000000000000000000000000000000",
+      "0xchild50000000000000000000000000000000000",
+    ].sort(),
+  );
+
   await cleanup();
 });
 
@@ -689,7 +736,8 @@ test("getFactoryChildAddresses does not yield empty list", async (context) => {
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
-    upToBlockNumber: 1000n,
+    fromBlock: 0n,
+    toBlock: 1000n,
   });
 
   let didYield = false;

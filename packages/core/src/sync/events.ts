@@ -44,11 +44,14 @@ export const decodeEvents = (
         topics: event.log.topics,
       });
 
+      const logEventName =
+        source.abiEvents.bySelector[event.log.topics[0]!]!.safeName;
+
       events.push({
         type: "log",
         chainId: event.chainId,
         contractName: source.contractName,
-        logEventName: decodedLog.eventName,
+        logEventName,
         event: {
           args: decodedLog.args,
           log: event.log,

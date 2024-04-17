@@ -12,6 +12,8 @@ contract ERC20 {
 
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
+    event Transfer(address indexed to, address indexed from);
+
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
     /*//////////////////////////////////////////////////////////////

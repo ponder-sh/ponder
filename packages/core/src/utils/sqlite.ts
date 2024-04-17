@@ -7,7 +7,23 @@ function improveSqliteErrors(database: BetterSqlite3.Database) {
   const originalPrepare = database.prepare;
   // @ts-ignore
   database.prepare = (source: string) => {
-    const statement = originalPrepare.apply(database, [source]);
+    let statement: any;
+    try {
+      statement = originalPrepare.apply(database, [source]);
+    } catch (error_) {
+      // This block is reachable if the database is closed, and possibly in other cases.
+      const error = error_ as Error & { detail?: string; meta?: string };
+      error.name = "SqliteError";
+      Error.captureStackTrace(error);
+
+      const metaMessages = [];
+      if (error.detail) metaMessages.push(`Detail:\n  ${error.detail}`);
+      metaMessages.push(`Statement:\n  ${source}`);
+      error.meta = metaMessages.join("\n");
+
+      throw error;
+    }
+
     const wrapper =
       (fn: (...args: any) => void) =>
       (...args: any) => {

@@ -68,7 +68,8 @@ export interface SyncStore {
   getFactoryChildAddresses(options: {
     chainId: number;
     factory: FactoryCriteria;
-    upToBlockNumber: bigint;
+    fromBlock: bigint;
+    toBlock: bigint;
     pageSize?: number;
   }): AsyncGenerator<Address[]>;
 

@@ -89,7 +89,10 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
         network: "mainnet",
         address: addresses.erc20Address,
         filter: {
-          event: ["Transfer", "Approval"],
+          event: [
+            "Transfer(address indexed from, address indexed to, uint256 amount)",
+            "Approval",
+          ],
         },
       },
       Pair: {
@@ -119,7 +122,10 @@ export const getNetworkAndSources = async (
   const { networks, sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [
-      { name: "Erc20:Transfer", fn: () => {} },
+      {
+        name: "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
+        fn: () => {},
+      },
       { name: "Pair:Swap", fn: () => {} },
     ],
     options: common.options,
