@@ -241,6 +241,23 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
+  // blast (paid)
+  match = sError.match(
+    /exceeds the range allowed for your plan \(\d+ > (\d+)\)/,
+  );
+  if (match !== null) {
+    const ranges = chunk({ params, range: BigInt(match[1]!) });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
   // No match found
   return {
     shouldRetry: false,
