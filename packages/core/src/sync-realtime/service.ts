@@ -173,7 +173,6 @@ export const start = (realtimeSyncService: Service) => {
             if (realtimeSyncService.isKilled) return;
 
             queue.clear();
-            queue.add(newBlock);
             return;
           }
 
@@ -213,7 +212,6 @@ export const start = (realtimeSyncService: Service) => {
 
           if (hasReorg) {
             queue.clear();
-            queue.add(newBlock);
           }
 
           return;
@@ -236,10 +234,13 @@ export const start = (realtimeSyncService: Service) => {
     },
   });
 
-  const enqueue = () =>
-    _eth_getBlockByNumber(realtimeSyncService, {
+  const enqueue = async () => {
+    const block = await _eth_getBlockByNumber(realtimeSyncService, {
       blockTag: "latest",
-    }).then(queue.add);
+    });
+
+    return queue.add(block);
+  };
 
   const interval = setInterval(
     enqueue,
@@ -296,7 +297,7 @@ export const handleBlock = async (
     pendingLatestBlock.logsBloom === zeroLogsBloom ||
     isMatchedLogInBloomFilter({
       bloom: pendingLatestBlock.logsBloom,
-      logFilters: realtimeSyncService.sources.map((s) => s.criteria),
+      logFilters: realtimeSyncService.logFilterSources.map((s) => s.criteria),
     });
 
   if (mustRequestGetLogs) {
@@ -391,30 +392,28 @@ export const handleBlock = async (
     // Validate the local chain by re-requesting logs and checking for inconsistencies
     // between the local and recently fetched data. This is neccessary because
     // degraded rpc providers have trouble indexing logs near the tip of the chain.
-    const hasInvalidLogs = await validateLocalBlockchainState(
-      realtimeSyncService,
-      pendingFinalizedBlock,
-    );
+    try {
+      const hasInvalidLogs = await validateLocalBlockchainState(
+        realtimeSyncService,
+        pendingFinalizedBlock,
+      );
 
-    if (hasInvalidLogs) {
-      realtimeSyncService.common.logger.warn({
-        service: "realtime",
-        msg: `Detected inconsistency between local and remote logs in block range ${
-          realtimeSyncService.finalizedBlock.number + 1
-        } to ${pendingFinalizedBlock.number} (network=${
-          realtimeSyncService.network.name
-        })`,
-      });
-    }
+      if (hasInvalidLogs) {
+        realtimeSyncService.common.logger.warn({
+          service: "realtime",
+          msg: `Detected inconsistency between local and remote logs in block range ${
+            realtimeSyncService.finalizedBlock.number + 1
+          } to ${pendingFinalizedBlock.number} (network=${
+            realtimeSyncService.network.name
+          })`,
+        });
+      }
+    } catch {}
 
     realtimeSyncService.localChain = realtimeSyncService.localChain.filter(
       ({ block }) => block.number > pendingFinalizedBlock.number,
     );
 
-    // TODO: Update this to insert:
-    // 1) Log filter intervals
-    // 2) Factory contract intervals
-    // 3) Child filter intervals
     await realtimeSyncService.syncStore.insertRealtimeInterval({
       chainId: realtimeSyncService.network.chainId,
       logFilters: realtimeSyncService.logFilterSources.map((l) => l.criteria),
@@ -460,12 +459,12 @@ export const handleReorg = async (
   );
 
   // Block we are attempting to fit into the local chain.
-  let reorgedBlock = pendingLatestBlock;
+  let remoteBlock = pendingLatestBlock;
 
   while (true) {
     const parentBlock = getLatestLocalBlock(realtimeSyncService);
 
-    if (parentBlock.hash === reorgedBlock.parentHash) {
+    if (parentBlock.hash === remoteBlock.parentHash) {
       realtimeSyncService.common.logger.trace({
         service: "realtime",
         msg: `Found common ancestor block ${parentBlock.number} (network=${realtimeSyncService.network.name})`,
@@ -497,8 +496,8 @@ export const handleReorg = async (
 
     if (realtimeSyncService.localChain.length === 0) break;
     else {
-      reorgedBlock = await _eth_getBlockByHash(realtimeSyncService, {
-        blockHash: reorgedBlock.parentHash,
+      remoteBlock = await _eth_getBlockByHash(realtimeSyncService, {
+        blockHash: remoteBlock.parentHash,
       });
       realtimeSyncService.localChain.pop();
     }
