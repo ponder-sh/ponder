@@ -175,5 +175,3 @@ export const _eth_getLogs = async (
     ).then((l) => l.flat());
   }
 };
-
-// TODO: Wrap function with retries and metrics

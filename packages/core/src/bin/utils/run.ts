@@ -102,6 +102,7 @@ export async function run({
 
   runCodegen({ common, graphqlSchema });
 
+  // Note: can throw
   const syncService = await createSyncService({
     common,
     syncStore,

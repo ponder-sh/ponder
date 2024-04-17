@@ -239,11 +239,24 @@ export const start = (service: Service) => {
   });
 
   const enqueue = async () => {
-    const block = await _eth_getBlockByNumber(service, {
-      blockTag: "latest",
-    });
+    try {
+      const block = await _eth_getBlockByNumber(service, {
+        blockTag: "latest",
+      });
 
-    return queue.add(block);
+      return queue.add(block);
+    } catch (_error) {
+      if (service.isKilled) return;
+
+      const error = _error as Error;
+
+      service.common.logger.warn({
+        service: "realtime",
+        msg: `Realtime sync task failed (network=${
+          service.network.name
+        }, error=${`${error.name}: ${error.message}`})`,
+      });
+    }
   };
 
   const interval = setInterval(enqueue, service.network.pollingInterval);
