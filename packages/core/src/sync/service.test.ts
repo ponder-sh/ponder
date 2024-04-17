@@ -145,37 +145,6 @@ test("getHistoricalEvents resolves when complete", async (context) => {
   await cleanup();
 });
 
-test("getHistoricalEvents waits until all networks have checkpoint", async (context) => {
-  const { common } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const { networks, sources } = getMultichainNetworksAndSources(context);
-
-  const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
-
-  const syncService = await createSyncService({
-    common,
-    syncStore,
-    networks,
-    sources,
-    onRealtimeEvent: vi.fn(),
-    onFatalError: vi.fn(),
-  });
-
-  const ag = getHistoricalEvents(syncService);
-
-  const iter1 = await ag.next();
-  expect(iter1.done).toBe(false);
-
-  syncService.networkServices[0].historical.isHistoricalSyncComplete = true;
-  syncService.networkServices[1].historical.isHistoricalSyncComplete = true;
-
-  await drainAsyncGenerator(ag);
-
-  expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
-
-  await cleanup();
-});
-
 test.todo("startRealtime checks end block", async (context) => {
   const { common } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);

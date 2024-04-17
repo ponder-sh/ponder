@@ -107,8 +107,9 @@ export const createSyncService = async ({
         }
 
         syncService.checkpoint = newCheckpoint;
+
+        break;
       }
-      break;
 
       case "reorg": {
         syncService.networkServices.find(
@@ -125,8 +126,9 @@ export const createSyncService = async ({
         }
 
         onRealtimeEvent(realtimeSyncEvent);
+
+        break;
       }
-      break;
 
       default:
         never(realtimeSyncEvent);
@@ -144,10 +146,21 @@ export const createSyncService = async ({
         metrics: common.metrics,
       });
 
-      const { latestBlock, finalizedBlock } = await setupSyncForNetwork({
-        network,
-        requestQueue,
-      });
+      const [{ latestBlock, finalizedBlock }, remoteChainId] =
+        await Promise.all([
+          getLatestAndFinalizedBlocks({
+            network,
+            requestQueue,
+          }),
+          requestQueue.request({ method: "eth_chainId" }).then(hexToNumber),
+        ]);
+
+      if (network.chainId !== remoteChainId) {
+        common.logger.warn({
+          service: "sync",
+          msg: `Remote chain ID (${remoteChainId}) does not match configured chain ID (${network.chainId}) for network "${network.name}"`,
+        });
+      }
 
       const historicalSync = new HistoricalSyncService({
         common,
@@ -288,7 +301,8 @@ export const getHistoricalEvents = async function* (
         (ns) => ns.historical.checkpoint,
       );
 
-      // ...
+      // If a network hasn't yet found any checkpoint, it is
+      // impossible to determine a checkpoint amongst all networks.
       if (networkCheckpoints.some((nc) => nc === undefined)) {
         continue;
       }
@@ -359,10 +373,7 @@ export const getCachedTransport = (
   return cachedTransport({ requestQueue, syncStore: syncService.syncStore });
 };
 
-/**
- * ...
- */
-const setupSyncForNetwork = async ({
+const getLatestAndFinalizedBlocks = async ({
   network,
   requestQueue,
 }: { network: Network; requestQueue: RequestQueue }) => {
@@ -370,10 +381,6 @@ const setupSyncForNetwork = async ({
     { requestQueue },
     { blockTag: "latest" },
   );
-
-  // TODO(kyle) validate that the remote chainId
-  // matched the user provided chainId
-  await requestQueue.request({ method: "eth_chainId" }).then(hexToNumber);
 
   const finalizedBlockNumber = Math.max(
     0,
