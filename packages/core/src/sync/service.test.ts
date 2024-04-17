@@ -183,7 +183,10 @@ test("getHistoricalEvents resolves when complete", async (context) => {
   syncService.networkServices[1].historical.isHistoricalSyncComplete = true;
 
   const ag = getHistoricalEvents(syncService);
-  await drainAsyncGenerator(ag);
+
+  // wait for async generator to resolve
+  for await (const _ of ag) {
+  }
 
   expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
 

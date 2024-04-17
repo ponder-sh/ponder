@@ -20,10 +20,7 @@ export type RealtimeEvent =
   | {
       type: "newEvents";
       events: Event[];
-    }
-  | {
-      type: "finalized";
-      checkpoint: Checkpoint;
+      lastEventCheckpoint: Checkpoint | undefined;
     }
   | {
       type: "reorg";
@@ -136,8 +133,15 @@ export async function run({
     };
   }
 
-  const handleEvents = async (events: Event[]) => {
+  const handleEvents = async (
+    events: Event[],
+    lastEventCheckpoint: Checkpoint | undefined,
+  ) => {
     if (events.length === 0) return;
+
+    if (lastEventCheckpoint !== undefined) {
+      indexingService.updateLastEventCheckpoint(lastEventCheckpoint);
+    }
 
     const result = await indexingService.processEvents({
       events,
@@ -152,8 +156,11 @@ export async function run({
   };
 
   // Run historical indexing until complete.
-  for await (const events of syncService.getHistoricalEvents()) {
-    await handleEvents(events);
+  for await (const {
+    events,
+    lastEventCheckpoint,
+  } of syncService.getHistoricalEvents()) {
+    await handleEvents(events, lastEventCheckpoint);
   }
 
   // Become healthy
@@ -186,15 +193,14 @@ export async function run({
     worker: async (realtimeEvent: RealtimeEvent) => {
       switch (realtimeEvent.type) {
         case "newEvents":
-          await handleEvents(realtimeEvent.events);
+          await handleEvents(
+            realtimeEvent.events,
+            realtimeEvent.lastEventCheckpoint,
+          );
           break;
 
         case "reorg":
           await handleReorg(realtimeEvent.safeCheckpoint);
-          break;
-
-        case "finalized":
-          // No-op
           break;
 
         default:

@@ -113,6 +113,13 @@ export const create = async ({
         syncService.checkpoint = newCheckpoint;
 
         (async () => {
+          const lastEventCheckpointPromise =
+            syncService.syncStore.getLastEventCheckpoint({
+              sources: syncService.sources,
+              fromCheckpoint,
+              toCheckpoint,
+            });
+
           for await (const rawEvents of syncStore.getLogEvents({
             sources,
             fromCheckpoint,
@@ -124,6 +131,7 @@ export const create = async ({
             await onRealtimeEvent({
               type: "newEvents",
               events: decodeEvents({ common, sourceById }, rawEvents),
+              lastEventCheckpoint: await lastEventCheckpointPromise,
             });
           }
         })();
@@ -313,7 +321,10 @@ export const startHistorical = (syncService: Service) => {
  */
 export const getHistoricalEvents = async function* (
   syncService: Service,
-): AsyncGenerator<Event[]> {
+): AsyncGenerator<{
+  events: Event[];
+  lastEventCheckpoint: Checkpoint | undefined;
+}> {
   while (true) {
     if (syncService.isKilled) return;
 
@@ -328,13 +339,23 @@ export const getHistoricalEvents = async function* (
         ),
       );
 
+      const lastEventCheckpointPromise =
+        syncService.syncStore.getLastEventCheckpoint({
+          sources: syncService.sources,
+          fromCheckpoint: syncService.checkpoint,
+          toCheckpoint: finalityCheckpoint,
+        });
+
       for await (const rawEvents of syncService.syncStore.getLogEvents({
         sources: syncService.sources,
         fromCheckpoint: syncService.checkpoint,
         toCheckpoint: finalityCheckpoint,
         limit: 1_000,
       })) {
-        yield decodeEvents(syncService, rawEvents);
+        yield {
+          events: decodeEvents(syncService, rawEvents),
+          lastEventCheckpoint: await lastEventCheckpointPromise,
+        };
       }
 
       syncService.checkpoint = finalityCheckpoint;
@@ -361,13 +382,23 @@ export const getHistoricalEvents = async function* (
         continue;
       }
 
+      const lastEventCheckpointPromise =
+        syncService.syncStore.getLastEventCheckpoint({
+          sources: syncService.sources,
+          fromCheckpoint: syncService.checkpoint,
+          toCheckpoint: newCheckpoint,
+        });
+
       for await (const rawEvents of syncService.syncStore.getLogEvents({
         sources: syncService.sources,
         fromCheckpoint: syncService.checkpoint,
         toCheckpoint: newCheckpoint,
         limit: 1_000,
       })) {
-        yield decodeEvents(syncService, rawEvents);
+        yield {
+          events: decodeEvents(syncService, rawEvents),
+          lastEventCheckpoint: await lastEventCheckpointPromise,
+        };
       }
 
       syncService.checkpoint = newCheckpoint;
