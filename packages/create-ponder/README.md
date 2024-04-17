@@ -2,7 +2,6 @@
 
 [![CI status][ci-badge]][ci-url]
 [![Version][version-badge]][version-url]
-
 [![Telegram chat][tg-badge]][tg-url]
 [![License][license-badge]][license-url]
 
@@ -62,41 +61,47 @@ Ponder fetches event logs for the contracts added to `ponder.config.ts`, and pas
 
 ```ts
 // ponder.config.ts
-import { http } from "viem";
 
-export const config = {
-  networks: [
-    {
-      name: "mainnet",
+import { createConfig } from "@ponder/core";
+import { http } from "viem";
+ 
+import { BaseRegistrarAbi } from "./abis/BaseRegistrar";
+ 
+export default createConfig({
+  networks: {
+    mainnet: { 
       chainId: 1,
-      transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+      transport: http("https://eth-mainnet.g.alchemy.com/v2/...")
     },
-  ],
-  contracts: [
-    {
-      name: "BaseRegistrar",
+  },
+  contracts: {
+    BaseRegistrar: {
+      abi: BaseRegistrarAbi,
       network: "mainnet",
-      abi: "./abis/BaseRegistrar.json",
       address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
       startBlock: 9380410,
     },
-  ],
-};
+  },
+});
 ```
 
 ### 4. Define your schema
 
-The `schema.graphql` file contains a model of your application data. The entity types defined here correspond to database tables.
+The `ponder.schema.ts` file contains the database schema, and defines the shape data that the GraphQL API serves.
 
 ```ts
-// schema.graphql
+// ponder.schema.ts
 
-type EnsName @entity {
-  id: String!
-  name: String!
-  owner: String!
-  registeredAt: Int!
-}
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  EnsName: p.createTable({
+    id: p.string(),
+    name: p.string(),
+    owner: p.string(),
+    registeredAt: p.int(),
+  }),
+}));
 ```
 
 ### 5. Write indexing functions
@@ -123,36 +128,40 @@ ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
 });
 ```
 
-See the [create & update entities](https://ponder.sh/guides/create-update-entities) docs for a detailed guide on writing indexing functions.
+See the [create & update records](https://ponder.sh/docs/guides/create-update-records) docs for a detailed guide on writing indexing functions.
 
 ### 6. Query the GraphQL API
 
-Ponder automatically generates a frontend-ready GraphQL API based on your project's `schema.graphql`. The API serves the data that you inserted in your indexing functions.
+Ponder automatically generates a frontend-ready GraphQL API based on your `ponder.schema.ts` file. The API serves data that you inserted in your indexing functions.
 
 ```ts
 {
-  ensNames(first: 2) {
-    name
-    owner
-    registeredAt
+  ensNames(limit: 2) {
+    items {
+      name
+      owner
+      registeredAt
+    }
   }
 }
 ```
 
 ```json
 {
-  "ensNames": [
-    {
-      "name": "vitalik.eth",
-      "owner": "0x0904Dac3347eA47d208F3Fd67402D039a3b99859",
-      "registeredAt": 1580345271
-    },
-    {
-      "name": "joe.eth",
-      "owner": "0x6109DD117AA5486605FC85e040ab00163a75c662",
-      "registeredAt": 1580754710
-    }
-  ]
+  "ensNames": {
+    "items": [
+      {
+        "name": "vitalik.eth",
+        "owner": "0x0904Dac3347eA47d208F3Fd67402D039a3b99859",
+        "registeredAt": 1580345271
+      },
+      {
+        "name": "joe.eth",
+        "owner": "0x6109DD117AA5486605FC85e040ab00163a75c662",
+        "registeredAt": 1580754710
+      }
+    ]
+  }
 }
 ```
 
@@ -165,6 +174,7 @@ If you're interested in contributing to Ponder, please read the [contribution gu
 ## Packages
 
 - `@ponder/core`
+- `@ponder/utils`
 - `create-ponder`
 - `eslint-config-ponder`
 
