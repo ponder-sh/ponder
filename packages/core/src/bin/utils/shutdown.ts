@@ -25,6 +25,7 @@ export function setupShutdown({
         service: "process",
         msg: "Failed to shutdown within 5 seconds, terminating (exit code 1)",
       });
+      common.logger.kill();
       process.exit(1);
     }, SHUTDOWN_GRACE_PERIOD_MS);
 
@@ -47,6 +48,7 @@ export function setupShutdown({
       msg: `Finished shutdown sequence, terminating (exit code ${code})`,
     });
 
+    common.logger.kill();
     process.exit(code);
   };
 

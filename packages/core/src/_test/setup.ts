@@ -49,11 +49,13 @@ export function setupContext(context: TestContext) {
     telemetryDisabled: true,
   };
   const logger = new LoggerService({ level: "silent" });
-  context.common = {
-    options,
-    logger,
-    metrics: new MetricsService(),
-    telemetry: createTelemetry({ options, logger }),
+  const metrics = new MetricsService();
+  const telemetry = createTelemetry({ options, logger });
+  context.common = { options, logger, metrics, telemetry };
+
+  return async () => {
+    await telemetry.kill();
+    logger.kill();
   };
 }
 

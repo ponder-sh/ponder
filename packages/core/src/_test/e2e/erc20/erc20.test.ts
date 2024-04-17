@@ -7,7 +7,7 @@ import { serve } from "@/bin/commands/serve.js";
 import { start } from "@/bin/commands/start.js";
 import { range } from "@/utils/range.js";
 import { wait } from "@/utils/wait.js";
-import { rimrafSync } from "rimraf";
+import { rimraf } from "rimraf";
 import { zeroAddress } from "viem";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
@@ -16,9 +16,9 @@ beforeEach(setupIsolatedDatabase);
 
 const rootDir = path.join(".", "src", "_test", "e2e", "erc20");
 
-afterEach(() => {
-  rimrafSync(path.join(rootDir, ".ponder"));
-  rimrafSync(path.join(rootDir, "generated"));
+afterEach(async () => {
+  await rimraf(path.join(rootDir, ".ponder"));
+  await rimraf(path.join(rootDir, "generated"));
 });
 
 test("erc20", async (context) => {
