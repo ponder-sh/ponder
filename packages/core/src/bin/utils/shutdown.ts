@@ -1,3 +1,5 @@
+import os from "node:os";
+import readline from "node:readline";
 import type { Common } from "@/common/common.js";
 
 const SHUTDOWN_GRACE_PERIOD_MS = 5_000;
@@ -52,34 +54,39 @@ export function setupShutdown({
     process.exit(code);
   };
 
-  process.on(
-    "SIGINT",
-    async () => await shutdown({ reason: "Received SIGINT", code: 0 }),
+  if (os.platform() === "win32") {
+    const readlineInterface = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+    readlineInterface.on("SIGINT", () =>
+      shutdown({ reason: "Received SIGINT", code: 0 }),
+    );
+  }
+
+  process.on("SIGINT", () => shutdown({ reason: "Received SIGINT", code: 0 }));
+  process.on("SIGTERM", () =>
+    shutdown({ reason: "Received SIGTERM", code: 0 }),
   );
-  process.on(
-    "SIGTERM",
-    async () => await shutdown({ reason: "Received SIGTERM", code: 0 }),
-  );
-  process.on(
-    "SIGQUIT",
-    async () => await shutdown({ reason: "Received SIGQUIT", code: 0 }),
+  process.on("SIGQUIT", () =>
+    shutdown({ reason: "Received SIGQUIT", code: 0 }),
   );
 
-  process.on("uncaughtException", async (error: Error) => {
+  process.on("uncaughtException", (error: Error) => {
     common.logger.error({
       service: "process",
       msg: "Caught uncaughtException event with error:",
       error,
     });
-    await shutdown({ reason: "Received uncaughtException", code: 1 });
+    shutdown({ reason: "Received uncaughtException", code: 1 });
   });
-  process.on("unhandledRejection", async (error: Error) => {
+  process.on("unhandledRejection", (error: Error) => {
     common.logger.error({
       service: "process",
       msg: "Caught unhandledRejection event with error:",
       error,
     });
-    await shutdown({ reason: "Received unhandledRejection", code: 1 });
+    shutdown({ reason: "Received unhandledRejection", code: 1 });
   });
 
   return shutdown;
