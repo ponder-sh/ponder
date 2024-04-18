@@ -45,13 +45,12 @@ jobs:
 
   test:
     name: Test [core]
-    runs-on: ${{ matrix.os == 'Linux' && 'ubuntu-latest' || 'windows-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
         database: [Postgres, SQLite]
-        os: [Linux, Windows]
     steps:
       - name: Clone repository
         uses: actions/checkout@v4

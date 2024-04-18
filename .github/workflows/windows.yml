@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Windows Test [core]
+    runs-on: windows-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [Postgres, SQLite]
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Setup Postgres
+        if: ${{ matrix.database == 'Postgres' }}
+        uses: ikalnytskyi/action-setup-postgres@v4
+        id: postgres
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Codegen
+        run: cd packages/core/ && pnpm wagmi generate
+
+      - name: Test
+        run: pnpm --filter core test:typecheck
+        env:
+          DATABASE_URL: ${{ matrix.database == 'Postgres' && steps.postgres.outputs.connection-uri || '' }}
+
+  test-create-ponder:
+    name: Windows Test [create-ponder]
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Test
+        run: pnpm --filter create-ponder test
+        env:
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
