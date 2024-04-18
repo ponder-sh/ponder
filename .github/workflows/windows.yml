@@ -1,4 +1,4 @@
-name: Release
+name: Main
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Windows Test [core]
+    name: Test Windows [core]
     runs-on: windows-latest
     timeout-minutes: 5
     strategy:
@@ -36,7 +36,7 @@ jobs:
           DATABASE_URL: ${{ matrix.database == 'Postgres' && steps.postgres.outputs.connection-uri || '' }}
 
   test-create-ponder:
-    name: Windows Test [create-ponder]
+    name: Test Windows [create-ponder]
     runs-on: windows-latest
     timeout-minutes: 5
     steps:

@@ -20,6 +20,6 @@ export default defineConfig({
       },
     },
     sequence: { hooks: "stack" },
-    testTimeout: os.platform() === "win32" ? 30_000 : undefined,
+    testTimeout: os.platform() === "win32" ? 30_000 : 10_000,
   },
 });
