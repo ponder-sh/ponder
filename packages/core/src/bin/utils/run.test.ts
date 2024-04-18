@@ -99,7 +99,7 @@ test("run() setup error", async (context) => {
     onReloadableError,
   });
 
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(4);
+  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
   expect(onReloadableError).toHaveBeenCalledOnce();
 
   await kill();

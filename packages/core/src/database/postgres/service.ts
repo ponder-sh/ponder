@@ -45,7 +45,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   private publishSchema?: string | undefined;
 
   db: HeadlessKysely<InternalTables>;
-  indexingDb: HeadlessKysely<InternalTables>;
+  indexingDb: HeadlessKysely<any>;
   syncDb: HeadlessKysely<SyncStoreTables>;
 
   private schema: Schema = null!;
@@ -346,17 +346,14 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
   async revert({
     checkpoint,
-    isCheckpointSafe,
     namespaceInfo,
   }: {
     checkpoint: Checkpoint;
-    isCheckpointSafe: boolean;
     namespaceInfo: NamespaceInfo;
   }) {
     await revertIndexingTables({
       db: this.indexingDb,
       checkpoint,
-      isCheckpointSafe,
       namespaceInfo,
     });
   }

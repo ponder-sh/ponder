@@ -45,8 +45,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   private syncDatabase: SqliteDatabase;
 
   db: HeadlessKysely<InternalTables>;
-  // TODO(kyle) is this right?
-  indexingDb: HeadlessKysely<InternalTables>;
+  indexingDb: HeadlessKysely<any>;
   syncDb: HeadlessKysely<SyncStoreTables>;
 
   private buildId: string = null!;
@@ -337,17 +336,14 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
   async revert({
     checkpoint,
-    isCheckpointSafe,
     namespaceInfo,
   }: {
     checkpoint: Checkpoint;
-    isCheckpointSafe: boolean;
     namespaceInfo: NamespaceInfo;
   }) {
     await revertIndexingTables({
       db: this.indexingDb,
       checkpoint,
-      isCheckpointSafe,
       namespaceInfo,
     });
   }

@@ -8,7 +8,6 @@ import {
 import { getEventsErc20 } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { createSyncService } from "@/sync/index.js";
-import { decodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { type Address, checksumAddress, parseEther, toHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -506,61 +505,6 @@ test("executeSetup() metrics", async (context) => {
   await cleanup();
 });
 
-test("executeSetup() retry", async (context) => {
-  const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const syncService = await createSyncService({
-    common,
-    syncStore,
-    networks,
-    sources,
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-  });
-
-  const indexingFunctions = {
-    "Erc20:setup": vi.fn(),
-  };
-
-  const revertSpy = vi.spyOn(indexingStore, "revert");
-
-  const indexingService = create({
-    indexingFunctions,
-    common,
-    sources,
-    networks,
-    syncService,
-    indexingStore,
-    schema,
-  });
-
-  indexingFunctions["Erc20:setup"].mockRejectedValueOnce(new Error());
-
-  const result = await processSetupEvents(indexingService, {
-    sources,
-    networks,
-  });
-  expect(result).toStrictEqual({ status: "success" });
-
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(2);
-
-  expect(revertSpy).toHaveBeenCalledTimes(1);
-  expect(revertSpy).toHaveBeenCalledWith({
-    checkpoint: {
-      ...zeroCheckpoint,
-      chainId: 1,
-      blockNumber: 0,
-    },
-    isCheckpointSafe: false,
-  });
-
-  await cleanup();
-});
-
 test("executeSetup() error", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
@@ -581,8 +525,6 @@ test("executeSetup() error", async (context) => {
     "Erc20:setup": vi.fn(),
   };
 
-  const revertSpy = vi.spyOn(indexingStore, "revert");
-
   const indexingService = create({
     indexingFunctions,
     common,
@@ -601,8 +543,7 @@ test("executeSetup() error", async (context) => {
   });
   expect(result).toStrictEqual({ status: "error", error: expect.any(Error) });
 
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(4);
-  expect(revertSpy).toHaveBeenCalledTimes(3);
+  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
 
   await cleanup();
 });
@@ -760,67 +701,6 @@ test("executeLog() metrics", async (context) => {
   await cleanup();
 });
 
-test("executeLog() retry", async (context) => {
-  const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const syncService = await createSyncService({
-    common,
-    syncStore,
-    networks,
-    sources,
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-  });
-
-  const indexingFunctions = {
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      vi.fn(),
-  };
-
-  const revertSpy = vi.spyOn(indexingStore, "revert");
-
-  const indexingService = create({
-    indexingFunctions,
-    common,
-    sources,
-    networks,
-    syncService,
-    indexingStore,
-    schema,
-  });
-
-  indexingFunctions[
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-  ].mockRejectedValueOnce(new Error());
-
-  const rawEvents = await getEventsErc20(sources);
-  const events = decodeEvents(syncService, rawEvents);
-  const result = await processEvents(indexingService, {
-    events,
-  });
-
-  expect(result).toStrictEqual({
-    status: "success",
-  });
-  expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
-  ).toHaveBeenCalledTimes(3);
-
-  expect(revertSpy).toHaveBeenCalledTimes(1);
-  expect(revertSpy).toHaveBeenCalledWith({
-    checkpoint: decodeCheckpoint(events[0].encodedCheckpoint),
-    isCheckpointSafe: false,
-  });
-
-  await cleanup();
-});
-
 test("executeLog() error", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
@@ -841,8 +721,6 @@ test("executeLog() error", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
       vi.fn(),
   };
-
-  const revertSpy = vi.spyOn(indexingStore, "revert");
 
   const indexingService = create({
     indexingFunctions,
@@ -872,8 +750,7 @@ test("executeLog() error", async (context) => {
     indexingFunctions[
       "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
     ],
-  ).toHaveBeenCalledTimes(4);
-  expect(revertSpy).toHaveBeenCalledTimes(3);
+  ).toHaveBeenCalledTimes(1);
 
   await cleanup();
 });

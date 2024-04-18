@@ -193,7 +193,6 @@ export async function run({
   const handleReorg = async (safeCheckpoint: Checkpoint) => {
     await database.revert({
       checkpoint: safeCheckpoint,
-      isCheckpointSafe: true,
       namespaceInfo,
     });
   };

@@ -15,7 +15,9 @@ import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { createSchema } from "@/index.js";
-import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
+import { getHistoricalIndexingStore } from "@/indexing-store/historicalStore.js";
+import { getReadIndexingStore } from "@/indexing-store/readStore.js";
+import { getRealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
@@ -137,12 +139,27 @@ export async function setupDatabaseServices(
 
     await database.migrateSyncStore();
 
-    const indexingStore = new RealtimeIndexingStore({
-      kind: "sqlite",
-      schema: config.schema,
-      namespaceInfo: result.namespaceInfo,
-      db: database.indexingDb,
-    });
+    const indexingStore = {
+      ...getReadIndexingStore({
+        kind: "sqlite",
+        schema: config.schema,
+        namespaceInfo: result.namespaceInfo,
+        db: database.indexingDb,
+      }),
+      ...(config.indexing === "historical"
+        ? getHistoricalIndexingStore({
+            kind: "sqlite",
+            schema: config.schema,
+            namespaceInfo: result.namespaceInfo,
+            db: database.indexingDb,
+          })
+        : getRealtimeIndexingStore({
+            kind: "sqlite",
+            schema: config.schema,
+            namespaceInfo: result.namespaceInfo,
+            db: database.indexingDb,
+          })),
+    };
 
     const syncStore = new SqliteSyncStore({ db: database.syncDb });
 
@@ -166,12 +183,27 @@ export async function setupDatabaseServices(
 
     await database.migrateSyncStore();
 
-    const indexingStore = new RealtimeIndexingStore({
-      kind: "postgres",
-      schema: config.schema,
-      namespaceInfo: result.namespaceInfo,
-      db: database.indexingDb,
-    });
+    const indexingStore = {
+      ...getReadIndexingStore({
+        kind: "sqlite",
+        schema: config.schema,
+        namespaceInfo: result.namespaceInfo,
+        db: database.indexingDb,
+      }),
+      ...(config.indexing === "historical"
+        ? getHistoricalIndexingStore({
+            kind: "sqlite",
+            schema: config.schema,
+            namespaceInfo: result.namespaceInfo,
+            db: database.indexingDb,
+          })
+        : getRealtimeIndexingStore({
+            kind: "sqlite",
+            schema: config.schema,
+            namespaceInfo: result.namespaceInfo,
+            db: database.indexingDb,
+          })),
+    };
 
     const syncStore = new PostgresSyncStore({ db: database.syncDb });
 

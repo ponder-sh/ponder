@@ -4,14 +4,12 @@ import type { NamespaceInfo } from "./service.js";
 
 export const revertIndexingTables = async ({
   checkpoint,
-  isCheckpointSafe,
   namespaceInfo,
   db,
 }: {
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
   checkpoint: Checkpoint;
-  isCheckpointSafe: boolean;
 }) => {
   await db.wrap({ method: "revert" }, async () => {
     const encodedCheckpoint = encodeCheckpoint(checkpoint);
@@ -24,11 +22,7 @@ export const revertIndexingTables = async ({
               .withSchema(namespaceInfo.internalNamespace)
               .deleteFrom(tableId)
               .returningAll()
-              .where(
-                "checkpoint",
-                isCheckpointSafe ? ">" : ">=",
-                encodedCheckpoint,
-              )
+              .where("checkpoint", ">", encodedCheckpoint)
               .execute();
 
             const reversed = rows.sort(
