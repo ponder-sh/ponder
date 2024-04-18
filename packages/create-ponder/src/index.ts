@@ -297,8 +297,6 @@ export async function run({
 
   // Copy template contents into the target path
   const templatePath = path.join(templatesPath, templateMeta.id);
-  // Create the target directory if it does not exist. This is
-  // mkdirSync(targetPath, { recursive: true });
   await cpy(path.join(templatePath, "**", "*"), projectPath, {
     rename: (name) => name.replace(/^_dot_/, "."),
   });
