@@ -212,6 +212,25 @@ export const start = async (
       // If no files were invalidated, no need to reload.
       if (invalidated.length === 0) return;
 
+      // Note that the paths in `invalidated` are POSIX, so we need to
+      // convert the paths in `options` to POSIX for this comparison.
+      // The `srcDir` regex is already converted to POSIX.
+      const hasConfigUpdate = invalidated.includes(
+        common.options.configFile.replace(/\\/g, "/"),
+      );
+      const hasSchemaUpdate = invalidated.includes(
+        common.options.schemaFile.replace(/\\/g, "/"),
+      );
+      const hasIndexingFunctionUpdate = invalidated.some((file) =>
+        buildService.srcRegex.test(file),
+      );
+
+      // This branch could trigger if you change a `note.txt` file within `src/`.
+      // Note: We could probably do a better job filtering out files in `isFileIgnored`.
+      if (!hasConfigUpdate && !hasSchemaUpdate && !hasIndexingFunctionUpdate) {
+        return;
+      }
+
       common.logger.info({
         service: "build",
         msg: `Hot reload ${invalidated
@@ -219,43 +238,31 @@ export const start = async (
           .join(", ")}`,
       });
 
-      // Note that the paths in `invalidated` are POSIX, so we need to
-      // convert the paths in `options` to POSIX for this comparison.
-      if (invalidated.includes(common.options.configFile.replace(/\\/g, "/"))) {
-        const executeConfigResult = await executeConfig(buildService);
-        if (executeConfigResult.status === "error") {
-          onBuild({ status: "error", error: executeConfigResult.error });
+      if (hasConfigUpdate) {
+        const result = await executeConfig(buildService);
+        if (result.status === "error") {
+          onBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.config = executeConfigResult.config;
+        rawBuild.config = result.config;
       }
 
-      if (invalidated.includes(common.options.schemaFile.replace(/\\/g, "/"))) {
-        const executeSchemaResult = await executeSchema(buildService);
-        if (executeSchemaResult.status === "error") {
-          onBuild({ status: "error", error: executeSchemaResult.error });
+      if (hasSchemaUpdate) {
+        const result = await executeSchema(buildService);
+        if (result.status === "error") {
+          onBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.schema = executeSchemaResult.schema;
+        rawBuild.schema = result.schema;
       }
-
-      // Note that `srcRegex` is already converted to POSIX.
-      const hasIndexingFunctionUpdate = invalidated.some((file) =>
-        buildService.srcRegex.test(file),
-      );
 
       if (hasIndexingFunctionUpdate) {
-        const executeIndexingFunctionsResult =
-          await executeIndexingFunctions(buildService);
-        if (executeIndexingFunctionsResult.status === "error") {
-          onBuild({
-            status: "error",
-            error: executeIndexingFunctionsResult.error,
-          });
+        const result = await executeIndexingFunctions(buildService);
+        if (result.status === "error") {
+          onBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.indexingFunctions =
-          executeIndexingFunctionsResult.indexingFunctions;
+        rawBuild.indexingFunctions = result.indexingFunctions;
       }
 
       const buildResult = await validateAndBuild(buildService, rawBuild);
