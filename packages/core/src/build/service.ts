@@ -27,7 +27,7 @@ import { parseViteNodeError } from "./stacktrace.js";
 export type Service = {
   // static
   common: Common;
-  indexingFunctionRegex: RegExp;
+  srcRegex: RegExp;
 
   // vite
   viteDevServer: ViteDevServer;
@@ -64,12 +64,13 @@ export const create = async ({
 }: {
   common: Common;
 }): Promise<Service> => {
-  const indexingFunctionRegex = new RegExp(
-    `^${common.options.srcDir.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      "\\$&",
-    )}/.*\\.(js|ts)$`,
-  );
+  const escapeRegex = /[.*+?^${}()|[\]\\]/g;
+  const escapedSrcDir = common.options.srcDir
+    // If on Windows, use a POSIX path for this regex.
+    .replace(/\\/g, "/")
+    // Escape special characters in the path.
+    .replace(escapeRegex, "\\$&");
+  const srcRegex = new RegExp(`^${escapedSrcDir}/.*\\.(ts|js)$`);
 
   const viteLogger = {
     warnedMessages: new Set<string>(),
@@ -121,7 +122,7 @@ export const create = async ({
 
   return {
     common,
-    indexingFunctionRegex,
+    srcRegex,
     viteDevServer,
     viteNodeServer,
     viteNodeRunner,
@@ -196,12 +197,14 @@ export const start = async (
     const onFileChange = async (_file: string) => {
       if (isFileIgnored(_file)) return;
 
+      // Note that `toFilePath` always returns a POSIX path, even if you pass a Windows path.
       const file = toFilePath(
         normalizeModuleId(_file),
         common.options.rootDir,
       ).path;
 
       // Invalidate all modules that depend on the updated files.
+      // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.
       const invalidated = [
         ...buildService.viteNodeRunner.moduleCache.invalidateDepTree([file]),
       ];
@@ -216,7 +219,9 @@ export const start = async (
           .join(", ")}`,
       });
 
-      if (invalidated.includes(common.options.configFile)) {
+      // Note that the paths in `invalidated` are POSIX, so we need to
+      // convert the paths in `options` to POSIX for this comparison.
+      if (invalidated.includes(common.options.configFile.replace(/\\/g, "/"))) {
         const executeConfigResult = await executeConfig(buildService);
         if (executeConfigResult.status === "error") {
           onBuild({ status: "error", error: executeConfigResult.error });
@@ -225,7 +230,7 @@ export const start = async (
         rawBuild.config = executeConfigResult.config;
       }
 
-      if (invalidated.includes(common.options.schemaFile)) {
+      if (invalidated.includes(common.options.schemaFile.replace(/\\/g, "/"))) {
         const executeSchemaResult = await executeSchema(buildService);
         if (executeSchemaResult.status === "error") {
           onBuild({ status: "error", error: executeSchemaResult.error });
@@ -234,9 +239,11 @@ export const start = async (
         rawBuild.schema = executeSchemaResult.schema;
       }
 
+      // Note that `srcRegex` is already converted to POSIX.
       const hasIndexingFunctionUpdate = invalidated.some((file) =>
-        buildService.indexingFunctionRegex.test(file),
+        buildService.srcRegex.test(file),
       );
+
       if (hasIndexingFunctionUpdate) {
         const executeIndexingFunctionsResult =
           await executeIndexingFunctions(buildService);
