@@ -3,4 +3,4 @@
 "@ponder/core": patch
 ---
 
-Added support for Windows without WSL (PowerShell).
+Added support for Windows via PowerShell and command prompt (cmd.exe).
