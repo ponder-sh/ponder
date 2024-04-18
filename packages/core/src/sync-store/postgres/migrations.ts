@@ -536,6 +536,105 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_04_09_0_transaction_receipts": {
+    async up(db: Kysely<any>) {
+      // TODO(kyle) Migrate tables instead of dropping
+      await db.schema.dropTable("logFilters").cascade().ifExists().execute();
+      await db.schema
+        .dropTable("logFilterIntervals")
+        .cascade()
+        .ifExists()
+        .execute();
+      await db.schema.dropTable("factories").cascade().ifExists().execute();
+      await db.schema
+        .dropTable("factoryLogFilterIntervals")
+        .cascade()
+        .ifExists()
+        .execute();
+
+      await db.schema
+        .createTable("logFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${topic0}_${topic1}_${topic2}_${topic3}_${includeTransactionReceipts}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(66)")
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
+        .execute();
+      await db.schema
+        .createTable("logFilterIntervals")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("logFilterId", "text", (col) =>
+          col.notNull().references("logFilters.id"),
+        )
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("logFilterIntervalsLogFilterId")
+        .on("logFilterIntervals")
+        .column("logFilterId")
+        .execute();
+      await db.schema
+        .createTable("factories")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${eventSelector}_${childAddressLocation}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
+        .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
+        .execute();
+      await db.schema
+        .createTable("factoryLogFilterIntervals")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("factoryId", "text", (col) =>
+          col.notNull().references("factories.id"),
+        )
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("factoryLogFilterIntervalsFactoryId")
+        .on("factoryLogFilterIntervals")
+        .column("factoryId")
+        .execute();
+
+      await db.schema
+        .createTable("transactionReceipts")
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("contractAddress", "varchar(66)")
+        .addColumn("cumulativeGasUsed", "numeric(78, 0)", (col) =>
+          col.notNull(),
+        )
+        .addColumn("effectiveGasPrice", "numeric(78, 0)", (col) =>
+          col.notNull(),
+        )
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
+        // .addColumn("logs", "text", (col) => col.notNull())
+        .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
+        .addColumn("status", "text", (col) => col.notNull())
+        .addColumn("to", "varchar(42)")
+        .addColumn("transactionHash", "varchar(66)", (col) =>
+          col.notNull().primaryKey(),
+        )
+        .addColumn("transactionIndex", "integer", (col) => col.notNull())
+        .addColumn("type", "text", (col) => col.notNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

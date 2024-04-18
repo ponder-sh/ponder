@@ -46,7 +46,7 @@ test("setup creates tables", async (context) => {
   await cleanup();
 });
 
-test("insertLogFilterInterval inserts block, transactions, and logs", async (context) => {
+test("insertLogFilterInterval inserts block, transactions, receipts, and logs", async (context) => {
   const { erc20, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -70,6 +70,12 @@ test("insertLogFilterInterval inserts block, transactions, and logs", async (con
     .selectAll()
     .execute();
   expect(transactions).toHaveLength(2);
+
+  const transactionReceipts = await syncStore.db
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
+  expect(transactionReceipts).toHaveLength(2);
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
@@ -114,6 +120,7 @@ test("insertLogFilterInterval inserts log filter intervals", async (context) => 
     logFilter: {
       address: ["0xa", "0xb"],
       topics: [["0xc", "0xd"], null, "0xe", null],
+      includeTransactionReceipts: false,
     },
     ...rpcData.block1,
     interval: { startBlock: 0n, endBlock: 100n },
@@ -124,6 +131,7 @@ test("insertLogFilterInterval inserts log filter intervals", async (context) => 
     logFilter: {
       address: ["0xa", "0xb"],
       topics: [["0xc", "0xd"], null, "0xe", null],
+      includeTransactionReceipts: false,
     },
   });
 
@@ -286,6 +294,7 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
     logFilter: {
       address: ["0xa", "0xb"],
       topics: [["0xc", "0xd"], null, "0xe", null],
+      includeTransactionReceipts: false,
     },
     ...rpcData.block1,
     interval: { startBlock: 0n, endBlock: 100n },
@@ -294,7 +303,11 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
   // This is a narrower inclusion criteria on `address` and `topic0`. Full range is available.
   let logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { address: ["0xa"], topics: [["0xc"], null, "0xe", null] },
+    logFilter: {
+      address: ["0xa"],
+      topics: [["0xc"], null, "0xe", null],
+      includeTransactionReceipts: false,
+    },
   });
 
   expect(logFilterRanges).toMatchObject([[0, 100]]);
@@ -302,7 +315,11 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
   // This is a broader inclusion criteria on `address`. No ranges available.
   logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { address: undefined, topics: [["0xc"], null, "0xe", null] },
+    logFilter: {
+      address: undefined,
+      topics: [["0xc"], null, "0xe", null],
+      includeTransactionReceipts: false,
+    },
   });
 
   expect(logFilterRanges).toMatchObject([]);
@@ -310,7 +327,11 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
   // This is a narrower inclusion criteria on `topic1`. Full range available.
   logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { address: ["0xa"], topics: [["0xc"], "0xd", "0xe", null] },
+    logFilter: {
+      address: ["0xa"],
+      topics: [["0xc"], "0xd", "0xe", null],
+      includeTransactionReceipts: false,
+    },
   });
 
   expect(logFilterRanges).toMatchObject([[0, 100]]);
@@ -331,7 +352,10 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { topics: [null, ["0xc", "0xd"], null, null] },
+    logFilter: {
+      topics: [null, ["0xc", "0xd"], null, null],
+      includeTransactionReceipts: false,
+    },
     ...rpcData.block1,
     interval: { startBlock: 150n, endBlock: 250n },
   });
@@ -346,7 +370,10 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
   // Narrower criteria includes both broad and specific intervals.
   logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { topics: [null, "0xc", null, null] },
+    logFilter: {
+      topics: [null, "0xc", null, null],
+      includeTransactionReceipts: false,
+    },
   });
   expect(logFilterIntervals).toMatchObject([
     [0, 100],
@@ -362,7 +389,10 @@ test("getLogFilterIntervals merges overlapping intervals that both match a filte
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { topics: [["0xc", "0xd"], null, null, null] },
+    logFilter: {
+      topics: [["0xc", "0xd"], null, null, null],
+      includeTransactionReceipts: false,
+    },
     ...rpcData.block1,
     interval: { startBlock: 0n, endBlock: 50n },
   });
@@ -373,6 +403,7 @@ test("getLogFilterIntervals merges overlapping intervals that both match a filte
     logFilter: {
       address: "0xaddress",
       topics: [["0xc"], null, null, null],
+      includeTransactionReceipts: false,
     },
   });
   expect(logFilterIntervals).toMatchObject([[0, 50]]);
@@ -382,6 +413,7 @@ test("getLogFilterIntervals merges overlapping intervals that both match a filte
     logFilter: {
       address: "0xaddress",
       topics: [["0xc"], null, null, null],
+      includeTransactionReceipts: false,
     },
     ...rpcData.block1,
     interval: { startBlock: 0n, endBlock: 100n },
@@ -392,6 +424,7 @@ test("getLogFilterIntervals merges overlapping intervals that both match a filte
     logFilter: {
       address: "0xaddress",
       topics: [["0xc"], null, null, null],
+      includeTransactionReceipts: false,
     },
   });
 
@@ -399,6 +432,75 @@ test("getLogFilterIntervals merges overlapping intervals that both match a filte
 
   await cleanup();
 });
+
+test.todo(
+  "getLogFilterIntervals handles includeTransactionReceipts",
+  async (context) => {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    await syncStore.insertLogFilterInterval({
+      chainId: 1,
+      logFilter: {
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block1,
+      interval: { startBlock: 0n, endBlock: 100n },
+    });
+
+    // This is an exact match on `includeTransactionReceipts`. Full range is available.
+    let logFilterRanges = await syncStore.getLogFilterIntervals({
+      chainId: 1,
+      logFilter: {
+        includeTransactionReceipts: false,
+      },
+    });
+
+    expect(logFilterRanges).toMatchObject([[0, 100]]);
+
+    // This is a broader inclusion criteria on `includeTransactionReceipts`. No ranges available.
+    logFilterRanges = await syncStore.getLogFilterIntervals({
+      chainId: 1,
+      logFilter: {
+        includeTransactionReceipts: true,
+      },
+    });
+
+    expect(logFilterRanges).toMatchObject([]);
+
+    await syncStore.insertLogFilterInterval({
+      chainId: 1,
+      logFilter: {
+        includeTransactionReceipts: true,
+      },
+      ...rpcData.block1,
+      interval: { startBlock: 0n, endBlock: 100n },
+    });
+
+    // This is an exact match on `includeTransactionReceipts`. Full range is available.
+    logFilterRanges = await syncStore.getLogFilterIntervals({
+      chainId: 1,
+      logFilter: {
+        includeTransactionReceipts: true,
+      },
+    });
+
+    expect(logFilterRanges).toMatchObject([[0, 100]]);
+
+    // This is a broader inclusion criteria on `includeTransactionReceipts`. Full range is available.
+    logFilterRanges = await syncStore.getLogFilterIntervals({
+      chainId: 1,
+      logFilter: {
+        includeTransactionReceipts: false,
+      },
+    });
+
+    expect(logFilterRanges).toMatchObject([[0, 100]]);
+
+    await cleanup();
+  },
+);
 
 test("insertFactoryChildAddressLogs inserts logs", async (context) => {
   const { sources } = context;
@@ -749,7 +851,7 @@ test("getFactoryChildAddresses does not yield empty list", async (context) => {
   await cleanup();
 });
 
-test("insertFactoryLogFilterInterval inserts block, transactions, and logs", async (context) => {
+test("insertFactoryLogFilterInterval inserts block, transactions, receipts and logs", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -777,6 +879,12 @@ test("insertFactoryLogFilterInterval inserts block, transactions, and logs", asy
     .selectAll()
     .execute();
   expect(transactions).toHaveLength(2);
+
+  const transactionReceipts = await syncStore.db
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
+  expect(transactionReceipts).toHaveLength(2);
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
@@ -880,6 +988,75 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
   await cleanup();
 });
 
+test.todo(
+  "getFactoryLogFilterIntervals handles includeTransactionReceipts",
+  async (context) => {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    const factoryCriteria: FactoryCriteria = {
+      address: "0xfactory",
+      eventSelector:
+        "0x0000000000000000000000000000000000000000000factoryeventsignature",
+      childAddressLocation: "topic1",
+      includeTransactionReceipts: false,
+    };
+
+    await syncStore.insertFactoryLogFilterInterval({
+      chainId: 1,
+      factory: factoryCriteria,
+      ...rpcData.block1,
+      interval: { startBlock: 0n, endBlock: 500n },
+    });
+
+    let intervals = await syncStore.getFactoryLogFilterIntervals({
+      chainId: 1,
+      factory: factoryCriteria,
+    });
+
+    expect(intervals).toMatchObject([[0, 500]]);
+
+    intervals = await syncStore.getFactoryLogFilterIntervals({
+      chainId: 1,
+      factory: {
+        ...factoryCriteria,
+        includeTransactionReceipts: true,
+      } as FactoryCriteria,
+    });
+
+    expect(intervals).toMatchObject([]);
+
+    factoryCriteria.includeTransactionReceipts = true;
+
+    await syncStore.insertFactoryLogFilterInterval({
+      chainId: 1,
+      factory: factoryCriteria,
+      ...rpcData.block1,
+      interval: { startBlock: 0n, endBlock: 500n },
+    });
+
+    intervals = await syncStore.getFactoryLogFilterIntervals({
+      chainId: 1,
+      factory: factoryCriteria,
+    });
+
+    expect(intervals).toMatchObject([[0, 500]]);
+
+    intervals = await syncStore.getFactoryLogFilterIntervals({
+      chainId: 1,
+      factory: {
+        ...factoryCriteria,
+        includeTransactionReceipts: false,
+      } as FactoryCriteria,
+    });
+
+    expect(intervals).toMatchObject([[0, 500]]);
+
+    await cleanup();
+  },
+);
+
 test("insertRealtimeBlock inserts data", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -898,6 +1075,12 @@ test("insertRealtimeBlock inserts data", async (context) => {
     .selectAll()
     .execute();
   expect(transactions).toHaveLength(2);
+
+  const transactionReceipts = await syncStore.db
+    .selectFrom("logs")
+    .selectAll()
+    .execute();
+  expect(transactionReceipts).toHaveLength(2);
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
@@ -948,6 +1131,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
       logFilter: {
         address: factoryCriteriaOne.address,
         topics: [factoryCriteriaOne.eventSelector, null, null, null],
+        includeTransactionReceipts: false,
       },
     }),
   ).toMatchObject([[500, 550]]);
@@ -957,6 +1141,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
       logFilter: {
         address: factoryCriteriaOne.address,
         topics: [factoryCriteriaOne.eventSelector, null, null, null],
+        includeTransactionReceipts: false,
       },
     }),
   ).toMatchObject([[500, 550]]);
@@ -1156,14 +1341,23 @@ test("getLogEvents returns log events", async (context) => {
   expect(events[0].log.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
   expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].transactionReceipt?.transactionHash).toBe(
+    rpcData.block1.transactionReceipts[0].transactionHash,
+  );
 
   expect(events[1].log.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
   expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].transactionReceipt?.transactionHash).toBe(
+    rpcData.block1.transactionReceipts[1].transactionHash,
+  );
 
   expect(events[2].log.address).toBe(checksumAddress(factory.pair));
   expect(events[2].block.hash).toBe(rpcData.block3.block.hash);
   expect(events[2].transaction.hash).toBe(rpcData.block3.transactions[0].hash);
+  expect(events[2].transactionReceipt?.transactionHash).toBe(
+    rpcData.block3.transactionReceipts[0].transactionHash,
+  );
 
   await cleanup();
 });
@@ -1190,6 +1384,7 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
         criteria: {
           address: [erc20.address, factory.pair],
           topics: [],
+          includeTransactionReceipts: false,
         },
       },
     ],
@@ -1238,6 +1433,7 @@ test("getLogEvents filters on log filter with single topic", async (context) => 
         ...sources[0],
         criteria: {
           topics: [transferSelector, null, null, null],
+          includeTransactionReceipts: false,
         },
       },
     ],
@@ -1291,6 +1487,7 @@ test("getLogEvents filters on log filter with multiple topics", async (context) 
             null,
             null,
           ],
+          includeTransactionReceipts: false,
         },
       },
     ],
@@ -1328,6 +1525,7 @@ test("getLogEvents filters on simple factory", async (context) => {
     block: rpcData.block3.block,
     transactions: rpcData.block3.transactions,
     logs: rpcData.block3.logs,
+    transactionReceipts: rpcData.block3.transactionReceipts,
   });
 
   const ag = syncStore.getLogEvents({

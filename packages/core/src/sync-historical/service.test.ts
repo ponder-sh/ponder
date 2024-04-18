@@ -71,6 +71,7 @@ test("start() with factory contract inserts log filter and factory log filter in
     logFilter: {
       address: sources[1].criteria.address,
       topics: [sources[1].criteria.eventSelector],
+      includeTransactionReceipts: false,
     },
   });
 
@@ -292,7 +293,8 @@ test("start() retries unexpected error in log filter task", async (context) => {
   expect(logFilterIntervals).toMatchObject([
     [0, blockNumbers.finalizedBlockNumber],
   ]);
-  expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
+  // 2 transaction receipts + 2 logs + 2 blocks
+  expect(rpcRequestSpy).toHaveBeenCalledTimes(6);
 
   service.kill();
   await service.onIdle();

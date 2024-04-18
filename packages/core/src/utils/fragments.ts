@@ -1,6 +1,5 @@
-import type { Address, Hex } from "viem";
-
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type { Address, Hex } from "viem";
 
 /**
  * Generates log filter fragments from a log filter.
@@ -11,6 +10,7 @@ import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 export function buildLogFilterFragments({
   address,
   topics,
+  includeTransactionReceipts,
   chainId,
 }: LogFilterCriteria & {
   chainId: number;
@@ -18,9 +18,10 @@ export function buildLogFilterFragments({
   return buildFragments({
     address,
     topics,
+    includeTransactionReceipts,
     chainId,
     idCallback: (address_, topic0_, topic1_, topic2_, topic3_) =>
-      `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}`,
+      `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${includeTransactionReceipts}`,
   });
 }
 
@@ -33,6 +34,7 @@ export function buildLogFilterFragments({
 export function buildFactoryFragments({
   address,
   topics,
+  includeTransactionReceipts,
   childAddressLocation,
   eventSelector,
   chainId,
@@ -42,11 +44,12 @@ export function buildFactoryFragments({
   const fragments = buildFragments({
     address,
     topics,
+    includeTransactionReceipts,
     chainId,
     childAddressLocation,
     eventSelector,
     idCallback: (address_, topic0_, topic1_, topic2_, topic3_) =>
-      `${chainId}_${address_}_${eventSelector}_${childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}`,
+      `${chainId}_${address_}_${eventSelector}_${childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${includeTransactionReceipts}`,
   });
 
   return fragments as ((typeof fragments)[number] &
@@ -61,6 +64,7 @@ function buildFragments({
   topics,
   chainId,
   idCallback,
+  includeTransactionReceipts,
   ...rest
 }: (LogFilterCriteria | FactoryCriteria) & {
   idCallback: (
@@ -80,6 +84,7 @@ function buildFragments({
     topic1: Hex | null;
     topic2: Hex | null;
     topic3: Hex | null;
+    includeTransactionReceipts: 0 | 1;
   }[] = [];
 
   const { topic0, topic1, topic2, topic3 } = parseTopics(topics);
@@ -98,6 +103,7 @@ function buildFragments({
               topic1: topic1_,
               topic2: topic2_,
               topic3: topic3_,
+              includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
             });
           }
         }

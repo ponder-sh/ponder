@@ -480,6 +480,7 @@ const executeLog = async (
           log: event.event.log,
           block: event.event.block,
           transaction: event.event.transaction,
+          transactionReceipt: event.event.transactionReceipt,
         },
         context: currentEvent.context,
       });

@@ -511,7 +511,11 @@ export async function buildConfigAndIndexingFunctions({
         return {
           ...baseContract,
           type: "factory",
-          criteria: { ...factoryCriteria, topics },
+          criteria: {
+            ...factoryCriteria,
+            topics,
+            includeTransactionReceipts: true,
+          },
         } satisfies FactorySource;
       }
 
@@ -545,6 +549,7 @@ export async function buildConfigAndIndexingFunctions({
         criteria: {
           address: validatedAddress,
           topics,
+          includeTransactionReceipts: true,
         },
       } satisfies LogSource;
     })

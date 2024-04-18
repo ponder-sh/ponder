@@ -222,6 +222,7 @@ test("processEvent() log events", async (context) => {
       log: expect.any(Object),
       block: expect.any(Object),
       transaction: expect.any(Object),
+      transactionReceipt: expect.any(Object),
     },
     context: {
       network: { chainId: 1, name: "mainnet" },
