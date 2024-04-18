@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
 import type { Abi, AbiEvent } from "abitype";
 import { cac } from "cac";
 import cpy from "cpy";
@@ -12,7 +11,6 @@ import { oraPromise } from "ora";
 import pico from "picocolors";
 import prettier from "prettier";
 import { default as prompts } from "prompts";
-
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // @ts-ignore
 import rootPackageJson from "../package.json" assert { type: "json" };
@@ -164,7 +162,7 @@ export async function run({
   let projectPath: string;
   if (args[0]) {
     projectPath = args[0].trim();
-    const splitPath = projectPath.split("/");
+    const splitPath = projectPath.split(path.sep);
     projectName = splitPath[splitPath.length - 1]?.trim() || "";
     log(pico.green("✔"), pico.bold("Using project name:"), projectName);
   } else {
@@ -185,6 +183,9 @@ export async function run({
     projectName = res.projectName?.trim();
     projectPath = projectName;
   }
+
+  const targetPath = path.resolve(projectPath);
+  mkdirSync(targetPath, { recursive: true });
 
   // Validate project name
   const nameValidation = await validateProjectName({
@@ -224,8 +225,6 @@ export async function run({
   if (!templateValidation.valid) throw new ValidationError(templateValidation);
 
   let config: SerializableConfig | undefined;
-
-  const targetPath = path.join(process.cwd(), projectPath);
 
   let url: string | undefined = options.etherscan;
   if (templateMeta.id === "etherscan") {
@@ -381,7 +380,7 @@ export async function run({
     `;
 
       writeFileSync(
-        path.join(targetPath, `./src/${name}.ts`),
+        path.join(targetPath, "src", `${name}.ts`),
         await prettier.format(indexingFunctionFileContents, {
           parser: "typescript",
         }),
