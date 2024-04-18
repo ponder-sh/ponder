@@ -199,11 +199,7 @@ export function createTelemetry({
   });
 
   const record = (event: TelemetryEvent) => {
-    if (isKilled) {
-      throw new Error(
-        "Invariant violation, attempted to record event after telemetry service was killed",
-      );
-    }
+    if (isKilled) return;
     queue.add(event);
   };
 
