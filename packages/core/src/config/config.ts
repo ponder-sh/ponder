@@ -108,7 +108,10 @@ type GetNetwork<
         | allNetworkNames
         | {
             [name in allNetworkNames]?: Prettify<
-              GetAddress<unknown> & GetEventFilter<abi, unknown> & BlockConfig
+              GetAddress<unknown> &
+                GetEventFilter<abi, unknown> &
+                TransactionReceiptConfig &
+                BlockConfig
             >;
           };
     };

@@ -328,6 +328,9 @@ export async function buildConfigAndIndexingFunctions({
           factory: "factory" in contract ? contract.factory : undefined,
           filter: contract.filter,
 
+          includeTransactionReceipts:
+            contract.includeTransactionReceipts ?? false,
+
           startBlock,
           endBlock,
           maxBlockRange: contract.maxBlockRange,
@@ -365,6 +368,11 @@ export async function buildConfigAndIndexingFunctions({
               ("factory" in overrides ? overrides.factory : undefined) ??
               ("factory" in contract ? contract.factory : undefined),
             filter: overrides.filter ?? contract.filter,
+
+            includeTransactionReceipts:
+              overrides.includeTransactionReceipts ??
+              contract.includeTransactionReceipts ??
+              false,
 
             startBlock,
             endBlock,
@@ -506,7 +514,10 @@ export async function buildConfigAndIndexingFunctions({
 
       if (resolvedFactory) {
         // Note that this can throw.
-        const factoryCriteria = buildFactoryCriteria(resolvedFactory);
+        const factoryCriteria = buildFactoryCriteria({
+          ...resolvedFactory,
+          includeTransactionReceipts: rawContract.includeTransactionReceipts,
+        });
 
         return {
           ...baseContract,
@@ -514,7 +525,6 @@ export async function buildConfigAndIndexingFunctions({
           criteria: {
             ...factoryCriteria,
             topics,
-            includeTransactionReceipts: true,
           },
         } satisfies FactorySource;
       }
@@ -549,7 +559,7 @@ export async function buildConfigAndIndexingFunctions({
         criteria: {
           address: validatedAddress,
           topics,
-          includeTransactionReceipts: true,
+          includeTransactionReceipts: rawContract.includeTransactionReceipts,
         },
       } satisfies LogSource;
     })

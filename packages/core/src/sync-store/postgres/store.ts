@@ -78,22 +78,6 @@ export class PostgresSyncStore implements SyncStore {
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
 
-        if (
-          rpcTransactionReceipts !== undefined &&
-          rpcTransactionReceipts.length > 0
-        ) {
-          await tx
-            .insertInto("transactionReceipts")
-            .values(
-              rpcTransactionReceipts.map((transactionReceipt) => ({
-                ...rpcToPostgresTransactionReceipt(transactionReceipt),
-                chainId,
-              })),
-            )
-            .onConflict((oc) => oc.column("transactionHash").doNothing())
-            .execute();
-        }
-
         if (rpcTransactions.length > 0) {
           const transactions = rpcTransactions.map((transaction) => ({
             ...rpcToPostgresTransaction(transaction),
@@ -103,6 +87,23 @@ export class PostgresSyncStore implements SyncStore {
             .insertInto("transactions")
             .values(transactions)
             .onConflict((oc) => oc.column("hash").doNothing())
+            .execute();
+        }
+
+        if (
+          rpcTransactionReceipts !== undefined &&
+          rpcTransactionReceipts.length > 0
+        ) {
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
+          await tx
+            .insertInto("transactionReceipts")
+            .values(transactionReceipts)
+            .onConflict((oc) => oc.column("transactionHash").doNothing())
             .execute();
         }
 
@@ -198,12 +199,12 @@ export class PostgresSyncStore implements SyncStore {
                     f.topic0,
                   )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
                     f.topic3,
-                  )}, ${sql.val(f.includeTransactionReceipts)} )`,
+                  )}, ${sql.lit(f.includeTransactionReceipts)} )`,
               ),
             )} )`,
         )
         .selectFrom("logFilterIntervals")
-        .leftJoin("logFilters", "logFilterId", "logFilters.id")
+        .innerJoin("logFilters", "logFilterId", "logFilters.id")
         .innerJoin("logFilterFragments", (join) => {
           let baseJoin = join.on((eb) =>
             eb.or([
@@ -211,13 +212,13 @@ export class PostgresSyncStore implements SyncStore {
               eb("fragmentAddress", "=", sql.ref("address")),
             ]),
           );
-          // baseJoin = baseJoin.on((eb) =>
-          //   eb(
-          //     "fragmentIncludeTransactionReceipts",
-          //     "=",
-          //     "includeTransactionReceipts",
-          //   ),
-          // );
+          baseJoin = baseJoin.on((eb) =>
+            eb(
+              "fragmentIncludeTransactionReceipts",
+              "<=",
+              sql.ref("includeTransactionReceipts"),
+            ),
+          );
           for (const idx_ of range(0, 4)) {
             baseJoin = baseJoin.on((eb) => {
               const idx = idx_ as 0 | 1 | 2 | 3;
@@ -364,16 +365,29 @@ export class PostgresSyncStore implements SyncStore {
               .execute();
           }
 
+          if (
+            rpcTransactionReceipts !== undefined &&
+            rpcTransactionReceipts.length > 0
+          ) {
+            const transactionReceipts = rpcTransactionReceipts.map(
+              (rpcTransactionReceipt) => ({
+                ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),
+                chainId,
+              }),
+            );
+            await tx
+              .insertInto("transactionReceipts")
+              .values(transactionReceipts)
+              .onConflict((oc) => oc.column("transactionHash").doNothing())
+              .execute();
+          }
+
           if (rpcLogs.length > 0) {
             const logs = rpcLogs.map((rpcLog) => ({
               ...rpcToPostgresLog(rpcLog),
               chainId,
               checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
             }));
-
-            // console.log(rpcLogs);
-            // console.log(logs.map((l) => l.id));
-
             await tx
               .insertInto("logs")
               .values(logs)
@@ -467,12 +481,12 @@ export class PostgresSyncStore implements SyncStore {
                       f.topic0,
                     )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
                       f.topic3,
-                    )}, ${sql.val(f.includeTransactionReceipts)} )`,
+                    )}, ${sql.lit(f.includeTransactionReceipts)} )`,
                 ),
               )} )`,
           )
           .selectFrom("factoryLogFilterIntervals")
-          .leftJoin("factories", "factoryId", "factories.id")
+          .innerJoin("factories", "factoryId", "factories.id")
           .innerJoin("factoryFilterFragments", (join) => {
             let baseJoin = join.on((eb) =>
               eb.and([
@@ -480,10 +494,17 @@ export class PostgresSyncStore implements SyncStore {
                 eb("fragmentEventSelector", "=", sql.ref("eventSelector")),
                 eb(
                   "fragmentChildAddressLocation",
-                  "=",
+                  "<=",
                   sql.ref("childAddressLocation"),
                 ),
               ]),
+            );
+            baseJoin = baseJoin.on((eb) =>
+              eb(
+                "fragmentIncludeTransactionReceipts",
+                "=",
+                sql.ref("includeTransactionReceipts"),
+              ),
             );
             for (const idx_ of range(0, 4)) {
               baseJoin = baseJoin.on((eb) => {
@@ -571,6 +592,23 @@ export class PostgresSyncStore implements SyncStore {
             .insertInto("transactions")
             .values(transactions)
             .onConflict((oc) => oc.column("hash").doNothing())
+            .execute();
+        }
+
+        if (
+          rpcTransactionReceipts !== undefined &&
+          rpcTransactionReceipts.length > 0
+        ) {
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
+          await tx
+            .insertInto("transactionReceipts")
+            .values(transactionReceipts)
+            .onConflict((oc) => oc.column("transactionHash").doNothing())
             .execute();
         }
 
@@ -808,6 +846,7 @@ export class PostgresSyncStore implements SyncStore {
               "transactions.hash",
               "logs.transactionHash",
             )
+            // TODO(kyle) do this programmatically
             .leftJoin(
               "transactionReceipts",
               "transactionReceipts.transactionHash",

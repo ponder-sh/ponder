@@ -8,6 +8,7 @@ import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { wait } from "@/utils/wait.js";
+import { sync } from "glob";
 import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
@@ -44,6 +45,38 @@ test("start() with log filter inserts log filter interval records", async (conte
   expect(logFilterIntervals).toMatchObject([
     [0, blockNumbers.finalizedBlockNumber],
   ]);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
+test("start() inserts transaction receipts", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const blockNumbers = await getBlockNumbers();
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: [
+      {
+        ...sources[0],
+        criteria: { ...sources[0].criteria, includeTransactionReceipts: true },
+      },
+    ],
+  });
+  await service.setup(blockNumbers);
+  service.start();
+  await service.onIdle();
+
+  const transactionReceipts = await syncStore.db
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
+  expect(transactionReceipts).toHaveLength(2);
 
   service.kill();
   await service.onIdle();
@@ -293,8 +326,8 @@ test("start() retries unexpected error in log filter task", async (context) => {
   expect(logFilterIntervals).toMatchObject([
     [0, blockNumbers.finalizedBlockNumber],
   ]);
-  // 2 transaction receipts + 2 logs + 2 blocks
-  expect(rpcRequestSpy).toHaveBeenCalledTimes(6);
+  // 2 logs + 2 blocks
+  expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
   service.kill();
   await service.onIdle();

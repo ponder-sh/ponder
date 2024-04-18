@@ -38,7 +38,7 @@ import {
   checksumAddress,
 } from "viem";
 import type { RawEvent, SyncStore } from "../store.js";
-import { type BigIntText, rpcToSqliteTransactionReceipt } from "./encoding.js";
+import { rpcToSqliteTransactionReceipt } from "./encoding.js";
 import {
   type SyncStoreTables,
   rpcToSqliteBlock,
@@ -88,6 +88,23 @@ export class SqliteSyncStore implements SyncStore {
             .insertInto("transactions")
             .values(transactions)
             .onConflict((oc) => oc.column("hash").doNothing())
+            .execute();
+        }
+
+        if (
+          rpcTransactionReceipts !== undefined &&
+          rpcTransactionReceipts.length > 0
+        ) {
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
+          await tx
+            .insertInto("transactionReceipts")
+            .values(transactionReceipts)
+            .onConflict((oc) => oc.column("transactionHash").doNothing())
             .execute();
         }
 
@@ -183,12 +200,12 @@ export class SqliteSyncStore implements SyncStore {
                     f.topic0,
                   )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
                     f.topic3,
-                  )}, ${sql.val(f.includeTransactionReceipts)} )`,
+                  )}, ${sql.lit(f.includeTransactionReceipts)} )`,
               ),
             )} )`,
         )
         .selectFrom("logFilterIntervals")
-        .leftJoin("logFilters", "logFilterId", "logFilters.id")
+        .innerJoin("logFilters", "logFilterId", "logFilters.id")
         .innerJoin("logFilterFragments", (join) => {
           let baseJoin = join.on((eb) =>
             eb.or([
@@ -196,13 +213,13 @@ export class SqliteSyncStore implements SyncStore {
               eb("fragmentAddress", "=", sql.ref("address")),
             ]),
           );
-          // baseJoin = baseJoin.on((eb) =>
-          //   eb(
-          //     "fragmentIncludeTransactionReceipts",
-          //     "=",
-          //     "includeTransactionReceipts",
-          //   ),
-          // );
+          baseJoin = baseJoin.on((eb) =>
+            eb(
+              "fragmentIncludeTransactionReceipts",
+              "<=",
+              sql.ref("includeTransactionReceipts"),
+            ),
+          );
           for (const idx_ of range(0, 4)) {
             baseJoin = baseJoin.on((eb) => {
               const idx = idx_ as 0 | 1 | 2 | 3;
@@ -352,6 +369,23 @@ export class SqliteSyncStore implements SyncStore {
               .execute();
           }
 
+          if (
+            rpcTransactionReceipts !== undefined &&
+            rpcTransactionReceipts.length > 0
+          ) {
+            const transactionReceipts = rpcTransactionReceipts.map(
+              (rpcTransactionReceipt) => ({
+                ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
+                chainId,
+              }),
+            );
+            await tx
+              .insertInto("transactionReceipts")
+              .values(transactionReceipts)
+              .onConflict((oc) => oc.column("transactionHash").doNothing())
+              .execute();
+          }
+
           if (rpcLogs.length > 0) {
             const logs = rpcLogs.map((rpcLog) => ({
               ...rpcToSqliteLog(rpcLog),
@@ -448,12 +482,12 @@ export class SqliteSyncStore implements SyncStore {
                       f.topic0,
                     )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
                       f.topic3,
-                    )}, ${sql.val(f.includeTransactionReceipts)} )`,
+                    )}, ${sql.lit(f.includeTransactionReceipts)} )`,
                 ),
               )} )`,
           )
           .selectFrom("factoryLogFilterIntervals")
-          .leftJoin("factories", "factoryId", "factories.id")
+          .innerJoin("factories", "factoryId", "factories.id")
           .innerJoin("factoryFilterFragments", (join) => {
             let baseJoin = join.on((eb) =>
               eb.and([
@@ -461,18 +495,18 @@ export class SqliteSyncStore implements SyncStore {
                 eb("fragmentEventSelector", "=", sql.ref("eventSelector")),
                 eb(
                   "fragmentChildAddressLocation",
-                  "=",
+                  "<=",
                   sql.ref("childAddressLocation"),
                 ),
               ]),
             );
-            // baseJoin = baseJoin.on((eb) =>
-            //   eb(
-            //     "fragmentIncludeTransactionReceipts",
-            //     "=",
-            //     "includeTransactionReceipts",
-            //   ),
-            // );
+            baseJoin = baseJoin.on((eb) =>
+              eb(
+                "fragmentIncludeTransactionReceipts",
+                "=",
+                sql.ref("includeTransactionReceipts"),
+              ),
+            );
             for (const idx_ of range(0, 4)) {
               baseJoin = baseJoin.on((eb) => {
                 const idx = idx_ as 0 | 1 | 2 | 3;
@@ -539,6 +573,23 @@ export class SqliteSyncStore implements SyncStore {
             .insertInto("transactions")
             .values(transactions)
             .onConflict((oc) => oc.column("hash").doNothing())
+            .execute();
+        }
+
+        if (
+          rpcTransactionReceipts !== undefined &&
+          rpcTransactionReceipts.length > 0
+        ) {
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
+          await tx
+            .insertInto("transactionReceipts")
+            .values(transactionReceipts)
+            .onConflict((oc) => oc.column("transactionHash").doNothing())
             .execute();
         }
 
@@ -820,6 +871,7 @@ export class SqliteSyncStore implements SyncStore {
               "transactions.hash",
               "logs.transactionHash",
             )
+            // TODO(kyle) do this programmatically
             .leftJoin(
               "transactionReceipts",
               "transactionReceipts.transactionHash",

@@ -78,11 +78,17 @@ export namespace Virtual {
       } & (ExtractOverridenProperty<
         config["contracts"][contractName],
         "includeTransactionReceipts"
-      > extends true
-        ? {
-            transactionReceipt: Prettify<TransactionReceipt>;
-          }
-        : {});
+      > extends infer includeTxr
+        ? includeTxr extends includeTxr
+          ? includeTxr extends true
+            ? {
+                transactionReceipt: Prettify<TransactionReceipt>;
+              }
+            : {
+                transactionReceipt?: never;
+              }
+          : never
+        : never);
 
   type ContextContractProperty = Exclude<
     keyof Config["contracts"][string],
