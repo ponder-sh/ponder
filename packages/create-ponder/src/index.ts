@@ -475,7 +475,7 @@ export async function run({
   log();
   log(
     `To start your app, run ${pico.bold(
-      pico.cyan(`cd ${projectPath}`),
+      pico.cyan(`cd ${path.relative(process.cwd(), projectPath)}`),
     )} and then ${pico.bold(
       pico.cyan(
         `${packageManager}${
