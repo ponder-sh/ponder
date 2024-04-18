@@ -176,10 +176,10 @@ export const start = (service: Service) => {
 
           // Blocks are missing. They should be fetched and enqueued.
           if (latestLocalBlock.number + 1 < newHeadBlockNumber) {
-            // Retrieve missing blocks
+            // Retrieve missing blocks, but only fetch 50 at most.
             const missingBlockRange = range(
               latestLocalBlock.number + 1,
-              newHeadBlockNumber,
+              Math.min(newHeadBlockNumber, latestLocalBlock.number + 51),
             );
             const pendingBlocks = await Promise.all(
               missingBlockRange.map((blockNumber) =>
@@ -191,9 +191,10 @@ export const start = (service: Service) => {
               service: "realtime",
               msg: `Fetched ${missingBlockRange.length} missing '${
                 service.network.name
-              }' blocks from ${
-                latestLocalBlock.number + 1
-              } to ${newHeadBlockNumber}`,
+              }' blocks from ${latestLocalBlock.number + 1} to ${Math.min(
+                newHeadBlockNumber,
+                latestLocalBlock.number + 51,
+              )}`,
             });
 
             // This is needed to ensure proper `kill()` behavior. When the service
