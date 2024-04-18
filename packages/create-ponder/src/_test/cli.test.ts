@@ -26,7 +26,10 @@ test("create empty", async () => {
       path.join(__dirname, "..", "..", "templates", "empty"),
     ) as string[]
   )
-    .concat(["abis/ExampleContractAbi.ts", "src/index.ts"])
+    .concat([
+      path.join("abis", "ExampleContractAbi.ts"),
+      path.join("src", "index.ts"),
+    ])
     .map((filePath) =>
       filePath === "_dot_env.local"
         ? ".env.local"
@@ -63,11 +66,11 @@ test("create subgraph id", async () => {
   )
     .concat([
       "ponder.config.ts",
-      "abis/ERC20Abi.ts",
-      "abis/ERC721Abi.ts",
-      "abis/EntryPointAbi.ts",
-      "src/EntryPoint.ts",
-      "src/EntryPointV0.6.0.ts",
+      path.join("abis", "ERC20Abi.ts"),
+      path.join("abis", "ERC721Abi.ts"),
+      path.join("abis", "EntryPointAbi.ts"),
+      path.join("src", "EntryPoint.ts"),
+      path.join("src", "EntryPointV0.6.0.ts"),
       "abis",
       "src",
     ])
@@ -110,8 +113,8 @@ test("create etherscan", async () => {
   )
     .concat([
       "ponder.config.ts",
-      "abis/WETH9Abi.ts",
-      "src/WETH9.ts",
+      path.join("abis", "WETH9Abi.ts"),
+      path.join("src", "WETH9.ts"),
       "abis",
       "src",
     ])
