@@ -7,7 +7,11 @@ import {
   migrationProvider as syncMigrationProvider,
   moveLegacyTables,
 } from "@/sync-store/postgres/migrations.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
 import { createPool } from "@/utils/pg.js";
@@ -23,6 +27,7 @@ import {
 import type { Pool, PoolConfig } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "../kysely.js";
+import { revertIndexingTables } from "../revert.js";
 import type { BaseDatabaseService, NamespaceInfo } from "../service.js";
 import { type InternalTables, migrationProvider } from "./migrations.js";
 
@@ -336,6 +341,23 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       }, HEARTBEAT_INTERVAL_MS);
 
       return { checkpoint, namespaceInfo };
+    });
+  }
+
+  async revert({
+    checkpoint,
+    isCheckpointSafe,
+    namespaceInfo,
+  }: {
+    checkpoint: Checkpoint;
+    isCheckpointSafe: boolean;
+    namespaceInfo: NamespaceInfo;
+  }) {
+    await revertIndexingTables({
+      db: this.indexingDb,
+      checkpoint,
+      isCheckpointSafe,
+      namespaceInfo,
     });
   }
 

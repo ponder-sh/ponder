@@ -25,5 +25,15 @@ export interface BaseDatabaseService {
     namespaceInfo: NamespaceInfo;
   }>;
 
+  revert({
+    checkpoint,
+    isCheckpointSafe,
+    namespaceInfo,
+  }: {
+    checkpoint: Checkpoint;
+    isCheckpointSafe: boolean;
+    namespaceInfo: NamespaceInfo;
+  }): Promise<void>;
+
   kill(): Promise<void>;
 }

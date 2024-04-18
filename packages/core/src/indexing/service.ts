@@ -426,10 +426,10 @@ const executeSetup = async (
             decodedCheckpoint.blockNumber
           }, error=${`${error.name}: ${error.message}`})`,
         });
-        await indexingService.indexingStore.revert({
-          checkpoint: decodedCheckpoint,
-          isCheckpointSafe: false,
-        });
+        // await indexingService.indexingStore.revert({
+        //   checkpoint: decodedCheckpoint,
+        //   isCheckpointSafe: false,
+        // });
       }
     }
   }
@@ -527,10 +527,10 @@ const executeLog = async (
             decodedCheckpoint.blockNumber
           }, error=${`${error.name}: ${error.message}`})`,
         });
-        await indexingService.indexingStore.revert({
-          checkpoint: decodedCheckpoint,
-          isCheckpointSafe: false,
-        });
+        // await indexingService.indexingStore.revert({
+        //   checkpoint: decodedCheckpoint,
+        //   isCheckpointSafe: false,
+        // });
       }
     }
   }
