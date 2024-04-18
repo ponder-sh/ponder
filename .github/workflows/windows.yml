@@ -1,4 +1,4 @@
-name: Main
+name: Windows
 
 on:
   pull_request:
@@ -8,9 +8,9 @@ on:
 
 jobs:
   test:
-    name: Test Windows [core]
+    name: Test [core]
     runs-on: windows-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -36,9 +36,9 @@ jobs:
           DATABASE_URL: ${{ matrix.database == 'Postgres' && steps.postgres.outputs.connection-uri || '' }}
 
   test-create-ponder:
-    name: Test Windows [create-ponder]
+    name: Test [create-ponder]
     runs-on: windows-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
