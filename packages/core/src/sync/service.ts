@@ -113,8 +113,8 @@ export const create = async ({
         syncService.checkpoint = newCheckpoint;
 
         (async () => {
-          const lastEventCheckpointPromise =
-            syncService.syncStore.getLastEventCheckpoint({
+          const lastEventCheckpoint =
+            await syncService.syncStore.getLastEventCheckpoint({
               sources: syncService.sources,
               fromCheckpoint,
               toCheckpoint,
@@ -126,12 +126,10 @@ export const create = async ({
             toCheckpoint,
             limit: 1_000,
           })) {
-            if (syncService.isKilled) return;
-
             await onRealtimeEvent({
               type: "newEvents",
               events: decodeEvents({ common, sourceById }, rawEvents),
-              lastEventCheckpoint: await lastEventCheckpointPromise,
+              lastEventCheckpoint: lastEventCheckpoint,
             });
           }
         })();
@@ -339,8 +337,8 @@ export const getHistoricalEvents = async function* (
         ),
       );
 
-      const lastEventCheckpointPromise =
-        syncService.syncStore.getLastEventCheckpoint({
+      const lastEventCheckpoint =
+        await syncService.syncStore.getLastEventCheckpoint({
           sources: syncService.sources,
           fromCheckpoint: syncService.checkpoint,
           toCheckpoint: finalityCheckpoint,
@@ -354,7 +352,7 @@ export const getHistoricalEvents = async function* (
       })) {
         yield {
           events: decodeEvents(syncService, rawEvents),
-          lastEventCheckpoint: await lastEventCheckpointPromise,
+          lastEventCheckpoint: lastEventCheckpoint,
         };
       }
 
@@ -382,8 +380,8 @@ export const getHistoricalEvents = async function* (
         continue;
       }
 
-      const lastEventCheckpointPromise =
-        syncService.syncStore.getLastEventCheckpoint({
+      const lastEventCheckpoint =
+        await syncService.syncStore.getLastEventCheckpoint({
           sources: syncService.sources,
           fromCheckpoint: syncService.checkpoint,
           toCheckpoint: newCheckpoint,
@@ -397,7 +395,7 @@ export const getHistoricalEvents = async function* (
       })) {
         yield {
           events: decodeEvents(syncService, rawEvents),
-          lastEventCheckpoint: await lastEventCheckpointPromise,
+          lastEventCheckpoint: lastEventCheckpoint,
         };
       }
 

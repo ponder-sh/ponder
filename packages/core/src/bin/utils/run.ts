@@ -105,7 +105,49 @@ export async function run({
     onFatalError,
   });
 
-  syncService.startHistorical();
+  const handleEvents = async (
+    events: Event[],
+    lastEventCheckpoint: Checkpoint | undefined,
+  ) => {
+    if (lastEventCheckpoint !== undefined) {
+      indexingService.updateLastEventCheckpoint(lastEventCheckpoint);
+    }
+
+    if (events.length === 0) return { status: "success" } as const;
+
+    return await indexingService.processEvents({ events });
+  };
+
+  const handleReorg = async (safeCheckpoint: Checkpoint) => {
+    await indexingStore.revert({
+      checkpoint: safeCheckpoint,
+      isCheckpointSafe: true,
+    });
+  };
+
+  const realtimeQueue = createQueue({
+    initialStart: false,
+    browser: false,
+    concurrency: 1,
+    worker: async (event: RealtimeEvent) => {
+      switch (event.type) {
+        case "newEvents": {
+          const result = await handleEvents(
+            event.events,
+            event.lastEventCheckpoint,
+          );
+          if (result.status === "error") onReloadableError(result.error);
+          break;
+        }
+        case "reorg":
+          await handleReorg(event.safeCheckpoint);
+          break;
+
+        default:
+          never(event);
+      }
+    },
+  });
 
   const indexingService = createIndexingService({
     indexingFunctions,
@@ -117,106 +159,63 @@ export async function run({
     schema,
   });
 
-  // process setup events
-  const result = await indexingService.processSetupEvents({
-    sources,
-    networks,
-  });
-  if (result.status === "error") {
-    onReloadableError(result.error);
+  (async () => {
+    syncService.startHistorical();
 
-    return async () => {
-      indexingService.kill();
-      await server.kill();
-      await syncService.kill();
-      await database.kill();
-    };
-  }
-
-  const handleEvents = async (
-    events: Event[],
-    lastEventCheckpoint: Checkpoint | undefined,
-  ) => {
-    if (events.length === 0) return;
-
-    if (lastEventCheckpoint !== undefined) {
-      indexingService.updateLastEventCheckpoint(lastEventCheckpoint);
-    }
-
-    const result = await indexingService.processEvents({
-      events,
+    // process setup events
+    const result = await indexingService.processSetupEvents({
+      sources,
+      networks,
     });
-
-    if (result.status === "error") {
+    if (result.status === "killed") {
+      return;
+    } else if (result.status === "error") {
       onReloadableError(result.error);
       return;
-    } else if (indexingService.isKilled) {
-      return;
     }
-  };
 
-  // Run historical indexing until complete.
-  for await (const {
-    events,
-    lastEventCheckpoint,
-  } of syncService.getHistoricalEvents()) {
-    await handleEvents(events, lastEventCheckpoint);
-  }
+    // Run historical indexing until complete.
+    for await (const {
+      events,
+      lastEventCheckpoint,
+    } of syncService.getHistoricalEvents()) {
+      const result = await handleEvents(events, lastEventCheckpoint);
 
-  // Become healthy
-  common.logger.info({
-    service: "indexing",
-    msg: "Completed historical indexing",
-  });
-
-  if (database.kind === "postgres") {
-    await database.publish();
-  }
-
-  server.setHealthy();
-  common.logger.info({
-    service: "server",
-    msg: "Started responding as healthy",
-  });
-
-  const handleReorg = async (safeCheckpoint: Checkpoint) => {
-    await indexingStore.revert({
-      checkpoint: safeCheckpoint,
-      isCheckpointSafe: true,
-    });
-  };
-
-  const realtimeQueue = createQueue({
-    initialStart: true,
-    browser: false,
-    concurrency: 1,
-    worker: async (realtimeEvent: RealtimeEvent) => {
-      switch (realtimeEvent.type) {
-        case "newEvents":
-          await handleEvents(
-            realtimeEvent.events,
-            realtimeEvent.lastEventCheckpoint,
-          );
-          break;
-
-        case "reorg":
-          await handleReorg(realtimeEvent.safeCheckpoint);
-          break;
-
-        default:
-          never(realtimeEvent);
+      if (result.status === "killed") {
+        return;
+      } else if (result.status === "error") {
+        onReloadableError(result.error);
+        return;
       }
-    },
-  });
+    }
 
-  syncService.startRealtime();
+    // Become healthy
+    common.logger.info({
+      service: "indexing",
+      msg: "Completed historical indexing",
+    });
+
+    if (database.kind === "postgres") {
+      await database.publish();
+    }
+
+    server.setHealthy();
+    common.logger.info({
+      service: "server",
+      msg: "Started responding as healthy",
+    });
+
+    syncService.startRealtime();
+    realtimeQueue.start();
+  })();
 
   return async () => {
     realtimeQueue.pause();
     realtimeQueue.clear();
     indexingService.kill();
-    await syncService.kill();
     await server.kill();
+    await syncService.kill();
+    await realtimeQueue.onIdle();
     await database.kill();
   };
 }

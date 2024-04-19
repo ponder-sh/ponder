@@ -19,7 +19,7 @@ import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
-import { createQueue } from "@ponder/common";
+import { type Queue, createQueue } from "@ponder/common";
 import { type Address, type Hex, hexToNumber } from "viem";
 import { isMatchedLogInBloomFilter, zeroLogsBloom } from "./bloom.js";
 import { filterLogs } from "./filter.js";
@@ -49,7 +49,7 @@ export type Service = {
    * `parentHash` => `hash`.
    */
   localChain: LocalBlockchainState[];
-  kill: () => Promise<void>;
+  queue: Queue<void, SyncBlock> | undefined;
 
   // callbacks
   onEvent: (event: RealtimeSyncEvent) => void;
@@ -124,7 +124,7 @@ export const create = ({
     isKilled: false,
     finalizedBlock: syncBlockToLightBlock(finalizedBlock),
     localChain: [],
-    kill: () => Promise.resolve(),
+    queue: undefined,
     onEvent,
     onFatalError,
     eventSelectors,
@@ -261,19 +261,19 @@ export const start = (service: Service) => {
     }
   };
 
-  const interval = setInterval(enqueue, service.network.pollingInterval);
+  setInterval(enqueue, service.network.pollingInterval);
 
-  service.kill = async () => {
-    service.isKilled = true;
-    clearInterval(interval);
-    queue.pause();
-    queue.clear();
-
-    await queue.onIdle();
-  };
+  service.queue = queue;
 
   // Note: this is done just for testing.
   return enqueue().then(() => queue);
+};
+
+export const kill = async (service: Service) => {
+  service.isKilled = true;
+  service.queue?.pause();
+  service.queue?.clear();
+  await service.queue?.onIdle();
 };
 
 /**
