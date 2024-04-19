@@ -1,5 +1,14 @@
 # @ponder/core
 
+## 0.4.7
+
+### Patch Changes
+
+- [#806](https://github.com/ponder-sh/ponder/pull/806) [`398939198f5edcf9328410e5930f1ebc207ea502`](https://github.com/ponder-sh/ponder/commit/398939198f5edcf9328410e5930f1ebc207ea502) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for Windows via PowerShell and command prompt (cmd.exe).
+
+- Updated dependencies [[`2d9fcbae895b1c7388683fec5c0f36999ead29ce`](https://github.com/ponder-sh/ponder/commit/2d9fcbae895b1c7388683fec5c0f36999ead29ce)]:
+  - @ponder/utils@0.1.4
+
 ## 0.4.6
 
 ### Patch Changes
