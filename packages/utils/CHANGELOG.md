@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.1.4
+
+### Patch Changes
+
+- [#816](https://github.com/ponder-sh/ponder/pull/816) [`2d9fcbae895b1c7388683fec5c0f36999ead29ce`](https://github.com/ponder-sh/ponder/commit/2d9fcbae895b1c7388683fec5c0f36999ead29ce) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for automatically detecting blockpi retry ranges.
+
 ## 0.1.3
 
 ### Patch Changes
