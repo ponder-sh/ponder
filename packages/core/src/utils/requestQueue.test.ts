@@ -1,10 +1,11 @@
-import { setupAnvil } from "@/_test/setup.js";
+import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import { beforeEach, expect, test } from "vitest";
 import { createRequestQueue } from "./requestQueue.js";
 
-beforeEach((context) => setupAnvil(context));
+beforeEach(setupCommon);
+beforeEach(setupAnvil);
 
 /** Creates a request queue with a `maxRequestsPerSecond` of 1. */
 const getQueue = (network: Network, common: Common) => {

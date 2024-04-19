@@ -1,6 +1,6 @@
 import {
   setupAnvil,
-  setupContext,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -16,7 +16,7 @@ let cleanup = async () => {};
 
 const setup = async () => {
   context = {} as TestContext;
-  setupContext(context);
+  setupCommon(context);
   await setupAnvil(context);
   const teardownDatabase = await setupIsolatedDatabase(context);
   const { syncStore: syncStore_, cleanup: cleanupSyncStore } =

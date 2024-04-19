@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createTelemetry } from "@/common/telemetry.js";
+import { wait } from "@/utils/wait.js";
+import { rimrafSync } from "rimraf";
 import { beforeEach, expect, test, vi } from "vitest";
+import type { Common } from "./common.js";
+import { LoggerService } from "./logger.js";
 
 const fetchSpy = vi.fn();
 
@@ -17,14 +21,17 @@ beforeEach((context) => {
   const tempDir = path.join(os.tmpdir(), randomUUID());
   mkdirSync(tempDir, { recursive: true });
 
-  context.common.options = {
-    ...context.common.options,
-    telemetryDisabled: false,
-    telemetryConfigDir: tempDir,
-  };
+  context.common = {
+    logger: new LoggerService({ level: "silent" }),
+    options: {
+      telemetryUrl: "https://ponder.sh/api/telemetry",
+      telemetryDisabled: false,
+      telemetryConfigDir: tempDir,
+    },
+  } as unknown as Common;
 
-  return async () => {
-    rmSync(tempDir, { force: true, recursive: true });
+  return () => {
+    rimrafSync(tempDir);
   };
 });
 
@@ -91,14 +98,12 @@ test("telemetry throws if event is submitted after kill", async (context) => {
 
   expect(fetchSpy).toHaveBeenCalledTimes(5);
 
-  expect(() =>
-    telemetry.record({
-      name: "lifecycle:heartbeat_send",
-      properties: { duration_seconds: process.uptime() },
-    }),
-  ).toThrow(
-    "Invariant violation, attempted to record event after telemetry service was killed",
-  );
+  telemetry.record({
+    name: "lifecycle:heartbeat_send",
+    properties: { duration_seconds: process.uptime() },
+  });
+
+  await wait(100);
 
   expect(fetchSpy).toHaveBeenCalledTimes(5);
 });

@@ -1,4 +1,8 @@
-import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupCommon,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -7,7 +11,8 @@ import { beforeEach, expect, test } from "vitest";
 import { buildGraphqlSchema } from "./buildGraphqlSchema.js";
 import { buildLoaderCache } from "./buildLoaderCache.js";
 
-beforeEach((context) => setupIsolatedDatabase(context));
+beforeEach(setupCommon);
+beforeEach(setupIsolatedDatabase);
 
 const create = async (id: string, indexingStore: IndexingStore) => {
   await indexingStore.create({

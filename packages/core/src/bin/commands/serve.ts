@@ -25,6 +25,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
       service: "process",
       msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
     });
+    logger.kill();
     process.exit(1);
   }
 

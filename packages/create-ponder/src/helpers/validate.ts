@@ -1,8 +1,7 @@
 import path from "path";
-import fs from "fs-extra";
+import { pathExists } from "fs-extra";
 import pico from "picocolors";
 import validatePackageName from "validate-npm-package-name";
-
 import type { Template } from "../index.js";
 
 type ValidationResult =
@@ -19,10 +18,8 @@ type ValidationResult =
 
 export async function validateProjectName({
   projectName,
-  projectPath,
 }: {
   projectName: string;
-  projectPath: string;
 }): Promise<ValidationResult> {
   // Validate project name
   const nameValidation = validatePackageName(projectName);
@@ -38,12 +35,22 @@ export async function validateProjectName({
     };
   }
 
+  return {
+    valid: true,
+  };
+}
+
+export async function validateProjectPath({
+  projectPath,
+}: { projectPath: string }): Promise<ValidationResult> {
   // Validate project target path
-  const targetPath = path.join(process.cwd(), projectPath);
-  if (await fs.pathExists(targetPath))
+  if (await pathExists(projectPath))
     return {
       valid: false,
-      message: `🙈 the directory "${projectPath}" already exists.`,
+      message: `🙈 the directory "${path.relative(
+        process.cwd(),
+        projectPath,
+      )}" already exists.`,
       problems: "👉 choose another name or delete the directory.",
     };
 
