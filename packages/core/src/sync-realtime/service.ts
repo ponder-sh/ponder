@@ -18,7 +18,6 @@ import {
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { wait } from "@/utils/wait.js";
 import { createQueue } from "@ponder/common";
 import { type Address, type Hex, hexToNumber } from "viem";
 import { isMatchedLogInBloomFilter, zeroLogsBloom } from "./bloom.js";
@@ -135,6 +134,26 @@ export const create = ({
 };
 
 export const start = (service: Service) => {
+  let consecutiveErrors = 0;
+
+  const onSuccess = () => {
+    consecutiveErrors = 0;
+  };
+  const onError = (_error: unknown) => {
+    if (service.isKilled) return;
+
+    const error = _error as Error;
+
+    service.common.logger.warn({
+      service: "realtime",
+      msg: `Realtime sync task failed (network=${
+        service.network.name
+      }, error=${`${error.name}: ${error.message}`})`,
+    });
+
+    if (consecutiveErrors++ === 5) service.onFatalError(error);
+  };
+
   /**
    * The queue reacts to a new block. The four states are:
    * 1) Block is the same as the one just processed, no-op.
@@ -163,97 +182,71 @@ export const start = (service: Service) => {
         return;
       }
 
-      for (let i = 0; i < 6; i++) {
-        try {
-          // Quickly check for a reorg by comparing block numbers. If the block
-          // number has not increased, a reorg must have occurred.
-          if (latestLocalBlock.number >= newHeadBlockNumber) {
-            await handleReorg(service, newHeadBlock);
+      // Quickly check for a reorg by comparing block numbers. If the block
+      // number has not increased, a reorg must have occurred.
+      if (latestLocalBlock.number >= newHeadBlockNumber) {
+        await handleReorg(service, newHeadBlock);
 
-            queue.clear();
-            return;
-          }
-
-          // Blocks are missing. They should be fetched and enqueued.
-          if (latestLocalBlock.number + 1 < newHeadBlockNumber) {
-            // Retrieve missing blocks
-            const missingBlockRange = range(
-              latestLocalBlock.number + 1,
-              newHeadBlockNumber,
-            );
-            const pendingBlocks = await Promise.all(
-              missingBlockRange.map((blockNumber) =>
-                _eth_getBlockByNumber(service, { blockNumber }),
-              ),
-            );
-
-            // This is needed to ensure proper `kill()` behavior. When the service
-            // is killed, nothing should be added to the queue, or else `onIdle()`
-            // will never resolve.
-            if (service.isKilled) return;
-
-            queue.clear();
-
-            for (const pendingBlock of pendingBlocks) {
-              queue.add(pendingBlock);
-            }
-
-            queue.add(newHeadBlock);
-
-            return;
-          }
-
-          // Check if a reorg occurred by validating the chain of block hashes.
-          if (newHeadBlock.parentHash !== latestLocalBlock.hash) {
-            await handleReorg(service, newHeadBlock);
-            queue.clear();
-            return;
-          }
-
-          // New block is exactly one block ahead of the local chain.
-          // Attempt to ingest it.
-          await handleBlock(service, {
-            newHeadBlock: newHeadBlock,
-          });
-
-          return;
-        } catch (_error) {
-          if (service.isKilled) return;
-
-          const error = _error as Error;
-
-          service.common.logger.warn({
-            service: "realtime",
-            msg: `Realtime sync task failed (network=${
-              service.network.name
-            }, error=${`${error.name}: ${error.message}`})`,
-          });
-
-          if (i === 5) service.onFatalError(error);
-          else await wait(250 * 2 ** i);
-        }
+        queue.clear();
+        return;
       }
+
+      // Blocks are missing. They should be fetched and enqueued.
+      if (latestLocalBlock.number + 1 < newHeadBlockNumber) {
+        // Retrieve missing blocks
+        const missingBlockRange = range(
+          latestLocalBlock.number + 1,
+          newHeadBlockNumber,
+        );
+        const pendingBlocks = await Promise.all(
+          missingBlockRange.map((blockNumber) =>
+            _eth_getBlockByNumber(service, { blockNumber }),
+          ),
+        );
+
+        // This is needed to ensure proper `kill()` behavior. When the service
+        // is killed, nothing should be added to the queue, or else `onIdle()`
+        // will never resolve.
+        if (service.isKilled) return;
+
+        queue.clear();
+
+        for (const pendingBlock of pendingBlocks) {
+          queue.add(pendingBlock).then(onSuccess).catch(onError);
+        }
+
+        queue.add(newHeadBlock).then(onSuccess).catch(onError);
+
+        return;
+      }
+
+      // Check if a reorg occurred by validating the chain of block hashes.
+      if (newHeadBlock.parentHash !== latestLocalBlock.hash) {
+        await handleReorg(service, newHeadBlock);
+        queue.clear();
+        return;
+      }
+
+      // New block is exactly one block ahead of the local chain.
+      // Attempt to ingest it.
+      await handleBlock(service, {
+        newHeadBlock: newHeadBlock,
+      });
+
+      return;
     },
   });
 
   const enqueue = async () => {
+    const block = await _eth_getBlockByNumber(service, {
+      blockTag: "latest",
+    });
+
     try {
-      const block = await _eth_getBlockByNumber(service, {
-        blockTag: "latest",
-      });
-
-      return queue.add(block);
+      await queue.add(block);
+      onSuccess();
     } catch (_error) {
-      if (service.isKilled) return;
-
-      const error = _error as Error;
-
-      service.common.logger.warn({
-        service: "realtime",
-        msg: `Realtime sync task failed (network=${
-          service.network.name
-        }, error=${`${error.name}: ${error.message}`})`,
-      });
+      onError(_error);
     }
   };
 

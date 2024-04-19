@@ -10,7 +10,7 @@ beforeEach((context) => setupAnvil(context));
 const getQueue = (network: Network, common: Common) => {
   return createRequestQueue({
     network: { ...network, maxRequestsPerSecond: 1 },
-    metrics: common.metrics,
+    common,
   });
 };
 

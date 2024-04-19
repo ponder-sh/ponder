@@ -7,6 +7,7 @@ import {
 import { testClient } from "@/_test/utils.js";
 import { type SyncBlock, _eth_getBlockByNumber } from "@/sync/index.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
+import { wait } from "@/utils/wait.js";
 import { getAbiItem, getEventSelector } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { syncBlockToLightBlock } from "./format.js";
@@ -263,8 +264,8 @@ test("start() retries on error", async (context) => {
 
   await queue.onIdle();
 
-  expect(realtimeSyncService.localChain).toHaveLength(4);
-  expect(insertSpy).toHaveBeenCalledTimes(3);
+  expect(realtimeSyncService.localChain).toHaveLength(3);
+  expect(insertSpy).toHaveBeenCalledTimes(2);
 
   await realtimeSyncService.kill();
 
@@ -286,7 +287,7 @@ test("start() emits fatal error", async (context) => {
   const realtimeSyncService = create({
     common,
     syncStore,
-    network: { ...networks[0], pollingInterval: 10_000 },
+    network: { ...networks[0], pollingInterval: 10 },
     requestQueue: requestQueues[0],
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
@@ -298,9 +299,10 @@ test("start() emits fatal error", async (context) => {
 
   const queue = await start(realtimeSyncService);
 
+  await wait(100);
+
   await queue.onIdle();
 
-  expect(insertSpy).toHaveBeenCalledTimes(6);
   expect(onFatalError).toHaveBeenCalled();
 
   await realtimeSyncService.kill();
