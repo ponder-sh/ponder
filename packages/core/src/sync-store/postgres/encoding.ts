@@ -128,7 +128,7 @@ type TransactionReceiptsTable = {
   effectiveGasPrice: bigint;
   from: Address;
   gasUsed: bigint;
-  // logs: string;
+  logs: string;
   logsBloom: Hex;
   status: Hex;
   to: Address | null;
@@ -155,7 +155,7 @@ export function rpcToPostgresTransactionReceipt(
     effectiveGasPrice: BigInt(transactionReceipt.effectiveGasPrice),
     from: toLowerCase(transactionReceipt.from),
     gasUsed: BigInt(transactionReceipt.gasUsed),
-    // logs: JSON.stringify(transactionReceipt.logs),
+    logs: JSON.stringify(transactionReceipt.logs),
     logsBloom: transactionReceipt.logsBloom,
     status: transactionReceipt.status,
     to: transactionReceipt.to ? toLowerCase(transactionReceipt.to) : null,

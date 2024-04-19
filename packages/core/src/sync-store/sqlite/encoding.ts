@@ -133,7 +133,7 @@ type TransactionReceiptsTable = {
   effectiveGasPrice: BigIntText;
   from: Address;
   gasUsed: BigIntText;
-  // logs: string;
+  logs: string;
   logsBloom: Hex;
   status: Hex;
   to: Address | null;
@@ -160,7 +160,7 @@ export function rpcToSqliteTransactionReceipt(
     effectiveGasPrice: encodeAsText(transactionReceipt.effectiveGasPrice),
     from: toLowerCase(transactionReceipt.from),
     gasUsed: encodeAsText(transactionReceipt.gasUsed),
-    // logs: JSON.stringify(transactionReceipt.logs),
+    logs: JSON.stringify(transactionReceipt.logs),
     logsBloom: transactionReceipt.logsBloom,
     status: transactionReceipt.status,
     to: transactionReceipt.to ? toLowerCase(transactionReceipt.to) : null,

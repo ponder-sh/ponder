@@ -623,7 +623,7 @@ const migrations: Record<string, Migration> = {
         )
         .addColumn("from", "varchar(42)", (col) => col.notNull())
         .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
-        // .addColumn("logs", "text", (col) => col.notNull())
+        .addColumn("logs", "text", (col) => col.notNull())
         .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
         .addColumn("status", "text", (col) => col.notNull())
         .addColumn("to", "varchar(42)")

@@ -298,6 +298,10 @@ export const getEventsErc20 = async (
         to: transactionReceipt.to
           ? checksumAddress(transactionReceipt.to)
           : transactionReceipt.to,
+        logs: transactionReceipt.logs.map((l) => ({
+          ...l,
+          id: `${l.blockHash}-${toHex(l.logIndex!)}`,
+        })),
       },
       encodedCheckpoint: encodeCheckpoint({
         blockTimestamp: Number(block.timestamp),

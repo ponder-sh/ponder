@@ -8,6 +8,7 @@ import {
   sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
+import type { SyncLog } from "@/sync/index.js";
 import type { Log } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
@@ -36,6 +37,8 @@ import {
   type RpcTransactionReceipt,
   type TransactionReceipt,
   checksumAddress,
+  hexToBigInt,
+  hexToNumber,
 } from "viem";
 import type { RawEvent, SyncStore } from "../store.js";
 import { rpcToSqliteTransactionReceipt } from "./encoding.js";
@@ -961,6 +964,7 @@ export class SqliteSyncStore implements SyncStore {
               "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
               "transactionReceipts.from as txr_from",
               "transactionReceipts.gasUsed as txr_gasUsed",
+              "transactionReceipts.logs as txr_logs",
               "transactionReceipts.logsBloom as txr_logsBloom",
               "transactionReceipts.status as txr_status",
               "transactionReceipts.to as txr_to",
@@ -1088,6 +1092,24 @@ export class SqliteSyncStore implements SyncStore {
                     ),
                     from: checksumAddress(row.txr_from),
                     gasUsed: decodeToBigInt(row.txr_gasUsed),
+                    logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
+                      address: checksumAddress(log.address),
+                      blockHash: log.blockHash,
+                      blockNumber: hexToBigInt(log.blockNumber),
+                      data: log.data,
+                      logIndex: hexToNumber(log.logIndex),
+                      removed: false,
+                      topics: [
+                        log.topics[0] ?? null,
+                        log.topics[1] ?? null,
+                        log.topics[2] ?? null,
+                        log.topics[3] ?? null,
+                      ].filter((t): t is Hex => t !== null) as
+                        | [Hex, ...Hex[]]
+                        | [],
+                      transactionHash: log.transactionHash,
+                      transactionIndex: hexToNumber(log.transactionIndex),
+                    })),
                     logsBloom: row.txr_logsBloom,
                     status:
                       row.txr_status === "0x1"
