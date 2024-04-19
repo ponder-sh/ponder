@@ -541,6 +541,7 @@ test("upsert() works with hex case sensitivity", async (context) => {
     tableName: "table",
     encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0xA",
+    create: { n: 0 },
     update: { n: 2 },
   });
 

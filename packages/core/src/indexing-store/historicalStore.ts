@@ -225,43 +225,52 @@ export const getHistoricalIndexingStore = ({
       const encodedId = encodeValue(id, table.id, kind);
       const createRow = encodeRow({ id, ...create }, table, kind);
 
-      // Find the latest version of this instance.
-      const latestRow = await db
-        .withSchema(namespaceInfo.userNamespace)
-        .selectFrom(tableName)
-        .selectAll()
-        .where("id", "=", encodedId)
-        .executeTakeFirst();
+      if (typeof update === "function") {
+        // Find the latest version of this instance.
+        const latestRow = await db
+          .withSchema(namespaceInfo.userNamespace)
+          .selectFrom(tableName)
+          .selectAll()
+          .where("id", "=", encodedId)
+          .executeTakeFirst();
 
-      // If there is no latest version, insert a new version using the create data.
-      if (latestRow === undefined) {
-        return db
+        // If there is no latest version, insert a new version using the create data.
+        if (latestRow === undefined) {
+          const row = await db
+            .withSchema(namespaceInfo.userNamespace)
+            .insertInto(tableName)
+            .values(createRow)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+
+          return decodeRow(row, table, kind);
+        }
+
+        const current = decodeRow(latestRow, table, kind);
+        const updateObject = update({ current });
+        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
+
+        const row = await db
+          .withSchema(namespaceInfo.userNamespace)
+          .updateTable(tableName)
+          .set(updateRow)
+          .where("id", "=", encodedId)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+        return decodeRow(row, table, kind);
+      } else {
+        const updateRow = encodeRow({ id, ...update }, table, kind);
+
+        const row = await db
           .withSchema(namespaceInfo.userNamespace)
           .insertInto(tableName)
           .values(createRow)
+          .onConflict((oc) => oc.column("id").doUpdateSet(updateRow))
           .returningAll()
-          .executeTakeFirstOrThrow() as Promise<Row>;
+          .executeTakeFirstOrThrow();
+
+        return decodeRow(row, table, kind);
       }
-
-      // If the user passed an update function, call it with the current instance.
-      let updateRow: ReturnType<typeof encodeRow>;
-      if (typeof update === "function") {
-        const current = decodeRow(latestRow, table, kind);
-        const updateObject = update({ current });
-        updateRow = encodeRow({ id, ...updateObject }, table, kind);
-      } else {
-        updateRow = encodeRow({ id, ...update }, table, kind);
-      }
-
-      const row = await db
-        .withSchema(namespaceInfo.userNamespace)
-        .updateTable(tableName)
-        .set(updateRow)
-        .where("id", "=", encodedId)
-        .returningAll()
-        .executeTakeFirstOrThrow();
-
-      return decodeRow(row, table, kind);
     });
   },
   delete: async ({
