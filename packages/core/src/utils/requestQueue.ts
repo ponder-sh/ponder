@@ -70,7 +70,6 @@ export const createRequestQueue = ({
               msg: "Request failed",
               error,
             });
-            // TODO(kyle) do we need this?
             throw error;
           } else {
             await wait(250 * 2 ** i);
