@@ -342,9 +342,6 @@ export class PostgresSyncStore implements SyncStore {
               checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
             }));
 
-            // console.log(rpcLogs);
-            // console.log(logs.map((l) => l.id));
-
             await tx
               .insertInto("logs")
               .values(logs)
