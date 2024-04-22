@@ -646,7 +646,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                   this._eth_getTransactionReceipt({ hash: tx.hash }),
                 ),
               )
-            : undefined;
+            : [];
 
         await this._insertLogFilterInterval({
           logInterval,
@@ -719,7 +719,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                   this._eth_getTransactionReceipt({ hash: tx.hash }),
                 ),
               )
-            : undefined;
+            : [];
 
         await this.syncStore.insertFactoryLogFilterInterval({
           chainId: factory.chainId,
@@ -798,6 +798,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           chainId: factory.chainId,
           block,
           transactions,
+          transactionReceipts: [],
         });
       });
     }
@@ -1088,7 +1089,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     logFilter: LogFilterCriteria;
     block: HistoricalBlock;
     transactions: HistoricalTransaction[];
-    transactionReceipts?: RpcTransactionReceipt[];
+    transactionReceipts: RpcTransactionReceipt[];
     chainId: number;
   }) =>
     this.syncStore.insertLogFilterInterval({

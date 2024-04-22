@@ -68,7 +68,7 @@ export class PostgresSyncStore implements SyncStore {
     logFilter: LogFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
-    transactionReceipts?: RpcTransactionReceipt[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
@@ -92,10 +92,7 @@ export class PostgresSyncStore implements SyncStore {
             .execute();
         }
 
-        if (
-          rpcTransactionReceipts !== undefined &&
-          rpcTransactionReceipts.length > 0
-        ) {
+        if (rpcTransactionReceipts.length > 0) {
           const transactionReceipts = rpcTransactionReceipts.map(
             (rpcTransactionReceipt) => ({
               ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),
@@ -341,7 +338,7 @@ export class PostgresSyncStore implements SyncStore {
     factory: FactoryCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
-    transactionReceipts?: RpcTransactionReceipt[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
@@ -367,10 +364,7 @@ export class PostgresSyncStore implements SyncStore {
               .execute();
           }
 
-          if (
-            rpcTransactionReceipts !== undefined &&
-            rpcTransactionReceipts.length > 0
-          ) {
+          if (rpcTransactionReceipts.length > 0) {
             const transactionReceipts = rpcTransactionReceipts.map(
               (rpcTransactionReceipt) => ({
                 ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),
@@ -575,7 +569,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
-    transactionReceipts?: RpcTransactionReceipt[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
   }) => {
     return this.db.wrap({ method: "insertRealtimeBlock" }, async () => {
@@ -604,10 +598,7 @@ export class PostgresSyncStore implements SyncStore {
             .execute();
         }
 
-        if (
-          rpcTransactionReceipts !== undefined &&
-          rpcTransactionReceipts.length > 0
-        ) {
+        if (rpcTransactionReceipts.length > 0) {
           const transactionReceipts = rpcTransactionReceipts.map(
             (rpcTransactionReceipt) => ({
               ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),

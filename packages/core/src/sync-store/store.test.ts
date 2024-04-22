@@ -1901,6 +1901,7 @@ test("getLogEvents event filter on factory", async (context) => {
     block: rpcData.block3.block,
     transactions: rpcData.block3.transactions,
     logs: rpcData.block3.logs,
+    transactionReceipts: [],
   });
 
   const ag = syncStore.getLogEvents({

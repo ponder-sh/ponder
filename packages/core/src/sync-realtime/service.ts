@@ -356,7 +356,7 @@ export const handleBlock = async (
           _eth_getTransactionReceipt(service, { hash }),
         ),
       )
-    : undefined;
+    : [];
 
   if (newLogs.length > 0) {
     await service.syncStore.insertRealtimeBlock({

@@ -45,7 +45,7 @@ export interface SyncStore {
     logFilter: LogFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
-    transactionReceipts?: RpcTransactionReceipt[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
@@ -98,7 +98,7 @@ export interface SyncStore {
     factory: FactoryCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
-    transactionReceipts?: RpcTransactionReceipt[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
@@ -122,7 +122,7 @@ export interface SyncStore {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
-    transactionReceipts?: RpcTransactionReceipt[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
   }): Promise<void>;
 
