@@ -13,6 +13,7 @@ test("buildFactoryCriteria throws if provided parameter not found in inputs", ()
       address: "0xa",
       event: llamaFactoryEventAbiItem,
       parameter: "fakeParameter",
+      includeTransactionReceipts: false,
     }),
   ).toThrowError(
     "Factory event parameter not found in factory event signature. Got 'fakeParameter', expected one of ['deployer', 'name', 'llamaCore', 'llamaExecutor', 'llamaPolicy', 'chainId'].",
@@ -24,6 +25,7 @@ test("buildFactoryCriteria handles LlamaInstanceCreated llamaCore", () => {
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "llamaCore",
+    includeTransactionReceipts: false,
   });
 
   expect(criteria).toMatchObject({
@@ -38,6 +40,7 @@ test("buildFactoryCriteria handles LlamaInstanceCreated llamaPolicy", () => {
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "llamaPolicy",
+    includeTransactionReceipts: false,
   });
 
   expect(criteria).toMatchObject({

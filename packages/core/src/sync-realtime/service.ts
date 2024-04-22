@@ -14,6 +14,7 @@ import {
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
+  _eth_getTransactionReceipt,
 } from "@/sync/index.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
@@ -61,6 +62,7 @@ export type Service = {
   hasFactorySource: boolean;
   logFilterSources: LogSource[];
   factorySources: FactorySource[];
+  transactionReceiptSources: EventSource[];
 };
 
 export type RealtimeSyncEvent =
@@ -131,6 +133,9 @@ export const create = ({
     hasFactorySource: sources.some(sourceIsFactory),
     logFilterSources: sources.filter(sourceIsLog),
     factorySources: sources.filter(sourceIsFactory),
+    transactionReceiptSources: sources.filter(
+      (s) => s.criteria.includeTransactionReceipts,
+    ),
   };
 };
 
@@ -339,9 +344,17 @@ export const handleBlock = async (
 
   // Add pending event data to sync store and local event data. Ordering is
   // important because the sync store operation may throw an error, causing a retry.
+
   const transactionHashes = new Set(newLogs.map((l) => l.transactionHash));
   const transactions = newHeadBlock.transactions.filter((t) =>
     transactionHashes.has(t.hash),
+  );
+
+  // TODO(kyle) only get for neccessary sources
+  const newTransactionReceipts = await Promise.all(
+    transactions.map(({ hash }) =>
+      _eth_getTransactionReceipt(service, { hash }),
+    ),
   );
 
   if (newLogs.length > 0) {
@@ -349,6 +362,7 @@ export const handleBlock = async (
       chainId: service.network.chainId,
       block: newHeadBlock,
       transactions,
+      transactionReceipts: newTransactionReceipts,
       logs: newLogs,
     });
 

@@ -8,10 +8,12 @@ export function buildFactoryCriteria({
   address: _address,
   event,
   parameter,
+  includeTransactionReceipts,
 }: {
   address: `0x${string}`;
   event: AbiEvent;
   parameter: string;
+  includeTransactionReceipts: boolean;
 }) {
   const address = toLowerCase(_address);
   const eventSelector = getEventSelector(event);
@@ -27,6 +29,7 @@ export function buildFactoryCriteria({
       eventSelector,
       // Add 1 because inputs will not contain an element for topic0 (the signature).
       childAddressLocation: `topic${(indexedInputPosition + 1) as 1 | 2 | 3}`,
+      includeTransactionReceipts,
     } satisfies Omit<FactoryCriteria, "topics">;
   }
 
@@ -54,5 +57,6 @@ export function buildFactoryCriteria({
     address,
     eventSelector,
     childAddressLocation: `offset${offset}`,
+    includeTransactionReceipts,
   } satisfies Omit<FactoryCriteria, "topics">;
 }

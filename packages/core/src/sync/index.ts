@@ -17,6 +17,8 @@ import {
   type LogTopic,
   type RpcBlock,
   RpcError,
+  type RpcTransactionReceipt,
+  TransactionReceiptNotFoundError,
   hexToBigInt,
   numberToHex,
 } from "viem";
@@ -50,6 +52,7 @@ export type BaseSyncService = {
 
 export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
 export type SyncLog = Log<Hex, Hex, false>;
+export type SyncTransactionReceipt = RpcTransactionReceipt;
 
 /**
  * Helper function for "eth_getBlockByNumber" request.
@@ -197,3 +200,23 @@ export const _eth_getLogs = async (
     ).then((l) => l.flat());
   }
 };
+
+/**
+ * Helper function for "eth_getTransactionReceipt" request.
+ */
+export const _eth_getTransactionReceipt = (
+  { requestQueue }: Pick<BaseSyncService, "requestQueue">,
+  { hash }: { hash: Hex },
+): Promise<SyncTransactionReceipt> =>
+  requestQueue
+    .request({
+      method: "eth_getTransactionReceipt",
+      params: [hash],
+    })
+    .then((receipt) => {
+      if (!receipt)
+        throw new TransactionReceiptNotFoundError({
+          hash,
+        });
+      return receipt as SyncTransactionReceipt;
+    });

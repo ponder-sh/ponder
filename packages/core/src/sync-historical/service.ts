@@ -38,6 +38,9 @@ import {
   type RpcBlock,
   RpcError,
   type RpcLog,
+  type RpcTransaction,
+  type RpcTransactionReceipt,
+  TransactionReceiptNotFoundError,
   hexToBigInt,
   hexToNumber,
   numberToHex,
@@ -94,12 +97,12 @@ type HistoricalSyncTask =
   | BlockTask;
 
 type HistoricalBlock = RpcBlock<"finalized", true>;
+type HistoricalTransaction = RpcTransaction<false>;
 
 type LogInterval = {
   startBlock: number;
   endBlock: number;
   logs: RpcLog[];
-  transactionHashes: Set<Hash>;
 };
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
@@ -212,6 +215,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               logFilter: {
                 address: source.criteria.address,
                 topics: source.criteria.topics,
+                includeTransactionReceipts:
+                  source.criteria.includeTransactionReceipts,
               },
             });
           const logFilterProgressTracker = new ProgressTracker({
@@ -301,6 +306,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               logFilter: {
                 address: source.criteria.address,
                 topics: [source.criteria.eventSelector],
+                includeTransactionReceipts:
+                  source.criteria.includeTransactionReceipts,
               },
             });
           const factoryChildAddressProgressTracker = new ProgressTracker({
@@ -628,11 +635,26 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         this.blockCallbacks[endBlock] = [];
 
       this.blockCallbacks[endBlock].push(async (block) => {
+        const { transactionHashes } = logInterval;
+        const transactions = block.transactions.filter((tx) =>
+          transactionHashes.has(tx.hash),
+        );
+        const transactionReceipts =
+          logFilter.criteria.includeTransactionReceipts === true
+            ? await Promise.all(
+                transactions.map((tx) =>
+                  this._eth_getTransactionReceipt({ hash: tx.hash }),
+                ),
+              )
+            : undefined;
+
         await this._insertLogFilterInterval({
           logInterval,
           logFilter: logFilter.criteria,
           chainId: logFilter.chainId,
           block,
+          transactions,
+          transactionReceipts,
         });
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
@@ -687,13 +709,24 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         this.blockCallbacks[endBlock] = [];
 
       this.blockCallbacks[endBlock].push(async (block) => {
+        const transactions = block.transactions.filter((tx) =>
+          transactionHashes.has(tx.hash),
+        );
+        const transactionReceipts =
+          factory.criteria.includeTransactionReceipts === true
+            ? await Promise.all(
+                transactions.map((tx) =>
+                  this._eth_getTransactionReceipt({ hash: tx.hash }),
+                ),
+              )
+            : undefined;
+
         await this.syncStore.insertFactoryLogFilterInterval({
           chainId: factory.chainId,
           factory: factory.criteria,
           block,
-          transactions: block.transactions.filter((tx) =>
-            transactionHashes.has(tx.hash),
-          ),
+          transactions,
+          transactionReceipts,
           logs,
           interval: {
             startBlock: BigInt(startBlock),
@@ -748,14 +781,23 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         this.blockCallbacks[logInterval.endBlock] = [];
 
       this.blockCallbacks[logInterval.endBlock].push(async (block) => {
+        const { transactionHashes } = logInterval;
+
+        const transactions = block.transactions.filter((tx) =>
+          transactionHashes.has(tx.hash),
+        );
+
         await this._insertLogFilterInterval({
           logInterval,
           logFilter: {
             address: factory.criteria.address,
             topics: [factory.criteria.eventSelector],
+            includeTransactionReceipts:
+              factory.criteria.includeTransactionReceipts,
           },
           chainId: factory.chainId,
           block,
+          transactions,
         });
       });
     }
@@ -1011,26 +1053,50 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
 
   /**
+   * Helper function for "eth_getTransactionReceipt" request.
+   */
+  private _eth_getTransactionReceipt = ({
+    hash,
+  }: {
+    hash: Hex;
+  }): Promise<RpcTransactionReceipt> =>
+    this.requestQueue
+      .request({
+        method: "eth_getTransactionReceipt",
+        params: [hash],
+      })
+      .then((receipt) => {
+        if (!receipt)
+          throw new TransactionReceiptNotFoundError({
+            hash,
+          });
+        return receipt as RpcTransactionReceipt;
+      });
+
+  /**
    * Helper function for "insertLogFilterInterval"
    */
   private _insertLogFilterInterval = ({
-    logInterval: { transactionHashes, logs, startBlock, endBlock },
+    logInterval: { logs, startBlock, endBlock },
     logFilter,
     block,
+    transactions,
+    transactionReceipts,
     chainId,
   }: {
     logInterval: LogInterval;
     logFilter: LogFilterCriteria;
     block: HistoricalBlock;
+    transactions: HistoricalTransaction[];
+    transactionReceipts?: RpcTransactionReceipt[];
     chainId: number;
   }) =>
     this.syncStore.insertLogFilterInterval({
       chainId,
       logFilter,
       block,
-      transactions: block.transactions.filter((tx) =>
-        transactionHashes.has(tx.hash),
-      ),
+      transactions,
+      transactionReceipts,
       logs,
       interval: {
         startBlock: BigInt(startBlock),

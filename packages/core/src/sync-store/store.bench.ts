@@ -135,6 +135,7 @@ const generateBlock = (
     logFilter: {
       address: opts.addr,
       topics: opts.topics,
+      includeTransactionReceipts: false,
     },
   };
 };
@@ -325,6 +326,7 @@ for (const c of LOG_FILTER_CASES) {
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
+                includeTransactionReceipts: false,
               },
             },
           ],
@@ -366,6 +368,7 @@ for (const c of LOG_FILTER_CASES) {
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
+                includeTransactionReceipts: false,
               },
             },
           ],
@@ -407,6 +410,7 @@ for (const c of LOG_FILTER_CASES) {
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
+                includeTransactionReceipts: false,
               },
             },
           ],
