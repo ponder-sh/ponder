@@ -203,7 +203,7 @@ export class PostgresSyncStore implements SyncStore {
             )} )`,
         )
         .selectFrom("logFilterIntervals")
-        .leftJoin("logFilters", "logFilterId", "logFilters.id")
+        .innerJoin("logFilters", "logFilterId", "logFilters.id")
         .innerJoin("logFilterFragments", (join) => {
           let baseJoin = join.on((eb) =>
             eb.or([
@@ -483,7 +483,7 @@ export class PostgresSyncStore implements SyncStore {
               )} )`,
           )
           .selectFrom("factoryLogFilterIntervals")
-          .leftJoin("factories", "factoryId", "factories.id")
+          .innerJoin("factories", "factoryId", "factories.id")
           .innerJoin("factoryFilterFragments", (join) => {
             let baseJoin = join.on((eb) =>
               eb.and([
