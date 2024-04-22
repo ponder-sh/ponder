@@ -5,6 +5,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { promiseWithResolvers } from "@ponder/common";
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import {
   create,
@@ -203,13 +204,16 @@ test("onRealtimeSyncEvent gets events", async (context) => {
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
   const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
+  const onRealtimeEventPromiseResolver = promiseWithResolvers<void>();
 
   const syncService = await create({
     common,
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: vi.fn(),
+    onRealtimeEvent: async () => {
+      onRealtimeEventPromiseResolver.resolve();
+    },
     onFatalError: vi.fn(),
   });
 
@@ -229,6 +233,8 @@ test("onRealtimeSyncEvent gets events", async (context) => {
     chainId: networks[1].chainId,
     checkpoint: createCheckpoint({ blockNumber: 4 }),
   });
+
+  await onRealtimeEventPromiseResolver.promise;
 
   expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
 
@@ -282,13 +288,16 @@ test("onRealtimeSyncEvent multi network", async (context) => {
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
   const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
+  const onRealtimeEventPromiseResolver = promiseWithResolvers<void>();
 
   const syncService = await create({
     common,
     syncStore,
     networks,
     sources: [sources[0], { ...sources[1], endBlock: 0 }],
-    onRealtimeEvent: vi.fn(),
+    onRealtimeEvent: async () => {
+      onRealtimeEventPromiseResolver.resolve();
+    },
     onFatalError: vi.fn(),
   });
 
@@ -297,6 +306,8 @@ test("onRealtimeSyncEvent multi network", async (context) => {
     chainId: networks[0].chainId,
     checkpoint: createCheckpoint({ blockNumber: 4 }),
   });
+
+  await onRealtimeEventPromiseResolver.promise;
 
   expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
 

@@ -7,6 +7,7 @@ import type { Build } from "@/build/index.js";
 import * as codegen from "@/common/codegen.js";
 import { createSchema } from "@/schema/schema.js";
 import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
+import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
 
@@ -83,7 +84,7 @@ test("run() setup error", async (context) => {
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
   };
-  const onReloadableError = vi.fn();
+  const onReloadableErrorPromiseResolver = promiseWithResolvers<void>();
 
   const build: Build = {
     buildId: "buildId",
@@ -101,11 +102,14 @@ test("run() setup error", async (context) => {
     common: context.common,
     build,
     onFatalError: vi.fn(),
-    onReloadableError,
+    onReloadableError: () => {
+      onReloadableErrorPromiseResolver.resolve();
+    },
   });
 
+  await onReloadableErrorPromiseResolver.promise;
+
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(4);
-  expect(onReloadableError).toHaveBeenCalledOnce();
 
   await kill();
 });
