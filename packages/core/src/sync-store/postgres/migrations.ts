@@ -539,7 +539,7 @@ const migrations: Record<string, Migration> = {
   "2024_04_22_0_transaction_receipts": {
     async up(db: Kysely<any>) {
       // Update the log filter ID keys to include the integer includeTransactionReceipts value.
-      // Note that we have to remove and then create the FK constraint, because we briefly violate it.
+      // Note that we have to remove the FK constraint, which is fine given our app logic.
       await db.schema
         .alterTable("logFilterIntervals")
         .dropConstraint("logFilterIntervals_logFilterId_fkey")
@@ -552,16 +552,6 @@ const migrations: Record<string, Migration> = {
         .updateTable("logFilterIntervals")
         .set({ logFilterId: sql`"logFilterId" || '_0'` })
         .execute();
-      await db.schema
-        .alterTable("logFilterIntervals")
-        .addForeignKeyConstraint(
-          "logFilterIntervals_logFilterId_fkey",
-          ["logFilterId"],
-          "logFilters",
-          ["id"],
-        )
-        .execute();
-
       // Add the includeTransactionReceipts column. By setting a default in the ADD COLUMN statement,
       // Postgres will automatically populate all existing rows with the default value. But, we don't
       // actually want a default (want to require a value on insertion), so immediately drop the default.
@@ -588,15 +578,6 @@ const migrations: Record<string, Migration> = {
       await db
         .updateTable("factoryLogFilterIntervals")
         .set({ factoryId: sql`"factoryId" || '_0'` })
-        .execute();
-      await db.schema
-        .alterTable("factoryLogFilterIntervals")
-        .addForeignKeyConstraint(
-          "factoryLogFilterIntervals_factoryId_fkey",
-          ["factoryId"],
-          "factories",
-          ["id"],
-        )
         .execute();
       await db.schema
         .alterTable("factories")
