@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
+import type { ReadIndexingStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { graphqlServer } from "@hono/graphql-server";
 import { serve } from "@hono/node-server";
@@ -14,7 +14,7 @@ import {
 } from "./graphql/buildLoaderCache.js";
 
 type Server = {
-  hono: Hono<{ Variables: { store: IndexingStore; getLoader: GetLoader } }>;
+  hono: Hono<{ Variables: { store: ReadIndexingStore; getLoader: GetLoader } }>;
   port: number;
   setHealthy: () => void;
   kill: () => Promise<void>;
@@ -26,11 +26,11 @@ export async function createServer({
   common,
 }: {
   graphqlSchema: GraphQLSchema;
-  indexingStore: IndexingStore;
+  indexingStore: ReadIndexingStore;
   common: Common;
 }): Promise<Server> {
   const hono = new Hono<{
-    Variables: { store: IndexingStore; getLoader: GetLoader };
+    Variables: { store: ReadIndexingStore; getLoader: GetLoader };
   }>();
 
   let port = common.options.port;

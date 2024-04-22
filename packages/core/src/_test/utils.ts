@@ -134,7 +134,7 @@ export const getNetworkAndSources = async (
 
   const requestQueue = createRequestQueue({
     network: networks[0],
-    metrics: common.metrics,
+    common,
   });
 
   return { networks: [mainnet], sources, requestQueues: [requestQueue] };

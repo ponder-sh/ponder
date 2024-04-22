@@ -171,7 +171,7 @@ export const create = async ({
 
       const requestQueue = createRequestQueue({
         network,
-        metrics: common.metrics,
+        common,
       });
 
       const [{ latestBlock, finalizedBlock }, remoteChainId] =

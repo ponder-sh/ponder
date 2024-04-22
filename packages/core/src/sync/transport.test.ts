@@ -31,7 +31,7 @@ test("default", async (context) => {
         "key": "custom",
         "name": "Custom Provider",
         "request": [Function],
-        "retryCount": 3,
+        "retryCount": 0,
         "retryDelay": 150,
         "timeout": undefined,
         "type": "custom",

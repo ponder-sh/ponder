@@ -4,7 +4,10 @@ import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
-import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
+import { getHistoricalIndexingStore } from "@/indexing-store/historicalStore.js";
+import { getReadIndexingStore } from "@/indexing-store/readStore.js";
+import { getRealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
 import { createIndexingService } from "@/indexing/index.js";
 import { createServer } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
@@ -78,12 +81,20 @@ export async function run({
     syncStore = new PostgresSyncStore({ db: database.syncDb });
   }
 
-  const indexingStore = new RealtimeIndexingStore({
-    kind: database.kind,
-    schema,
-    namespaceInfo,
-    db: database.indexingDb,
-  });
+  let indexingStore: IndexingStore = {
+    ...getReadIndexingStore({
+      kind: database.kind,
+      schema,
+      namespaceInfo,
+      db: database.indexingDb,
+    }),
+    ...getHistoricalIndexingStore({
+      kind: database.kind,
+      schema,
+      namespaceInfo,
+      db: database.indexingDb,
+    }),
+  };
 
   const server = await createServer({ common, graphqlSchema, indexingStore });
 
@@ -119,9 +130,9 @@ export async function run({
   };
 
   const handleReorg = async (safeCheckpoint: Checkpoint) => {
-    await indexingStore.revert({
+    await database.revert({
       checkpoint: safeCheckpoint,
-      isCheckpointSafe: true,
+      namespaceInfo,
     });
   };
 
@@ -149,7 +160,7 @@ export async function run({
     },
   });
 
-  const indexingService = createIndexingService({
+  let indexingService = createIndexingService({
     indexingFunctions,
     common,
     indexingStore,
@@ -203,6 +214,31 @@ export async function run({
     common.logger.info({
       service: "server",
       msg: "Started responding as healthy",
+    });
+
+    indexingStore = {
+      ...getReadIndexingStore({
+        kind: database.kind,
+        schema,
+        namespaceInfo,
+        db: database.indexingDb,
+      }),
+      ...getRealtimeIndexingStore({
+        kind: database.kind,
+        schema,
+        namespaceInfo,
+        db: database.indexingDb,
+      }),
+    };
+
+    indexingService = createIndexingService({
+      indexingFunctions,
+      common,
+      indexingStore,
+      sources,
+      networks,
+      syncService,
+      schema,
     });
 
     syncService.startRealtime();

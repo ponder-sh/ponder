@@ -6,7 +6,7 @@ import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { NamespaceInfo } from "@/database/service.js";
-import { RealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
+import { getReadIndexingStore } from "@/indexing-store/readStore.js";
 import { createServer } from "@/server/service.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
@@ -89,7 +89,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     userNamespace,
   });
 
-  const indexingStore = new RealtimeIndexingStore({
+  const indexingStore = getReadIndexingStore({
     kind: "postgres",
     schema,
     // Note: `ponder serve` serves data from the `publishSchema`. Also, it does
