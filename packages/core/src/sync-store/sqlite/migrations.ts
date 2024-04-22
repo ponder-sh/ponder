@@ -676,17 +676,13 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("transactionReceipts")
         .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
-        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("contractAddress", "varchar(66)")
-        .addColumn("cumulativeGasUsed", "numeric(78, 0)", (col) =>
-          col.notNull(),
-        )
-        .addColumn("effectiveGasPrice", "numeric(78, 0)", (col) =>
-          col.notNull(),
-        )
+        .addColumn("cumulativeGasUsed", "varchar(79)", (col) => col.notNull())
+        .addColumn("effectiveGasPrice", "varchar(79)", (col) => col.notNull())
         .addColumn("from", "varchar(42)", (col) => col.notNull())
-        .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("gasUsed", "varchar(79)", (col) => col.notNull())
         .addColumn("logs", "text", (col) => col.notNull())
         .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
         .addColumn("status", "text", (col) => col.notNull())

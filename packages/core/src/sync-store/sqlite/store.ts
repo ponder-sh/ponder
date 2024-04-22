@@ -844,6 +844,9 @@ export class SqliteSyncStore implements SyncStore {
     let cursor = encodeCheckpoint(fromCheckpoint);
     const encodedToCheckpoint = encodeCheckpoint(toCheckpoint);
 
+    const shouldJoinReceipts = sources.some(
+      (source) => source.criteria.includeTransactionReceipts,
+    );
     const sourcesById = sources.reduce<{
       [sourceId: EventSource["id"]]: (typeof sources)[number];
     }>((acc, cur) => {
@@ -871,12 +874,6 @@ export class SqliteSyncStore implements SyncStore {
               "transactions.hash",
               "logs.transactionHash",
             )
-            // TODO(kyle) do this programmatically
-            .leftJoin(
-              "transactionReceipts",
-              "transactionReceipts.transactionHash",
-              "logs.transactionHash",
-            )
             .innerJoin("sources", (join) => join.onTrue())
             .where((eb) => {
               const logFilterCmprs = sources
@@ -897,6 +894,30 @@ export class SqliteSyncStore implements SyncStore {
 
               return eb.or([...logFilterCmprs, ...factoryCmprs]);
             })
+            .$if(shouldJoinReceipts, (qb) =>
+              qb
+                .innerJoin(
+                  "transactionReceipts",
+                  "transactionReceipts.transactionHash",
+                  "logs.transactionHash",
+                )
+                .select([
+                  "transactionReceipts.blockHash as txr_blockHash",
+                  "transactionReceipts.blockNumber as txr_blockNumber",
+                  "transactionReceipts.contractAddress as txr_contractAddress",
+                  "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
+                  "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
+                  "transactionReceipts.from as txr_from",
+                  "transactionReceipts.gasUsed as txr_gasUsed",
+                  "transactionReceipts.logs as txr_logs",
+                  "transactionReceipts.logsBloom as txr_logsBloom",
+                  "transactionReceipts.status as txr_status",
+                  "transactionReceipts.to as txr_to",
+                  "transactionReceipts.transactionHash as txr_transactionHash",
+                  "transactionReceipts.transactionIndex as txr_transactionIndex",
+                  "transactionReceipts.type as txr_type",
+                ]),
+            )
             .select([
               "source_id",
 
@@ -953,21 +974,6 @@ export class SqliteSyncStore implements SyncStore {
               "transactions.type as tx_type",
               "transactions.value as tx_value",
               "transactions.v as tx_v",
-
-              "transactionReceipts.blockHash as txr_blockHash",
-              "transactionReceipts.blockNumber as txr_blockNumber",
-              "transactionReceipts.contractAddress as txr_contractAddress",
-              "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
-              "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
-              "transactionReceipts.from as txr_from",
-              "transactionReceipts.gasUsed as txr_gasUsed",
-              "transactionReceipts.logs as txr_logs",
-              "transactionReceipts.logsBloom as txr_logsBloom",
-              "transactionReceipts.status as txr_status",
-              "transactionReceipts.to as txr_to",
-              "transactionReceipts.transactionHash as txr_transactionHash",
-              "transactionReceipts.transactionIndex as txr_transactionIndex",
-              "transactionReceipts.type as txr_type",
             ])
             .where("logs.checkpoint", ">", cursor)
             .where("logs.checkpoint", "<=", encodedToCheckpoint)
