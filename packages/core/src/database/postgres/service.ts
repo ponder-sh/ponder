@@ -1,7 +1,12 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Schema } from "@/schema/types.js";
-import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
+import {
+  isEnumColumn,
+  isManyColumn,
+  isOneColumn,
+  isReferenceColumn,
+} from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
 import {
   migrationProvider as syncMigrationProvider,
@@ -291,6 +296,22 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               .createTable(tableName)
               .$call((builder) => this.buildColumns(builder, schema, columns))
               .execute();
+
+            // Add indexes for reference columns.
+            const referenceColumns = Object.fromEntries(
+              Object.entries(columns).filter(([_, column]) =>
+                isReferenceColumn(column),
+              ),
+            );
+
+            Object.entries(referenceColumns).forEach(async ([colKey]) => {
+              await tx.schema
+                .withSchema(this.userNamespace)
+                .createIndex(`${tableName}_${colKey}_index`)
+                .on(tableName)
+                .column(colKey)
+                .execute();
+            });
           } catch (err) {
             const error = err as Error;
             if (!error.message.includes("already exists")) throw error;
@@ -497,6 +518,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           (col) => {
             if (!column.optional) col = col.notNull();
             if (columnName === "id") col = col.primaryKey();
+            if (column.references) {
+              col = col.references(column.references);
+            }
             return col;
           },
         );
