@@ -1,4 +1,8 @@
-import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupCommon,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
 import {
   type Checkpoint,
@@ -8,6 +12,7 @@ import {
 import { hash } from "@/utils/hash.js";
 import { beforeEach, expect, test } from "vitest";
 
+beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 const schema = createSchema((p) => ({
