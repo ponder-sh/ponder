@@ -536,7 +536,7 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
-  "2024_04_09_0_transaction_receipts": {
+  "2024_04_22_0_transaction_receipts": {
     async up(db: Kysely<any>) {
       // Update the log filter ID keys to include the integer includeTransactionReceipts value.
       // Note that we have to remove and then create the FK constraint, because we briefly violate it.
@@ -544,10 +544,13 @@ const migrations: Record<string, Migration> = {
         .alterTable("logFilterIntervals")
         .dropConstraint("logFilterIntervals_logFilterId_fkey")
         .execute();
-      await db.updateTable("logFilters").set({ id: sql`id || '_0'` }).execute();
+      await db
+        .updateTable("logFilters")
+        .set({ id: sql`"id" || '_0'` })
+        .execute();
       await db
         .updateTable("logFilterIntervals")
-        .set({ logFilterId: sql`logFilterId || '_0'` })
+        .set({ logFilterId: sql`"logFilterId" || '_0'` })
         .execute();
       await db.schema
         .alterTable("logFilterIntervals")
@@ -568,20 +571,23 @@ const migrations: Record<string, Migration> = {
           col.notNull().defaultTo(0),
         )
         .execute();
-      db.schema
+      await db.schema
         .alterTable("logFilters")
         .alterColumn("includeTransactionReceipts", (col) => col.dropDefault())
         .execute();
 
-      // Repeat the same steps for the factory tables.
+      // Repeat the same 2 steps for the factory tables.
       await db.schema
         .alterTable("factoryLogFilterIntervals")
         .dropConstraint("factoryLogFilterIntervals_factoryId_fkey")
         .execute();
-      await db.updateTable("factories").set({ id: sql`id || '_0'` }).execute();
+      await db
+        .updateTable("factories")
+        .set({ id: sql`"id" || '_0'` })
+        .execute();
       await db
         .updateTable("factoryLogFilterIntervals")
-        .set({ factoryId: sql`factoryId || '_0'` })
+        .set({ factoryId: sql`"factoryId" || '_0'` })
         .execute();
       await db.schema
         .alterTable("factoryLogFilterIntervals")
@@ -598,7 +604,7 @@ const migrations: Record<string, Migration> = {
           col.notNull().defaultTo(0),
         )
         .execute();
-      db.schema
+      await db.schema
         .alterTable("factories")
         .alterColumn("includeTransactionReceipts", (col) => col.dropDefault())
         .execute();
