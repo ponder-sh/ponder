@@ -60,9 +60,9 @@ export type Service = {
   /** List of all possible event selectors based on the provided `sources`. */
   eventSelectors: Hex[];
   hasFactorySource: boolean;
+  hasTransactionReceiptSource: boolean;
   logFilterSources: LogSource[];
   factorySources: FactorySource[];
-  transactionReceiptSources: EventSource[];
 };
 
 export type RealtimeSyncEvent =
@@ -131,11 +131,11 @@ export const create = ({
     onFatalError,
     eventSelectors,
     hasFactorySource: sources.some(sourceIsFactory),
-    logFilterSources: sources.filter(sourceIsLog),
-    factorySources: sources.filter(sourceIsFactory),
-    transactionReceiptSources: sources.filter(
+    hasTransactionReceiptSource: sources.some(
       (s) => s.criteria.includeTransactionReceipts,
     ),
+    logFilterSources: sources.filter(sourceIsLog),
+    factorySources: sources.filter(sourceIsFactory),
   };
 };
 
@@ -350,12 +350,13 @@ export const handleBlock = async (
     transactionHashes.has(t.hash),
   );
 
-  // TODO(kyle) only get for neccessary sources
-  const newTransactionReceipts = await Promise.all(
-    transactions.map(({ hash }) =>
-      _eth_getTransactionReceipt(service, { hash }),
-    ),
-  );
+  const newTransactionReceipts = service.hasTransactionReceiptSource
+    ? await Promise.all(
+        transactions.map(({ hash }) =>
+          _eth_getTransactionReceipt(service, { hash }),
+        ),
+      )
+    : undefined;
 
   if (newLogs.length > 0) {
     await service.syncStore.insertRealtimeBlock({
