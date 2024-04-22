@@ -906,6 +906,45 @@ test("insertRealtimeBlock inserts data", async (context) => {
   await cleanup();
 });
 
+test("insertRealtimeBlock upserts transactions", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block1,
+  });
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block1,
+    transactions: [
+      rpcData.block1.transactions[0],
+      {
+        ...rpcData.block1.transactions[1],
+        blockNumber: "0x69",
+        blockHash: "0x68",
+        transactionIndex: "0x67",
+      },
+    ],
+  });
+
+  const transactions = await syncStore.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+  expect(transactions).toHaveLength(2);
+
+  expect(BigInt(transactions[0].blockNumber)).toBe(2n);
+
+  expect(BigInt(transactions[1].blockNumber)).toBe(hexToBigInt("0x69"));
+  expect(transactions[1].blockHash).toBe("0x68");
+  expect(BigInt(transactions[1].transactionIndex)).toBe(hexToBigInt("0x67"));
+
+  await cleanup();
+});
+
 test("insertRealtimeInterval inserts log filter intervals", async (context) => {
   const { erc20 } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);

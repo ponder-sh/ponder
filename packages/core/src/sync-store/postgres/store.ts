@@ -539,7 +539,13 @@ export class PostgresSyncStore implements SyncStore {
           await tx
             .insertInto("transactions")
             .values(transactions)
-            .onConflict((oc) => oc.column("hash").doNothing())
+            .onConflict((oc) =>
+              oc.column("hash").doUpdateSet((eb) => ({
+                blockHash: eb.ref("excluded.blockHash"),
+                blockNumber: eb.ref("excluded.blockNumber"),
+                transactionIndex: eb.ref("excluded.transactionIndex"),
+              })),
+            )
             .execute();
         }
 
