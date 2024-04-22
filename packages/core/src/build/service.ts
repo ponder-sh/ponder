@@ -293,7 +293,12 @@ const executeConfig = async (
   });
 
   if (executeResult.status === "error") {
-    logError(buildService, executeResult.error);
+    buildService.common.logger.error({
+      service: "build",
+      msg: "Error while executing 'ponder.config.ts':",
+      error: executeResult.error,
+    });
+
     return executeResult;
   }
 
@@ -312,7 +317,12 @@ const executeSchema = async (
   });
 
   if (executeResult.status === "error") {
-    logError(buildService, executeResult.error);
+    buildService.common.logger.error({
+      service: "build",
+      msg: "Error while executing 'ponder.schema.ts':",
+      error: executeResult.error,
+    });
+
     return executeResult;
   }
 
@@ -333,14 +343,25 @@ const executeIndexingFunctions = async (
   const files = glob.sync(pattern);
 
   const executeResults = await Promise.all(
-    files.map((file) => executeFile(buildService, { file })),
+    files.map(async (file) => ({
+      ...(await executeFile(buildService, { file })),
+      file,
+    })),
   );
 
   const indexingFunctions: RawIndexingFunctions = [];
 
   for (const executeResult of executeResults) {
     if (executeResult.status === "error") {
-      logError(buildService, executeResult.error);
+      buildService.common.logger.error({
+        service: "build",
+        msg: `Error while executing '${path.relative(
+          buildService.common.options.rootDir,
+          executeResult.file,
+        )}':`,
+        error: executeResult.error,
+      });
+
       return executeResult;
     }
 
@@ -359,7 +380,12 @@ const validateAndBuild = async (
     schema: rawBuild.schema,
   });
   if (buildSchemaResult.status === "error") {
-    logError({ common }, buildSchemaResult.error);
+    common.logger.error({
+      service: "build",
+      msg: "Error while building schema:",
+      error: buildSchemaResult.error,
+    });
+
     return buildSchemaResult;
   }
 
@@ -373,7 +399,12 @@ const validateAndBuild = async (
       options: common.options,
     });
   if (buildConfigAndIndexingFunctionsResult.status === "error") {
-    logError({ common }, buildConfigAndIndexingFunctionsResult.error);
+    common.logger.error({
+      service: "build",
+      msg: "Failed build with error:",
+      error: buildConfigAndIndexingFunctionsResult.error,
+    });
+
     return buildConfigAndIndexingFunctionsResult;
   }
 
@@ -417,12 +448,4 @@ const executeFile = async (
     const error = parseViteNodeError(relativePath, error_ as Error);
     return { status: "error", error } as const;
   }
-};
-
-const logError = ({ common }: Pick<Service, "common">, error: Error) => {
-  common.logger.error({
-    service: "build",
-    msg: "Failed build with error:",
-    error,
-  });
 };

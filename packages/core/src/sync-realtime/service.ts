@@ -235,8 +235,17 @@ export const start = (service: Service) => {
             msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error}`,
           });
 
-          if (i === 5) service.onFatalError(error);
-          else await wait(250 * 2 ** i);
+          if (i === 5) {
+            service.common.logger.error({
+              service: "realtime",
+              msg: `Fatal error: Unable to process '${service.network.name}' block ${newHeadBlockNumber} after 5 attempts due to error:`,
+              error,
+            });
+
+            service.onFatalError(error);
+          } else {
+            await wait(250 * 2 ** i);
+          }
         }
       }
     },
