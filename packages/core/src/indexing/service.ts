@@ -5,7 +5,7 @@ import type { Network } from "@/config/networks.js";
 import { type EventSource } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
-import type { SyncService } from "@/sync/service.js";
+import type { SyncService } from "@/sync/index.js";
 import type { DatabaseModel } from "@/types/model.js";
 import {
   type Checkpoint,
@@ -17,7 +17,7 @@ import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
-import type { Event, LogEvent, SetupEvent } from "./events.js";
+import type { Event, LogEvent, SetupEvent } from "../sync/events.js";
 import {
   type ReadOnlyClient,
   buildCachedActions,
@@ -70,7 +70,6 @@ export type Service = {
 
   // static cache
   networkByChainId: { [chainId: number]: Network };
-  sourceById: { [sourceId: string]: EventSource };
   clientByChainId: { [chainId: number]: Context["client"] };
   contractsByChainId: { [chainId: number]: Context["contracts"] };
 };
@@ -106,10 +105,6 @@ export const create = ({
     },
     {},
   );
-  const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
-    acc[cur.id] = cur;
-    return acc;
-  }, {});
 
   // build contractsByChainId
   for (const source of sources) {
@@ -139,7 +134,7 @@ export const create = ({
 
   // build clientByChainId
   for (const network of networks) {
-    const transport = syncService.getCachedTransport(network.chainId);
+    const transport = syncService.getCachedTransport(network);
     clientByChainId[network.chainId] = createClient({
       transport,
       chain: network.chain,
@@ -173,7 +168,6 @@ export const create = ({
       },
     },
     networkByChainId,
-    sourceById,
     clientByChainId,
     contractsByChainId,
   };
@@ -252,6 +246,8 @@ export const processEvents = async (
     }
   }
 
+  const eventCounts: { [eventName: string]: number } = {};
+
   for (let i = 0; i < events.length; i++) {
     const event = events[i];
     const eventName = `${event.contractName}:${event.logEventName}`;
@@ -275,6 +271,9 @@ export const processEvents = async (
         break;
       }
     }
+
+    if (eventCounts[eventName] === undefined) eventCounts[eventName] = 0;
+    else eventCounts[eventName]++;
 
     indexingService.common.logger.trace({
       service: "indexing",
@@ -309,12 +308,19 @@ export const processEvents = async (
   // set completed events
   updateCompletedEvents(indexingService);
 
-  indexingService.common.logger.info({
-    service: "indexing",
-    msg: `Indexed ${
-      events.length === 1 ? "1 event" : `${events.length} events`
-    }`,
-  });
+  for (const [eventName, count] of Object.entries(eventCounts)) {
+    if (count === 1) {
+      indexingService.common.logger.info({
+        service: "indexing",
+        msg: `Indexed 1 '${eventName}' event`,
+      });
+    } else {
+      indexingService.common.logger.info({
+        service: "indexing",
+        msg: `Indexed ${count} '${eventName}' events`,
+      });
+    }
+  }
 
   return { status: "success" };
 };

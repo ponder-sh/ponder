@@ -515,7 +515,13 @@ export class SqliteSyncStore implements SyncStore {
           await tx
             .insertInto("transactions")
             .values(transactions)
-            .onConflict((oc) => oc.column("hash").doNothing())
+            .onConflict((oc) =>
+              oc.column("hash").doUpdateSet((eb) => ({
+                blockHash: eb.ref("excluded.blockHash"),
+                blockNumber: eb.ref("excluded.blockNumber"),
+                transactionIndex: eb.ref("excluded.transactionIndex"),
+              })),
+            )
             .execute();
         }
 
@@ -611,16 +617,6 @@ export class SqliteSyncStore implements SyncStore {
         const fromBlock = encodeAsText(fromBlock_);
 
         await tx
-          .deleteFrom("blocks")
-          .where("chainId", "=", chainId)
-          .where("number", ">", fromBlock)
-          .execute();
-        await tx
-          .deleteFrom("transactions")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">", fromBlock)
-          .execute();
-        await tx
           .deleteFrom("logs")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)
@@ -629,85 +625,6 @@ export class SqliteSyncStore implements SyncStore {
           .deleteFrom("rpcRequestResults")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)
-          .execute();
-
-        // Delete all intervals with a startBlock greater than fromBlock.
-        // Then, if any intervals have an endBlock greater than fromBlock,
-        // update their endBlock to equal fromBlock.
-        await tx
-          .deleteFrom("logFilterIntervals")
-          .where(
-            (qb) =>
-              qb
-                .selectFrom("logFilters")
-                .select("logFilters.chainId")
-                .whereRef(
-                  "logFilters.id",
-                  "=",
-                  "logFilterIntervals.logFilterId",
-                )
-                .limit(1),
-            "=",
-            chainId,
-          )
-          .where("startBlock", ">", fromBlock)
-          .execute();
-        await tx
-          .updateTable("logFilterIntervals")
-          .set({ endBlock: fromBlock })
-          .where(
-            (qb) =>
-              qb
-                .selectFrom("logFilters")
-                .select("logFilters.chainId")
-                .whereRef(
-                  "logFilters.id",
-                  "=",
-                  "logFilterIntervals.logFilterId",
-                )
-                .limit(1),
-            "=",
-            chainId,
-          )
-          .where("endBlock", ">", fromBlock)
-          .execute();
-
-        await tx
-          .deleteFrom("factoryLogFilterIntervals")
-          .where(
-            (qb) =>
-              qb
-                .selectFrom("factories")
-                .select("factories.chainId")
-                .whereRef(
-                  "factories.id",
-                  "=",
-                  "factoryLogFilterIntervals.factoryId",
-                )
-                .limit(1),
-            "=",
-            chainId,
-          )
-          .where("startBlock", ">", fromBlock)
-          .execute();
-        await tx
-          .updateTable("factoryLogFilterIntervals")
-          .set({ endBlock: fromBlock })
-          .where(
-            (qb) =>
-              qb
-                .selectFrom("factories")
-                .select("factories.chainId")
-                .whereRef(
-                  "factories.id",
-                  "=",
-                  "factoryLogFilterIntervals.factoryId",
-                )
-                .limit(1),
-            "=",
-            chainId,
-          )
-          .where("endBlock", ">", fromBlock)
           .execute();
       });
     });

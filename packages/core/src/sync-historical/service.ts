@@ -10,7 +10,6 @@ import {
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
-import { Emittery } from "@/utils/emittery.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   BlockProgressTracker,
@@ -21,6 +20,7 @@ import {
   intervalSum,
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { never } from "@/utils/never.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { debounce } from "@ponder/common";
@@ -28,6 +28,7 @@ import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,
 } from "@ponder/utils";
+import Emittery from "emittery";
 import {
   type Address,
   BlockNotFoundError,
@@ -509,6 +510,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           await this.blockTaskWorker(task);
           break;
         }
+
+        default:
+          never(task);
       }
 
       // If this is not the final task, return.

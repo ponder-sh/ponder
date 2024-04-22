@@ -1,47 +1,48 @@
+import type { SyncBlock, SyncLog } from "@/sync/index.js";
 import {
   type Block,
   type BlockTag,
   type Hex,
   type Log,
-  type RpcBlock,
   hexToNumber,
 } from "viem";
 
-export type RealtimeBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
-export type RealtimeLog = Log<Hex, Hex, false>;
-
 export type LightBlock = Pick<
   Block<number, boolean, Exclude<BlockTag, "pending">>,
-  "hash" | "parentHash" | "number" | "timestamp"
+  "hash" | "parentHash" | "number" | "timestamp" | "logsBloom"
 >;
 export type LightLog = Pick<
   Log<number, Hex, false>,
-  "blockHash" | "blockNumber" | "logIndex"
+  "blockHash" | "blockNumber" | "transactionHash" | "logIndex"
 >;
 
-export const realtimeBlockToLightBlock = ({
+export const syncBlockToLightBlock = ({
   hash,
   parentHash,
   number,
   timestamp,
-}: RealtimeBlock): LightBlock => ({
+  logsBloom,
+}: SyncBlock): LightBlock => ({
   hash,
   parentHash,
   number: hexToNumber(number),
   timestamp: hexToNumber(timestamp),
+  logsBloom,
 });
 
-export const realtimeLogToLightLog = ({
+export const syncLogToLightLog = ({
   blockHash,
   blockNumber,
+  transactionHash,
   logIndex,
-}: RealtimeLog): LightLog => ({
+}: SyncLog): LightLog => ({
   blockHash,
   blockNumber: hexToNumber(blockNumber),
+  transactionHash,
   logIndex,
 });
 
-export const sortLogs = <log extends RealtimeLog | LightLog>(
+export const sortLogs = <log extends SyncLog | LightLog>(
   logs: log[],
 ): log[] => {
   return logs.sort((a, b) => {

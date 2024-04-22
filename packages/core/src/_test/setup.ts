@@ -211,7 +211,10 @@ export async function setupAnvil(context: TestContext) {
   context.requestQueues = requestQueues;
   context.sources = sources as [LogSource, FactorySource];
   context.erc20 = { address: addresses.erc20Address };
-  context.factory = { address: addresses.factoryAddress, pair };
+  context.factory = {
+    address: addresses.factoryAddress,
+    pair: pair.toLowerCase() as Address,
+  };
 
   return async () => {
     await testClient.revert({ id: emptySnapshotId });

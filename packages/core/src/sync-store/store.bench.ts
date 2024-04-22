@@ -6,9 +6,9 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { drainAsyncGenerator } from "@/_test/utils.js";
 import type { LogFilterCriteria } from "@/config/sources.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
+import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { range } from "@/utils/range.js";
 import { type RpcBlock, type RpcLog, type RpcTransaction } from "viem";
 import { type TestContext, bench } from "vitest";

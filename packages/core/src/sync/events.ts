@@ -61,6 +61,7 @@ export const decodeEvents = (
         encodedCheckpoint: event.encodedCheckpoint,
       });
     } catch (err) {
+      // TODO(kyle) Because we are strictly setting all `topics` now, this should be a bigger error.
       common.logger.debug({
         service: "app",
         msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,

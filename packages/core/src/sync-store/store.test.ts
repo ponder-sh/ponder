@@ -6,17 +6,14 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import {
-  drainAsyncGenerator,
-  getRawRPCData,
-  publicClient,
-} from "@/_test/utils.js";
+import { getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import {
   EVENT_TYPES,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import {
   type Address,
   type Hex,
@@ -909,6 +906,45 @@ test("insertRealtimeBlock inserts data", async (context) => {
   await cleanup();
 });
 
+test("insertRealtimeBlock upserts transactions", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block1,
+  });
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block1,
+    transactions: [
+      rpcData.block1.transactions[0],
+      {
+        ...rpcData.block1.transactions[1],
+        blockNumber: "0x69",
+        blockHash: "0x68",
+        transactionIndex: "0x67",
+      },
+    ],
+  });
+
+  const transactions = await syncStore.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+  expect(transactions).toHaveLength(2);
+
+  expect(BigInt(transactions[0].blockNumber)).toBe(2n);
+
+  expect(BigInt(transactions[1].blockNumber)).toBe(hexToBigInt("0x69"));
+  expect(transactions[1].blockHash).toBe("0x68");
+  expect(BigInt(transactions[1].transactionIndex)).toBe(hexToBigInt("0x67"));
+
+  await cleanup();
+});
+
 test("insertRealtimeInterval inserts log filter intervals", async (context) => {
   const { erc20 } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -982,7 +1018,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
   await cleanup();
 });
 
-test("deleteRealtimeData deletes blocks, transactions and logs", async (context) => {
+test("deleteRealtimeData deletes logs", async (context) => {
   const { erc20, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -1007,15 +1043,6 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async (context)
     },
   });
 
-  let blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
-  expect(blocks).toHaveLength(2);
-
-  let transactions = await syncStore.db
-    .selectFrom("transactions")
-    .selectAll()
-    .execute();
-  expect(transactions).toHaveLength(3);
-
   let logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(3);
 
@@ -1024,109 +1051,8 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async (context)
     fromBlock: hexToBigInt(rpcData.block1.block.number!),
   });
 
-  blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
-  expect(blocks).toHaveLength(1);
-
-  transactions = await syncStore.db
-    .selectFrom("transactions")
-    .selectAll()
-    .execute();
-  expect(transactions).toHaveLength(2);
-
   logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
-  await cleanup();
-});
-
-test("deleteRealtimeData updates interval data", async (context) => {
-  const { erc20, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const rpcData = await getRawRPCData(sources);
-
-  const logFilterCriteria = {
-    address: erc20.address,
-    topics: [],
-  } satisfies LogFilterCriteria;
-
-  const factoryCriteria = {
-    address: "0xparent",
-    eventSelector: "0xa",
-    childAddressLocation: "topic1",
-    topics: [],
-  } satisfies FactoryCriteria;
-
-  await syncStore.insertLogFilterInterval({
-    chainId: 1,
-    logFilter: logFilterCriteria,
-    ...rpcData.block2,
-    interval: {
-      startBlock: hexToBigInt(rpcData.block1.block.number!),
-      endBlock: hexToBigInt(rpcData.block2.block.number!),
-    },
-  });
-
-  await syncStore.insertFactoryLogFilterInterval({
-    chainId: 1,
-    factory: factoryCriteria,
-    ...rpcData.block2,
-    interval: {
-      startBlock: hexToBigInt(rpcData.block1.block.number!),
-      endBlock: hexToBigInt(rpcData.block2.block.number!),
-    },
-  });
-
-  expect(
-    await syncStore.getLogFilterIntervals({
-      chainId: 1,
-      logFilter: logFilterCriteria,
-    }),
-  ).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block2.block.number!),
-    ],
-  ]);
-
-  expect(
-    await syncStore.getFactoryLogFilterIntervals({
-      chainId: 1,
-      factory: factoryCriteria,
-    }),
-  ).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block2.block.number!),
-    ],
-  ]);
-
-  await syncStore.deleteRealtimeData({
-    chainId: 1,
-    fromBlock: hexToBigInt(rpcData.block1.block.number!),
-  });
-
-  expect(
-    await syncStore.getLogFilterIntervals({
-      chainId: 1,
-      logFilter: logFilterCriteria,
-    }),
-  ).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block1.block.number!),
-    ],
-  ]);
-
-  expect(
-    await syncStore.getFactoryLogFilterIntervals({
-      chainId: 1,
-      factory: factoryCriteria,
-    }),
-  ).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block1.block.number!),
-    ],
-  ]);
   await cleanup();
 });
 

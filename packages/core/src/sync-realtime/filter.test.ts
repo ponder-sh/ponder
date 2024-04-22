@@ -1,11 +1,11 @@
 import { erc20ABI, pairABI } from "@/_test/generated.js";
 import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
+import type { SyncLog } from "@/sync/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getAbiItem, getEventSelector, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { filterLogs } from "./filter.js";
-import type { RealtimeLog } from "./format.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -26,7 +26,7 @@ const getLogs = async () => {
   return publicClient.request({
     method: "eth_getLogs",
     params: [{ fromBlock: toHex(blockNumber - 3n) }],
-  }) as Promise<RealtimeLog[]>;
+  }) as Promise<SyncLog[]>;
 };
 
 test("filterLogs handles one logFilter, one address", async (context) => {
