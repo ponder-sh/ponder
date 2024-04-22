@@ -1,9 +1,10 @@
-import { setupAnvil } from "@/_test/setup.js";
+import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import type { SyncLog } from "@/sync/index.js";
 import { beforeEach, expect, test } from "vitest";
 import { sortLogs } from "./format.js";
 
-beforeEach((context) => setupAnvil(context));
+beforeEach(setupCommon);
+beforeEach(setupAnvil);
 
 test("sort logs", async (context) => {
   const logs = await context.requestQueues[0].request({

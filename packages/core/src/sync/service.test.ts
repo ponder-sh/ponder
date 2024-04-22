@@ -1,5 +1,6 @@
 import {
   setupAnvil,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -13,8 +14,9 @@ import {
   startRealtime,
 } from "./service.js";
 
-beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupIsolatedDatabase(context));
+beforeEach(setupCommon);
+beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 function getMultichainNetworksAndSources(context: TestContext) {
   const mainnet = context.networks[0];

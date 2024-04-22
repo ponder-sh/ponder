@@ -1,5 +1,6 @@
 import {
   setupAnvil,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -11,8 +12,9 @@ import { wait } from "@/utils/wait.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
-beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupIsolatedDatabase(context));
+beforeEach(setupCommon);
+beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 const getBlockNumbers = () =>
   publicClient.getBlockNumber().then((b) => ({

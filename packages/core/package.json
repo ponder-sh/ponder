@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -84,6 +84,7 @@
     "@types/react": "^18.2.38",
     "@viem/anvil": "^0.0.6",
     "@wagmi/cli": "^1.5.2",
+    "rimraf": "^5.0.5",
     "tsup": "^8.0.1",
     "vitest": "^1.0.2"
   },

@@ -631,6 +631,9 @@ importers:
       '@wagmi/cli':
         specifier: ^1.5.2
         version: 1.5.2(typescript@5.0.4)
+      rimraf:
+        specifier: ^5.0.5
+        version: 5.0.5
       tsup:
         specifier: ^8.0.1
         version: 8.0.1(typescript@5.0.4)
@@ -695,6 +698,9 @@ importers:
       dotenv:
         specifier: ^16.3.1
         version: 16.3.1
+      rimraf:
+        specifier: ^5.0.5
+        version: 5.0.5
       tsup:
         specifier: ^8.0.1
         version: 8.0.1(typescript@5.0.4)
@@ -12341,6 +12347,14 @@ packages:
     hasBin: true
     dependencies:
       glob: 7.2.3
+    dev: true
+
+  /rimraf@5.0.5:
+    resolution: {integrity: sha512-CqDakW+hMe/Bz202FPEymy68P+G50RfMQK+Qo5YUqc9SPipvbGjCGKd0RSKEelbsfQuw3g5NZDSrlZZAJurH1A==}
+    engines: {node: '>=14'}
+    hasBin: true
+    dependencies:
+      glob: 10.3.10
     dev: true
 
   /ripemd160@2.0.2:

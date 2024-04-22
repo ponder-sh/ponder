@@ -1,6 +1,11 @@
 import path from "node:path";
 import pc from "picocolors";
-import { type LevelWithSilent, type Logger, pino } from "pino";
+import {
+  type LevelWithSilent,
+  type Logger,
+  type StreamEntry,
+  pino,
+} from "pino";
 
 type LogOptions = { msg?: string; service?: string } & { [key: string]: any };
 
@@ -12,15 +17,16 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
 
 export class LoggerService {
   private logger: Logger;
+  private cleanup = () => {};
 
   constructor({
     level = "info",
     dir,
   }: { level?: LevelWithSilent; dir?: string } = {}) {
-    const streams: (pino.DestinationStream | pino.StreamEntry)[] = [];
+    const streams: StreamEntry[] = [];
 
     if (level !== "silent") {
-      streams.push({
+      const stream: StreamEntry = {
         level,
         stream: {
           write(logString: string) {
@@ -42,16 +48,26 @@ export class LoggerService {
             // }
           },
         },
-      });
+      };
+
+      streams.push(stream);
     }
 
     if (dir) {
       const timestamp = new Date().toISOString().replace(/[-:.]/g, "_");
       const logFile = path.join(dir, `${timestamp}.log`);
-      streams.push({
-        level: "trace",
-        stream: pino.destination({ dest: logFile, sync: false, mkdir: true }),
+      const sonicBoom = pino.destination({
+        dest: logFile,
+        sync: false,
+        mkdir: true,
       });
+      const stream: StreamEntry = { level: "trace", stream: sonicBoom };
+      streams.push(stream);
+
+      this.cleanup = () => {
+        sonicBoom.flushSync();
+        sonicBoom.destroy();
+      };
     }
 
     this.logger = pino(
@@ -62,6 +78,10 @@ export class LoggerService {
       pino.multistream(streams),
     );
   }
+
+  kill = () => {
+    this.cleanup();
+  };
 
   fatal = (options: LogOptions & { error?: Error }) => {
     this.logger.fatal(options);

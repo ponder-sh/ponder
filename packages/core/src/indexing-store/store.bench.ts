@@ -1,5 +1,5 @@
 import {
-  setupContext,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -26,7 +26,7 @@ const schema = createSchema((p) => ({
 const setup = async () => {
   context = {} as TestContext;
 
-  setupContext(context);
+  setupCommon(context);
   const cleanupDatabase = await setupIsolatedDatabase(context);
   const { indexingStore: indexingStore_, cleanup: cleanupIndexingStore } =
     await setupDatabaseServices(context, {

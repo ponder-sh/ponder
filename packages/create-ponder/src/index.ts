@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
 import type { Abi, AbiEvent } from "abitype";
 import { cac } from "cac";
 import cpy from "cpy";
@@ -12,7 +11,6 @@ import { oraPromise } from "ora";
 import pico from "picocolors";
 import prettier from "prettier";
 import { default as prompts } from "prompts";
-
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // @ts-ignore
 import rootPackageJson from "../package.json" assert { type: "json" };
@@ -23,6 +21,7 @@ import { notifyUpdate } from "./helpers/notifyUpdate.js";
 import {
   ValidationError,
   validateProjectName,
+  validateProjectPath,
   validateTemplateName,
 } from "./helpers/validate.js";
 import { fromSubgraphId } from "./subgraph.js";
@@ -159,13 +158,22 @@ export async function run({
   });
   if (!templateValidation.valid) throw new ValidationError(templateValidation);
 
-  // Validate project name
+  // Project name.
   let projectName: string;
+  // Absolute path to project directory.
   let projectPath: string;
+
   if (args[0]) {
     projectPath = args[0].trim();
-    const splitPath = projectPath.split("/");
+    // If the provided path is not absolute, make it absolute.
+    if (!path.isAbsolute(projectPath)) projectPath = path.resolve(projectPath);
+    const splitPath = projectPath.split(path.sep);
+    // Use the last segment of the provided path as the project name.
     projectName = splitPath[splitPath.length - 1]?.trim() || "";
+
+    const nameValidation = await validateProjectName({ projectName });
+    if (!nameValidation.valid) throw new ValidationError(nameValidation);
+
     log(pico.green("✔"), pico.bold("Using project name:"), projectName);
   } else {
     const res = await prompts({
@@ -174,24 +182,21 @@ export async function run({
       message: "What's the name of your project?",
       type: "text",
       async validate(projectName) {
-        const validation = await validateProjectName({
-          projectName,
-          projectPath: projectName,
-        });
+        const validation = await validateProjectName({ projectName });
         if (!validation.valid) return validation.message;
         return true;
       },
     });
     projectName = res.projectName?.trim();
-    projectPath = projectName;
+    projectPath = path.resolve(projectName);
   }
 
-  // Validate project name
-  const nameValidation = await validateProjectName({
-    projectName,
-    projectPath,
-  });
-  if (!nameValidation.valid) throw new ValidationError(nameValidation);
+  // Validate project path
+  const pathValidation = await validateProjectPath({ projectPath });
+  if (!pathValidation.valid) throw new ValidationError(pathValidation);
+
+  // After validating that the directory does not already exist, create it.
+  mkdirSync(projectPath, { recursive: true });
 
   // Automatically set template if using shortcut.
   if (options.etherscan && !templateId) templateId = "etherscan";
@@ -224,8 +229,6 @@ export async function run({
   if (!templateValidation.valid) throw new ValidationError(templateValidation);
 
   let config: SerializableConfig | undefined;
-
-  const targetPath = path.join(process.cwd(), projectPath);
 
   let url: string | undefined = options.etherscan;
   if (templateMeta.id === "etherscan") {
@@ -263,7 +266,7 @@ export async function run({
     const host = new URL(url!).host;
     const result = await oraPromise(
       fromEtherscan({
-        rootDir: targetPath,
+        rootDir: projectPath,
         etherscanLink: url!,
         etherscanApiKey: options.etherscanApiKey,
       }),
@@ -281,7 +284,7 @@ export async function run({
 
   if (templateMeta.id === "subgraph") {
     const result = await oraPromise(
-      fromSubgraphId({ rootDir: targetPath, subgraphId: subgraph! }),
+      fromSubgraphId({ rootDir: projectPath, subgraphId: subgraph! }),
       {
         text: "Fetching subgraph metadata. This may take a few seconds.",
         failText: "Failed to fetch subgraph metadata.",
@@ -294,7 +297,7 @@ export async function run({
 
   // Copy template contents into the target path
   const templatePath = path.join(templatesPath, templateMeta.id);
-  await cpy(path.join(templatePath, "**", "*"), targetPath, {
+  await cpy(path.join(templatePath, "**", "*"), projectPath, {
     rename: (name) => name.replace(/^_dot_/, "."),
   });
 
@@ -348,7 +351,7 @@ export async function run({
     `;
 
     writeFileSync(
-      path.join(targetPath, "ponder.config.ts"),
+      path.join(projectPath, "ponder.config.ts"),
       await prettier.format(configContent, { parser: "typescript" }),
     );
 
@@ -381,7 +384,7 @@ export async function run({
     `;
 
       writeFileSync(
-        path.join(targetPath, `./src/${name}.ts`),
+        path.join(projectPath, "src", `${name}.ts`),
         await prettier.format(indexingFunctionFileContents, {
           parser: "typescript",
         }),
@@ -390,14 +393,14 @@ export async function run({
   }
 
   // Create package.json for project
-  const packageJson = await fs.readJSON(path.join(targetPath, "package.json"));
+  const packageJson = await fs.readJSON(path.join(projectPath, "package.json"));
   packageJson.name = projectName;
   packageJson.dependencies["@ponder/core"] = `^${rootPackageJson.version}`;
   packageJson.devDependencies[
     "eslint-config-ponder"
   ] = `^${rootPackageJson.version}`;
   await fs.writeFile(
-    path.join(targetPath, "package.json"),
+    path.join(projectPath, "package.json"),
     JSON.stringify(packageJson, null, 2),
   );
 
@@ -410,7 +413,7 @@ export async function run({
   ];
   await oraPromise(
     execa(packageManager, installArgs, {
-      cwd: targetPath,
+      cwd: projectPath,
       env: {
         ...process.env,
         ADBLOCK: "1",
@@ -433,8 +436,8 @@ export async function run({
   if (!options.skipGit) {
     await oraPromise(
       async () => {
-        await execa("git", ["init"], { cwd: targetPath });
-        await execa("git", ["add", "."], { cwd: targetPath });
+        await execa("git", ["init"], { cwd: projectPath });
+        await execa("git", ["add", "."], { cwd: projectPath });
         await execa(
           "git",
           [
@@ -443,7 +446,7 @@ export async function run({
             "--message",
             "chore: initial commit from create-ponder",
           ],
-          { cwd: targetPath },
+          { cwd: projectPath },
         );
       },
       {
@@ -470,7 +473,7 @@ export async function run({
   log();
   log(
     `To start your app, run ${pico.bold(
-      pico.cyan(`cd ${projectPath}`),
+      pico.cyan(`cd ${path.relative(process.cwd(), projectPath)}`),
     )} and then ${pico.bold(
       pico.cyan(
         `${packageManager}${

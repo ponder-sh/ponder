@@ -27,7 +27,7 @@ import { parseViteNodeError } from "./stacktrace.js";
 export type Service = {
   // static
   common: Common;
-  indexingFunctionRegex: RegExp;
+  srcRegex: RegExp;
 
   // vite
   viteDevServer: ViteDevServer;
@@ -64,12 +64,13 @@ export const create = async ({
 }: {
   common: Common;
 }): Promise<Service> => {
-  const indexingFunctionRegex = new RegExp(
-    `^${common.options.srcDir.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      "\\$&",
-    )}/.*\\.(js|ts)$`,
-  );
+  const escapeRegex = /[.*+?^${}()|[\]\\]/g;
+  const escapedSrcDir = common.options.srcDir
+    // If on Windows, use a POSIX path for this regex.
+    .replace(/\\/g, "/")
+    // Escape special characters in the path.
+    .replace(escapeRegex, "\\$&");
+  const srcRegex = new RegExp(`^${escapedSrcDir}/.*\\.(ts|js)$`);
 
   const viteLogger = {
     warnedMessages: new Set<string>(),
@@ -121,7 +122,7 @@ export const create = async ({
 
   return {
     common,
-    indexingFunctionRegex,
+    srcRegex,
     viteDevServer,
     viteNodeServer,
     viteNodeRunner,
@@ -196,18 +197,39 @@ export const start = async (
     const onFileChange = async (_file: string) => {
       if (isFileIgnored(_file)) return;
 
+      // Note that `toFilePath` always returns a POSIX path, even if you pass a Windows path.
       const file = toFilePath(
         normalizeModuleId(_file),
         common.options.rootDir,
       ).path;
 
       // Invalidate all modules that depend on the updated files.
+      // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.
       const invalidated = [
         ...buildService.viteNodeRunner.moduleCache.invalidateDepTree([file]),
       ];
 
       // If no files were invalidated, no need to reload.
       if (invalidated.length === 0) return;
+
+      // Note that the paths in `invalidated` are POSIX, so we need to
+      // convert the paths in `options` to POSIX for this comparison.
+      // The `srcDir` regex is already converted to POSIX.
+      const hasConfigUpdate = invalidated.includes(
+        common.options.configFile.replace(/\\/g, "/"),
+      );
+      const hasSchemaUpdate = invalidated.includes(
+        common.options.schemaFile.replace(/\\/g, "/"),
+      );
+      const hasIndexingFunctionUpdate = invalidated.some((file) =>
+        buildService.srcRegex.test(file),
+      );
+
+      // This branch could trigger if you change a `note.txt` file within `src/`.
+      // Note: We could probably do a better job filtering out files in `isFileIgnored`.
+      if (!hasConfigUpdate && !hasSchemaUpdate && !hasIndexingFunctionUpdate) {
+        return;
+      }
 
       common.logger.info({
         service: "build",
@@ -216,39 +238,31 @@ export const start = async (
           .join(", ")}`,
       });
 
-      if (invalidated.includes(common.options.configFile)) {
-        const executeConfigResult = await executeConfig(buildService);
-        if (executeConfigResult.status === "error") {
-          onBuild({ status: "error", error: executeConfigResult.error });
+      if (hasConfigUpdate) {
+        const result = await executeConfig(buildService);
+        if (result.status === "error") {
+          onBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.config = executeConfigResult.config;
+        rawBuild.config = result.config;
       }
 
-      if (invalidated.includes(common.options.schemaFile)) {
-        const executeSchemaResult = await executeSchema(buildService);
-        if (executeSchemaResult.status === "error") {
-          onBuild({ status: "error", error: executeSchemaResult.error });
+      if (hasSchemaUpdate) {
+        const result = await executeSchema(buildService);
+        if (result.status === "error") {
+          onBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.schema = executeSchemaResult.schema;
+        rawBuild.schema = result.schema;
       }
 
-      const hasIndexingFunctionUpdate = invalidated.some((file) =>
-        buildService.indexingFunctionRegex.test(file),
-      );
       if (hasIndexingFunctionUpdate) {
-        const executeIndexingFunctionsResult =
-          await executeIndexingFunctions(buildService);
-        if (executeIndexingFunctionsResult.status === "error") {
-          onBuild({
-            status: "error",
-            error: executeIndexingFunctionsResult.error,
-          });
+        const result = await executeIndexingFunctions(buildService);
+        if (result.status === "error") {
+          onBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.indexingFunctions =
-          executeIndexingFunctionsResult.indexingFunctions;
+        rawBuild.indexingFunctions = result.indexingFunctions;
       }
 
       const buildResult = await validateAndBuild(buildService, rawBuild);
@@ -313,9 +327,10 @@ const executeIndexingFunctions = async (
   | { status: "success"; indexingFunctions: RawIndexingFunctions }
   | { status: "error"; error: Error }
 > => {
-  const files = glob.sync(
-    path.join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}"),
-  );
+  const pattern = path
+    .join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}")
+    .replace(/\\/g, "/");
+  const files = glob.sync(pattern);
 
   const executeResults = await Promise.all(
     files.map((file) => executeFile(buildService, { file })),
