@@ -2,6 +2,7 @@ import { StoreError } from "@/common/errors.js";
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema } from "@/schema/types.js";
+import { sql } from "kysely";
 import type { Row, WhereInput, WriteIndexingStore } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
 import { buildWhereConditions } from "./utils/filter.js";
@@ -64,39 +65,38 @@ export const getHistoricalIndexingStore = ({
   }) => {
     const table = schema.tables[tableName];
 
-    return db.wrap({ method: `${tableName}.createMany` }, async () => {
-      try {
-        const rows: Row[] = [];
-        await db.transaction().execute(async (tx) => {
-          for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
-            const createRows = data
-              .slice(i, i + MAX_BATCH_SIZE)
-              .map((d) => encodeRow(d, table, kind));
+    const rows: Row[] = [];
 
-            const _rows = await tx
-              .withSchema(namespaceInfo.userNamespace)
-              .insertInto(tableName)
-              .values(createRows)
-              .returningAll()
-              .execute();
+    for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
+      await db.wrap({ method: `${tableName}.createMany` }, async () => {
+        try {
+          const createRows = data
+            .slice(i, i + MAX_BATCH_SIZE)
+            .map((d) => encodeRow(d, table, kind));
 
-            rows.push(...(_rows as Row[]));
-          }
-        });
+          const _rows = await db
+            .withSchema(namespaceInfo.userNamespace)
+            .insertInto(tableName)
+            .values(createRows)
+            .returningAll()
+            .execute();
 
-        return rows.map((row) => decodeRow(row, table, kind));
-      } catch (err) {
-        const error = err as Error;
-        throw (kind === "sqlite" &&
-          error.message.includes("UNIQUE constraint failed")) ||
-          (kind === "postgres" &&
-            error.message.includes("violates unique constraint"))
-          ? new StoreError(
-              `Cannot createMany ${tableName} records because one or more records already exist (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method?`,
-            )
-          : error;
-      }
-    });
+          rows.push(...(_rows as Row[]));
+        } catch (err) {
+          const error = err as Error;
+          throw (kind === "sqlite" &&
+            error.message.includes("UNIQUE constraint failed")) ||
+            (kind === "postgres" &&
+              error.message.includes("violates unique constraint"))
+            ? new StoreError(
+                `Cannot createMany ${tableName} records because one or more records already exist (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method?`,
+              )
+            : error;
+        }
+      });
+    }
+
+    return rows;
   },
   update: async ({
     tableName,
@@ -161,49 +161,78 @@ export const getHistoricalIndexingStore = ({
     const table = schema.tables[tableName];
 
     return db.wrap({ method: `${tableName}.updateMany` }, async () => {
-      let query = db
-        .withSchema(namespaceInfo.userNamespace)
-        .selectFrom(tableName)
-        .selectAll();
+      if (typeof data === "function") {
+        const rows = await db.transaction().execute(async (tx) => {
+          let query = tx
+            .withSchema(namespaceInfo.userNamespace)
+            .selectFrom(tableName)
+            .selectAll();
 
-      if (where) {
-        query = query.where((eb) =>
-          buildWhereConditions({
-            eb,
-            where,
-            table,
-            encoding: kind,
-          }),
-        );
-      }
+          if (where) {
+            query = query.where((eb) =>
+              buildWhereConditions({
+                eb,
+                where,
+                table,
+                encoding: kind,
+              }),
+            );
+          }
 
-      const latestRows = await query.execute();
+          const latestRows = await query.execute();
+          const rows: Row[] = [];
+          for (const latestRow of latestRows) {
+            const current = decodeRow(latestRow, table, kind);
+            const updateObject = data({ current });
+            const updateRow = encodeRow(updateObject, table, kind);
 
-      const rows = await db.transaction().execute((tx) => {
-        return Promise.all(
-          latestRows.map((latestRow) => {
-            // If the user passed an update function, call it with the current instance.
-            let updateRow: ReturnType<typeof encodeRow>;
-            if (typeof data === "function") {
-              const current = decodeRow(latestRow, table, kind);
-              const updateObject = data({ current });
-              updateRow = encodeRow(updateObject, table, kind);
-            } else {
-              updateRow = encodeRow(data, table, kind);
-            }
-
-            return tx
+            const row = await tx
               .withSchema(namespaceInfo.userNamespace)
               .updateTable(tableName)
               .set(updateRow)
               .where("id", "=", latestRow.id)
               .returningAll()
               .executeTakeFirstOrThrow();
-          }),
-        );
-      });
 
-      return rows.map((row) => decodeRow(row, table, kind));
+            rows.push(row as Row);
+          }
+
+          return rows;
+        });
+
+        return rows.map((row) => decodeRow(row, table, kind));
+      } else {
+        const updateRow = encodeRow(data, table, kind);
+
+        const rows = await db
+          .with("latestRows(id)", (db) => {
+            let query = db
+              .withSchema(namespaceInfo.userNamespace)
+              .selectFrom(tableName)
+              .select("id");
+
+            if (where) {
+              query = query.where((eb) =>
+                buildWhereConditions({
+                  eb,
+                  where,
+                  table,
+                  encoding: kind,
+                }),
+              );
+            }
+            return query;
+          })
+          .withSchema(namespaceInfo.userNamespace)
+          .updateTable(tableName)
+          .set(updateRow)
+          .from("latestRows")
+          .where(`${tableName}.id`, "=", sql.ref("latestRows.id"))
+          .returningAll()
+          .execute();
+
+        return rows.map((row) => decodeRow(row, table, kind));
+      }
     });
   },
   upsert: async ({

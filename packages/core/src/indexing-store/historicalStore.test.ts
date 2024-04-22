@@ -469,6 +469,37 @@ test("updateMany() updates multiple entities", async (context) => {
   await cleanup();
 });
 
+test("updateMany() updates using a function", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+    ],
+  });
+
+  const updateditems = await indexingStore.updateMany({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
+    where: { bigAge: { gt: 50n } },
+    data: () => ({ bigAge: 300n }),
+  });
+
+  expect(updateditems.length).toBe(2);
+
+  const { items } = await indexingStore.findMany({ tableName: "Pet" });
+
+  expect(items.map((i) => i.bigAge)).toMatchObject([300n, 10n, 300n]);
+
+  await cleanup();
+});
+
 test("update() works with hex case sensitivity", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema: hexSchema,

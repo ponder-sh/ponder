@@ -185,20 +185,20 @@ export async function setupDatabaseServices(
 
     const indexingStore = {
       ...getReadIndexingStore({
-        kind: "sqlite",
+        kind: "postgres",
         schema: config.schema,
         namespaceInfo: result.namespaceInfo,
         db: database.indexingDb,
       }),
       ...(config.indexing === "historical"
         ? getHistoricalIndexingStore({
-            kind: "sqlite",
+            kind: "postgres",
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
           })
         : getRealtimeIndexingStore({
-            kind: "sqlite",
+            kind: "postgres",
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
