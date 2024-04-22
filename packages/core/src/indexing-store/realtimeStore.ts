@@ -210,8 +210,6 @@ export const getRealtimeIndexingStore = ({
 
     return db.wrap({ method: `${tableName}.updateMany` }, async () => {
       const rows = await db.transaction().execute(async (tx) => {
-        // TODO(kyle) can remove this from the tx
-
         // Get all IDs that match the filter.
         let query = tx
           .withSchema(namespaceInfo.userNamespace)
