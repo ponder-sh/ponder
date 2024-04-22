@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import { describe } from "node:test";
 import {
-  setupContext,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -153,7 +153,7 @@ let cleanup: () => Promise<void>;
 
 const setupStore = async () => {
   context = {} as TestContext;
-  setupContext(context);
+  setupCommon(context);
 
   const cleanupDatabase = await setupIsolatedDatabase(context);
   const { syncStore: syncStore_, cleanup: cleanUpstore } =

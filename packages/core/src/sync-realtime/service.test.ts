@@ -1,5 +1,6 @@
 import {
   setupAnvil,
+  setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
@@ -11,8 +12,9 @@ import { toLowerCase } from "@/utils/lowercase.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { RealtimeSyncService } from "./service.js";
 
-beforeEach((context) => setupAnvil(context));
-beforeEach((context) => setupIsolatedDatabase(context));
+beforeEach(setupCommon);
+beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 test("setup() returns block numbers", async (context) => {
   const { common, networks, requestQueues, sources } = context;

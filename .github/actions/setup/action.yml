@@ -14,7 +14,7 @@ runs:
       uses: actions/setup-node@v3
       with:
         cache: pnpm
-        node-version: ${{ matrix.node-version == 'Node 18' && 18 || 20 }}
+        node-version: 20
 
     - name: Set up foundry
       uses: foundry-rs/foundry-toolchain@v1

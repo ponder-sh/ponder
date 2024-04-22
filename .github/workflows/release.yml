@@ -9,9 +9,6 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: ["Node 20"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v4.1.0

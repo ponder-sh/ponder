@@ -1,11 +1,18 @@
-import { setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupCommon,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import type { GraphQLSchema } from "graphql";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { buildGraphqlSchema } from "./graphql/buildGraphqlSchema.js";
 import { createServer } from "./service.js";
+
+beforeEach(setupCommon);
+beforeEach(setupIsolatedDatabase);
 
 test("port", async (context) => {
   const server1 = await createServer({
@@ -108,7 +115,6 @@ test("metrics PUT", async (context) => {
 });
 
 test("graphql", async (context) => {
-  const shutdown = await setupIsolatedDatabase(context);
   const schema = createSchema((p) => ({
     table: p.createTable({
       id: p.string(),
@@ -187,25 +193,9 @@ test("graphql", async (context) => {
   });
 
   await cleanup();
-
-  await shutdown();
-});
-
-test("graphql interactive", async (context) => {
-  const server = await createServer({
-    graphqlSchema: {} as GraphQLSchema,
-    common: context.common,
-    indexingStore: {} as IndexingStore,
-  });
-  server.setHealthy();
-
-  const response = await server.hono.request("/graphql");
-
-  expect(response.status).toBe(200);
 });
 
 test("graphql extra filter", async (context) => {
-  const shutdown = await setupIsolatedDatabase(context);
   const schema = createSchema((p) => ({
     table: p.createTable({
       id: p.string(),
@@ -256,8 +246,19 @@ test("graphql extra filter", async (context) => {
   expect(response.status).toBe(400);
 
   await cleanup();
+});
 
-  await shutdown();
+test("graphql interactive", async (context) => {
+  const server = await createServer({
+    graphqlSchema: {} as GraphQLSchema,
+    common: context.common,
+    indexingStore: {} as IndexingStore,
+  });
+  server.setHealthy();
+
+  const response = await server.hono.request("/graphql");
+
+  expect(response.status).toBe(200);
 });
 
 test("missing route", async (context) => {

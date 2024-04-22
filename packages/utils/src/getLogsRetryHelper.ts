@@ -74,21 +74,6 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
-  // thirdweb
-  match = sError.match(/bigger than range limit (\d+)/);
-  if (match !== null) {
-    const ranges = chunk({ params, range: BigInt(match[1]!) });
-
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
-    }
-
-    return {
-      shouldRetry: true,
-      ranges,
-    } as const;
-  }
-
   // ankr
   match = sError.match("block range is too wide");
   if (match !== null && error.code === -32600) {
@@ -127,6 +112,24 @@ export const getLogsRetryHelper = ({
 
   // quicknode, 1rpc, zkevm, blast
   match = sError.match(/limited to a ([\d,.]+)/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // blockpi
+  match = sError.match(/limited to ([\d,.]+) block/);
   if (match !== null) {
     const ranges = chunk({
       params,
