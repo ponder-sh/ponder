@@ -16,7 +16,7 @@ test("buildLogFilterFragments generates 1 log filter fragment for null filter", 
 
   expect(logFilterFragments).toMatchObject([
     {
-      id: "1_null_null_null_null_null_false",
+      id: "1_null_null_null_null_null_0",
       address: null,
       topic0: null,
       topic1: null,
@@ -37,7 +37,7 @@ test("buildLogFilterFragments generates 1 log filter fragment for simple filter"
 
   expect(logFilterFragments).toMatchObject([
     {
-      id: "1_0xa_null_null_null_null_false",
+      id: "1_0xa_null_null_null_null_0",
       address: "0xa",
       topic0: null,
       topic1: null,
@@ -58,7 +58,7 @@ test("buildLogFilterFragments generates 4 log filter fragment for 2x2 filter", (
 
   expect(logFilterFragments).toMatchObject([
     {
-      id: "115511_0xa_0xc_null_0xe_null_false",
+      id: "115511_0xa_0xc_null_0xe_null_0",
       address: "0xa",
       topic0: "0xc",
       topic1: null,
@@ -67,7 +67,7 @@ test("buildLogFilterFragments generates 4 log filter fragment for 2x2 filter", (
       includeTransactionReceipts: 0,
     },
     {
-      id: "115511_0xa_0xd_null_0xe_null_false",
+      id: "115511_0xa_0xd_null_0xe_null_0",
       address: "0xa",
       topic0: "0xd",
       topic1: null,
@@ -76,7 +76,7 @@ test("buildLogFilterFragments generates 4 log filter fragment for 2x2 filter", (
       includeTransactionReceipts: 0,
     },
     {
-      id: "115511_0xb_0xc_null_0xe_null_false",
+      id: "115511_0xb_0xc_null_0xe_null_0",
       address: "0xb",
       topic0: "0xc",
       topic1: null,
@@ -85,7 +85,7 @@ test("buildLogFilterFragments generates 4 log filter fragment for 2x2 filter", (
       includeTransactionReceipts: 0,
     },
     {
-      id: "115511_0xb_0xd_null_0xe_null_false",
+      id: "115511_0xb_0xd_null_0xe_null_0",
       address: "0xb",
       topic0: "0xd",
       topic1: null,
@@ -116,7 +116,7 @@ test("buildLogFilterFragments includeTransactionReceipts", () => {
 
   expect(logFilterFragments).toMatchObject([
     {
-      id: "1_null_null_null_null_null_true",
+      id: "1_null_null_null_null_null_1",
       address: null,
       topic0: null,
       topic1: null,
@@ -142,7 +142,7 @@ test("buildFactoryFragments builds id containing topic", () => {
       ...criteria,
     })[0].id,
   ).toBe(
-    "1_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_topic1_null_null_null_null_false",
+    "1_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_topic1_null_null_null_null_0",
   );
 });
 
@@ -161,6 +161,6 @@ test("buildFactoryFragments builds id containing offset", () => {
       ...criteria,
     })[0].id,
   ).toBe(
-    "115511_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null_false",
+    "115511_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null_0",
   );
 });

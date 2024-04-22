@@ -21,7 +21,9 @@ export function buildLogFilterFragments({
     includeTransactionReceipts,
     chainId,
     idCallback: (address_, topic0_, topic1_, topic2_, topic3_) =>
-      `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${includeTransactionReceipts}`,
+      `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+        includeTransactionReceipts ? 1 : 0
+      }`,
   });
 }
 
@@ -49,7 +51,9 @@ export function buildFactoryFragments({
     childAddressLocation,
     eventSelector,
     idCallback: (address_, topic0_, topic1_, topic2_, topic3_) =>
-      `${chainId}_${address_}_${eventSelector}_${childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${includeTransactionReceipts}`,
+      `${chainId}_${address_}_${eventSelector}_${childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+        includeTransactionReceipts ? 1 : 0
+      }`,
   });
 
   return fragments as ((typeof fragments)[number] &
