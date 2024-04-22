@@ -352,16 +352,16 @@ export const handleBlock = async (
       logs: newLogs,
     });
 
-    const matchedLogCountText =
-      newLogs.length === 1 ? "1 matched log" : `${newLogs.length} matched logs`;
+    const logCountText =
+      newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
     service.common.logger.info({
       service: "realtime",
-      msg: `Synced ${matchedLogCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
+      msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
   } else {
-    service.common.logger.info({
+    service.common.logger.debug({
       service: "realtime",
-      msg: `Synced 0 matched logs from '${service.network.name}' block ${newHeadBlockNumber}`,
+      msg: `Synced 0 logs from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
   }
 

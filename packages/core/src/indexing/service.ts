@@ -246,6 +246,8 @@ export const processEvents = async (
     }
   }
 
+  const eventCounts: { [eventName: string]: number } = {};
+
   for (let i = 0; i < events.length; i++) {
     const event = events[i];
     const eventName = `${event.contractName}:${event.logEventName}`;
@@ -269,6 +271,9 @@ export const processEvents = async (
         break;
       }
     }
+
+    if (eventCounts[eventName] === undefined) eventCounts[eventName] = 0;
+    else eventCounts[eventName]++;
 
     indexingService.common.logger.trace({
       service: "indexing",
@@ -303,12 +308,19 @@ export const processEvents = async (
   // set completed events
   updateCompletedEvents(indexingService);
 
-  indexingService.common.logger.info({
-    service: "indexing",
-    msg: `Indexed ${
-      events.length === 1 ? "1 event" : `${events.length} events`
-    }`,
-  });
+  for (const [eventName, count] of Object.entries(eventCounts)) {
+    if (count === 1) {
+      indexingService.common.logger.info({
+        service: "indexing",
+        msg: `Indexed 1 '${eventName}' event`,
+      });
+    } else {
+      indexingService.common.logger.info({
+        service: "indexing",
+        msg: `Indexed ${count} '${eventName}' events`,
+      });
+    }
+  }
 
   return { status: "success" };
 };
