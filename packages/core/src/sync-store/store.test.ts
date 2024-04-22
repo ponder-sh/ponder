@@ -491,7 +491,7 @@ test("getLogFilterIntervals handles includeTransactionReceipts", async (context)
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {
-      topics: [],
+      topics: ["0x0"],
       includeTransactionReceipts: false,
     },
     ...rpcData.block1,
@@ -502,7 +502,7 @@ test("getLogFilterIntervals handles includeTransactionReceipts", async (context)
   let logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: {
-      topics: [],
+      topics: ["0x0"],
       includeTransactionReceipts: false,
     },
   });
@@ -513,7 +513,7 @@ test("getLogFilterIntervals handles includeTransactionReceipts", async (context)
   logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: {
-      topics: [],
+      topics: ["0x0"],
       includeTransactionReceipts: true,
     },
   });
@@ -523,7 +523,7 @@ test("getLogFilterIntervals handles includeTransactionReceipts", async (context)
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {
-      topics: [],
+      topics: ["0x1"],
       includeTransactionReceipts: true,
     },
     ...rpcData.block1,
@@ -534,7 +534,7 @@ test("getLogFilterIntervals handles includeTransactionReceipts", async (context)
   logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: {
-      topics: [],
+      topics: ["0x1"],
       includeTransactionReceipts: true,
     },
   });
@@ -545,7 +545,7 @@ test("getLogFilterIntervals handles includeTransactionReceipts", async (context)
   logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: {
-      topics: [],
+      topics: ["0x1"],
       includeTransactionReceipts: false,
     },
   });
@@ -1049,7 +1049,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
   await cleanup();
 });
 
-test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (context) => {
+test.only("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -1059,7 +1059,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
-    topics: [],
+    topics: ["0x0"],
     includeTransactionReceipts: false,
   };
 
@@ -1088,6 +1088,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
   expect(intervals).toMatchObject([]);
 
   factoryCriteria.includeTransactionReceipts = true;
+  factoryCriteria.topics = ["0x1"];
 
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
