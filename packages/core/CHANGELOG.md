@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.8
+
+### Patch Changes
+
+- [#802](https://github.com/ponder-sh/ponder/pull/802) [`6a929eccb999b85d855f93720b65ff5e3a1a2d9c`](https://github.com/ponder-sh/ponder/commit/6a929eccb999b85d855f93720b65ff5e3a1a2d9c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed several bugs related to realtime reliability including handling reorgs when the head block number goes backwards commonly occurring in Polygon and inconsistent data returned by "eth_getLogs".
+
 ## 0.4.7
 
 ### Patch Changes
