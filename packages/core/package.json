@@ -84,6 +84,7 @@
     "@types/react": "^18.2.38",
     "@viem/anvil": "^0.0.6",
     "@wagmi/cli": "^1.5.2",
+    "execa": "^8.0.1",
     "rimraf": "^5.0.5",
     "tsup": "^8.0.1",
     "vitest": "^1.0.2"

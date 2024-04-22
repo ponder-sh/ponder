@@ -1,3 +1,4 @@
+import { execa } from "execa";
 import { defineConfig } from "tsup";
 
 export default defineConfig({
@@ -9,4 +10,7 @@ export default defineConfig({
   dts: true,
   clean: true,
   splitting: true,
+  onSuccess: async () => {
+    await execa("pnpm", ["wagmi", "generate"]);
+  },
 });

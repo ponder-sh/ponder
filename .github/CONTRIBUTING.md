@@ -101,15 +101,6 @@ After the build completes, pnpm links packages across the project for developmen
 
 ## Run the test suite
 
-### Generate ABIs
-
-The test suite uses the [Wagmi CLI](https://wagmi.sh/cli/getting-started) to generate ABIs for test contracts. This only needs to be done once during setup.
-
-```bash
-cd packages/core
-pnpm wagmi generate
-```
-
 ### Running tests
 
 The test suite uses [vitest](https://vitest.dev/guide) in concurrent mode as a test runner.
