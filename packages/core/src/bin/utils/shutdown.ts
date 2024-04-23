@@ -1,6 +1,7 @@
 import os from "node:os";
 import readline from "node:readline";
 import type { Common } from "@/common/common.js";
+import { IgnorableError } from "@/common/errors.js";
 
 const SHUTDOWN_GRACE_PERIOD_MS = 5_000;
 
@@ -73,6 +74,7 @@ export function setupShutdown({
   );
 
   process.on("uncaughtException", (error: Error) => {
+    if (error instanceof IgnorableError) return;
     common.logger.error({
       service: "process",
       msg: "Caught uncaughtException event with error:",
@@ -81,6 +83,7 @@ export function setupShutdown({
     shutdown({ reason: "Received uncaughtException", code: 1 });
   });
   process.on("unhandledRejection", (error: Error) => {
+    if (error instanceof IgnorableError) return;
     common.logger.error({
       service: "process",
       msg: "Caught unhandledRejection event with error:",

@@ -24,3 +24,12 @@ export class DatabaseError extends NonRetryableError {
     Object.setPrototypeOf(this, DatabaseError.prototype);
   }
 }
+
+export class IgnorableError extends Error {
+  override name = "IgnorableError";
+
+  constructor(message?: string) {
+    super(message);
+    Object.setPrototypeOf(this, IgnorableError.prototype);
+  }
+}
