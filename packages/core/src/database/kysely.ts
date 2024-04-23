@@ -51,7 +51,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
         });
 
         if (this.isKilled) {
-          this.common.logger.debug({
+          this.common.logger.trace({
             service: this.name,
             msg: `Ignored error during '${options.method}' (service is killed)`,
           });
