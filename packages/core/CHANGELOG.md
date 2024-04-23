@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.4.9
+
+### Patch Changes
+
+- [#824](https://github.com/ponder-sh/ponder/pull/824) [`7c8edb3e184d4c73a766127320f556658e812977`](https://github.com/ponder-sh/ponder/commit/7c8edb3e184d4c73a766127320f556658e812977) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed retries for indexing functions in favor of better retry behavior for RPC requests and database queries. To achieve the same behavior as before, add retry logic to any code that could produce occasional errors (HTTP requests).
+
+- [#824](https://github.com/ponder-sh/ponder/pull/824) [`7c8edb3e184d4c73a766127320f556658e812977`](https://github.com/ponder-sh/ponder/commit/7c8edb3e184d4c73a766127320f556658e812977) Thanks [@kyscott18](https://github.com/kyscott18)! - ~50% faster historical indexing by skipping unnecessary database writes to reorg reconciliation tables. Realtime indexing speed is unaffected.
+
+- [#823](https://github.com/ponder-sh/ponder/pull/823) [`344a3543839f20f19e072a8fc14d859ea2d7fc61`](https://github.com/ponder-sh/ponder/commit/344a3543839f20f19e072a8fc14d859ea2d7fc61) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for including transaction receipts (`event.transactionReceipt`). To enable transaction receipts for all events on a contract, set `includeTransactionReceipts: true` on the contract config. Receipts can be specified/overriden on a per-network basis. Note that including receipts may slow down the historical sync due to additional `eth_getTransactionReceipt` RPC requests.
+
 ## 0.4.8
 
 ### Patch Changes
