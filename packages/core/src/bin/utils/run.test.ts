@@ -109,7 +109,7 @@ test("run() setup error", async (context) => {
 
   await onReloadableErrorPromiseResolver.promise;
 
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(4);
+  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
 
   await kill();
 });

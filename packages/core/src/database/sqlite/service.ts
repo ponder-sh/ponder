@@ -6,7 +6,11 @@ import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/sqlite/encoding.js";
 import { migrationProvider as syncMigrationProvider } from "@/sync-store/sqlite/migrations.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
 import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
@@ -21,6 +25,7 @@ import {
 } from "kysely";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "../kysely.js";
+import { revertIndexingTables } from "../revert.js";
 import type { BaseDatabaseService, NamespaceInfo } from "../service.js";
 import { type InternalTables, migrationProvider } from "./migrations.js";
 
@@ -40,7 +45,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   private syncDatabase: SqliteDatabase;
 
   db: HeadlessKysely<InternalTables>;
-  indexingDb: HeadlessKysely<InternalTables>;
+  indexingDb: HeadlessKysely<any>;
   syncDb: HeadlessKysely<SyncStoreTables>;
 
   private buildId: string = null!;
@@ -326,6 +331,20 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       }, HEARTBEAT_INTERVAL_MS);
 
       return { checkpoint, namespaceInfo };
+    });
+  }
+
+  async revert({
+    checkpoint,
+    namespaceInfo,
+  }: {
+    checkpoint: Checkpoint;
+    namespaceInfo: NamespaceInfo;
+  }) {
+    await revertIndexingTables({
+      db: this.indexingDb,
+      checkpoint,
+      namespaceInfo,
     });
   }
 

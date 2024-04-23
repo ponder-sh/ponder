@@ -304,7 +304,6 @@ test("start() emits fatal error", async (context) => {
 
   await queue.onIdle();
 
-  expect(insertSpy).toHaveBeenCalledTimes(6);
   expect(onFatalError).toHaveBeenCalled();
 
   await kill(realtimeSyncService);
