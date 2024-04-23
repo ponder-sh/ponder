@@ -88,9 +88,7 @@ test("create() throws on unique constraint violation", async (context) => {
       id: "id1",
       data: { name: "Skip", age: 13 },
     }),
-  ).rejects.toThrow(
-    "Cannot create Pet record with ID id1 because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using Pet.upsert().",
-  );
+  ).rejects.toThrow("UNIQUE constraint failed: Pet.id");
 
   await cleanup();
 });

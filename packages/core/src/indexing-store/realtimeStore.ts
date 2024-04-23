@@ -1,9 +1,9 @@
-import { StoreError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema } from "@/schema/types.js";
 import type { Row, WhereInput, WriteIndexingStore } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
+import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
@@ -35,38 +35,29 @@ export const getRealtimeIndexingStore = ({
     return db.wrap({ method: `${tableName}.create` }, async () => {
       const createRow = encodeRow({ id, ...data }, table, kind);
 
-      try {
-        return await db.transaction().execute(async (tx) => {
-          const row = await tx
-            .withSchema(namespaceInfo.userNamespace)
-            .insertInto(tableName)
-            .values(createRow)
-            .returningAll()
-            .executeTakeFirstOrThrow();
+      return await db.transaction().execute(async (tx) => {
+        const row = await tx
+          .withSchema(namespaceInfo.userNamespace)
+          .insertInto(tableName)
+          .values(createRow)
+          .returningAll()
+          .executeTakeFirstOrThrow()
+          .catch((err) => {
+            throw parseStoreError(err, { id, ...data });
+          });
 
-          await tx
-            .withSchema(namespaceInfo.internalNamespace)
-            .insertInto(namespaceInfo.internalTableIds[tableName])
-            .values({
-              operation: 0,
-              id: createRow.id,
-              checkpoint: encodedCheckpoint,
-            })
-            .execute();
+        await tx
+          .withSchema(namespaceInfo.internalNamespace)
+          .insertInto(namespaceInfo.internalTableIds[tableName])
+          .values({
+            operation: 0,
+            id: createRow.id,
+            checkpoint: encodedCheckpoint,
+          })
+          .execute();
 
-          return decodeRow(row, table, kind);
-        });
-      } catch (err) {
-        const error = err as Error;
-        throw (kind === "sqlite" &&
-          error.message.includes("UNIQUE constraint failed")) ||
-          (kind === "postgres" &&
-            error.message.includes("violates unique constraint"))
-          ? new StoreError(
-              `Cannot create ${tableName} record with ID ${id} because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using ${tableName}.upsert().`,
-            )
-          : error;
-      }
+        return decodeRow(row, table, kind);
+      });
     });
   },
   createMany: ({
@@ -81,49 +72,40 @@ export const getRealtimeIndexingStore = ({
     const table = schema.tables[tableName];
 
     return db.wrap({ method: `${tableName}.createMany` }, async () => {
-      try {
-        const rows: Row[] = [];
-        await db.transaction().execute(async (tx) => {
-          for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
-            const createRows = data
-              .slice(i, i + MAX_BATCH_SIZE)
-              .map((d) => encodeRow(d, table, kind));
+      const rows: Row[] = [];
+      await db.transaction().execute(async (tx) => {
+        for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
+          const createRows = data
+            .slice(i, i + MAX_BATCH_SIZE)
+            .map((d) => encodeRow(d, table, kind));
 
-            const _rows = await tx
-              .withSchema(namespaceInfo.userNamespace)
-              .insertInto(tableName)
-              .values(createRows)
-              .returningAll()
-              .execute();
+          const _rows = await tx
+            .withSchema(namespaceInfo.userNamespace)
+            .insertInto(tableName)
+            .values(createRows)
+            .returningAll()
+            .execute()
+            .catch((err) => {
+              throw parseStoreError(err, data.length > 0 ? data[0] : {});
+            });
 
-            rows.push(...(_rows as Row[]));
+          rows.push(...(_rows as Row[]));
 
-            await tx
-              .withSchema(namespaceInfo.internalNamespace)
-              .insertInto(namespaceInfo.internalTableIds[tableName])
-              .values(
-                createRows.map((row) => ({
-                  operation: 0,
-                  id: row.id,
-                  checkpoint: encodedCheckpoint,
-                })),
-              )
-              .execute();
-          }
-        });
-
-        return rows.map((row) => decodeRow(row, table, kind));
-      } catch (err) {
-        const error = err as Error;
-        throw (kind === "sqlite" &&
-          error.message.includes("UNIQUE constraint failed")) ||
-          (kind === "postgres" &&
-            error.message.includes("violates unique constraint"))
-          ? new StoreError(
-              `Cannot createMany ${tableName} records because one or more records already exist (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method?`,
+          await tx
+            .withSchema(namespaceInfo.internalNamespace)
+            .insertInto(namespaceInfo.internalTableIds[tableName])
+            .values(
+              createRows.map((row) => ({
+                operation: 0,
+                id: row.id,
+                checkpoint: encodedCheckpoint,
+              })),
             )
-          : error;
-      }
+            .execute();
+        }
+      });
+
+      return rows.map((row) => decodeRow(row, table, kind));
     });
   },
   update: ({
@@ -151,21 +133,20 @@ export const getRealtimeIndexingStore = ({
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
-          .executeTakeFirst();
-        if (!latestRow)
-          throw new StoreError(
-            `Cannot update ${tableName} record with ID ${id} because no existing record was found with that ID. Consider using ${tableName}.upsert(), or create the record before updating it. Hint: Did you forget to await the promise returned by a store method?`,
-          );
+          .executeTakeFirstOrThrow()
+          .catch((err) => {
+            throw parseStoreError(err, { id, data: "(function)" });
+          });
 
         // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof encodeRow>;
+        let updateObject: Partial<Omit<Row, "id">>;
         if (typeof data === "function") {
           const current = decodeRow(latestRow, table, kind);
-          const updateObject = data({ current });
-          updateRow = encodeRow({ id, ...updateObject }, table, kind);
+          updateObject = data({ current });
         } else {
-          updateRow = encodeRow({ id, ...data }, table, kind);
+          updateObject = data;
         }
+        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
 
         const updateResult = await tx
           .withSchema(namespaceInfo.userNamespace)
@@ -173,7 +154,10 @@ export const getRealtimeIndexingStore = ({
           .set(updateRow)
           .where("id", "=", encodedId)
           .returningAll()
-          .executeTakeFirstOrThrow();
+          .executeTakeFirstOrThrow()
+          .catch((err) => {
+            throw parseStoreError(err, { id, ...updateObject });
+          });
 
         await tx
           .withSchema(namespaceInfo.internalNamespace)
@@ -232,14 +216,14 @@ export const getRealtimeIndexingStore = ({
         const rows: Row[] = [];
         for (const latestRow of latestRows) {
           // If the user passed an update function, call it with the current instance.
-          let updateRow: ReturnType<typeof encodeRow>;
+          let updateObject: Partial<Omit<Row, "id">>;
           if (typeof data === "function") {
             const current = decodeRow(latestRow, table, kind);
-            const updateObject = data({ current });
-            updateRow = encodeRow(updateObject, table, kind);
+            updateObject = data({ current });
           } else {
-            updateRow = encodeRow(data, table, kind);
+            updateObject = data;
           }
+          const updateRow = encodeRow(updateObject, table, kind);
 
           const row = await tx
             .withSchema(namespaceInfo.userNamespace)
@@ -247,7 +231,10 @@ export const getRealtimeIndexingStore = ({
             .set(updateRow)
             .where("id", "=", latestRow.id)
             .returningAll()
-            .executeTakeFirstOrThrow();
+            .executeTakeFirstOrThrow()
+            .catch((err) => {
+              throw parseStoreError(err, updateObject);
+            });
 
           rows.push(row as Row);
 
@@ -305,7 +292,14 @@ export const getRealtimeIndexingStore = ({
             .insertInto(tableName)
             .values(createRow)
             .returningAll()
-            .executeTakeFirstOrThrow();
+            .executeTakeFirstOrThrow()
+            .catch((err) => {
+              const prettyObject: any = { id };
+              for (const [key, value] of Object.entries(create))
+                prettyObject[`create.${key}`] = value;
+              prettyObject.update = "(function)";
+              throw parseStoreError(err, prettyObject);
+            });
 
           await tx
             .withSchema(namespaceInfo.internalNamespace)
@@ -321,14 +315,14 @@ export const getRealtimeIndexingStore = ({
         }
 
         // If the user passed an update function, call it with the current instance.
-        let updateRow: ReturnType<typeof encodeRow>;
+        let updateObject: Partial<Omit<Row, "id">>;
         if (typeof update === "function") {
           const current = decodeRow(latestRow, table, kind);
-          const updateObject = update({ current });
-          updateRow = encodeRow({ id, ...updateObject }, table, kind);
+          updateObject = update({ current });
         } else {
-          updateRow = encodeRow({ id, ...update }, table, kind);
+          updateObject = update;
         }
+        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
 
         const row = await tx
           .withSchema(namespaceInfo.userNamespace)
@@ -336,7 +330,15 @@ export const getRealtimeIndexingStore = ({
           .set(updateRow)
           .where("id", "=", encodedId)
           .returningAll()
-          .executeTakeFirstOrThrow();
+          .executeTakeFirstOrThrow()
+          .catch((err) => {
+            const prettyObject: any = { id };
+            for (const [key, value] of Object.entries(create))
+              prettyObject[`create.${key}`] = value;
+            for (const [key, value] of Object.entries(updateObject))
+              prettyObject[`update.${key}`] = value;
+            throw parseStoreError(err, prettyObject);
+          });
 
         await tx
           .withSchema(namespaceInfo.internalNamespace)
@@ -381,7 +383,10 @@ export const getRealtimeIndexingStore = ({
           .deleteFrom(tableName)
           .where("id", "=", encodedId)
           .returning(["id"])
-          .executeTakeFirst();
+          .executeTakeFirst()
+          .catch((err) => {
+            throw parseStoreError(err, { id });
+          });
 
         if (row !== undefined) {
           await tx

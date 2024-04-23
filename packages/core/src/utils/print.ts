@@ -5,7 +5,7 @@ export function prettyPrint(
 ) {
   const entries = Object.entries(args)
     .map(([key, value]) => {
-      if (value === undefined || value === false) return null;
+      if (value === undefined) return null;
 
       const trimmedValue =
         typeof value === "string" && value.length > 80
@@ -20,6 +20,6 @@ export function prettyPrint(
     0,
   );
   return entries
-    .map(([key, value]) => `  ${`${key}:`.padEnd(maxLength + 1)}  ${value}`)
+    .map(([key, value]) => `  ${`${key}`.padEnd(maxLength + 1)}  ${value}`)
     .join("\n");
 }
