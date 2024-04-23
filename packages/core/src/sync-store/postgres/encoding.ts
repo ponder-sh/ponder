@@ -1,5 +1,5 @@
 import type { Generated, Insertable } from "kysely";
-import type { Address, Hash, Hex } from "viem";
+import type { Address, Hash, Hex, RpcTransactionReceipt } from "viem";
 import {
   type RpcBlock,
   type RpcLog,
@@ -120,6 +120,51 @@ export function rpcToPostgresTransaction(
   };
 }
 
+type TransactionReceiptsTable = {
+  blockHash: Hash;
+  blockNumber: bigint;
+  contractAddress: Address | null;
+  cumulativeGasUsed: bigint;
+  effectiveGasPrice: bigint;
+  from: Address;
+  gasUsed: bigint;
+  logs: string;
+  logsBloom: Hex;
+  status: Hex;
+  to: Address | null;
+  transactionHash: Hash;
+  transactionIndex: number;
+  type: Hex;
+
+  chainId: number;
+};
+
+export type InsertableTransactionReceipts =
+  Insertable<TransactionReceiptsTable>;
+
+export function rpcToPostgresTransactionReceipt(
+  transactionReceipt: RpcTransactionReceipt,
+): Omit<TransactionReceiptsTable, "chainId"> {
+  return {
+    blockHash: transactionReceipt.blockHash,
+    blockNumber: BigInt(transactionReceipt.blockNumber),
+    contractAddress: transactionReceipt.contractAddress
+      ? toLowerCase(transactionReceipt.contractAddress)
+      : null,
+    cumulativeGasUsed: BigInt(transactionReceipt.cumulativeGasUsed),
+    effectiveGasPrice: BigInt(transactionReceipt.effectiveGasPrice),
+    from: toLowerCase(transactionReceipt.from),
+    gasUsed: BigInt(transactionReceipt.gasUsed),
+    logs: JSON.stringify(transactionReceipt.logs),
+    logsBloom: transactionReceipt.logsBloom,
+    status: transactionReceipt.status,
+    to: transactionReceipt.to ? toLowerCase(transactionReceipt.to) : null,
+    transactionHash: transactionReceipt.transactionHash,
+    transactionIndex: Number(transactionReceipt.transactionIndex),
+    type: transactionReceipt.type as Hex,
+  };
+}
+
 type LogsTable = {
   id: string;
   address: Address;
@@ -173,6 +218,7 @@ type LogFiltersTable = {
   topic1: Hex | null;
   topic2: Hex | null;
   topic3: Hex | null;
+  includeTransactionReceipts: 0 | 1;
 };
 
 type LogFilterIntervalsTable = {
@@ -192,6 +238,7 @@ type FactoriesTable = {
   topic1: Hex | null;
   topic2: Hex | null;
   topic3: Hex | null;
+  includeTransactionReceipts: 0 | 1;
 };
 
 type FactoryLogFilterIntervalsTable = {
@@ -204,6 +251,7 @@ type FactoryLogFilterIntervalsTable = {
 export type SyncStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
+  transactionReceipts: TransactionReceiptsTable;
   logs: LogsTable;
   rpcRequestResults: RpcRequestResultsTable;
 

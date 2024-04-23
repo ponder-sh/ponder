@@ -462,6 +462,34 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to 0", async () =
   expect(sources[0].startBlock).toBe(0);
 });
 
+test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      a: {
+        includeTransactionReceipts: true,
+        network: {
+          mainnet: {},
+          optimism: { includeTransactionReceipts: false },
+        },
+        abi: [event0],
+      },
+    },
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
+
+  expect(sources[0].criteria.includeTransactionReceipts).toBe(true);
+  expect(sources[1].criteria.includeTransactionReceipts).toBe(false);
+});
+
 test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
     networks: {

@@ -2,7 +2,7 @@ import { createConfig } from "@/config/config.js";
 import { createSchema, createTable } from "@/schema/schema.js";
 import { http, type Abi, type Hex, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
-import type { Block, Log, Transaction } from "./eth.js";
+import type { Block, Log, Transaction, TransactionReceipt } from "./eth.js";
 import type { DatabaseModel } from "./model.js";
 import type { Virtual } from "./virtual.js";
 
@@ -37,6 +37,7 @@ const config = createConfig({
       network: "mainnet",
       address: "0x",
       startBlock: 0,
+      includeTransactionReceipts: false,
     },
     c2: {
       abi: [event1, event1Overloaded],
@@ -44,6 +45,7 @@ const config = createConfig({
       network: {
         mainnet: {
           startBlock: 1,
+          includeTransactionReceipts: true,
         },
         optimism: {},
       },
@@ -227,6 +229,23 @@ test("Event", () => {
     log: Log;
     block: Block;
     transaction: Transaction;
+  };
+
+  assertType<a>({} as any as expectedEvent);
+  assertType<expectedEvent>({} as any as a);
+});
+
+test("Event transaction receipt", () => {
+  type a = Virtual.Event<typeof config, "c2:Event1()">;
+  //   ^?
+
+  type expectedEvent = {
+    name: "Event1()";
+    args: readonly [];
+    log: Log;
+    block: Block;
+    transaction: Transaction;
+    transactionReceipt?: TransactionReceipt;
   };
 
   assertType<a>({} as any as expectedEvent);

@@ -11,6 +11,8 @@ export default defineConfig({
   clean: true,
   splitting: true,
   onSuccess: async () => {
-    await execa("pnpm", ["wagmi", "generate"]);
+    try {
+      await execa("pnpm", ["wagmi", "generate"]);
+    } catch {}
   },
 });

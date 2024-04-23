@@ -6,14 +6,16 @@ import { type EventSource } from "@/config/sources.js";
 import type { RawEvent } from "@/sync-store/store.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import type {
-  BlockTag,
-  Chain,
-  Hash,
-  Hex,
-  RpcBlock,
-  RpcLog,
-  RpcTransaction,
+import {
+  type BlockTag,
+  type Chain,
+  type Hash,
+  type Hex,
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+  type RpcTransactionReceipt,
+  formatTransactionReceipt,
 } from "viem";
 import {
   http,
@@ -192,38 +194,58 @@ export const getRawRPCData = async (sources: EventSource[]) => {
       }),
     ),
   );
+  const transactionReceipts = await Promise.all(
+    [...txHashes].map((tx) =>
+      publicClient.request({
+        method: "eth_getTransactionReceipt",
+        params: [tx],
+      }),
+    ),
+  );
 
   return {
     block1: {
       logs: [logs[0]!, logs[1]!],
       block: blocks[0]!,
       transactions: blocks[0]!.transactions,
+      transactionReceipts: transactionReceipts.filter(
+        (tr) => tr?.blockNumber === blocks[0]?.number,
+      ),
     },
     block2: {
       logs: [logs[2]],
       block: blocks[1],
       transactions: blocks[1]!.transactions,
+      transactionReceipts: transactionReceipts.filter(
+        (tr) => tr?.blockNumber === blocks[1]?.number,
+      ),
     },
     block3: {
       logs: [logs[3]],
       block: blocks[2],
       transactions: blocks[2]!.transactions,
+      transactionReceipts: transactionReceipts.filter(
+        (tr) => tr?.blockNumber === blocks[2]?.number,
+      ),
     },
   } as {
     block1: {
       logs: [RpcLog, RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction, RpcTransaction];
+      transactionReceipts: [RpcTransactionReceipt, RpcTransactionReceipt];
     };
     block2: {
       logs: [RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
+      transactionReceipts: [RpcTransactionReceipt];
     };
     block3: {
       logs: [RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
+      transactionReceipts: [RpcTransactionReceipt];
     };
   };
 };
@@ -241,19 +263,22 @@ export const getEventsErc20 = async (
       log: rpcData.block1.logs[0],
       block: rpcData.block1.block,
       transaction: rpcData.block1.transactions[0]!,
+      transactionReceipt: rpcData.block1.transactionReceipts[0]!,
     },
     {
       log: rpcData.block1.logs[1],
       block: rpcData.block1.block,
       transaction: rpcData.block1.transactions[1]!,
+      transactionReceipt: rpcData.block1.transactionReceipts[1]!,
     },
   ]
     .map((e) => ({
       log: formatLog(e.log),
       block: formatBlock(e.block),
       transaction: formatTransaction(e.transaction),
+      transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
     }))
-    .map(({ log, block, transaction }) => ({
+    .map(({ log, block, transaction, transactionReceipt }) => ({
       sourceId: sources[0].id,
       chainId: sources[0].chainId,
       log: {
@@ -266,6 +291,17 @@ export const getEventsErc20 = async (
         ...transaction,
         from: checksumAddress(transaction.from),
         to: transaction.to ? checksumAddress(transaction.to) : transaction.to,
+      },
+      transactionReceipt: {
+        ...transactionReceipt,
+        from: checksumAddress(transactionReceipt.from),
+        to: transactionReceipt.to
+          ? checksumAddress(transactionReceipt.to)
+          : transactionReceipt.to,
+        logs: transactionReceipt.logs.map((l) => ({
+          ...l,
+          id: `${l.blockHash}-${toHex(l.logIndex!)}`,
+        })),
       },
       encodedCheckpoint: encodeCheckpoint({
         blockTimestamp: Number(block.timestamp),

@@ -10,7 +10,12 @@ import type { LogFilterCriteria } from "@/config/sources.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { range } from "@/utils/range.js";
-import { type RpcBlock, type RpcLog, type RpcTransaction } from "viem";
+import {
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+  type RpcTransactionReceipt,
+} from "viem";
 import { type TestContext, bench } from "vitest";
 import type { SyncStore } from "./store.js";
 
@@ -53,6 +58,7 @@ const generateBlock = (
   logFilter: LogFilterCriteria;
   block: RpcBlock;
   transactions: RpcTransaction[];
+  transactionReceipts: RpcTransactionReceipt[];
   logs: RpcLog[];
   interval: { startBlock: bigint; endBlock: bigint };
 } => {
@@ -127,6 +133,7 @@ const generateBlock = (
     block,
     logs,
     transactions,
+    transactionReceipts: [],
     interval: {
       startBlock: opts.block,
       endBlock: opts.block,
@@ -135,6 +142,7 @@ const generateBlock = (
     logFilter: {
       address: opts.addr,
       topics: opts.topics,
+      includeTransactionReceipts: false,
     },
   };
 };
@@ -325,6 +333,7 @@ for (const c of LOG_FILTER_CASES) {
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
+                includeTransactionReceipts: false,
               },
             },
           ],
@@ -366,6 +375,7 @@ for (const c of LOG_FILTER_CASES) {
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
+                includeTransactionReceipts: false,
               },
             },
           ],
@@ -407,6 +417,7 @@ for (const c of LOG_FILTER_CASES) {
               criteria: {
                 address: CONTRACT_ADDR,
                 topics: [TOPIC_0],
+                includeTransactionReceipts: false,
               },
             },
           ],
