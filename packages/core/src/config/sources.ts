@@ -19,7 +19,7 @@ export type BlockFilterCriteria = {
   interval: number;
 };
 
-type BaseSource = {
+type BaseLogSource = {
   id: string;
   contractName: string;
   networkName: string;
@@ -31,12 +31,12 @@ type BaseSource = {
   maxBlockRange?: number;
 };
 
-export type LogSource = BaseSource & {
+export type LogSource = BaseLogSource & {
   type: "log";
   criteria: LogFilterCriteria;
 };
 
-export type FactorySource = BaseSource & {
+export type FactorySource = BaseLogSource & {
   type: "factory";
   criteria: FactoryCriteria;
 };
@@ -44,6 +44,8 @@ export type FactorySource = BaseSource & {
 export type BlockSource = {
   type: "block";
   id: string;
+  // TODO(kyle) this isn't a great name
+  blockName: string;
   networkName: string;
   chainId: number;
   startBlock: number;

@@ -12,11 +12,17 @@ import {
   encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { never } from "@/utils/never.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
-import type { Event, LogEvent, SetupEvent } from "../sync/events.js";
+import type {
+  BlockEvent,
+  Event,
+  LogEvent,
+  SetupEvent,
+} from "../sync/events.js";
 import {
   type ReadOnlyClient,
   buildCachedActions,
@@ -107,6 +113,8 @@ export const create = ({
 
   // build contractsByChainId
   for (const source of sources) {
+    if (source.type === "block") continue;
+
     const address =
       typeof source.criteria.address === "string"
         ? source.criteria.address
@@ -193,8 +201,11 @@ export const processSetupEvents = async (
 
     for (const network of networks) {
       const source = sources.find(
-        (s) => s.contractName === contractName && s.chainId === network.chainId,
-      )!;
+        (s) =>
+          s.type !== "block" &&
+          s.contractName === contractName &&
+          s.chainId === network.chainId,
+      )! as Exclude<EventSource, { type: "block" }>;
 
       if (indexingService.isKilled) return { status: "killed" };
       indexingService.eventCount[eventName][source.networkName]++;
@@ -248,36 +259,69 @@ export const processEvents = async (
   const eventCounts: { [eventName: string]: number } = {};
 
   for (let i = 0; i < events.length; i++) {
-    const event = events[i];
-    const eventName = `${event.contractName}:${event.logEventName}`;
-
     if (indexingService.isKilled) return { status: "killed" };
-    indexingService.eventCount[eventName][
-      indexingService.networkByChainId[event.chainId].name
-    ]++;
 
-    indexingService.common.logger.trace({
-      service: "indexing",
-      msg: `Started indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
-    });
+    const event = events[i];
 
     switch (event.type) {
       case "log": {
+        const eventName = `${event.contractName}:${event.logEventName}`;
+
+        indexingService.eventCount[eventName][
+          indexingService.networkByChainId[event.chainId].name
+        ]++;
+
+        indexingService.common.logger.trace({
+          service: "indexing",
+          msg: `Started indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
+        });
+
         const result = await executeLog(indexingService, { event });
         if (result.status !== "success") {
           return result;
         }
+
+        if (eventCounts[eventName] === undefined) eventCounts[eventName] = 0;
+        else eventCounts[eventName]++;
+
+        indexingService.common.logger.trace({
+          service: "indexing",
+          msg: `Completed indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
+        });
+
         break;
       }
+
+      case "block": {
+        indexingService.eventCount[event.blockName][
+          indexingService.networkByChainId[event.chainId].name
+        ]++;
+
+        indexingService.common.logger.trace({
+          service: "indexing",
+          msg: `Started indexing function (event="${event.blockName}", checkpoint=${event.encodedCheckpoint})`,
+        });
+
+        const result = await executeBlock(indexingService, { event });
+        if (result.status !== "success") {
+          return result;
+        }
+
+        if (eventCounts[event.blockName] === undefined)
+          eventCounts[event.blockName] = 0;
+        else eventCounts[event.blockName]++;
+
+        indexingService.common.logger.trace({
+          service: "indexing",
+          msg: `Completed indexing function (event="${event.blockName}", checkpoint=${event.encodedCheckpoint})`,
+        });
+
+        break;
+      }
+
+      default:
+        never(event);
     }
-
-    if (eventCounts[eventName] === undefined) eventCounts[eventName] = 0;
-    else eventCounts[eventName]++;
-
-    indexingService.common.logger.trace({
-      service: "indexing",
-      msg: `Completed indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
-    });
 
     // periodically update metrics
     if (i % 93 === 0) {
@@ -498,6 +542,75 @@ const executeLog = async (
     common.logger.error({
       service: "indexing",
       msg: `Error while processing "${eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+      error,
+    });
+
+    common.metrics.ponder_indexing_has_error.set(1);
+
+    return { status: "error", error: error };
+  }
+
+  return { status: "success" };
+};
+
+const executeBlock = async (
+  indexingService: Service,
+  { event }: { event: BlockEvent },
+): Promise<
+  | { status: "error"; error: Error }
+  | { status: "success" }
+  | { status: "killed" }
+> => {
+  const {
+    common,
+    indexingFunctions,
+    currentEvent,
+    networkByChainId,
+    contractsByChainId,
+    clientByChainId,
+  } = indexingService;
+  const indexingFunction = indexingFunctions[event.blockName];
+
+  const metricLabel = {
+    event: event.blockName,
+    network: networkByChainId[event.chainId].name,
+  };
+
+  try {
+    // set currentEvent
+    currentEvent.context.network.chainId = event.chainId;
+    currentEvent.context.network.name = networkByChainId[event.chainId].name;
+    currentEvent.context.client = clientByChainId[event.chainId];
+    currentEvent.context.contracts = contractsByChainId[event.chainId];
+    currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
+    currentEvent.contextState.blockNumber = event.event.block.number;
+
+    const endClock = startClock();
+
+    await indexingFunction({
+      event: {
+        block: event.event.block,
+      },
+      context: currentEvent.context,
+    });
+
+    common.metrics.ponder_indexing_function_duration.observe(
+      metricLabel,
+      endClock(),
+    );
+  } catch (error_) {
+    if (indexingService.isKilled) return { status: "killed" };
+    const error = error_ as Error & { meta?: string };
+
+    common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
+
+    const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
+
+    addUserStackTrace(error, common.options);
+
+    common.logger.error({
+      service: "indexing",
+      msg: `Error while processing "${event.blockName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
       error,
     });
 
