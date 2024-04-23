@@ -1049,7 +1049,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
   await cleanup();
 });
 
-test.only("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (context) => {
+test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
