@@ -212,12 +212,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           const completedLogFilterIntervals =
             await this.syncStore.getLogFilterIntervals({
               chainId: source.chainId,
-              logFilter: {
-                address: source.criteria.address,
-                topics: source.criteria.topics,
-                includeTransactionReceipts:
-                  source.criteria.includeTransactionReceipts,
-              },
+              logFilter: source.criteria,
             });
           const logFilterProgressTracker = new ProgressTracker({
             target: [startBlock, endBlock],
@@ -306,8 +301,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               logFilter: {
                 address: source.criteria.address,
                 topics: [source.criteria.eventSelector],
-                includeTransactionReceipts:
-                  source.criteria.includeTransactionReceipts,
+                includeTransactionReceipts: false,
               },
             });
           const factoryChildAddressProgressTracker = new ProgressTracker({
@@ -792,8 +786,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           logFilter: {
             address: factory.criteria.address,
             topics: [factory.criteria.eventSelector],
-            includeTransactionReceipts:
-              factory.criteria.includeTransactionReceipts,
+            includeTransactionReceipts: false,
           },
           chainId: factory.chainId,
           block,
@@ -848,9 +841,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       blockNumber,
     });
 
-    while (callbacks.length !== 0) {
-      await callbacks[callbacks.length - 1](block);
-      callbacks.pop()!;
+    for (const callback of callbacks) {
+      await callback(block);
     }
 
     const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
