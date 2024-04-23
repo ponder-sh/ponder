@@ -1117,6 +1117,134 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
   await cleanup();
 });
 
+test("insertBlockFilterIntervals inserts block", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 5,
+    },
+    block: rpcData.block1.block,
+    interval: {
+      startBlock: hexToBigInt(rpcData.block1.block.number),
+      endBlock: hexToBigInt(rpcData.block1.block.number),
+    },
+  });
+
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+  expect(blocks).toHaveLength(1);
+
+  await cleanup();
+});
+
+test("insertBlockFilterIntervals inserts block filter intervals", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 5,
+    },
+    block: rpcData.block1.block,
+    interval: { startBlock: 0n, endBlock: 100n },
+  });
+
+  const blockFilterRanges = await syncStore.getBlockFilterIntervals({
+    chainId: 1,
+    blockFilter: {
+      interval: 5,
+    },
+  });
+
+  expect(blockFilterRanges).toMatchObject([[0, 100]]);
+  await cleanup();
+});
+
+test("insertBlockFilterIntervals merges on insertion", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 5,
+    },
+    block: rpcData.block1.block,
+    interval: {
+      startBlock: hexToBigInt(rpcData.block1.block.number),
+      endBlock: hexToBigInt(rpcData.block1.block.number),
+    },
+  });
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 5,
+    },
+    block: rpcData.block3.block,
+    interval: {
+      startBlock: hexToBigInt(rpcData.block3.block.number),
+      endBlock: hexToBigInt(rpcData.block3.block.number),
+    },
+  });
+
+  let blockFilterRanges = await syncStore.getBlockFilterIntervals({
+    chainId: 1,
+    blockFilter: {
+      interval: 5,
+    },
+  });
+
+  expect(blockFilterRanges).toMatchObject([
+    [
+      Number(rpcData.block1.block.number!),
+      Number(rpcData.block1.block.number!),
+    ],
+    [
+      Number(rpcData.block3.block.number!),
+      Number(rpcData.block3.block.number!),
+    ],
+  ]);
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 5,
+    },
+    block: rpcData.block2.block,
+    interval: {
+      startBlock: hexToBigInt(rpcData.block2.block.number),
+      endBlock: hexToBigInt(rpcData.block2.block.number),
+    },
+  });
+
+  blockFilterRanges = await syncStore.getBlockFilterIntervals({
+    chainId: 1,
+    blockFilter: {
+      interval: 5,
+    },
+  });
+
+  expect(blockFilterRanges).toMatchObject([
+    [
+      Number(rpcData.block1.block.number!),
+      Number(rpcData.block3.block.number!),
+    ],
+  ]);
+
+  await cleanup();
+});
+
+test.todo("getBlockFilterInterval handles interval");
+
 test("insertRealtimeBlock inserts data", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);

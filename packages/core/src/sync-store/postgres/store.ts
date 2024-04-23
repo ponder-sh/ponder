@@ -1,4 +1,5 @@
 import {
+  type BlockFilterCriteria,
   type EventSource,
   type FactoryCriteria,
   type FactorySource,
@@ -539,6 +540,114 @@ export class PostgresSyncStore implements SyncStore {
     );
   };
 
+  insertBlockFilterInterval = async ({
+    chainId,
+    blockFilter,
+    block: rpcBlock,
+    interval,
+  }: {
+    chainId: number;
+    blockFilter: BlockFilterCriteria;
+    block: RpcBlock;
+    interval: { startBlock: bigint; endBlock: bigint };
+  }): Promise<void> => {
+    return this.db.wrap({ method: "insertBlockFilterInterval" }, async () => {
+      await this.db.transaction().execute(async (tx) => {
+        await tx
+          .insertInto("blocks")
+          .values({ ...rpcToPostgresBlock(rpcBlock), chainId })
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+
+        await this._insertBlockFilterInterval({
+          tx,
+          chainId,
+          blockFilters: [blockFilter],
+          interval,
+        });
+      });
+    });
+  };
+
+  getBlockFilterIntervals = async ({
+    chainId,
+    blockFilter,
+  }: {
+    chainId: number;
+    blockFilter: BlockFilterCriteria;
+  }) => {
+    return this.db.wrap({ method: "getBlockFilterIntervals" }, async () => {
+      const fragment = {
+        id: `${chainId}_${blockFilter.interval}`,
+        chainId,
+        interval: blockFilter.interval,
+      };
+
+      // First, attempt to merge overlapping and adjacent intervals.
+      await this.db.transaction().execute(async (tx) => {
+        const { id: blockFilterId } = await tx
+          .insertInto("blockFilters")
+          .values(fragment)
+          .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+          .returningAll()
+          .executeTakeFirstOrThrow();
+
+        const existingIntervalRows = await tx
+          .deleteFrom("blockFilterIntervals")
+          .where("blockFilterId", "=", blockFilterId)
+          .returningAll()
+          .execute();
+
+        const mergedIntervals = intervalUnion(
+          existingIntervalRows.map((i) => [
+            Number(i.startBlock),
+            Number(i.endBlock),
+          ]),
+        );
+
+        const mergedIntervalRows = mergedIntervals.map(
+          ([startBlock, endBlock]) => ({
+            blockFilterId,
+            startBlock: BigInt(startBlock),
+            endBlock: BigInt(endBlock),
+          }),
+        );
+
+        if (mergedIntervalRows.length > 0) {
+          await tx
+            .insertInto("blockFilterIntervals")
+            .values(mergedIntervalRows)
+            .execute();
+        }
+
+        return mergedIntervals;
+      });
+
+      // TODO(kyle) it might be an invariant that this only every returns one row
+      const intervals = await this.db
+        .selectFrom("blockFilterIntervals")
+        .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
+        .select(["blockFilterId", "startBlock", "endBlock"])
+        .where("chainId", "=", chainId)
+        .where("interval", "=", blockFilter.interval)
+        .execute();
+
+      const intervalsByFragmentId = intervals.reduce(
+        (acc, cur) => {
+          const { blockFilterId, startBlock, endBlock } = cur;
+          (acc[blockFilterId] ||= []).push([
+            Number(startBlock),
+            Number(endBlock),
+          ]);
+          return acc;
+        },
+        {} as Record<string, [number, number][]>,
+      );
+
+      return intervalUnion(intervalsByFragmentId[fragment.id] ?? []);
+    });
+  };
+
   createCheckpoint = (log: RpcLog, block: RpcBlock, chainId: number) => {
     if (block.number === null) {
       throw new Error("Number is missing from RPC block");
@@ -721,6 +830,40 @@ export class PostgresSyncStore implements SyncStore {
         await tx
           .insertInto("logFilterIntervals")
           .values({ logFilterId, startBlock, endBlock })
+          .execute();
+      }),
+    );
+  };
+
+  private _insertBlockFilterInterval = async ({
+    tx,
+    chainId,
+    blockFilters,
+    interval: { startBlock, endBlock },
+  }: {
+    tx: KyselyTransaction<SyncStoreTables>;
+    chainId: number;
+    blockFilters: BlockFilterCriteria[];
+    interval: { startBlock: bigint; endBlock: bigint };
+  }) => {
+    const blockFilterFragments = blockFilters.flatMap((blockFilter) => ({
+      id: `${chainId}_${blockFilter.interval}`,
+      chainId,
+      interval: blockFilter.interval,
+    }));
+
+    await Promise.all(
+      blockFilterFragments.map(async (blockFilterFragment) => {
+        const { id: blockFilterId } = await tx
+          .insertInto("blockFilters")
+          .values(blockFilterFragment)
+          .onConflict((oc) => oc.column("id").doUpdateSet(blockFilterFragment))
+          .returningAll()
+          .executeTakeFirstOrThrow();
+
+        await tx
+          .insertInto("blockFilterIntervals")
+          .values({ blockFilterId, startBlock, endBlock })
           .execute();
       }),
     );

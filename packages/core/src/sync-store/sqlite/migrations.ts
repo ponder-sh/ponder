@@ -697,6 +697,30 @@ const migrations: Record<string, Migration> = {
       await db.executeQuery(sql`PRAGMA foreign_keys = 1`.compile(db));
     },
   },
+  "2024_04_23_0_block_filters": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("blockFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${interval}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("interval", "integer", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createTable("blockFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("blockFilterId", "text", (col) =>
+          col.notNull().references("blockFilters.id"),
+        )
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("blockFilterIntervalsBlockFilterId")
+        .on("blockFilterIntervals")
+        .column("blockFilterId")
+        .execute();
+    },
+  },
 };
 
 async function hasCheckpointCol(db: Kysely<any>) {

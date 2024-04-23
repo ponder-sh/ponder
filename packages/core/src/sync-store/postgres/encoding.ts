@@ -248,6 +248,19 @@ type FactoryLogFilterIntervalsTable = {
   endBlock: bigint;
 };
 
+type BlockFiltersTable = {
+  id: string;
+  chainId: number;
+  interval: number;
+};
+
+type BlockFilterIntervalsTable = {
+  id: Generated<number>;
+  blockFilterId: string;
+  startBlock: bigint;
+  endBlock: bigint;
+};
+
 export type SyncStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
@@ -259,4 +272,6 @@ export type SyncStoreTables = {
   logFilterIntervals: LogFilterIntervalsTable;
   factories: FactoriesTable;
   factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
+  blockFilters: BlockFiltersTable;
+  blockFilterIntervals: BlockFilterIntervalsTable;
 };

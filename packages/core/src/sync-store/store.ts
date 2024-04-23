@@ -1,4 +1,5 @@
 import type {
+  BlockFilterCriteria,
   EventSource,
   FactoryCriteria,
   LogFilterCriteria,
@@ -111,6 +112,27 @@ export interface SyncStore {
   getFactoryLogFilterIntervals(options: {
     chainId: number;
     factory: FactoryCriteria;
+  }): Promise<[number, number][]>;
+
+  /**
+   * Insert a block matching a given block filter. Also insert the block interval.
+   *
+   * Note that `block.number` should always be equal to `interval.endBlock`.
+   */
+  insertBlockFilterInterval(options: {
+    chainId: number;
+    blockFilter: BlockFilterCriteria;
+    block: RpcBlock;
+    interval: { startBlock: bigint; endBlock: bigint };
+  }): Promise<void>;
+
+  /**
+   * Get all block intervals where blocks matching the specified block
+   * filter have already been inserted.
+   */
+  getBlockFilterIntervals(options: {
+    chainId: number;
+    blockFilter: BlockFilterCriteria;
   }): Promise<[number, number][]>;
 
   /**

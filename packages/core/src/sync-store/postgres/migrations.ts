@@ -616,6 +616,30 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_04_23_0_block_filters": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("blockFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${interval}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("interval", "integer", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createTable("blockFilterIntervals")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("blockFilterId", "text", (col) =>
+          col.notNull().references("blockFilters.id"),
+        )
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("blockFilterIntervalsBlockFilterId")
+        .on("blockFilterIntervals")
+        .column("blockFilterId")
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
