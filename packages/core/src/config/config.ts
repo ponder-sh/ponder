@@ -68,6 +68,10 @@ type AbiConfig<abi extends Abi | readonly unknown[]> = {
   abi: abi;
 };
 
+type TransactionReceiptConfig = {
+  includeTransactionReceipts?: boolean;
+};
+
 type GetNetwork<
   networks,
   contract,
@@ -89,6 +93,7 @@ type GetNetwork<
             [name in allNetworkNames]?: Prettify<
               GetAddress<NonStrictPick<network, "factory" | "address">> &
                 GetEventFilter<abi, NonStrictPick<contract, "filter">> &
+                TransactionReceiptConfig &
                 BlockConfig
             >;
           };
@@ -103,7 +108,10 @@ type GetNetwork<
         | allNetworkNames
         | {
             [name in allNetworkNames]?: Prettify<
-              GetAddress<unknown> & GetEventFilter<abi, unknown> & BlockConfig
+              GetAddress<unknown> &
+                GetEventFilter<abi, unknown> &
+                TransactionReceiptConfig &
+                BlockConfig
             >;
           };
     };
@@ -113,6 +121,7 @@ type ContractConfig<networks, contract, abi extends Abi> = Prettify<
     GetNetwork<networks, NonStrictPick<contract, "network">, abi> &
     GetAddress<NonStrictPick<contract, "factory" | "address">> &
     GetEventFilter<abi, NonStrictPick<contract, "filter">> &
+    TransactionReceiptConfig &
     BlockConfig
 >;
 

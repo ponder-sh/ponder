@@ -537,6 +537,166 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_04_22_0_transaction_receipts": {
+    async up(db: Kysely<any>) {
+      // Disable foriegn keys for the duration of this transaction.
+      await db.executeQuery(sql`PRAGMA foreign_keys = 0`.compile(db));
+
+      // Rename and update the existing tables to include the data we want. Note that
+      // these tables have constraints that we do NOT want. They won't get copied over.
+      await db.schema
+        .alterTable("logFilters")
+        .renameTo("logFilters_temp")
+        .execute();
+      await db
+        .updateTable("logFilters_temp")
+        .set({ id: sql`"id" || '_0'` })
+        .execute();
+      await db.schema
+        .alterTable("logFilters_temp")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull().defaultTo(0),
+        )
+        .execute();
+      await db.schema
+        .alterTable("logFilterIntervals")
+        .renameTo("logFilterIntervals_temp")
+        .execute();
+      await db
+        .updateTable("logFilterIntervals_temp")
+        .set({ logFilterId: sql`"logFilterId" || '_0'` })
+        .execute();
+
+      await db.schema
+        .createTable("logFilters")
+        // `${chainId}_${address}_${topic0}_${topic1}_${topic2}_${topic3}_${includeTransactionReceipts}`
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(66)")
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
+        .execute();
+      await db.schema
+        .createTable("logFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        // Note that we removed the foreign key constraint here.
+        .addColumn("logFilterId", "text", (col) => col.notNull())
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
+        .execute();
+      // Copy data from temp tables to new tables.
+      await db.executeQuery(
+        sql`INSERT INTO "logFilters" SELECT * FROM "logFilters_temp"`.compile(
+          db,
+        ),
+      );
+      await db.executeQuery(
+        sql`INSERT INTO "logFilterIntervals" SELECT * FROM "logFilterIntervals_temp"`.compile(
+          db,
+        ),
+      );
+      // Drop the temp tables.
+      await db.schema.dropTable("logFilters_temp").execute();
+      await db.schema.dropTable("logFilterIntervals_temp").execute();
+      // Add back the index.
+      await db.schema
+        .createIndex("logFilterIntervalsLogFilterId")
+        .on("logFilterIntervals")
+        .column("logFilterId")
+        .execute();
+
+      // Repeat the same process for factories.
+      await db.schema
+        .alterTable("factories")
+        .renameTo("factories_temp")
+        .execute();
+      await db
+        .updateTable("factories_temp")
+        .set({ id: sql`"id" || '_0'` })
+        .execute();
+      await db.schema
+        .alterTable("factories_temp")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull().defaultTo(0),
+        )
+        .execute();
+      await db.schema
+        .alterTable("factoryLogFilterIntervals")
+        .renameTo("factoryLogFilterIntervals_temp")
+        .execute();
+      await db
+        .updateTable("factoryLogFilterIntervals_temp")
+        .set({ factoryId: sql`"factoryId" || '_0'` })
+        .execute();
+      await db.schema
+        .createTable("factories")
+        // `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${includeTransactionReceipts}`
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
+        .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
+        .execute();
+      await db.schema
+        .createTable("factoryLogFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        // Note that we removed the foreign key constraint here.
+        .addColumn("factoryId", "text", (col) => col.notNull())
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
+        .execute();
+      await db.executeQuery(
+        sql`INSERT INTO "factories" SELECT * FROM "factories_temp"`.compile(db),
+      );
+      await db.executeQuery(
+        sql`INSERT INTO "factoryLogFilterIntervals" SELECT * FROM "factoryLogFilterIntervals_temp"`.compile(
+          db,
+        ),
+      );
+      await db.schema.dropTable("factories_temp").execute();
+      await db.schema.dropTable("factoryLogFilterIntervals_temp").execute();
+      await db.schema
+        .createIndex("factoryLogFilterIntervalsFactoryId")
+        .on("factoryLogFilterIntervals")
+        .column("factoryId")
+        .execute();
+
+      await db.schema
+        .createTable("transactionReceipts")
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("contractAddress", "varchar(66)")
+        .addColumn("cumulativeGasUsed", "varchar(79)", (col) => col.notNull())
+        .addColumn("effectiveGasPrice", "varchar(79)", (col) => col.notNull())
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("gasUsed", "varchar(79)", (col) => col.notNull())
+        .addColumn("logs", "text", (col) => col.notNull())
+        .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
+        .addColumn("status", "text", (col) => col.notNull())
+        .addColumn("to", "varchar(42)")
+        .addColumn("transactionHash", "varchar(66)", (col) =>
+          col.notNull().primaryKey(),
+        )
+        .addColumn("transactionIndex", "integer", (col) => col.notNull())
+        .addColumn("type", "text", (col) => col.notNull())
+        .execute();
+
+      await db.executeQuery(sql`PRAGMA foreign_keys = 1`.compile(db));
+    },
+  },
 };
 
 async function hasCheckpointCol(db: Kysely<any>) {

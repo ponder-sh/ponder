@@ -6,6 +6,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { testClient } from "@/_test/utils.js";
+import type { EventSource } from "@/config/sources.js";
 import { type SyncBlock, _eth_getBlockByNumber } from "@/sync/index.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
 import { getAbiItem, getEventSelector } from "viem";
@@ -404,6 +405,56 @@ test("handleBlock() ingests block and logs", async (context) => {
   });
 
   expect(requestSpy).toHaveBeenCalledTimes(8);
+
+  await kill(realtimeSyncService);
+
+  await cleanup();
+});
+
+test("handleBlock() gets receipts", async (context) => {
+  const { common, networks, requestQueues, sources, erc20, factory } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const finalizedBlock = await requestQueues[0].request({
+    method: "eth_getBlockByNumber",
+    params: ["0x0", false],
+  });
+
+  const realtimeSyncService = create({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: sources.map(
+      (source) =>
+        ({
+          ...source,
+          criteria: { ...source.criteria, includeTransactionReceipts: true },
+        }) as EventSource,
+    ),
+    finalizedBlock: finalizedBlock as SyncBlock,
+    onEvent: vi.fn(),
+    onFatalError: vi.fn(),
+  });
+
+  for (let i = 1; i <= 4; i++) {
+    await handleBlock(realtimeSyncService, {
+      newHeadBlock: await _eth_getBlockByNumber(
+        { requestQueue: requestQueues[0] },
+        { blockNumber: i },
+      ),
+    });
+  }
+
+  const transactionReceipts = await syncStore.db
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
+
+  expect(transactionReceipts).toHaveLength(3);
+  expect(transactionReceipts[0].to).toBe(erc20.address);
+  expect(transactionReceipts[1].to).toBe(erc20.address);
+  expect(transactionReceipts[2].to).toBe(factory.pair);
 
   await kill(realtimeSyncService);
 

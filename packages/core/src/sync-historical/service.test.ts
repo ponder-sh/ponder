@@ -52,6 +52,38 @@ test("start() with log filter inserts log filter interval records", async (conte
   await cleanup();
 });
 
+test("start() inserts transaction receipts", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const blockNumbers = await getBlockNumbers();
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: [
+      {
+        ...sources[0],
+        criteria: { ...sources[0].criteria, includeTransactionReceipts: true },
+      },
+    ],
+  });
+  await service.setup(blockNumbers);
+  service.start();
+  await service.onIdle();
+
+  const transactionReceipts = await syncStore.db
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
+  expect(transactionReceipts).toHaveLength(2);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
 test("start() with factory contract inserts log filter and factory log filter interval records", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -73,6 +105,7 @@ test("start() with factory contract inserts log filter and factory log filter in
     logFilter: {
       address: sources[1].criteria.address,
       topics: [sources[1].criteria.eventSelector],
+      includeTransactionReceipts: false,
     },
   });
 
@@ -294,6 +327,7 @@ test("start() retries unexpected error in log filter task", async (context) => {
   expect(logFilterIntervals).toMatchObject([
     [0, blockNumbers.finalizedBlockNumber],
   ]);
+  // 2 logs + 2 blocks
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
   service.kill();

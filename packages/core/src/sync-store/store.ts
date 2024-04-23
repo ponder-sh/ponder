@@ -4,9 +4,20 @@ import type {
   LogFilterCriteria,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { Block, Log, Transaction } from "@/types/eth.js";
+import type {
+  Block,
+  Log,
+  Transaction,
+  TransactionReceipt,
+} from "@/types/eth.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import type { Address, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import type {
+  Address,
+  RpcBlock,
+  RpcLog,
+  RpcTransaction,
+  RpcTransactionReceipt,
+} from "viem";
 
 export type RawEvent = {
   chainId: number;
@@ -14,6 +25,7 @@ export type RawEvent = {
   log: Log;
   block: Block;
   transaction: Transaction;
+  transactionReceipt?: TransactionReceipt;
   encodedCheckpoint: string;
 };
 
@@ -33,6 +45,7 @@ export interface SyncStore {
     logFilter: LogFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
@@ -85,6 +98,7 @@ export interface SyncStore {
     factory: FactoryCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
@@ -108,6 +122,7 @@ export interface SyncStore {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
   }): Promise<void>;
 

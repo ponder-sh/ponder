@@ -536,6 +536,86 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_04_22_0_transaction_receipts": {
+    async up(db: Kysely<any>) {
+      // Update the log filter ID keys to include the integer includeTransactionReceipts value.
+      // Note that we have to remove the FK constraint, which is fine given our app logic.
+      await db.schema
+        .alterTable("logFilterIntervals")
+        .dropConstraint("logFilterIntervals_logFilterId_fkey")
+        .execute();
+      await db
+        .updateTable("logFilters")
+        .set({ id: sql`"id" || '_0'` })
+        .execute();
+      await db
+        .updateTable("logFilterIntervals")
+        .set({ logFilterId: sql`"logFilterId" || '_0'` })
+        .execute();
+      // Add the includeTransactionReceipts column. By setting a default in the ADD COLUMN statement,
+      // Postgres will automatically populate all existing rows with the default value. But, we don't
+      // actually want a default (want to require a value on insertion), so immediately drop the default.
+      await db.schema
+        .alterTable("logFilters")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull().defaultTo(0),
+        )
+        .execute();
+      await db.schema
+        .alterTable("logFilters")
+        .alterColumn("includeTransactionReceipts", (col) => col.dropDefault())
+        .execute();
+
+      // Repeat the same 2 steps for the factory tables.
+      await db.schema
+        .alterTable("factoryLogFilterIntervals")
+        .dropConstraint("factoryLogFilterIntervals_factoryId_fkey")
+        .execute();
+      await db
+        .updateTable("factories")
+        .set({ id: sql`"id" || '_0'` })
+        .execute();
+      await db
+        .updateTable("factoryLogFilterIntervals")
+        .set({ factoryId: sql`"factoryId" || '_0'` })
+        .execute();
+      await db.schema
+        .alterTable("factories")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull().defaultTo(0),
+        )
+        .execute();
+      await db.schema
+        .alterTable("factories")
+        .alterColumn("includeTransactionReceipts", (col) => col.dropDefault())
+        .execute();
+
+      await db.schema
+        .createTable("transactionReceipts")
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("contractAddress", "varchar(66)")
+        .addColumn("cumulativeGasUsed", "numeric(78, 0)", (col) =>
+          col.notNull(),
+        )
+        .addColumn("effectiveGasPrice", "numeric(78, 0)", (col) =>
+          col.notNull(),
+        )
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("logs", "text", (col) => col.notNull())
+        .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
+        .addColumn("status", "text", (col) => col.notNull())
+        .addColumn("to", "varchar(42)")
+        .addColumn("transactionHash", "varchar(66)", (col) =>
+          col.notNull().primaryKey(),
+        )
+        .addColumn("transactionIndex", "integer", (col) => col.notNull())
+        .addColumn("type", "text", (col) => col.notNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
