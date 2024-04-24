@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.4.10
+
+### Patch Changes
+
+- [#828](https://github.com/ponder-sh/ponder/pull/828) [`7c17975f0710ce1531a2d9412b180e4b96ccb733`](https://github.com/ponder-sh/ponder/commit/7c17975f0710ce1531a2d9412b180e4b96ccb733) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the dev server would often crash with the error "The database connection is not open" when using SQLite or "Cannot use a pool after calling end on the pool" when using Postgres.
+
+- [#828](https://github.com/ponder-sh/ponder/pull/828) [`7c17975f0710ce1531a2d9412b180e4b96ccb733`](https://github.com/ponder-sh/ponder/commit/7c17975f0710ce1531a2d9412b180e4b96ccb733) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved error messages for SQL constraint violations (unique, not-null, and no record found during an update).
+
 ## 0.4.9
 
 ### Patch Changes
