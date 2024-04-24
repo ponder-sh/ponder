@@ -3,6 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { UniqueConstraintError } from "@/common/errors.js";
 import { createSchema } from "@/schema/schema.js";
 import {
   type Checkpoint,
@@ -81,14 +82,16 @@ test("create() throws on unique constraint violation", async (context) => {
     data: { name: "Skip" },
   });
 
-  await expect(() =>
-    indexingStore.create({
+  const error = await indexingStore
+    .create({
       tableName: "Pet",
       encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
       id: "id1",
       data: { name: "Skip", age: 13 },
-    }),
-  ).rejects.toThrow("UNIQUE constraint failed: Pet.id");
+    })
+    .catch((_error) => _error);
+
+  expect(error).instanceOf(UniqueConstraintError);
 
   await cleanup();
 });
