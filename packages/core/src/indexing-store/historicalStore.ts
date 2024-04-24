@@ -97,9 +97,7 @@ export const getHistoricalIndexingStore = ({
       const encodedId = encodeValue(id, table.id, kind);
 
       let updateObject: Partial<Omit<Row, "id">>;
-
       if (typeof data === "function") {
-        // Find the latest version of this instance.
         const latestRow = await db
           .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
@@ -110,13 +108,12 @@ export const getHistoricalIndexingStore = ({
             throw parseStoreError(err, { id, data: "(function)" });
           });
 
-        const current = decodeRow(latestRow, table, kind);
-        updateObject = data({ current });
+        updateObject = data({ current: decodeRow(latestRow, table, kind) });
       } else {
         updateObject = data;
       }
+      const updateRow = encodeRow(updateObject, table, kind);
 
-      const updateRow = encodeRow({ id, ...updateObject }, table, kind);
       const row = await db
         .updateTable(tableName)
         .set(updateRow)
@@ -146,23 +143,20 @@ export const getHistoricalIndexingStore = ({
     return db.wrap({ method: `${tableName}.updateMany` }, async () => {
       if (typeof data === "function") {
         const rows = await db.transaction().execute(async (tx) => {
-          let query = tx
+          const latestRows = await tx
             .withSchema(namespaceInfo.userNamespace)
             .selectFrom(tableName)
-            .selectAll();
-
-          if (where) {
-            query = query.where((eb) =>
+            .selectAll()
+            .where((eb) =>
               buildWhereConditions({
                 eb,
                 where,
                 table,
                 encoding: kind,
               }),
-            );
-          }
+            )
+            .execute();
 
-          const latestRows = await query.execute();
           const rows: Row[] = [];
           for (const latestRow of latestRows) {
             const current = decodeRow(latestRow, table, kind);
@@ -190,24 +184,20 @@ export const getHistoricalIndexingStore = ({
         const updateRow = encodeRow(data, table, kind);
 
         const rows = await db
-          .with("latestRows(id)", (db) => {
-            let query = db
+          .with("latestRows(id)", (db) =>
+            db
               .withSchema(namespaceInfo.userNamespace)
               .selectFrom(tableName)
-              .select("id");
-
-            if (where) {
-              query = query.where((eb) =>
+              .select("id")
+              .where((eb) =>
                 buildWhereConditions({
                   eb,
                   where,
                   table,
                   encoding: kind,
                 }),
-              );
-            }
-            return query;
-          })
+              ),
+          )
           .withSchema(namespaceInfo.userNamespace)
           .updateTable(tableName)
           .set(updateRow)
@@ -243,7 +233,6 @@ export const getHistoricalIndexingStore = ({
       const createRow = encodeRow({ id, ...create }, table, kind);
 
       if (typeof update === "function") {
-        // Find the latest version of this instance.
         const latestRow = await db
           .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
@@ -251,7 +240,6 @@ export const getHistoricalIndexingStore = ({
           .where("id", "=", encodedId)
           .executeTakeFirst();
 
-        // If there is no latest version, insert a new version using the create data.
         if (latestRow === undefined) {
           const row = await db
             .withSchema(namespaceInfo.userNamespace)
@@ -272,7 +260,7 @@ export const getHistoricalIndexingStore = ({
 
         const current = decodeRow(latestRow, table, kind);
         const updateObject = update({ current });
-        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
+        const updateRow = encodeRow(updateObject, table, kind);
 
         const row = await db
           .withSchema(namespaceInfo.userNamespace)
@@ -292,7 +280,7 @@ export const getHistoricalIndexingStore = ({
 
         return decodeRow(row, table, kind);
       } else {
-        const updateRow = encodeRow({ id, ...update }, table, kind);
+        const updateRow = encodeRow(update, table, kind);
 
         const row = await db
           .withSchema(namespaceInfo.userNamespace)

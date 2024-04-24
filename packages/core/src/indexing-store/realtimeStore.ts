@@ -127,7 +127,6 @@ export const getRealtimeIndexingStore = ({
       const encodedId = encodeValue(id, table.id, kind);
 
       const row = await db.transaction().execute(async (tx) => {
-        // Find the latest version of this instance.
         const latestRow = await tx
           .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
@@ -138,15 +137,11 @@ export const getRealtimeIndexingStore = ({
             throw parseStoreError(err, { id, data: "(function)" });
           });
 
-        // If the user passed an update function, call it with the current instance.
-        let updateObject: Partial<Omit<Row, "id">>;
-        if (typeof data === "function") {
-          const current = decodeRow(latestRow, table, kind);
-          updateObject = data({ current });
-        } else {
-          updateObject = data;
-        }
-        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
+        const updateObject =
+          typeof data === "function"
+            ? data({ current: decodeRow(latestRow, table, kind) })
+            : data;
+        const updateRow = encodeRow(updateObject, table, kind);
 
         const updateResult = await tx
           .withSchema(namespaceInfo.userNamespace)
@@ -195,34 +190,26 @@ export const getRealtimeIndexingStore = ({
     return db.wrap({ method: `${tableName}.updateMany` }, async () => {
       const rows = await db.transaction().execute(async (tx) => {
         // Get all IDs that match the filter.
-        let query = tx
+        const latestRows = await tx
           .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
-          .selectAll();
-
-        if (where) {
-          query = query.where((eb) =>
+          .selectAll()
+          .where((eb) =>
             buildWhereConditions({
               eb,
               where,
               table,
               encoding: kind,
             }),
-          );
-        }
-
-        const latestRows = await query.execute();
+          )
+          .execute();
 
         const rows: Row[] = [];
         for (const latestRow of latestRows) {
-          // If the user passed an update function, call it with the current instance.
-          let updateObject: Partial<Omit<Row, "id">>;
-          if (typeof data === "function") {
-            const current = decodeRow(latestRow, table, kind);
-            updateObject = data({ current });
-          } else {
-            updateObject = data;
-          }
+          const updateObject =
+            typeof data === "function"
+              ? data({ current: decodeRow(latestRow, table, kind) })
+              : data;
           const updateRow = encodeRow(updateObject, table, kind);
 
           const row = await tx
@@ -297,7 +284,12 @@ export const getRealtimeIndexingStore = ({
               const prettyObject: any = { id };
               for (const [key, value] of Object.entries(create))
                 prettyObject[`create.${key}`] = value;
-              prettyObject.update = "(function)";
+              if (typeof update === "function") {
+                prettyObject.update = "(function)";
+              } else {
+                for (const [key, value] of Object.entries(update))
+                  prettyObject[`update.${key}`] = value;
+              }
               throw parseStoreError(err, prettyObject);
             });
 
@@ -314,15 +306,11 @@ export const getRealtimeIndexingStore = ({
           return row;
         }
 
-        // If the user passed an update function, call it with the current instance.
-        let updateObject: Partial<Omit<Row, "id">>;
-        if (typeof update === "function") {
-          const current = decodeRow(latestRow, table, kind);
-          updateObject = update({ current });
-        } else {
-          updateObject = update;
-        }
-        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
+        const updateObject =
+          typeof update === "function"
+            ? update({ current: decodeRow(latestRow, table, kind) })
+            : update;
+        const updateRow = encodeRow(updateObject, table, kind);
 
         const row = await tx
           .withSchema(namespaceInfo.userNamespace)
