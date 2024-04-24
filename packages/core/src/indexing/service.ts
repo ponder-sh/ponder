@@ -1,7 +1,13 @@
 import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import { type EventSource } from "@/config/sources.js";
+import {
+  type EventSource,
+  type FactorySource,
+  type LogSource,
+  sourceIsFactory,
+  sourceIsLog,
+} from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/index.js";
@@ -202,10 +208,10 @@ export const processSetupEvents = async (
     for (const network of networks) {
       const source = sources.find(
         (s) =>
-          s.type !== "block" &&
+          (sourceIsLog(s) || sourceIsFactory(s)) &&
           s.contractName === contractName &&
           s.chainId === network.chainId,
-      )! as Exclude<EventSource, { type: "block" }>;
+      )! as LogSource | FactorySource;
 
       if (indexingService.isKilled) return { status: "killed" };
       indexingService.eventCount[eventName][source.networkName]++;
@@ -282,7 +288,7 @@ export const processEvents = async (
         }
 
         if (eventCounts[eventName] === undefined) eventCounts[eventName] = 0;
-        else eventCounts[eventName]++;
+        eventCounts[eventName]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
@@ -309,7 +315,7 @@ export const processEvents = async (
 
         if (eventCounts[event.blockName] === undefined)
           eventCounts[event.blockName] = 0;
-        else eventCounts[event.blockName]++;
+        eventCounts[event.blockName]++;
 
         indexingService.common.logger.trace({
           service: "indexing",

@@ -1,9 +1,11 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import {
+  type BlockSource,
   type EventSource,
   type FactorySource,
   type LogSource,
+  sourceIsBlock,
   sourceIsFactory,
   sourceIsLog,
 } from "@/config/sources.js";
@@ -63,6 +65,7 @@ export type Service = {
   hasTransactionReceiptSource: boolean;
   logFilterSources: LogSource[];
   factorySources: FactorySource[];
+  blockSources: BlockSource[];
 };
 
 export type RealtimeSyncEvent =
@@ -103,6 +106,8 @@ export const create = ({
 }): Service => {
   // get event selectors from sources
   const eventSelectors = sources.flatMap((source) => {
+    if (!sourceIsFactory(source) && !sourceIsLog(source)) return [];
+
     const topics: Hex[] = [];
 
     if (sourceIsFactory(source)) {
@@ -131,11 +136,16 @@ export const create = ({
     onFatalError,
     eventSelectors,
     hasFactorySource: sources.some(sourceIsFactory),
-    hasTransactionReceiptSource: sources.some(
-      (s) => s.criteria.includeTransactionReceipts,
-    ),
+    hasTransactionReceiptSource:
+      sources
+        .filter(sourceIsLog)
+        .some((s) => s.criteria.includeTransactionReceipts) ||
+      sources
+        .filter(sourceIsFactory)
+        .some((s) => s.criteria.includeTransactionReceipts),
     logFilterSources: sources.filter(sourceIsLog),
     factorySources: sources.filter(sourceIsFactory),
+    blockSources: sources.filter(sourceIsBlock),
   };
 };
 
@@ -358,6 +368,13 @@ export const handleBlock = async (
       )
     : [];
 
+  const isBlockFilterMatched = service.blockSources.some(
+    (blockSource) =>
+      (newHeadBlockNumber - blockSource.criteria.startBlock) %
+        blockSource.criteria.frequency ===
+      0,
+  );
+
   if (newLogs.length > 0) {
     await service.syncStore.insertRealtimeBlock({
       chainId: service.network.chainId,
@@ -373,6 +390,16 @@ export const handleBlock = async (
       service: "realtime",
       msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
+  } else if (isBlockFilterMatched) {
+    await service.syncStore.insertRealtimeBlock({
+      chainId: service.network.chainId,
+      block: newHeadBlock,
+      transactions: [],
+      transactionReceipts: [],
+      logs: [],
+    });
+
+    // TODO(kyle) logs
   } else {
     service.common.logger.debug({
       service: "realtime",
@@ -463,6 +490,7 @@ export const handleBlock = async (
       chainId: service.network.chainId,
       logFilters: service.logFilterSources.map((l) => l.criteria),
       factories: service.factorySources.map((f) => f.criteria),
+      blockFilters: service.blockSources.map((b) => b.criteria),
       interval: {
         startBlock: BigInt(service.finalizedBlock.number + 1),
         endBlock: BigInt(pendingFinalizedBlock.number),
@@ -590,7 +618,7 @@ const getMatchedLogs = async (
   if (service.hasFactorySource === false) {
     return filterLogs({
       logs,
-      logFilters: service.sources.map((s) => s.criteria),
+      logFilters: service.logFilterSources.map((s) => s.criteria),
     });
   } else {
     if (insertChildAddressLogs) {

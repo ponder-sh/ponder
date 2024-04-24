@@ -7,7 +7,11 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type {
+  BlockFilterCriteria,
+  FactoryCriteria,
+  LogFilterCriteria,
+} from "@/config/sources.js";
 import {
   EVENT_TYPES,
   maxCheckpoint,
@@ -1125,7 +1129,8 @@ test("insertBlockFilterIntervals inserts block", async (context) => {
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      interval: 5,
+      startBlock: 0,
+      frequency: 1,
     },
     block: rpcData.block1.block,
     interval: {
@@ -1149,7 +1154,8 @@ test("insertBlockFilterIntervals inserts block filter intervals", async (context
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      interval: 5,
+      startBlock: 0,
+      frequency: 1,
     },
     block: rpcData.block1.block,
     interval: { startBlock: 0n, endBlock: 100n },
@@ -1158,7 +1164,8 @@ test("insertBlockFilterIntervals inserts block filter intervals", async (context
   const blockFilterRanges = await syncStore.getBlockFilterIntervals({
     chainId: 1,
     blockFilter: {
-      interval: 5,
+      startBlock: 0,
+      frequency: 1,
     },
   });
 
@@ -1175,7 +1182,8 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      interval: 5,
+      startBlock: 0,
+      frequency: 1,
     },
     block: rpcData.block1.block,
     interval: {
@@ -1187,7 +1195,8 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      interval: 5,
+      startBlock: 0,
+      frequency: 1,
     },
     block: rpcData.block3.block,
     interval: {
@@ -1199,7 +1208,8 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   let blockFilterRanges = await syncStore.getBlockFilterIntervals({
     chainId: 1,
     blockFilter: {
-      interval: 5,
+      startBlock: 0,
+      frequency: 1,
     },
   });
 
@@ -1217,7 +1227,8 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      interval: 5,
+      startBlock: 0,
+      frequency: 1,
     },
     block: rpcData.block2.block,
     interval: {
@@ -1229,7 +1240,8 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   blockFilterRanges = await syncStore.getBlockFilterIntervals({
     chainId: 1,
     blockFilter: {
-      interval: 5,
+      startBlock: 0,
+      frequency: 1,
     },
   });
 
@@ -1314,7 +1326,7 @@ test("insertRealtimeBlock upserts transactions", async (context) => {
   await cleanup();
 });
 
-test("insertRealtimeInterval inserts log filter intervals", async (context) => {
+test("insertRealtimeInterval inserts intervals", async (context) => {
   const { erc20 } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -1340,10 +1352,16 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
     includeTransactionReceipts: false,
   } satisfies FactoryCriteria;
 
+  const blockFilterCriteria = {
+    startBlock: 0,
+    frequency: 10,
+  } satisfies BlockFilterCriteria;
+
   await syncStore.insertRealtimeInterval({
     chainId: 1,
     logFilters: [logFilterCriteria],
     factories: [factoryCriteriaOne, factoryCriteriaTwo],
+    blockFilters: [blockFilterCriteria],
     interval: { startBlock: 500n, endBlock: 550n },
   });
 
@@ -1389,6 +1407,15 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
       factory: factoryCriteriaTwo,
     }),
   ).toMatchObject([[500, 550]]);
+
+  // Confirm block filters have been inserted
+  expect(
+    await syncStore.getBlockFilterIntervals({
+      chainId: 1,
+      blockFilter: blockFilterCriteria,
+    }),
+  ).toMatchObject([[500, 550]]);
+
   await cleanup();
 });
 

@@ -157,6 +157,7 @@ export interface SyncStore {
     chainId: number;
     logFilters: LogFilterCriteria[];
     factories: FactoryCriteria[];
+    blockFilters: BlockFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 

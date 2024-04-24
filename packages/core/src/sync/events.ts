@@ -67,8 +67,8 @@ export const decodeEvents = (
         break;
       }
 
-      case "factory":
-      case "log": {
+      case "log":
+      case "factory": {
         try {
           const abi = source.abi;
 

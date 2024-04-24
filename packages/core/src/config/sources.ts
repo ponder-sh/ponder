@@ -16,7 +16,8 @@ export type FactoryCriteria = {
 };
 
 export type BlockFilterCriteria = {
-  interval: number;
+  frequency: number;
+  startBlock: number;
 };
 
 type BaseLogSource = {
@@ -48,7 +49,6 @@ export type BlockSource = {
   blockName: string;
   networkName: string;
   chainId: number;
-  startBlock: number;
   endBlock?: number;
   criteria: BlockFilterCriteria;
 };
@@ -65,4 +65,4 @@ export const sourceIsFactory = (
 
 export const sourceIsBlock = (
   source: Pick<EventSource, "type">,
-): source is FactorySource => source.type === "block";
+): source is BlockSource => source.type === "block";

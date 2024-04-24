@@ -578,9 +578,10 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     return this.db.wrap({ method: "getBlockFilterIntervals" }, async () => {
       const fragment = {
-        id: `${chainId}_${blockFilter.interval}`,
+        id: `${chainId}_${blockFilter.startBlock}_${blockFilter.frequency}`,
         chainId,
-        interval: blockFilter.interval,
+        startBlock: BigInt(blockFilter.startBlock),
+        frequency: BigInt(blockFilter.frequency),
       };
 
       // First, attempt to merge overlapping and adjacent intervals.
@@ -623,13 +624,17 @@ export class PostgresSyncStore implements SyncStore {
         return mergedIntervals;
       });
 
-      // TODO(kyle) it might be an invariant that this only every returns one row
       const intervals = await this.db
         .selectFrom("blockFilterIntervals")
         .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
-        .select(["blockFilterId", "startBlock", "endBlock"])
+        .select([
+          "blockFilterId",
+          "blockFilterIntervals.startBlock",
+          "blockFilterIntervals.endBlock",
+        ])
         .where("chainId", "=", chainId)
-        .where("interval", "=", blockFilter.interval)
+        .where("blockFilters.startBlock", "=", fragment.startBlock)
+        .where("blockFilters.frequency", "=", fragment.frequency)
         .execute();
 
       const intervalsByFragmentId = intervals.reduce(
@@ -745,11 +750,13 @@ export class PostgresSyncStore implements SyncStore {
     chainId,
     logFilters,
     factories,
+    blockFilters,
     interval,
   }: {
     chainId: number;
     logFilters: LogFilterCriteria[];
     factories: FactoryCriteria[];
+    blockFilters: BlockFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     return this.db.wrap({ method: "insertRealtimeInterval" }, async () => {
@@ -772,6 +779,13 @@ export class PostgresSyncStore implements SyncStore {
           tx,
           chainId,
           factories,
+          interval,
+        });
+
+        await this._insertBlockFilterInterval({
+          tx,
+          chainId,
+          blockFilters,
           interval,
         });
       });
@@ -847,9 +861,10 @@ export class PostgresSyncStore implements SyncStore {
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     const blockFilterFragments = blockFilters.flatMap((blockFilter) => ({
-      id: `${chainId}_${blockFilter.interval}`,
+      id: `${chainId}_${blockFilter.startBlock}_${blockFilter.frequency}`,
       chainId,
-      interval: blockFilter.interval,
+      startBlock: BigInt(blockFilter.startBlock),
+      frequency: BigInt(blockFilter.frequency),
     }));
 
     await Promise.all(
