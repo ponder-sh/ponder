@@ -1024,100 +1024,114 @@ export class SqliteSyncStore implements SyncStore {
         async () => {
           // Query a batch of logs.
           const requestedLogs = await this.db
-            .with(
-              "sources(source_id)",
-              () =>
-                sql`( values ${sql.join(
-                  sources
-                    .filter(
-                      (s): s is LogSource | FactorySource =>
-                        sourceIsLog(s) || sourceIsFactory(s),
-                    )
-                    .map((source) => sql`( ${sql.val(source.id)} )`),
-                )} )`,
+            .with("sources(source_id)", () =>
+              sources.filter((s) => sourceIsLog(s) || sourceIsFactory(s))
+                .length === 0
+                ? sql`( values (null) )`
+                : sql`( values ${sql.join(
+                    sources
+                      .filter(
+                        (s): s is LogSource | FactorySource =>
+                          sourceIsLog(s) || sourceIsFactory(s),
+                      )
+                      .map((source) => sql`( ${sql.val(source.id)} )`),
+                  )} )`,
             )
-            .with(
-              "block_event_sources(source_id)",
-              () =>
-                sql`( values ${sql.join(
-                  sources
-                    .filter(sourceIsBlock)
-                    .map((source) => sql`( ${sql.val(source.id)} )`),
-                )} )`,
+            .with("block_event_sources(source_id)", () =>
+              sources.filter(sourceIsBlock).length === 0
+                ? sql`( values (null) )`
+                : sql`( values ${sql.join(
+                    sources
+                      .filter(sourceIsBlock)
+                      .map((source) => sql`( ${sql.val(source.id)} )`),
+                  )} )`,
             )
             .selectFrom("logs")
-            .unionAll(
-              this.db
-                .selectFrom("blocks")
-                // @ts-ignore
-                .innerJoin("block_event_sources", (join) => join.onTrue())
-                // @ts-ignore
-                .select([
-                  "source_id",
-                  sql`null`.as("log_address"),
-                  sql`null`.as("log_blockHash"),
-                  sql`null`.as("log_blockNumber"),
-                  sql`null`.as("log_chainId"),
-                  sql`null`.as("log_data"),
-                  sql`null`.as("log_id"),
-                  sql`null`.as("log_logIndex"),
-                  sql`null`.as("log_topic0"),
-                  sql`null`.as("log_topic1"),
-                  sql`null`.as("log_topic2"),
-                  sql`null`.as("log_topic3"),
-                  sql`null`.as("log_transactionHash"),
-                  sql`null`.as("log_transactionIndex"),
-                  sql`null`.as("log_checkpoint"),
-                  "blocks.baseFeePerGas as block_baseFeePerGas",
-                  "blocks.difficulty as block_difficulty",
-                  "blocks.extraData as block_extraData",
-                  "blocks.gasLimit as block_gasLimit",
-                  "blocks.gasUsed as block_gasUsed",
-                  "blocks.hash as block_hash",
-                  "blocks.logsBloom as block_logsBloom",
-                  "blocks.miner as block_miner",
-                  "blocks.mixHash as block_mixHash",
-                  "blocks.nonce as block_nonce",
-                  "blocks.number as block_number",
-                  "blocks.parentHash as block_parentHash",
-                  "blocks.receiptsRoot as block_receiptsRoot",
-                  "blocks.sha3Uncles as block_sha3Uncles",
-                  "blocks.size as block_size",
-                  "blocks.stateRoot as block_stateRoot",
-                  "blocks.timestamp as block_timestamp",
-                  "blocks.totalDifficulty as block_totalDifficulty",
-                  "blocks.transactionsRoot as block_transactionsRoot",
-                  sql`null`.as("tx_accessList"),
-                  sql`null`.as("tx_blockHash"),
-                  sql`null`.as("tx_blockNumber"),
-                  sql`null`.as("tx_from"),
-                  sql`null`.as("tx_gas"),
-                  sql`null`.as("tx_gasPrice"),
-                  sql`null`.as("tx_hash"),
-                  sql`null`.as("tx_input"),
-                  sql`null`.as("tx_maxFeePerGas"),
-                  sql`null`.as("tx_maxPriorityFeePerGas"),
-                  sql`null`.as("tx_nonce"),
-                  sql`null`.as("tx_r"),
-                  sql`null`.as("tx_s"),
-                  sql`null`.as("tx_to"),
-                  sql`null`.as("tx_transactionIndex"),
-                  sql`null`.as("tx_type"),
-                  sql`null`.as("tx_value"),
-                  sql`null`.as("tx_v"),
-                ])
-                // @ts-ignore
-                .where((eb) => {
-                  // TODO(kyle) add checkpoint column to blocks
-                  // const blockFilters = sources.filter(sourceIsBlock);
-                  // for (const blockFilter of blockFilters) {
-                  //   exprs.push(eb("source_id", "=", logFilter.id));
-                  // }
-                  return eb.and([
-                    eb("number", ">", encodeAsText(fromCheckpoint.blockNumber)),
-                    eb("number", "<=", encodeAsText(toCheckpoint.blockNumber)),
-                  ]);
-                }),
+            .$if(sources.filter(sourceIsBlock).length > 0, (qb) =>
+              qb.unionAll(
+                this.db
+                  .selectFrom("blocks")
+                  // @ts-ignore
+                  .innerJoin("block_event_sources", (join) => join.onTrue())
+                  // @ts-ignore
+                  .select([
+                    "source_id",
+                    sql`null`.as("log_address"),
+                    sql`null`.as("log_blockHash"),
+                    sql`null`.as("log_blockNumber"),
+                    sql`null`.as("log_chainId"),
+                    sql`null`.as("log_data"),
+                    sql`null`.as("log_id"),
+                    sql`null`.as("log_logIndex"),
+                    sql`null`.as("log_topic0"),
+                    sql`null`.as("log_topic1"),
+                    sql`null`.as("log_topic2"),
+                    sql`null`.as("log_topic3"),
+                    sql`null`.as("log_transactionHash"),
+                    sql`null`.as("log_transactionIndex"),
+                    sql`null`.as("log_checkpoint"),
+                    "blocks.baseFeePerGas as block_baseFeePerGas",
+                    "blocks.difficulty as block_difficulty",
+                    "blocks.extraData as block_extraData",
+                    "blocks.gasLimit as block_gasLimit",
+                    "blocks.gasUsed as block_gasUsed",
+                    "blocks.hash as block_hash",
+                    "blocks.logsBloom as block_logsBloom",
+                    "blocks.miner as block_miner",
+                    "blocks.mixHash as block_mixHash",
+                    "blocks.nonce as block_nonce",
+                    "blocks.number as block_number",
+                    "blocks.parentHash as block_parentHash",
+                    "blocks.receiptsRoot as block_receiptsRoot",
+                    "blocks.sha3Uncles as block_sha3Uncles",
+                    "blocks.size as block_size",
+                    "blocks.stateRoot as block_stateRoot",
+                    "blocks.timestamp as block_timestamp",
+                    "blocks.totalDifficulty as block_totalDifficulty",
+                    "blocks.transactionsRoot as block_transactionsRoot",
+                    sql`null`.as("tx_accessList"),
+                    sql`null`.as("tx_blockHash"),
+                    sql`null`.as("tx_blockNumber"),
+                    sql`null`.as("tx_from"),
+                    sql`null`.as("tx_gas"),
+                    sql`null`.as("tx_gasPrice"),
+                    sql`null`.as("tx_hash"),
+                    sql`null`.as("tx_input"),
+                    sql`null`.as("tx_maxFeePerGas"),
+                    sql`null`.as("tx_maxPriorityFeePerGas"),
+                    sql`null`.as("tx_nonce"),
+                    sql`null`.as("tx_r"),
+                    sql`null`.as("tx_s"),
+                    sql`null`.as("tx_to"),
+                    sql`null`.as("tx_transactionIndex"),
+                    sql`null`.as("tx_type"),
+                    sql`null`.as("tx_value"),
+                    sql`null`.as("tx_v"),
+                  ])
+                  // @ts-ignore
+                  .where((eb) => {
+                    const exprs = [];
+                    const blockFilters = sources.filter(sourceIsBlock);
+                    for (const blockFilter of blockFilters) {
+                      exprs.push(
+                        eb.and([
+                          eb(
+                            "number",
+                            ">=",
+                            encodeAsText(blockFilter.criteria.startBlock),
+                          ),
+                          eb(
+                            sql`(number - ${blockFilter.criteria.startBlock}) % ${blockFilter.criteria.frequency}`,
+                            "=",
+                            0,
+                          ),
+                          eb("source_id", "=", blockFilter.id),
+                        ]),
+                      );
+                      return eb.or(exprs);
+                    }
+                  }),
+              ),
             )
             .innerJoin("blocks", "blocks.hash", "logs.blockHash")
             .innerJoin(

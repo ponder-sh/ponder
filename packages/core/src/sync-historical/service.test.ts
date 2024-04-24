@@ -287,11 +287,20 @@ test("start() adds log filter events to sync store", async (context) => {
     toCheckpoint: maxCheckpoint,
     limit: 100,
   });
-  const events = drainAsyncGenerator(ag);
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(2);
 
   const erc20Events = await getEventsErc20(sources);
 
-  expect(erc20Events).toMatchObject(events);
+  expect({
+    ...erc20Events[0],
+    transactionReceipt: undefined,
+  }).toMatchObject(events[0]);
+  expect({
+    ...erc20Events[1],
+    transactionReceipt: undefined,
+  }).toMatchObject(events[1]);
 
   service.kill();
   await service.onIdle();
@@ -329,7 +338,7 @@ test("start() adds factory events to sync store", async (context) => {
   await cleanup();
 });
 
-test.todo("start() adds block filter events to sync store", async (context) => {
+test("start() adds block filter events to sync store", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
@@ -346,16 +355,22 @@ test.todo("start() adds block filter events to sync store", async (context) => {
   await service.onIdle();
 
   const ag = syncStore.getLogEvents({
-    sources: [sources[0]],
+    sources: [sources[2]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
   });
-  const events = drainAsyncGenerator(ag);
+  const events = await drainAsyncGenerator(ag);
 
-  const erc20Events = await getEventsErc20(sources);
+  expect(events).toHaveLength(2);
 
-  expect(erc20Events).toMatchObject(events);
+  expect(events[0].log).toBeUndefined();
+  expect(events[0].transaction).toBeUndefined();
+  expect(events[0].block.number).toBe(1n);
+
+  expect(events[1].log).toBeUndefined();
+  expect(events[1].transaction).toBeUndefined();
+  expect(events[1].block.number).toBe(3n);
 
   service.kill();
   await service.onIdle();

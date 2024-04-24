@@ -7,10 +7,12 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
-import type {
-  BlockFilterCriteria,
-  FactoryCriteria,
-  LogFilterCriteria,
+import {
+  type BlockFilterCriteria,
+  type FactoryCriteria,
+  type LogFilterCriteria,
+  sourceIsFactory,
+  sourceIsLog,
 } from "@/config/sources.js";
 import {
   EVENT_TYPES,
@@ -1594,7 +1596,7 @@ test("getLogEvents returns log events", async (context) => {
   });
 
   const ag = syncStore.getLogEvents({
-    sources,
+    sources: sources.filter((s) => sourceIsFactory(s) || sourceIsLog(s)),
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -1603,19 +1605,19 @@ test("getLogEvents returns log events", async (context) => {
 
   expect(events).toHaveLength(3);
 
-  expect(events[0].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
   expect(events[0].transactionReceipt).toBeUndefined();
 
-  expect(events[1].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
   expect(events[1].transactionReceipt).toBeUndefined();
 
-  expect(events[2].log.address).toBe(checksumAddress(factory.pair));
+  expect(events[2].log!.address).toBe(checksumAddress(factory.pair));
   expect(events[2].block.hash).toBe(rpcData.block3.block.hash);
-  expect(events[2].transaction.hash).toBe(rpcData.block3.transactions[0].hash);
+  expect(events[2].transaction!.hash).toBe(rpcData.block3.transactions[0].hash);
   expect(events[2].transactionReceipt).toBeUndefined();
 
   await cleanup();
@@ -1640,10 +1642,13 @@ test("getLogEvents returns log events with receipts", async (context) => {
   });
 
   const ag = syncStore.getLogEvents({
-    sources: sources.map((s) => ({
-      ...s,
-      criteria: { ...s.criteria, includeTransactionReceipts: true },
-    })),
+    // @ts-ignore
+    sources: sources
+      .filter((s) => sourceIsLog(s) || sourceIsFactory(s))
+      .map((s) => ({
+        ...s,
+        criteria: { ...s.criteria, includeTransactionReceipts: true },
+      })),
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -1652,23 +1657,23 @@ test("getLogEvents returns log events with receipts", async (context) => {
 
   expect(events).toHaveLength(3);
 
-  expect(events[0].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
   expect(events[0].transactionReceipt?.transactionHash).toBe(
     rpcData.block1.transactionReceipts[0].transactionHash,
   );
 
-  expect(events[1].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
   expect(events[1].transactionReceipt?.transactionHash).toBe(
     rpcData.block1.transactionReceipts[1].transactionHash,
   );
 
-  expect(events[2].log.address).toBe(checksumAddress(factory.pair));
+  expect(events[2].log!.address).toBe(checksumAddress(factory.pair));
   expect(events[2].block.hash).toBe(rpcData.block3.block.hash);
-  expect(events[2].transaction.hash).toBe(rpcData.block3.transactions[0].hash);
+  expect(events[2].transaction!.hash).toBe(rpcData.block3.transactions[0].hash);
   expect(events[2].transactionReceipt?.transactionHash).toBe(
     rpcData.block3.transactionReceipts[0].transactionHash,
   );
@@ -1676,7 +1681,7 @@ test("getLogEvents returns log events with receipts", async (context) => {
   await cleanup();
 });
 
-test.only("getLogEvents with block filters", async (context) => {
+test("getLogEvents with block filters", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -1702,7 +1707,7 @@ test.only("getLogEvents with block filters", async (context) => {
   });
   const events = await drainAsyncGenerator(ag);
 
-  expect(events).toHaveLength(6);
+  expect(events).toHaveLength(4);
 
   await cleanup();
 });
@@ -2056,19 +2061,19 @@ test("getLogEvents multiple sources", async (context) => {
   expect(events).toHaveLength(3);
 
   expect(events[0].sourceId).toBe("Erc20_mainnet");
-  expect(events[0].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
 
   expect(events[1].sourceId).toBe("Erc20_mainnet");
-  expect(events[1].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
 
   expect(events[2].sourceId).toBe("kevin");
-  expect(events[2].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[2].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[2].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[2].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[2].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
 
   await cleanup();
 });
@@ -2136,14 +2141,14 @@ test("getLogEvents multichain", async (context) => {
   expect(events).toHaveLength(2);
 
   expect(events[0].sourceId).toBe("Erc20_mainnet");
-  expect(events[0].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
 
   expect(events[1].sourceId).toBe("Erc20_mainnet");
-  expect(events[1].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
 
   await cleanup();
 });
