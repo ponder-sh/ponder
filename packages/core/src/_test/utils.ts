@@ -2,7 +2,13 @@ import { type AddressInfo, createServer } from "node:net";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
-import { type EventSource } from "@/config/sources.js";
+import {
+  type EventSource,
+  type FactorySource,
+  type LogSource,
+  sourceIsFactory,
+  sourceIsLog,
+} from "@/config/sources.js";
 import type { RawEvent } from "@/sync-store/store.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
@@ -110,6 +116,12 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
         },
       },
     },
+    blocks: {
+      mainnet: {
+        startBlock: 1,
+        frequency: 2,
+      },
+    },
   });
 
 /**
@@ -129,6 +141,7 @@ export const getNetworkAndSources = async (
         fn: () => {},
       },
       { name: "Pair:Swap", fn: () => {} },
+      { name: "blocks", fn: () => {} },
     ],
     options: common.options,
   });
@@ -152,17 +165,22 @@ export const getRawRPCData = async (sources: EventSource[]) => {
   const latestBlock = await publicClient.getBlockNumber();
   const logs = (
     await Promise.all(
-      sources.map((source) =>
-        publicClient.request({
-          method: "eth_getLogs",
-          params: [
-            {
-              address: source.criteria.address,
-              fromBlock: toHex(latestBlock - 3n),
-            },
-          ],
-        }),
-      ),
+      sources
+        .filter(
+          (source): source is LogSource | FactorySource =>
+            sourceIsLog(source) || sourceIsFactory(source),
+        )
+        .map((source) =>
+          publicClient.request({
+            method: "eth_getLogs",
+            params: [
+              {
+                address: source.criteria.address,
+                fromBlock: toHex(latestBlock - 3n),
+              },
+            ],
+          }),
+        ),
     )
   ).flat();
 

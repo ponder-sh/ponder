@@ -160,6 +160,36 @@ test("start() with factory contract inserts child contract addresses", async (co
   await cleanup();
 });
 
+test("start() with block filter inserts block filter interval", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const blockNumbers = await getBlockNumbers();
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: [sources[2]],
+  });
+  await service.setup(blockNumbers);
+  service.start();
+  await service.onIdle();
+
+  const blockFilterIntervals = await syncStore.getBlockFilterIntervals({
+    chainId: sources[2].chainId,
+    blockFilter: sources[2].criteria,
+  });
+
+  expect(blockFilterIntervals).toMatchObject([
+    [0, blockNumbers.finalizedBlockNumber],
+  ]);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
 test("setup() with log filter and factory contract updates block metrics", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -293,6 +323,39 @@ test("start() adds factory events to sync store", async (context) => {
   const events = await drainAsyncGenerator(ag);
 
   expect(events).toHaveLength(1);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
+test.todo("start() adds block filter events to sync store", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumbers = await getBlockNumbers();
+
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: [sources[2]],
+  });
+  await service.setup(blockNumbers);
+  service.start();
+  await service.onIdle();
+
+  const ag = syncStore.getLogEvents({
+    sources: [sources[0]],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = drainAsyncGenerator(ag);
+
+  const erc20Events = await getEventsErc20(sources);
+
+  expect(erc20Events).toMatchObject(events);
 
   service.kill();
   await service.onIdle();

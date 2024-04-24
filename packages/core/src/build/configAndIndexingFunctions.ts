@@ -12,7 +12,7 @@ import {
   isRpcUrlPublic,
 } from "@/config/networks.js";
 import type {
-  EventSource,
+  BlockSource,
   FactorySource,
   LogSource,
 } from "@/config/sources.js";
@@ -260,6 +260,7 @@ export async function buildConfigAndIndexingFunctions({
   const indexingFunctions: IndexingFunctions = {};
 
   for (const { name: eventName, fn } of rawIndexingFunctions) {
+    if (eventName === "blocks") continue;
     const eventNameComponents = eventName.split(":");
     const [sourceName, logEventName] = eventNameComponents;
     if (eventNameComponents.length !== 2 || !sourceName || !logEventName) {
@@ -296,7 +297,9 @@ export async function buildConfigAndIndexingFunctions({
     logs.push({ level: "warn", msg: "No indexing functions were registered." });
   }
 
-  const sources: EventSource[] = Object.entries(config.contracts)
+  const logOrFactorySources: (LogSource | FactorySource)[] = Object.entries(
+    config.contracts,
+  )
     // First, apply any network-specific overrides and flatten the result.
     .flatMap(([contractName, contract]) => {
       if (contract.network === null || contract.network === undefined) {
@@ -575,6 +578,53 @@ export async function buildConfigAndIndexingFunctions({
       }
       return hasRegisteredIndexingFunctions;
     });
+
+  const blockSources: BlockSource[] = Object.entries(config.blocks ?? {}).map(
+    ([networkName, blockConfig]) => {
+      const network = networks.find((n) => n.name === networkName);
+      if (!network) {
+        throw new Error(
+          `Validation failed: Invalid network for blocks. Got '${networkName}', expected one of [${networks
+            .map((n) => `'${n.name}'`)
+            .join(", ")}].`,
+        );
+      }
+
+      const startBlockMaybeNan = blockConfig.startBlock ?? 0;
+      const startBlock = Number.isNaN(startBlockMaybeNan)
+        ? 0
+        : startBlockMaybeNan;
+      const endBlockMaybeNan = blockConfig.endBlock;
+      const endBlock = Number.isNaN(endBlockMaybeNan)
+        ? undefined
+        : endBlockMaybeNan;
+
+      const frequencyMaybeNan = blockConfig.frequency;
+      const frequency = Number.isNaN(frequencyMaybeNan) ? 0 : frequencyMaybeNan;
+
+      if (!Number.isInteger(frequency) || frequency === 0) {
+        throw Error(
+          `Validation failed: Invalid frequency for ${networkName} blocks. Got ${blockConfig.frequency}, expected a non-zero integer.`,
+        );
+      }
+
+      return {
+        type: "block",
+        id: networkName,
+        networkName,
+        chainId: network.chainId,
+        endBlock,
+        criteria: {
+          startBlock,
+          frequency: frequency,
+        },
+      };
+    },
+  );
+
+  // TODO(kyle) remove blockSources if there is no registered indexing function for ponder.on("blocks")
+
+  const sources = [...logOrFactorySources, ...blockSources];
 
   // Filter out any networks that don't have any sources registered.
   const networksWithSources = networks.filter((network) => {

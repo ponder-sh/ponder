@@ -63,6 +63,22 @@ export type NetworkConfig<network> = {
   maxHistoricalTaskConcurrency?: number;
 };
 
+export type BlockFilterConfig = {
+  startBlock: number;
+  endBlock?: number;
+  frequency: number;
+};
+
+type GetBlockFilter<
+  networks,
+  ///
+  allNetworkNames extends string = [keyof networks] extends [never]
+    ? string
+    : keyof networks & string,
+> = {
+  [name in allNetworkNames]?: BlockFilterConfig;
+};
+
 type AbiConfig<abi extends Abi | readonly unknown[]> = {
   /** Contract application byte interface. */
   abi: abi;
@@ -152,6 +168,7 @@ export const createConfig = <const networks, const contracts>(config: {
   contracts: ContractsConfig<networks, Narrow<contracts>>;
   database?: DatabaseConfig;
   options?: OptionConfig;
+  blocks?: GetBlockFilter<networks>;
 }): CreateConfigReturnType<networks, contracts> =>
   config as CreateConfigReturnType<networks, contracts>;
 
@@ -160,6 +177,7 @@ export type Config = {
   contracts: { [name: string]: GetContract };
   database?: DatabaseConfig;
   options?: OptionConfig;
+  blocks?: { [name: string]: BlockFilterConfig };
 };
 
 export type CreateConfigReturnType<networks, contracts> = {
@@ -167,4 +185,5 @@ export type CreateConfigReturnType<networks, contracts> = {
   contracts: contracts;
   database?: DatabaseConfig;
   options?: OptionConfig;
+  blocks?: GetBlockFilter<networks>;
 };

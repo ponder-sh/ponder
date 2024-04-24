@@ -48,9 +48,9 @@ export namespace Virtual {
       ? ContractName
       : never;
 
-  export type EventNames<config extends Config> = FormatEventNames<
-    config["contracts"]
-  >;
+  export type EventNames<config extends Config> =
+    | FormatEventNames<config["contracts"]>
+    | "blocks";
 
   export type Event<
     config extends Config,

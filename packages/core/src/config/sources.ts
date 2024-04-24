@@ -44,9 +44,7 @@ export type FactorySource = BaseLogSource & {
 
 export type BlockSource = {
   type: "block";
-  id: string;
-  // TODO(kyle) this isn't a great name
-  blockName: string;
+  id: string; // networkName
   networkName: string;
   chainId: number;
   endBlock?: number;

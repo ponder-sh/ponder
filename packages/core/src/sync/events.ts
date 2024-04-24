@@ -35,7 +35,6 @@ export type LogEvent = {
 export type BlockEvent = {
   type: "block";
   chainId: number;
-  blockName: string;
   event: {
     block: Block;
   };
@@ -58,7 +57,6 @@ export const decodeEvents = (
         events.push({
           type: "block",
           chainId: event.chainId,
-          blockName: source.blockName,
           event: {
             block: event.block,
           },

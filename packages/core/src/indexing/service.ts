@@ -299,13 +299,13 @@ export const processEvents = async (
       }
 
       case "block": {
-        indexingService.eventCount[event.blockName][
+        indexingService.eventCount.blocks[
           indexingService.networkByChainId[event.chainId].name
         ]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
-          msg: `Started indexing function (event="${event.blockName}", checkpoint=${event.encodedCheckpoint})`,
+          msg: `Started indexing function (event="blocks", checkpoint=${event.encodedCheckpoint})`,
         });
 
         const result = await executeBlock(indexingService, { event });
@@ -313,13 +313,12 @@ export const processEvents = async (
           return result;
         }
 
-        if (eventCounts[event.blockName] === undefined)
-          eventCounts[event.blockName] = 0;
-        eventCounts[event.blockName]++;
+        if (eventCounts.blocks === undefined) eventCounts.blocks = 0;
+        eventCounts.blocks++;
 
         indexingService.common.logger.trace({
           service: "indexing",
-          msg: `Completed indexing function (event="${event.blockName}", checkpoint=${event.encodedCheckpoint})`,
+          msg: `Completed indexing function (event="blocks", checkpoint=${event.encodedCheckpoint})`,
         });
 
         break;
@@ -575,10 +574,10 @@ const executeBlock = async (
     contractsByChainId,
     clientByChainId,
   } = indexingService;
-  const indexingFunction = indexingFunctions[event.blockName];
+  const indexingFunction = indexingFunctions.blocks;
 
   const metricLabel = {
-    event: event.blockName,
+    event: "blocks",
     network: networkByChainId[event.chainId].name,
   };
 
@@ -616,7 +615,7 @@ const executeBlock = async (
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing "${event.blockName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+      msg: `Error while processing "blocks" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
       error,
     });
 
