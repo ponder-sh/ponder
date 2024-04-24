@@ -286,7 +286,12 @@ export const getHistoricalIndexingStore = ({
           .withSchema(namespaceInfo.userNamespace)
           .insertInto(tableName)
           .values(createRow)
-          .onConflict((oc) => oc.column("id").doUpdateSet(updateRow))
+          .onConflict((oc) =>
+            // If the updateRow is empty, DO UPDATE SET throws a syntax error.
+            Object.keys(updateRow).length === 0
+              ? oc.column("id").doNothing()
+              : oc.column("id").doUpdateSet(updateRow),
+          )
           .returningAll()
           .executeTakeFirstOrThrow()
           .catch((err) => {
