@@ -610,7 +610,7 @@ export async function buildConfigAndIndexingFunctions({
 
       return {
         type: "block",
-        id: networkName,
+        id: `blocks_${networkName}`,
         networkName,
         chainId: network.chainId,
         endBlock,

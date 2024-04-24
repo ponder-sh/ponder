@@ -20,7 +20,7 @@ import type {
   RpcTransactionReceipt,
 } from "viem";
 
-// TODO(kyle) this should be update most likely
+// TODO(kyle) this should be updated most likely
 export type RawEvent = {
   chainId: number;
   sourceId: string;
@@ -193,20 +193,14 @@ export interface SyncStore {
   /** EVENTS METHOD */
 
   getLogEvents(arg: {
-    sources: Pick<
-      EventSource,
-      "id" | "startBlock" | "endBlock" | "criteria" | "type"
-    >[];
+    sources: EventSource[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
   }): AsyncGenerator<RawEvent[]>;
 
   getLastEventCheckpoint(arg: {
-    sources: Pick<
-      EventSource,
-      "id" | "startBlock" | "endBlock" | "criteria" | "type"
-    >[];
+    sources: EventSource[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
   }): Promise<Checkpoint | undefined>;

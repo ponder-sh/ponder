@@ -30,6 +30,7 @@ const CHECKPOINT_LENGTH =
   EVENT_INDEX_DIGITS;
 
 export const EVENT_TYPES = {
+  blocks: 2,
   logs: 5,
 } as const;
 

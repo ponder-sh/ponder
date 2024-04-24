@@ -1676,6 +1676,37 @@ test("getLogEvents returns log events with receipts", async (context) => {
   await cleanup();
 });
 
+test.only("getLogEvents with block filters", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block1,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block2,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block3,
+  });
+
+  const ag = syncStore.getLogEvents({
+    sources,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(6);
+
+  await cleanup();
+});
+
 test("getLogEvents filters on log filter with multiple addresses", async (context) => {
   const { erc20, sources, factory } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
