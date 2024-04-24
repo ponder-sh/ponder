@@ -38,7 +38,10 @@ export class LoggerService {
             if (log.error) {
               const message = log.error.stack ?? log.error.message ?? log.error;
               console.log(message);
-              if (log.error?.meta) console.log(log.error.meta);
+              if (typeof log.error?.meta === "string")
+                console.log(log.error.meta);
+              if (Array.isArray(log.error?.meta))
+                console.log(log.error.meta.join("\n"));
             }
 
             // TODO: Consider also logging any inner `cause` errors.

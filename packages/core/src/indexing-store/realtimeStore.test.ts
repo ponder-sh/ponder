@@ -3,6 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { UniqueConstraintError } from "@/common/errors.js";
 import { createSchema } from "@/schema/schema.js";
 import {
   type Checkpoint,
@@ -81,16 +82,16 @@ test("create() throws on unique constraint violation", async (context) => {
     data: { name: "Skip" },
   });
 
-  await expect(() =>
-    indexingStore.create({
+  const error = await indexingStore
+    .create({
       tableName: "Pet",
       encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
       id: "id1",
       data: { name: "Skip", age: 13 },
-    }),
-  ).rejects.toThrow(
-    "Cannot create Pet record with ID id1 because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using Pet.upsert().",
-  );
+    })
+    .catch((_error) => _error);
+
+  expect(error).instanceOf(UniqueConstraintError);
 
   await cleanup();
 });

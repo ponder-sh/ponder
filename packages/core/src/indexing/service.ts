@@ -1,5 +1,6 @@
 import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
+import { getBaseError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import { type EventSource } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
@@ -380,10 +381,8 @@ const executeSetup = async (
   const eventName = `${event.contractName}:setup`;
   const indexingFunction = indexingFunctions[eventName];
 
-  const metricLabel = {
-    event: eventName,
-    network: networkByChainId[event.chainId].name,
-  };
+  const networkName = networkByChainId[event.chainId].name;
+  const metricLabel = { event: eventName, network: networkName };
 
   try {
     // set currentEvent
@@ -406,7 +405,7 @@ const executeSetup = async (
     );
   } catch (error_) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = getBaseError(error_);
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
@@ -418,7 +417,7 @@ const executeSetup = async (
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing "${eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+      msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 
@@ -447,10 +446,8 @@ const executeLog = async (
   const eventName = `${event.contractName}:${event.logEventName}`;
   const indexingFunction = indexingFunctions[eventName];
 
-  const metricLabel = {
-    event: eventName,
-    network: networkByChainId[event.chainId].name,
-  };
+  const networkName = networkByChainId[event.chainId].name;
+  const metricLabel = { event: eventName, network: networkName };
 
   try {
     // set currentEvent
@@ -481,23 +478,19 @@ const executeLog = async (
     );
   } catch (error_) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = getBaseError(error_);
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    if (error.meta) {
-      error.meta += `\nEvent args:\n${prettyPrint(event.event.args)}`;
-    } else {
-      error.meta = `Event args:\n${prettyPrint(event.event.args)}`;
-    }
+    error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
 
     addUserStackTrace(error, common.options);
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing "${eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+      msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 
