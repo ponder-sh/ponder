@@ -260,7 +260,11 @@ export async function buildConfigAndIndexingFunctions({
   const indexingFunctions: IndexingFunctions = {};
 
   for (const { name: eventName, fn } of rawIndexingFunctions) {
-    if (eventName === "blocks") continue;
+    if (eventName === "blocks") {
+      indexingFunctions[eventName] = fn;
+      indexingFunctionCount += 1;
+      continue;
+    }
     const eventNameComponents = eventName.split(":");
     const [sourceName, logEventName] = eventNameComponents;
     if (eventNameComponents.length !== 2 || !sourceName || !logEventName) {

@@ -31,13 +31,14 @@ type BlocksTable = {
   transactionsRoot: Hash;
 
   chainId: number;
+  checkpoint: string;
 };
 
 export type InsertableBlock = Insertable<BlocksTable>;
 
 export function rpcToPostgresBlock(
   block: RpcBlock,
-): Omit<InsertableBlock, "chainId"> {
+): Omit<InsertableBlock, "chainId" | "checkpoint"> {
   return {
     baseFeePerGas: block.baseFeePerGas ? BigInt(block.baseFeePerGas) : null,
     difficulty: BigInt(block.difficulty),

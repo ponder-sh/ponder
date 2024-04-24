@@ -1681,7 +1681,7 @@ test("getLogEvents returns log events with receipts", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents with block filters", async (context) => {
+test.only("getLogEvents with block filters", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);

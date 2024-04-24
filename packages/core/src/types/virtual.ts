@@ -58,37 +58,39 @@ export namespace Virtual {
     ///
     contractName extends ExtractContractName<name> = ExtractContractName<name>,
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
-  > = eventName extends Setup
-    ? never
-    : {
-        name: eventName;
-        args: GetEventArgs<
-          Abi,
-          string,
-          {
-            EnableUnion: false;
-            IndexedOnly: false;
-            Required: true;
-          },
-          ParseAbiEvent<config["contracts"][contractName]["abi"], eventName>
-        >;
-        log: Prettify<Log>;
-        block: Prettify<Block>;
-        transaction: Prettify<Transaction>;
-      } & (ExtractOverridenProperty<
-        config["contracts"][contractName],
-        "includeTransactionReceipts"
-      > extends infer includeTxr
-        ? includeTxr extends includeTxr
-          ? includeTxr extends true
-            ? {
-                transactionReceipt: Prettify<TransactionReceipt>;
-              }
-            : {
-                transactionReceipt?: never;
-              }
-          : never
-        : never);
+  > = name extends "blocks"
+    ? { block: Prettify<Block> }
+    : eventName extends Setup
+      ? never
+      : {
+          name: eventName;
+          args: GetEventArgs<
+            Abi,
+            string,
+            {
+              EnableUnion: false;
+              IndexedOnly: false;
+              Required: true;
+            },
+            ParseAbiEvent<config["contracts"][contractName]["abi"], eventName>
+          >;
+          log: Prettify<Log>;
+          block: Prettify<Block>;
+          transaction: Prettify<Transaction>;
+        } & (ExtractOverridenProperty<
+          config["contracts"][contractName],
+          "includeTransactionReceipts"
+        > extends infer includeTxr
+          ? includeTxr extends includeTxr
+            ? includeTxr extends true
+              ? {
+                  transactionReceipt: Prettify<TransactionReceipt>;
+                }
+              : {
+                  transactionReceipt?: never;
+                }
+            : never
+          : never);
 
   type ContextContractProperty = Exclude<
     keyof Config["contracts"][string],

@@ -80,7 +80,11 @@ export class SqliteSyncStore implements SyncStore {
       await this.db.transaction().execute(async (tx) => {
         await tx
           .insertInto("blocks")
-          .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
+          .values({
+            ...rpcToSqliteBlock(rpcBlock),
+            chainId,
+            checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
+          })
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
 
@@ -114,7 +118,7 @@ export class SqliteSyncStore implements SyncStore {
           const logs = rpcLogs.map((rpcLog) => ({
             ...rpcToSqliteLog(rpcLog),
             chainId,
-            checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            checkpoint: this.createLogCheckpoint(rpcLog, rpcBlock, chainId),
           }));
           await tx
             .insertInto("logs")
@@ -355,7 +359,11 @@ export class SqliteSyncStore implements SyncStore {
         await this.db.transaction().execute(async (tx) => {
           await tx
             .insertInto("blocks")
-            .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
+            .values({
+              ...rpcToSqliteBlock(rpcBlock),
+              chainId,
+              checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
+            })
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
 
@@ -389,7 +397,7 @@ export class SqliteSyncStore implements SyncStore {
             const logs = rpcLogs.map((rpcLog) => ({
               ...rpcToSqliteLog(rpcLog),
               chainId,
-              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+              checkpoint: this.createLogCheckpoint(rpcLog, rpcBlock, chainId),
             }));
             await tx
               .insertInto("logs")
@@ -557,7 +565,11 @@ export class SqliteSyncStore implements SyncStore {
       await this.db.transaction().execute(async (tx) => {
         await tx
           .insertInto("blocks")
-          .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
+          .values({
+            ...rpcToSqliteBlock(rpcBlock),
+            chainId,
+            checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
+          })
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
 
@@ -672,7 +684,11 @@ export class SqliteSyncStore implements SyncStore {
       await this.db.transaction().execute(async (tx) => {
         await tx
           .insertInto("blocks")
-          .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
+          .values({
+            ...rpcToSqliteBlock(rpcBlock),
+            chainId,
+            checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
+          })
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
 
@@ -712,7 +728,7 @@ export class SqliteSyncStore implements SyncStore {
           const logs = rpcLogs.map((rpcLog) => ({
             ...rpcToSqliteLog(rpcLog),
             chainId,
-            checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            checkpoint: this.createLogCheckpoint(rpcLog, rpcBlock, chainId),
           }));
           await tx
             .insertInto("logs")
@@ -728,7 +744,7 @@ export class SqliteSyncStore implements SyncStore {
     });
   };
 
-  private createCheckpoint = (
+  private createLogCheckpoint = (
     rpcLog: RpcLog,
     block: RpcBlock,
     chainId: number,
@@ -749,6 +765,21 @@ export class SqliteSyncStore implements SyncStore {
       transactionIndex: Number(BigInt(rpcLog.transactionIndex)),
       eventType: EVENT_TYPES.logs,
       eventIndex: Number(BigInt(rpcLog.logIndex)),
+    });
+  };
+
+  private createBlockCheckpoint = (block: RpcBlock, chainId: number) => {
+    if (block.number === null) {
+      throw new Error("Number is missing from RPC block");
+    }
+
+    return encodeCheckpoint({
+      blockTimestamp: Number(BigInt(block.timestamp)),
+      chainId,
+      blockNumber: Number(BigInt(block.number)),
+      transactionIndex: "9999999999999999",
+      eventType: EVENT_TYPES.blocks,
+      eventIndex: 0,
     });
   };
 
@@ -1056,6 +1087,8 @@ export class SqliteSyncStore implements SyncStore {
                   // @ts-ignore
                   .select([
                     "source_id",
+                    "blocks.checkpoint",
+
                     sql`null`.as("log_address"),
                     sql`null`.as("log_blockHash"),
                     sql`null`.as("log_blockNumber"),
@@ -1069,7 +1102,7 @@ export class SqliteSyncStore implements SyncStore {
                     sql`null`.as("log_topic3"),
                     sql`null`.as("log_transactionHash"),
                     sql`null`.as("log_transactionIndex"),
-                    sql`null`.as("log_checkpoint"),
+
                     "blocks.baseFeePerGas as block_baseFeePerGas",
                     "blocks.difficulty as block_difficulty",
                     "blocks.extraData as block_extraData",
@@ -1089,6 +1122,7 @@ export class SqliteSyncStore implements SyncStore {
                     "blocks.timestamp as block_timestamp",
                     "blocks.totalDifficulty as block_totalDifficulty",
                     "blocks.transactionsRoot as block_transactionsRoot",
+
                     sql`null`.as("tx_accessList"),
                     sql`null`.as("tx_blockHash"),
                     sql`null`.as("tx_blockNumber"),
@@ -1115,13 +1149,27 @@ export class SqliteSyncStore implements SyncStore {
                     for (const blockFilter of blockFilters) {
                       exprs.push(
                         eb.and([
+                          eb("chainId", "=", blockFilter.chainId),
                           eb(
                             "number",
                             ">=",
                             encodeAsText(blockFilter.criteria.startBlock),
                           ),
+                          ...(blockFilter.endBlock !== undefined
+                            ? [
+                                eb(
+                                  "number",
+                                  "<=",
+                                  encodeAsText(blockFilter.endBlock),
+                                ),
+                              ]
+                            : []),
                           eb(
-                            sql`(number - ${blockFilter.criteria.startBlock}) % ${blockFilter.criteria.frequency}`,
+                            sql`(number - ${encodeAsText(
+                              blockFilter.criteria.startBlock,
+                            )}) % ${encodeAsText(
+                              blockFilter.criteria.frequency,
+                            )}`,
                             "=",
                             0,
                           ),
@@ -1185,6 +1233,7 @@ export class SqliteSyncStore implements SyncStore {
             )
             .select([
               "source_id",
+              "logs.checkpoint",
 
               "logs.address as log_address",
               "logs.blockHash as log_blockHash",
@@ -1199,7 +1248,6 @@ export class SqliteSyncStore implements SyncStore {
               "logs.topic3 as log_topic3",
               "logs.transactionHash as log_transactionHash",
               "logs.transactionIndex as log_transactionIndex",
-              "logs.checkpoint as log_checkpoint",
 
               "blocks.baseFeePerGas as block_baseFeePerGas",
               "blocks.difficulty as block_difficulty",
@@ -1256,19 +1304,7 @@ export class SqliteSyncStore implements SyncStore {
             return {
               chainId: source.chainId,
               sourceId: row.source_id,
-              encodedCheckpoint:
-                row.log_checkpoint === null
-                  ? encodeCheckpoint({
-                      blockTimestamp: Number(
-                        decodeToBigInt(row.block_timestamp),
-                      ),
-                      chainId: source.chainId,
-                      blockNumber: Number(decodeToBigInt(row.block_number)),
-                      transactionIndex: 0,
-                      eventType: EVENT_TYPES.blocks,
-                      eventIndex: 0,
-                    })
-                  : row.log_checkpoint,
+              encodedCheckpoint: row.checkpoint,
               log:
                 sourceIsLog(source) || sourceIsFactory(source)
                   ? {

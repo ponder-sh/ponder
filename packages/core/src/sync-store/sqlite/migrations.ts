@@ -720,6 +720,40 @@ const migrations: Record<string, Migration> = {
         .on("blockFilterIntervals")
         .column("blockFilterId")
         .execute();
+
+      await db.schema.dropTable("blocks").execute();
+
+      // TODO(kyle) migrate blocks
+      await db.schema
+        .createTable("blocks")
+        .addColumn("baseFeePerGas", "varchar(79)")
+        .addColumn("difficulty", "varchar(79)", (col) => col.notNull())
+        .addColumn("extraData", "text", (col) => col.notNull())
+        .addColumn("gasLimit", "varchar(79)", (col) => col.notNull())
+        .addColumn("gasUsed", "varchar(79)", (col) => col.notNull())
+        .addColumn("hash", "varchar(66)", (col) => col.notNull().primaryKey())
+        .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
+        .addColumn("miner", "varchar(42)", (col) => col.notNull())
+        .addColumn("mixHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("nonce", "varchar(18)", (col) => col.notNull())
+        .addColumn("number", "varchar(79)", (col) => col.notNull())
+        .addColumn("parentHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("receiptsRoot", "varchar(66)", (col) => col.notNull())
+        .addColumn("sha3Uncles", "varchar(66)", (col) => col.notNull())
+        .addColumn("size", "varchar(79)", (col) => col.notNull())
+        .addColumn("stateRoot", "varchar(66)", (col) => col.notNull())
+        .addColumn("timestamp", "varchar(79)", (col) => col.notNull())
+        .addColumn("totalDifficulty", "varchar(79)", (col) => col.notNull())
+        .addColumn("transactionsRoot", "varchar(66)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("checkpoint", "text", (col) => col.notNull())
+        .execute();
+
+      await db.schema
+        .createIndex("blockNumberIndex")
+        .on("blocks")
+        .column("number")
+        .execute();
     },
   },
 };

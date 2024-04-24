@@ -2,7 +2,7 @@ export type Checkpoint = {
   blockTimestamp: number;
   chainId: number;
   blockNumber: number;
-  transactionIndex: number;
+  transactionIndex: number | string;
   eventType: number;
   eventIndex: number;
 };
@@ -30,7 +30,7 @@ const CHECKPOINT_LENGTH =
   EVENT_INDEX_DIGITS;
 
 export const EVENT_TYPES = {
-  blocks: 2,
+  blocks: 5,
   logs: 5,
 } as const;
 

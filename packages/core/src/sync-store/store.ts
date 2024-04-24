@@ -20,7 +20,6 @@ import type {
   RpcTransactionReceipt,
 } from "viem";
 
-// TODO(kyle) this should be updated most likely
 export type RawEvent = {
   chainId: number;
   sourceId: string;
