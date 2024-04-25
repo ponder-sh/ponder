@@ -1057,174 +1057,122 @@ export class SqliteSyncStore implements SyncStore {
         async () => {
           // Query a batch of logs.
           const requestedLogs = await this.db
-            .with("sources(source_id)", () =>
-              sources.filter((s) => sourceIsLog(s) || sourceIsFactory(s))
-                .length === 0
-                ? sql`( values (null) )`
-                : sql`( values ${sql.join(
-                    sources
-                      .filter(
-                        (s): s is LogSource | FactorySource =>
-                          sourceIsLog(s) || sourceIsFactory(s),
-                      )
-                      .map((source) => sql`( ${sql.val(source.id)} )`),
-                  )} )`,
+            .with(
+              "sources(source_id)",
+              () =>
+                sql`( values ${sql.join(
+                  sources.map((source) => sql`( ${sql.val(source.id)} )`),
+                )} )`,
             )
-            .with("block_event_sources(source_id)", () =>
-              sources.filter(sourceIsBlock).length === 0
-                ? sql`( values (null) )`
-                : sql`( values ${sql.join(
-                    sources
-                      .filter(sourceIsBlock)
-                      .map((source) => sql`( ${sql.val(source.id)} )`),
-                  )} )`,
-            )
-            .selectFrom("logs")
-            .$if(sources.filter(sourceIsBlock).length > 0, (qb) =>
-              qb.unionAll(
-                this.db
-                  .selectFrom("blocks")
-                  // @ts-ignore
-                  .innerJoin("block_event_sources", (join) => join.onTrue())
-                  // @ts-ignore
-                  .select([
-                    "source_id",
-                    "blocks.checkpoint",
+            .with("events", (db) =>
+              db
+                .selectFrom("logs")
+                .innerJoin("sources", (join) => join.onTrue())
+                .where((eb) => {
+                  const logFilterCmprs = sources
+                    .filter(sourceIsLog)
+                    .map((logFilter) => {
+                      const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+                      exprs.push(eb("source_id", "=", logFilter.id));
+                      return eb.and(exprs);
+                    });
 
-                    sql`null`.as("log_address"),
-                    sql`null`.as("log_blockHash"),
-                    sql`null`.as("log_blockNumber"),
-                    sql`null`.as("log_chainId"),
-                    sql`null`.as("log_data"),
-                    sql`null`.as("log_id"),
-                    sql`null`.as("log_logIndex"),
-                    sql`null`.as("log_topic0"),
-                    sql`null`.as("log_topic1"),
-                    sql`null`.as("log_topic2"),
-                    sql`null`.as("log_topic3"),
-                    sql`null`.as("log_transactionHash"),
-                    sql`null`.as("log_transactionIndex"),
+                  const factoryCmprs = sources
+                    .filter(sourceIsFactory)
+                    .map((factory) => {
+                      const exprs = this.buildFactoryCmprs({ eb, factory });
+                      exprs.push(eb("source_id", "=", factory.id));
+                      return eb.and(exprs);
+                    });
 
-                    "blocks.baseFeePerGas as block_baseFeePerGas",
-                    "blocks.difficulty as block_difficulty",
-                    "blocks.extraData as block_extraData",
-                    "blocks.gasLimit as block_gasLimit",
-                    "blocks.gasUsed as block_gasUsed",
-                    "blocks.hash as block_hash",
-                    "blocks.logsBloom as block_logsBloom",
-                    "blocks.miner as block_miner",
-                    "blocks.mixHash as block_mixHash",
-                    "blocks.nonce as block_nonce",
-                    "blocks.number as block_number",
-                    "blocks.parentHash as block_parentHash",
-                    "blocks.receiptsRoot as block_receiptsRoot",
-                    "blocks.sha3Uncles as block_sha3Uncles",
-                    "blocks.size as block_size",
-                    "blocks.stateRoot as block_stateRoot",
-                    "blocks.timestamp as block_timestamp",
-                    "blocks.totalDifficulty as block_totalDifficulty",
-                    "blocks.transactionsRoot as block_transactionsRoot",
-
-                    sql`null`.as("tx_accessList"),
-                    sql`null`.as("tx_blockHash"),
-                    sql`null`.as("tx_blockNumber"),
-                    sql`null`.as("tx_from"),
-                    sql`null`.as("tx_gas"),
-                    sql`null`.as("tx_gasPrice"),
-                    sql`null`.as("tx_hash"),
-                    sql`null`.as("tx_input"),
-                    sql`null`.as("tx_maxFeePerGas"),
-                    sql`null`.as("tx_maxPriorityFeePerGas"),
-                    sql`null`.as("tx_nonce"),
-                    sql`null`.as("tx_r"),
-                    sql`null`.as("tx_s"),
-                    sql`null`.as("tx_to"),
-                    sql`null`.as("tx_transactionIndex"),
-                    sql`null`.as("tx_type"),
-                    sql`null`.as("tx_value"),
-                    sql`null`.as("tx_v"),
-                  ])
+                  return eb.or([...logFilterCmprs, ...factoryCmprs]);
+                })
+                .select([
+                  "source_id",
+                  "logs.checkpoint as checkpoint",
+                  "logs.address as log_address",
+                  "logs.blockHash as log_blockHash",
+                  "logs.blockNumber as log_blockNumber",
+                  "logs.chainId as log_chainId",
+                  "logs.data as log_data",
+                  "logs.id as log_id",
+                  "logs.logIndex as log_logIndex",
+                  "logs.topic0 as log_topic0",
+                  "logs.topic1 as log_topic1",
+                  "logs.topic2 as log_topic2",
+                  "logs.topic3 as log_topic3",
+                  "logs.transactionHash as log_transactionHash",
+                  "logs.transactionIndex as log_transactionIndex",
+                ])
+                .unionAll(
                   // @ts-ignore
-                  .where((eb) => {
-                    const exprs = [];
-                    const blockFilters = sources.filter(sourceIsBlock);
-                    for (const blockFilter of blockFilters) {
-                      exprs.push(
-                        eb.and([
-                          eb("chainId", "=", blockFilter.chainId),
-                          eb(
-                            "number",
-                            ">",
-                            encodeAsText(decodeCheckpoint(cursor).blockNumber),
-                          ),
-                          eb(
-                            "number",
-                            "<=",
-                            encodeAsText(toCheckpoint.blockNumber),
-                          ),
-                          eb(
-                            "number",
-                            ">=",
-                            encodeAsText(blockFilter.criteria.startBlock),
-                          ),
-                          ...(blockFilter.endBlock !== undefined
-                            ? [
-                                eb(
-                                  "number",
-                                  "<=",
-                                  encodeAsText(blockFilter.endBlock),
-                                ),
-                              ]
-                            : []),
-                          eb(
+                  db
+                    .selectFrom("blocks")
+                    .innerJoin("sources", (join) => join.onTrue())
+                    .where((eb) => {
+                      const exprs = [];
+                      const blockFilters = sources.filter(sourceIsBlock);
+                      for (const blockFilter of blockFilters) {
+                        exprs.push(
+                          eb.and([
+                            eb("chainId", "=", blockFilter.chainId),
+                            eb(
+                              "number",
+                              ">=",
+                              encodeAsText(blockFilter.criteria.startBlock),
+                            ),
+                            ...(blockFilter.endBlock !== undefined
+                              ? [
+                                  eb(
+                                    "number",
+                                    "<=",
+                                    encodeAsText(blockFilter.endBlock),
+                                  ),
+                                ]
+                              : []),
                             sql`(number - ${encodeAsText(
                               blockFilter.criteria.startBlock,
                             )}) % ${encodeAsText(
                               blockFilter.criteria.frequency,
-                            )}`,
-                            "=",
-                            0,
-                          ),
-                          eb("source_id", "=", blockFilter.id),
-                        ]),
-                      );
+                            )} = 0`,
+                            eb("source_id", "=", blockFilter.id),
+                          ]),
+                        );
+                      }
                       return eb.or(exprs);
-                    }
-                  }),
-              ),
+                    })
+                    .select([
+                      "source_id",
+                      "blocks.checkpoint as checkpoint",
+                      sql`null`.as("log_address"),
+                      "blocks.hash as log_blockHash",
+                      sql`null`.as("log_blockNumber"),
+                      sql`null`.as("log_chainId"),
+                      sql`null`.as("log_data"),
+                      sql`null`.as("log_id"),
+                      sql`null`.as("log_logIndex"),
+                      sql`null`.as("log_topic0"),
+                      sql`null`.as("log_topic1"),
+                      sql`null`.as("log_topic2"),
+                      sql`null`.as("log_topic3"),
+                      sql`null`.as("log_transactionHash"),
+                      sql`null`.as("log_transactionIndex"),
+                    ]),
+                ),
             )
-            .innerJoin("blocks", "blocks.hash", "logs.blockHash")
-            .innerJoin(
+            .selectFrom("events")
+            .innerJoin("blocks", "blocks.hash", "log_blockHash")
+            .leftJoin(
               "transactions",
               "transactions.hash",
-              "logs.transactionHash",
+              "log_transactionHash",
             )
-            .innerJoin("sources", (join) => join.onTrue())
-            .where((eb) => {
-              const logFilterCmprs = sources
-                .filter(sourceIsLog)
-                .map((logFilter) => {
-                  const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-                  exprs.push(eb("source_id", "=", logFilter.id));
-                  return eb.and(exprs);
-                });
-
-              const factoryCmprs = sources
-                .filter(sourceIsFactory)
-                .map((factory) => {
-                  const exprs = this.buildFactoryCmprs({ eb, factory });
-                  exprs.push(eb("source_id", "=", factory.id));
-                  return eb.and(exprs);
-                });
-
-              return eb.or([...logFilterCmprs, ...factoryCmprs]);
-            })
             .$if(shouldJoinReceipts, (qb) =>
               qb
-                .innerJoin(
+                .leftJoin(
                   "transactionReceipts",
                   "transactionReceipts.transactionHash",
-                  "logs.transactionHash",
+                  "log_transactionHash",
                 )
                 .select([
                   "transactionReceipts.blockHash as txr_blockHash",
@@ -1245,21 +1193,21 @@ export class SqliteSyncStore implements SyncStore {
             )
             .select([
               "source_id",
-              "logs.checkpoint",
+              "events.checkpoint",
 
-              "logs.address as log_address",
-              "logs.blockHash as log_blockHash",
-              "logs.blockNumber as log_blockNumber",
-              "logs.chainId as log_chainId",
-              "logs.data as log_data",
-              "logs.id as log_id",
-              "logs.logIndex as log_logIndex",
-              "logs.topic0 as log_topic0",
-              "logs.topic1 as log_topic1",
-              "logs.topic2 as log_topic2",
-              "logs.topic3 as log_topic3",
-              "logs.transactionHash as log_transactionHash",
-              "logs.transactionIndex as log_transactionIndex",
+              "events.log_address",
+              "events.log_blockHash",
+              "events.log_blockNumber",
+              "events.log_chainId",
+              "events.log_data",
+              "events.log_id",
+              "events.log_logIndex",
+              "events.log_topic0",
+              "events.log_topic1",
+              "events.log_topic2",
+              "events.log_topic3",
+              "events.log_transactionHash",
+              "events.log_transactionIndex",
 
               "blocks.baseFeePerGas as block_baseFeePerGas",
               "blocks.difficulty as block_difficulty",
@@ -1300,9 +1248,9 @@ export class SqliteSyncStore implements SyncStore {
               "transactions.value as tx_value",
               "transactions.v as tx_v",
             ])
-            .where("logs.checkpoint", ">", cursor)
-            .where("logs.checkpoint", "<=", encodedToCheckpoint)
-            .orderBy("logs.checkpoint", "asc")
+            .where("events.checkpoint", ">", cursor)
+            .where("events.checkpoint", "<=", encodedToCheckpoint)
+            .orderBy("events.checkpoint", "asc")
             .limit(limit + 1)
             .execute();
 
@@ -1526,9 +1474,37 @@ export class SqliteSyncStore implements SyncStore {
           return eb.or([...logFilterCmprs, ...factoryCmprs]);
         })
         .select("checkpoint")
-        .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
-        .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
-        .orderBy("logs.checkpoint", "desc")
+        .unionAll(
+          this.db
+            .selectFrom("blocks")
+            .where((eb) => {
+              const exprs = [];
+              const blockFilters = sources.filter(sourceIsBlock);
+              for (const blockFilter of blockFilters) {
+                exprs.push(
+                  eb.and([
+                    eb("chainId", "=", blockFilter.chainId),
+                    eb(
+                      "number",
+                      ">=",
+                      encodeAsText(blockFilter.criteria.startBlock),
+                    ),
+                    ...(blockFilter.endBlock !== undefined
+                      ? [eb("number", "<=", encodeAsText(blockFilter.endBlock))]
+                      : []),
+                    sql`(number - ${encodeAsText(
+                      blockFilter.criteria.startBlock,
+                    )}) % ${encodeAsText(blockFilter.criteria.frequency)} = 0`,
+                  ]),
+                );
+              }
+              return eb.or(exprs);
+            })
+            .select("checkpoint"),
+        )
+        .where("checkpoint", ">", encodeCheckpoint(fromCheckpoint))
+        .where("checkpoint", "<=", encodeCheckpoint(toCheckpoint))
+        .orderBy("checkpoint", "desc")
         .executeTakeFirst();
 
       return checkpoint

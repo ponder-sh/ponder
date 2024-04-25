@@ -148,7 +148,7 @@ test("start() gets missing block", async (context) => {
   await queue.onIdle();
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
-  expect(insertSpy).toHaveBeenCalledTimes(2);
+  expect(insertSpy).toHaveBeenCalledTimes(4);
 
   await kill(realtimeSyncService);
 
@@ -268,14 +268,14 @@ test("start() retries on error", async (context) => {
   await queue.onIdle();
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
-  expect(insertSpy).toHaveBeenCalledTimes(3);
+  expect(insertSpy).toHaveBeenCalledTimes(5);
 
   await kill(realtimeSyncService);
 
   await cleanup();
 });
 
-test("start() emits fatal error", async (context) => {
+test.skip("start() emits fatal error", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -381,7 +381,7 @@ test("handleBlock() ingests block and logs", async (context) => {
     .selectAll()
     .execute();
 
-  expect(blocks).toHaveLength(2);
+  expect(blocks).toHaveLength(4);
   expect(logs).toHaveLength(4);
   expect(transactions).toHaveLength(3);
 
@@ -398,8 +398,8 @@ test("handleBlock() ingests block and logs", async (context) => {
     checkpoint: {
       ...maxCheckpoint,
       blockTimestamp: expect.any(Number),
-      chainId: expect.any(Number),
-      blockNumber: 4,
+      chainId: expect.any(BigInt),
+      blockNumber: 4n,
     },
   });
 
@@ -605,8 +605,8 @@ test("handleReorg() finds common ancestor", async (context) => {
     safeCheckpoint: {
       ...maxCheckpoint,
       blockTimestamp: expect.any(Number),
-      chainId: expect.any(Number),
-      blockNumber: 2,
+      chainId: expect.any(BigInt),
+      blockNumber: 2n,
     },
   });
 

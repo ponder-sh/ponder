@@ -540,8 +540,8 @@ test("start() emits historicalCheckpoint event", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     ...maxCheckpoint,
     blockTimestamp: Number(finalizedBlock.timestamp),
-    chainId: 1,
-    blockNumber: Number(finalizedBlock.number),
+    chainId: 1n,
+    blockNumber: BigInt(finalizedBlock.number),
   });
 
   service.kill();

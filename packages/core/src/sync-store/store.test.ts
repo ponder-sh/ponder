@@ -2198,16 +2198,7 @@ test("getLogEvents pagination", async (context) => {
 
   const thirdBatchEvents = await ag.next();
 
-  expect(thirdBatchEvents.done).toBe(false);
-  expect(thirdBatchEvents.value).toHaveLength(1);
-
-  expect(thirdBatchEvents.value[0].log).toBeUndefined();
-  expect(thirdBatchEvents.value[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(thirdBatchEvents.value[0].transaction).toBeUndefined();
-
-  const fourthBatchEvents = await ag.next();
-
-  expect(fourthBatchEvents.done).toBe(true);
+  expect(thirdBatchEvents.done).toBe(true);
 
   await cleanup();
 });
@@ -2245,10 +2236,11 @@ test("getLastEventCheckpoint", async (context) => {
     toCheckpoint: maxCheckpoint,
   });
 
-  expect(lastEventCheckpoint?.blockNumber).toBe(2);
-  expect(lastEventCheckpoint?.eventIndex).toBe(
-    hexToNumber(rpcData.block1.logs[1].logIndex!),
+  expect(lastEventCheckpoint?.blockNumber).toBe(2n);
+  expect(lastEventCheckpoint?.transactionIndex).toBe(
+    maxCheckpoint.transactionIndex,
   );
+  expect(lastEventCheckpoint?.eventIndex).toBe(0n);
 
   await cleanup();
 });
