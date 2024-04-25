@@ -923,11 +923,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     fromBlock,
     toBlock,
   }: BlockFilterTask) => {
-    const offset =
-      (blockFilter.criteria.startBlock + fromBlock) %
+    const baseOffset =
+      (fromBlock - blockFilter.criteria.startBlock) %
       blockFilter.criteria.frequency;
+    const offset =
+      baseOffset === 0 ? 0 : blockFilter.criteria.frequency - baseOffset;
 
     // ...
+
     for (
       let blockNumber = fromBlock + offset;
       blockNumber <= toBlock;

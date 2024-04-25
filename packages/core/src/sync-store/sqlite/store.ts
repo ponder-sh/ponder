@@ -774,9 +774,9 @@ export class SqliteSyncStore implements SyncStore {
     }
 
     return encodeCheckpoint({
-      blockTimestamp: Number(BigInt(block.timestamp)),
+      blockTimestamp: hexToNumber(block.timestamp),
       chainId,
-      blockNumber: Number(BigInt(block.number)),
+      blockNumber: hexToNumber(block.number),
       transactionIndex: "9999999999999999",
       eventType: EVENT_TYPES.blocks,
       eventIndex: 0,
@@ -1150,6 +1150,16 @@ export class SqliteSyncStore implements SyncStore {
                       exprs.push(
                         eb.and([
                           eb("chainId", "=", blockFilter.chainId),
+                          eb(
+                            "number",
+                            ">",
+                            encodeAsText(decodeCheckpoint(cursor).blockNumber),
+                          ),
+                          eb(
+                            "number",
+                            "<=",
+                            encodeAsText(toCheckpoint.blockNumber),
+                          ),
                           eb(
                             "number",
                             ">=",
