@@ -1423,9 +1423,36 @@ export class PostgresSyncStore implements SyncStore {
           return eb.or([...logFilterCmprs, ...factoryCmprs]);
         })
         .select("checkpoint")
-        .where("logs.checkpoint", ">", encodeCheckpoint(fromCheckpoint))
-        .where("logs.checkpoint", "<=", encodeCheckpoint(toCheckpoint))
-        .orderBy("logs.checkpoint", "desc")
+        .unionAll(
+          this.db
+            .selectFrom("blocks")
+            .where((eb) => {
+              const exprs = [];
+              const blockFilters = sources.filter(sourceIsBlock);
+              for (const blockFilter of blockFilters) {
+                exprs.push(
+                  eb.and([
+                    eb("chainId", "=", blockFilter.chainId),
+                    eb("number", ">=", BigInt(blockFilter.criteria.startBlock)),
+                    ...(blockFilter.endBlock !== undefined
+                      ? [eb("number", "<=", BigInt(blockFilter.endBlock))]
+                      : []),
+                    // TODO(jay)
+                    // sql`(number - ${sql.val(
+                    //   blockFilter.criteria.startBlock,
+                    // )}) % ${sql.val(
+                    //   blockFilter.criteria.frequency,
+                    // )} = ${sql.val(0)}`,
+                  ]),
+                );
+              }
+              return eb.or(exprs);
+            })
+            .select("checkpoint"),
+        )
+        .where("checkpoint", ">", encodeCheckpoint(fromCheckpoint))
+        .where("checkpoint", "<=", encodeCheckpoint(toCheckpoint))
+        .orderBy("checkpoint", "desc")
         .executeTakeFirst();
 
       return checkpoint
