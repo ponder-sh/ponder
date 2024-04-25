@@ -267,6 +267,57 @@ test("update() updates a record using an update function", async (context) => {
   await cleanup();
 });
 
+test("update() with an empty update object returns the original record", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const record = await indexingStore.update({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
+    id: "id1",
+    data: {},
+  });
+
+  expect(record).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await cleanup();
+});
+
+test("update() with an update function that returns an empty object returns the record", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const record = await indexingStore.update({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
+    id: "id1",
+    data: ({ current }) => {
+      if (current.name === "blah") return { name: "newBlah" };
+      return {};
+    },
+  });
+
+  expect(record).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await cleanup();
+});
+
 test("upsert() inserts a new record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
@@ -318,6 +369,59 @@ test("upsert() updates a record", async (context) => {
     id: "id1",
   });
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Jelly", age: 12 });
+
+  await cleanup();
+});
+
+test("upsert() with an empty update object returns the original record", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const record = await indexingStore.upsert({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
+    id: "id1",
+    create: { name: "Yellow", age: 14 },
+    update: {},
+  });
+
+  expect(record).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await cleanup();
+});
+
+test("upsert() with an update function that returns an empty object returns the record", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const record = await indexingStore.upsert({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
+    id: "id1",
+    create: { name: "Yellow", age: 14 },
+    update: ({ current }) => {
+      if (current.name === "blah") return { name: "newBlah" };
+      return {};
+    },
+  });
+
+  expect(record).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
   await cleanup();
 });

@@ -141,7 +141,7 @@ export const getRealtimeIndexingStore = ({
           typeof data === "function"
             ? data({ current: decodeRow(latestRow, table, kind) })
             : data;
-        const updateRow = encodeRow(updateObject, table, kind);
+        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
 
         const updateResult = await tx
           .withSchema(namespaceInfo.userNamespace)
@@ -210,7 +210,11 @@ export const getRealtimeIndexingStore = ({
             typeof data === "function"
               ? data({ current: decodeRow(latestRow, table, kind) })
               : data;
-          const updateRow = encodeRow(updateObject, table, kind);
+          const updateRow = encodeRow(
+            { id: latestRow.id, ...updateObject },
+            table,
+            kind,
+          );
 
           const row = await tx
             .withSchema(namespaceInfo.userNamespace)
@@ -310,7 +314,7 @@ export const getRealtimeIndexingStore = ({
           typeof update === "function"
             ? update({ current: decodeRow(latestRow, table, kind) })
             : update;
-        const updateRow = encodeRow(updateObject, table, kind);
+        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
 
         const row = await tx
           .withSchema(namespaceInfo.userNamespace)

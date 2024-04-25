@@ -112,7 +112,7 @@ export const getHistoricalIndexingStore = ({
       } else {
         updateObject = data;
       }
-      const updateRow = encodeRow(updateObject, table, kind);
+      const updateRow = encodeRow({ id, ...updateObject }, table, kind);
 
       const row = await db
         .updateTable(tableName)
@@ -157,11 +157,15 @@ export const getHistoricalIndexingStore = ({
             )
             .execute();
 
-          const rows: Row[] = [];
+          const rows: { [x: string]: any }[] = [];
           for (const latestRow of latestRows) {
             const current = decodeRow(latestRow, table, kind);
             const updateObject = data({ current });
-            const updateRow = encodeRow(updateObject, table, kind);
+            const updateRow = encodeRow(
+              { id: latestRow.id, ...updateObject },
+              table,
+              kind,
+            );
 
             const row = await tx
               .withSchema(namespaceInfo.userNamespace)
@@ -173,7 +177,7 @@ export const getHistoricalIndexingStore = ({
               .catch((err) => {
                 throw parseStoreError(err, updateObject);
               });
-            rows.push(row as Row);
+            rows.push(row);
           }
 
           return rows;
@@ -260,7 +264,7 @@ export const getHistoricalIndexingStore = ({
 
         const current = decodeRow(latestRow, table, kind);
         const updateObject = update({ current });
-        const updateRow = encodeRow(updateObject, table, kind);
+        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
 
         const row = await db
           .withSchema(namespaceInfo.userNamespace)
@@ -280,18 +284,13 @@ export const getHistoricalIndexingStore = ({
 
         return decodeRow(row, table, kind);
       } else {
-        const updateRow = encodeRow(update, table, kind);
+        const updateRow = encodeRow({ id, ...update }, table, kind);
 
         const row = await db
           .withSchema(namespaceInfo.userNamespace)
           .insertInto(tableName)
           .values(createRow)
-          .onConflict((oc) =>
-            // If the updateRow is empty, DO UPDATE SET throws a syntax error.
-            Object.keys(updateRow).length === 0
-              ? oc.column("id").doNothing()
-              : oc.column("id").doUpdateSet(updateRow),
-          )
+          .onConflict((oc) => oc.column("id").doUpdateSet(updateRow))
           .returningAll()
           .executeTakeFirstOrThrow()
           .catch((err) => {
