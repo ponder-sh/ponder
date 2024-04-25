@@ -455,7 +455,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           service: "historical",
           msg: `Sync is ${formatPercentage(progress ?? 0)} complete${
             eta !== undefined ? ` with ~${formatEta(eta)} remaining` : ""
-          } (contract=${contractName})`,
+          } (contract=${contractName}, network=${this.network.name})`,
           network: this.network.name,
         });
       });
