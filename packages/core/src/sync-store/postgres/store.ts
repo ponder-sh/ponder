@@ -1105,12 +1105,11 @@ export class PostgresSyncStore implements SyncStore {
                                   ),
                                 ]
                               : []),
-                            // TODO(jay)
-                            // sql`(number - ${sql.val(
-                            //   blockFilter.criteria.startBlock,
-                            // )}) % ${sql.val(
-                            //   blockFilter.criteria.frequency,
-                            // )} = ${sql.val(0)}`,
+                            sql`(number - ${sql.val(
+                              BigInt(blockFilter.criteria.startBlock),
+                            )}) % ${sql.val(
+                              BigInt(blockFilter.criteria.frequency),
+                            )} = 0`,
                             eb("source_id", "=", blockFilter.id),
                           ]),
                         );
@@ -1443,12 +1442,11 @@ export class PostgresSyncStore implements SyncStore {
                     ...(blockFilter.endBlock !== undefined
                       ? [eb("number", "<=", BigInt(blockFilter.endBlock))]
                       : []),
-                    // TODO(jay)
-                    // sql`(number - ${sql.val(
-                    //   blockFilter.criteria.startBlock,
-                    // )}) % ${sql.val(
-                    //   blockFilter.criteria.frequency,
-                    // )} = ${sql.val(0)}`,
+                    sql`(number - ${sql.val(
+                      BigInt(blockFilter.criteria.startBlock),
+                    )}) % ${sql.val(
+                      BigInt(blockFilter.criteria.frequency),
+                    )} = 0`,
                   ]),
                 );
               }

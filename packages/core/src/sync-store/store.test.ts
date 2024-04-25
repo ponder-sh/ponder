@@ -2237,10 +2237,8 @@ test("getLastEventCheckpoint", async (context) => {
   });
 
   expect(lastEventCheckpoint?.blockNumber).toBe(2n);
-  expect(lastEventCheckpoint?.transactionIndex).toBe(
-    maxCheckpoint.transactionIndex,
-  );
-  expect(lastEventCheckpoint?.eventIndex).toBe(0n);
+  expect(lastEventCheckpoint?.transactionIndex).toBe(1n);
+  expect(lastEventCheckpoint?.eventIndex).toBe(1n);
 
   await cleanup();
 });

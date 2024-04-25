@@ -192,7 +192,7 @@ test("getHistoricalEvents resolves when complete", async (context) => {
 
   expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
 
-  expect(syncService.checkpoint.blockNumber).toBe(0);
+  expect(syncService.checkpoint.blockNumber).toBe(0n);
 
   await kill(syncService);
   await cleanup();
