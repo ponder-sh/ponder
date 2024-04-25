@@ -299,9 +299,9 @@ export const processEvents = async (
       }
 
       case "block": {
-        // indexingService.eventCount.blocks[
-        //   indexingService.networkByChainId[event.chainId].name
-        // ]++;
+        indexingService.eventCount.blocks[
+          indexingService.networkByChainId[event.chainId].name
+        ]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
@@ -313,8 +313,8 @@ export const processEvents = async (
           return result;
         }
 
-        // if (eventCounts.blocks === undefined) eventCounts.blocks = 0;
-        // eventCounts.blocks++;
+        if (eventCounts.blocks === undefined) eventCounts.blocks = 0;
+        eventCounts.blocks++;
 
         indexingService.common.logger.trace({
           service: "indexing",
@@ -332,10 +332,10 @@ export const processEvents = async (
     if (i % 93 === 0) {
       updateCompletedEvents(indexingService);
 
-      // indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-      //   decodeCheckpoint(event.encodedCheckpoint).blockTimestamp -
-      //     indexingService.firstEventCheckpoint!.blockTimestamp,
-      // );
+      indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+        decodeCheckpoint(event.encodedCheckpoint).blockTimestamp -
+          indexingService.firstEventCheckpoint!.blockTimestamp,
+      );
 
       // Note(kyle) this is only needed for sqlite
       await new Promise(setImmediate);
@@ -348,10 +348,10 @@ export const processEvents = async (
     indexingService.firstEventCheckpoint !== undefined &&
     indexingService.lastEventCheckpoint !== undefined
   ) {
-    // indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-    //   decodeCheckpoint(events[events.length - 1].encodedCheckpoint)
-    //     .blockTimestamp - indexingService.firstEventCheckpoint.blockTimestamp,
-    // );
+    indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+      decodeCheckpoint(events[events.length - 1].encodedCheckpoint)
+        .blockTimestamp - indexingService.firstEventCheckpoint.blockTimestamp,
+    );
   }
   // set completed events
   updateCompletedEvents(indexingService);
