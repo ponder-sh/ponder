@@ -189,7 +189,6 @@ export const getRealtimeIndexingStore = ({
 
     return db.wrap({ method: `${tableName}.updateMany` }, async () => {
       const rows = await db.transaction().execute(async (tx) => {
-        // Get all IDs that match the filter.
         const latestRows = await tx
           .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
@@ -204,17 +203,18 @@ export const getRealtimeIndexingStore = ({
           )
           .execute();
 
-        const rows: Row[] = [];
+        const rows: { [key: string]: any }[] = [];
         for (const latestRow of latestRows) {
           const updateObject =
             typeof data === "function"
               ? data({ current: decodeRow(latestRow, table, kind) })
               : data;
-          const updateRow = encodeRow(
-            { id: latestRow.id, ...updateObject },
-            table,
-            kind,
-          );
+
+          // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
+          const updateRow = {
+            id: latestRow.id,
+            ...encodeRow(updateObject, table, kind),
+          };
 
           const row = await tx
             .withSchema(namespaceInfo.userNamespace)
@@ -227,7 +227,7 @@ export const getRealtimeIndexingStore = ({
               throw parseStoreError(err, updateObject);
             });
 
-          rows.push(row as Row);
+          rows.push(row);
 
           await tx
             .withSchema(namespaceInfo.internalNamespace)

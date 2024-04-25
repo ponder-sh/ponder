@@ -161,11 +161,11 @@ export const getHistoricalIndexingStore = ({
           for (const latestRow of latestRows) {
             const current = decodeRow(latestRow, table, kind);
             const updateObject = data({ current });
-            const updateRow = encodeRow(
-              { id: latestRow.id, ...updateObject },
-              table,
-              kind,
-            );
+            // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
+            const updateRow = {
+              id: latestRow.id,
+              ...encodeRow(updateObject, table, kind),
+            };
 
             const row = await tx
               .withSchema(namespaceInfo.userNamespace)
