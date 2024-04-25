@@ -50,19 +50,21 @@ export default createConfig({
 });
 ```
 
-In most scenarios, `publishSchema` should be set to an environment variable provided by the deployment environment. To improve the experience on Railway, Ponder automatically sets `publishSchema` to the value of the Railway-provided environment variable `RAILWAY_SERVICE_NAME`.
+In a zero-downtime deployment scenario, it usually makes sense to set `schema` to a unique, deployment-specific value and set `publishSchema` to `"public"`. With this configuration, the views in the publish schema always serve data from the latest deployment to become healthy.
 
 ### Example scenario (Railway)
 
-Here's a zero-downtime for direct SQL works on Railway.
+To improve the experience on Railway, if Ponder detects the `RAILWAY_DEPLOYMENT_ID` environment variable, it sets `publishSchema` to `"public"`.
+
+Here's how zero-downtime for direct SQL works on Railway.
 1. You create a new Postgres database service for the app.
 2. You create a new service named `indexer` linked to the GitHub repository of your Ponder app. Once created, Railway initiates the first deployment for this service.
 3. When the first deployment starts up, it creates and begins indexing in an isolated schema named `${RAILWAY_SERVICE_NAME}-${RAILWAY_DEPLOYMENT_ID.slice(0,8)}`, e.g. `indexer-87cbd10a`.
-4. When the deployment becomes healthy, it creates a schema named `${RAILWAY_SERVICE_NAME}` (in our example, `indexer`) and creates views in that schema that "serve" data from the tables in `indexer-87cbd10a`.
+4. When the deployment becomes healthy, it creates creates views in the `"public"` schema that serve data from the tables in `indexer-87cbd10a`.
 5. You push a commit to your repository, which triggers a new deployment. The new deployment starts indexing in an isolated schema, this time named `indexer-9b3c4d21`.
-6. When the 2nd deployment becomes healthy, it drops the views in the `indexer` schema and creates new ones that "serve" data from `indexer-9b3c4d21`.
+6. When the 2nd deployment becomes healthy, it drops the views in the `"public"` schema and creates new ones that serve data from `indexer-9b3c4d21`.
 
-Using this scheme, the views in the `indexer` schema always serve data from the latest deployment. This mirrors the behavior of the public GraphQL endpoint for the service.
+Using this scheme, the views in the `"public"` schema always serve data from the latest deployment. This mirrors the behavior of the public GraphQL endpoint for the service.
 
 ### Updating `ponder.schema.ts`
 
