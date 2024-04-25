@@ -265,7 +265,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             service: "historical",
             msg: `Started sync with ${formatPercentage(
               Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
-            )} cached (contract=${source.contractName} network=${
+            )} cached (contract=${source.contractName}, network=${
               this.network.name
             })`,
           });
@@ -433,7 +433,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             service: "historical",
             msg: `Started sync with ${formatPercentage(
               cacheRate,
-            )} cached (contract=${source.contractName} network=${
+            )} cached (contract=${source.contractName}, network=${
               this.network.name
             })`,
           });
