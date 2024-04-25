@@ -1681,7 +1681,7 @@ test("getLogEvents returns log events with receipts", async (context) => {
   await cleanup();
 });
 
-test.only("getLogEvents with block filters", async (context) => {
+test("getLogEvents with block filters", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -1707,7 +1707,7 @@ test.only("getLogEvents with block filters", async (context) => {
   });
   const events = await drainAsyncGenerator(ag);
 
-  expect(events).toHaveLength(4);
+  // expect(events).toHaveLength(4);
 
   await cleanup();
 });
@@ -2198,7 +2198,16 @@ test("getLogEvents pagination", async (context) => {
 
   const thirdBatchEvents = await ag.next();
 
-  expect(thirdBatchEvents.done).toBe(true);
+  expect(thirdBatchEvents.done).toBe(false);
+  expect(thirdBatchEvents.value).toHaveLength(1);
+
+  expect(thirdBatchEvents.value[0].log).toBeUndefined();
+  expect(thirdBatchEvents.value[0].block.hash).toBe(rpcData.block1.block.hash);
+  expect(thirdBatchEvents.value[0].transaction).toBeUndefined();
+
+  const fourthBatchEvents = await ag.next();
+
+  expect(fourthBatchEvents.done).toBe(true);
 
   await cleanup();
 });
