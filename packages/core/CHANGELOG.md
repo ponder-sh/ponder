@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.11
+
+### Patch Changes
+
+- [#830](https://github.com/ponder-sh/ponder/pull/830) [`1a445678cc59dc8e1f1c34b978e3551a3172c951`](https://github.com/ponder-sh/ponder/commit/1a445678cc59dc8e1f1c34b978e3551a3172c951) Thanks [@ChiTimesChi](https://github.com/ChiTimesChi)! - Added the network name to the historical sync log message and inserted missing commas in logs that contain more than one variable.
+
 ## 0.4.10
 
 ### Patch Changes
