@@ -18,6 +18,8 @@ import {
   EVENT_TYPES,
   decodeCheckpoint,
   encodeCheckpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import {
   buildFactoryFragments,
@@ -116,7 +118,7 @@ export class PostgresSyncStore implements SyncStore {
           const logs = rpcLogs.map((rpcLog) => ({
             ...rpcToPostgresLog(rpcLog),
             chainId,
-            checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            checkpoint: this.createLogCheckpoint(rpcLog, rpcBlock, chainId),
           }));
           await tx
             .insertInto("logs")
@@ -392,7 +394,7 @@ export class PostgresSyncStore implements SyncStore {
             const logs = rpcLogs.map((rpcLog) => ({
               ...rpcToPostgresLog(rpcLog),
               chainId,
-              checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+              checkpoint: this.createLogCheckpoint(rpcLog, rpcBlock, chainId),
             }));
 
             await tx
@@ -666,23 +668,27 @@ export class PostgresSyncStore implements SyncStore {
     });
   };
 
-  createCheckpoint = (log: RpcLog, block: RpcBlock, chainId: number) => {
+  private createLogCheckpoint = (
+    rpcLog: RpcLog,
+    block: RpcBlock,
+    chainId: number,
+  ) => {
     if (block.number === null) {
       throw new Error("Number is missing from RPC block");
     }
-    if (log.transactionIndex === null) {
+    if (rpcLog.transactionIndex === null) {
       throw new Error("Transaction index is missing from RPC log");
     }
-    if (log.logIndex === null) {
+    if (rpcLog.logIndex === null) {
       throw new Error("Log index is missing from RPC log");
     }
     return encodeCheckpoint({
-      blockTimestamp: hexToNumber(block.timestamp),
-      chainId,
-      blockNumber: hexToNumber(block.number),
-      transactionIndex: hexToNumber(log.transactionIndex),
+      blockTimestamp: Number(BigInt(block.timestamp)),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(block.number),
+      transactionIndex: hexToBigInt(rpcLog.transactionIndex),
       eventType: EVENT_TYPES.logs,
-      eventIndex: hexToNumber(log.logIndex),
+      eventIndex: hexToBigInt(rpcLog.logIndex),
     });
   };
 
@@ -692,12 +698,12 @@ export class PostgresSyncStore implements SyncStore {
     }
 
     return encodeCheckpoint({
-      blockTimestamp: Number(BigInt(block.timestamp)),
-      chainId,
-      blockNumber: Number(BigInt(block.number)),
-      transactionIndex: "9999999999999999",
+      blockTimestamp: hexToNumber(block.timestamp),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(block.number),
+      transactionIndex: maxCheckpoint.transactionIndex,
       eventType: EVENT_TYPES.blocks,
-      eventIndex: 0,
+      eventIndex: zeroCheckpoint.eventIndex,
     });
   };
 
@@ -762,7 +768,7 @@ export class PostgresSyncStore implements SyncStore {
           const logs = rpcLogs.map((rpcLog) => ({
             ...rpcToPostgresLog(rpcLog),
             chainId,
-            checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
+            checkpoint: this.createLogCheckpoint(rpcLog, rpcBlock, chainId),
           }));
           await tx
             .insertInto("logs")

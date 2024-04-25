@@ -1707,7 +1707,7 @@ test("getLogEvents with block filters", async (context) => {
   });
   const events = await drainAsyncGenerator(ag);
 
-  // expect(events).toHaveLength(4);
+  expect(events).toHaveLength(4);
 
   await cleanup();
 });
@@ -1969,13 +1969,13 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async (context) => {
   const ag = syncStore.getLogEvents({
     sources: [sources[0]],
     fromCheckpoint: {
-      chainId: 1,
+      chainId: 1n,
       blockTimestamp: Number(rpcData.block1.block.timestamp!),
-      blockNumber: Number(rpcData.block1.block.number!),
-      transactionIndex: 0,
+      blockNumber: hexToBigInt(rpcData.block1.block.number!),
+      transactionIndex: 0n,
       eventType: EVENT_TYPES.logs,
       // Should exclude the 1st log in the first block.
-      eventIndex: Number(rpcData.block1.logs[0].logIndex),
+      eventIndex: hexToBigInt(rpcData.block1.logs[0].logIndex!),
     },
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -2006,13 +2006,13 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
     sources: [sources[0]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: {
-      chainId: 1,
+      chainId: 1n,
       blockTimestamp: Number(rpcData.block1.block.timestamp!),
-      blockNumber: Number(rpcData.block1.block.number!),
-      transactionIndex: 1,
+      blockNumber: hexToBigInt(rpcData.block1.block.number!),
+      transactionIndex: 1n,
       eventType: EVENT_TYPES.logs,
       // Should include the 2nd log in the first block.
-      eventIndex: Number(rpcData.block1.logs[1].logIndex),
+      eventIndex: hexToBigInt(rpcData.block1.logs[1].logIndex!),
     },
     limit: 100,
   });

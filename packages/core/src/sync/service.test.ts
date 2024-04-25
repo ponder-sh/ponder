@@ -141,10 +141,10 @@ test("getHistoricalEvents returns events", async (context) => {
   const ag = getHistoricalEvents(syncService);
 
   syncService.networkServices[0].historical.checkpoint = createCheckpoint({
-    blockNumber: 1,
+    blockNumber: 1n,
   });
   syncService.networkServices[1].historical.checkpoint = createCheckpoint({
-    blockNumber: 1,
+    blockNumber: 1n,
   });
 
   const iter1 = await ag.next();
@@ -223,7 +223,7 @@ test("onRealtimeSyncEvent gets events", async (context) => {
   syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "checkpoint",
     chainId: networks[0].chainId,
-    checkpoint: createCheckpoint({ blockNumber: 4 }),
+    checkpoint: createCheckpoint({ blockNumber: 4n }),
   });
 
   expect(getLogEventsSpy).toHaveBeenCalledTimes(0);
@@ -231,7 +231,7 @@ test("onRealtimeSyncEvent gets events", async (context) => {
   syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "checkpoint",
     chainId: networks[1].chainId,
-    checkpoint: createCheckpoint({ blockNumber: 4 }),
+    checkpoint: createCheckpoint({ blockNumber: 4n }),
   });
 
   await onRealtimeEventPromiseResolver.promise;
@@ -257,25 +257,25 @@ test("onRealtimeSyncEvent reorg", async (context) => {
   });
 
   syncService.networkServices[0].realtime!.checkpoint = createCheckpoint({
-    blockNumber: 5,
+    blockNumber: 5n,
   });
   syncService.networkServices[1].realtime!.checkpoint = createCheckpoint({
-    blockNumber: 5,
+    blockNumber: 5n,
   });
 
-  syncService.checkpoint = createCheckpoint({ blockNumber: 5 });
+  syncService.checkpoint = createCheckpoint({ blockNumber: 5n });
 
   syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "reorg",
     chainId: networks[0].chainId,
-    safeCheckpoint: createCheckpoint({ blockNumber: 2 }),
+    safeCheckpoint: createCheckpoint({ blockNumber: 2n }),
   });
 
   expect(syncService.networkServices[0].realtime!.checkpoint).toStrictEqual(
-    createCheckpoint({ blockNumber: 2 }),
+    createCheckpoint({ blockNumber: 2n }),
   );
   expect(syncService.checkpoint).toStrictEqual(
-    createCheckpoint({ blockNumber: 2 }),
+    createCheckpoint({ blockNumber: 2n }),
   );
 
   await kill(syncService);
@@ -304,7 +304,7 @@ test("onRealtimeSyncEvent multi network", async (context) => {
   syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "checkpoint",
     chainId: networks[0].chainId,
-    checkpoint: createCheckpoint({ blockNumber: 4 }),
+    checkpoint: createCheckpoint({ blockNumber: 4n }),
   });
 
   await onRealtimeEventPromiseResolver.promise;

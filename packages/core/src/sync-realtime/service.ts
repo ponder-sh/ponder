@@ -413,8 +413,8 @@ export const handleBlock = async (
     checkpoint: {
       ...maxCheckpoint,
       blockTimestamp: newHeadBlockTimestamp,
-      chainId: service.network.chainId,
-      blockNumber: newHeadBlockNumber,
+      chainId: BigInt(service.network.chainId),
+      blockNumber: BigInt(newHeadBlockNumber),
     } as Checkpoint,
   });
 
@@ -567,8 +567,8 @@ export const handleReorg = async (
         safeCheckpoint: {
           ...maxCheckpoint,
           blockTimestamp: parentBlock.timestamp,
-          chainId: service.network.chainId,
-          blockNumber: parentBlock.number,
+          chainId: BigInt(service.network.chainId),
+          blockNumber: BigInt(parentBlock.number),
         },
       });
 

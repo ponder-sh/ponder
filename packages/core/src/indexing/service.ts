@@ -224,8 +224,8 @@ export const processSetupEvents = async (
           startBlock: BigInt(source.startBlock),
           encodedCheckpoint: encodeCheckpoint({
             ...zeroCheckpoint,
-            chainId: network.chainId,
-            blockNumber: source.startBlock,
+            chainId: BigInt(network.chainId),
+            blockNumber: BigInt(source.startBlock),
           }),
         },
       });

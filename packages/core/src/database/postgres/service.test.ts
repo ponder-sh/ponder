@@ -232,7 +232,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       // TODO: Actually use the indexing store.
       const newCheckpoint = {
         ...zeroCheckpoint,
-        blockNumber: 10,
+        blockNumber: 10n,
       };
 
       await database.db

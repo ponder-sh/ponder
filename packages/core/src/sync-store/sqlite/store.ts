@@ -18,6 +18,8 @@ import {
   EVENT_TYPES,
   decodeCheckpoint,
   encodeCheckpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import {
@@ -760,11 +762,11 @@ export class SqliteSyncStore implements SyncStore {
     }
     return encodeCheckpoint({
       blockTimestamp: Number(BigInt(block.timestamp)),
-      chainId,
-      blockNumber: Number(BigInt(block.number)),
-      transactionIndex: Number(BigInt(rpcLog.transactionIndex)),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(block.number),
+      transactionIndex: hexToBigInt(rpcLog.transactionIndex),
       eventType: EVENT_TYPES.logs,
-      eventIndex: Number(BigInt(rpcLog.logIndex)),
+      eventIndex: hexToBigInt(rpcLog.logIndex),
     });
   };
 
@@ -775,11 +777,11 @@ export class SqliteSyncStore implements SyncStore {
 
     return encodeCheckpoint({
       blockTimestamp: hexToNumber(block.timestamp),
-      chainId,
-      blockNumber: hexToNumber(block.number),
-      transactionIndex: "9999999999999999",
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(block.number),
+      transactionIndex: maxCheckpoint.transactionIndex,
       eventType: EVENT_TYPES.blocks,
-      eventIndex: 0,
+      eventIndex: zeroCheckpoint.eventIndex,
     });
   };
 

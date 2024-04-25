@@ -323,11 +323,11 @@ export const getEventsErc20 = async (
       },
       encodedCheckpoint: encodeCheckpoint({
         blockTimestamp: Number(block.timestamp),
-        chainId: sources[0].chainId,
-        blockNumber: Number(block.number!),
-        transactionIndex: transaction.transactionIndex!,
+        chainId: BigInt(sources[0].chainId),
+        blockNumber: block.number!,
+        transactionIndex: BigInt(transaction.transactionIndex!),
         eventType: 5,
-        eventIndex: log.logIndex!,
+        eventIndex: BigInt(log.logIndex!),
       }),
     })) as RawEvent[];
 };

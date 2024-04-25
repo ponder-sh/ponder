@@ -1,10 +1,10 @@
 export type Checkpoint = {
   blockTimestamp: number;
-  chainId: number;
-  blockNumber: number;
-  transactionIndex: number | string;
+  chainId: bigint;
+  blockNumber: bigint;
+  transactionIndex: bigint;
   eventType: number;
-  eventIndex: number;
+  eventIndex: bigint;
 };
 
 // 10 digits for unix timestamp gets us to the year 2277.
@@ -72,22 +72,25 @@ export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
   );
   offset += BLOCK_TIMESTAMP_DIGITS;
 
-  const chainId = +checkpoint.slice(offset, offset + CHAIN_ID_DIGITS);
+  const chainId = BigInt(checkpoint.slice(offset, offset + CHAIN_ID_DIGITS));
   offset += CHAIN_ID_DIGITS;
 
-  const blockNumber = +checkpoint.slice(offset, offset + BLOCK_NUMBER_DIGITS);
+  const blockNumber = BigInt(
+    checkpoint.slice(offset, offset + BLOCK_NUMBER_DIGITS),
+  );
   offset += BLOCK_NUMBER_DIGITS;
 
-  const transactionIndex = +checkpoint.slice(
-    offset,
-    offset + TRANSACTION_INDEX_DIGITS,
+  const transactionIndex = BigInt(
+    checkpoint.slice(offset, offset + TRANSACTION_INDEX_DIGITS),
   );
   offset += TRANSACTION_INDEX_DIGITS;
 
   const eventType = +checkpoint.slice(offset, offset + EVENT_TYPE_DIGITS);
   offset += EVENT_TYPE_DIGITS;
 
-  const eventIndex = +checkpoint.slice(offset, offset + EVENT_INDEX_DIGITS);
+  const eventIndex = BigInt(
+    checkpoint.slice(offset, offset + EVENT_INDEX_DIGITS),
+  );
   offset += EVENT_INDEX_DIGITS;
 
   return {
@@ -102,20 +105,20 @@ export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
 
 export const zeroCheckpoint: Checkpoint = {
   blockTimestamp: 0,
-  chainId: 0,
-  blockNumber: 0,
-  transactionIndex: 0,
+  chainId: 0n,
+  blockNumber: 0n,
+  transactionIndex: 0n,
   eventType: 0,
-  eventIndex: 0,
+  eventIndex: 0n,
 };
 
 export const maxCheckpoint: Checkpoint = {
-  blockTimestamp: 9999999999,
-  chainId: 9999999999,
-  blockNumber: 9999999999,
-  transactionIndex: 9999999999,
+  blockTimestamp: 99999_99999,
+  chainId: 9999_9999_9999_9999n,
+  blockNumber: 9999_9999_9999_9999n,
+  transactionIndex: 9999_9999_9999_9999n,
   eventType: 9,
-  eventIndex: 9999999999,
+  eventIndex: 9999_9999_9999_9999n,
 };
 
 /**

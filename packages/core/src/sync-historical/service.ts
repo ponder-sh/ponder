@@ -986,8 +986,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       this.debouncedEmitCheckpoint.call({
         ...maxCheckpoint,
         blockTimestamp: newBlockCheckpoint.blockTimestamp,
-        chainId: this.network.chainId,
-        blockNumber: newBlockCheckpoint.blockNumber,
+        chainId: BigInt(this.network.chainId),
+        blockNumber: BigInt(newBlockCheckpoint.blockNumber),
       });
     }
 
