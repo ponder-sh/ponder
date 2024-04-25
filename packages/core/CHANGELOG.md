@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.12
+
+### Patch Changes
+
+- [#834](https://github.com/ponder-sh/ponder/pull/834) [`12b3e2178aea5c72605d5125fac515a4b42eeeb2`](https://github.com/ponder-sh/ponder/commit/12b3e2178aea5c72605d5125fac515a4b42eeeb2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where calling `update` or `upsert` with an empty update would throw a "RecordNotFound" store error instead of a no-op.
+
 ## 0.4.11
 
 ### Patch Changes
