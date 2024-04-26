@@ -115,6 +115,7 @@ export const getHistoricalIndexingStore = ({
       const updateRow = encodeRow({ id, ...updateObject }, table, kind);
 
       const row = await db
+        .withSchema(namespaceInfo.userNamespace)
         .updateTable(tableName)
         .set(updateRow)
         .where("id", "=", encodedId)
