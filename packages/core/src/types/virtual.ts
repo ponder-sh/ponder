@@ -2,7 +2,12 @@ import type { Config } from "@/config/config.js";
 import type { ParseAbiEvent, SafeEventNames } from "@/config/utilityTypes.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type { Infer, Schema as _Schema } from "@/schema/types.js";
-import type { Block, Log, Transaction } from "@/types/eth.js";
+import type {
+  Block,
+  Log,
+  Transaction,
+  TransactionReceipt,
+} from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Abi, GetEventArgs } from "viem";
 import type { Prettify } from "./utils.js";
@@ -70,7 +75,20 @@ export namespace Virtual {
         log: Prettify<Log>;
         block: Prettify<Block>;
         transaction: Prettify<Transaction>;
-      };
+      } & (ExtractOverridenProperty<
+        config["contracts"][contractName],
+        "includeTransactionReceipts"
+      > extends infer includeTxr
+        ? includeTxr extends includeTxr
+          ? includeTxr extends true
+            ? {
+                transactionReceipt: Prettify<TransactionReceipt>;
+              }
+            : {
+                transactionReceipt?: never;
+              }
+          : never
+        : never);
 
   type ContextContractProperty = Exclude<
     keyof Config["contracts"][string],

@@ -4,6 +4,7 @@ import type { AbiEvents } from "./abi.js";
 export type LogFilterCriteria = {
   address?: Address | Address[];
   topics: LogTopic[];
+  includeTransactionReceipts: boolean;
 };
 
 export type FactoryCriteria = {
@@ -11,6 +12,7 @@ export type FactoryCriteria = {
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
   topics: LogTopic[];
+  includeTransactionReceipts: boolean;
 };
 
 type BaseSource = {

@@ -8,7 +8,8 @@ import {
   sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { Block, Log, Transaction } from "@/types/eth.js";
+import type { SyncLog } from "@/sync/index.js";
+import type { Log, TransactionReceipt } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
   type Checkpoint,
@@ -32,15 +33,18 @@ import {
   type RpcBlock,
   type RpcLog,
   type RpcTransaction,
+  type RpcTransactionReceipt,
   checksumAddress,
+  hexToBigInt,
   hexToNumber,
 } from "viem";
-import type { SyncStore } from "../store.js";
+import type { RawEvent, SyncStore } from "../store.js";
 import {
   type SyncStoreTables,
   rpcToPostgresBlock,
   rpcToPostgresLog,
   rpcToPostgresTransaction,
+  rpcToPostgresTransactionReceipt,
 } from "./encoding.js";
 
 export class PostgresSyncStore implements SyncStore {
@@ -56,6 +60,7 @@ export class PostgresSyncStore implements SyncStore {
     logFilter,
     block: rpcBlock,
     transactions: rpcTransactions,
+    transactionReceipts: rpcTransactionReceipts,
     logs: rpcLogs,
     interval,
   }: {
@@ -63,6 +68,7 @@ export class PostgresSyncStore implements SyncStore {
     logFilter: LogFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
@@ -83,6 +89,20 @@ export class PostgresSyncStore implements SyncStore {
             .insertInto("transactions")
             .values(transactions)
             .onConflict((oc) => oc.column("hash").doNothing())
+            .execute();
+        }
+
+        if (rpcTransactionReceipts.length > 0) {
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
+          await tx
+            .insertInto("transactionReceipts")
+            .values(transactionReceipts)
+            .onConflict((oc) => oc.column("transactionHash").doNothing())
             .execute();
         }
 
@@ -169,7 +189,7 @@ export class PostgresSyncStore implements SyncStore {
 
       const intervals = await this.db
         .with(
-          "logFilterFragments(fragmentId, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
+          "logFilterFragments(fragmentId, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3, fragmentIncludeTransactionReceipts)",
           () =>
             sql`( values ${sql.join(
               fragments.map(
@@ -178,25 +198,32 @@ export class PostgresSyncStore implements SyncStore {
                     f.topic0,
                   )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
                     f.topic3,
-                  )} )`,
+                  )}, ${sql.lit(f.includeTransactionReceipts)} )`,
               ),
             )} )`,
         )
         .selectFrom("logFilterIntervals")
-        .leftJoin("logFilters", "logFilterId", "logFilters.id")
+        .innerJoin("logFilters", "logFilterId", "logFilters.id")
         .innerJoin("logFilterFragments", (join) => {
-          let baseJoin = join.on(({ or, cmpr }) =>
-            or([
-              cmpr("address", "is", null),
-              cmpr("fragmentAddress", "=", sql.ref("address")),
+          let baseJoin = join.on((eb) =>
+            eb.or([
+              eb("address", "is", null),
+              eb("fragmentAddress", "=", sql.ref("address")),
             ]),
           );
+          baseJoin = baseJoin.on((eb) =>
+            eb(
+              "fragmentIncludeTransactionReceipts",
+              "<=",
+              sql.ref("includeTransactionReceipts"),
+            ),
+          );
           for (const idx_ of range(0, 4)) {
-            baseJoin = baseJoin.on(({ or, cmpr }) => {
+            baseJoin = baseJoin.on((eb) => {
               const idx = idx_ as 0 | 1 | 2 | 3;
-              return or([
-                cmpr(`topic${idx}`, "is", null),
-                cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
+              return eb.or([
+                eb(`topic${idx}`, "is", null),
+                eb(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
               ]);
             });
           }
@@ -303,6 +330,7 @@ export class PostgresSyncStore implements SyncStore {
     factory,
     block: rpcBlock,
     transactions: rpcTransactions,
+    transactionReceipts: rpcTransactionReceipts,
     logs: rpcLogs,
     interval,
   }: {
@@ -310,6 +338,7 @@ export class PostgresSyncStore implements SyncStore {
     factory: FactoryCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
@@ -335,15 +364,26 @@ export class PostgresSyncStore implements SyncStore {
               .execute();
           }
 
+          if (rpcTransactionReceipts.length > 0) {
+            const transactionReceipts = rpcTransactionReceipts.map(
+              (rpcTransactionReceipt) => ({
+                ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),
+                chainId,
+              }),
+            );
+            await tx
+              .insertInto("transactionReceipts")
+              .values(transactionReceipts)
+              .onConflict((oc) => oc.column("transactionHash").doNothing())
+              .execute();
+          }
+
           if (rpcLogs.length > 0) {
             const logs = rpcLogs.map((rpcLog) => ({
               ...rpcToPostgresLog(rpcLog),
               chainId,
               checkpoint: this.createCheckpoint(rpcLog, rpcBlock, chainId),
             }));
-
-            // console.log(rpcLogs);
-            // console.log(logs.map((l) => l.id));
 
             await tx
               .insertInto("logs")
@@ -427,7 +467,7 @@ export class PostgresSyncStore implements SyncStore {
 
         const intervals = await this.db
           .with(
-            "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
+            "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3, fragmentIncludeTransactionReceipts)",
             () =>
               sql`( values ${sql.join(
                 fragments.map(
@@ -438,30 +478,37 @@ export class PostgresSyncStore implements SyncStore {
                       f.topic0,
                     )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
                       f.topic3,
-                    )} )`,
+                    )}, ${sql.lit(f.includeTransactionReceipts)} )`,
                 ),
               )} )`,
           )
           .selectFrom("factoryLogFilterIntervals")
-          .leftJoin("factories", "factoryId", "factories.id")
+          .innerJoin("factories", "factoryId", "factories.id")
           .innerJoin("factoryFilterFragments", (join) => {
-            let baseJoin = join.on(({ and, cmpr }) =>
-              and([
-                cmpr("fragmentAddress", "=", sql.ref("address")),
-                cmpr("fragmentEventSelector", "=", sql.ref("eventSelector")),
-                cmpr(
+            let baseJoin = join.on((eb) =>
+              eb.and([
+                eb("fragmentAddress", "=", sql.ref("address")),
+                eb("fragmentEventSelector", "=", sql.ref("eventSelector")),
+                eb(
                   "fragmentChildAddressLocation",
                   "=",
                   sql.ref("childAddressLocation"),
                 ),
               ]),
             );
+            baseJoin = baseJoin.on((eb) =>
+              eb(
+                "fragmentIncludeTransactionReceipts",
+                "<=",
+                sql.ref("includeTransactionReceipts"),
+              ),
+            );
             for (const idx_ of range(0, 4)) {
-              baseJoin = baseJoin.on(({ or, cmpr }) => {
+              baseJoin = baseJoin.on((eb) => {
                 const idx = idx_ as 0 | 1 | 2 | 3;
-                return or([
-                  cmpr(`topic${idx}`, "is", null),
-                  cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
+                return eb.or([
+                  eb(`topic${idx}`, "is", null),
+                  eb(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
                 ]);
               });
             }
@@ -516,11 +563,13 @@ export class PostgresSyncStore implements SyncStore {
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
+    transactionReceipts: rpcTransactionReceipts,
     logs: rpcLogs,
   }: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
   }) => {
     return this.db.wrap({ method: "insertRealtimeBlock" }, async () => {
@@ -539,7 +588,27 @@ export class PostgresSyncStore implements SyncStore {
           await tx
             .insertInto("transactions")
             .values(transactions)
-            .onConflict((oc) => oc.column("hash").doNothing())
+            .onConflict((oc) =>
+              oc.column("hash").doUpdateSet((eb) => ({
+                blockHash: eb.ref("excluded.blockHash"),
+                blockNumber: eb.ref("excluded.blockNumber"),
+                transactionIndex: eb.ref("excluded.transactionIndex"),
+              })),
+            )
+            .execute();
+        }
+
+        if (rpcTransactionReceipts.length > 0) {
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
+          await tx
+            .insertInto("transactionReceipts")
+            .values(transactionReceipts)
+            .onConflict((oc) => oc.column("transactionHash").doNothing())
             .execute();
         }
 
@@ -584,6 +653,7 @@ export class PostgresSyncStore implements SyncStore {
             ...factories.map((f) => ({
               address: f.address,
               topics: [f.eventSelector],
+              includeTransactionReceipts: f.includeTransactionReceipts,
             })),
           ],
           interval,
@@ -609,16 +679,6 @@ export class PostgresSyncStore implements SyncStore {
     return this.db.wrap({ method: "deleteRealtimeData" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await tx
-          .deleteFrom("blocks")
-          .where("chainId", "=", chainId)
-          .where("number", ">", fromBlock)
-          .execute();
-        await tx
-          .deleteFrom("transactions")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">", fromBlock)
-          .execute();
-        await tx
           .deleteFrom("logs")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)
@@ -627,85 +687,6 @@ export class PostgresSyncStore implements SyncStore {
           .deleteFrom("rpcRequestResults")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)
-          .execute();
-
-        // Delete all intervals with a startBlock greater than fromBlock.
-        // Then, if any intervals have an endBlock greater than fromBlock,
-        // update their endBlock to equal fromBlock.
-        await tx
-          .deleteFrom("logFilterIntervals")
-          .where(
-            (qb) =>
-              qb
-                .selectFrom("logFilters")
-                .select("logFilters.chainId")
-                .whereRef(
-                  "logFilters.id",
-                  "=",
-                  "logFilterIntervals.logFilterId",
-                )
-                .limit(1),
-            "=",
-            chainId,
-          )
-          .where("startBlock", ">", fromBlock)
-          .execute();
-        await tx
-          .updateTable("logFilterIntervals")
-          .set({ endBlock: fromBlock })
-          .where(
-            (qb) =>
-              qb
-                .selectFrom("logFilters")
-                .select("logFilters.chainId")
-                .whereRef(
-                  "logFilters.id",
-                  "=",
-                  "logFilterIntervals.logFilterId",
-                )
-                .limit(1),
-            "=",
-            chainId,
-          )
-          .where("endBlock", ">", fromBlock)
-          .execute();
-
-        await tx
-          .deleteFrom("factoryLogFilterIntervals")
-          .where(
-            (qb) =>
-              qb
-                .selectFrom("factories")
-                .select("factories.chainId")
-                .whereRef(
-                  "factories.id",
-                  "=",
-                  "factoryLogFilterIntervals.factoryId",
-                )
-                .limit(1),
-            "=",
-            chainId,
-          )
-          .where("startBlock", ">", fromBlock)
-          .execute();
-        await tx
-          .updateTable("factoryLogFilterIntervals")
-          .set({ endBlock: fromBlock })
-          .where(
-            (qb) =>
-              qb
-                .selectFrom("factories")
-                .select("factories.chainId")
-                .whereRef(
-                  "factories.id",
-                  "=",
-                  "factoryLogFilterIntervals.factoryId",
-                )
-                .limit(1),
-            "=",
-            chainId,
-          )
-          .where("endBlock", ">", fromBlock)
           .execute();
       });
     });
@@ -838,6 +819,16 @@ export class PostgresSyncStore implements SyncStore {
     let cursor = encodeCheckpoint(fromCheckpoint);
     const encodedToCheckpoint = encodeCheckpoint(toCheckpoint);
 
+    const shouldJoinReceipts = sources.some(
+      (source) => source.criteria.includeTransactionReceipts,
+    );
+    const sourcesById = sources.reduce<{
+      [sourceId: EventSource["id"]]: (typeof sources)[number];
+    }>((acc, cur) => {
+      acc[cur.id] = cur;
+      return acc;
+    }, {});
+
     while (true) {
       const events = await this.db.wrap(
         { method: "getLogEvents" },
@@ -878,6 +869,30 @@ export class PostgresSyncStore implements SyncStore {
 
               return eb.or([...logFilterCmprs, ...factoryCmprs]);
             })
+            .$if(shouldJoinReceipts, (qb) =>
+              qb
+                .innerJoin(
+                  "transactionReceipts",
+                  "transactionReceipts.transactionHash",
+                  "logs.transactionHash",
+                )
+                .select([
+                  "transactionReceipts.blockHash as txr_blockHash",
+                  "transactionReceipts.blockNumber as txr_blockNumber",
+                  "transactionReceipts.contractAddress as txr_contractAddress",
+                  "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
+                  "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
+                  "transactionReceipts.from as txr_from",
+                  "transactionReceipts.gasUsed as txr_gasUsed",
+                  "transactionReceipts.logs as txr_logs",
+                  "transactionReceipts.logsBloom as txr_logsBloom",
+                  "transactionReceipts.status as txr_status",
+                  "transactionReceipts.to as txr_to",
+                  "transactionReceipts.transactionHash as txr_transactionHash",
+                  "transactionReceipts.transactionIndex as txr_transactionIndex",
+                  "transactionReceipts.type as txr_type",
+                ]),
+            )
             .select([
               "source_id",
 
@@ -1026,14 +1041,59 @@ export class PostgresSyncStore implements SyncStore {
                           }
                         : { type: row.tx_type }),
               },
-            } satisfies {
-              chainId: number;
-              sourceId: string;
-              log: Log;
-              block: Block;
-              transaction: Transaction;
-              encodedCheckpoint: string;
-            };
+              transactionReceipt: sourcesById[row.source_id].criteria
+                .includeTransactionReceipts
+                ? {
+                    blockHash: row.txr_blockHash,
+                    blockNumber: row.txr_blockNumber,
+                    contractAddress: row.txr_contractAddress
+                      ? checksumAddress(row.txr_contractAddress)
+                      : null,
+                    cumulativeGasUsed: row.txr_cumulativeGasUsed,
+                    effectiveGasPrice: row.txr_effectiveGasPrice,
+                    from: checksumAddress(row.txr_from),
+                    gasUsed: row.txr_gasUsed,
+                    logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
+                      address: checksumAddress(log.address),
+                      blockHash: log.blockHash,
+                      blockNumber: hexToBigInt(log.blockNumber),
+                      data: log.data,
+                      logIndex: hexToNumber(log.logIndex),
+                      removed: false,
+                      topics: [
+                        log.topics[0] ?? null,
+                        log.topics[1] ?? null,
+                        log.topics[2] ?? null,
+                        log.topics[3] ?? null,
+                      ].filter((t): t is Hex => t !== null) as
+                        | [Hex, ...Hex[]]
+                        | [],
+                      transactionHash: log.transactionHash,
+                      transactionIndex: hexToNumber(log.transactionIndex),
+                    })),
+                    logsBloom: row.txr_logsBloom,
+                    status:
+                      row.txr_status === "0x1"
+                        ? "success"
+                        : row.txr_status === "0x0"
+                          ? "reverted"
+                          : (row.txr_status as TransactionReceipt["status"]),
+                    to: row.txr_to ? checksumAddress(row.txr_to) : null,
+                    transactionHash: row.txr_transactionHash,
+                    transactionIndex: Number(row.txr_transactionIndex),
+                    type:
+                      row.txr_type === "0x0"
+                        ? "legacy"
+                        : row.txr_type === "0x1"
+                          ? "eip2930"
+                          : row.tx_type === "0x2"
+                            ? "eip1559"
+                            : row.tx_type === "0x7e"
+                              ? "deposit"
+                              : row.tx_type,
+                  }
+                : undefined,
+            } satisfies RawEvent;
           });
         },
       );

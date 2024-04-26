@@ -1,5 +1,41 @@
 # @ponder/core
 
+## 0.4.12
+
+### Patch Changes
+
+- [#834](https://github.com/ponder-sh/ponder/pull/834) [`12b3e2178aea5c72605d5125fac515a4b42eeeb2`](https://github.com/ponder-sh/ponder/commit/12b3e2178aea5c72605d5125fac515a4b42eeeb2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where calling `update` or `upsert` with an empty update would throw a "RecordNotFound" store error instead of a no-op.
+
+## 0.4.11
+
+### Patch Changes
+
+- [#830](https://github.com/ponder-sh/ponder/pull/830) [`1a445678cc59dc8e1f1c34b978e3551a3172c951`](https://github.com/ponder-sh/ponder/commit/1a445678cc59dc8e1f1c34b978e3551a3172c951) Thanks [@ChiTimesChi](https://github.com/ChiTimesChi)! - Added the network name to the historical sync log message and inserted missing commas in logs that contain more than one variable.
+
+## 0.4.10
+
+### Patch Changes
+
+- [#828](https://github.com/ponder-sh/ponder/pull/828) [`7c17975f0710ce1531a2d9412b180e4b96ccb733`](https://github.com/ponder-sh/ponder/commit/7c17975f0710ce1531a2d9412b180e4b96ccb733) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the dev server would often crash with the error "The database connection is not open" when using SQLite or "Cannot use a pool after calling end on the pool" when using Postgres.
+
+- [#828](https://github.com/ponder-sh/ponder/pull/828) [`7c17975f0710ce1531a2d9412b180e4b96ccb733`](https://github.com/ponder-sh/ponder/commit/7c17975f0710ce1531a2d9412b180e4b96ccb733) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved error messages for SQL constraint violations (unique, not-null, and no record found during an update).
+
+## 0.4.9
+
+### Patch Changes
+
+- [#824](https://github.com/ponder-sh/ponder/pull/824) [`7c8edb3e184d4c73a766127320f556658e812977`](https://github.com/ponder-sh/ponder/commit/7c8edb3e184d4c73a766127320f556658e812977) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed retries for indexing functions in favor of better retry behavior for RPC requests and database queries. To achieve the same behavior as before, add retry logic to any code that could produce occasional errors (HTTP requests).
+
+- [#824](https://github.com/ponder-sh/ponder/pull/824) [`7c8edb3e184d4c73a766127320f556658e812977`](https://github.com/ponder-sh/ponder/commit/7c8edb3e184d4c73a766127320f556658e812977) Thanks [@kyscott18](https://github.com/kyscott18)! - ~50% faster historical indexing by skipping unnecessary database writes to reorg reconciliation tables. Realtime indexing speed is unaffected.
+
+- [#823](https://github.com/ponder-sh/ponder/pull/823) [`344a3543839f20f19e072a8fc14d859ea2d7fc61`](https://github.com/ponder-sh/ponder/commit/344a3543839f20f19e072a8fc14d859ea2d7fc61) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for including transaction receipts (`event.transactionReceipt`). To enable transaction receipts for all events on a contract, set `includeTransactionReceipts: true` on the contract config. Receipts can be specified/overriden on a per-network basis. Note that including receipts may slow down the historical sync due to additional `eth_getTransactionReceipt` RPC requests.
+
+## 0.4.8
+
+### Patch Changes
+
+- [#802](https://github.com/ponder-sh/ponder/pull/802) [`6a929eccb999b85d855f93720b65ff5e3a1a2d9c`](https://github.com/ponder-sh/ponder/commit/6a929eccb999b85d855f93720b65ff5e3a1a2d9c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed several bugs related to realtime reliability including handling reorgs when the head block number goes backwards commonly occurring in Polygon and inconsistent data returned by "eth_getLogs".
+
 ## 0.4.7
 
 ### Patch Changes

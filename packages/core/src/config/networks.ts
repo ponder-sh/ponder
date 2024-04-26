@@ -120,6 +120,7 @@ export async function getRpcUrlsForClient(parameters: {
   const { config, value } = parameters.transport({
     chain: parameters.chain,
     pollingInterval: 4_000, // default viem value
+    retryCount: 0,
   });
   const transport = { ...config, ...value } as Client["transport"];
 

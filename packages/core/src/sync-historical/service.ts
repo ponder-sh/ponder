@@ -10,7 +10,6 @@ import {
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
-import { Emittery } from "@/utils/emittery.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   BlockProgressTracker,
@@ -21,6 +20,7 @@ import {
   intervalSum,
 } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { never } from "@/utils/never.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { debounce } from "@ponder/common";
@@ -28,6 +28,7 @@ import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,
 } from "@ponder/utils";
+import Emittery from "emittery";
 import {
   type Address,
   BlockNotFoundError,
@@ -37,6 +38,9 @@ import {
   type RpcBlock,
   RpcError,
   type RpcLog,
+  type RpcTransaction,
+  type RpcTransactionReceipt,
+  TransactionReceiptNotFoundError,
   hexToBigInt,
   hexToNumber,
   numberToHex,
@@ -93,12 +97,12 @@ type HistoricalSyncTask =
   | BlockTask;
 
 type HistoricalBlock = RpcBlock<"finalized", true>;
+type HistoricalTransaction = RpcTransaction<false>;
 
 type LogInterval = {
   startBlock: number;
   endBlock: number;
   logs: RpcLog[];
-  transactionHashes: Set<Hash>;
 };
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
@@ -208,10 +212,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           const completedLogFilterIntervals =
             await this.syncStore.getLogFilterIntervals({
               chainId: source.chainId,
-              logFilter: {
-                address: source.criteria.address,
-                topics: source.criteria.topics,
-              },
+              logFilter: source.criteria,
             });
           const logFilterProgressTracker = new ProgressTracker({
             target: [startBlock, endBlock],
@@ -264,7 +265,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             service: "historical",
             msg: `Started sync with ${formatPercentage(
               Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
-            )} cached (contract=${source.contractName} network=${
+            )} cached (contract=${source.contractName}, network=${
               this.network.name
             })`,
           });
@@ -300,6 +301,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               logFilter: {
                 address: source.criteria.address,
                 topics: [source.criteria.eventSelector],
+                includeTransactionReceipts: false,
               },
             });
           const factoryChildAddressProgressTracker = new ProgressTracker({
@@ -431,7 +433,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             service: "historical",
             msg: `Started sync with ${formatPercentage(
               cacheRate,
-            )} cached (contract=${source.contractName} network=${
+            )} cached (contract=${source.contractName}, network=${
               this.network.name
             })`,
           });
@@ -453,7 +455,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           service: "historical",
           msg: `Sync is ${formatPercentage(progress ?? 0)} complete${
             eta !== undefined ? ` with ~${formatEta(eta)} remaining` : ""
-          } (contract=${contractName})`,
+          } (contract=${contractName}, network=${this.network.name})`,
           network: this.network.name,
         });
       });
@@ -509,6 +511,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           await this.blockTaskWorker(task);
           break;
         }
+
+        default:
+          never(task);
       }
 
       // If this is not the final task, return.
@@ -624,11 +629,26 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         this.blockCallbacks[endBlock] = [];
 
       this.blockCallbacks[endBlock].push(async (block) => {
+        const { transactionHashes } = logInterval;
+        const transactions = block.transactions.filter((tx) =>
+          transactionHashes.has(tx.hash),
+        );
+        const transactionReceipts =
+          logFilter.criteria.includeTransactionReceipts === true
+            ? await Promise.all(
+                transactions.map((tx) =>
+                  this._eth_getTransactionReceipt({ hash: tx.hash }),
+                ),
+              )
+            : [];
+
         await this._insertLogFilterInterval({
           logInterval,
           logFilter: logFilter.criteria,
           chainId: logFilter.chainId,
           block,
+          transactions,
+          transactionReceipts,
         });
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
@@ -683,13 +703,24 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         this.blockCallbacks[endBlock] = [];
 
       this.blockCallbacks[endBlock].push(async (block) => {
+        const transactions = block.transactions.filter((tx) =>
+          transactionHashes.has(tx.hash),
+        );
+        const transactionReceipts =
+          factory.criteria.includeTransactionReceipts === true
+            ? await Promise.all(
+                transactions.map((tx) =>
+                  this._eth_getTransactionReceipt({ hash: tx.hash }),
+                ),
+              )
+            : [];
+
         await this.syncStore.insertFactoryLogFilterInterval({
           chainId: factory.chainId,
           factory: factory.criteria,
           block,
-          transactions: block.transactions.filter((tx) =>
-            transactionHashes.has(tx.hash),
-          ),
+          transactions,
+          transactionReceipts,
           logs,
           interval: {
             startBlock: BigInt(startBlock),
@@ -744,14 +775,23 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         this.blockCallbacks[logInterval.endBlock] = [];
 
       this.blockCallbacks[logInterval.endBlock].push(async (block) => {
+        const { transactionHashes } = logInterval;
+
+        const transactions = block.transactions.filter((tx) =>
+          transactionHashes.has(tx.hash),
+        );
+
         await this._insertLogFilterInterval({
           logInterval,
           logFilter: {
             address: factory.criteria.address,
             topics: [factory.criteria.eventSelector],
+            includeTransactionReceipts: false,
           },
           chainId: factory.chainId,
           block,
+          transactions,
+          transactionReceipts: [],
         });
       });
     }
@@ -801,9 +841,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       blockNumber,
     });
 
-    while (callbacks.length !== 0) {
-      await callbacks[callbacks.length - 1](block);
-      callbacks.pop()!;
+    for (const callback of callbacks) {
+      await callback(block);
     }
 
     const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
@@ -1007,26 +1046,50 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
 
   /**
+   * Helper function for "eth_getTransactionReceipt" request.
+   */
+  private _eth_getTransactionReceipt = ({
+    hash,
+  }: {
+    hash: Hex;
+  }): Promise<RpcTransactionReceipt> =>
+    this.requestQueue
+      .request({
+        method: "eth_getTransactionReceipt",
+        params: [hash],
+      })
+      .then((receipt) => {
+        if (!receipt)
+          throw new TransactionReceiptNotFoundError({
+            hash,
+          });
+        return receipt as RpcTransactionReceipt;
+      });
+
+  /**
    * Helper function for "insertLogFilterInterval"
    */
   private _insertLogFilterInterval = ({
-    logInterval: { transactionHashes, logs, startBlock, endBlock },
+    logInterval: { logs, startBlock, endBlock },
     logFilter,
     block,
+    transactions,
+    transactionReceipts,
     chainId,
   }: {
     logInterval: LogInterval;
     logFilter: LogFilterCriteria;
     block: HistoricalBlock;
+    transactions: HistoricalTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
     chainId: number;
   }) =>
     this.syncStore.insertLogFilterInterval({
       chainId,
       logFilter,
       block,
-      transactions: block.transactions.filter((tx) =>
-        transactionHashes.has(tx.hash),
-      ),
+      transactions,
+      transactionReceipts,
       logs,
       interval: {
         startBlock: BigInt(startBlock),

@@ -1,5 +1,10 @@
 import type { RawEvent } from "@/sync-store/store.js";
-import type { Block, Log, Transaction } from "@/types/eth.js";
+import type {
+  Block,
+  Log,
+  Transaction,
+  TransactionReceipt,
+} from "@/types/eth.js";
 import { decodeEventLog } from "viem";
 import type { Service } from "./service.js";
 
@@ -21,6 +26,7 @@ export type LogEvent = {
     log: Log;
     block: Block;
     transaction: Transaction;
+    transactionReceipt?: TransactionReceipt;
   };
   encodedCheckpoint: string;
 };
@@ -57,10 +63,12 @@ export const decodeEvents = (
           log: event.log,
           block: event.block,
           transaction: event.transaction,
+          transactionReceipt: event.transactionReceipt,
         },
         encodedCheckpoint: event.encodedCheckpoint,
       });
     } catch (err) {
+      // TODO(kyle) Because we are strictly setting all `topics` now, this should be a bigger error.
       common.logger.debug({
         service: "app",
         msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,

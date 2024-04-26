@@ -1,11 +1,11 @@
 import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
-import { NonRetryableError } from "@/common/errors.js";
+import { getBaseError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import { type EventSource } from "@/config/sources.js";
 import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
-import type { SyncService } from "@/sync/service.js";
+import type { SyncService } from "@/sync/index.js";
 import type { DatabaseModel } from "@/types/model.js";
 import {
   type Checkpoint,
@@ -17,7 +17,7 @@ import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
-import type { Event, LogEvent, SetupEvent } from "./events.js";
+import type { Event, LogEvent, SetupEvent } from "../sync/events.js";
 import {
   type ReadOnlyClient,
   buildCachedActions,
@@ -70,7 +70,6 @@ export type Service = {
 
   // static cache
   networkByChainId: { [chainId: number]: Network };
-  sourceById: { [sourceId: string]: EventSource };
   clientByChainId: { [chainId: number]: Context["client"] };
   contractsByChainId: { [chainId: number]: Context["contracts"] };
 };
@@ -106,10 +105,6 @@ export const create = ({
     },
     {},
   );
-  const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
-    acc[cur.id] = cur;
-    return acc;
-  }, {});
 
   // build contractsByChainId
   for (const source of sources) {
@@ -139,7 +134,7 @@ export const create = ({
 
   // build clientByChainId
   for (const network of networks) {
-    const transport = syncService.getCachedTransport(network.chainId);
+    const transport = syncService.getCachedTransport(network);
     clientByChainId[network.chainId] = createClient({
       transport,
       chain: network.chain,
@@ -173,7 +168,6 @@ export const create = ({
       },
     },
     networkByChainId,
-    sourceById,
     clientByChainId,
     contractsByChainId,
   };
@@ -252,6 +246,8 @@ export const processEvents = async (
     }
   }
 
+  const eventCounts: { [eventName: string]: number } = {};
+
   for (let i = 0; i < events.length; i++) {
     const event = events[i];
     const eventName = `${event.contractName}:${event.logEventName}`;
@@ -275,6 +271,9 @@ export const processEvents = async (
         break;
       }
     }
+
+    if (eventCounts[eventName] === undefined) eventCounts[eventName] = 0;
+    else eventCounts[eventName]++;
 
     indexingService.common.logger.trace({
       service: "indexing",
@@ -309,12 +308,19 @@ export const processEvents = async (
   // set completed events
   updateCompletedEvents(indexingService);
 
-  indexingService.common.logger.info({
-    service: "indexing",
-    msg: `Indexed ${
-      events.length === 1 ? "1 event" : `${events.length} events`
-    }`,
-  });
+  for (const [eventName, count] of Object.entries(eventCounts)) {
+    if (count === 1) {
+      indexingService.common.logger.info({
+        service: "indexing",
+        msg: `Indexed 1 '${eventName}' event`,
+      });
+    } else {
+      indexingService.common.logger.info({
+        service: "indexing",
+        msg: `Indexed ${count} '${eventName}' events`,
+      });
+    }
+  }
 
   return { status: "success" };
 };
@@ -375,69 +381,47 @@ const executeSetup = async (
   const eventName = `${event.contractName}:setup`;
   const indexingFunction = indexingFunctions[eventName];
 
-  const metricLabel = {
-    event: eventName,
-    network: networkByChainId[event.chainId].name,
-  };
+  const networkName = networkByChainId[event.chainId].name;
+  const metricLabel = { event: eventName, network: networkName };
 
-  for (let i = 0; i < 4; i++) {
-    try {
-      // set currentEvent
-      currentEvent.context.network.chainId = event.chainId;
-      currentEvent.context.network.name = networkByChainId[event.chainId].name;
-      currentEvent.context.client = clientByChainId[event.chainId];
-      currentEvent.context.contracts = contractsByChainId[event.chainId];
-      currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
-      currentEvent.contextState.blockNumber = event.startBlock;
+  try {
+    // set currentEvent
+    currentEvent.context.network.chainId = event.chainId;
+    currentEvent.context.network.name = networkByChainId[event.chainId].name;
+    currentEvent.context.client = clientByChainId[event.chainId];
+    currentEvent.context.contracts = contractsByChainId[event.chainId];
+    currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
+    currentEvent.contextState.blockNumber = event.startBlock;
 
-      const endClock = startClock();
+    const endClock = startClock();
 
-      await indexingFunction({
-        context: currentEvent.context,
-      });
+    await indexingFunction({
+      context: currentEvent.context,
+    });
 
-      common.metrics.ponder_indexing_function_duration.observe(
-        metricLabel,
-        endClock(),
-      );
+    common.metrics.ponder_indexing_function_duration.observe(
+      metricLabel,
+      endClock(),
+    );
+  } catch (error_) {
+    if (indexingService.isKilled) return { status: "killed" };
+    const error = getBaseError(error_);
 
-      break;
-    } catch (error_) {
-      if (indexingService.isKilled) return { status: "killed" };
-      const error = error_ as Error & { meta?: string };
+    common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
-      common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
+    const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-      if (error_ instanceof NonRetryableError) i = 3;
+    addUserStackTrace(error, common.options);
 
-      const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
+    common.metrics.ponder_indexing_has_error.set(1);
 
-      if (i === 3) {
-        addUserStackTrace(error, common.options);
+    common.logger.error({
+      service: "indexing",
+      msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
+      error,
+    });
 
-        common.logger.error({
-          service: "indexing",
-          msg: `Error while processing "${eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
-          error,
-        });
-
-        common.metrics.ponder_indexing_has_error.set(1);
-        return { status: "error", error: error };
-      } else {
-        common.logger.warn({
-          service: "indexing",
-          msg: `Indexing function failed, retrying... (event="${eventName}", chainId=${
-            decodedCheckpoint.chainId
-          }, block=${
-            decodedCheckpoint.blockNumber
-          }, error=${`${error.name}: ${error.message}`})`,
-        });
-        await indexingService.indexingStore.revert({
-          checkpoint: decodedCheckpoint,
-          isCheckpointSafe: false,
-        });
-      }
-    }
+    return { status: "error", error: error };
   }
 
   return { status: "success" };
@@ -462,83 +446,57 @@ const executeLog = async (
   const eventName = `${event.contractName}:${event.logEventName}`;
   const indexingFunction = indexingFunctions[eventName];
 
-  const metricLabel = {
-    event: eventName,
-    network: networkByChainId[event.chainId].name,
-  };
+  const networkName = networkByChainId[event.chainId].name;
+  const metricLabel = { event: eventName, network: networkName };
 
-  for (let i = 0; i < 4; i++) {
-    try {
-      // set currentEvent
-      currentEvent.context.network.chainId = event.chainId;
-      currentEvent.context.network.name = networkByChainId[event.chainId].name;
-      currentEvent.context.client = clientByChainId[event.chainId];
-      currentEvent.context.contracts = contractsByChainId[event.chainId];
-      currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
-      currentEvent.contextState.blockNumber = event.event.block.number;
+  try {
+    // set currentEvent
+    currentEvent.context.network.chainId = event.chainId;
+    currentEvent.context.network.name = networkByChainId[event.chainId].name;
+    currentEvent.context.client = clientByChainId[event.chainId];
+    currentEvent.context.contracts = contractsByChainId[event.chainId];
+    currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
+    currentEvent.contextState.blockNumber = event.event.block.number;
 
-      const endClock = startClock();
+    const endClock = startClock();
 
-      await indexingFunction({
-        event: {
-          name: event.logEventName,
-          args: event.event.args,
-          log: event.event.log,
-          block: event.event.block,
-          transaction: event.event.transaction,
-        },
-        context: currentEvent.context,
-      });
+    await indexingFunction({
+      event: {
+        name: event.logEventName,
+        args: event.event.args,
+        log: event.event.log,
+        block: event.event.block,
+        transaction: event.event.transaction,
+        transactionReceipt: event.event.transactionReceipt,
+      },
+      context: currentEvent.context,
+    });
 
-      common.metrics.ponder_indexing_function_duration.observe(
-        metricLabel,
-        endClock(),
-      );
+    common.metrics.ponder_indexing_function_duration.observe(
+      metricLabel,
+      endClock(),
+    );
+  } catch (error_) {
+    if (indexingService.isKilled) return { status: "killed" };
+    const error = getBaseError(error_);
 
-      break;
-    } catch (error_) {
-      if (indexingService.isKilled) return { status: "killed" };
-      const error = error_ as Error & { meta?: string };
+    common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
-      common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
+    const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-      if (error_ instanceof NonRetryableError) i = 3;
+    error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
 
-      const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
+    addUserStackTrace(error, common.options);
 
-      if (i === 3) {
-        addUserStackTrace(error, common.options);
+    common.logger.error({
+      service: "indexing",
+      msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
+      error,
+    });
 
-        if (error.meta) {
-          error.meta += `\nEvent args:\n${prettyPrint(event.event.args)}`;
-        } else {
-          error.meta = `Event args:\n${prettyPrint(event.event.args)}`;
-        }
+    common.metrics.ponder_indexing_has_error.set(1);
 
-        common.logger.error({
-          service: "indexing",
-          msg: `Error while processing "${eventName}" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
-          error,
-        });
-
-        common.metrics.ponder_indexing_has_error.set(1);
-
-        return { status: "error", error: error };
-      } else {
-        common.logger.warn({
-          service: "indexing",
-          msg: `Indexing function failed, retrying... (event="${eventName}", chainId=${
-            decodedCheckpoint.chainId
-          }, block=${
-            decodedCheckpoint.blockNumber
-          }, error=${`${error.name}: ${error.message}`})`,
-        });
-        await indexingService.indexingStore.revert({
-          checkpoint: decodedCheckpoint,
-          isCheckpointSafe: false,
-        });
-      }
-    }
+    return { status: "error", error: error };
   }
 
   return { status: "success" };

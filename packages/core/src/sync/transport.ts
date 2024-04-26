@@ -85,6 +85,6 @@ export const cachedTransport = ({
         }
       },
     });
-    return c({ chain });
+    return c({ chain, retryCount: 0 });
   };
 };

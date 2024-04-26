@@ -9,7 +9,7 @@ import { fetchWithTimeout, startClock } from "./utils";
 const fetchPonderMetrics = async () => {
   try {
     const metricsResponse = await fetchWithTimeout(
-      "http://localhost:42069/metrics",
+      "http://0.0.0.0:42069/metrics",
     );
     const metricsRaw = await metricsResponse.text();
     return metricsRaw.split("\n");
@@ -19,9 +19,7 @@ const fetchPonderMetrics = async () => {
 };
 
 const fetchHealth = async () => {
-  const healthResponse = await fetchWithTimeout(
-    "http://localhost:42069/health",
-  );
+  const healthResponse = await fetchWithTimeout("http://0.0.0.0:42069/health");
 
   if (healthResponse.status === 200) return true;
   return false;
