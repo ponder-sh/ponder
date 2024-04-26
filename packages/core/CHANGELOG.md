@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.13
+
+### Patch Changes
+
+- [#838](https://github.com/ponder-sh/ponder/pull/838) [`b6d7f2189c4171a4d9f5bb10c2e1f022af2b8d3b`](https://github.com/ponder-sh/ponder/commit/b6d7f2189c4171a4d9f5bb10c2e1f022af2b8d3b) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a regression introduced in `0.4.9` where `update` operations during historical indexing would fail with errors like `relation does not exist` or `column "columnName" of relation "TableName"` does not exist.
+
 ## 0.4.12
 
 ### Patch Changes
