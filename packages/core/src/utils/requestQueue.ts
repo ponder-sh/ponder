@@ -103,15 +103,9 @@ export const createRequestQueue = ({
           return logs;
         }
 
-        if (shouldRetry(error) === false || i === 3) {
-          common.logger.error({
-            msg: "Request failed",
-            error,
-          });
-          throw error;
-        } else {
-          await wait(250 * 2 ** i);
-        }
+        if (shouldRetry(error) === false || i === 3) throw error;
+
+        await wait(250 * 2 ** i);
       }
     }
   };
