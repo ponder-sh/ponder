@@ -2,11 +2,19 @@ import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import { type Queue, createQueue } from "@ponder/common";
 import {
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
+} from "@ponder/utils";
+import {
   type EIP1193Parameters,
   HttpRequestError,
   InternalRpcError,
   LimitExceededRpcError,
   type PublicRpcSchema,
+  RpcError,
+  type RpcLog,
+  hexToBigInt,
+  isHex,
 } from "viem";
 import { startClock } from "./timer.js";
 import { wait } from "./wait.js";
@@ -37,7 +45,84 @@ export const createRequestQueue = ({
   network: Network;
   common: Common;
 }): RequestQueue => {
-  const requestQueue = createQueue({
+  const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
+    for (let i = 0; i < 4; i++) {
+      try {
+        const stopClock = startClock();
+        const response = await network.transport.request(request);
+        common.metrics.ponder_rpc_request_duration.observe(
+          { method: request.method, network: network.name },
+          stopClock(),
+        );
+
+        return response;
+      } catch (_error) {
+        const error = _error as Error;
+
+        if (
+          request.method === "eth_getLogs" &&
+          isHex(request.params[0].fromBlock) &&
+          isHex(request.params[0].toBlock)
+        ) {
+          const getLogsErrorResponse = getLogsRetryHelper({
+            params: request.params as GetLogsRetryHelperParameters["params"],
+            error: error as RpcError,
+          });
+
+          if (getLogsErrorResponse.shouldRetry === false) throw error;
+
+          common.logger.debug({
+            service: "historical",
+            msg: `eth_getLogs request failed, retrying with ranges: [${getLogsErrorResponse.ranges
+              .map(
+                ({ fromBlock, toBlock }) =>
+                  `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(
+                    toBlock,
+                  ).toString()}]`,
+              )
+              .join(", ")}].`,
+          });
+
+          const logs: RpcLog[] = [];
+          for (const { fromBlock, toBlock } of getLogsErrorResponse.ranges) {
+            const _logs = await fetchRequest({
+              method: "eth_getLogs",
+              params: [
+                {
+                  topics: request.params![0].topics,
+                  address: request.params![0].address,
+                  fromBlock,
+                  toBlock,
+                },
+              ],
+            });
+
+            logs.push(...(_logs as RpcLog[]));
+          }
+
+          return logs;
+        }
+
+        if (shouldRetry(error) === false || i === 3) {
+          common.logger.error({
+            msg: "Request failed",
+            error,
+          });
+          throw error;
+        } else {
+          await wait(250 * 2 ** i);
+        }
+      }
+    }
+  };
+
+  const requestQueue: Queue<
+    unknown,
+    {
+      request: EIP1193Parameters<PublicRpcSchema>;
+      stopClockLag: () => number;
+    }
+  > = createQueue({
     frequency: network.maxRequestsPerSecond,
     concurrency: Math.ceil(network.maxRequestsPerSecond / 4),
     initialStart: true,
@@ -51,31 +136,7 @@ export const createRequestQueue = ({
         task.stopClockLag(),
       );
 
-      const stopClock = startClock();
-
-      for (let i = 0; i < 4; i++) {
-        try {
-          const response = await network.transport.request(task.request);
-          common.metrics.ponder_rpc_request_duration.observe(
-            { method: task.request.method, network: network.name },
-            stopClock(),
-          );
-
-          return response;
-        } catch (_error) {
-          const error = _error as Error;
-
-          if (shouldRetry(error) === false || i === 3) {
-            common.logger.error({
-              msg: "Request failed",
-              error,
-            });
-            throw error;
-          } else {
-            await wait(250 * 2 ** i);
-          }
-        }
-      }
+      return await fetchRequest(task.request);
     },
   });
 
