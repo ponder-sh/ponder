@@ -3,6 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { UniqueConstraintError } from "@/common/errors.js";
 import { createSchema } from "@/schema/schema.js";
 import {
   type Checkpoint,
@@ -74,16 +75,16 @@ test("create() throws on unique constraint violation", async (context) => {
     data: { name: "Skip" },
   });
 
-  await expect(() =>
-    indexingStore.create({
+  const error = await indexingStore
+    .create({
       tableName: "Pet",
       encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
       id: "id1",
       data: { name: "Skip", age: 13 },
-    }),
-  ).rejects.toThrow(
-    "Cannot create Pet record with ID id1 because a record already exists with that ID (UNIQUE constraint violation). Hint: Did you forget to await the promise returned by a store method? Or, consider using Pet.upsert().",
-  );
+    })
+    .catch((_error) => _error);
+
+  expect(error).instanceOf(UniqueConstraintError);
 
   await cleanup();
 });
@@ -266,6 +267,57 @@ test("update() updates a record using an update function", async (context) => {
   await cleanup();
 });
 
+test("update() with an empty update object returns the original record", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const record = await indexingStore.update({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
+    id: "id1",
+    data: {},
+  });
+
+  expect(record).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await cleanup();
+});
+
+test("update() with an update function that returns an empty object returns the record", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const record = await indexingStore.update({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
+    id: "id1",
+    data: ({ current }) => {
+      if (current.name === "blah") return { name: "newBlah" };
+      return {};
+    },
+  });
+
+  expect(record).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await cleanup();
+});
+
 test("upsert() inserts a new record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
@@ -317,6 +369,59 @@ test("upsert() updates a record", async (context) => {
     id: "id1",
   });
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Jelly", age: 12 });
+
+  await cleanup();
+});
+
+test("upsert() with an empty update object returns the original record", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const record = await indexingStore.upsert({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
+    id: "id1",
+    create: { name: "Yellow", age: 14 },
+    update: {},
+  });
+
+  expect(record).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await cleanup();
+});
+
+test("upsert() with an update function that returns an empty object returns the record", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const record = await indexingStore.upsert({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
+    id: "id1",
+    create: { name: "Yellow", age: 14 },
+    update: ({ current }) => {
+      if (current.name === "blah") return { name: "newBlah" };
+      return {};
+    },
+  });
+
+  expect(record).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
   await cleanup();
 });

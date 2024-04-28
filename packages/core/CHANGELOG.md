@@ -1,5 +1,31 @@
 # @ponder/core
 
+## 0.4.13
+
+### Patch Changes
+
+- [#838](https://github.com/ponder-sh/ponder/pull/838) [`b6d7f2189c4171a4d9f5bb10c2e1f022af2b8d3b`](https://github.com/ponder-sh/ponder/commit/b6d7f2189c4171a4d9f5bb10c2e1f022af2b8d3b) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a regression introduced in `0.4.9` where `update` operations during historical indexing would fail with errors like `relation does not exist` or `column "columnName" of relation "TableName"` does not exist.
+
+## 0.4.12
+
+### Patch Changes
+
+- [#834](https://github.com/ponder-sh/ponder/pull/834) [`12b3e2178aea5c72605d5125fac515a4b42eeeb2`](https://github.com/ponder-sh/ponder/commit/12b3e2178aea5c72605d5125fac515a4b42eeeb2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where calling `update` or `upsert` with an empty update would throw a "RecordNotFound" store error instead of a no-op.
+
+## 0.4.11
+
+### Patch Changes
+
+- [#830](https://github.com/ponder-sh/ponder/pull/830) [`1a445678cc59dc8e1f1c34b978e3551a3172c951`](https://github.com/ponder-sh/ponder/commit/1a445678cc59dc8e1f1c34b978e3551a3172c951) Thanks [@ChiTimesChi](https://github.com/ChiTimesChi)! - Added the network name to the historical sync log message and inserted missing commas in logs that contain more than one variable.
+
+## 0.4.10
+
+### Patch Changes
+
+- [#828](https://github.com/ponder-sh/ponder/pull/828) [`7c17975f0710ce1531a2d9412b180e4b96ccb733`](https://github.com/ponder-sh/ponder/commit/7c17975f0710ce1531a2d9412b180e4b96ccb733) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the dev server would often crash with the error "The database connection is not open" when using SQLite or "Cannot use a pool after calling end on the pool" when using Postgres.
+
+- [#828](https://github.com/ponder-sh/ponder/pull/828) [`7c17975f0710ce1531a2d9412b180e4b96ccb733`](https://github.com/ponder-sh/ponder/commit/7c17975f0710ce1531a2d9412b180e4b96ccb733) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved error messages for SQL constraint violations (unique, not-null, and no record found during an update).
+
 ## 0.4.9
 
 ### Patch Changes
