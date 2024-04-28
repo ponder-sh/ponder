@@ -58,10 +58,10 @@ test("createSyncService()", async (context) => {
   expect(syncService.networkServices).toHaveLength(2);
 
   expect(syncService.networkServices[0].realtime!.finalizedBlock.number).toBe(
-    "0x0",
+    "0x1",
   );
   expect(syncService.networkServices[1].realtime!.finalizedBlock.number).toBe(
-    "0x0",
+    "0x1",
   );
 
   expect(
@@ -192,7 +192,7 @@ test("getHistoricalEvents resolves when complete", async (context) => {
 
   expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
 
-  expect(syncService.checkpoint.blockNumber).toBe(0n);
+  expect(syncService.checkpoint.blockNumber).toBe(1n);
 
   await kill(syncService);
   await cleanup();

@@ -236,6 +236,7 @@ export async function setupAnvil(context: TestContext) {
   // Chain state setup shared across all tests.
   const addresses = await deploy();
   const pair = await simulate(addresses);
+  await testClient.mine({ blocks: 1 });
 
   context.config = getConfig(addresses);
 

@@ -3,6 +3,7 @@ import {
   setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { testClient } from "@/_test/utils.js";
 import type { Build } from "@/build/index.js";
 import * as codegen from "@/common/codegen.js";
 import { createSchema } from "@/schema/schema.js";
@@ -41,6 +42,8 @@ test("run() kill", async (context) => {
 
   const codegenSpy = vi.spyOn(codegen, "runCodegen");
 
+  await testClient.mine({ blocks: 4 });
+
   const kill = await run({
     common: context.common,
     build,
@@ -67,6 +70,8 @@ test("run() setup", async (context) => {
     sources: context.sources,
     indexingFunctions,
   };
+
+  await testClient.mine({ blocks: 4 });
 
   const kill = await run({
     common: context.common,
@@ -97,6 +102,8 @@ test("run() setup error", async (context) => {
   };
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
+
+  await testClient.mine({ blocks: 4 });
 
   const kill = await run({
     common: context.common,
