@@ -1,5 +1,4 @@
 import type { Common } from "@/common/common.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import type { Kysely } from "kysely";
 import { type Migration, type MigrationProvider, sql } from "kysely";
 
@@ -643,14 +642,7 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .alterTable("blocks")
-        .addColumn("checkpoint", "varchar(75)", (col) =>
-          col.notNull().defaultTo(encodeCheckpoint(zeroCheckpoint)),
-        )
-        .execute();
-
-      await db.schema
-        .alterTable("blocks")
-        .alterColumn("checkpoint", (col) => col.dropDefault())
+        .addColumn("checkpoint", "varchar(75)")
         .execute();
 
       await db.executeQuery(
@@ -663,7 +655,7 @@ const migrations: Record<string, Migration> = {
             lpad(blocks.number::text, 16, '0') ||
             '9999999999999999' ||
             '5' ||
-            '9999999999999999') AS checkpoint
+            '0000000000000000') AS checkpoint
           FROM ponder_sync.blocks
           `.compile(db),
       );
@@ -676,6 +668,11 @@ const migrations: Record<string, Migration> = {
           WHERE ponder_sync.blocks.hash = bcp_vals.hash
         `.compile(db),
       );
+
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("checkpoint", (col) => col.setNotNull())
+        .execute();
 
       await db.schema
         .createIndex("blockNumberIndex")
