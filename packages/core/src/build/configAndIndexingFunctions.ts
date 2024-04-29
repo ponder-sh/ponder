@@ -302,7 +302,7 @@ export async function buildConfigAndIndexingFunctions({
   }
 
   const logOrFactorySources: (LogSource | FactorySource)[] = Object.entries(
-    config.contracts,
+    config.contracts ?? {},
   )
     // First, apply any network-specific overrides and flatten the result.
     .flatMap(([contractName, contract]) => {
@@ -583,8 +583,8 @@ export async function buildConfigAndIndexingFunctions({
       return hasRegisteredIndexingFunctions;
     });
 
-  const blockSources: BlockSource[] = Object.entries(config.blocks ?? {}).map(
-    ([networkName, blockConfig]) => {
+  const blockSources: BlockSource[] = Object.entries(config.blocks ?? {})
+    .map(([networkName, blockConfig]) => {
       const network = networks.find((n) => n.name === networkName);
       if (!network) {
         throw new Error(
@@ -623,11 +623,19 @@ export async function buildConfigAndIndexingFunctions({
           frequency: frequency,
           offset: startBlock % frequency,
         },
-      };
-    },
-  );
-
-  // TODO(kyle) remove blockSources if there is no registered indexing function for ponder.on("blocks")
+      } as const;
+    })
+    .filter(() => {
+      const hasRegisteredIndexingFunction =
+        indexingFunctions.blocks !== undefined;
+      if (!hasRegisteredIndexingFunction) {
+        logs.push({
+          level: "debug",
+          msg: "No indexing functions were registered for blocks",
+        });
+      }
+      return hasRegisteredIndexingFunction;
+    });
 
   const sources = [...logOrFactorySources, ...blockSources];
 
