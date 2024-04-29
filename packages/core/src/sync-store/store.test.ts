@@ -1257,7 +1257,7 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   await cleanup();
 });
 
-test("getBlockFilterInterval handles interval", async (context) => {
+test("getBlockFilterIntervals handles interval", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -1270,7 +1270,7 @@ test("getBlockFilterInterval handles interval", async (context) => {
       offset: 1,
     },
     block: rpcData.block1.block,
-    interval: { startBlock: 0n, endBlock: 100n },
+    interval: { startBlock: 10n, endBlock: 100n },
   });
 
   const blockFilterRanges = await syncStore.getBlockFilterIntervals({
@@ -1281,7 +1281,7 @@ test("getBlockFilterInterval handles interval", async (context) => {
     },
   });
 
-  expect(blockFilterRanges).toMatchObject([[0, 100]]);
+  expect(blockFilterRanges).toMatchObject([[10, 100]]);
   await cleanup();
 });
 
