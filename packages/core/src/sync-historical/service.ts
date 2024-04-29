@@ -477,7 +477,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           const requiredBlockFilterIntervals =
             blockFilterProgressTracker.getRequired();
 
-          // ...
+          // block filters are chunked into intervals to avoid unmanageable
+          // amounts of block callbacks being added at once.
+
           const blockFilterTaskChunks = getChunks({
             intervals: requiredBlockFilterIntervals,
             maxChunkSize: this.network.defaultMaxBlockRange,
@@ -926,7 +928,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const offset =
       baseOffset === 0 ? 0 : blockFilter.criteria.frequency - baseOffset;
 
-    // ...
+    // Determine which blocks are matched by the block filter, and add a callback for
+    // each block. A block callback, and subsequent "eth_getBlock" request can be
+    // skipped if the block is already present in the database.
 
     for (
       let blockNumber = fromBlock + offset;
