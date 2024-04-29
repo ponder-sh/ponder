@@ -4,9 +4,9 @@ import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
-import { getHistoricalIndexingStore } from "@/indexing-store/historicalStore.js";
-import { getReadIndexingStore } from "@/indexing-store/readStore.js";
-import { getRealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
+import { getHistoricalStore } from "@/indexing-store/historical.js";
+import { getReadonlyStore } from "@/indexing-store/readonly.js";
+import { getRealtimeStore } from "@/indexing-store/realtime.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createIndexingService } from "@/indexing/index.js";
 import { createServer } from "@/server/service.js";
@@ -81,22 +81,14 @@ export async function run({
     syncStore = new PostgresSyncStore({ db: database.syncDb });
   }
 
-  let indexingStore: IndexingStore = {
-    ...getReadIndexingStore({
-      kind: database.kind,
-      schema,
-      namespaceInfo,
-      db: database.indexingDb,
-    }),
-    ...getHistoricalIndexingStore({
-      kind: database.kind,
-      schema,
-      namespaceInfo,
-      db: database.indexingDb,
-    }),
-  };
+  const readonlyStore = getReadonlyStore({
+    kind: database.kind,
+    schema,
+    namespaceInfo,
+    db: database.readonlyDb,
+  });
 
-  const server = await createServer({ common, graphqlSchema, indexingStore });
+  const server = await createServer({ common, graphqlSchema, readonlyStore });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
@@ -160,6 +152,21 @@ export async function run({
     },
   });
 
+  let indexingStore: IndexingStore = {
+    ...getReadonlyStore({
+      kind: database.kind,
+      schema,
+      namespaceInfo,
+      db: database.indexingDb,
+    }),
+    ...getHistoricalStore({
+      kind: database.kind,
+      schema,
+      namespaceInfo,
+      db: database.indexingDb,
+    }),
+  };
+
   let indexingService = createIndexingService({
     indexingFunctions,
     common,
@@ -217,13 +224,13 @@ export async function run({
     });
 
     indexingStore = {
-      ...getReadIndexingStore({
+      ...getReadonlyStore({
         kind: database.kind,
         schema,
         namespaceInfo,
         db: database.indexingDb,
       }),
-      ...getRealtimeIndexingStore({
+      ...getRealtimeStore({
         kind: database.kind,
         schema,
         namespaceInfo,

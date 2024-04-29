@@ -6,7 +6,7 @@ import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { NamespaceInfo } from "@/database/service.js";
-import { getReadIndexingStore } from "@/indexing-store/readStore.js";
+import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { createServer } from "@/server/service.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
@@ -87,9 +87,12 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     poolConfig,
     userNamespace,
+    // Ensures that the `readonly` connection pool gets
+    // allocated the maximum number of connections.
+    isReadonly: true,
   });
 
-  const indexingStore = getReadIndexingStore({
+  const readonlyStore = getReadonlyStore({
     kind: "postgres",
     schema,
     // Note: `ponder serve` serves data from the `publishSchema`. Also, it does
@@ -98,10 +101,10 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     namespaceInfo: {
       userNamespace: databaseConfig.publishSchema,
     } as unknown as NamespaceInfo,
-    db: database.indexingDb,
+    db: database.readonlyDb,
   });
 
-  const server = await createServer({ graphqlSchema, indexingStore, common });
+  const server = await createServer({ graphqlSchema, common, readonlyStore });
   server.setHealthy();
 
   cleanupReloadable = async () => {

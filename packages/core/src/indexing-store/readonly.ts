@@ -3,7 +3,7 @@ import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema } from "@/schema/types.js";
 import { sql } from "kysely";
-import type { OrderByInput, ReadIndexingStore, WhereInput } from "./store.js";
+import type { OrderByInput, ReadonlyStore, WhereInput } from "./store.js";
 import {
   buildCursorConditions,
   decodeCursor,
@@ -19,7 +19,7 @@ import {
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
 
-export const getReadIndexingStore = ({
+export const getReadonlyStore = ({
   kind,
   schema,
   namespaceInfo,
@@ -29,7 +29,7 @@ export const getReadIndexingStore = ({
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
-}): ReadIndexingStore => ({
+}): ReadonlyStore => ({
   findUnique: async ({
     tableName,
     id,

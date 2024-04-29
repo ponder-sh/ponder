@@ -3,7 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
+import type { ReadonlyStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import type { GraphQLSchema } from "graphql";
@@ -18,13 +18,13 @@ test("port", async (context) => {
   const server1 = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
 
   const server2 = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
 
   expect(server1.port + 1).toBe(server2.port);
@@ -37,7 +37,7 @@ test("not healthy", async (context) => {
       ...context.common,
       options: { ...context.common.options, maxHealthcheckDuration: 5_000 },
     },
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
 
   const response = await server.hono.request("/health");
@@ -52,7 +52,7 @@ test("healthy", async (context) => {
       ...context.common,
       options: { ...context.common.options, maxHealthcheckDuration: 0 },
     },
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
 
   const response = await server.hono.request("/health");
@@ -67,7 +67,7 @@ test("healthy PUT", async (context) => {
       ...context.common,
       options: { ...context.common.options, maxHealthcheckDuration: 0 },
     },
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
 
   const response = await server.hono.request("/health", { method: "PUT" });
@@ -79,7 +79,7 @@ test("metrics", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
 
   const response = await server.hono.request("/metrics");
@@ -91,7 +91,7 @@ test("metrics error", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
 
   const metricsSpy = vi.spyOn(context.common.metrics, "getMetrics");
@@ -106,7 +106,7 @@ test("metrics PUT", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
 
   const response = await server.hono.request("/metrics", { method: "PUT" });
@@ -127,9 +127,10 @@ test("graphql", async (context) => {
     }),
   }));
 
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, readonlyStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "table",
@@ -150,7 +151,7 @@ test("graphql", async (context) => {
   const server = await createServer({
     graphqlSchema: graphqlSchema,
     common: context.common,
-    indexingStore: indexingStore,
+    readonlyStore: readonlyStore,
   });
   server.setHealthy();
 
@@ -208,7 +209,7 @@ test("graphql extra filter", async (context) => {
     }),
   }));
 
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+  const { readonlyStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
 
@@ -217,7 +218,7 @@ test("graphql extra filter", async (context) => {
   const server = await createServer({
     graphqlSchema: graphqlSchema,
     common: context.common,
-    indexingStore: indexingStore,
+    readonlyStore: readonlyStore,
   });
   server.setHealthy();
 
@@ -252,7 +253,7 @@ test("graphql interactive", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
   server.setHealthy();
 
@@ -265,7 +266,7 @@ test("missing route", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
 
   const response = await server.hono.request("/kevin");
@@ -279,7 +280,7 @@ test.skip("kill", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
-    indexingStore: {} as IndexingStore,
+    readonlyStore: {} as ReadonlyStore,
   });
 
   await server.kill();

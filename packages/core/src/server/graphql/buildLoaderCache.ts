@@ -1,9 +1,9 @@
-import type { ReadIndexingStore } from "@/indexing-store/store.js";
+import type { ReadonlyStore } from "@/indexing-store/store.js";
 import DataLoader from "dataloader";
 
 export type GetLoader = ReturnType<typeof buildLoaderCache>;
 
-export function buildLoaderCache({ store }: { store: ReadIndexingStore }) {
+export function buildLoaderCache({ store }: { store: ReadonlyStore }) {
   const loaderCache: Record<
     string,
     DataLoader<string | number | bigint, any> | undefined

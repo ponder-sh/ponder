@@ -634,6 +634,32 @@ test("buildConfigAndIndexingFunctions() throws for postgres database with no con
   process.env.DATABASE_URL = prev;
 });
 
+test("buildConfigAndIndexingFunctions() database with postgres uses pool config", async () => {
+  const config = createConfig({
+    database: {
+      kind: "postgres",
+      connectionString: "postgres://username@localhost:5432/database",
+      poolConfig: { max: 100 },
+    },
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  const { databaseConfig } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [],
+    options,
+  });
+  expect(databaseConfig).toMatchObject({
+    kind: "postgres",
+    poolConfig: {
+      connectionString: "postgres://username@localhost:5432/database",
+      max: 100,
+    },
+    schema: "public",
+  });
+});
+
 test("buildConfigAndIndexingFunctions() database with postgres uses RAILWAY_DEPLOYMENT_ID if defined", async () => {
   const config = createConfig({
     networks: { mainnet: { chainId: 1, transport: http() } },
