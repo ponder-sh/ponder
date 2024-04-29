@@ -160,7 +160,7 @@ export async function run({
     },
   });
 
-  let indexingService = createIndexingService({
+  const indexingService = createIndexingService({
     indexingFunctions,
     common,
     indexingStore,
@@ -231,15 +231,7 @@ export async function run({
       }),
     };
 
-    indexingService = createIndexingService({
-      indexingFunctions,
-      common,
-      indexingStore,
-      sources,
-      networks,
-      syncService,
-      schema,
-    });
+    indexingService.updateIndexingStore({ indexingStore, schema });
 
     syncService.startRealtime();
     realtimeQueue.start();

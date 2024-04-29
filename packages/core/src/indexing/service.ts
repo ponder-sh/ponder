@@ -187,6 +187,20 @@ export const create = ({
   };
 };
 
+export const updateIndexingStore = async (
+  indexingService: Service,
+  { indexingStore, schema }: { indexingStore: IndexingStore; schema: Schema },
+) => {
+  const db = buildDb({
+    common: indexingService.common,
+    schema,
+    indexingStore,
+    contextState: indexingService.currentEvent.contextState,
+  });
+
+  indexingService.currentEvent.context.db = db;
+};
+
 export const processSetupEvents = async (
   indexingService: Service,
   {
