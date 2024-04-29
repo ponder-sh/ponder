@@ -10,8 +10,8 @@ export default createConfig({
   },
   blocks: {
     mainnet: {
-      startBlock: 19_000_000,
-      frequency: 5 * 60, // every hour
+      startBlock: 19_750_000,
+      frequency: 5, // every minute
     },
   },
 });

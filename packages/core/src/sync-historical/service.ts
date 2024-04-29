@@ -973,6 +973,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             endBlock: BigInt(endBlock),
           },
         });
+
+        this.common.metrics.ponder_historical_completed_blocks.inc(
+          { network: this.network.name, contract: "blocks" },
+          endBlock - startBlock + 1,
+        );
       } else {
         if (this.blockCallbacks[blockNumber] === undefined)
           this.blockCallbacks[blockNumber] = [];
