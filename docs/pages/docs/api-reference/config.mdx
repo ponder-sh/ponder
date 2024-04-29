@@ -91,7 +91,7 @@ The `contracts` field is an object where each key is a contract name containing 
 | **endBlock**      |    `number \| undefined`     | **Default: `undefined`**. Block number to stop syncing events. If this field is specified, the contract will not be indexed in realtime. This field can be used alongside `startBlock` to index a specific block range.  |
 | **maxBlockRange** |    `number \| undefined`     | The maximum block range that Ponder will use when calling `eth_getLogs` during the historical sync. If not provided, Ponder uses a sane default based on the network.                                                    |
 
-```ts filename="ponder.config.ts" {17-20}
+```ts filename="ponder.config.ts" {14-19}
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
@@ -152,43 +152,49 @@ For more details, see the guide on [production deployments](/docs/production/dep
   <summary><p>Example `ponder.config.ts` using SQLite</p></summary>
   <p />
 
-  ```ts filename="ponder.config.ts" {4-7}
-  import { createConfig } from "@ponder/core"
+```ts filename="ponder.config.ts" {4-7}
+import { createConfig } from "@ponder/core";
 
-  export default createConfig({
-    database: {
-      kind: "sqlite",
-      directory: "./.ponder/sqlite2",
-    },
-    // ... more config
-  });
-  ```
+export default createConfig({
+  database: {
+    kind: "sqlite",
+    directory: "./.ponder/sqlite2",
+  },
+  // ... more config
+});
+```
+
 </details>
 
 ### Postgres
 
-| field                |         type          |                                                                                                     |
-| :------------------- | :-------------------: | :-------------------------------------------------------------------------------------------------- |
-| **kind**             |     `"postgres"`      |                                                                                                     |
-| **connectionString** | `string \| undefined` | **Default: `DATABASE_PRIVATE_URL` or `DATABASE_URL` env var**. Postgres database connection string. |
-| **schema**           | `string \| undefined` | **Default: `"public"`**. Postgres schema to use for indexed data. |
+| field                |           type            |                                                                                                                  |
+| :------------------- | :-----------------------: | :--------------------------------------------------------------------------------------------------------------- |
+| **kind**             |       `"postgres"`        |                                                                                                                  |
+| **connectionString** |   `string \| undefined`   | **Default: `DATABASE_PRIVATE_URL` or `DATABASE_URL` env var**. Postgres database connection string.              |
+| **schema**           |   `string \| undefined`   | **Default: `"public"`**. Postgres schema to use for indexed data.                                                |
+| **poolConfig**       | [`PoolConfig`](https://node-postgres.com/apis/pool) \| `undefined` | **Default: `{ max: 30 }`**. Pool configuration passed to `node-postgres`. |
 
 <details>
   <summary><p>Example `ponder.config.ts` using Postgres</p></summary>
   <p />
 
-  ```ts filename="ponder.config.ts" {4-8}
-  import { createConfig } from "@ponder/core"
+```ts filename="ponder.config.ts" {4-10}
+import { createConfig } from "@ponder/core";
 
-  export default createConfig({
-    database: {
-      kind: "postgres",
-      connectionString: "postgresql://user:password@localhost:5432/dbname",
-      schema: "ponder_dev",
+export default createConfig({
+  database: {
+    kind: "postgres",
+    connectionString: "postgresql://user:password@localhost:5432/dbname",
+    schema: "ponder_dev",
+    poolConfig: {
+      max: 100,
     },
-    // ... more config
-  });
-  ```
+  },
+  // ... more config
+});
+```
+
 </details>
 
 ## Options
