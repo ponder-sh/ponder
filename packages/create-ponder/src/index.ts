@@ -81,6 +81,11 @@ const templates = [
     description: "A Ponder app using an event filter",
   },
   {
+    id: "feature-blocks",
+    title: "Feature - Block filter",
+    description: "A Ponder app using a block filter",
+  },
+  {
     id: "feature-multichain",
     title: "Feature - Multichain contract",
     description: "A Ponder app using multiple chains",
