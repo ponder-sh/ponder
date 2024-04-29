@@ -84,12 +84,25 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
     this.internalPool = createPool({
       ...poolConfig,
+      application_name: `${userNamespace}_internal`,
       max: internalMax,
       statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
     });
-    this.syncPool = createPool({ ...poolConfig, max: readonlyMax });
-    this.indexingPool = createPool({ ...poolConfig, max: indexingMax });
-    this.readonlyPool = createPool({ ...poolConfig, max: syncMax });
+    this.syncPool = createPool({
+      ...poolConfig,
+      application_name: `${userNamespace}_sync`,
+      max: readonlyMax,
+    });
+    this.indexingPool = createPool({
+      ...poolConfig,
+      application_name: `${userNamespace}_indexing`,
+      max: indexingMax,
+    });
+    this.readonlyPool = createPool({
+      ...poolConfig,
+      application_name: `${userNamespace}_readonly`,
+      max: syncMax,
+    });
 
     this.db = new HeadlessKysely<InternalTables>({
       name: "internal",
