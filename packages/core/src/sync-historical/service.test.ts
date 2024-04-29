@@ -174,6 +174,9 @@ test("start() with block filter inserts block filter interval", async (context) 
     sources: [sources[2]],
   });
   await service.setup(blockNumbers);
+
+  const requestSpy = vi.spyOn(requestQueues[0], "request");
+
   service.start();
   await service.onIdle();
 
@@ -183,15 +186,17 @@ test("start() with block filter inserts block filter interval", async (context) 
   });
 
   expect(blockFilterIntervals).toMatchObject([
-    [0, blockNumbers.finalizedBlockNumber],
+    [1, blockNumbers.finalizedBlockNumber],
   ]);
+
+  expect(requestSpy).toHaveBeenCalledTimes(3);
 
   service.kill();
   await service.onIdle();
   await cleanup();
 });
 
-test.only("start() with block filter skips blocks already in database", async (context) => {
+test("start() with block filter skips blocks already in database", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -230,10 +235,10 @@ test.only("start() with block filter skips blocks already in database", async (c
   });
 
   expect(blockFilterIntervals).toMatchObject([
-    [0, blockNumbers.finalizedBlockNumber],
+    [1, blockNumbers.finalizedBlockNumber],
   ]);
 
-  expect(requestSpy).toHaveBeenCalledTimes(1);
+  expect(requestSpy).toHaveBeenCalledTimes(2);
 
   service.kill();
   await service.onIdle();
