@@ -2,14 +2,14 @@ import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema } from "@/schema/types.js";
 import { sql } from "kysely";
-import type { Row, WhereInput, WriteIndexingStore } from "./store.js";
+import type { Row, WhereInput, WriteStore } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
-export const getHistoricalIndexingStore = ({
+export const getHistoricalStore = ({
   kind,
   schema,
   namespaceInfo,
@@ -19,7 +19,7 @@ export const getHistoricalIndexingStore = ({
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
-}): WriteIndexingStore<"historical"> => ({
+}): WriteStore<"historical"> => ({
   create: async ({
     tableName,
     id,

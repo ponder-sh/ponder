@@ -19,10 +19,10 @@ import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { createSchema } from "@/index.js";
-import { getHistoricalIndexingStore } from "@/indexing-store/historicalStore.js";
-import { getReadIndexingStore } from "@/indexing-store/readStore.js";
-import { getRealtimeIndexingStore } from "@/indexing-store/realtimeStore.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
+import { getHistoricalStore } from "@/indexing-store/historical.js";
+import { getReadonlyStore } from "@/indexing-store/readonly.js";
+import { getRealtimeStore } from "@/indexing-store/realtime.js";
+import type { IndexingStore, ReadonlyStore } from "@/indexing-store/store.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -81,7 +81,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
     const databaseUrl = new URL(process.env.DATABASE_URL);
     databaseUrl.pathname = `/${databaseName}`;
 
-    const poolConfig = { connectionString: databaseUrl.toString() };
+    const poolConfig = { max: 30, connectionString: databaseUrl.toString() };
 
     const client = new pg.Client({
       connectionString: process.env.DATABASE_URL,
@@ -128,6 +128,7 @@ export async function setupDatabaseServices(
   namespaceInfo: NamespaceInfo;
   syncStore: SyncStore;
   indexingStore: IndexingStore;
+  readonlyStore: ReadonlyStore;
   cleanup: () => Promise<void>;
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
@@ -142,21 +143,23 @@ export async function setupDatabaseServices(
 
     await database.migrateSyncStore();
 
+    const syncStore = new SqliteSyncStore({ db: database.syncDb });
+
     const indexingStore = {
-      ...getReadIndexingStore({
+      ...getReadonlyStore({
         kind: "sqlite",
         schema: config.schema,
         namespaceInfo: result.namespaceInfo,
         db: database.indexingDb,
       }),
       ...(config.indexing === "historical"
-        ? getHistoricalIndexingStore({
+        ? getHistoricalStore({
             kind: "sqlite",
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
           })
-        : getRealtimeIndexingStore({
+        : getRealtimeStore({
             kind: "sqlite",
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
@@ -164,13 +167,19 @@ export async function setupDatabaseServices(
           })),
     };
 
-    const syncStore = new SqliteSyncStore({ db: database.syncDb });
+    const readonlyStore = getReadonlyStore({
+      kind: "sqlite",
+      schema: config.schema,
+      namespaceInfo: result.namespaceInfo,
+      db: database.readonlyDb,
+    });
 
     const cleanup = () => database.kill();
 
     return {
       database,
       namespaceInfo: result.namespaceInfo,
+      readonlyStore,
       indexingStore,
       syncStore,
       cleanup,
@@ -186,21 +195,23 @@ export async function setupDatabaseServices(
 
     await database.migrateSyncStore();
 
+    const syncStore = new PostgresSyncStore({ db: database.syncDb });
+
     const indexingStore = {
-      ...getReadIndexingStore({
+      ...getReadonlyStore({
         kind: "postgres",
         schema: config.schema,
         namespaceInfo: result.namespaceInfo,
         db: database.indexingDb,
       }),
       ...(config.indexing === "historical"
-        ? getHistoricalIndexingStore({
+        ? getHistoricalStore({
             kind: "postgres",
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
           })
-        : getRealtimeIndexingStore({
+        : getRealtimeStore({
             kind: "postgres",
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
@@ -208,15 +219,21 @@ export async function setupDatabaseServices(
           })),
     };
 
-    const syncStore = new PostgresSyncStore({ db: database.syncDb });
+    const readonlyStore = getReadonlyStore({
+      kind: "postgres",
+      schema: config.schema,
+      namespaceInfo: result.namespaceInfo,
+      db: database.readonlyDb,
+    });
 
     const cleanup = () => database.kill();
 
     return {
       database,
       namespaceInfo: result.namespaceInfo,
-      indexingStore,
       syncStore,
+      indexingStore,
+      readonlyStore,
       cleanup,
     };
   }

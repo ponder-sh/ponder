@@ -45,6 +45,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   private syncDatabase: SqliteDatabase;
 
   db: HeadlessKysely<InternalTables>;
+  readonlyDb: HeadlessKysely<any>;
   indexingDb: HeadlessKysely<any>;
   syncDb: HeadlessKysely<SyncStoreTables>;
 
@@ -81,7 +82,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     );
 
     this.db = new HeadlessKysely<InternalTables>({
-      name: "admin",
+      name: "internal",
       common,
       dialect: new SqliteDialect({ database: this.internalDatabase }),
       log(event) {
@@ -89,6 +90,19 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           common.metrics.ponder_sqlite_query_total.inc({
             database: "internal",
           });
+        }
+      },
+    });
+
+    const syncDatabaseFile = path.join(directory, "ponder_sync.db");
+    this.syncDatabase = createSqliteDatabase(syncDatabaseFile);
+    this.syncDb = new HeadlessKysely<SyncStoreTables>({
+      name: "sync",
+      common,
+      dialect: new SqliteDialect({ database: this.syncDatabase }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_sqlite_query_total.inc({ database: "sync" });
         }
       },
     });
@@ -106,15 +120,15 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       },
     });
 
-    const syncDatabaseFile = path.join(directory, "ponder_sync.db");
-    this.syncDatabase = createSqliteDatabase(syncDatabaseFile);
-    this.syncDb = new HeadlessKysely<SyncStoreTables>({
-      name: "sync",
+    this.readonlyDb = new HeadlessKysely<InternalTables>({
+      name: "readonly",
       common,
-      dialect: new SqliteDialect({ database: this.syncDatabase }),
+      dialect: new SqliteDialect({ database: this.internalDatabase }),
       log(event) {
         if (event.level === "query") {
-          common.metrics.ponder_sqlite_query_total.inc({ database: "sync" });
+          common.metrics.ponder_sqlite_query_total.inc({
+            database: "readonly",
+          });
         }
       },
     });
@@ -365,6 +379,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         msg: `Released lock on namespace '${this.userNamespace}'`,
       });
 
+      await this.readonlyDb.destroy();
       await this.indexingDb.destroy();
       await this.syncDb.destroy();
       await this.db.destroy();

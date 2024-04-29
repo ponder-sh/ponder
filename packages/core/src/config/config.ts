@@ -28,6 +28,11 @@ type DatabaseConfig =
       schema?: string;
       /** Postgres schema to use for views returning indexed data. Default: undefined, or `RAILWAY_SERVICE_NAME` environment variable if provided. */
       publishSchema?: string;
+      /** Postgres pool configuration passed to `node-postgres`. */
+      poolConfig?: {
+        /** Maximum number of clients in the pool. Default: `30`. */
+        max?: number;
+      };
     };
 
 export type OptionConfig = {

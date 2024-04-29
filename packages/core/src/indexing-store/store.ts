@@ -1,7 +1,7 @@
 import type { Prettify } from "@/types/utils.js";
 import type { Hex } from "viem";
 
-export type ReadIndexingStore = {
+export type ReadonlyStore = {
   findUnique(options: {
     tableName: string;
     id: string | number | bigint;
@@ -25,16 +25,12 @@ export type ReadIndexingStore = {
   }>;
 };
 
-export type WriteIndexingStore<
+export type WriteStore<
   env extends "historical" | "realtime",
   ///
   checkpointProp = env extends "realtime"
-    ? {
-        encodedCheckpoint: string;
-      }
-    : {
-        encodedCheckpoint?: never;
-      },
+    ? { encodedCheckpoint: string }
+    : { encodedCheckpoint?: never },
 > = {
   create(
     options: {
@@ -92,7 +88,7 @@ export type WriteIndexingStore<
 
 export type IndexingStore<
   env extends "historical" | "realtime" = "historical" | "realtime",
-> = ReadIndexingStore & WriteIndexingStore<env>;
+> = ReadonlyStore & WriteStore<env>;
 
 export type Table = {
   [key: string]:
