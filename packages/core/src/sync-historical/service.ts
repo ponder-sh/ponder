@@ -936,21 +936,39 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       blockNumber <= toBlock;
       blockNumber += blockFilter.criteria.frequency
     ) {
-      if (this.blockCallbacks[blockNumber] === undefined)
-        this.blockCallbacks[blockNumber] = [];
+      const hasBlock = await this.syncStore.getBlock({
+        chainId: blockFilter.chainId,
+        blockNumber,
+      });
 
-      this.blockCallbacks[blockNumber].push(async (block) => {
+      if (hasBlock) {
         await this.syncStore.insertBlockFilterInterval({
           chainId: blockFilter.chainId,
           blockFilter: blockFilter.criteria,
-          block,
           interval: {
             startBlock:
               BigInt(blockNumber - blockFilter.criteria.frequency) + 1n,
             endBlock: BigInt(blockNumber + blockFilter.criteria.frequency) - 1n,
           },
         });
-      });
+      } else {
+        if (this.blockCallbacks[blockNumber] === undefined)
+          this.blockCallbacks[blockNumber] = [];
+
+        this.blockCallbacks[blockNumber].push(async (block) => {
+          await this.syncStore.insertBlockFilterInterval({
+            chainId: blockFilter.chainId,
+            blockFilter: blockFilter.criteria,
+            block,
+            interval: {
+              startBlock:
+                BigInt(blockNumber - blockFilter.criteria.frequency) + 1n,
+              endBlock:
+                BigInt(blockNumber + blockFilter.criteria.frequency) - 1n,
+            },
+          });
+        });
+      }
     }
 
     this.blockFilterProgressTrackers[blockFilter.id].addCompletedInterval([

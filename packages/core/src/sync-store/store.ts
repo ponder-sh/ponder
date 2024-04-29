@@ -115,14 +115,15 @@ export interface SyncStore {
   }): Promise<[number, number][]>;
 
   /**
-   * Insert a block matching a given block filter. Also insert the block interval.
+   * Insert a block matching a given block filter. Also insert the block interval. It
+   * is possible for block to be undefined if we already know it is in the database.
    *
    * Note that `block.number` should always be equal to `interval.endBlock`.
    */
   insertBlockFilterInterval(options: {
     chainId: number;
     blockFilter: BlockFilterCriteria;
-    block: RpcBlock;
+    block?: RpcBlock;
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 
@@ -134,6 +135,14 @@ export interface SyncStore {
     chainId: number;
     blockFilter: BlockFilterCriteria;
   }): Promise<[number, number][]>;
+
+  /**
+   * Returns true if the block exists in the database.
+   */
+  getBlock(options: {
+    chainId: number;
+    blockNumber: number;
+  }): Promise<boolean>;
 
   /**
    * Inserts a new realtime block and any logs/transactions that match the

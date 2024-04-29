@@ -9,6 +9,7 @@ import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { wait } from "@/utils/wait.js";
+import { numberToHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
@@ -184,6 +185,55 @@ test("start() with block filter inserts block filter interval", async (context) 
   expect(blockFilterIntervals).toMatchObject([
     [0, blockNumbers.finalizedBlockNumber],
   ]);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
+test.only("start() with block filter skips blocks already in database", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const blockNumbers = await getBlockNumbers();
+
+  const block = await requestQueues[0].request({
+    method: "eth_getBlockByNumber",
+    params: [numberToHex(blockNumbers.finalizedBlockNumber - 3), true],
+  });
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    block: block!,
+    logs: [],
+    transactions: [],
+    transactionReceipts: [],
+  });
+
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: [sources[2]],
+  });
+  await service.setup(blockNumbers);
+
+  const requestSpy = vi.spyOn(requestQueues[0], "request");
+
+  service.start();
+  await service.onIdle();
+
+  const blockFilterIntervals = await syncStore.getBlockFilterIntervals({
+    chainId: sources[2].chainId,
+    blockFilter: sources[2].criteria,
+  });
+
+  expect(blockFilterIntervals).toMatchObject([
+    [0, blockNumbers.finalizedBlockNumber],
+  ]);
+
+  expect(requestSpy).toHaveBeenCalledTimes(1);
 
   service.kill();
   await service.onIdle();

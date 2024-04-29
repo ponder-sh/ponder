@@ -559,20 +559,22 @@ export class PostgresSyncStore implements SyncStore {
   }: {
     chainId: number;
     blockFilter: BlockFilterCriteria;
-    block: RpcBlock;
+    block?: RpcBlock;
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void> => {
     return this.db.wrap({ method: "insertBlockFilterInterval" }, async () => {
       await this.db.transaction().execute(async (tx) => {
-        await tx
-          .insertInto("blocks")
-          .values({
-            ...rpcToPostgresBlock(rpcBlock),
-            chainId,
-            checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
-          })
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute();
+        if (rpcBlock !== undefined) {
+          await tx
+            .insertInto("blocks")
+            .values({
+              ...rpcToPostgresBlock(rpcBlock),
+              chainId,
+              checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
+            })
+            .onConflict((oc) => oc.column("hash").doNothing())
+            .execute();
+        }
 
         await this._insertBlockFilterInterval({
           tx,
@@ -666,6 +668,23 @@ export class PostgresSyncStore implements SyncStore {
 
       return intervalUnion(intervalsByFragmentId[fragment.id] ?? []);
     });
+  };
+
+  getBlock = async ({
+    chainId,
+    blockNumber,
+  }: {
+    chainId: number;
+    blockNumber: number;
+  }): Promise<boolean> => {
+    const hasBlock = await this.db
+      .selectFrom("blocks")
+      .select("hash")
+      .where("number", "=", BigInt(blockNumber))
+      .where("chainId", "=", chainId)
+      .executeTakeFirst();
+
+    return hasBlock !== undefined;
   };
 
   private createLogCheckpoint = (
