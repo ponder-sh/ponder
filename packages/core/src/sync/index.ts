@@ -4,10 +4,6 @@ import { type Extend, extend } from "@/utils/extend.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
-  type GetLogsRetryHelperParameters,
-  getLogsRetryHelper,
-} from "@ponder/utils";
-import {
   type Address,
   BlockNotFoundError,
   type BlockTag,
@@ -16,10 +12,8 @@ import {
   type Log,
   type LogTopic,
   type RpcBlock,
-  RpcError,
   type RpcTransactionReceipt,
   TransactionReceiptNotFoundError,
-  hexToBigInt,
   numberToHex,
 } from "viem";
 import {
@@ -109,7 +103,7 @@ export const _eth_getBlockByHash = (
  * Handles different error types and retries the request if applicable.
  */
 export const _eth_getLogs = async (
-  { common, requestQueue }: Pick<BaseSyncService, "common" | "requestQueue">,
+  { requestQueue }: Pick<BaseSyncService, "requestQueue">,
   params: {
     address?: Address | Address[];
     topics?: LogTopic[];
@@ -138,67 +132,30 @@ export const _eth_getLogs = async (
       .then((l) => l as SyncLog[]);
   }
 
-  const _params: GetLogsRetryHelperParameters["params"] = [
-    {
-      fromBlock:
-        typeof params.fromBlock === "number"
-          ? numberToHex(params.fromBlock)
-          : params.fromBlock,
-      toBlock:
-        typeof params.toBlock === "number"
-          ? numberToHex(params.toBlock)
-          : params.toBlock,
+  return requestQueue
+    .request({
+      method: "eth_getLogs",
+      params: [
+        {
+          fromBlock:
+            typeof params.fromBlock === "number"
+              ? numberToHex(params.fromBlock)
+              : params.fromBlock,
+          toBlock:
+            typeof params.toBlock === "number"
+              ? numberToHex(params.toBlock)
+              : params.toBlock,
 
-      topics: params.topics,
-      address: params.address
-        ? Array.isArray(params.address)
-          ? params.address.map((a) => toLowerCase(a))
-          : toLowerCase(params.address)
-        : undefined,
-    },
-  ];
-
-  try {
-    return await requestQueue
-      .request({
-        method: "eth_getLogs",
-        params: _params,
-      })
-      .then((l) => l as SyncLog[]);
-  } catch (err) {
-    const getLogsErrorResponse = getLogsRetryHelper({
-      params: _params,
-      error: err as RpcError,
-    });
-
-    if (!getLogsErrorResponse.shouldRetry) throw err;
-
-    common.logger.debug({
-      service: "historical",
-      msg: `eth_getLogs request failed, retrying with ranges: [${getLogsErrorResponse.ranges
-        .map(
-          ({ fromBlock, toBlock }) =>
-            `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(
-              toBlock,
-            ).toString()}]`,
-        )
-        .join(", ")}].`,
-    });
-
-    return Promise.all(
-      getLogsErrorResponse.ranges.map(({ fromBlock, toBlock }) =>
-        _eth_getLogs(
-          { common, requestQueue },
-          {
-            topics: _params[0].topics,
-            address: _params[0].address,
-            fromBlock,
-            toBlock,
-          },
-        ),
-      ),
-    ).then((l) => l.flat());
-  }
+          topics: params.topics,
+          address: params.address
+            ? Array.isArray(params.address)
+              ? params.address.map((a) => toLowerCase(a))
+              : toLowerCase(params.address)
+            : undefined,
+        },
+      ],
+    })
+    .then((l) => l as SyncLog[]);
 };
 
 /**

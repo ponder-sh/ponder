@@ -24,10 +24,6 @@ import { never } from "@/utils/never.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { debounce } from "@ponder/common";
-import {
-  type GetLogsRetryHelperParameters,
-  getLogsRetryHelper,
-} from "@ponder/utils";
 import Emittery from "emittery";
 import {
   type Address,
@@ -36,12 +32,10 @@ import {
   type Hex,
   type LogTopic,
   type RpcBlock,
-  RpcError,
   type RpcLog,
   type RpcTransaction,
   type RpcTransactionReceipt,
   TransactionReceiptNotFoundError,
-  hexToBigInt,
   hexToNumber,
   numberToHex,
   toHex,
@@ -968,62 +962,28 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    * Helper function for "eth_getLogs" rpc request.
    * Handles different error types and retries the request if applicable.
    */
-  private _eth_getLogs = async (params: {
+  private _eth_getLogs = (params: {
     address?: Address | Address[];
     topics?: LogTopic[];
     fromBlock: Hex;
     toBlock: Hex;
   }): Promise<RpcLog[]> => {
-    const _params: GetLogsRetryHelperParameters["params"] = [
-      {
-        fromBlock: params.fromBlock,
-        toBlock: params.toBlock,
+    return this.requestQueue.request({
+      method: "eth_getLogs",
+      params: [
+        {
+          fromBlock: params.fromBlock,
+          toBlock: params.toBlock,
 
-        topics: params.topics,
-        address: params.address
-          ? Array.isArray(params.address)
-            ? params.address.map((a) => toLowerCase(a))
-            : toLowerCase(params.address)
-          : undefined,
-      },
-    ];
-
-    try {
-      return await this.requestQueue.request({
-        method: "eth_getLogs",
-        params: _params,
-      });
-    } catch (err) {
-      const getLogsErrorResponse = getLogsRetryHelper({
-        params: _params,
-        error: err as RpcError,
-      });
-
-      if (!getLogsErrorResponse.shouldRetry) throw err;
-
-      this.common.logger.debug({
-        service: "historical",
-        msg: `eth_getLogs request failed, retrying with ranges: [${getLogsErrorResponse.ranges
-          .map(
-            ({ fromBlock, toBlock }) =>
-              `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(
-                toBlock,
-              ).toString()}]`,
-          )
-          .join(", ")}].`,
-      });
-
-      return Promise.all(
-        getLogsErrorResponse.ranges.map(({ fromBlock, toBlock }) =>
-          this._eth_getLogs({
-            topics: _params[0].topics,
-            address: _params[0].address,
-            fromBlock,
-            toBlock,
-          }),
-        ),
-      ).then((l) => l.flat());
-    }
+          topics: params.topics,
+          address: params.address
+            ? Array.isArray(params.address)
+              ? params.address.map((a) => toLowerCase(a))
+              : toLowerCase(params.address)
+            : undefined,
+        },
+      ],
+    });
   };
 
   /**
