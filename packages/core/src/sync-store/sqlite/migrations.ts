@@ -721,9 +721,35 @@ const migrations: Record<string, Migration> = {
         .column("blockFilterId")
         .execute();
 
-      await db.schema.dropTable("blocks").execute();
+      await db.schema
+        .alterTable("blocks")
+        .addColumn("checkpoint", "varchar(75)")
+        .execute();
+      await db.executeQuery(
+        sql`
+          CREATE TEMPORARY TABLE bcp_vals AS
+          SELECT 
+            blocks.hash,
+            substr(blocks.timestamp, -10, 10) ||
+              substr('0000000000000000' || blocks.chainId, -16, 16) ||
+              substr(blocks.number, -16, 16) ||
+              '9999999999999999' ||
+              '5' ||
+              '0000000000000000' as checkpoint
+            FROM blocks
+        `.compile(db),
+      );
+      await db.executeQuery(
+        sql`
+          UPDATE blocks 
+          SET checkpoint=bcp_vals.checkpoint
+          FROM bcp_vals
+          WHERE blocks.hash = bcp_vals.hash
+        `.compile(db),
+      );
 
-      // TODO(kyle) migrate blocks
+      await db.schema.alterTable("blocks").renameTo("blocks_temp").execute();
+
       await db.schema
         .createTable("blocks")
         .addColumn("baseFeePerGas", "varchar(79)")
@@ -746,13 +772,22 @@ const migrations: Record<string, Migration> = {
         .addColumn("totalDifficulty", "varchar(79)", (col) => col.notNull())
         .addColumn("transactionsRoot", "varchar(66)", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())
-        .addColumn("checkpoint", "text", (col) => col.notNull())
+        .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
         .execute();
+
+      await db.executeQuery(
+        sql`INSERT INTO "blocks" SELECT * FROM "blocks_temp"`.compile(db),
+      );
 
       await db.schema
         .createIndex("blockNumberIndex")
         .on("blocks")
         .column("number")
+        .execute();
+      await db.schema
+        .createIndex("blockCheckpointIndex")
+        .on("blocks")
+        .column("checkpoint")
         .execute();
     },
   },

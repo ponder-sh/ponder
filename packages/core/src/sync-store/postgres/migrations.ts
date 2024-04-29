@@ -1,4 +1,5 @@
 import type { Common } from "@/common/common.js";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import type { Kysely } from "kysely";
 import { type Migration, type MigrationProvider, sql } from "kysely";
 
@@ -640,38 +641,51 @@ const migrations: Record<string, Migration> = {
         .column("blockFilterId")
         .execute();
 
-      await db.schema.dropTable("blocks").execute();
-
-      // TODO(kyle) migrate blocks
       await db.schema
-        .createTable("blocks")
-        .addColumn("baseFeePerGas", "numeric(78, 0)")
-        .addColumn("difficulty", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("extraData", "text", (col) => col.notNull())
-        .addColumn("gasLimit", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("hash", "varchar(66)", (col) => col.notNull().primaryKey())
-        .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
-        .addColumn("miner", "varchar(42)", (col) => col.notNull())
-        .addColumn("mixHash", "varchar(66)", (col) => col.notNull())
-        .addColumn("nonce", "varchar(18)", (col) => col.notNull())
-        .addColumn("number", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("parentHash", "varchar(66)", (col) => col.notNull())
-        .addColumn("receiptsRoot", "varchar(66)", (col) => col.notNull())
-        .addColumn("sha3Uncles", "varchar(66)", (col) => col.notNull())
-        .addColumn("size", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("stateRoot", "varchar(66)", (col) => col.notNull())
-        .addColumn("timestamp", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("totalDifficulty", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("transactionsRoot", "varchar(66)", (col) => col.notNull())
-        .addColumn("chainId", "integer", (col) => col.notNull())
-        .addColumn("checkpoint", "text", (col) => col.notNull())
+        .alterTable("blocks")
+        .addColumn("checkpoint", "varchar(75)", (col) =>
+          col.notNull().defaultTo(encodeCheckpoint(zeroCheckpoint)),
+        )
         .execute();
+
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("checkpoint", (col) => col.dropDefault())
+        .execute();
+
+      await db.executeQuery(
+        sql`
+          CREATE TEMP TABLE bcp_vals AS 
+          SELECT
+            blocks.hash,
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(blocks."chainId"::text, 16, '0') ||
+            lpad(blocks.number::text, 16, '0') ||
+            '9999999999999999' ||
+            '5' ||
+            '9999999999999999') AS checkpoint
+          FROM ponder_sync.blocks
+          `.compile(db),
+      );
+
+      await db.executeQuery(
+        sql`
+          UPDATE ponder_sync.blocks
+          SET checkpoint=bcp_vals.checkpoint
+          FROM bcp_vals
+          WHERE ponder_sync.blocks.hash = bcp_vals.hash
+        `.compile(db),
+      );
 
       await db.schema
         .createIndex("blockNumberIndex")
         .on("blocks")
         .column("number")
+        .execute();
+      await db.schema
+        .createIndex("blockCheckpointIndex")
+        .on("blocks")
+        .column("checkpoint")
         .execute();
     },
   },
