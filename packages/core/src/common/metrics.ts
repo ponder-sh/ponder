@@ -17,9 +17,9 @@ export class MetricsService {
   ponder_rpc_request_lag: prometheus.Histogram<"network" | "method">;
 
   ponder_historical_start_timestamp: prometheus.Gauge<"network">;
-  ponder_historical_total_blocks: prometheus.Gauge<"network" | "contract">;
-  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "contract">;
-  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "contract">;
+  ponder_historical_total_blocks: prometheus.Gauge<"network" | "source">;
+  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "source">;
+  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "source">;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
@@ -85,19 +85,19 @@ export class MetricsService {
     this.ponder_historical_total_blocks = new prometheus.Gauge({
       name: "ponder_historical_total_blocks",
       help: "Number of blocks required for the historical sync",
-      labelNames: ["network", "contract"] as const,
+      labelNames: ["network", "source"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_cached_blocks = new prometheus.Gauge({
       name: "ponder_historical_cached_blocks",
       help: "Number of blocks that were found in the cache for the historical sync",
-      labelNames: ["network", "contract"] as const,
+      labelNames: ["network", "source"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_completed_blocks = new prometheus.Gauge({
       name: "ponder_historical_completed_blocks",
       help: "Number of blocks that have been processed for the historical sync",
-      labelNames: ["network", "contract"] as const,
+      labelNames: ["network", "source"] as const,
       registers: [this.registry],
     });
 
@@ -235,24 +235,24 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
     await metrics.ponder_historical_completed_blocks.get()
   ).values;
 
-  const contracts = totalBlocksMetric.map((m) => {
-    const contract = m.labels.contract as string;
+  const sources = totalBlocksMetric.map((m) => {
+    const source = m.labels.source as string;
     const network = m.labels.network as string;
     const totalBlocks = m.value;
 
     const cachedBlocks = cachedBlocksMetric.find(
-      (c) => c.labels.contract === contract && c.labels.network === network,
+      (c) => c.labels.source === source && c.labels.network === network,
     )?.value;
 
     const completedBlocks =
       completedBlocksMetric.find(
-        (c) => c.labels.contract === contract && c.labels.network === network,
+        (c) => c.labels.source === source && c.labels.network === network,
       )?.value ?? 0;
 
     // If cachedBlocks is not set, setup is not complete.
     if (cachedBlocks === undefined) {
       return {
-        contractName: contract,
+        sourceName: source,
         networkName: network,
         totalBlocks,
         completedBlocks,
@@ -267,7 +267,7 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
     const eta = completedBlocks >= 3 ? total - elapsed : undefined;
 
     return {
-      contractName: contract,
+      sourceName: source,
       networkName: network,
       totalBlocks,
       cachedBlocks,
@@ -277,9 +277,9 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
     };
   });
 
-  const totalBlocks = contracts.reduce((a, c) => a + c.totalBlocks, 0);
-  const cachedBlocks = contracts.reduce((a, c) => a + (c.cachedBlocks ?? 0), 0);
-  const completedBlocks = contracts.reduce(
+  const totalBlocks = sources.reduce((a, c) => a + c.totalBlocks, 0);
+  const cachedBlocks = sources.reduce((a, c) => a + (c.cachedBlocks ?? 0), 0);
+  const completedBlocks = sources.reduce(
     (a, c) => a + (c.completedBlocks ?? 0),
     0,
   );
@@ -288,7 +288,7 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
 
   return {
     overall: { totalBlocks, cachedBlocks, completedBlocks, progress },
-    contracts,
+    sources,
   };
 }
 

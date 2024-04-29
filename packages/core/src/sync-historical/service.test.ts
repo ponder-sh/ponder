@@ -259,9 +259,9 @@ test("setup() with log filter and factory contract updates block metrics", async
   ).values;
   expect(cachedBlocksMetric).toEqual(
     expect.arrayContaining([
-      { labels: { network: "mainnet", contract: "Erc20" }, value: 0 },
-      { labels: { network: "mainnet", contract: "Pair_factory" }, value: 0 },
-      { labels: { network: "mainnet", contract: "Pair" }, value: 0 },
+      { labels: { network: "mainnet", source: "Erc20" }, value: 0 },
+      { labels: { network: "mainnet", source: "Pair_factory" }, value: 0 },
+      { labels: { network: "mainnet", source: "Pair" }, value: 0 },
     ]),
   );
 
@@ -271,9 +271,9 @@ test("setup() with log filter and factory contract updates block metrics", async
   const value = blockNumbers.finalizedBlockNumber + 1;
   expect(totalBlocksMetric).toEqual(
     expect.arrayContaining([
-      { labels: { network: "mainnet", contract: "Erc20" }, value },
-      { labels: { network: "mainnet", contract: "Pair_factory" }, value },
-      { labels: { network: "mainnet", contract: "Pair" }, value },
+      { labels: { network: "mainnet", source: "Erc20" }, value },
+      { labels: { network: "mainnet", source: "Pair_factory" }, value },
+      { labels: { network: "mainnet", source: "Pair" }, value },
     ]),
   );
 
@@ -304,9 +304,9 @@ test("start() with log filter and factory contract updates completed blocks metr
   const value = blockNumbers.finalizedBlockNumber + 1;
   expect(completedBlocksMetric).toEqual(
     expect.arrayContaining([
-      { labels: { network: "mainnet", contract: "Pair_factory" }, value },
-      { labels: { network: "mainnet", contract: "Erc20" }, value },
-      { labels: { network: "mainnet", contract: "Pair" }, value },
+      { labels: { network: "mainnet", source: "Pair_factory" }, value },
+      { labels: { network: "mainnet", source: "Erc20" }, value },
+      { labels: { network: "mainnet", source: "Pair" }, value },
     ]),
   );
 
