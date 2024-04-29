@@ -383,13 +383,6 @@ export const handleBlock = async (
       transactionReceipts: newTransactionReceipts,
       logs: newLogs,
     });
-
-    const logCountText =
-      newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
-    service.common.logger.info({
-      service: "realtime",
-      msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
-    });
   } else if (isBlockFilterMatched) {
     await service.syncStore.insertRealtimeBlock({
       chainId: service.network.chainId,
@@ -398,12 +391,26 @@ export const handleBlock = async (
       transactionReceipts: [],
       logs: [],
     });
+  }
 
-    // TODO(kyle) logs
+  if (newLogs.length > 0) {
+    const logCountText =
+      newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
+    service.common.logger.info({
+      service: "realtime",
+      msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
+    });
   } else {
     service.common.logger.debug({
       service: "realtime",
       msg: `Synced 0 logs from '${service.network.name}' block ${newHeadBlockNumber}`,
+    });
+  }
+
+  if (isBlockFilterMatched) {
+    service.common.logger.info({
+      service: "realtime",
+      msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,
     });
   }
 

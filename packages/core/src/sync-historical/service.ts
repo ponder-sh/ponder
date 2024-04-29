@@ -977,9 +977,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     this.common.logger.trace({
       service: "historical",
-      msg: `Completed BLOCK_FILTER task adding ${"TODO(kyle)"} BLOCK tasks [${fromBlock}, ${toBlock}] ( network=${
-        this.network.name
-      })`,
+      msg: `Completed BLOCK_FILTER task [${fromBlock}, ${toBlock}] ( network=${this.network.name})`,
     });
   };
 
