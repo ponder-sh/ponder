@@ -1,14 +1,14 @@
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema } from "@/schema/types.js";
-import type { Row, WhereInput, WriteIndexingStore } from "./store.js";
+import type { Row, WhereInput, WriteStore } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
-export const getRealtimeIndexingStore = ({
+export const getRealtimeStore = ({
   kind,
   schema,
   namespaceInfo,
@@ -18,7 +18,7 @@ export const getRealtimeIndexingStore = ({
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
-}): WriteIndexingStore<"realtime"> => ({
+}): WriteStore<"realtime"> => ({
   create: ({
     tableName,
     encodedCheckpoint,
