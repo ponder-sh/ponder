@@ -455,6 +455,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               target: [startBlock, finalizedBlockNumber],
               completed: [[startBlock, finalizedBlockNumber]],
             });
+            this.common.metrics.ponder_historical_total_blocks.set(
+              { network: this.network.name, contract: "blocks" },
+              0,
+            );
             this.common.logger.warn({
               service: "historical",
               msg: `Start block is in unfinalized range, skipping historical sync (contract=${source.id})`,
@@ -508,11 +512,20 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           const cachedBlockCount =
             targetBlockCount - intervalSum(requiredBlockFilterIntervals);
 
+          this.common.metrics.ponder_historical_total_blocks.set(
+            { network: this.network.name, contract: "blocks" },
+            targetBlockCount,
+          );
+          this.common.metrics.ponder_historical_cached_blocks.set(
+            { network: this.network.name, contract: "blocks" },
+            cachedBlockCount,
+          );
+
           this.common.logger.info({
             service: "historical",
             msg: `Started sync with ${formatPercentage(
               Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
-            )} cached ( network=${this.network.name})`,
+            )} cached (network=${this.network.name})`,
           });
         }
       }),
@@ -932,24 +945,38 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // each block. A block callback, and subsequent "eth_getBlock" request can be
     // skipped if the block is already present in the database.
 
+    const requiredBlocks: number[] = [];
     for (
       let blockNumber = fromBlock + offset;
       blockNumber <= toBlock;
       blockNumber += blockFilter.criteria.frequency
     ) {
+      requiredBlocks.push(blockNumber);
+    }
+
+    // If toBlock is not already required, add it. This is necessary
+    // to mark the full block range of the eth_getLogs request as cached.
+    if (!requiredBlocks.includes(toBlock)) {
+      requiredBlocks.push(toBlock);
+    }
+
+    let prevBlockNumber = fromBlock;
+    for (const blockNumber of requiredBlocks) {
       const hasBlock = await this.syncStore.getBlock({
         chainId: blockFilter.chainId,
         blockNumber,
       });
+
+      const startBlock = prevBlockNumber;
+      const endBlock = blockNumber;
 
       if (hasBlock) {
         await this.syncStore.insertBlockFilterInterval({
           chainId: blockFilter.chainId,
           blockFilter: blockFilter.criteria,
           interval: {
-            startBlock:
-              BigInt(blockNumber - blockFilter.criteria.frequency) + 1n,
-            endBlock: BigInt(blockNumber + blockFilter.criteria.frequency) - 1n,
+            startBlock: BigInt(startBlock),
+            endBlock: BigInt(endBlock),
           },
         });
       } else {
@@ -962,14 +989,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             blockFilter: blockFilter.criteria,
             block,
             interval: {
-              startBlock:
-                BigInt(blockNumber - blockFilter.criteria.frequency) + 1n,
-              endBlock:
-                BigInt(blockNumber + blockFilter.criteria.frequency) - 1n,
+              startBlock: BigInt(startBlock),
+              endBlock: BigInt(endBlock),
             },
           });
+
+          this.common.metrics.ponder_historical_completed_blocks.inc(
+            { network: this.network.name, contract: "blocks" },
+            endBlock - startBlock + 1,
+          );
         });
       }
+
+      prevBlockNumber = blockNumber + 1;
     }
 
     this.blockFilterProgressTrackers[blockFilter.id].addCompletedInterval([
