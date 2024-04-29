@@ -596,10 +596,10 @@ export class SqliteSyncStore implements SyncStore {
   }) => {
     return this.db.wrap({ method: "getBlockFilterIntervals" }, async () => {
       const fragment = {
-        id: `${chainId}_${blockFilter.startBlock}_${blockFilter.frequency}`,
+        id: `${chainId}_${blockFilter.frequency}_${blockFilter.offset}`,
         chainId,
-        startBlock: encodeAsText(blockFilter.startBlock),
-        frequency: encodeAsText(blockFilter.frequency),
+        frequency: blockFilter.frequency,
+        offset: blockFilter.offset,
       };
 
       // First, attempt to merge overlapping and adjacent intervals.
@@ -651,8 +651,8 @@ export class SqliteSyncStore implements SyncStore {
           "blockFilterIntervals.endBlock",
         ])
         .where("chainId", "=", chainId)
-        .where("blockFilters.startBlock", "=", fragment.startBlock)
         .where("blockFilters.frequency", "=", fragment.frequency)
+        .where("blockFilters.offset", "=", fragment.offset)
         .execute();
 
       const intervalsByFragmentId = intervals.reduce(
@@ -960,12 +960,14 @@ export class SqliteSyncStore implements SyncStore {
     blockFilters: BlockFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const blockFilterFragments = blockFilters.flatMap((blockFilter) => ({
-      id: `${chainId}_${blockFilter.startBlock}_${blockFilter.frequency}`,
-      chainId,
-      startBlock: encodeAsText(blockFilter.startBlock),
-      frequency: encodeAsText(blockFilter.frequency),
-    }));
+    const blockFilterFragments = blockFilters.flatMap((blockFilter) => {
+      return {
+        id: `${chainId}_${blockFilter.frequency}_${blockFilter.offset}`,
+        chainId,
+        frequency: blockFilter.frequency,
+        offset: blockFilter.offset,
+      };
+    });
 
     await Promise.all(
       blockFilterFragments.map(async (blockFilterFragment) => {
@@ -1138,7 +1140,7 @@ export class SqliteSyncStore implements SyncStore {
                             eb(
                               "number",
                               ">=",
-                              encodeAsText(blockFilter.criteria.startBlock),
+                              encodeAsText(blockFilter.startBlock),
                             ),
                             ...(blockFilter.endBlock !== undefined
                               ? [
@@ -1149,11 +1151,7 @@ export class SqliteSyncStore implements SyncStore {
                                   ),
                                 ]
                               : []),
-                            sql`(number - ${encodeAsText(
-                              blockFilter.criteria.startBlock,
-                            )}) % ${encodeAsText(
-                              blockFilter.criteria.frequency,
-                            )} = 0`,
+                            sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.frequency} = 0`,
                             eb("source_id", "=", blockFilter.id),
                           ]),
                         );
@@ -1503,17 +1501,11 @@ export class SqliteSyncStore implements SyncStore {
                 exprs.push(
                   eb.and([
                     eb("chainId", "=", blockFilter.chainId),
-                    eb(
-                      "number",
-                      ">=",
-                      encodeAsText(blockFilter.criteria.startBlock),
-                    ),
+                    eb("number", ">=", encodeAsText(blockFilter.startBlock)),
                     ...(blockFilter.endBlock !== undefined
                       ? [eb("number", "<=", encodeAsText(blockFilter.endBlock))]
                       : []),
-                    sql`(number - ${encodeAsText(
-                      blockFilter.criteria.startBlock,
-                    )}) % ${encodeAsText(blockFilter.criteria.frequency)} = 0`,
+                    sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.frequency} = 0`,
                   ]),
                 );
               }

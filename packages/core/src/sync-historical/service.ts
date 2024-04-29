@@ -7,7 +7,6 @@ import {
   type FactorySource,
   type LogFilterCriteria,
   type LogSource,
-  sourceIsBlock,
   sourceIsFactory,
   sourceIsLog,
 } from "@/config/sources.js";
@@ -197,9 +196,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       this.sources.map(async (source) => {
         const { isHistoricalSyncRequired, startBlock, endBlock } =
           validateHistoricalBlockRange({
-            startBlock: sourceIsBlock(source)
-              ? source.criteria.startBlock
-              : source.startBlock,
+            startBlock: source.startBlock,
             endBlock: source.endBlock,
             finalizedBlockNumber,
             latestBlockNumber,
@@ -924,7 +921,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     toBlock,
   }: BlockFilterTask) => {
     const baseOffset =
-      (fromBlock - blockFilter.criteria.startBlock) %
+      (fromBlock - blockFilter.criteria.offset) %
       blockFilter.criteria.frequency;
     const offset =
       baseOffset === 0 ? 0 : blockFilter.criteria.frequency - baseOffset;

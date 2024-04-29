@@ -252,8 +252,8 @@ type FactoryLogFilterIntervalsTable = {
 type BlockFiltersTable = {
   id: string;
   chainId: number;
-  startBlock: bigint;
-  frequency: bigint;
+  frequency: number;
+  offset: number;
 };
 
 type BlockFilterIntervalsTable = {

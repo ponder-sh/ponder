@@ -17,7 +17,7 @@ export type FactoryCriteria = {
 
 export type BlockFilterCriteria = {
   frequency: number;
-  startBlock: number;
+  offset: number;
 };
 
 type BaseLogSource = {
@@ -47,6 +47,7 @@ export type BlockSource = {
   id: string; // networkName
   networkName: string;
   chainId: number;
+  startBlock: number;
   endBlock?: number;
   criteria: BlockFilterCriteria;
 };

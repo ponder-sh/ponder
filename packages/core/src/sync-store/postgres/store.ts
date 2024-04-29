@@ -595,10 +595,10 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     return this.db.wrap({ method: "getBlockFilterIntervals" }, async () => {
       const fragment = {
-        id: `${chainId}_${blockFilter.startBlock}_${blockFilter.frequency}`,
+        id: `${chainId}_${blockFilter.frequency}_${blockFilter.offset}`,
         chainId,
-        startBlock: BigInt(blockFilter.startBlock),
-        frequency: BigInt(blockFilter.frequency),
+        frequency: blockFilter.frequency,
+        offset: blockFilter.offset,
       };
 
       // First, attempt to merge overlapping and adjacent intervals.
@@ -650,8 +650,8 @@ export class PostgresSyncStore implements SyncStore {
           "blockFilterIntervals.endBlock",
         ])
         .where("chainId", "=", chainId)
-        .where("blockFilters.startBlock", "=", fragment.startBlock)
         .where("blockFilters.frequency", "=", fragment.frequency)
+        .where("blockFilters.offset", "=", fragment.offset)
         .execute();
 
       const intervalsByFragmentId = intervals.reduce(
@@ -917,12 +917,14 @@ export class PostgresSyncStore implements SyncStore {
     blockFilters: BlockFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const blockFilterFragments = blockFilters.flatMap((blockFilter) => ({
-      id: `${chainId}_${blockFilter.startBlock}_${blockFilter.frequency}`,
-      chainId,
-      startBlock: BigInt(blockFilter.startBlock),
-      frequency: BigInt(blockFilter.frequency),
-    }));
+    const blockFilterFragments = blockFilters.flatMap((blockFilter) => {
+      return {
+        id: `${chainId}_${blockFilter.frequency}_${blockFilter.offset}`,
+        chainId,
+        frequency: blockFilter.frequency,
+        offset: blockFilter.offset,
+      };
+    });
 
     await Promise.all(
       blockFilterFragments.map(async (blockFilterFragment) => {
@@ -1110,11 +1112,7 @@ export class PostgresSyncStore implements SyncStore {
                         exprs.push(
                           eb.and([
                             eb("chainId", "=", blockFilter.chainId),
-                            eb(
-                              "number",
-                              ">=",
-                              BigInt(blockFilter.criteria.startBlock),
-                            ),
+                            eb("number", ">=", BigInt(blockFilter.startBlock)),
                             ...(blockFilter.endBlock !== undefined
                               ? [
                                   eb(
@@ -1125,7 +1123,7 @@ export class PostgresSyncStore implements SyncStore {
                                 ]
                               : []),
                             sql`(number - ${sql.val(
-                              BigInt(blockFilter.criteria.startBlock),
+                              BigInt(blockFilter.criteria.offset),
                             )}) % ${sql.val(
                               BigInt(blockFilter.criteria.frequency),
                             )} = 0`,
@@ -1457,12 +1455,12 @@ export class PostgresSyncStore implements SyncStore {
                 exprs.push(
                   eb.and([
                     eb("chainId", "=", blockFilter.chainId),
-                    eb("number", ">=", BigInt(blockFilter.criteria.startBlock)),
+                    eb("number", ">=", BigInt(blockFilter.startBlock)),
                     ...(blockFilter.endBlock !== undefined
                       ? [eb("number", "<=", BigInt(blockFilter.endBlock))]
                       : []),
                     sql`(number - ${sql.val(
-                      BigInt(blockFilter.criteria.startBlock),
+                      BigInt(blockFilter.criteria.offset),
                     )}) % ${sql.val(
                       BigInt(blockFilter.criteria.frequency),
                     )} = 0`,

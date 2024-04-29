@@ -370,7 +370,7 @@ export const handleBlock = async (
 
   const isBlockFilterMatched = service.blockSources.some(
     (blockSource) =>
-      (newHeadBlockNumber - blockSource.criteria.startBlock) %
+      (newHeadBlockNumber - blockSource.criteria.offset) %
         blockSource.criteria.frequency ===
       0,
   );

@@ -617,10 +617,11 @@ export async function buildConfigAndIndexingFunctions({
         id: `blocks_${networkName}`,
         networkName,
         chainId: network.chainId,
+        startBlock,
         endBlock,
         criteria: {
-          startBlock,
           frequency: frequency,
+          offset: startBlock % frequency,
         },
       };
     },
