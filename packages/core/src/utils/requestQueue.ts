@@ -72,8 +72,10 @@ export const createRequestQueue = ({
           if (getLogsErrorResponse.shouldRetry === false) throw error;
 
           common.logger.debug({
-            service: "historical",
-            msg: `eth_getLogs request failed, retrying with ranges: [${getLogsErrorResponse.ranges
+            service: "sync",
+            msg: `Caught eth_getLogs error on '${
+              network.name
+            }', retrying with ranges: [${getLogsErrorResponse.ranges
               .map(
                 ({ fromBlock, toBlock }) =>
                   `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(
