@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
-import type { ReadIndexingStore } from "@/indexing-store/store.js";
+import type { ReadonlyStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { graphqlServer } from "@hono/graphql-server";
 import { serve } from "@hono/node-server";
@@ -14,7 +14,7 @@ import {
 } from "./graphql/buildLoaderCache.js";
 
 type Server = {
-  hono: Hono<{ Variables: { store: ReadIndexingStore; getLoader: GetLoader } }>;
+  hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;
   port: number;
   setHealthy: () => void;
   kill: () => Promise<void>;
@@ -22,15 +22,15 @@ type Server = {
 
 export async function createServer({
   graphqlSchema,
-  indexingStore,
+  readonlyStore,
   common,
 }: {
   graphqlSchema: GraphQLSchema;
-  indexingStore: ReadIndexingStore;
+  readonlyStore: ReadonlyStore;
   common: Common;
 }): Promise<Server> {
   const hono = new Hono<{
-    Variables: { store: ReadIndexingStore; getLoader: GetLoader };
+    Variables: { store: ReadonlyStore; getLoader: GetLoader };
   }>();
 
   let port = common.options.port;
@@ -78,9 +78,9 @@ export async function createServer({
       }
 
       if (c.req.method === "POST") {
-        const getLoader = buildLoaderCache({ store: indexingStore });
+        const getLoader = buildLoaderCache({ store: readonlyStore });
 
-        c.set("store", indexingStore);
+        c.set("store", readonlyStore);
         c.set("getLoader", getLoader);
 
         return graphqlServer({
@@ -94,9 +94,9 @@ export async function createServer({
     })
     .use("/", async (c, next) => {
       if (c.req.method === "POST") {
-        const getLoader = buildLoaderCache({ store: indexingStore });
+        const getLoader = buildLoaderCache({ store: readonlyStore });
 
-        c.set("store", indexingStore);
+        c.set("store", readonlyStore);
         c.set("getLoader", getLoader);
 
         return graphqlServer({

@@ -125,7 +125,7 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       const poolConfig = {
-        ...(config.database.poolConfig ?? {}),
+        max: config.database.poolConfig?.max ?? 30,
         connectionString,
       };
 
@@ -207,9 +207,11 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
+      const poolConfig = { max: 30, connectionString };
+
       databaseConfig = {
         kind: "postgres",
-        poolConfig: { connectionString },
+        poolConfig,
         schema,
         publishSchema,
       };

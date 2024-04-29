@@ -68,9 +68,12 @@ function improveSqliteErrors(database: BetterSqlite3.Database) {
 
 export type SqliteDatabase = BetterSqlite3.Database;
 
-export function createSqliteDatabase(file: string): SqliteDatabase {
+export function createSqliteDatabase(
+  file: string,
+  options?: BetterSqlite3.Options,
+): SqliteDatabase {
   ensureDirExists(file);
-  const database = new BetterSqlite3(file);
+  const database = new BetterSqlite3(file, options);
   improveSqliteErrors(database);
   database.pragma("journal_mode = WAL");
   return database;

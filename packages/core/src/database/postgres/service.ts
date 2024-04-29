@@ -1,5 +1,6 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
+import type { PoolConfig } from "@/config/database.js";
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
@@ -24,7 +25,7 @@ import {
   WithSchemaPlugin,
   sql,
 } from "kysely";
-import type { Pool, PoolConfig } from "pg";
+import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "../kysely.js";
 import { revertIndexingTables } from "../revert.js";
@@ -40,65 +41,63 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   private internalNamespace = "ponder";
 
   private common: Common;
-  private poolConfig: PoolConfig;
   private userNamespace: string;
   private publishSchema?: string | undefined;
 
   db: HeadlessKysely<InternalTables>;
-  indexingDb: HeadlessKysely<any>;
   syncDb: HeadlessKysely<SyncStoreTables>;
+  indexingDb: HeadlessKysely<any>;
+  readonlyDb: HeadlessKysely<any>;
 
   private schema: Schema = null!;
   private buildId: string = null!;
   private heartbeatInterval?: NodeJS.Timeout;
 
   // Only need these for metrics.
-  private adminPool: Pool;
-  private indexingPool: Pool;
+  private internalPool: Pool;
   private syncPool: Pool;
+  private indexingPool: Pool;
+  private readonlyPool: Pool;
 
   constructor({
     common,
     poolConfig,
     userNamespace,
     publishSchema,
+    isReadonly = false,
   }: {
     common: Common;
     poolConfig: PoolConfig;
     userNamespace: string;
     publishSchema?: string | undefined;
+    isReadonly?: boolean;
   }) {
     this.common = common;
-    this.poolConfig = poolConfig;
     this.userNamespace = userNamespace;
     this.publishSchema = publishSchema;
 
-    this.adminPool = createPool({
+    const internalMax = 2;
+    const equalMax = Math.floor((poolConfig.max - internalMax) / 3);
+    const [readonlyMax, indexingMax, syncMax] = isReadonly
+      ? [poolConfig.max - internalMax, 0, 0]
+      : [equalMax, equalMax, equalMax];
+
+    this.internalPool = createPool({
       ...poolConfig,
-      // 10 minutes to accommodate slow sync store migrations.
-      statement_timeout: 10 * 60 * 1000,
+      max: internalMax,
+      statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
     });
-    this.indexingPool = createPool(this.poolConfig);
-    this.syncPool = createPool(this.poolConfig);
+    this.syncPool = createPool({ ...poolConfig, max: readonlyMax });
+    this.indexingPool = createPool({ ...poolConfig, max: indexingMax });
+    this.readonlyPool = createPool({ ...poolConfig, max: syncMax });
 
     this.db = new HeadlessKysely<InternalTables>({
-      name: "admin",
+      name: "internal",
       common,
-      dialect: new PostgresDialect({ pool: this.adminPool }),
+      dialect: new PostgresDialect({ pool: this.internalPool }),
       log(event) {
         if (event.level === "query") {
-          common.metrics.ponder_postgres_query_total.inc({ pool: "admin" });
-        }
-      },
-    });
-
-    this.indexingDb = new HeadlessKysely<InternalTables>({
-      name: "indexing",
-      common,
-      dialect: new PostgresDialect({ pool: this.indexingPool }),
-      log(event) {
-        if (event.level === "query") {
-          common.metrics.ponder_postgres_query_total.inc({ pool: "indexing" });
+          common.metrics.ponder_postgres_query_total.inc({ pool: "internal" });
         }
       },
     });
@@ -113,6 +112,28 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         }
       },
       plugins: [new WithSchemaPlugin("ponder_sync")],
+    });
+
+    this.indexingDb = new HeadlessKysely<InternalTables>({
+      name: "indexing",
+      common,
+      dialect: new PostgresDialect({ pool: this.indexingPool }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_postgres_query_total.inc({ pool: "indexing" });
+        }
+      },
+    });
+
+    this.readonlyDb = new HeadlessKysely<InternalTables>({
+      name: "readonly",
+      common,
+      dialect: new PostgresDialect({ pool: this.readonlyPool }),
+      log(event) {
+        if (event.level === "query") {
+          common.metrics.ponder_postgres_query_total.inc({ pool: "readonly" });
+        }
+      },
     });
 
     this.registerMetrics();
@@ -446,13 +467,15 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         msg: `Released lock on namespace '${this.userNamespace}'`,
       });
 
+      await this.readonlyDb.destroy();
       await this.indexingDb.destroy();
       await this.syncDb.destroy();
       await this.db.destroy();
 
+      await this.readonlyPool.end();
       await this.indexingPool.end();
       await this.syncPool.end();
-      await this.adminPool.end();
+      await this.internalPool.end();
 
       this.common.logger.debug({
         service: "database",
@@ -584,25 +607,36 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         registers: [this.common.metrics.registry],
         collect() {
           this.set(
-            { pool: "indexing", kind: "idle" },
-            service.indexingPool.idleCount,
+            { pool: "internal", kind: "idle" },
+            service.internalPool.idleCount,
           );
+          this.set(
+            { pool: "internal", kind: "total" },
+            service.internalPool.totalCount,
+          );
+
           this.set({ pool: "sync", kind: "idle" }, service.syncPool.idleCount);
           this.set(
-            { pool: "admin", kind: "idle" },
-            service.adminPool.idleCount,
+            { pool: "sync", kind: "total" },
+            service.syncPool.totalCount,
+          );
+
+          this.set(
+            { pool: "indexing", kind: "idle" },
+            service.indexingPool.idleCount,
           );
           this.set(
             { pool: "indexing", kind: "total" },
             service.indexingPool.totalCount,
           );
+
           this.set(
-            { pool: "sync", kind: "total" },
-            service.syncPool.totalCount,
+            { pool: "readonly", kind: "idle" },
+            service.readonlyPool.idleCount,
           );
           this.set(
-            { pool: "admin", kind: "total" },
-            service.adminPool.totalCount,
+            { pool: "readonly", kind: "total" },
+            service.readonlyPool.totalCount,
           );
         },
       },
@@ -618,9 +652,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         labelNames: ["pool"] as const,
         registers: [this.common.metrics.registry],
         collect() {
-          this.set({ pool: "indexing" }, service.indexingPool.waitingCount);
+          this.set({ pool: "internal" }, service.internalPool.waitingCount);
           this.set({ pool: "sync" }, service.syncPool.waitingCount);
-          this.set({ pool: "admin" }, service.adminPool.waitingCount);
+          this.set({ pool: "indexing" }, service.indexingPool.waitingCount);
+          this.set({ pool: "readonly" }, service.readonlyPool.waitingCount);
         },
       },
     );
