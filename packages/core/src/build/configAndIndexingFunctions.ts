@@ -124,9 +124,14 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
+      const poolConfig = {
+        ...(config.database.poolConfig ?? {}),
+        connectionString,
+      };
+
       databaseConfig = {
         kind: "postgres",
-        poolConfig: { connectionString },
+        poolConfig,
         schema,
         publishSchema,
       };
