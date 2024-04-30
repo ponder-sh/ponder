@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { Hash, createHash } from "node:crypto";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import type { Config } from "@/config/config.js";
@@ -33,6 +33,9 @@ export type Service = {
   viteDevServer: ViteDevServer;
   viteNodeServer: ViteNodeServer;
   viteNodeRunner: ViteNodeRunner;
+
+  // state
+  hash: Hash;
 };
 
 export type Build = {
@@ -97,13 +100,20 @@ export const create = async ({
     },
   };
 
+  const hash = createHash("sha256");
+
   const viteDevServer = await createServer({
     root: common.options.rootDir,
     cacheDir: path.join(common.options.ponderDir, "vite"),
     publicDir: false,
     customLogger: viteLogger,
     server: { hmr: false },
-    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
+    plugins: [
+      viteTsconfigPathsPlugin(),
+      vitePluginPonder((x: string) => {
+        hash.update(x);
+      }),
+    ],
   });
 
   // This is Vite boilerplate (initializes the Rollup container).
@@ -126,6 +136,7 @@ export const create = async ({
     viteDevServer,
     viteNodeServer,
     viteNodeRunner,
+    hash,
   };
 };
 
@@ -372,7 +383,7 @@ const executeIndexingFunctions = async (
 };
 
 const validateAndBuild = async (
-  { common }: Pick<Service, "common">,
+  { common, hash }: Pick<Service, "common" | "hash">,
   rawBuild: RawBuild,
 ): Promise<BuildResult> => {
   // Validate and build the schema
@@ -412,10 +423,15 @@ const validateAndBuild = async (
     common.logger[log.level]({ service: "build", msg: log.msg });
   }
 
+  const buildId = hash
+    .update(JSON.stringify({ version: 1 }))
+    .digest("hex")
+    .slice(0, 16);
+
   return {
     status: "success",
     build: {
-      buildId: randomBytes(5).toString("hex"),
+      buildId,
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,

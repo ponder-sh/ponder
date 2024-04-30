@@ -22,10 +22,14 @@ export function replaceStateless(code: string) {
   return s;
 }
 
-export const vitePluginPonder = (): Plugin => {
+export const vitePluginPonder = (
+  addCodeToHash: (code: string) => void,
+): Plugin => {
   return {
     name: "ponder",
     transform: (code, id) => {
+      addCodeToHash(code);
+
       if (regex.test(code)) {
         const s = replaceStateless(code);
         const transformed = s.toString();
