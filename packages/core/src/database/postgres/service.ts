@@ -184,7 +184,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     } satisfies NamespaceInfo;
 
     return this.db.wrap({ method: "setup" }, async () => {
-      await this.db.transaction().execute(async (tx) => {
+      const checkpoint = await this.db.transaction().execute(async (tx) => {
         const previousLockRow = await tx
           .withSchema(this.internalNamespace)
           .selectFrom("namespace_lock")
@@ -214,12 +214,47 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           });
         }
         // If there is a row, but the lock is not held or has expired,
-        // we can drop the previous app's tables and acquire the lock.
+        // we can acquire the lock and drop the previous app's tables.
         else if (
           previousLockRow.is_locked === 0 ||
           Date.now() > previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
         ) {
-          // Drop the previous app's tables.
+          // // If the previous row has the same build ID, continue where the previous app left off
+          // // by reverting tables to the finalized checkpoint, then returning.
+          // if (previousLockRow.build_id === this.buildId) {
+          //   const finalizedCheckpoint = decodeCheckpoint(
+          //     previousLockRow.finalized_checkpoint,
+          //   );
+
+          //   const duration =
+          //     Math.floor(Date.now() / 1000) - finalizedCheckpoint.blockTimestamp;
+          //   const progressText =
+          //     finalizedCheckpoint.blockTimestamp > 0
+          //       ? `last used ${formatShortDate(duration)} ago`
+          //       : "with no progress";
+          //   this.common.logger.debug({
+          //     service: "database",
+          //     msg: `Cache hit for build ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
+          //   });
+
+          //   // Acquire the lock and update the heartbeat (build_id, schema, ).
+          //   await tx
+          //     .withSchema(this.internalNamespace)
+          //     .updateTable("namespace_lock")
+          //     .set({
+          //       is_locked: 1,
+          //       heartbeat_at: encodeAsText(BigInt(Date.now())),
+          //     })
+          //     .execute();
+
+          //   // Revert the tables to the finalized checkpoint. Note that this also updates
+          //   // the namespace_lock table to reflect the new finalized checkpoint.
+          //   // TODO MOVE THIS BACK await this.revert({ checkpoint: finalizedCheckpoint });
+
+          //   return finalizedCheckpoint;
+          // }
+
+          // If the previous row has a different build ID, drop the previous app's tables.
           const previousBuildId = previousLockRow.build_id;
           const previousSchema = previousLockRow.schema as unknown as Schema;
 
@@ -254,7 +289,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             });
           }
 
-          // Update the lock row.
+          // Update the lock row to reflect the new build ID and checkpoint progress.
           await tx
             .withSchema(this.internalNamespace)
             .updateTable("namespace_lock")
@@ -308,6 +343,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             msg: `Created table '${this.userNamespace}'.'${tableName}'`,
           });
         }
+
+        return zeroCheckpoint;
       });
 
       // Start the heartbeat interval to hold the lock for as long as the process is running.
@@ -337,7 +374,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         }
       }, HEARTBEAT_INTERVAL_MS);
 
-      return { namespaceInfo };
+      return { checkpoint, namespaceInfo };
     });
   }
 
