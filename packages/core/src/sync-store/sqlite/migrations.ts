@@ -785,6 +785,11 @@ const migrations: Record<string, Migration> = {
         .column("number")
         .execute();
       await db.schema
+        .createIndex("blockChainIdIndex")
+        .on("blocks")
+        .column("chainId")
+        .execute();
+      await db.schema
         .createIndex("blockCheckpointIndex")
         .on("blocks")
         .column("checkpoint")

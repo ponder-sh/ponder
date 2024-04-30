@@ -779,7 +779,19 @@ export class PostgresSyncStore implements SyncStore {
           await tx
             .insertInto("transactionReceipts")
             .values(transactionReceipts)
-            .onConflict((oc) => oc.column("transactionHash").doNothing())
+            .onConflict((oc) =>
+              oc.column("transactionHash").doUpdateSet((eb) => ({
+                blockHash: eb.ref("excluded.blockHash"),
+                blockNumber: eb.ref("excluded.blockNumber"),
+                contractAddress: eb.ref("excluded.contractAddress"),
+                cumulativeGasUsed: eb.ref("excluded.cumulativeGasUsed"),
+                effectiveGasPrice: eb.ref("excluded.effectiveGasPrice"),
+                gasUsed: eb.ref("excluded.gasUsed"),
+                logs: eb.ref("excluded.logs"),
+                logsBloom: eb.ref("excluded.logsBloom"),
+                transactionIndex: eb.ref("excluded.transactionIndex"),
+              })),
+            )
             .execute();
         }
 
@@ -862,6 +874,11 @@ export class PostgresSyncStore implements SyncStore {
           .deleteFrom("logs")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)
+          .execute();
+        await tx
+          .deleteFrom("blocks")
+          .where("chainId", "=", chainId)
+          .where("number", ">", fromBlock)
           .execute();
         await tx
           .deleteFrom("rpcRequestResults")
