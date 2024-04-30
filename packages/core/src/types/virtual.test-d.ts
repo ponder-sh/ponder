@@ -51,6 +51,14 @@ const config = createConfig({
       },
     },
   },
+  blocks: {
+    b1: {
+      mainnet: {
+        frequency: 2,
+        startBlock: 1,
+      },
+    },
+  },
 });
 
 const schema = createSchema((p) => ({
@@ -60,10 +68,13 @@ const schema = createSchema((p) => ({
 }));
 
 test("FormatEventNames without filter", () => {
-  type a = Virtual.FormatEventNames<{
+  type a = Virtual.FormatEventNames<
     // ^?
-    contract: { abi: abi; network: "" };
-  }>;
+    {
+      contract: { abi: abi; network: "" };
+    },
+    {}
+  >;
 
   type eventNames =
     | "contract:setup"
@@ -76,10 +87,13 @@ test("FormatEventNames without filter", () => {
 });
 
 test("FormatEvent names with filter", () => {
-  type a = Virtual.FormatEventNames<{
+  type a = Virtual.FormatEventNames<
     // ^?
-    contract: { abi: abi; network: ""; filter: { event: "Event1()" } };
-  }>;
+    {
+      contract: { abi: abi; network: ""; filter: { event: "Event1()" } };
+    },
+    {}
+  >;
 
   type eventNames = "contract:setup" | "contract:Event1()";
 
@@ -88,14 +102,17 @@ test("FormatEvent names with filter", () => {
 });
 
 test("FormatEvent names with filter array", () => {
-  type a = Virtual.FormatEventNames<{
+  type a = Virtual.FormatEventNames<
     // ^?
-    contract: {
-      abi: abi;
-      network: "";
-      filter: { event: readonly ["Event1()"] };
-    };
-  }>;
+    {
+      contract: {
+        abi: abi;
+        network: "";
+        filter: { event: readonly ["Event1()"] };
+      };
+    },
+    {}
+  >;
 
   type eventNames = "contract:setup" | "contract:Event1()";
 
@@ -104,10 +121,13 @@ test("FormatEvent names with filter array", () => {
 });
 
 test("FormatEventNames with semi-weak abi", () => {
-  type a = Virtual.FormatEventNames<{
+  type a = Virtual.FormatEventNames<
     // ^?
-    contract: { abi: abi[number][]; network: "" };
-  }>;
+    {
+      contract: { abi: abi[number][]; network: "" };
+    },
+    {}
+  >;
 
   type eventNames =
     | "contract:setup"
@@ -120,13 +140,27 @@ test("FormatEventNames with semi-weak abi", () => {
 });
 
 test("FormatEventNames with weak abi", () => {
-  type a = Virtual.FormatEventNames<{
+  type a = Virtual.FormatEventNames<
     // ^?
-    contract: { abi: Abi; network: "" };
-  }>;
+    {
+      contract: { abi: Abi; network: "" };
+    },
+    {}
+  >;
 
   assertType<a>({} as any as "contract:setup");
   assertType<"contract:setup">({} as any as a);
+});
+
+test("FormatEventName with blocks", () => {
+  type a = Virtual.FormatEventNames<
+    // ^?
+    {},
+    { block: { mainnet: { frequency: 2; startBlock: 1 } } }
+  >;
+
+  assertType<a>({} as any as "block:block");
+  assertType<"block:block">({} as any as a);
 });
 
 test("Context db", () => {
@@ -262,6 +296,18 @@ test("Event with unnamed parameters", () => {
     log: Log;
     block: Block;
     transaction: Transaction;
+  };
+
+  assertType<a>({} as any as expectedEvent);
+  assertType<expectedEvent>({} as any as a);
+});
+
+test("Event with Block", () => {
+  type a = Virtual.Event<typeof config, "b1:block">;
+  //   ^?
+
+  type expectedEvent = {
+    block: Block;
   };
 
   assertType<a>({} as any as expectedEvent);

@@ -267,16 +267,11 @@ export async function buildConfigAndIndexingFunctions({
   const indexingFunctions: IndexingFunctions = {};
 
   for (const { name: eventName, fn } of rawIndexingFunctions) {
-    if (eventName === "blocks") {
-      indexingFunctions[eventName] = fn;
-      indexingFunctionCount += 1;
-      continue;
-    }
     const eventNameComponents = eventName.split(":");
-    const [sourceName, logEventName] = eventNameComponents;
-    if (eventNameComponents.length !== 2 || !sourceName || !logEventName) {
+    const [sourceName, sourceEventName] = eventNameComponents;
+    if (eventNameComponents.length !== 2 || !sourceName || !sourceEventName) {
       throw new Error(
-        `Validation failed: Invalid event '${eventName}', expected format '{contractName}:{logEventName}'.`,
+        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}'.`,
       );
     }
 
@@ -286,15 +281,19 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    // Validate that the indexing function uses a contractName that is present in the config.
-    const matchedContractName = Object.keys(config.contracts).find(
-      (contractName) => contractName === sourceName,
-    );
-    if (!matchedContractName) {
-      // Multi-network contracts have N sources, but the hint here should not have duplicates.
-      const uniqueContractNames = dedupe(Object.keys(config.contracts));
+    // Validate that the indexing function uses a sourceName that is present in the config.
+    const matchedSourceName = Object.keys({
+      ...(config.contracts ?? {}),
+      ...(config.blocks ?? {}),
+    }).find((_sourceName) => _sourceName === sourceName);
+
+    if (!matchedSourceName) {
+      // Multi-network has N sources, but the hint here should not have duplicates.
+      const uniqueSourceNames = dedupe(
+        Object.keys({ ...(config.contracts ?? {}), ...(config.blocks ?? {}) }),
+      );
       throw new Error(
-        `Validation failed: Invalid contract name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueContractNames
+        `Validation failed: Invalid source name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueSourceNames
           .map((n) => `'${n}'`)
           .join(", ")}].`,
       );
@@ -584,61 +583,68 @@ export async function buildConfigAndIndexingFunctions({
       if (!hasRegisteredIndexingFunctions) {
         logs.push({
           level: "debug",
-          msg: `No indexing functions were registered for contract ${source.contractName}`,
+          msg: `No indexing functions were registered for contract '${source.contractName}'`,
         });
       }
       return hasRegisteredIndexingFunctions;
     });
 
   const blockSources: BlockSource[] = Object.entries(config.blocks ?? {})
-    .map(([networkName, blockConfig]) => {
-      const network = networks.find((n) => n.name === networkName);
-      if (!network) {
-        throw new Error(
-          `Validation failed: Invalid network for blocks. Got '${networkName}', expected one of [${networks
-            .map((n) => `'${n.name}'`)
-            .join(", ")}].`,
-        );
-      }
+    .flatMap(([sourceName, networkBlockSource]) => {
+      return Object.entries(networkBlockSource).map(
+        ([networkName, blockConfig]) => {
+          const network = networks.find((n) => n.name === networkName);
+          if (!network) {
+            throw new Error(
+              `Validation failed: Invalid network for block source '${sourceName}'. Got '${networkName}', expected one of [${networks
+                .map((n) => `'${n.name}'`)
+                .join(", ")}].`,
+            );
+          }
 
-      const startBlockMaybeNan = blockConfig.startBlock ?? 0;
-      const startBlock = Number.isNaN(startBlockMaybeNan)
-        ? 0
-        : startBlockMaybeNan;
-      const endBlockMaybeNan = blockConfig.endBlock;
-      const endBlock = Number.isNaN(endBlockMaybeNan)
-        ? undefined
-        : endBlockMaybeNan;
+          const startBlockMaybeNan = blockConfig.startBlock ?? 0;
+          const startBlock = Number.isNaN(startBlockMaybeNan)
+            ? 0
+            : startBlockMaybeNan;
+          const endBlockMaybeNan = blockConfig.endBlock;
+          const endBlock = Number.isNaN(endBlockMaybeNan)
+            ? undefined
+            : endBlockMaybeNan;
 
-      const frequencyMaybeNan = blockConfig.frequency;
-      const frequency = Number.isNaN(frequencyMaybeNan) ? 0 : frequencyMaybeNan;
+          const frequencyMaybeNan = blockConfig.frequency;
+          const frequency = Number.isNaN(frequencyMaybeNan)
+            ? 0
+            : frequencyMaybeNan;
 
-      if (!Number.isInteger(frequency) || frequency === 0) {
-        throw Error(
-          `Validation failed: Invalid frequency for ${networkName} blocks. Got ${blockConfig.frequency}, expected a non-zero integer.`,
-        );
-      }
+          if (!Number.isInteger(frequency) || frequency === 0) {
+            throw Error(
+              `Validation failed: Invalid frequency for block source '${sourceName}'. Got ${blockConfig.frequency}, expected a non-zero integer.`,
+            );
+          }
 
-      return {
-        type: "block",
-        id: `blocks_${networkName}`,
-        networkName,
-        chainId: network.chainId,
-        startBlock,
-        endBlock,
-        criteria: {
-          frequency: frequency,
-          offset: startBlock % frequency,
+          return {
+            type: "block",
+            id: `${sourceName}_${networkName}`,
+            sourceName,
+            networkName,
+            chainId: network.chainId,
+            startBlock,
+            endBlock,
+            criteria: {
+              frequency: frequency,
+              offset: startBlock % frequency,
+            },
+          } as const;
         },
-      } as const;
+      );
     })
-    .filter(() => {
+    .filter((blockSource) => {
       const hasRegisteredIndexingFunction =
-        indexingFunctions.blocks !== undefined;
+        indexingFunctions[`${blockSource.sourceName}:block`] !== undefined;
       if (!hasRegisteredIndexingFunction) {
         logs.push({
           level: "debug",
-          msg: "No indexing functions were registered for blocks",
+          msg: `No indexing functions were registered for block source '${blockSource.sourceName}'`,
         });
       }
       return hasRegisteredIndexingFunction;
@@ -654,7 +660,7 @@ export async function buildConfigAndIndexingFunctions({
     if (!hasSources) {
       logs.push({
         level: "warn",
-        msg: `No contracts registered for network '${network.name}'`,
+        msg: `No sources registered for network '${network.name}'`,
       });
     }
     return hasSources;

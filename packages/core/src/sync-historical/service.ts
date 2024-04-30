@@ -450,7 +450,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               completed: [[startBlock, finalizedBlockNumber]],
             });
             this.common.metrics.ponder_historical_total_blocks.set(
-              { network: this.network.name, source: "blocks" },
+              { network: this.network.name, source: source.sourceName },
               0,
             );
             this.common.logger.warn({
@@ -507,11 +507,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             targetBlockCount - intervalSum(requiredBlockFilterIntervals);
 
           this.common.metrics.ponder_historical_total_blocks.set(
-            { network: this.network.name, source: "blocks" },
+            { network: this.network.name, source: source.sourceName },
             targetBlockCount,
           );
           this.common.metrics.ponder_historical_cached_blocks.set(
-            { network: this.network.name, source: "blocks" },
+            { network: this.network.name, source: source.sourceName },
             cachedBlockCount,
           );
 
@@ -975,7 +975,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
-          { network: this.network.name, source: "blocks" },
+          { network: this.network.name, source: blockFilter.sourceName },
           endBlock - startBlock + 1,
         );
       } else {
@@ -994,7 +994,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           });
 
           this.common.metrics.ponder_historical_completed_blocks.inc(
-            { network: this.network.name, source: "blocks" },
+            { network: this.network.name, source: blockFilter.sourceName },
             endBlock - startBlock + 1,
           );
         });

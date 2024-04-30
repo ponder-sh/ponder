@@ -44,7 +44,8 @@ export type FactorySource = BaseLogSource & {
 
 export type BlockSource = {
   type: "block";
-  id: string; // networkName
+  id: string;
+  sourceName: string;
   networkName: string;
   chainId: number;
   startBlock: number;

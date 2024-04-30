@@ -167,28 +167,43 @@ type NetworksConfig<networks> = {} extends networks
       [networkName in keyof networks]: NetworkConfig<networks[networkName]>;
     };
 
-export const createConfig = <const networks, const contracts>(config: {
+type BlockFiltersConfig<
+  networks = unknown,
+  blocks = unknown,
+> = {} extends blocks
+  ? {}
+  : {
+      [name in keyof blocks]: GetBlockFilter<networks>;
+    };
+
+export const createConfig = <
+  const networks,
+  const contracts = {},
+  const blocks = {},
+>(config: {
   // TODO: add jsdoc to these properties.
   networks: NetworksConfig<Narrow<networks>>;
-  contracts: ContractsConfig<networks, Narrow<contracts>>;
+  contracts?: ContractsConfig<networks, Narrow<contracts>>;
   database?: DatabaseConfig;
   options?: OptionConfig;
-  blocks?: GetBlockFilter<networks>;
-}): CreateConfigReturnType<networks, contracts> =>
-  config as CreateConfigReturnType<networks, contracts>;
+  blocks?: BlockFiltersConfig<networks, blocks>;
+}): CreateConfigReturnType<networks, contracts, blocks> =>
+  config as Prettify<CreateConfigReturnType<networks, contracts, blocks>>;
 
 export type Config = {
-  networks: { [name: string]: NetworkConfig<unknown> };
-  contracts: { [name: string]: GetContract };
+  networks: { [networkName: string]: NetworkConfig<unknown> };
+  contracts: { [contractName: string]: GetContract };
   database?: DatabaseConfig;
   options?: OptionConfig;
-  blocks?: { [name: string]: BlockFilterConfig };
+  blocks?: {
+    [sourceName: string]: { [networkName: string]: BlockFilterConfig };
+  };
 };
 
-export type CreateConfigReturnType<networks, contracts> = {
+export type CreateConfigReturnType<networks, contracts, blocks> = {
   networks: networks;
   contracts: contracts;
   database?: DatabaseConfig;
   options?: OptionConfig;
-  blocks?: GetBlockFilter<networks>;
+  blocks: blocks;
 };

@@ -32,11 +32,18 @@ export namespace Virtual {
       : safeEventNames;
 
   /** "{ContractName}:{EventName}". */
-  export type FormatEventNames<contracts extends Config["contracts"]> = {
-    [name in keyof contracts]: `${name & string}:${
-      | _FormatEventNames<contracts[name]>
-      | Setup}`;
-  }[keyof contracts];
+  export type FormatEventNames<
+    contracts extends Config["contracts"],
+    blocks extends Config["blocks"],
+  > =
+    | {
+        [name in keyof contracts]: `${name & string}:${
+          | _FormatEventNames<contracts[name]>
+          | Setup}`;
+      }[keyof contracts]
+    | {
+        [name in keyof blocks]: `${name & string}:block`;
+      }[keyof blocks];
 
   export type ExtractEventName<name extends string> =
     name extends `${string}:${infer EventName extends string}`
@@ -48,9 +55,10 @@ export namespace Virtual {
       ? ContractName
       : never;
 
-  export type EventNames<config extends Config> =
-    | FormatEventNames<config["contracts"]>
-    | "blocks";
+  export type EventNames<config extends Config> = FormatEventNames<
+    config["contracts"],
+    config["blocks"]
+  >;
 
   export type Event<
     config extends Config,
@@ -58,7 +66,7 @@ export namespace Virtual {
     ///
     contractName extends ExtractContractName<name> = ExtractContractName<name>,
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
-  > = name extends "blocks"
+  > = name extends `${string}:block`
     ? { block: Prettify<Block> }
     : eventName extends Setup
       ? never

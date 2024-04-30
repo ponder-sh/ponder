@@ -314,13 +314,15 @@ export const processEvents = async (
       }
 
       case "block": {
-        indexingService.eventCount.blocks[
+        const eventName = `${event.sourceName}:block`;
+
+        indexingService.eventCount[eventName][
           indexingService.networkByChainId[event.chainId].name
         ]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
-          msg: `Started indexing function (event="blocks", checkpoint=${event.encodedCheckpoint})`,
+          msg: `Started indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
         });
 
         const result = await executeBlock(indexingService, { event });
@@ -328,12 +330,12 @@ export const processEvents = async (
           return result;
         }
 
-        if (eventCounts.blocks === undefined) eventCounts.blocks = 0;
-        eventCounts.blocks++;
+        if (eventCounts[eventName] === undefined) eventCounts[eventName] = 0;
+        eventCounts[eventName]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
-          msg: `Completed indexing function (event="blocks", checkpoint=${event.encodedCheckpoint})`,
+          msg: `Completed indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
         });
 
         break;
@@ -581,10 +583,11 @@ const executeBlock = async (
     contractsByChainId,
     clientByChainId,
   } = indexingService;
-  const indexingFunction = indexingFunctions.blocks;
+  const eventName = `${event.sourceName}:block`;
+  const indexingFunction = indexingFunctions[eventName];
 
   const metricLabel = {
-    event: "blocks",
+    event: eventName,
     network: networkByChainId[event.chainId].name,
   };
 
@@ -622,7 +625,7 @@ const executeBlock = async (
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing "blocks" event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+      msg: `Error while processing ${eventName} event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
       error,
     });
 
