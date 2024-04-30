@@ -18,8 +18,15 @@ const httpRequestSizeBytes = [
 export class MetricsService {
   registry: prometheus.Registry;
 
-  ponder_rpc_request_duration: prometheus.Histogram<"network" | "method">;
-  ponder_rpc_request_lag: prometheus.Histogram<"network" | "method">;
+  ponder_indexing_total_seconds: prometheus.Gauge;
+  ponder_indexing_completed_seconds: prometheus.Gauge;
+  ponder_indexing_completed_events: prometheus.Gauge<"network" | "event">;
+
+  ponder_indexing_completed_timestamp: prometheus.Gauge;
+  ponder_indexing_has_error: prometheus.Gauge;
+
+  ponder_indexing_function_duration: prometheus.Histogram<"network" | "event">;
+  ponder_indexing_function_error_total: prometheus.Counter<"network" | "event">;
 
   ponder_historical_start_timestamp: prometheus.Gauge<"network">;
   ponder_historical_total_blocks: prometheus.Gauge<"network" | "contract">;
@@ -31,15 +38,8 @@ export class MetricsService {
   ponder_realtime_latest_block_timestamp: prometheus.Gauge<"network">;
   ponder_realtime_reorg_total: prometheus.Counter<"network">;
 
-  ponder_indexing_total_seconds: prometheus.Gauge;
-  ponder_indexing_completed_seconds: prometheus.Gauge;
-  ponder_indexing_completed_events: prometheus.Gauge<"network" | "event">;
-
-  ponder_indexing_completed_timestamp: prometheus.Gauge;
-  ponder_indexing_has_error: prometheus.Gauge;
-
-  ponder_indexing_function_duration: prometheus.Histogram<"network" | "event">;
-  ponder_indexing_function_error_total: prometheus.Counter<"network" | "event">;
+  ponder_database_method_duration: prometheus.Histogram<"service" | "method">;
+  ponder_database_method_error_total: prometheus.Counter<"service" | "method">;
 
   ponder_http_server_port: prometheus.Gauge;
   ponder_http_server_active_requests: prometheus.Gauge<"method" | "path">;
@@ -53,8 +53,8 @@ export class MetricsService {
     "method" | "path" | "status"
   >;
 
-  ponder_database_method_duration: prometheus.Histogram<"service" | "method">;
-  ponder_database_method_error_total: prometheus.Counter<"service" | "method">;
+  ponder_rpc_request_duration: prometheus.Histogram<"network" | "method">;
+  ponder_rpc_request_lag: prometheus.Histogram<"network" | "method">;
 
   ponder_postgres_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
   ponder_postgres_query_queue_size: prometheus.Gauge<"pool"> = null!;
@@ -88,7 +88,7 @@ export class MetricsService {
     });
     this.ponder_indexing_has_error = new prometheus.Gauge({
       name: "ponder_indexing_has_error",
-      help: "Boolean (0 or 1) indicating if an error was encountered while running user code",
+      help: "Boolean (0 or 1) indicating if there is an indexing error",
       registers: [this.registry],
     });
     this.ponder_indexing_function_duration = new prometheus.Histogram({
@@ -169,21 +169,6 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    this.ponder_rpc_request_duration = new prometheus.Histogram({
-      name: "ponder_rpc_request_duration",
-      help: "Duration of RPC requests",
-      labelNames: ["network", "method"] as const,
-      buckets: httpRequestDurationMs,
-      registers: [this.registry],
-    });
-    this.ponder_rpc_request_lag = new prometheus.Histogram({
-      name: "ponder_rpc_request_lag",
-      help: "Time RPC requests spend waiting in the request queue",
-      labelNames: ["network", "method"] as const,
-      buckets: httpRequestDurationMs,
-      registers: [this.registry],
-    });
-
     this.ponder_http_server_port = new prometheus.Gauge({
       name: "ponder_http_server_port",
       help: "Port that the server is listening on",
@@ -214,6 +199,21 @@ export class MetricsService {
       help: "Size of HTTP responses served the server",
       labelNames: ["method", "path", "status"] as const,
       buckets: httpRequestSizeBytes,
+      registers: [this.registry],
+    });
+
+    this.ponder_rpc_request_duration = new prometheus.Histogram({
+      name: "ponder_rpc_request_duration",
+      help: "Duration of RPC requests",
+      labelNames: ["network", "method"] as const,
+      buckets: httpRequestDurationMs,
+      registers: [this.registry],
+    });
+    this.ponder_rpc_request_lag = new prometheus.Histogram({
+      name: "ponder_rpc_request_lag",
+      help: "Time RPC requests spend waiting in the request queue",
+      labelNames: ["network", "method"] as const,
+      buckets: httpRequestDurationMs,
       registers: [this.registry],
     });
 
