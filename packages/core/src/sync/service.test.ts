@@ -5,7 +5,6 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
-import { promiseWithResolvers } from "@ponder/common";
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import {
   create,
