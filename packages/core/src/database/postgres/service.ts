@@ -222,9 +222,13 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           previousLockRow.is_locked === 0 ||
           Date.now() > previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
         ) {
-          // // If the previous row has the same build ID, continue where the previous app left off
-          // // by reverting tables to the finalized checkpoint, then returning.
-          if (previousLockRow.build_id === this.buildId) {
+          // If the previous row has the same build ID, continue where the previous app left off
+          // by reverting tables to the finalized checkpoint, then returning.
+          if (
+            previousLockRow.build_id === this.buildId &&
+            previousLockRow.finalized_checkpoint !==
+              encodeCheckpoint(zeroCheckpoint)
+          ) {
             const finalizedCheckpoint = decodeCheckpoint(
               previousLockRow.finalized_checkpoint,
             );

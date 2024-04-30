@@ -423,15 +423,15 @@ const validateAndBuild = async (
     common.logger[log.level]({ service: "build", msg: log.msg });
   }
 
-  const buildId = hash
-    .update(JSON.stringify({ version: 1 }))
-    .digest("hex")
-    .slice(0, 16);
+  // const buildId = hash
+  //   .update(JSON.stringify({ version: 1 }))
+  //   .digest("hex")
+  //   .slice(0, 16);
 
   return {
     status: "success",
     build: {
-      buildId,
+      buildId: "TODO:Kyle",
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,

@@ -196,7 +196,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         ) {
           // If the previous row has the same build ID, continue where the previous app left off
           // by reverting tables to the finalized checkpoint, then returning.
-          if (previousLockRow.build_id === this.buildId) {
+          if (
+            previousLockRow.build_id === this.buildId &&
+            previousLockRow.finalized_checkpoint !==
+              encodeCheckpoint(zeroCheckpoint)
+          ) {
             const finalizedCheckpoint = decodeCheckpoint(
               previousLockRow.finalized_checkpoint,
             );

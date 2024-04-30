@@ -16,7 +16,6 @@ import {
   isCheckpointEqual,
   isCheckpointGreaterThan,
   maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
@@ -74,6 +73,7 @@ export const create = async ({
   sources,
   onRealtimeEvent,
   onFatalError,
+  initialCheckpoint,
 }: {
   common: Common;
   syncStore: SyncStore;
@@ -81,6 +81,7 @@ export const create = async ({
   sources: EventSource[];
   onRealtimeEvent: (realtimeEvent: RealtimeEvent) => Promise<void>;
   onFatalError: (error: Error) => void;
+  initialCheckpoint: Checkpoint;
 }): Promise<Service> => {
   const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
     acc[cur.id] = cur;
@@ -104,6 +105,7 @@ export const create = async ({
             .map((ns) => ns.realtime!.checkpoint),
         );
 
+        // TODO(kyle) more
         if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) return;
 
         // Pass decoded events while respecting pagination. Must be cautious to deep copy
@@ -329,8 +331,10 @@ export const create = async ({
     sources,
     networkServices,
     isKilled: false,
-    checkpoint: zeroCheckpoint,
-    finalizedCheckpoint: zeroCheckpoint,
+    checkpoint: initialCheckpoint,
+    finalizedCheckpoint: checkpointMin(
+      ...networkServices.map((ns) => ns.initialFinalizedCheckpoint),
+    ),
     sourceById,
   };
 
@@ -409,7 +413,7 @@ export const getHistoricalEvents = async function* (
         ...(networkCheckpoints as Checkpoint[]),
       );
 
-      if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) {
+      if (!isCheckpointGreaterThan(newCheckpoint, syncService.checkpoint)) {
         continue;
       }
 

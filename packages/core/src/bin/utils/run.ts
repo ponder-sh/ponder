@@ -61,13 +61,14 @@ export async function run({
   let database: DatabaseService;
   let syncStore: SyncStore;
   let namespaceInfo: NamespaceInfo;
+  let initialCheckpoint: Checkpoint;
 
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
-    namespaceInfo = await database
+    [namespaceInfo, initialCheckpoint] = await database
       .setup({ schema, buildId })
-      .then(({ namespaceInfo }) => namespaceInfo);
+      .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
 
     syncStore = new SqliteSyncStore({ db: database.syncDb });
   } else {
@@ -78,9 +79,9 @@ export async function run({
       userNamespace,
       publishSchema,
     });
-    namespaceInfo = await database
+    [namespaceInfo, initialCheckpoint] = await database
       .setup({ schema, buildId })
-      .then(({ namespaceInfo }) => namespaceInfo);
+      .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
 
     syncStore = new PostgresSyncStore({ db: database.syncDb });
   }
@@ -110,6 +111,7 @@ export async function run({
     // `realtimeQueue` which isn't defined yet
     onRealtimeEvent: (realtimeEvent) => realtimeQueue.add(realtimeEvent),
     onFatalError,
+    initialCheckpoint,
   });
 
   const handleEvents = async (
@@ -260,7 +262,7 @@ export async function run({
       schema,
     });
 
-    // TODO(kyle) handleFinalize();
+    await handleFinalize(syncService.finalizedCheckpoint);
 
     syncService.startRealtime();
     realtimeQueue.start();
