@@ -1,4 +1,6 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
+import { getReadonlyStore } from "@/indexing-store/readonly.js";
+import { getRealtimeStore } from "@/indexing-store/realtime.js";
 import { createSchema } from "@/schema/schema.js";
 import {
   encodeCheckpoint,
@@ -228,7 +230,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({ schema, buildId: "abc" });
+    const { namespaceInfo } = await database.setup({ schema, buildId: "abc" });
+
+    const realtimeIndexingStore = getRealtimeStore({
+      kind: context.databaseConfig.kind,
+      schema,
+      db: database.indexingDb,
+      namespaceInfo,
+    });
 
     // Simulate progress being made by updating the checkpoints.
     const newCheckpoint = {
@@ -237,10 +246,39 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     };
 
     await database.db
+      .withSchema(namespaceInfo.internalNamespace)
       .updateTable("namespace_lock")
       .set({ finalized_checkpoint: encodeCheckpoint(newCheckpoint) })
       .where("namespace", "=", "public")
       .execute();
+
+    await realtimeIndexingStore.create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockNumber: 9,
+      }),
+      id: "id1",
+      data: { name: "Skip" },
+    });
+    await realtimeIndexingStore.create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockNumber: 11,
+      }),
+      id: "id2",
+      data: { name: "Kevin" },
+    });
+    await realtimeIndexingStore.create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockNumber: 12,
+      }),
+      id: "id3",
+      data: { name: "Foo" },
+    });
 
     await database.kill();
 
@@ -250,12 +288,27 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       userNamespace: context.databaseConfig.schema,
     });
 
-    const { checkpoint } = await databaseTwo.setup({
-      schema: schema,
-      buildId: "abc",
+    const { checkpoint, namespaceInfo: namespaceInfoTwo } =
+      await databaseTwo.setup({
+        schema: schema,
+        buildId: "abc",
+      });
+
+    const readonlyIndexingStore = getReadonlyStore({
+      kind: context.databaseConfig.kind,
+      schema,
+      db: databaseTwo.indexingDb,
+      namespaceInfo: namespaceInfoTwo,
     });
 
     expect(checkpoint).toMatchObject(newCheckpoint);
+
+    const { items: pets } = await readonlyIndexingStore.findMany({
+      tableName: "Pet",
+    });
+
+    expect(pets.length).toBe(1);
+    expect(pets[0].name).toBe("Skip");
 
     await databaseTwo.kill();
   });
@@ -398,11 +451,12 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       userNamespace: context.databaseConfig.schema,
     });
 
-    await database.setup({ schema, buildId: "abc" });
+    const { namespaceInfo } = await database.setup({ schema, buildId: "abc" });
 
     await database.updateFinalizedCheckpoint({ checkpoint: maxCheckpoint });
 
     const rows = await database.db
+      .withSchema(namespaceInfo.internalNamespace)
       .selectFrom("namespace_lock")
       .selectAll()
       .execute();

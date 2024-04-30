@@ -12,6 +12,7 @@ import {
   type Checkpoint,
   decodeCheckpoint,
   encodeCheckpoint,
+  isCheckpointEqual,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatShortDate } from "@/utils/date.js";
@@ -250,10 +251,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               })
               .execute();
 
-            // Revert the tables to the finalized checkpoint. Note that this also updates
-            // the namespace_lock table to reflect the new finalized checkpoint.
-            // TODO MOVE THIS BACK await this.revert({ checkpoint: finalizedCheckpoint });
-
             return finalizedCheckpoint;
           }
 
@@ -349,6 +346,15 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
         return zeroCheckpoint;
       });
+
+      // If we found a cache hit, revert the tables to the finalized checkpoint.
+      if (!isCheckpointEqual(checkpoint, zeroCheckpoint)) {
+        await revertIndexingTables({
+          db: this.indexingDb,
+          checkpoint,
+          namespaceInfo,
+        });
+      }
 
       // Start the heartbeat interval to hold the lock for as long as the process is running.
       this.heartbeatInterval = setInterval(async () => {
