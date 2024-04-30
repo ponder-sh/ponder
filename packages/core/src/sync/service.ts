@@ -33,6 +33,7 @@ export type Service = {
 
   // state
   checkpoint: Checkpoint;
+  finalizedCheckpoint: Checkpoint;
   isKilled: boolean;
 
   // network specific services
@@ -48,6 +49,7 @@ export type Service = {
       | {
           realtimeSync: RealtimeSyncService;
           checkpoint: Checkpoint;
+          finalizedCheckpoint: Checkpoint;
           finalizedBlock: SyncBlock;
         }
       | undefined;
@@ -158,6 +160,35 @@ export const create = async ({
         break;
       }
 
+      case "finalize": {
+        if (syncService.isKilled) return;
+
+        syncService.networkServices.find(
+          (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
+        )!.realtime!.finalizedCheckpoint = realtimeSyncEvent.checkpoint;
+
+        const newFinalizedCheckpoint = checkpointMin(
+          ...syncService.networkServices
+            .filter((ns) => ns.realtime !== undefined)
+            .map((ns) => ns.realtime!.finalizedCheckpoint),
+        );
+
+        if (
+          isCheckpointGreaterThan(
+            newFinalizedCheckpoint,
+            syncService.finalizedCheckpoint,
+          )
+        ) {
+          onRealtimeEvent({
+            type: "finalize",
+            checkpoint: newFinalizedCheckpoint,
+          });
+          syncService.finalizedCheckpoint = newFinalizedCheckpoint;
+        }
+
+        break;
+      }
+
       default:
         never(realtimeSyncEvent);
     }
@@ -250,6 +281,7 @@ export const create = async ({
           realtime: {
             realtimeSync,
             checkpoint: initialFinalizedCheckpoint,
+            finalizedCheckpoint: initialFinalizedCheckpoint,
             finalizedBlock,
           },
           historical: {
@@ -298,6 +330,7 @@ export const create = async ({
     networkServices,
     isKilled: false,
     checkpoint: zeroCheckpoint,
+    finalizedCheckpoint: zeroCheckpoint,
     sourceById,
   };
 

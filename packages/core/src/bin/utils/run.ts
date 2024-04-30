@@ -28,6 +28,10 @@ export type RealtimeEvent =
   | {
       type: "reorg";
       safeCheckpoint: Checkpoint;
+    }
+  | {
+      type: "finalize";
+      checkpoint: Checkpoint;
     };
 
 /**
@@ -128,6 +132,10 @@ export async function run({
     });
   };
 
+  const handleFinalize = async (checkpoint: Checkpoint) => {
+    await database.updateFinalizedCheckpoint({ checkpoint });
+  };
+
   const realtimeQueue = createQueue({
     initialStart: false,
     browser: false,
@@ -144,6 +152,10 @@ export async function run({
         }
         case "reorg":
           await handleReorg(event.safeCheckpoint);
+          break;
+
+        case "finalize":
+          await handleFinalize(event.checkpoint);
           break;
 
         default:
@@ -247,6 +259,8 @@ export async function run({
       syncService,
       schema,
     });
+
+    // TODO(kyle) handleFinalize();
 
     syncService.startRealtime();
     realtimeQueue.start();

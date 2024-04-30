@@ -362,6 +362,19 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     });
   }
 
+  async updateFinalizedCheckpoint({
+    checkpoint,
+  }: { checkpoint: Checkpoint }): Promise<void> {
+    await this.db.wrap({ method: "updateFinalizedCheckpoint" }, async () => {
+      await this.db
+        .withSchema(this.internalNamespace)
+        .updateTable("namespace_lock")
+        .where("namespace", "=", this.userNamespace)
+        .set({ finalized_checkpoint: encodeCheckpoint(checkpoint) })
+        .execute();
+    });
+  }
+
   async kill() {
     await this.db.wrap({ method: "kill" }, async () => {
       clearInterval(this.heartbeatInterval);

@@ -75,6 +75,11 @@ export type RealtimeSyncEvent =
       type: "checkpoint";
       chainId: number;
       checkpoint: Checkpoint;
+    }
+  | {
+      type: "finalize";
+      chainId: number;
+      checkpoint: Checkpoint;
     };
 
 type LocalBlockchainState = {
@@ -388,7 +393,7 @@ export const handleBlock = async (
       blockTimestamp: newHeadBlockTimestamp,
       chainId: service.network.chainId,
       blockNumber: newHeadBlockNumber,
-    } as Checkpoint,
+    } satisfies Checkpoint,
   });
 
   service.localChain.push({
@@ -484,7 +489,16 @@ export const handleBlock = async (
 
     service.finalizedBlock = pendingFinalizedBlock;
 
-    // Note: This is where a finalization event would happen.
+    service.onEvent({
+      type: "finalize",
+      chainId: service.network.chainId,
+      checkpoint: {
+        ...maxCheckpoint,
+        blockTimestamp: service.finalizedBlock.timestamp,
+        chainId: service.network.chainId,
+        blockNumber: service.finalizedBlock.number,
+      } satisfies Checkpoint,
+    });
   }
 
   service.common.logger.debug({

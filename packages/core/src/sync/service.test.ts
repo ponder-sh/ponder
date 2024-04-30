@@ -314,3 +314,64 @@ test("onRealtimeSyncEvent multi network", async (context) => {
   await kill(syncService);
   await cleanup();
 });
+
+test("onRealtimeSyncEvent finalize", async (context) => {
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+
+  const onRealtimeEvent = vi.fn();
+
+  const syncService = await create({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent,
+    onFatalError: vi.fn(),
+  });
+
+  syncService.networkServices[0].realtime!.finalizedCheckpoint =
+    createCheckpoint({
+      blockNumber: 6,
+    });
+  syncService.networkServices[1].realtime!.finalizedCheckpoint =
+    createCheckpoint({
+      blockNumber: 4,
+    });
+
+  syncService.finalizedCheckpoint = createCheckpoint({ blockNumber: 4 });
+
+  syncService.networkServices[0].realtime!.realtimeSync.onEvent({
+    type: "finalize",
+    chainId: networks[0].chainId,
+    checkpoint: createCheckpoint({ blockNumber: 7 }),
+  });
+
+  expect(
+    syncService.networkServices[0].realtime!.finalizedCheckpoint,
+  ).toStrictEqual(createCheckpoint({ blockNumber: 7 }));
+  expect(syncService.finalizedCheckpoint).toStrictEqual(
+    createCheckpoint({ blockNumber: 4 }),
+  );
+
+  expect(onRealtimeEvent).toHaveBeenCalledTimes(0);
+
+  syncService.networkServices[1].realtime!.realtimeSync.onEvent({
+    type: "finalize",
+    chainId: networks[1].chainId,
+    checkpoint: createCheckpoint({ blockNumber: 6 }),
+  });
+
+  expect(
+    syncService.networkServices[1].realtime!.finalizedCheckpoint,
+  ).toStrictEqual(createCheckpoint({ blockNumber: 6 }));
+  expect(syncService.finalizedCheckpoint).toStrictEqual(
+    createCheckpoint({ blockNumber: 6 }),
+  );
+
+  expect(onRealtimeEvent).toHaveBeenCalledTimes(1);
+
+  await kill(syncService);
+  await cleanup();
+});

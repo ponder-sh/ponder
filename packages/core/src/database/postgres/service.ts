@@ -392,6 +392,19 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     });
   }
 
+  async updateFinalizedCheckpoint({
+    checkpoint,
+  }: { checkpoint: Checkpoint }): Promise<void> {
+    await this.db.wrap({ method: "updateFinalizedCheckpoint" }, async () => {
+      await this.db
+        .withSchema(this.internalNamespace)
+        .updateTable("namespace_lock")
+        .where("namespace", "=", this.userNamespace)
+        .set({ finalized_checkpoint: encodeCheckpoint(checkpoint) })
+        .execute();
+    });
+  }
+
   async publish() {
     await this.db.wrap({ method: "publish" }, async () => {
       const publishSchema = this.publishSchema;
