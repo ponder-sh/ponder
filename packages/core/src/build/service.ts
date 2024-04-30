@@ -102,20 +102,13 @@ export const create = async ({
     },
   };
 
-  const hash = createHash("sha256");
-
   const viteDevServer = await createServer({
     root: common.options.rootDir,
     cacheDir: path.join(common.options.ponderDir, "vite"),
     publicDir: false,
     customLogger: viteLogger,
     server: { hmr: false },
-    plugins: [
-      viteTsconfigPathsPlugin(),
-      vitePluginPonder((x: string) => {
-        hash.update(x);
-      }),
-    ],
+    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
   });
 
   // This is Vite boilerplate (initializes the Rollup container).
