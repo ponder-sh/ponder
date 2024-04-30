@@ -10,9 +10,11 @@ import {
 } from "@/sync-store/postgres/migrations.js";
 import {
   type Checkpoint,
+  decodeCheckpoint,
   encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { formatShortDate } from "@/utils/date.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
 import { createPool } from "@/utils/pg.js";
@@ -221,38 +223,39 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         ) {
           // // If the previous row has the same build ID, continue where the previous app left off
           // // by reverting tables to the finalized checkpoint, then returning.
-          // if (previousLockRow.build_id === this.buildId) {
-          //   const finalizedCheckpoint = decodeCheckpoint(
-          //     previousLockRow.finalized_checkpoint,
-          //   );
+          if (previousLockRow.build_id === this.buildId) {
+            const finalizedCheckpoint = decodeCheckpoint(
+              previousLockRow.finalized_checkpoint,
+            );
 
-          //   const duration =
-          //     Math.floor(Date.now() / 1000) - finalizedCheckpoint.blockTimestamp;
-          //   const progressText =
-          //     finalizedCheckpoint.blockTimestamp > 0
-          //       ? `last used ${formatShortDate(duration)} ago`
-          //       : "with no progress";
-          //   this.common.logger.debug({
-          //     service: "database",
-          //     msg: `Cache hit for build ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
-          //   });
+            const duration =
+              Math.floor(Date.now() / 1000) -
+              finalizedCheckpoint.blockTimestamp;
+            const progressText =
+              finalizedCheckpoint.blockTimestamp > 0
+                ? `last used ${formatShortDate(duration)} ago`
+                : "with no progress";
+            this.common.logger.debug({
+              service: "database",
+              msg: `Cache hit for build ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
+            });
 
-          //   // Acquire the lock and update the heartbeat (build_id, schema, ).
-          //   await tx
-          //     .withSchema(this.internalNamespace)
-          //     .updateTable("namespace_lock")
-          //     .set({
-          //       is_locked: 1,
-          //       heartbeat_at: encodeAsText(BigInt(Date.now())),
-          //     })
-          //     .execute();
+            // Acquire the lock and update the heartbeat (build_id, schema, ).
+            await tx
+              .withSchema(this.internalNamespace)
+              .updateTable("namespace_lock")
+              .set({
+                is_locked: 1,
+                heartbeat_at: Date.now(),
+              })
+              .execute();
 
-          //   // Revert the tables to the finalized checkpoint. Note that this also updates
-          //   // the namespace_lock table to reflect the new finalized checkpoint.
-          //   // TODO MOVE THIS BACK await this.revert({ checkpoint: finalizedCheckpoint });
+            // Revert the tables to the finalized checkpoint. Note that this also updates
+            // the namespace_lock table to reflect the new finalized checkpoint.
+            // TODO MOVE THIS BACK await this.revert({ checkpoint: finalizedCheckpoint });
 
-          //   return finalizedCheckpoint;
-          // }
+            return finalizedCheckpoint;
+          }
 
           // If the previous row has a different build ID, drop the previous app's tables.
           const previousBuildId = previousLockRow.build_id;
