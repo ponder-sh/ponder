@@ -14,6 +14,7 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Event } from "@/sync/events.js";
+import { decodeEvents } from "@/sync/events.js";
 import { createSyncService } from "@/sync/index.js";
 import { type Checkpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
@@ -22,8 +23,8 @@ import { createQueue } from "@ponder/common";
 export type RealtimeEvent =
   | {
       type: "newEvents";
-      events: Event[];
-      lastEventCheckpoint: Checkpoint | undefined;
+      fromCheckpoint: Checkpoint;
+      toCheckpoint: Checkpoint;
     }
   | {
       type: "reorg";
@@ -109,7 +110,9 @@ export async function run({
     sources,
     // Note: this is not great because it references the
     // `realtimeQueue` which isn't defined yet
-    onRealtimeEvent: (realtimeEvent) => realtimeQueue.add(realtimeEvent),
+    onRealtimeEvent: (realtimeEvent) => {
+      realtimeQueue.add(realtimeEvent);
+    },
     onFatalError,
     initialCheckpoint,
   });
@@ -145,11 +148,24 @@ export async function run({
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "newEvents": {
-          const result = await handleEvents(
-            event.events,
-            event.lastEventCheckpoint,
-          );
-          if (result.status === "error") onReloadableError(result.error);
+          const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
+            sources: sources,
+            fromCheckpoint: event.fromCheckpoint,
+            toCheckpoint: event.toCheckpoint,
+          });
+          for await (const rawEvents of syncStore.getLogEvents({
+            sources,
+            fromCheckpoint: event.fromCheckpoint,
+            toCheckpoint: event.toCheckpoint,
+            limit: 1_000,
+          })) {
+            const result = await handleEvents(
+              decodeEvents(syncService, rawEvents),
+              lastEventCheckpoint,
+            );
+            if (result.status === "error") onReloadableError(result.error);
+          }
+
           break;
         }
         case "reorg":
@@ -208,16 +224,32 @@ export async function run({
 
     // Run historical indexing until complete.
     for await (const {
-      events,
-      lastEventCheckpoint,
-    } of syncService.getHistoricalEvents()) {
-      const result = await handleEvents(events, lastEventCheckpoint);
+      fromCheckpoint,
+      toCheckpoint,
+    } of syncService.getHistoricalCheckpoint()) {
+      const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
+        sources: sources,
+        fromCheckpoint,
+        toCheckpoint,
+      });
 
-      if (result.status === "killed") {
-        return;
-      } else if (result.status === "error") {
-        onReloadableError(result.error);
-        return;
+      for await (const rawEvents of syncStore.getLogEvents({
+        sources: sources,
+        fromCheckpoint,
+        toCheckpoint,
+        limit: 1_000,
+      })) {
+        const result = await handleEvents(
+          decodeEvents(syncService, rawEvents),
+          lastEventCheckpoint,
+        );
+
+        if (result.status === "killed") {
+          return;
+        } else if (result.status === "error") {
+          onReloadableError(result.error);
+          return;
+        }
       }
     }
 

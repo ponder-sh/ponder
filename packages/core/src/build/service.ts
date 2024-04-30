@@ -383,7 +383,7 @@ const executeIndexingFunctions = async (
 };
 
 const validateAndBuild = async (
-  { common, hash }: Pick<Service, "common" | "hash">,
+  { common }: Pick<Service, "common" | "hash">,
   rawBuild: RawBuild,
 ): Promise<BuildResult> => {
   // Validate and build the schema

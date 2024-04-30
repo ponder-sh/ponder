@@ -9,7 +9,6 @@ import {
   createRealtimeSyncService,
 } from "@/sync-realtime/index.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import { type Event, decodeEvents } from "@/sync/events.js";
 import {
   type Checkpoint,
   checkpointMin,
@@ -79,7 +78,7 @@ export const create = async ({
   syncStore: SyncStore;
   networks: Network[];
   sources: EventSource[];
-  onRealtimeEvent: (realtimeEvent: RealtimeEvent) => Promise<void>;
+  onRealtimeEvent: (realtimeEvent: RealtimeEvent) => void;
   onFatalError: (error: Error) => void;
   initialCheckpoint: Checkpoint;
 }): Promise<Service> => {
@@ -105,38 +104,20 @@ export const create = async ({
             .map((ns) => ns.realtime!.checkpoint),
         );
 
-        // TODO(kyle) more
         if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) return;
 
-        // Pass decoded events while respecting pagination. Must be cautious to deep copy
-        // checkpoints.
+        // Must be cautious to deep copy checkpoints.
 
         const fromCheckpoint = { ...syncService.checkpoint };
         const toCheckpoint = { ...newCheckpoint };
 
         syncService.checkpoint = newCheckpoint;
 
-        (async () => {
-          const lastEventCheckpoint =
-            await syncService.syncStore.getLastEventCheckpoint({
-              sources: syncService.sources,
-              fromCheckpoint,
-              toCheckpoint,
-            });
-
-          for await (const rawEvents of syncStore.getLogEvents({
-            sources,
-            fromCheckpoint,
-            toCheckpoint,
-            limit: 1_000,
-          })) {
-            await onRealtimeEvent({
-              type: "newEvents",
-              events: decodeEvents({ common, sourceById }, rawEvents),
-              lastEventCheckpoint: lastEventCheckpoint,
-            });
-          }
-        })();
+        onRealtimeEvent({
+          type: "newEvents",
+          fromCheckpoint,
+          toCheckpoint,
+        });
 
         break;
       }
@@ -351,15 +332,12 @@ export const startHistorical = (syncService: Service) => {
 };
 
 /**
- * Returns an async generator of events that resolves
+ * Returns an async generator of checkpoints that resolves
  * when historical sync is complete.
  */
-export const getHistoricalEvents = async function* (
+export const getHistoricalCheckpoint = async function* (
   syncService: Service,
-): AsyncGenerator<{
-  events: Event[];
-  lastEventCheckpoint: Checkpoint | undefined;
-}> {
+): AsyncGenerator<{ fromCheckpoint: Checkpoint; toCheckpoint: Checkpoint }> {
   while (true) {
     if (syncService.isKilled) return;
 
@@ -374,24 +352,10 @@ export const getHistoricalEvents = async function* (
         ),
       );
 
-      const lastEventCheckpoint =
-        await syncService.syncStore.getLastEventCheckpoint({
-          sources: syncService.sources,
-          fromCheckpoint: syncService.checkpoint,
-          toCheckpoint: finalityCheckpoint,
-        });
-
-      for await (const rawEvents of syncService.syncStore.getLogEvents({
-        sources: syncService.sources,
+      yield {
         fromCheckpoint: syncService.checkpoint,
         toCheckpoint: finalityCheckpoint,
-        limit: 1_000,
-      })) {
-        yield {
-          events: decodeEvents(syncService, rawEvents),
-          lastEventCheckpoint: lastEventCheckpoint,
-        };
-      }
+      };
 
       syncService.checkpoint = finalityCheckpoint;
 
@@ -417,24 +381,10 @@ export const getHistoricalEvents = async function* (
         continue;
       }
 
-      const lastEventCheckpoint =
-        await syncService.syncStore.getLastEventCheckpoint({
-          sources: syncService.sources,
-          fromCheckpoint: syncService.checkpoint,
-          toCheckpoint: newCheckpoint,
-        });
-
-      for await (const rawEvents of syncService.syncStore.getLogEvents({
-        sources: syncService.sources,
+      yield {
         fromCheckpoint: syncService.checkpoint,
         toCheckpoint: newCheckpoint,
-        limit: 1_000,
-      })) {
-        yield {
-          events: decodeEvents(syncService, rawEvents),
-          lastEventCheckpoint: lastEventCheckpoint,
-        };
-      }
+      };
 
       syncService.checkpoint = newCheckpoint;
     }
