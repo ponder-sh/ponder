@@ -284,9 +284,15 @@ export const processEvents = async (
     if (i % 93 === 0) {
       updateCompletedEvents(indexingService);
 
+      const eventTimestamp = decodeCheckpoint(
+        event.encodedCheckpoint,
+      ).blockTimestamp;
+
       indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-        decodeCheckpoint(event.encodedCheckpoint).blockTimestamp -
-          indexingService.firstEventCheckpoint!.blockTimestamp,
+        eventTimestamp - indexingService.firstEventCheckpoint!.blockTimestamp,
+      );
+      indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
+        eventTimestamp,
       );
 
       // Note(kyle) this is only needed for sqlite
@@ -300,9 +306,16 @@ export const processEvents = async (
     indexingService.firstEventCheckpoint !== undefined &&
     indexingService.lastEventCheckpoint !== undefined
   ) {
+    const lastEventInBatchTimestamp = decodeCheckpoint(
+      events[events.length - 1].encodedCheckpoint,
+    ).blockTimestamp;
+
     indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-      decodeCheckpoint(events[events.length - 1].encodedCheckpoint)
-        .blockTimestamp - indexingService.firstEventCheckpoint.blockTimestamp,
+      lastEventInBatchTimestamp -
+        indexingService.firstEventCheckpoint.blockTimestamp,
+    );
+    indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
+      lastEventInBatchTimestamp,
     );
   }
   // set completed events

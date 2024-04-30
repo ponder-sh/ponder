@@ -2,6 +2,7 @@ import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
+import { startClock } from "@/utils/timer.js";
 import { graphqlServer } from "@hono/graphql-server";
 import { serve } from "@hono/node-server";
 import { GraphQLError, type GraphQLSchema } from "graphql";
@@ -38,6 +39,44 @@ export async function createServer({
 
   hono
     .use(cors())
+    .use("*", async (c, next) => {
+      common.metrics.ponder_http_server_active_requests.inc({
+        method: c.req.method,
+        path: c.req.routePath,
+      });
+      const endClock = startClock();
+
+      try {
+        await next();
+      } finally {
+        const requestSize = Number(c.req.header("Content-Length") ?? 0);
+        const responseSize = Number(c.res.headers.get("Content-Length") ?? 0);
+        const responseDuration = endClock();
+        const commonLabels = { method: c.req.method, path: c.req.routePath };
+        const status =
+          c.res.status >= 200 && c.res.status < 300
+            ? "2XX"
+            : c.res.status >= 300 && c.res.status < 400
+              ? "3XX"
+              : c.res.status >= 400 && c.res.status < 500
+                ? "4XX"
+                : "5XX";
+
+        common.metrics.ponder_http_server_active_requests.dec(commonLabels);
+        common.metrics.ponder_http_server_request_size_bytes.observe(
+          { ...commonLabels, status },
+          requestSize,
+        );
+        common.metrics.ponder_http_server_response_size_bytes.observe(
+          { ...commonLabels, status },
+          responseSize,
+        );
+        common.metrics.ponder_http_server_request_duration_ms.observe(
+          { ...commonLabels, status },
+          responseDuration,
+        );
+      }
+    })
     .get("/metrics", async (c) => {
       try {
         const metrics = await common.metrics.getMetrics();
@@ -129,7 +168,7 @@ export async function createServer({
     };
 
     const listenerHandler = () => {
-      common.metrics.ponder_server_port.set(port);
+      common.metrics.ponder_http_server_port.set(port);
       common.logger.info({
         service: "server",
         msg: `Started listening on port ${port}`,
