@@ -117,9 +117,11 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
       },
     },
     blocks: {
-      mainnet: {
-        startBlock: 1,
-        frequency: 2,
+      odds: {
+        mainnet: {
+          startBlock: 1,
+          frequency: 2,
+        },
       },
     },
   });
@@ -141,7 +143,7 @@ export const getNetworkAndSources = async (
         fn: () => {},
       },
       { name: "Pair:Swap", fn: () => {} },
-      { name: "blocks", fn: () => {} },
+      { name: "odds:block", fn: () => {} },
     ],
     options: common.options,
   });
