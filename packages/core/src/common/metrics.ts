@@ -213,7 +213,7 @@ export class MetricsService {
       name: "ponder_rpc_request_lag",
       help: "Time RPC requests spend waiting in the request queue",
       labelNames: ["network", "method"] as const,
-      buckets: httpRequestDurationMs,
+      buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
 
