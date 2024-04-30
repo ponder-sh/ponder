@@ -12,7 +12,6 @@ import type { SyncStore } from "@/sync-store/store.js";
 import {
   type Checkpoint,
   checkpointMin,
-  isCheckpointEqual,
   isCheckpointGreaterThan,
   maxCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -104,7 +103,10 @@ export const create = async ({
             .map((ns) => ns.realtime!.checkpoint),
         );
 
-        if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) return;
+        // Do nothing if the checkpoint hasn't advanced. This also protects against
+        // edged cases in the caching logic with un-trustworthy finalized checkpoints.
+        if (!isCheckpointGreaterThan(newCheckpoint, syncService.checkpoint))
+          return;
 
         // Must be cautious to deep copy checkpoints.
 
@@ -352,6 +354,11 @@ export const getHistoricalCheckpoint = async function* (
         ),
       );
 
+      // Do nothing if the checkpoint hasn't advanced. This also protects against
+      // edged cases in the caching logic with un-trustworthy finalized checkpoints.
+      if (!isCheckpointGreaterThan(finalityCheckpoint, syncService.checkpoint))
+        break;
+
       yield {
         fromCheckpoint: syncService.checkpoint,
         toCheckpoint: finalityCheckpoint,
@@ -377,6 +384,7 @@ export const getHistoricalCheckpoint = async function* (
         ...(networkCheckpoints as Checkpoint[]),
       );
 
+      // Do nothing if the checkpoint hasn't advanced.
       if (!isCheckpointGreaterThan(newCheckpoint, syncService.checkpoint)) {
         continue;
       }
