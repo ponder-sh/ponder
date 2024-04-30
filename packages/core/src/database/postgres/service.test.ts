@@ -1,6 +1,5 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
 import { sql } from "kysely";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -49,9 +48,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       userNamespace: context.databaseConfig.schema,
     });
 
-    const { checkpoint } = await database.setup({ schema, buildId: "abc" });
-
-    expect(checkpoint).toMatchObject(zeroCheckpoint);
+    await database.setup({ schema, buildId: "abc" });
 
     expect(await getTableNames(database.db, "ponder")).toStrictEqual([
       "kysely_migration",
@@ -77,8 +74,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       userNamespace: context.databaseConfig.schema,
     });
 
-    const { checkpoint } = await database.setup({ schema, buildId: "abc" });
-    expect(checkpoint).toMatchObject(zeroCheckpoint);
+    await database.setup({ schema, buildId: "abc" });
 
     await database.kill();
 
@@ -215,50 +211,6 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await databaseTwo.kill();
   });
-
-  test.todo(
-    "setup with the same build ID and namespace reverts to and returns the finality checkpoint",
-    async (context) => {
-      if (context.databaseConfig.kind !== "postgres") return;
-      const database = new PostgresDatabaseService({
-        common: context.common,
-        poolConfig: context.databaseConfig.poolConfig,
-        userNamespace: context.databaseConfig.schema,
-      });
-
-      await database.setup({ schema, buildId: "abc" });
-
-      // Simulate progress being made by updating the checkpoints.
-      // TODO: Actually use the indexing store.
-      const newCheckpoint = {
-        ...zeroCheckpoint,
-        blockNumber: 10,
-      };
-
-      await database.db
-        .updateTable("namespace_lock")
-        .set({ finalized_checkpoint: encodeCheckpoint(newCheckpoint) })
-        .where("namespace", "=", "public")
-        .execute();
-
-      await database.kill();
-
-      const databaseTwo = new PostgresDatabaseService({
-        common: context.common,
-        poolConfig: context.databaseConfig.poolConfig,
-        userNamespace: context.databaseConfig.schema,
-      });
-
-      const { checkpoint } = await databaseTwo.setup({
-        schema: schema,
-        buildId: "abc",
-      });
-
-      expect(checkpoint).toMatchObject(newCheckpoint);
-
-      await databaseTwo.kill();
-    },
-  );
 
   test("setup throws if the namespace is locked", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;

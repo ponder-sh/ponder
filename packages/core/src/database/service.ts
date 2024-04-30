@@ -21,7 +21,6 @@ export interface BaseDatabaseService {
     schema: Schema;
     buildId: string;
   }): Promise<{
-    checkpoint: Checkpoint;
     namespaceInfo: NamespaceInfo;
   }>;
 
