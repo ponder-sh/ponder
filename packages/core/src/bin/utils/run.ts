@@ -16,7 +16,11 @@ import type { SyncStore } from "@/sync-store/store.js";
 import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
 import { createSyncService } from "@/sync/index.js";
-import { type Checkpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  isCheckpointEqual,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
 
@@ -210,16 +214,18 @@ export async function run({
   (async () => {
     syncService.startHistorical();
 
-    // process setup events
-    const result = await indexingService.processSetupEvents({
-      sources,
-      networks,
-    });
-    if (result.status === "killed") {
-      return;
-    } else if (result.status === "error") {
-      onReloadableError(result.error);
-      return;
+    // If the initial checkpoint is zero, we need to run setup events.
+    if (isCheckpointEqual(initialCheckpoint, zeroCheckpoint)) {
+      const result = await indexingService.processSetupEvents({
+        sources,
+        networks,
+      });
+      if (result.status === "killed") {
+        return;
+      } else if (result.status === "error") {
+        onReloadableError(result.error);
+        return;
+      }
     }
 
     // Run historical indexing until complete.
