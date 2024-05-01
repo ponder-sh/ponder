@@ -779,16 +779,21 @@ const migrations: Record<string, Migration> = {
         sql`INSERT INTO "blocks" SELECT * FROM "blocks_temp"`.compile(db),
       );
 
+      await db.schema.dropTable("blocks_temp").execute();
+
+      // The blocks.number index supports getLogEvents and deleteRealtimeData
       await db.schema
         .createIndex("blockNumberIndex")
         .on("blocks")
         .column("number")
         .execute();
+      // The blocks.chainId index supports getLogEvents and deleteRealtimeData
       await db.schema
         .createIndex("blockChainIdIndex")
         .on("blocks")
         .column("chainId")
         .execute();
+      // The blocks.number index supports getLogEvents
       await db.schema
         .createIndex("blockCheckpointIndex")
         .on("blocks")

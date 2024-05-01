@@ -674,16 +674,19 @@ const migrations: Record<string, Migration> = {
         .alterColumn("checkpoint", (col) => col.setNotNull())
         .execute();
 
+      // The blocks.number index supports getLogEvents and deleteRealtimeData
       await db.schema
         .createIndex("blockNumberIndex")
         .on("blocks")
         .column("number")
         .execute();
+      // The blocks.chainId index supports getLogEvents and deleteRealtimeData
       await db.schema
         .createIndex("blockChainIdIndex")
         .on("blocks")
         .column("chainId")
         .execute();
+      // The blocks.number index supports getLogEvents
       await db.schema
         .createIndex("blockCheckpointIndex")
         .on("blocks")

@@ -122,6 +122,10 @@ export const create = ({
     return topics;
   });
 
+  const logFilterSources = sources.filter(sourceIsLog);
+  const factorySources = sources.filter(sourceIsFactory);
+  const blockSources = sources.filter(sourceIsBlock);
+
   return {
     common,
     syncStore,
@@ -137,15 +141,11 @@ export const create = ({
     eventSelectors,
     hasFactorySource: sources.some(sourceIsFactory),
     hasTransactionReceiptSource:
-      sources
-        .filter(sourceIsLog)
-        .some((s) => s.criteria.includeTransactionReceipts) ||
-      sources
-        .filter(sourceIsFactory)
-        .some((s) => s.criteria.includeTransactionReceipts),
-    logFilterSources: sources.filter(sourceIsLog),
-    factorySources: sources.filter(sourceIsFactory),
-    blockSources: sources.filter(sourceIsBlock),
+      logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
+      factorySources.some((s) => s.criteria.includeTransactionReceipts),
+    logFilterSources,
+    factorySources,
+    blockSources,
   };
 };
 
@@ -383,6 +383,13 @@ export const handleBlock = async (
       transactionReceipts: newTransactionReceipts,
       logs: newLogs,
     });
+
+    const logCountText =
+      newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
+    service.common.logger.info({
+      service: "realtime",
+      msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
+    });
   } else if (isBlockFilterMatched) {
     await service.syncStore.insertRealtimeBlock({
       chainId: service.network.chainId,
@@ -391,23 +398,7 @@ export const handleBlock = async (
       transactionReceipts: [],
       logs: [],
     });
-  }
 
-  if (newLogs.length > 0) {
-    const logCountText =
-      newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
-    service.common.logger.info({
-      service: "realtime",
-      msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
-    });
-  } else {
-    service.common.logger.debug({
-      service: "realtime",
-      msg: `Synced 0 logs from '${service.network.name}' block ${newHeadBlockNumber}`,
-    });
-  }
-
-  if (isBlockFilterMatched) {
     service.common.logger.info({
       service: "realtime",
       msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,

@@ -169,8 +169,8 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
     ...rpcData.block1,
     interval: {
-      startBlock: hexToBigInt(rpcData.block1.block.number!),
-      endBlock: hexToBigInt(rpcData.block1.block.number!),
+      startBlock: 2n,
+      endBlock: 2n,
     },
   });
 
@@ -183,8 +183,8 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
     ...rpcData.block3,
     interval: {
-      startBlock: hexToBigInt(rpcData.block3.block.number!),
-      endBlock: hexToBigInt(rpcData.block3.block.number!),
+      startBlock: 4n,
+      endBlock: 4n,
     },
   });
 
@@ -198,14 +198,8 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
   });
 
   expect(logFilterRanges).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block1.block.number!),
-    ],
-    [
-      Number(rpcData.block3.block.number!),
-      Number(rpcData.block3.block.number!),
-    ],
+    [2, 2],
+    [4, 4],
   ]);
 
   await syncStore.insertLogFilterInterval({
@@ -217,8 +211,8 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
     ...rpcData.block2,
     interval: {
-      startBlock: hexToBigInt(rpcData.block2.block.number!),
-      endBlock: hexToBigInt(rpcData.block2.block.number!),
+      startBlock: 3n,
+      endBlock: 3n,
     },
   });
 
@@ -231,12 +225,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
   });
 
-  expect(logFilterRanges).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block3.block.number!),
-    ],
-  ]);
+  expect(logFilterRanges).toMatchObject([[2, 4]]);
   await cleanup();
 });
 
@@ -255,8 +244,8 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
       },
       ...rpcData.block1,
       interval: {
-        startBlock: hexToBigInt(rpcData.block1.block.number!),
-        endBlock: hexToBigInt(rpcData.block1.block.number!),
+        startBlock: 2n,
+        endBlock: 2n,
       },
     }),
     syncStore.insertLogFilterInterval({
@@ -268,8 +257,8 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
       },
       ...rpcData.block2,
       interval: {
-        startBlock: hexToBigInt(rpcData.block2.block.number!),
-        endBlock: hexToBigInt(rpcData.block2.block.number!),
+        startBlock: 3n,
+        endBlock: 3n,
       },
     }),
     syncStore.insertLogFilterInterval({
@@ -281,8 +270,8 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
       },
       ...rpcData.block3,
       interval: {
-        startBlock: hexToBigInt(rpcData.block3.block.number!),
-        endBlock: hexToBigInt(rpcData.block3.block.number!),
+        startBlock: 4n,
+        endBlock: 4n,
       },
     }),
   ]);
@@ -296,12 +285,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
     },
   });
 
-  expect(logFilterRanges).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block3.block.number!),
-    ],
-  ]);
+  expect(logFilterRanges).toMatchObject([[2, 4]]);
   await cleanup();
 });
 
@@ -328,8 +312,8 @@ test("insertLogFilterInterval updates log checkpoints on conflict", async (conte
     },
     ...rpcData.block2,
     interval: {
-      startBlock: hexToBigInt(rpcData.block2.block.number!),
-      endBlock: hexToBigInt(rpcData.block2.block.number!),
+      startBlock: 3n,
+      endBlock: 3n,
     },
   });
 
@@ -1216,14 +1200,8 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   });
 
   expect(blockFilterRanges).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block1.block.number!),
-    ],
-    [
-      Number(rpcData.block3.block.number!),
-      Number(rpcData.block3.block.number!),
-    ],
+    [2, 2],
+    [4, 4],
   ]);
 
   await syncStore.insertBlockFilterInterval({
@@ -1247,17 +1225,12 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
     },
   });
 
-  expect(blockFilterRanges).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block3.block.number!),
-    ],
-  ]);
+  expect(blockFilterRanges).toMatchObject([[2, 4]]);
 
   await cleanup();
 });
 
-test("getBlockFilterIntervals handles interval", async (context) => {
+test("getBlockFilterIntervals retrns interval", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -1461,8 +1434,8 @@ test("deleteRealtimeData deletes logs", async (context) => {
     },
     ...rpcData.block1,
     interval: {
-      startBlock: hexToBigInt(rpcData.block1.block.number!),
-      endBlock: hexToBigInt(rpcData.block1.block.number!),
+      startBlock: 2n,
+      endBlock: 2n,
     },
   });
 
@@ -1475,8 +1448,8 @@ test("deleteRealtimeData deletes logs", async (context) => {
     },
     ...rpcData.block2,
     interval: {
-      startBlock: hexToBigInt(rpcData.block2.block.number!),
-      endBlock: hexToBigInt(rpcData.block2.block.number!),
+      startBlock: 3n,
+      endBlock: 3n,
     },
   });
 
@@ -1485,7 +1458,7 @@ test("deleteRealtimeData deletes logs", async (context) => {
 
   await syncStore.deleteRealtimeData({
     chainId: 1,
-    fromBlock: hexToBigInt(rpcData.block1.block.number!),
+    fromBlock: 2n,
   });
 
   logs = await syncStore.db.selectFrom("logs").selectAll().execute();
@@ -1997,7 +1970,7 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async (context) => {
     fromCheckpoint: {
       chainId: 1n,
       blockTimestamp: Number(rpcData.block1.block.timestamp!),
-      blockNumber: hexToBigInt(rpcData.block1.block.number!),
+      blockNumber: 2n,
       transactionIndex: 0n,
       eventType: EVENT_TYPES.logs,
       // Should exclude the 1st log in the first block.
@@ -2034,7 +2007,7 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
     toCheckpoint: {
       chainId: 1n,
       blockTimestamp: Number(rpcData.block1.block.timestamp!),
-      blockNumber: hexToBigInt(rpcData.block1.block.number!),
+      blockNumber: 2n,
       transactionIndex: 1n,
       eventType: EVENT_TYPES.logs,
       // Should include the 2nd log in the first block.

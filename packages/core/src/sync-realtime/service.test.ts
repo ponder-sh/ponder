@@ -275,7 +275,7 @@ test("start() retries on error", async (context) => {
   await cleanup();
 });
 
-test.skip("start() emits fatal error", async (context) => {
+test("start() emits fatal error", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 

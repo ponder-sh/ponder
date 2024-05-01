@@ -117,7 +117,7 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
       },
     },
     blocks: {
-      odds: {
+      OddBlocks: {
         mainnet: {
           startBlock: 1,
           frequency: 2,
@@ -143,7 +143,7 @@ export const getNetworkAndSources = async (
         fn: () => {},
       },
       { name: "Pair:Swap", fn: () => {} },
-      { name: "odds:block", fn: () => {} },
+      { name: "OddBlocks:block", fn: () => {} },
     ],
     options: common.options,
   });

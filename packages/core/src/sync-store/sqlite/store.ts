@@ -191,8 +191,6 @@ export class SqliteSyncStore implements SyncStore {
                 .values(mergedIntervalRows)
                 .execute();
             }
-
-            return mergedIntervals;
           });
         }),
       );
@@ -472,8 +470,6 @@ export class SqliteSyncStore implements SyncStore {
                   .values(mergedIntervalRows)
                   .execute();
               }
-
-              return mergedIntervals;
             });
           }),
         );
@@ -638,36 +634,22 @@ export class SqliteSyncStore implements SyncStore {
             .values(mergedIntervalRows)
             .execute();
         }
-
-        return mergedIntervals;
       });
 
       const intervals = await this.db
         .selectFrom("blockFilterIntervals")
         .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
         .select([
-          "blockFilterId",
           "blockFilterIntervals.startBlock",
           "blockFilterIntervals.endBlock",
         ])
-        .where("chainId", "=", chainId)
-        .where("blockFilters.frequency", "=", fragment.frequency)
-        .where("blockFilters.offset", "=", fragment.offset)
+        .where("blockFilterId", "=", fragment.id)
         .execute();
 
-      const intervalsByFragmentId = intervals.reduce(
-        (acc, cur) => {
-          const { blockFilterId, startBlock, endBlock } = cur;
-          (acc[blockFilterId] ||= []).push([
-            Number(decodeToBigInt(startBlock)),
-            Number(decodeToBigInt(endBlock)),
-          ]);
-          return acc;
-        },
-        {} as Record<string, [number, number][]>,
+      return intervals.map(
+        ({ startBlock, endBlock }) =>
+          [Number(startBlock), Number(endBlock)] as [number, number],
       );
-
-      return intervalUnion(intervalsByFragmentId[fragment.id] ?? []);
     });
   };
 
@@ -1102,8 +1084,22 @@ export class SqliteSyncStore implements SyncStore {
                   sources.map((source) => sql`( ${sql.val(source.id)} )`),
                 )} )`,
             )
-            .with("events", (db) =>
-              db
+            .with("events", (db) => {
+              // We can assume that source won't be empty. `sources` will
+              // be only log/factory, only block, or a mix
+              const hasOnlyLogOrFactorySources = sources.every(
+                (s) => sourceIsLog(s) || sourceIsFactory(s),
+              );
+              const hasOnlyBlockSources = sources.every(sourceIsBlock);
+
+              const queryLogs = db
+                .with(
+                  "sources(source_id)",
+                  () =>
+                    sql`( values ${sql.join(
+                      sources.map((source) => sql`( ${sql.val(source.id)} )`),
+                    )} )`,
+                )
                 .selectFrom("logs")
                 .innerJoin("sources", (join) => join.onTrue())
                 .where((eb) => {
@@ -1141,59 +1137,75 @@ export class SqliteSyncStore implements SyncStore {
                   "logs.topic3 as log_topic3",
                   "logs.transactionHash as log_transactionHash",
                   "logs.transactionIndex as log_transactionIndex",
-                ])
-                .unionAll(
-                  // @ts-ignore
-                  db
-                    .selectFrom("blocks")
-                    .innerJoin("sources", (join) => join.onTrue())
-                    .where((eb) => {
-                      const exprs = [];
-                      const blockFilters = sources.filter(sourceIsBlock);
-                      for (const blockFilter of blockFilters) {
-                        exprs.push(
-                          eb.and([
-                            eb("chainId", "=", blockFilter.chainId),
-                            eb(
-                              "number",
-                              ">=",
-                              encodeAsText(blockFilter.startBlock),
-                            ),
-                            ...(blockFilter.endBlock !== undefined
-                              ? [
-                                  eb(
-                                    "number",
-                                    "<=",
-                                    encodeAsText(blockFilter.endBlock),
-                                  ),
-                                ]
-                              : []),
-                            sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.frequency} = 0`,
-                            eb("source_id", "=", blockFilter.id),
-                          ]),
-                        );
-                      }
-                      return eb.or(exprs);
-                    })
-                    .select([
-                      "source_id",
-                      "blocks.checkpoint as checkpoint",
-                      sql`null`.as("log_address"),
-                      "blocks.hash as log_blockHash",
-                      sql`null`.as("log_blockNumber"),
-                      sql`null`.as("log_chainId"),
-                      sql`null`.as("log_data"),
-                      sql`null`.as("log_id"),
-                      sql`null`.as("log_logIndex"),
-                      sql`null`.as("log_topic0"),
-                      sql`null`.as("log_topic1"),
-                      sql`null`.as("log_topic2"),
-                      sql`null`.as("log_topic3"),
-                      sql`null`.as("log_transactionHash"),
-                      sql`null`.as("log_transactionIndex"),
-                    ]),
-                ),
-            )
+                ]);
+
+              const queryBlocks = db
+                .with(
+                  "sources(source_id)",
+                  () =>
+                    sql`( values ${sql.join(
+                      sources
+                        .filter(sourceIsBlock)
+                        .map((source) => sql`( ${sql.val(source.id)} )`),
+                    )} )`,
+                )
+                .selectFrom("blocks")
+                .innerJoin("sources", (join) => join.onTrue())
+                .where((eb) => {
+                  const exprs = [];
+                  const blockFilters = sources.filter(sourceIsBlock);
+                  for (const blockFilter of blockFilters) {
+                    exprs.push(
+                      eb.and([
+                        eb("chainId", "=", blockFilter.chainId),
+                        eb(
+                          "number",
+                          ">=",
+                          encodeAsText(blockFilter.startBlock),
+                        ),
+                        ...(blockFilter.endBlock !== undefined
+                          ? [
+                              eb(
+                                "number",
+                                "<=",
+                                encodeAsText(blockFilter.endBlock),
+                              ),
+                            ]
+                          : []),
+                        sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.frequency} = 0`,
+                        eb("source_id", "=", blockFilter.id),
+                      ]),
+                    );
+                  }
+                  return eb.or(exprs);
+                })
+                .select([
+                  "source_id",
+                  "blocks.checkpoint as checkpoint",
+                  sql`null`.as("log_address"),
+                  "blocks.hash as log_blockHash",
+                  sql`null`.as("log_blockNumber"),
+                  sql`null`.as("log_chainId"),
+                  sql`null`.as("log_data"),
+                  sql`null`.as("log_id"),
+                  sql`null`.as("log_logIndex"),
+                  sql`null`.as("log_topic0"),
+                  sql`null`.as("log_topic1"),
+                  sql`null`.as("log_topic2"),
+                  sql`null`.as("log_topic3"),
+                  sql`null`.as("log_transactionHash"),
+                  sql`null`.as("log_transactionIndex"),
+                ]);
+
+              if (hasOnlyLogOrFactorySources) {
+                return queryLogs;
+              } else if (hasOnlyBlockSources) {
+                return queryBlocks as typeof queryLogs;
+              } else {
+                // @ts-ignore
+                return queryLogs.unionAll(queryBlocks);
+              }
+            })
             .selectFrom("events")
             .innerJoin("blocks", "blocks.hash", "log_blockHash")
             .leftJoin(
@@ -1295,32 +1307,39 @@ export class SqliteSyncStore implements SyncStore {
             const row = _row as NonNull<(typeof requestedLogs)[number]>;
 
             const source = sourcesById[row.source_id];
+
+            const shouldIncludeLogsAndTransaction =
+              sourceIsLog(source) || sourceIsFactory(source);
+            const shouldIncludeTransactionReceipt =
+              (sourceIsLog(source) &&
+                source.criteria.includeTransactionReceipts) ||
+              (sourceIsFactory(source) &&
+                source.criteria.includeTransactionReceipts);
             return {
               chainId: source.chainId,
               sourceId: row.source_id,
               encodedCheckpoint: row.checkpoint,
-              log:
-                sourceIsLog(source) || sourceIsFactory(source)
-                  ? {
-                      address: checksumAddress(row.log_address),
-                      blockHash: row.log_blockHash,
-                      blockNumber: decodeToBigInt(row.log_blockNumber),
-                      data: row.log_data,
-                      id: row.log_id as Log["id"],
-                      logIndex: Number(row.log_logIndex),
-                      removed: false,
-                      topics: [
-                        row.log_topic0,
-                        row.log_topic1,
-                        row.log_topic2,
-                        row.log_topic3,
-                      ].filter((t): t is Hex => t !== null) as
-                        | [Hex, ...Hex[]]
-                        | [],
-                      transactionHash: row.log_transactionHash,
-                      transactionIndex: Number(row.log_transactionIndex),
-                    }
-                  : undefined,
+              log: shouldIncludeLogsAndTransaction
+                ? {
+                    address: checksumAddress(row.log_address),
+                    blockHash: row.log_blockHash,
+                    blockNumber: decodeToBigInt(row.log_blockNumber),
+                    data: row.log_data,
+                    id: row.log_id as Log["id"],
+                    logIndex: Number(row.log_logIndex),
+                    removed: false,
+                    topics: [
+                      row.log_topic0,
+                      row.log_topic1,
+                      row.log_topic2,
+                      row.log_topic3,
+                    ].filter((t): t is Hex => t !== null) as
+                      | [Hex, ...Hex[]]
+                      | [],
+                    transactionHash: row.log_transactionHash,
+                    transactionIndex: Number(row.log_transactionIndex),
+                  }
+                : undefined,
               block: {
                 baseFeePerGas: row.block_baseFeePerGas
                   ? decodeToBigInt(row.block_baseFeePerGas)
@@ -1346,120 +1365,113 @@ export class SqliteSyncStore implements SyncStore {
                   : null,
                 transactionsRoot: row.block_transactionsRoot,
               },
-              transaction:
-                sourceIsLog(source) || sourceIsFactory(source)
-                  ? {
-                      blockHash: row.tx_blockHash,
-                      blockNumber: decodeToBigInt(row.tx_blockNumber),
-                      from: checksumAddress(row.tx_from),
-                      gas: decodeToBigInt(row.tx_gas),
-                      hash: row.tx_hash,
-                      input: row.tx_input,
-                      nonce: Number(row.tx_nonce),
-                      r: row.tx_r,
-                      s: row.tx_s,
-                      to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
-                      transactionIndex: Number(row.tx_transactionIndex),
-                      value: decodeToBigInt(row.tx_value),
-                      v: row.tx_v ? decodeToBigInt(row.tx_v) : null,
-                      ...(row.tx_type === "0x0"
+              transaction: shouldIncludeLogsAndTransaction
+                ? {
+                    blockHash: row.tx_blockHash,
+                    blockNumber: decodeToBigInt(row.tx_blockNumber),
+                    from: checksumAddress(row.tx_from),
+                    gas: decodeToBigInt(row.tx_gas),
+                    hash: row.tx_hash,
+                    input: row.tx_input,
+                    nonce: Number(row.tx_nonce),
+                    r: row.tx_r,
+                    s: row.tx_s,
+                    to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
+                    transactionIndex: Number(row.tx_transactionIndex),
+                    value: decodeToBigInt(row.tx_value),
+                    v: row.tx_v ? decodeToBigInt(row.tx_v) : null,
+                    ...(row.tx_type === "0x0"
+                      ? {
+                          type: "legacy",
+                          gasPrice: decodeToBigInt(row.tx_gasPrice),
+                        }
+                      : row.tx_type === "0x1"
                         ? {
-                            type: "legacy",
+                            type: "eip2930",
                             gasPrice: decodeToBigInt(row.tx_gasPrice),
+                            accessList: JSON.parse(row.tx_accessList),
                           }
-                        : row.tx_type === "0x1"
+                        : row.tx_type === "0x2"
                           ? {
-                              type: "eip2930",
-                              gasPrice: decodeToBigInt(row.tx_gasPrice),
-                              accessList: JSON.parse(row.tx_accessList),
+                              type: "eip1559",
+                              maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
+                              maxPriorityFeePerGas: decodeToBigInt(
+                                row.tx_maxPriorityFeePerGas,
+                              ),
                             }
-                          : row.tx_type === "0x2"
+                          : row.tx_type === "0x7e"
                             ? {
-                                type: "eip1559",
-                                maxFeePerGas: decodeToBigInt(
-                                  row.tx_maxFeePerGas,
-                                ),
-                                maxPriorityFeePerGas: decodeToBigInt(
-                                  row.tx_maxPriorityFeePerGas,
-                                ),
-                              }
-                            : row.tx_type === "0x7e"
-                              ? {
-                                  type: "deposit",
-                                  maxFeePerGas: row.tx_maxFeePerGas
-                                    ? decodeToBigInt(row.tx_maxFeePerGas)
+                                type: "deposit",
+                                maxFeePerGas: row.tx_maxFeePerGas
+                                  ? decodeToBigInt(row.tx_maxFeePerGas)
+                                  : undefined,
+                                maxPriorityFeePerGas:
+                                  row.tx_maxPriorityFeePerGas
+                                    ? decodeToBigInt(
+                                        row.tx_maxPriorityFeePerGas,
+                                      )
                                     : undefined,
-                                  maxPriorityFeePerGas:
-                                    row.tx_maxPriorityFeePerGas
-                                      ? decodeToBigInt(
-                                          row.tx_maxPriorityFeePerGas,
-                                        )
-                                      : undefined,
-                                }
-                              : {
-                                  type: row.tx_type,
-                                }),
-                    }
-                  : undefined,
-              transactionReceipt:
-                (sourceIsLog(source) &&
-                  source.criteria.includeTransactionReceipts) ||
-                (sourceIsFactory(source) &&
-                  source.criteria.includeTransactionReceipts)
-                  ? {
-                      blockHash: row.txr_blockHash,
-                      blockNumber: decodeToBigInt(row.txr_blockNumber),
-                      contractAddress: row.txr_contractAddress
-                        ? checksumAddress(row.txr_contractAddress)
-                        : null,
-                      cumulativeGasUsed: decodeToBigInt(
-                        row.txr_cumulativeGasUsed,
-                      ),
-                      effectiveGasPrice: decodeToBigInt(
-                        row.txr_effectiveGasPrice,
-                      ),
-                      from: checksumAddress(row.txr_from),
-                      gasUsed: decodeToBigInt(row.txr_gasUsed),
-                      logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
-                        address: checksumAddress(log.address),
-                        blockHash: log.blockHash,
-                        blockNumber: hexToBigInt(log.blockNumber),
-                        data: log.data,
-                        logIndex: hexToNumber(log.logIndex),
-                        removed: false,
-                        topics: [
-                          log.topics[0] ?? null,
-                          log.topics[1] ?? null,
-                          log.topics[2] ?? null,
-                          log.topics[3] ?? null,
-                        ].filter((t): t is Hex => t !== null) as
-                          | [Hex, ...Hex[]]
-                          | [],
-                        transactionHash: log.transactionHash,
-                        transactionIndex: hexToNumber(log.transactionIndex),
-                      })),
-                      logsBloom: row.txr_logsBloom,
-                      status:
-                        row.txr_status === "0x1"
-                          ? "success"
-                          : row.txr_status === "0x0"
-                            ? "reverted"
-                            : (row.txr_status as TransactionReceipt["status"]),
-                      to: row.txr_to ? checksumAddress(row.txr_to) : null,
-                      transactionHash: row.txr_transactionHash,
-                      transactionIndex: Number(row.txr_transactionIndex),
-                      type:
-                        row.txr_type === "0x0"
-                          ? "legacy"
-                          : row.txr_type === "0x1"
-                            ? "eip2930"
-                            : row.tx_type === "0x2"
-                              ? "eip1559"
-                              : row.tx_type === "0x7e"
-                                ? "deposit"
-                                : row.tx_type,
-                    }
-                  : undefined,
+                              }
+                            : {
+                                type: row.tx_type,
+                              }),
+                  }
+                : undefined,
+              transactionReceipt: shouldIncludeTransactionReceipt
+                ? {
+                    blockHash: row.txr_blockHash,
+                    blockNumber: decodeToBigInt(row.txr_blockNumber),
+                    contractAddress: row.txr_contractAddress
+                      ? checksumAddress(row.txr_contractAddress)
+                      : null,
+                    cumulativeGasUsed: decodeToBigInt(
+                      row.txr_cumulativeGasUsed,
+                    ),
+                    effectiveGasPrice: decodeToBigInt(
+                      row.txr_effectiveGasPrice,
+                    ),
+                    from: checksumAddress(row.txr_from),
+                    gasUsed: decodeToBigInt(row.txr_gasUsed),
+                    logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
+                      address: checksumAddress(log.address),
+                      blockHash: log.blockHash,
+                      blockNumber: hexToBigInt(log.blockNumber),
+                      data: log.data,
+                      logIndex: hexToNumber(log.logIndex),
+                      removed: false,
+                      topics: [
+                        log.topics[0] ?? null,
+                        log.topics[1] ?? null,
+                        log.topics[2] ?? null,
+                        log.topics[3] ?? null,
+                      ].filter((t): t is Hex => t !== null) as
+                        | [Hex, ...Hex[]]
+                        | [],
+                      transactionHash: log.transactionHash,
+                      transactionIndex: hexToNumber(log.transactionIndex),
+                    })),
+                    logsBloom: row.txr_logsBloom,
+                    status:
+                      row.txr_status === "0x1"
+                        ? "success"
+                        : row.txr_status === "0x0"
+                          ? "reverted"
+                          : (row.txr_status as TransactionReceipt["status"]),
+                    to: row.txr_to ? checksumAddress(row.txr_to) : null,
+                    transactionHash: row.txr_transactionHash,
+                    transactionIndex: Number(row.txr_transactionIndex),
+                    type:
+                      row.txr_type === "0x0"
+                        ? "legacy"
+                        : row.txr_type === "0x1"
+                          ? "eip2930"
+                          : row.tx_type === "0x2"
+                            ? "eip1559"
+                            : row.tx_type === "0x7e"
+                              ? "deposit"
+                              : row.tx_type,
+                  }
+                : undefined,
             } satisfies RawEvent;
           });
         },
