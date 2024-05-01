@@ -93,7 +93,7 @@ export async function createServer({
       }
 
       const max = common.options.maxHealthcheckDuration;
-      const elapsed = Math.floor(uptimeClock() / 1000);
+      const elapsed = uptimeClock() / 1000;
 
       if (elapsed > max) {
         common.logger.warn({
