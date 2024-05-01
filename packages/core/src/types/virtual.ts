@@ -50,9 +50,9 @@ export namespace Virtual {
       ? EventName
       : never;
 
-  export type ExtractContractName<name extends string> =
-    name extends `${infer ContractName extends string}:${string}`
-      ? ContractName
+  export type ExtractSourceName<name extends string> =
+    name extends `${infer SourceName extends string}:${string}`
+      ? SourceName
       : never;
 
   export type EventNames<config extends Config> = FormatEventNames<
@@ -64,7 +64,7 @@ export namespace Virtual {
     config extends Config,
     name extends EventNames<config>,
     ///
-    contractName extends ExtractContractName<name> = ExtractContractName<name>,
+    contractName extends ExtractSourceName<name> = ExtractSourceName<name>,
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
   > = name extends `${string}:block`
     ? { block: Prettify<Block> }
@@ -121,7 +121,10 @@ export namespace Virtual {
     schema extends _Schema,
     name extends EventNames<config>,
     ///
-    contractName extends ExtractContractName<name> = ExtractContractName<name>,
+    sourceName extends ExtractSourceName<name> = ExtractSourceName<name>,
+    sourceNetwork = unknown extends config["blocks"][sourceName]["network"]
+      ? never
+      : config["blocks"][sourceName]["network"],
   > = {
     contracts: {
       [_contractName in keyof config["contracts"]]: {
@@ -140,20 +143,21 @@ export namespace Virtual {
         >;
       };
     };
-    network: config["contracts"][contractName]["network"] extends string
+    b?: sourceNetwork;
+    network: sourceNetwork extends string
       ? // 1. No network overriding
         {
-          name: config["contracts"][contractName]["network"];
-          chainId: config["networks"][config["contracts"][contractName]["network"]]["chainId"];
+          name: sourceNetwork;
+          chainId: config["networks"][sourceNetwork]["chainId"];
         }
       : // 2. Network overrides
         {
-          [key in keyof config["contracts"][contractName]["network"]]: {
+          [key in keyof sourceNetwork]: {
             name: key;
             chainId: config["networks"][key &
               keyof config["networks"]]["chainId"];
           };
-        }[keyof config["contracts"][contractName]["network"]];
+        }[keyof sourceNetwork];
     client: Prettify<
       Omit<
         ReadOnlyClient,

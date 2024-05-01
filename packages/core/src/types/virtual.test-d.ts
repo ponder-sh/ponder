@@ -202,6 +202,16 @@ test("Context multi network", () => {
   assertType<expectedNetwork>({} as any as a);
 });
 
+test("Context block network", () => {
+  type a = Virtual.Context<typeof config, typeof schema, "b1:block">["network"];
+  //   ^?
+
+  type expectedNetwork = { name: "mainnet"; chainId: 1 };
+
+  assertType<a>({} as any as expectedNetwork);
+  assertType<expectedNetwork>({} as any as a);
+});
+
 test("Context client", () => {
   type a = Virtual.Context<
     typeof config,
