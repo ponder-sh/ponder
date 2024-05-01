@@ -285,7 +285,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         ) {
           this.common.logger.info({
             service: "database",
-            msg: `Cache hit for build '${this.buildId}' on namespace '${
+            msg: `Detected cache hit for build '${this.buildId}' in schema '${
               this.userNamespace
             }' last active ${formatEta(
               Date.now() - previousLockRow.heartbeat_at,
@@ -472,7 +472,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         .set({ finalized_checkpoint: encodeCheckpoint(checkpoint) })
         .execute();
 
-      this.common.logger.info({
+      this.common.logger.debug({
         service: "database",
         msg: `Updated finalized checkpoint to (timestamp=${checkpoint.blockTimestamp} chainId=${checkpoint.chainId} block=${checkpoint.blockNumber})`,
       });
