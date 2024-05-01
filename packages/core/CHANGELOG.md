@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.4.14
+
+### Patch Changes
+
+- [`02068e48a1e50441643e456b85523038e9b9fdfe`](https://github.com/ponder-sh/ponder/commit/02068e48a1e50441643e456b85523038e9b9fdfe) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where failed RPC requests were being logged as an error even when they were retried and ultimately succeeded.
+
+- [#846](https://github.com/ponder-sh/ponder/pull/846) [`e73bcb06f10b7c166db2a826d79a1d642fbd48da`](https://github.com/ponder-sh/ponder/commit/e73bcb06f10b7c166db2a826d79a1d642fbd48da) Thanks [@0xOlias](https://github.com/0xOlias)! - Added HTTP server metrics. Fixed a bug where the `ponder_indexing_completed_timestamp` and `ponder_realtime_is_connected` metrics were no longer being updated. Renamed `ponder_server_port` to `ponder_http_server_port`. Updated histogram metric bucket ranges.
+
+- [#844](https://github.com/ponder-sh/ponder/pull/844) [`4f2c5d73fe4151afa9566a041b12d245e9133593`](https://github.com/ponder-sh/ponder/commit/4f2c5d73fe4151afa9566a041b12d245e9133593) Thanks [@0xOlias](https://github.com/0xOlias)! - Added a `poolConfig` option to `ponder.config.ts`. This option overrides the default [`PoolConfig`](https://node-postgres.com/apis/pool) used when constructing the `node-postgres` connection pool.
+
 ## 0.4.13
 
 ### Patch Changes
