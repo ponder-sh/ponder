@@ -12,10 +12,8 @@ import {
   type Checkpoint,
   decodeCheckpoint,
   encodeCheckpoint,
-  isCheckpointEqual,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { formatShortDate } from "@/utils/date.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
 import { createPool } from "@/utils/pg.js";
@@ -25,6 +23,7 @@ import {
   Kysely,
   Migrator,
   PostgresDialect,
+  Transaction as KyselyTransaction,
   WithSchemaPlugin,
   sql,
 } from "kysely";
@@ -204,6 +203,47 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           schema: JSON.stringify(schema),
         } satisfies Insertable<InternalTables["namespace_lock"]>;
 
+        // Function to create the operation log tables and user tables.
+        const createTables = async () => {
+          for (const [tableName, columns] of Object.entries(schema.tables)) {
+            const tableId = namespaceInfo.internalTableIds[tableName];
+
+            await tx.schema
+              .withSchema(this.internalNamespace)
+              .createTable(tableId)
+              .$call((builder) =>
+                this.buildOperationLogColumns(builder, columns),
+              )
+              .execute();
+
+            await tx.schema
+              .withSchema(this.internalNamespace)
+              .createIndex(`${tableId}_checkpointIndex`)
+              .on(tableId)
+              .column("checkpoint")
+              .execute();
+
+            try {
+              await tx.schema
+                .withSchema(this.userNamespace)
+                .createTable(tableName)
+                .$call((builder) => this.buildColumns(builder, schema, columns))
+                .execute();
+            } catch (err) {
+              const error = err as Error;
+              if (!error.message.includes("already exists")) throw error;
+              throw new NonRetryableError(
+                `Unable to create table '${this.userNamespace}'.'${tableName}' because a table with that name already exists. Is there another application using the '${this.userNamespace}' database schema?`,
+              );
+            }
+
+            this.common.logger.info({
+              service: "database",
+              msg: `Created table '${this.userNamespace}'.'${tableName}'`,
+            });
+          }
+        };
+
         // If no lock row is found for this namespace, we can acquire the lock.
         if (previousLockRow === undefined) {
           await tx
@@ -213,152 +253,168 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             .execute();
           this.common.logger.debug({
             service: "database",
-            msg: `Acquired lock on new namespace '${this.userNamespace}'`,
+            msg: `Acquired lock on new schema '${this.userNamespace}'`,
           });
+
+          await createTables();
+
+          return zeroCheckpoint;
         }
-        // If there is a row, but the lock is not held or has expired,
-        // we can acquire the lock and drop the previous app's tables.
-        else if (
-          previousLockRow.is_locked === 0 ||
-          Date.now() > previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
+
+        // If the lock row is held and has not expired, we cannot proceed.
+        if (
+          previousLockRow.is_locked === 1 &&
+          Date.now() <= previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS
         ) {
-          // If the previous row has the same build ID, continue where the previous app left off
-          // by reverting tables to the finalized checkpoint, then returning.
-          if (
-            previousLockRow.build_id === this.buildId &&
-            previousLockRow.finalized_checkpoint !==
-              encodeCheckpoint(zeroCheckpoint)
-          ) {
-            const finalizedCheckpoint = decodeCheckpoint(
-              previousLockRow.finalized_checkpoint,
-            );
-
-            const duration =
-              Math.floor(Date.now() / 1000) -
-              finalizedCheckpoint.blockTimestamp;
-            const progressText =
-              finalizedCheckpoint.blockTimestamp > 0
-                ? `last used ${formatShortDate(duration)} ago`
-                : "with no progress";
-            this.common.logger.debug({
-              service: "database",
-              msg: `Cache hit for build ID '${this.buildId}' on namespace '${this.userNamespace}' ${progressText}`,
-            });
-
-            // Acquire the lock and update the heartbeat (build_id, schema, ).
-            await tx
-              .withSchema(this.internalNamespace)
-              .updateTable("namespace_lock")
-              .set({
-                is_locked: 1,
-                heartbeat_at: Date.now(),
-              })
-              .execute();
-
-            return finalizedCheckpoint;
-          }
-
-          // If the previous row has a different build ID, drop the previous app's tables.
-          const previousBuildId = previousLockRow.build_id;
-          const previousSchema = previousLockRow.schema as unknown as Schema;
-
-          this.common.logger.debug({
-            service: "database",
-            msg: `Acquired lock on namespace '${this.userNamespace}' previously used by app '${previousBuildId}'`,
-          });
-
-          for (const tableName of Object.keys(previousSchema.tables)) {
-            const tableId = hash([
-              this.userNamespace,
-              previousBuildId,
-              tableName,
-            ]);
-
-            await tx.schema
-              .withSchema(this.internalNamespace)
-              .dropTable(tableId)
-              .ifExists()
-              .execute();
-
-            await tx.schema
-              .withSchema(this.userNamespace)
-              .dropTable(tableName)
-              .cascade() // Need cascade here to drop dependent published views.
-              .ifExists()
-              .execute();
-
-            this.common.logger.debug({
-              service: "database",
-              msg: `Dropped '${tableName}' table left by previous app`,
-            });
-          }
-
-          // Update the lock row to reflect the new build ID and checkpoint progress.
-          await tx
-            .withSchema(this.internalNamespace)
-            .updateTable("namespace_lock")
-            .where("namespace", "=", this.userNamespace)
-            .set(newLockRow)
-            .execute();
-        }
-        // Otherwise, the previous app still holds the lock.
-        else {
           const expiresIn = formatEta(
             previousLockRow.heartbeat_at + HEARTBEAT_TIMEOUT_MS - Date.now(),
           );
           throw new NonRetryableError(
-            `Schema '${this.userNamespace}' is in use by a different Ponder app (lock expires in ${expiresIn})`,
+            `Schema '${this.userNamespace}' is locked by a different Ponder app (lock expires in ${expiresIn})`,
           );
         }
 
-        // Create the operation log tables and user tables.
-        for (const [tableName, columns] of Object.entries(schema.tables)) {
-          const tableId = namespaceInfo.internalTableIds[tableName];
+        // If the lock row has the same build ID as the current app AND
+        // has a non-zero finalized checkpoint, we can revert unfinalized
+        // rows and continue where it left off.
+        if (
+          this.common.options.command === "start" &&
+          previousLockRow.build_id === this.buildId &&
+          previousLockRow.finalized_checkpoint !==
+            encodeCheckpoint(zeroCheckpoint)
+        ) {
+          this.common.logger.info({
+            service: "database",
+            msg: `Cache hit for build '${this.buildId}' on namespace '${
+              this.userNamespace
+            }' last active ${formatEta(
+              Date.now() - previousLockRow.heartbeat_at,
+            )} ago`,
+          });
 
-          await tx.schema
+          await tx
             .withSchema(this.internalNamespace)
-            .createTable(tableId)
-            .$call((builder) => this.buildOperationLogColumns(builder, columns))
+            .updateTable("namespace_lock")
+            .set({ is_locked: 1, heartbeat_at: Date.now() })
             .execute();
+          this.common.logger.debug({
+            service: "database",
+            msg: `Acquired lock on schema '${this.userNamespace}'`,
+          });
 
-          await tx.schema
-            .withSchema(this.internalNamespace)
-            .createIndex(`${tableId}_checkpointIndex`)
-            .on(tableId)
-            .column("checkpoint")
-            .execute();
-
-          try {
-            await tx.schema
-              .withSchema(this.userNamespace)
-              .createTable(tableName)
-              .$call((builder) => this.buildColumns(builder, schema, columns))
-              .execute();
-          } catch (err) {
-            const error = err as Error;
-            if (!error.message.includes("already exists")) throw error;
-            throw new NonRetryableError(
-              `Unable to create table '${this.userNamespace}'.'${tableName}' because a table with that name already exists. Is there another application using the '${this.userNamespace}' database schema?`,
-            );
-          }
+          const finalizedCheckpoint = decodeCheckpoint(
+            previousLockRow.finalized_checkpoint,
+          );
 
           this.common.logger.info({
             service: "database",
-            msg: `Created table '${this.userNamespace}'.'${tableName}'`,
+            msg: `Reverting operations prior to finalized checkpoint (timestamp=${finalizedCheckpoint.blockTimestamp} chainId=${finalizedCheckpoint.chainId} block=${finalizedCheckpoint.blockNumber})`,
+          });
+
+          // Revert unfinalized data from the existing tables.
+          const tx_ = tx as KyselyTransaction<any>;
+          for (const [tableName, tableId] of Object.entries(
+            namespaceInfo.internalTableIds,
+          )) {
+            const rows = await tx_
+              .withSchema(namespaceInfo.internalNamespace)
+              .deleteFrom(tableId)
+              .returningAll()
+              .where("checkpoint", ">", previousLockRow.finalized_checkpoint)
+              .execute();
+
+            const reversed = rows.sort(
+              (a, b) => b.operation_id - a.operation_id,
+            );
+
+            for (const log of reversed) {
+              if (log.operation === 0) {
+                // Create
+                await tx_
+                  .withSchema(namespaceInfo.userNamespace)
+                  .deleteFrom(tableName)
+                  .where("id", "=", log.id)
+                  .execute();
+              } else if (log.operation === 1) {
+                // Update
+                log.operation_id = undefined;
+                log.checkpoint = undefined;
+                log.operation = undefined;
+                await tx_
+                  .withSchema(namespaceInfo.userNamespace)
+                  .updateTable(tableName)
+                  .set(log)
+                  .where("id", "=", log.id)
+                  .execute();
+              } else {
+                // Delete
+                log.operation_id = undefined;
+                log.checkpoint = undefined;
+                log.operation = undefined;
+                await tx_
+                  .withSchema(namespaceInfo.userNamespace)
+                  .insertInto(tableName)
+                  .values(log)
+                  .execute();
+              }
+            }
+
+            this.common.logger.info({
+              service: "database",
+              msg: `Reverted ${rows.length} unfinalized operations from existing '${tableName}' table`,
+            });
+          }
+
+          return finalizedCheckpoint;
+        }
+
+        // Otherwise, the lock row has a different build ID or a zero finalized checkpoint,
+        // so we need to drop the previous app's tables and create new ones.
+        const previousBuildId = previousLockRow.build_id;
+        const previousSchema = previousLockRow.schema as unknown as Schema;
+
+        await tx
+          .withSchema(this.internalNamespace)
+          .updateTable("namespace_lock")
+          .where("namespace", "=", this.userNamespace)
+          .set(newLockRow)
+          .execute();
+
+        this.common.logger.debug({
+          service: "database",
+          msg: `Acquired lock on schema '${this.userNamespace}' previously used by build '${previousBuildId}'`,
+        });
+
+        for (const tableName of Object.keys(previousSchema.tables)) {
+          const tableId = hash([
+            this.userNamespace,
+            previousBuildId,
+            tableName,
+          ]);
+
+          await tx.schema
+            .withSchema(this.internalNamespace)
+            .dropTable(tableId)
+            .ifExists()
+            .execute();
+
+          await tx.schema
+            .withSchema(this.userNamespace)
+            .dropTable(tableName)
+            .cascade() // Need cascade here to drop dependent published views.
+            .ifExists()
+            .execute();
+
+          this.common.logger.debug({
+            service: "database",
+            msg: `Dropped '${tableName}' table left by previous build`,
           });
         }
 
+        await createTables();
+
         return zeroCheckpoint;
       });
-
-      // If we found a cache hit, revert the tables to the finalized checkpoint.
-      if (!isCheckpointEqual(checkpoint, zeroCheckpoint)) {
-        await revertIndexingTables({
-          db: this.indexingDb,
-          checkpoint,
-          namespaceInfo,
-        });
-      }
 
       // Start the heartbeat interval to hold the lock for as long as the process is running.
       this.heartbeatInterval = setInterval(async () => {
@@ -373,7 +429,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
           this.common.logger.debug({
             service: "database",
-            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} (build_id=${this.buildId})`,
+            msg: `Updated heartbeat timestamp to ${lockRow?.heartbeat_at} for current build '${this.buildId}'`,
           });
         } catch (err) {
           const error = err as Error;
@@ -415,6 +471,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         .where("namespace", "=", this.userNamespace)
         .set({ finalized_checkpoint: encodeCheckpoint(checkpoint) })
         .execute();
+
+      this.common.logger.info({
+        service: "database",
+        msg: `Updated finalized checkpoint to (timestamp=${checkpoint.blockTimestamp} chainId=${checkpoint.chainId} block=${checkpoint.blockNumber})`,
+      });
     });
   }
 

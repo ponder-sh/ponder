@@ -269,7 +269,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await expect(() =>
       databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
     ).rejects.toThrow(
-      "Database file 'public.db' is in use by a different Ponder app (lock expires in",
+      "Database file 'public.db' is locked by a different Ponder app (lock expires in",
     );
 
     await database.kill();
@@ -293,7 +293,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await expect(() =>
       databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
     ).rejects.toThrow(
-      "Database file 'public.db' is in use by a different Ponder app (lock expires in",
+      "Database file 'public.db' is locked by a different Ponder app (lock expires in",
     );
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
@@ -337,7 +337,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await expect(() =>
       database.setup({ schema, buildId: "abc" }),
     ).rejects.toThrow(
-      "Unable to create table 'public'.'Pet' because a table with that name already exists. Is there another application using the 'public.db' database file?",
+      "Unable to create table 'Pet' in 'public.db' because a table with that name already exists. Is there another application using the 'public.db' database file?",
     );
 
     await database.kill();

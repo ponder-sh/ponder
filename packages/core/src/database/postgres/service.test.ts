@@ -332,7 +332,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await expect(() =>
       databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
     ).rejects.toThrow(
-      "Schema 'public' is in use by a different Ponder app (lock expires in",
+      "Schema 'public' is locked by a different Ponder app (lock expires in",
     );
 
     await database.kill();
@@ -358,7 +358,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await expect(() =>
       databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
     ).rejects.toThrow(
-      "Schema 'public' is in use by a different Ponder app (lock expires in",
+      "Schema 'public' is locked by a different Ponder app (lock expires in",
     );
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
