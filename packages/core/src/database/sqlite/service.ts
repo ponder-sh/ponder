@@ -30,7 +30,7 @@ import type { BaseDatabaseService, NamespaceInfo } from "../service.js";
 import { type InternalTables, migrationProvider } from "./migrations.js";
 
 const HEARTBEAT_INTERVAL_MS = 1000 * 10; // 10 seconds
-const HEARTBEAT_TIMEOUT_MS = 1000 * 60; // 60 seconds
+const HEARTBEAT_TIMEOUT_MS = 1000 * 25; // 25 seconds
 
 export class SqliteDatabaseService implements BaseDatabaseService {
   kind = "sqlite" as const;

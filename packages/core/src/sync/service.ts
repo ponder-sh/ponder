@@ -420,6 +420,10 @@ export const startRealtime = (syncService: Service) => {
       );
     } else {
       realtime.realtimeSync.start();
+      syncService.common.metrics.ponder_realtime_is_connected.set(
+        { network: network.name },
+        1,
+      );
     }
   }
 };
