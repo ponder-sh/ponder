@@ -1057,19 +1057,28 @@ export class SqliteSyncStore implements SyncStore {
     let cursor = encodeCheckpoint(fromCheckpoint);
     const encodedToCheckpoint = encodeCheckpoint(toCheckpoint);
 
-    const shouldJoinReceipts = sources
-      .filter(
-        (s): s is LogSource | FactorySource =>
-          sourceIsLog(s) || sourceIsFactory(s),
-      )
-      .some((source) => source.criteria.includeTransactionReceipts);
-
     const sourcesById = sources.reduce<{
       [sourceId: string]: (typeof sources)[number];
     }>((acc, cur) => {
       acc[cur.id] = cur;
       return acc;
     }, {});
+
+    // We can assume that source won't be empty. `sources` will
+    // be only log/factory, only block, or a mix
+    const hasOnlyLogOrFactorySources = sources.every(
+      (s) => sourceIsLog(s) || sourceIsFactory(s),
+    );
+    const logOrFactorySources = sources.filter(
+      (s): s is LogSource | FactorySource =>
+        sourceIsLog(s) || sourceIsFactory(s),
+    );
+    const hasOnlyBlockSources = sources.every(sourceIsBlock);
+    const blockSources = sources.filter(sourceIsBlock);
+
+    const shouldJoinReceipts = logOrFactorySources.some(
+      (source) => source.criteria.includeTransactionReceipts,
+    );
 
     while (true) {
       const events = await this.db.wrap(
@@ -1078,30 +1087,35 @@ export class SqliteSyncStore implements SyncStore {
           // Query a batch of logs.
           const requestedLogs = await this.db
             .with(
-              "sources(source_id)",
+              "log_sources(source_id)",
               () =>
-                sql`( values ${sql.join(
-                  sources.map((source) => sql`( ${sql.val(source.id)} )`),
-                )} )`,
+                sql`( values ${
+                  hasOnlyBlockSources
+                    ? sql`( null )`
+                    : sql.join(
+                        logOrFactorySources.map(
+                          (source) => sql`( ${sql.val(source.id)} )`,
+                        ),
+                      )
+                } )`,
             )
-            .with("events", (db) => {
-              // We can assume that source won't be empty. `sources` will
-              // be only log/factory, only block, or a mix
-              const hasOnlyLogOrFactorySources = sources.every(
-                (s) => sourceIsLog(s) || sourceIsFactory(s),
-              );
-              const hasOnlyBlockSources = sources.every(sourceIsBlock);
-
-              const queryLogs = db
-                .with(
-                  "sources(source_id)",
-                  () =>
-                    sql`( values ${sql.join(
-                      sources.map((source) => sql`( ${sql.val(source.id)} )`),
-                    )} )`,
-                )
+            .with(
+              "block_sources(source_id)",
+              () =>
+                sql`( values ${
+                  hasOnlyLogOrFactorySources
+                    ? sql`( null )`
+                    : sql.join(
+                        blockSources.map(
+                          (source) => sql`( ${sql.val(source.id)} )`,
+                        ),
+                      )
+                } )`,
+            )
+            .with("events", (db) =>
+              db
                 .selectFrom("logs")
-                .innerJoin("sources", (join) => join.onTrue())
+                .innerJoin("log_sources", (join) => join.onTrue())
                 .where((eb) => {
                   const logFilterCmprs = sources
                     .filter(sourceIsLog)
@@ -1137,75 +1151,59 @@ export class SqliteSyncStore implements SyncStore {
                   "logs.topic3 as log_topic3",
                   "logs.transactionHash as log_transactionHash",
                   "logs.transactionIndex as log_transactionIndex",
-                ]);
-
-              const queryBlocks = db
-                .with(
-                  "sources(source_id)",
-                  () =>
-                    sql`( values ${sql.join(
-                      sources
-                        .filter(sourceIsBlock)
-                        .map((source) => sql`( ${sql.val(source.id)} )`),
-                    )} )`,
-                )
-                .selectFrom("blocks")
-                .innerJoin("sources", (join) => join.onTrue())
-                .where((eb) => {
-                  const exprs = [];
-                  const blockFilters = sources.filter(sourceIsBlock);
-                  for (const blockFilter of blockFilters) {
-                    exprs.push(
-                      eb.and([
-                        eb("chainId", "=", blockFilter.chainId),
-                        eb(
-                          "number",
-                          ">=",
-                          encodeAsText(blockFilter.startBlock),
-                        ),
-                        ...(blockFilter.endBlock !== undefined
-                          ? [
-                              eb(
-                                "number",
-                                "<=",
-                                encodeAsText(blockFilter.endBlock),
-                              ),
-                            ]
-                          : []),
-                        sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.frequency} = 0`,
-                        eb("source_id", "=", blockFilter.id),
-                      ]),
-                    );
-                  }
-                  return eb.or(exprs);
-                })
-                .select([
-                  "source_id",
-                  "blocks.checkpoint as checkpoint",
-                  sql`null`.as("log_address"),
-                  "blocks.hash as log_blockHash",
-                  sql`null`.as("log_blockNumber"),
-                  sql`null`.as("log_chainId"),
-                  sql`null`.as("log_data"),
-                  sql`null`.as("log_id"),
-                  sql`null`.as("log_logIndex"),
-                  sql`null`.as("log_topic0"),
-                  sql`null`.as("log_topic1"),
-                  sql`null`.as("log_topic2"),
-                  sql`null`.as("log_topic3"),
-                  sql`null`.as("log_transactionHash"),
-                  sql`null`.as("log_transactionIndex"),
-                ]);
-
-              if (hasOnlyLogOrFactorySources) {
-                return queryLogs;
-              } else if (hasOnlyBlockSources) {
-                return queryBlocks as typeof queryLogs;
-              } else {
-                // @ts-ignore
-                return queryLogs.unionAll(queryBlocks);
-              }
-            })
+                ])
+                .unionAll(
+                  // @ts-ignore
+                  db
+                    .selectFrom("blocks")
+                    .innerJoin("block_sources", (join) => join.onTrue())
+                    .where((eb) => {
+                      const exprs = [];
+                      const blockFilters = sources.filter(sourceIsBlock);
+                      for (const blockFilter of blockFilters) {
+                        exprs.push(
+                          eb.and([
+                            eb("chainId", "=", blockFilter.chainId),
+                            eb(
+                              "number",
+                              ">=",
+                              encodeAsText(blockFilter.startBlock),
+                            ),
+                            ...(blockFilter.endBlock !== undefined
+                              ? [
+                                  eb(
+                                    "number",
+                                    "<=",
+                                    encodeAsText(blockFilter.endBlock),
+                                  ),
+                                ]
+                              : []),
+                            sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.frequency} = 0`,
+                            eb("source_id", "=", blockFilter.id),
+                          ]),
+                        );
+                      }
+                      return eb.or(exprs);
+                    })
+                    .select([
+                      "source_id",
+                      "blocks.checkpoint as checkpoint",
+                      sql`null`.as("log_address"),
+                      "blocks.hash as log_blockHash",
+                      sql`null`.as("log_blockNumber"),
+                      sql`null`.as("log_chainId"),
+                      sql`null`.as("log_data"),
+                      sql`null`.as("log_id"),
+                      sql`null`.as("log_logIndex"),
+                      sql`null`.as("log_topic0"),
+                      sql`null`.as("log_topic1"),
+                      sql`null`.as("log_topic2"),
+                      sql`null`.as("log_topic3"),
+                      sql`null`.as("log_transactionHash"),
+                      sql`null`.as("log_transactionIndex"),
+                    ]),
+                ),
+            )
             .selectFrom("events")
             .innerJoin("blocks", "blocks.hash", "log_blockHash")
             .leftJoin(
