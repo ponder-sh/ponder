@@ -590,9 +590,61 @@ export async function buildConfigAndIndexingFunctions({
     });
 
   const blockSources: BlockSource[] = Object.entries(config.blocks ?? {})
-    .flatMap(([sourceName, networkBlockSource]) => {
-      return Object.entries(networkBlockSource).map(
-        ([networkName, blockConfig]) => {
+    .flatMap(([sourceName, blockSourceConfig]) => {
+      const startBlockMaybeNan = blockSourceConfig.startBlock ?? 0;
+      const startBlock = Number.isNaN(startBlockMaybeNan)
+        ? 0
+        : startBlockMaybeNan;
+      const endBlockMaybeNan = blockSourceConfig.endBlock;
+      const endBlock = Number.isNaN(endBlockMaybeNan)
+        ? undefined
+        : endBlockMaybeNan;
+
+      const frequencyMaybeNan = blockSourceConfig.frequency;
+      const frequency = Number.isNaN(frequencyMaybeNan) ? 0 : frequencyMaybeNan;
+
+      if (!Number.isInteger(frequency) || frequency === 0) {
+        throw Error(
+          `Validation failed: Invalid frequency for block source '${sourceName}'. Got ${frequency}, expected a non-zero integer.`,
+        );
+      }
+
+      if (typeof blockSourceConfig.network === "string") {
+        const network = networks.find(
+          (n) => n.name === blockSourceConfig.network,
+        );
+        if (!network) {
+          throw new Error(
+            `Validation failed: Invalid network for block source '${sourceName}'. Got '${
+              blockSourceConfig.network
+            }', expected one of [${networks
+              .map((n) => `'${n.name}'`)
+              .join(", ")}].`,
+          );
+        }
+
+        return {
+          type: "block",
+          id: `${sourceName}_${blockSourceConfig.network}`,
+          sourceName,
+          networkName: blockSourceConfig.network,
+          chainId: network.chainId,
+          startBlock,
+          endBlock,
+          criteria: {
+            frequency: frequency,
+            offset: startBlock % frequency,
+          },
+        } as const;
+      }
+
+      type DefinedNetworkOverride = NonNullable<
+        Exclude<Config["blocks"][string]["network"], string>[string]
+      >;
+
+      return Object.entries(blockSourceConfig.network)
+        .filter((n): n is [string, DefinedNetworkOverride] => !!n[1])
+        .map(([networkName, overrides]) => {
           const network = networks.find((n) => n.name === networkName);
           if (!network) {
             throw new Error(
@@ -602,23 +654,26 @@ export async function buildConfigAndIndexingFunctions({
             );
           }
 
-          const startBlockMaybeNan = blockConfig.startBlock ?? 0;
+          const startBlockMaybeNan =
+            overrides.startBlock ?? blockSourceConfig.startBlock ?? 0;
           const startBlock = Number.isNaN(startBlockMaybeNan)
             ? 0
             : startBlockMaybeNan;
-          const endBlockMaybeNan = blockConfig.endBlock;
+          const endBlockMaybeNan =
+            overrides.endBlock ?? blockSourceConfig.endBlock;
           const endBlock = Number.isNaN(endBlockMaybeNan)
             ? undefined
             : endBlockMaybeNan;
 
-          const frequencyMaybeNan = blockConfig.frequency;
+          const frequencyMaybeNan =
+            overrides.frequency ?? blockSourceConfig.frequency;
           const frequency = Number.isNaN(frequencyMaybeNan)
             ? 0
             : frequencyMaybeNan;
 
           if (!Number.isInteger(frequency) || frequency === 0) {
             throw Error(
-              `Validation failed: Invalid frequency for block source '${sourceName}'. Got ${blockConfig.frequency}, expected a non-zero integer.`,
+              `Validation failed: Invalid frequency for block source '${sourceName}'. Got ${frequency}, expected a non-zero integer.`,
             );
           }
 
@@ -635,8 +690,7 @@ export async function buildConfigAndIndexingFunctions({
               offset: startBlock % frequency,
             },
           } as const;
-        },
-      );
+        });
     })
     .filter((blockSource) => {
       const hasRegisteredIndexingFunction =

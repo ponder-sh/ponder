@@ -80,8 +80,12 @@ type GetBlockFilter<
   allNetworkNames extends string = [keyof networks] extends [never]
     ? string
     : keyof networks & string,
-> = {
-  [name in allNetworkNames]?: BlockFilterConfig;
+> = BlockFilterConfig & {
+  network:
+    | allNetworkNames
+    | {
+        [name in allNetworkNames]?: BlockFilterConfig;
+      };
 };
 
 type AbiConfig<abi extends Abi | readonly unknown[]> = {
@@ -195,8 +199,8 @@ export type Config = {
   contracts: { [contractName: string]: GetContract };
   database?: DatabaseConfig;
   options?: OptionConfig;
-  blocks?: {
-    [sourceName: string]: { [networkName: string]: BlockFilterConfig };
+  blocks: {
+    [sourceName: string]: GetBlockFilter<unknown>;
   };
 };
 
