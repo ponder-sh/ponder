@@ -36,8 +36,6 @@ test("factory", async (context) => {
 
   await waitForHealthy(port);
 
-  await wait(500);
-
   let response = await postGraphql(
     port,
     `
