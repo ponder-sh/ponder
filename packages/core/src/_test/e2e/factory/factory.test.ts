@@ -27,6 +27,7 @@ test("factory", async (context) => {
 
   const cleanup = await start({
     cliOptions: {
+      command: "start",
       root: "./src/_test/e2e/factory",
       config: "ponder.config.ts",
       port,

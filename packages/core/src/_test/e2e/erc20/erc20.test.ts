@@ -30,6 +30,7 @@ test("erc20", async (context) => {
 
   const cleanup = await start({
     cliOptions: {
+      command: "start",
       root: rootDir,
       config: "ponder.config.ts",
       port,
@@ -119,6 +120,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const cleanupStart = await start({
       cliOptions: {
+        command: "start",
         root: "./src/_test/e2e/erc20",
         config: "ponder.config.ts",
         port: startPort,
@@ -138,6 +140,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const cleanupServe = await serve({
       cliOptions: {
+        command: "serve",
         root: "./src/_test/e2e/erc20",
         config: "ponder.config.ts",
         port: servePort,
