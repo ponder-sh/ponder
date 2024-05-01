@@ -36,6 +36,9 @@ test("factory", async (context) => {
 
   await waitForHealthy(port);
 
+  // TODO: Find a consistent way to wait for indexing to be complete.
+  await wait(500);
+
   let response = await postGraphql(
     port,
     `
