@@ -29,9 +29,9 @@ export class MetricsService {
   ponder_indexing_function_error_total: prometheus.Counter<"network" | "event">;
 
   ponder_historical_start_timestamp: prometheus.Gauge<"network">;
-  ponder_historical_total_blocks: prometheus.Gauge<"network" | "contract">;
-  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "contract">;
-  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "contract">;
+  ponder_historical_total_blocks: prometheus.Gauge<"network" | "source">;
+  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "source">;
+  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "source">;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
