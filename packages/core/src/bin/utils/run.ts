@@ -146,7 +146,7 @@ export async function run({
   };
 
   const realtimeQueue = createQueue({
-    initialStart: false,
+    initialStart: true,
     browser: false,
     concurrency: 1,
     worker: async (event: RealtimeEvent) => {
@@ -211,7 +211,7 @@ export async function run({
     schema,
   });
 
-  (async () => {
+  const start = async () => {
     syncService.startHistorical();
 
     // If the initial checkpoint is zero, we need to run setup events.
@@ -268,6 +268,7 @@ export async function run({
     if (database.kind === "postgres") {
       await database.publish();
     }
+    await handleFinalize(syncService.finalizedCheckpoint);
 
     server.setHealthy();
     common.logger.info({
@@ -300,19 +301,20 @@ export async function run({
       schema,
     });
 
-    await handleFinalize(syncService.finalizedCheckpoint);
-
     syncService.startRealtime();
-    realtimeQueue.start();
-  })();
+  };
+
+  const startPromise = start();
 
   return async () => {
+    const serverPromise = server.kill();
+    indexingService.kill();
+    await syncService.kill();
     realtimeQueue.pause();
     realtimeQueue.clear();
-    indexingService.kill();
-    await server.kill();
-    await syncService.kill();
     await realtimeQueue.onIdle();
+    await startPromise;
+    await serverPromise;
     await database.kill();
   };
 }

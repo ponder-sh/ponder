@@ -31,6 +31,7 @@ export type Service = {
   // state
   checkpoint: Checkpoint;
   finalizedCheckpoint: Checkpoint;
+  isKilled: boolean;
 
   // network specific services
   networkServices: {
@@ -306,6 +307,7 @@ export const create = async ({
     syncStore,
     sources,
     networkServices,
+    isKilled: false,
     checkpoint: initialCheckpoint,
     finalizedCheckpoint: checkpointMin(
       ...networkServices.map((ns) => ns.initialFinalizedCheckpoint),
@@ -333,6 +335,8 @@ export const getHistoricalCheckpoint = async function* (
   syncService: Service,
 ): AsyncGenerator<{ fromCheckpoint: Checkpoint; toCheckpoint: Checkpoint }> {
   while (true) {
+    if (syncService.isKilled) return;
+
     const isComplete = syncService.networkServices.every(
       (ns) => ns.historical.isHistoricalSyncComplete,
     );
@@ -414,6 +418,8 @@ export const startRealtime = (syncService: Service) => {
 };
 
 export const kill = async (syncService: Service) => {
+  syncService.isKilled = true;
+
   const killPromise: Promise<void>[] = [];
 
   for (const { historical, realtime } of syncService.networkServices) {
