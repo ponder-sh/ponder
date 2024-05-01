@@ -122,9 +122,13 @@ export namespace Virtual {
     name extends EventNames<config>,
     ///
     sourceName extends ExtractSourceName<name> = ExtractSourceName<name>,
-    sourceNetwork = unknown extends config["blocks"][sourceName]["network"]
-      ? never
-      : config["blocks"][sourceName]["network"],
+    sourceNetwork =
+      | (unknown extends config["contracts"][sourceName]["network"]
+          ? never
+          : config["contracts"][sourceName]["network"])
+      | (unknown extends config["blocks"][sourceName]["network"]
+          ? never
+          : config["blocks"][sourceName]["network"]),
   > = {
     contracts: {
       [_contractName in keyof config["contracts"]]: {
