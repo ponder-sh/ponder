@@ -1,208 +1,202 @@
-import type { Hex } from "viem";
 import { assertType, test } from "vitest";
-import {
-  _enum,
-  bigint,
-  boolean,
-  float,
-  hex,
-  int,
-  many,
-  one,
-  string,
-} from "./columns.js";
-import type {
-  EnumColumn,
-  ManyColumn,
-  OneColumn,
-  RecoverEnumType,
-} from "./types.js";
-import { type BaseColumn, type RecoverColumnType } from "./types.js";
+import { _enum, many, one, string } from "./columns.js";
 
-test("string", () => {
+test("base", () => {
   const c = string();
   //    ^?
 
-  assertType<BaseColumn<"string", undefined, false, false>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as string);
-});
-
-test("int", () => {
-  const c = int();
-  //    ^?
-
-  assertType<BaseColumn<"int", undefined, false, false>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as number);
-});
-
-test("float", () => {
-  const c = float();
-  //    ^?
-
-  assertType<BaseColumn<"float", undefined, false, false>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as number);
-});
-
-test("boolean", () => {
-  const c = boolean();
-  //    ^?
-
-  assertType<BaseColumn<"boolean", undefined, false, false>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as boolean);
-});
-
-test("hex", () => {
-  const c = hex();
-  //    ^?
-
-  assertType<BaseColumn<"hex", undefined, false, false>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as Hex);
-});
-
-test("bigint", () => {
-  const c = bigint();
-  //    ^?
-
-  assertType<BaseColumn<"bigint", undefined, false, false>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as bigint);
-});
-
-test("enum", () => {
-  const c = _enum("ENUM");
-  //    ^?
-
-  assertType<EnumColumn<"ENUM", false>>(c[" enum"]);
-});
-
-test("one", () => {
-  const c = one("OtherColumn");
-  //    ^?
-
-  assertType<OneColumn<"OtherColumn">>(c);
-});
-
-test("many", () => {
-  const c = many("OtherTable.OtherColumn");
-  //    ^?
-
-  assertType<ManyColumn<"OtherTable.OtherColumn">>(c);
+  assertType<keyof typeof c>(
+    {} as unknown as "optional" | "list" | "references",
+  );
+  assertType<Omit<typeof c, "optional" | "list" | "references">>(
+    {} as unknown as {
+      " type": "scalar";
+      " scalar": "string";
+      " optional": false;
+      " list": false;
+    },
+  );
 });
 
 test("optional", () => {
   const c = string().optional();
   //    ^?
 
-  assertType<BaseColumn<"string", undefined, true, false>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as string);
+  assertType<keyof typeof c>({} as unknown as "list" | "references");
+  assertType<Omit<typeof c, "list" | "references">>(
+    {} as unknown as {
+      " type": "scalar";
+      " scalar": "string";
+      " optional": true;
+      " list": false;
+    },
+  );
 });
 
 test("list", () => {
   const c = string().list();
   //    ^?
 
-  assertType<BaseColumn<"string", undefined, false, true>>(c[" column"]);
+  assertType<keyof typeof c>({} as unknown as "optional");
+  assertType<Omit<typeof c, "optional">>(
+    {} as unknown as {
+      " type": "scalar";
+      " scalar": "string";
+      " optional": false;
+      " list": true;
+    },
+  );
+});
 
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
+test("optional + list", () => {
+  const c = string().optional().list();
+  //    ^?
 
-  assertType<t>({} as string[]);
+  assertType<Omit<typeof c, "optional">>(
+    {} as unknown as {
+      " type": "scalar";
+      " scalar": "string";
+      " optional": true;
+      " list": true;
+    },
+  );
+});
+
+test("list + optional", () => {
+  const c = string().list().optional();
+  //    ^?
+
+  assertType<Omit<typeof c, "optional">>(
+    {} as unknown as {
+      " type": "scalar";
+      " scalar": "string";
+      " optional": true;
+      " list": true;
+    },
+  );
 });
 
 test("references", () => {
   const c = string().references("OtherTable.id");
-
-  assertType<BaseColumn<"string", "OtherTable.id", false, false>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as string);
-});
-
-test("chaining modifiers 1", () => {
-  const c = string().list().optional();
   //    ^?
 
-  assertType<BaseColumn<"string", undefined, true, true>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as string[]);
+  assertType<keyof typeof c>({} as unknown as "optional");
+  assertType<Omit<typeof c, "optional">>(
+    {} as unknown as {
+      " type": "reference";
+      " scalar": "string";
+      " optional": false;
+      " reference": "OtherTable.id";
+    },
+  );
 });
 
-test("chaining modifiers 2", () => {
-  const c = string().optional().list();
-  //    ^?
-
-  assertType<BaseColumn<"string", undefined, true, true>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as string[]);
-});
-
-test("chaining modifiers 3", () => {
-  const c = string().optional().references("OtherTable.id");
-  //    ^?
-
-  assertType<BaseColumn<"string", "OtherTable.id", true, false>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as string);
-});
-
-test("chaining modifiers 4", () => {
+test("references + optional", () => {
   const c = string().references("OtherTable.id").optional();
   //    ^?
 
-  assertType<BaseColumn<"string", "OtherTable.id", true, false>>(c[" column"]);
-
-  type t = RecoverColumnType<(typeof c)[" column"]>;
-  //   ^?
-
-  assertType<t>({} as string);
+  assertType<Omit<typeof c, "optional">>(
+    {} as unknown as {
+      " type": "reference";
+      " scalar": "string";
+      " optional": true;
+      " reference": "OtherTable.id";
+    },
+  );
 });
 
-test("chaining modifiers 5", () => {
-  const e = _enum("ENUM").list().optional();
+test("optional + references", () => {
+  const c = string().optional().references("OtherTable.id");
   //    ^?
 
-  assertType<EnumColumn<"ENUM", true, true>>(e[" enum"]);
+  assertType<Omit<typeof c, "optional">>(
+    {} as unknown as {
+      " type": "reference";
+      " scalar": "string";
+      " optional": true;
+      " reference": "OtherTable.id";
+    },
+  );
+});
 
-  type t = RecoverEnumType<{ ENUM: ["ONE", "TWO"] }, (typeof e)[" enum"]>;
-  //   ^?
+test("one", () => {
+  const c = one("column");
+  //    ^?
 
-  assertType<t>([] as ("ONE" | "TWO")[]);
+  assertType<typeof c>(
+    {} as unknown as { " type": "one"; " reference": "column" },
+  );
+});
+
+test("many", () => {
+  const c = many("table.column");
+  //    ^?
+
+  assertType<typeof c>(
+    {} as unknown as {
+      " type": "many";
+      " referenceTable": "table";
+      " referenceColumn": "column";
+    },
+  );
+});
+
+test("enum", () => {
+  const e = _enum("enum");
+  //    ^?
+
+  assertType<keyof typeof e>({} as unknown as "optional" | "list");
+  assertType<Omit<typeof e, "optional" | "list">>(
+    {} as unknown as {
+      " type": "enum";
+      " enum": "enum";
+      " optional": false;
+      " list": false;
+    },
+  );
+});
+
+test("enum optional", () => {
+  const e = _enum("enum").optional();
+  //    ^?
+
+  assertType<keyof typeof e>({} as unknown as "list");
+  assertType<Omit<typeof e, "list">>(
+    {} as unknown as {
+      " type": "enum";
+      " enum": "enum";
+      " optional": true;
+      " list": false;
+    },
+  );
+});
+
+test("enum optional + list", () => {
+  const e = _enum("enum").optional().list();
+  //    ^?
+
+  assertType<keyof typeof e>({} as unknown as never);
+  assertType<typeof e>(
+    {} as unknown as {
+      " type": "enum";
+      " enum": "enum";
+      " optional": true;
+      " list": true;
+    },
+  );
+});
+
+test("enum list + optional", () => {
+  const e = _enum("enum").list().optional();
+  //    ^?
+
+  assertType<keyof typeof e>({} as unknown as never);
+  assertType<typeof e>(
+    {} as unknown as {
+      " type": "enum";
+      " enum": "enum";
+      " optional": true;
+      " list": true;
+    },
+  );
 });

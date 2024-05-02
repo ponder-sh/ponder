@@ -1,102 +1,160 @@
+import type { Hex } from "viem";
 import { assertType, test } from "vitest";
+import type { InferSchemaType } from "./infer.js";
+import { createSchema } from "./schema.js";
 
-import { int, string } from "./columns.js";
-import { createEnum, createSchema, createTable } from "./schema.js";
-import type {
-  BaseColumn,
-  ExtractAllNames,
-  FilterEnums,
-  FilterTables,
-  Infer,
-  RecoverTableType,
-  Schema,
-} from "./types.js";
+test("createSchema scalar", () => {
+  const schema = createSchema((p) => ({ t: p.createTable({ id: p.hex() }) }));
+  //    ^?
 
-test("table", () => {
-  const a = createTable({
-    id: string(),
-    age: int(),
-  });
-
-  type t = RecoverTableType<{}, typeof a>;
+  type inferred = InferSchemaType<typeof schema>;
   //   ^?
 
-  assertType<t>({} as { id: string; age: number });
+  assertType<inferred>({} as unknown as { t: { id: Hex } });
 });
 
-test("table optional", () => {
-  const t = createTable({
-    id: string(),
-    age: int().optional(),
-  });
-
-  type t = RecoverTableType<{}, typeof t>;
-  //   ^?
-
-  assertType<t>({} as { id: string; age?: number });
-});
-
-test("filter enums", () => {
-  const a = {
+test("createSchema reference", () => {
+  const schema = createSchema((p) => ({
     //  ^?
-    t: createTable({
-      id: string(),
+    t1: p.createTable({
+      id: p.hex(),
     }),
-    e: createEnum(["ONE", "TWO"]),
-  };
-
-  type t = FilterEnums<typeof a>;
-  //   ^?
-
-  assertType<t>({} as { e: ["ONE", "TWO"] });
-});
-
-test("filter tables", () => {
-  const a = {
-    //  ^?
-    t: createTable({
-      id: string(),
-    }),
-    e: createEnum(["ONE", "TWO"]),
-  };
-
-  type t = FilterTables<typeof a>;
-  //   ^?
-
-  assertType<t["t"]["id"]>({} as BaseColumn<"string", never, false, false>);
-});
-
-test("extract all names", () => {
-  const a = {
-    //  ^?
-    t: createTable({
-      id: string(),
-      ref: string().references("OtherTable.id"),
-      ref2: string().references("OtherTable.id"),
-    }),
-    e: createEnum(["ONE", "TWO"]),
-  };
-
-  type t = ExtractAllNames<"OtherTable", typeof a>;
-  //   ^?
-
-  assertType<t>("" as "t.ref" | "t.ref2");
-});
-
-test("schema", () => {
-  const s = createSchema((p) => ({
-    //  ^?
-    e: p.createEnum(["ONE", "TWO"]),
-    t: p.createTable({
-      id: p.string(),
-      e: p.enum("e"),
+    t2: p.createTable({
+      id: p.hex(),
+      col: p.hex().references("t2.id"),
     }),
   }));
 
-  assertType<Schema>(s);
-
-  type t = Infer<typeof s>;
+  type inferred = InferSchemaType<typeof schema>;
   //   ^?
 
-  assertType<t>({} as { t: { id: string; e: "ONE" | "TWO" } });
+  assertType<inferred>(
+    {} as unknown as { t1: { id: Hex }; t2: { id: Hex; col: Hex } },
+  );
+});
+
+test("createSchema reference error", () => {
+  createSchema((p) => ({
+    // @ts-expect-error
+    t: p.createTable({
+      id: p.hex(),
+      col: p.hex().references("t2.id"),
+    }),
+  }));
+});
+
+test("createSchema one", () => {
+  const schema = createSchema((p) => ({
+    //  ^?
+    t1: p.createTable({
+      id: p.hex(),
+    }),
+    t2: p.createTable({
+      id: p.hex(),
+      col1: p.hex().references("t1.id"),
+      col2: p.one("col1"),
+    }),
+  }));
+
+  type inferred = InferSchemaType<typeof schema>;
+  //   ^?
+
+  assertType<inferred>(
+    {} as unknown as { t1: { id: Hex }; t2: { id: Hex; col1: Hex } },
+  );
+});
+
+test("createSchema one error", () => {
+  createSchema((p) => ({
+    //  ^?
+    // @ts-expect-error
+    t: p.createTable({
+      id: p.hex(),
+      // @ts-expect-error
+      col: p.one("col"),
+    }),
+  }));
+});
+
+test("createSchema many", () => {
+  const schema = createSchema((p) => ({
+    //  ^?
+    t1: p.createTable({
+      id: p.hex(),
+      many: p.many("t2.col1"),
+    }),
+    t2: p.createTable({
+      id: p.hex(),
+      col1: p.hex().references("t1.id"),
+      col2: p.one("col1"),
+    }),
+  }));
+
+  type inferred = InferSchemaType<typeof schema>;
+  //   ^?
+
+  assertType<inferred>(
+    {} as unknown as { t1: { id: Hex }; t2: { id: Hex; col1: Hex } },
+  );
+});
+
+test("createSchema many error wrong table", () => {
+  createSchema((p) => ({
+    //  ^?
+    // @ts-expect-error
+    t1: p.createTable({
+      id: p.hex(),
+      many: p.many("t1.col1"),
+    }),
+    t2: p.createTable({
+      id: p.hex(),
+      col1: p.hex().references("t1.id"),
+      col2: p.one("col1"),
+    }),
+  }));
+});
+
+test("createSchema many error wrong column", () => {
+  createSchema((p) => ({
+    //  ^?
+    // @ts-expect-error
+    t1: p.createTable({
+      id: p.hex(),
+      many: p.many("t2.col2"),
+    }),
+    t2: p.createTable({
+      id: p.hex(),
+      col1: p.hex().references("t1.id"),
+      col2: p.one("col1"),
+    }),
+  }));
+});
+
+test("createSchema enum", () => {
+  const schema = createSchema((p) => ({
+    //  ^?
+    e: p.createEnum(["one", "two"]),
+    t: p.createTable({
+      id: p.string(),
+      enum: p.enum("e"),
+    }),
+  }));
+
+  type inferred = InferSchemaType<typeof schema>;
+  //   ^?
+
+  assertType<inferred>(
+    {} as unknown as { t: { id: Hex; enum: "one" | "two" } },
+  );
+});
+
+test("createSchema enum error", () => {
+  createSchema((p) => ({
+    e: p.createEnum(["one", "two"]),
+    // @ts-expect-error
+    t: p.createTable({
+      id: p.string(),
+      enum: p.enum("a"),
+    }),
+  }));
 });

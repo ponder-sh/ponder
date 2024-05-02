@@ -1,8 +1,17 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { PoolConfig } from "@/config/database.js";
-import type { Schema } from "@/schema/types.js";
-import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
+import type { Schema, Table } from "@/schema/common.js";
+import {
+  isEnumColumn,
+  isListColumn,
+  isManyColumn,
+  isOneColumn,
+  isOptionalColumn,
+  isReferenceColumn,
+  schemaToEnums,
+  schemaToTables,
+} from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
 import {
   migrationProvider as syncMigrationProvider,
@@ -177,10 +186,13 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     const namespaceInfo = {
       userNamespace: this.userNamespace,
       internalNamespace: this.internalNamespace,
-      internalTableIds: Object.keys(schema.tables).reduce((acc, tableName) => {
-        acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
-        return acc;
-      }, {} as { [tableName: string]: string }),
+      internalTableIds: Object.keys(schemaToTables(schema)).reduce(
+        (acc, tableName) => {
+          acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
+          return acc;
+        },
+        {} as { [tableName: string]: string },
+      ),
     } satisfies NamespaceInfo;
 
     return this.db.wrap({ method: "setup" }, async () => {
@@ -263,7 +275,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             msg: `Acquired lock on namespace '${this.userNamespace}' previously used by app '${previousBuildId}'`,
           });
 
-          for (const tableName of Object.keys(previousSchema.tables)) {
+          for (const tableName of Object.keys(schemaToTables(previousSchema))) {
             const tableId = hash([
               this.userNamespace,
               previousBuildId,
@@ -308,7 +320,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         }
 
         // Create the operation log tables and user tables.
-        for (const [tableName, columns] of Object.entries(schema.tables)) {
+        for (const [tableName, columns] of Object.entries(
+          schemaToTables(schema),
+        )) {
           const tableId = namespaceInfo.internalTableIds[tableName];
 
           await tx.schema
@@ -407,7 +421,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         // Create the publish schema if it doesn't exist.
         await tx.schema.createSchema(publishSchema).ifNotExists().execute();
 
-        for (const tableName of Object.keys(this.schema.tables)) {
+        for (const tableName of Object.keys(schemaToTables(this.schema))) {
           // Check if there is an existing relation with the name we're about to publish.
           const result = await tx.executeQuery<{
             table_type: string;
@@ -520,41 +534,41 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   private buildColumns<T extends string, C extends string = never>(
     builder: CreateTableBuilder<T, C>,
     schema: Schema,
-    columns: Schema["tables"][string],
+    table: Table,
   ) {
-    Object.entries(columns).forEach(([columnName, column]) => {
+    Object.entries(table).forEach(([columnName, column]) => {
       if (isOneColumn(column)) return;
       if (isManyColumn(column)) return;
       if (isEnumColumn(column)) {
         // Handle enum types
         builder = builder.addColumn(columnName, "text", (col) => {
-          if (!column.optional) col = col.notNull();
-          if (!column.list) {
+          if (isOptionalColumn(column) === false) col = col.notNull();
+          if (column[" list"] === false) {
             col = col.check(
               sql`${sql.ref(columnName)} in (${sql.join(
-                schema.enums[column.type].map((v) => sql.lit(v)),
+                schemaToEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
               )})`,
             );
           }
           return col;
         });
-      } else if (column.list) {
-        // Handle scalar list columns
-        builder = builder.addColumn(columnName, "text", (col) => {
-          if (!column.optional) col = col.notNull();
-          return col;
-        });
-      } else {
+      } else if (isReferenceColumn(column) || isListColumn(column) === false) {
         // Non-list base columns
         builder = builder.addColumn(
           columnName,
-          scalarToSqlType[column.type],
+          scalarToSqlType[column[" scalar"]],
           (col) => {
-            if (!column.optional) col = col.notNull();
+            if (isOptionalColumn(column) === false) col = col.notNull();
             if (columnName === "id") col = col.primaryKey();
             return col;
           },
         );
+      } else {
+        // Handle scalar list table
+        builder = builder.addColumn(columnName, "text", (col) => {
+          if (isOptionalColumn(column) === false) col = col.notNull();
+          return col;
+        });
       }
     });
 
@@ -563,28 +577,28 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
   private buildOperationLogColumns<T extends string, C extends string = never>(
     builder: CreateTableBuilder<T, C>,
-    columns: Schema["tables"][string],
+    table: Table,
   ) {
-    Object.entries(columns).forEach(([columnName, column]) => {
+    Object.entries(table).forEach(([columnName, column]) => {
       if (isOneColumn(column)) return;
       if (isManyColumn(column)) return;
       if (isEnumColumn(column)) {
         // Handle enum types
         // Omit the CHECK constraint because its included in the user table
         builder = builder.addColumn(columnName, "text");
-      } else if (column.list) {
-        // Handle scalar list columns
-        builder = builder.addColumn(columnName, "text");
-      } else {
+      } else if (isReferenceColumn(column) || isListColumn(column) === false) {
         // Non-list base columns
         builder = builder.addColumn(
           columnName,
-          scalarToSqlType[column.type],
+          scalarToSqlType[column[" scalar"]],
           (col) => {
             if (columnName === "id") col = col.notNull();
             return col;
           },
         );
+      } else {
+        // Handle scalar list columns
+        builder = builder.addColumn(columnName, "text");
       }
     });
 

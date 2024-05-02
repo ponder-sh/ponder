@@ -1,5 +1,5 @@
 import { StoreError } from "@/common/errors.js";
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/common.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
 import type {
   ComparisonOperatorExpression,

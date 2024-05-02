@@ -4,7 +4,7 @@ import { getBaseError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import { type EventSource } from "@/config/sources.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/common.js";
 import type { SyncService } from "@/sync/index.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { UserRow } from "@/types/schema.js";

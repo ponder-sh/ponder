@@ -1,366 +1,298 @@
+import type { Prettify } from "@/types/utils.js";
 import type {
-  BaseColumn,
-  InternalColumn,
-  InternalEnum,
-  ManyColumn,
-  OneColumn,
+  EnumColumn,
+  ReferenceColumn,
   Scalar,
-} from "./types.js";
+  ScalarColumn,
+} from "./common.js";
 
-type Optional<
-  TScalar extends Scalar,
-  TReferences extends `${string}.id` | undefined,
-  TList extends boolean,
-> = () => TReferences extends undefined
-  ? TList extends true
-    ? InternalColumn<TScalar, TReferences, true, TList>
-    : InternalColumn<TScalar, TReferences, true, TList> & {
-        /**
-         * Mark the column as optional.
-         *
-         * - Docs: https://ponder.sh/docs/guides/design-your-schema#optional
-         *
-         * @example
-         * import { p } from '@ponder/core'
-         *
-         * export default p.createSchema({
-         *   t: p.createTable({
-         *     id: p.string(),
-         *     o: p.int().optional(),
-         *   })
-         * })
-         */
-        list: List<TScalar, true>;
-        /**
-         * Mark the column as a foreign key.
-         *
-         * - Docs: https://ponder.sh/docs/guides/design-your-schema#foreign-key
-         *
-         * @param references Table that this column is a key of.
-         *
-         * @example
-         * import { p } from '@ponder/core'
-         *
-         * export default p.createSchema({
-         *   a: p.createTable({
-         *     id: p.string(),
-         *     b_id: p.string.references("b.id"),
-         *   })
-         *   b: p.createTable({
-         *     id: p.string(),
-         *   })
-         * })
-         */
-        references: References<TScalar, true>;
-      }
-  : InternalColumn<TScalar, TReferences, true, TList>;
+type Optional<column extends BuilderScalarColumn> = () => BuilderScalarColumn<
+  column[" scalar"],
+  true,
+  column[" list"]
+>;
 
-/**
- * Helper function for optional modifier
- */
-const optional = <
-  TScalar extends Scalar,
-  TReferences extends `${string}.id` | undefined,
-  TList extends boolean,
+const optional =
+  <column extends BuilderScalarColumn>(col: column): Optional<column> =>
+  // @ts-expect-error
+  () => {
+    const newCol = {
+      " type": col[" type"],
+      " scalar": col[" scalar"],
+      " optional": true,
+      " list": col[" list"],
+    } as const;
+
+    if (newCol[" list"]) {
+      return newCol;
+    } else {
+      return {
+        ...newCol,
+        list: list(newCol),
+        references: references(newCol),
+      };
+    }
+  };
+
+type List<column extends BuilderScalarColumn> = () => BuilderScalarColumn<
+  column[" scalar"],
+  column[" optional"],
+  true
+>;
+
+const list =
+  <column extends BuilderScalarColumn>(col: column): List<column> =>
+  // @ts-expect-error
+  () => {
+    const newCol = {
+      " type": col[" type"],
+      " scalar": col[" scalar"],
+      " optional": col[" optional"],
+      " list": true,
+    } as const;
+
+    if (newCol[" optional"]) {
+      return newCol;
+    } else {
+      return {
+        ...newCol,
+        optional: optional(newCol),
+      };
+    }
+  };
+
+type EnumOptional<column extends BuilderEnumColumn> = () => BuilderEnumColumn<
+  column[" enum"],
+  true,
+  column[" list"]
+>;
+
+const enumOptional =
+  <column extends BuilderEnumColumn>(col: column): EnumOptional<column> =>
+  // @ts-expect-error
+  () => {
+    const newCol = {
+      " type": col[" type"],
+      " enum": col[" enum"],
+      " optional": true,
+      " list": col[" list"],
+    } as const;
+
+    if (newCol[" list"]) {
+      return newCol;
+    } else {
+      return {
+        ...newCol,
+        list: enumList(newCol),
+      };
+    }
+  };
+
+type EnumList<column extends BuilderEnumColumn> = () => BuilderEnumColumn<
+  column[" enum"],
+  column[" optional"],
+  true
+>;
+
+const enumList =
+  <column extends BuilderEnumColumn>(col: column): EnumList<column> =>
+  // @ts-expect-error
+  () => {
+    const newCol = {
+      " type": col[" type"],
+      " enum": col[" enum"],
+      " optional": col[" optional"],
+      " list": true,
+    } as const;
+
+    if (newCol[" optional"]) {
+      return newCol;
+    } else {
+      return {
+        ...newCol,
+        optional: enumOptional(newCol),
+      };
+    }
+  };
+
+type ReferenceOptional<column extends BuilderReferenceColumn> =
+  () => BuilderReferenceColumn<column[" scalar"], true, column[" reference"]>;
+
+const referenceOptional =
+  <column extends BuilderReferenceColumn>(
+    col: column,
+  ): ReferenceOptional<column> =>
+  () => {
+    return {
+      " type": col[" type"],
+      " scalar": col[" scalar"],
+      " optional": true,
+      " reference": col[" reference"],
+    };
+  };
+
+type References<column extends BuilderScalarColumn> = <
+  reference extends string,
 >(
-  column: BaseColumn<TScalar, TReferences, false, TList>,
-): Optional<TScalar, TReferences, TList> =>
-  (() => {
-    const newColumn = { ...column, optional: true } as const;
+  ref: reference,
+) => BuilderReferenceColumn<column[" scalar"], column[" optional"], reference>;
 
-    return column.list || column.references !== undefined
-      ? {
-          " column": newColumn,
-        }
-      : {
-          " column": newColumn,
-          list: list(newColumn as BaseColumn<TScalar, undefined, true, false>),
-          references: references(
-            newColumn as BaseColumn<TScalar, undefined, true, false>,
-          ),
-        };
-  }) as Optional<TScalar, TReferences, TList>;
+const references =
+  <column extends BuilderScalarColumn>(col: column): References<column> =>
+  // @ts-expect-error
+  <reference extends string>(ref: reference) => {
+    const newCol = {
+      " type": "reference",
+      " scalar": col[" scalar"],
+      " optional": col[" optional"],
+      " reference": ref,
+    } as const;
 
-type List<
-  TScalar extends Scalar,
-  TOptional extends boolean,
-> = () => TOptional extends true
-  ? InternalColumn<TScalar, undefined, TOptional, true>
-  : InternalColumn<TScalar, undefined, TOptional, true> & {
-      /**
-       * Mark the column as optional.
-       *
-       * - Docs: https://ponder.sh/docs/guides/design-your-schema#optional
-       *
-       * @example
-       * import { p } from '@ponder/core'
-       *
-       * export default p.createSchema({
-       *   t: p.createTable({
-       *     id: p.string(),
-       *     o: p.int().optional(),
-       *   })
-       * })
-       */
-      optional: Optional<TScalar, undefined, true>;
-    };
+    if (newCol[" optional"]) {
+      return newCol;
+    } else {
+      return { ...newCol, optional: referenceOptional(newCol) };
+    }
+  };
 
-/**
- * Helper function for list modifier
- *
- * List columns can't be references
- */
-const list = <TScalar extends Scalar, TOptional extends boolean>(
-  column: BaseColumn<TScalar, undefined, TOptional, false>,
-): List<TScalar, TOptional> =>
-  (() => {
-    const newColumn = { ...column, list: true } as const;
-    return column.optional
-      ? {
-          " column": newColumn,
-        }
-      : {
-          " column": newColumn,
-          optional: optional(
-            newColumn as BaseColumn<TScalar, undefined, false, true>,
-          ),
-        };
-  }) as List<TScalar, TOptional>;
-
-type References<TScalar extends Scalar, TOptional extends boolean> = <
-  TReferences extends `${string}.id`,
->(references: TReferences) => TOptional extends true
-  ? InternalColumn<TScalar, TReferences, TOptional, false>
-  : InternalColumn<TScalar, TReferences, TOptional, false> & {
-      /**
-       * Mark the column as optional.
-       *
-       * - Docs: https://ponder.sh/docs/guides/design-your-schema#optional
-       *
-       * @example
-       * import { p } from '@ponder/core'
-       *
-       * export default p.createSchema({
-       *   t: p.createTable({
-       *     id: p.string(),
-       *     o: p.int().optional(),
-       *   })
-       * })
-       */
-      optional: Optional<TScalar, TReferences, false>;
-    };
-
-/**
- * Helper function for reference modifier
- *
- * Reference columns can't be lists
- */
-const references = <TScalar extends Scalar, TOptional extends boolean>(
-  column: BaseColumn<TScalar, undefined, TOptional, false>,
-): References<TScalar, TOptional> =>
-  (<TReferences extends `${string}.id`>(references: TReferences) => {
-    const newColumn = { ...column, references } as const;
-
-    return column.optional
-      ? { " column": newColumn }
-      : {
-          " column": newColumn,
-          optional: optional(
-            newColumn as BaseColumn<TScalar, TReferences, false, false>,
-          ),
-        };
-  }) as References<TScalar, TOptional>;
-
-export type EmptyModifier<TScalar extends Scalar> = InternalColumn<
-  TScalar,
-  undefined,
-  false,
-  false
-> & {
-  /**
-   * Mark the column as optional.
-   *
-   * - Docs: https://ponder.sh/docs/guides/design-your-schema#optional
-   *
-   * @example
-   * import { p } from '@ponder/core'
-   *
-   * export default p.createSchema({
-   *   t: p.createTable({
-   *     id: p.string(),
-   *     o: p.int().optional(),
-   *   })
-   * })
-   */
-  optional: Optional<TScalar, undefined, false>;
-  /**
-   * Mark the column as a list.
-   *
-   * - Docs: https://ponder.sh/docs/guides/design-your-schema#list
-   *
-   * @example
-   * import { p } from '@ponder/core'
-   *
-   * export default p.createSchema({
-   *   t: p.createTable({
-   *     id: p.string(),
-   *     l: p.int().list(),
-   *   })
-   * })
-   */
-  list: List<TScalar, false>;
-  /**
-   * Mark the column as a foreign key.
-   *
-   * - Docs: https://ponder.sh/docs/guides/design-your-schema#foreign-key
-   *
-   * @param references Table that this column is a key of.
-   *
-   * @example
-   * import { p } from '@ponder/core'
-   *
-   * export default p.createSchema({
-   *   a: p.createTable({
-   *     id: p.string(),
-   *     b_id: p.string.references("b.id"),
-   *   })
-   *   b: p.createTable({
-   *     id: p.string(),
-   *   })
-   * })
-   */
-  references: References<TScalar, false>;
-};
-
-const emptyColumn =
-  <TScalar extends Scalar>(scalar: TScalar) =>
-  (): EmptyModifier<TScalar> => {
+const scalarColumn =
+  <scalar extends Scalar>(_scalar: scalar) =>
+  (): Prettify<BuilderScalarColumn<scalar, false, false>> => {
     const column = {
-      _type: "b",
-      type: scalar,
-      references: undefined,
-      optional: false,
-      list: false,
+      " type": "scalar",
+      " scalar": _scalar,
+      " optional": false,
+      " list": false,
     } as const;
 
     return {
-      " column": column,
+      ...column,
       optional: optional(column),
       list: list(column),
       references: references(column),
     };
   };
 
-export type _Enum<
-  TType extends string,
-  TOptional extends boolean,
-  TList extends boolean,
-> = InternalEnum<TType, TOptional, TList> &
-  (TOptional extends true
-    ? {}
-    : {
-        /**
-         * Mark the column as optional.
-         *
-         * - Docs: https://ponder.sh/docs/guides/design-your-schema#optional
-         *
-         * @example
-         * import { p } from '@ponder/core'
-         *
-         * export default p.createSchema({
-         *   e: p.createEnum(["ONE", "TWO"])
-         *   t: p.createTable({
-         *     id: p.string(),
-         *     a: p.enum("e").optional(),
-         *   })
-         * })
-         */
-        optional: () => _Enum<TType, true, TList>;
-      }) &
-  (TList extends true
-    ? {}
-    : {
-        /**
-         * Mark the column as a list.
-         *
-         * - Docs: https://ponder.sh/docs/guides/design-your-schema#list
-         *
-         * @example
-         * import { p } from '@ponder/core'
-         *
-         * export default p.createSchema({
-         *   e: p.createEnum(["ONE", "TWO"])
-         *   t: p.createTable({
-         *     id: p.string(),
-         *     a: p.enum("e").list(),
-         *   })
-         * })
-         */
-        list: () => _Enum<TType, TOptional, true>;
-      });
+export type BuilderScalarColumn<
+  scalar extends Scalar = Scalar,
+  optional extends boolean = boolean,
+  list extends boolean = boolean,
+  ///
+  base extends ScalarColumn<scalar, optional, list> = ScalarColumn<
+    scalar,
+    optional,
+    list
+  >,
+> = list extends false
+  ? optional extends false
+    ? base & {
+        optional: Optional<base>;
+        list: List<base>;
+        references: References<base>;
+      }
+    : base & {
+        list: List<base>;
+        references: References<base>;
+      }
+  : optional extends false
+    ? base & {
+        optional: Optional<base>;
+      }
+    : base;
 
-export const _enum = <TType extends string>(
-  type: TType,
-): _Enum<TType, false, false> => ({
-  " enum": {
-    _type: "e",
-    type,
-    optional: false,
-    list: false,
-  },
-  optional: () => ({
-    " enum": {
-      _type: "e",
-      type,
-      optional: true,
-      list: false,
-    },
-    list: () => ({
-      " enum": {
-        _type: "e",
-        type,
-        optional: true,
-        list: true,
-      },
-    }),
-  }),
+export type BuilderReferenceColumn<
+  scalar extends Scalar = Scalar,
+  optional extends boolean = boolean,
+  reference extends string = string,
+  ///
+  base extends ReferenceColumn<scalar, optional, reference> = ReferenceColumn<
+    scalar,
+    optional,
+    reference
+  >,
+> = optional extends false
+  ? base & {
+      optional: ReferenceOptional<base>;
+    }
+  : base;
 
-  list: () => ({
-    " enum": {
-      _type: "e",
-      type,
-      list: true,
-      optional: false,
-    },
-    optional: () => ({
-      " enum": {
-        _type: "e",
-        type,
-        optional: true,
-        list: true,
-      },
-    }),
-  }),
+export type BuilderOneColumn<reference extends string = string> = {
+  " type": "one";
+  " reference": reference;
+};
+
+export type BuilderManyColumn<
+  referenceTable extends string = string,
+  referenceColumn extends string = string,
+> = {
+  " type": "many";
+  " referenceTable": referenceTable;
+  " referenceColumn": referenceColumn;
+};
+
+export type BuilderEnumColumn<
+  _enum extends string = string,
+  optional extends boolean = boolean,
+  list extends boolean = boolean,
+  ///
+  base extends EnumColumn<_enum, optional, list> = EnumColumn<
+    _enum,
+    optional,
+    list
+  >,
+> = list extends false
+  ? optional extends false
+    ? base & {
+        optional: EnumOptional<base>;
+        list: EnumList<base>;
+      }
+    : base & {
+        list: EnumList<base>;
+      }
+  : optional extends false
+    ? base & {
+        optional: EnumOptional<base>;
+      }
+    : base;
+
+export const string = scalarColumn("string");
+export const int = scalarColumn("int");
+export const float = scalarColumn("float");
+export const boolean = scalarColumn("boolean");
+export const hex = scalarColumn("hex");
+export const bigint = scalarColumn("bigint");
+
+export const one = <reference extends string>(
+  ref: reference,
+): BuilderOneColumn<reference> => ({
+  " type": "one",
+  " reference": ref,
 });
 
-export const string = emptyColumn("string");
-export const int = emptyColumn("int");
-export const float = emptyColumn("float");
-export const boolean = emptyColumn("boolean");
-export const hex = emptyColumn("hex");
-export const bigint = emptyColumn("bigint");
+export const many = <
+  referenceTable extends string = string,
+  referenceColumn extends string = string,
+>(
+  ref: `${referenceTable}.${referenceColumn}`,
+): BuilderManyColumn<referenceTable, referenceColumn> => ({
+  " type": "many",
+  " referenceTable": ref.split(".")[0] as referenceTable,
+  " referenceColumn": ref.split(".")[1] as referenceColumn,
+});
 
-export const one = <T extends string>(derivedColumn: T): OneColumn<T> =>
-  ({
-    _type: "o",
-    referenceColumn: derivedColumn,
-  }) as OneColumn<T>;
+export const _enum = <_enum extends string>(
+  __enum: _enum,
+): Prettify<BuilderEnumColumn<_enum, false, false>> => {
+  const column = {
+    " type": "enum",
+    " enum": __enum,
+    " optional": false,
+    " list": false,
+  } as const;
 
-export const many = <T extends `${string}.${string}`>(
-  derived: T,
-): ManyColumn<T> =>
-  ({
-    _type: "m",
-    referenceTable: derived.split(".")[0],
-    referenceColumn: derived.split(".")[1],
-  }) as ManyColumn<T>;
+  return {
+    ...column,
+    optional: enumOptional(column),
+    list: enumList(column),
+  };
+};

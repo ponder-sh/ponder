@@ -67,9 +67,7 @@ export type IsTable<a extends Table | Enum> = a extends readonly unknown[]
   ? false
   : true;
 
-export type Schema = { [tableName: string]: Table } & {
-  [enumName: string]: Enum;
-};
+export type Schema = { [name: string]: Table | Enum };
 
 export type ExtractTableNames<
   schema extends Schema | unknown,

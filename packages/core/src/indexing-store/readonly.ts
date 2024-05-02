@@ -1,7 +1,7 @@
 import { StoreError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/common.js";
 import type { UserIdColumn } from "@/types/schema.js";
 import { sql } from "kysely";
 import type { OrderByInput, ReadonlyStore, WhereInput } from "./store.js";

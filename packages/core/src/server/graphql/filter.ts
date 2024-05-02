@@ -1,4 +1,4 @@
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/common.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
 import {
   type GraphQLEnumType,

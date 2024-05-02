@@ -1,4 +1,4 @@
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/common.js";
 import { GraphQLEnumType } from "graphql";
 
 export function buildEnumTypes({ schema }: { schema: Schema }) {

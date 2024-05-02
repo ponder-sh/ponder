@@ -1,4 +1,4 @@
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/common.js";
 import type { GraphQLObjectType } from "graphql";
 import {
   type GraphQLFieldConfig,

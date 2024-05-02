@@ -1,4 +1,4 @@
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/common.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import { PostgresDatabaseService } from "./postgres/service.js";
 import { SqliteDatabaseService } from "./sqlite/service.js";

@@ -1,7 +1,8 @@
 import type { Config } from "@/config/config.js";
 import type { ParseAbiEvent, SafeEventNames } from "@/config/utilityTypes.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
-import type { Infer, Schema as _Schema } from "@/schema/types.js";
+import type { Schema as BuilderSchema } from "@/schema/common.js";
+import type { InferSchemaType } from "@/schema/infer.js";
 import type {
   Block,
   Log,
@@ -108,7 +109,7 @@ export namespace Virtual {
 
   export type Context<
     config extends Config,
-    schema extends _Schema,
+    schema extends BuilderSchema,
     name extends EventNames<config>,
     ///
     contractName extends ExtractContractName<name> = ExtractContractName<name>,
@@ -161,22 +162,24 @@ export namespace Virtual {
       >
     >;
     db: {
-      [key in keyof Infer<schema>]: DatabaseModel<Infer<schema>[key]>;
+      [key in keyof InferSchemaType<schema>]: DatabaseModel<
+        InferSchemaType<schema>[key]
+      >;
     };
   };
 
   export type IndexingFunctionArgs<
     config extends Config,
-    schema extends _Schema,
+    schema extends BuilderSchema,
     name extends EventNames<config>,
   > = {
     event: Event<config, name>;
     context: Context<config, schema, name>;
   };
 
-  export type Schema<schema extends _Schema> = Infer<schema>;
+  export type Schema<schema extends BuilderSchema> = InferSchemaType<schema>;
 
-  export type Registry<config extends Config, schema extends _Schema> = {
+  export type Registry<config extends Config, schema extends BuilderSchema> = {
     on: <name extends EventNames<config>>(
       _name: name,
       indexingFunction: (

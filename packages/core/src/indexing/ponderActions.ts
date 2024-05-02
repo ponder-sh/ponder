@@ -184,106 +184,107 @@ export const buildDb = ({
     "encodedCheckpoint"
   >;
 }) => {
-  return Object.keys(schema.tables).reduce<
-    Service["currentEvent"]["context"]["db"]
-  >((acc, tableName) => {
-    acc[tableName] = {
-      findUnique: async ({ id }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.findUnique(id=${id})`,
-        });
-        return indexingStore.findUnique({
-          tableName,
-          id,
-        });
-      },
-      findMany: async ({ where, orderBy, limit, before, after } = {}) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.findMany`,
-        });
-        return indexingStore.findMany({
-          tableName,
-          where,
-          orderBy,
-          limit,
-          before,
-          after,
-        });
-      },
-      create: async ({ id, data }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.create(id=${id})`,
-        });
-        return indexingStore.create({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          id,
-          data,
-        });
-      },
-      createMany: async ({ data }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.createMany(count=${data.length})`,
-        });
-        return indexingStore.createMany({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          data,
-        });
-      },
-      update: async ({ id, data }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.update(id=${id})`,
-        });
-        return indexingStore.update({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          id,
-          data,
-        });
-      },
-      updateMany: async ({ where, data }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.updateMany`,
-        });
-        return indexingStore.updateMany({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          where,
-          data,
-        });
-      },
-      upsert: async ({ id, create, update }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.upsert(id=${id})`,
-        });
-        return indexingStore.upsert({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          id,
-          create,
-          update,
-        });
-      },
-      delete: async ({ id }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.delete(id=${id})`,
-        });
-        return indexingStore.delete({
-          tableName,
-          encodedCheckpoint: contextState.encodedCheckpoint,
-          id,
-        });
-      },
-    };
-    return acc;
-  }, {});
+  return Object.keys(schema).reduce<Service["currentEvent"]["context"]["db"]>(
+    (acc, tableName) => {
+      acc[tableName] = {
+        findUnique: async ({ id }) => {
+          common.logger.trace({
+            service: "store",
+            msg: `${tableName}.findUnique(id=${id})`,
+          });
+          return indexingStore.findUnique({
+            tableName,
+            id,
+          });
+        },
+        findMany: async ({ where, orderBy, limit, before, after } = {}) => {
+          common.logger.trace({
+            service: "store",
+            msg: `${tableName}.findMany`,
+          });
+          return indexingStore.findMany({
+            tableName,
+            where,
+            orderBy,
+            limit,
+            before,
+            after,
+          });
+        },
+        create: async ({ id, data }) => {
+          common.logger.trace({
+            service: "store",
+            msg: `${tableName}.create(id=${id})`,
+          });
+          return indexingStore.create({
+            tableName,
+            encodedCheckpoint: contextState.encodedCheckpoint,
+            id,
+            data,
+          });
+        },
+        createMany: async ({ data }) => {
+          common.logger.trace({
+            service: "store",
+            msg: `${tableName}.createMany(count=${data.length})`,
+          });
+          return indexingStore.createMany({
+            tableName,
+            encodedCheckpoint: contextState.encodedCheckpoint,
+            data,
+          });
+        },
+        update: async ({ id, data }) => {
+          common.logger.trace({
+            service: "store",
+            msg: `${tableName}.update(id=${id})`,
+          });
+          return indexingStore.update({
+            tableName,
+            encodedCheckpoint: contextState.encodedCheckpoint,
+            id,
+            data,
+          });
+        },
+        updateMany: async ({ where, data }) => {
+          common.logger.trace({
+            service: "store",
+            msg: `${tableName}.updateMany`,
+          });
+          return indexingStore.updateMany({
+            tableName,
+            encodedCheckpoint: contextState.encodedCheckpoint,
+            where,
+            data,
+          });
+        },
+        upsert: async ({ id, create, update }) => {
+          common.logger.trace({
+            service: "store",
+            msg: `${tableName}.upsert(id=${id})`,
+          });
+          return indexingStore.upsert({
+            tableName,
+            encodedCheckpoint: contextState.encodedCheckpoint,
+            id,
+            create,
+            update,
+          });
+        },
+        delete: async ({ id }) => {
+          common.logger.trace({
+            service: "store",
+            msg: `${tableName}.delete(id=${id})`,
+          });
+          return indexingStore.delete({
+            tableName,
+            encodedCheckpoint: contextState.encodedCheckpoint,
+            id,
+          });
+        },
+      };
+      return acc;
+    },
+    {},
+  );
 };

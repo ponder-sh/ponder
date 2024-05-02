@@ -1,6 +1,5 @@
-import { expect, test } from "vitest";
-
 import { createSchema } from "@/schema/schema.js";
+import { expect, test } from "vitest";
 import { safeBuildSchema } from "./schema.js";
 
 test("safeBuildSchema() returns error for duplicate enum values", () => {
@@ -33,6 +32,7 @@ test("safeBuildSchema() returns error for ID column typed as an enum", () => {
     myEnum: p.createEnum(["value1", "value2"]),
     // @ts-expect-error
     myTable: p.createTable({
+      // @ts-expect-error
       id: p.enum("myEnum"),
     }),
   }));
@@ -48,6 +48,7 @@ test("safeBuildSchema() returns error for ID column typed as a 'one' relationshi
   const schema = createSchema((p) => ({
     // @ts-expect-error
     myTable: p.createTable({
+      // @ts-expect-error
       id: p.one("refTableId"),
       refTableId: p.string().references("refTable.id"),
     }),
@@ -67,8 +68,10 @@ test("safeBuildSchema() returns error for ID column typed as a 'many' relationsh
   const schema = createSchema((p) => ({
     // @ts-expect-error
     myTable: p.createTable({
+      // @ts-expect-error
       id: p.many("refTable.myTableId"),
     }),
+    // @ts-expect-error
     refTable: p.createTable({
       id: p.string(),
       myTableId: p.string().references("myTable.id"),
@@ -84,8 +87,9 @@ test("safeBuildSchema() returns error for ID column typed as a 'many' relationsh
 
 test("safeBuildSchema() returns error for ID column with the references modifier", () => {
   const schema = createSchema((p) => ({
-    // @ts-expect-errora
+    // @ts-expect-error
     myTable: p.createTable({
+      // @ts-expect-error
       id: p.string().references("refTable.id"),
     }),
     refTable: p.createTable({
@@ -104,6 +108,7 @@ test("safeBuildSchema() returns error for invalid ID column type boolean", () =>
   const schema = createSchema((p) => ({
     // @ts-expect-error
     myTable: p.createTable({
+      // @ts-expect-error
       id: p.boolean(),
     }),
   }));
@@ -119,6 +124,7 @@ test("safeBuildSchema() returns error for invalid ID column type float", () => {
   const schema = createSchema((p) => ({
     // @ts-expect-error
     myTable: p.createTable({
+      // @ts-expect-error
       id: p.float(),
     }),
   }));
@@ -134,6 +140,7 @@ test("safeBuildSchema() returns error for ID column with optional modifier", () 
   const schema = createSchema((p) => ({
     // @ts-expect-error
     myTable: p.createTable({
+      // @ts-expect-error
       id: p.string().optional(),
     }),
   }));
@@ -149,6 +156,7 @@ test("safeBuildSchema() returns error for ID column with list modifier", () => {
   const schema = createSchema((p) => ({
     // @ts-expect-error
     myTable: p.createTable({
+      // @ts-expect-error
       id: p.string().list(),
     }),
   }));
@@ -195,6 +203,7 @@ test("safeBuildSchema() returns error for 'one' relationship with non-existent r
     // @ts-expect-error
     myTable: p.createTable({
       id: p.string(),
+      // @ts-expect-error
       refColumn: p.one("nonExistentColumn"),
     }),
   }));

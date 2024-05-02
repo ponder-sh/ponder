@@ -1,5 +1,5 @@
 import type { IndexingStore } from "@/indexing-store/store.js";
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/common.js";
 import {
   type GraphQLFieldConfig,
   GraphQLObjectType,
