@@ -14,8 +14,8 @@ export type UiState = {
       completedBlocks: number;
       progress: number;
     };
-    contracts: {
-      contractName: string;
+    sources: {
+      sourceName: string;
       networkName: string;
       totalBlocks: number;
       completedBlocks: number;
@@ -58,7 +58,7 @@ export const buildUiState = () => {
         completedBlocks: 0,
         progress: 0,
       },
-      contracts: [],
+      sources: [],
     },
 
     realtimeSyncNetworks: [],
@@ -144,9 +144,9 @@ const App = (ui: UiState) => {
         <Text> </Text>
 
         <Table
-          rows={historical.contracts}
+          rows={historical.sources}
           columns={[
-            { title: "Contract", key: "contractName", align: "left" },
+            { title: "Source", key: "sourceName", align: "left" },
             { title: "Network", key: "networkName", align: "left" },
             {
               title: "Cached",

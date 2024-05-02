@@ -1,4 +1,5 @@
 import type {
+  BlockFilterCriteria,
   EventSource,
   FactoryCriteria,
   LogFilterCriteria,
@@ -22,9 +23,9 @@ import type {
 export type RawEvent = {
   chainId: number;
   sourceId: string;
-  log: Log;
+  log?: Log;
   block: Block;
-  transaction: Transaction;
+  transaction?: Transaction;
   transactionReceipt?: TransactionReceipt;
   encodedCheckpoint: string;
 };
@@ -114,6 +115,36 @@ export interface SyncStore {
   }): Promise<[number, number][]>;
 
   /**
+   * Insert a block matching a given block filter. Also insert the block interval. It
+   * is possible for block to be undefined if we already know it is in the database.
+   *
+   * Note that `block.number` should always be equal to `interval.endBlock`.
+   */
+  insertBlockFilterInterval(options: {
+    chainId: number;
+    blockFilter: BlockFilterCriteria;
+    block?: RpcBlock;
+    interval: { startBlock: bigint; endBlock: bigint };
+  }): Promise<void>;
+
+  /**
+   * Get all block intervals where blocks matching the specified block
+   * filter have already been inserted.
+   */
+  getBlockFilterIntervals(options: {
+    chainId: number;
+    blockFilter: BlockFilterCriteria;
+  }): Promise<[number, number][]>;
+
+  /**
+   * Returns true if the block exists in the database.
+   */
+  getBlock(options: {
+    chainId: number;
+    blockNumber: number;
+  }): Promise<boolean>;
+
+  /**
    * Inserts a new realtime block and any logs/transactions that match the
    * registered sources. Does NOT insert intervals to mark this data as finalized,
    * see insertRealtimeInterval for that.
@@ -134,6 +165,7 @@ export interface SyncStore {
     chainId: number;
     logFilters: LogFilterCriteria[];
     factories: FactoryCriteria[];
+    blockFilters: BlockFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 
@@ -169,20 +201,14 @@ export interface SyncStore {
   /** EVENTS METHOD */
 
   getLogEvents(arg: {
-    sources: Pick<
-      EventSource,
-      "id" | "startBlock" | "endBlock" | "criteria" | "type"
-    >[];
+    sources: EventSource[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
     limit: number;
   }): AsyncGenerator<RawEvent[]>;
 
   getLastEventCheckpoint(arg: {
-    sources: Pick<
-      EventSource,
-      "id" | "startBlock" | "endBlock" | "criteria" | "type"
-    >[];
+    sources: EventSource[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
   }): Promise<Checkpoint | undefined>;

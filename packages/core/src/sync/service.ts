@@ -18,7 +18,7 @@ import {
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
-import { type Transport, hexToNumber } from "viem";
+import { type Transport, hexToBigInt, hexToNumber } from "viem";
 import { type SyncBlock, _eth_getBlockByNumber } from "./index.js";
 import { cachedTransport } from "./transport.js";
 
@@ -216,8 +216,8 @@ export const create = async ({
       const initialFinalizedCheckpoint: Checkpoint = {
         ...maxCheckpoint,
         blockTimestamp: hexToNumber(finalizedBlock.timestamp),
-        chainId: network.chainId,
-        blockNumber: hexToNumber(finalizedBlock.number),
+        chainId: BigInt(network.chainId),
+        blockNumber: hexToBigInt(finalizedBlock.number),
       };
 
       const canSkipRealtime = getCanSkipRealtime({

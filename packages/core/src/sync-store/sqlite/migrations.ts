@@ -697,6 +697,110 @@ const migrations: Record<string, Migration> = {
       await db.executeQuery(sql`PRAGMA foreign_keys = 1`.compile(db));
     },
   },
+  "2024_04_23_0_block_filters": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("blockFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${interval}_${offset}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("interval", "integer", (col) => col.notNull())
+        .addColumn("offset", "integer", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createTable("blockFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("blockFilterId", "text", (col) =>
+          col.notNull().references("blockFilters.id"),
+        )
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("blockFilterIntervalsBlockFilterId")
+        .on("blockFilterIntervals")
+        .column("blockFilterId")
+        .execute();
+
+      await db.schema
+        .alterTable("blocks")
+        .addColumn("checkpoint", "varchar(75)")
+        .execute();
+      await db.executeQuery(
+        sql`
+          CREATE TEMPORARY TABLE bcp_vals AS
+          SELECT 
+            blocks.hash,
+            substr(blocks.timestamp, -10, 10) ||
+              substr('0000000000000000' || blocks.chainId, -16, 16) ||
+              substr(blocks.number, -16, 16) ||
+              '9999999999999999' ||
+              '5' ||
+              '0000000000000000' as checkpoint
+            FROM blocks
+        `.compile(db),
+      );
+      await db.executeQuery(
+        sql`
+          UPDATE blocks 
+          SET checkpoint=bcp_vals.checkpoint
+          FROM bcp_vals
+          WHERE blocks.hash = bcp_vals.hash
+        `.compile(db),
+      );
+
+      await db.schema.alterTable("blocks").renameTo("blocks_temp").execute();
+
+      await db.schema
+        .createTable("blocks")
+        .addColumn("baseFeePerGas", "varchar(79)")
+        .addColumn("difficulty", "varchar(79)", (col) => col.notNull())
+        .addColumn("extraData", "text", (col) => col.notNull())
+        .addColumn("gasLimit", "varchar(79)", (col) => col.notNull())
+        .addColumn("gasUsed", "varchar(79)", (col) => col.notNull())
+        .addColumn("hash", "varchar(66)", (col) => col.notNull().primaryKey())
+        .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
+        .addColumn("miner", "varchar(42)", (col) => col.notNull())
+        .addColumn("mixHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("nonce", "varchar(18)", (col) => col.notNull())
+        .addColumn("number", "varchar(79)", (col) => col.notNull())
+        .addColumn("parentHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("receiptsRoot", "varchar(66)", (col) => col.notNull())
+        .addColumn("sha3Uncles", "varchar(66)", (col) => col.notNull())
+        .addColumn("size", "varchar(79)", (col) => col.notNull())
+        .addColumn("stateRoot", "varchar(66)", (col) => col.notNull())
+        .addColumn("timestamp", "varchar(79)", (col) => col.notNull())
+        .addColumn("totalDifficulty", "varchar(79)", (col) => col.notNull())
+        .addColumn("transactionsRoot", "varchar(66)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
+        .execute();
+
+      await db.executeQuery(
+        sql`INSERT INTO "blocks" SELECT * FROM "blocks_temp"`.compile(db),
+      );
+
+      await db.schema.dropTable("blocks_temp").execute();
+
+      // The blocks.number index supports getLogEvents and deleteRealtimeData
+      await db.schema
+        .createIndex("blockNumberIndex")
+        .on("blocks")
+        .column("number")
+        .execute();
+      // The blocks.chainId index supports getLogEvents and deleteRealtimeData
+      await db.schema
+        .createIndex("blockChainIdIndex")
+        .on("blocks")
+        .column("chainId")
+        .execute();
+      // The blocks.number index supports getLogEvents
+      await db.schema
+        .createIndex("blockCheckpointIndex")
+        .on("blocks")
+        .column("checkpoint")
+        .execute();
+    },
+  },
 };
 
 async function hasCheckpointCol(db: Kysely<any>) {

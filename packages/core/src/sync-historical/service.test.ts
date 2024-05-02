@@ -9,6 +9,7 @@ import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { wait } from "@/utils/wait.js";
+import { numberToHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
@@ -160,6 +161,90 @@ test("start() with factory contract inserts child contract addresses", async (co
   await cleanup();
 });
 
+test("start() with block filter inserts block filter interval", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const blockNumbers = await getBlockNumbers();
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: [sources[2]],
+  });
+  await service.setup(blockNumbers);
+
+  const requestSpy = vi.spyOn(requestQueues[0], "request");
+
+  service.start();
+  await service.onIdle();
+
+  const blockFilterIntervals = await syncStore.getBlockFilterIntervals({
+    chainId: sources[2].chainId,
+    blockFilter: sources[2].criteria,
+  });
+
+  expect(blockFilterIntervals).toMatchObject([
+    [1, blockNumbers.finalizedBlockNumber],
+  ]);
+
+  expect(requestSpy).toHaveBeenCalledTimes(3);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
+test("start() with block filter skips blocks already in database", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const blockNumbers = await getBlockNumbers();
+
+  const block = await requestQueues[0].request({
+    method: "eth_getBlockByNumber",
+    params: [numberToHex(blockNumbers.finalizedBlockNumber - 3), true],
+  });
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    block: block!,
+    logs: [],
+    transactions: [],
+    transactionReceipts: [],
+  });
+
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: [sources[2]],
+  });
+  await service.setup(blockNumbers);
+
+  const requestSpy = vi.spyOn(requestQueues[0], "request");
+
+  service.start();
+  await service.onIdle();
+
+  const blockFilterIntervals = await syncStore.getBlockFilterIntervals({
+    chainId: sources[2].chainId,
+    blockFilter: sources[2].criteria,
+  });
+
+  expect(blockFilterIntervals).toMatchObject([
+    [1, blockNumbers.finalizedBlockNumber],
+  ]);
+
+  expect(requestSpy).toHaveBeenCalledTimes(2);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
 test("setup() with log filter and factory contract updates block metrics", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -179,9 +264,9 @@ test("setup() with log filter and factory contract updates block metrics", async
   ).values;
   expect(cachedBlocksMetric).toEqual(
     expect.arrayContaining([
-      { labels: { network: "mainnet", contract: "Erc20" }, value: 0 },
-      { labels: { network: "mainnet", contract: "Pair_factory" }, value: 0 },
-      { labels: { network: "mainnet", contract: "Pair" }, value: 0 },
+      { labels: { network: "mainnet", source: "Erc20" }, value: 0 },
+      { labels: { network: "mainnet", source: "Pair_factory" }, value: 0 },
+      { labels: { network: "mainnet", source: "Pair" }, value: 0 },
     ]),
   );
 
@@ -191,9 +276,9 @@ test("setup() with log filter and factory contract updates block metrics", async
   const value = blockNumbers.finalizedBlockNumber + 1;
   expect(totalBlocksMetric).toEqual(
     expect.arrayContaining([
-      { labels: { network: "mainnet", contract: "Erc20" }, value },
-      { labels: { network: "mainnet", contract: "Pair_factory" }, value },
-      { labels: { network: "mainnet", contract: "Pair" }, value },
+      { labels: { network: "mainnet", source: "Erc20" }, value },
+      { labels: { network: "mainnet", source: "Pair_factory" }, value },
+      { labels: { network: "mainnet", source: "Pair" }, value },
     ]),
   );
 
@@ -224,9 +309,9 @@ test("start() with log filter and factory contract updates completed blocks metr
   const value = blockNumbers.finalizedBlockNumber + 1;
   expect(completedBlocksMetric).toEqual(
     expect.arrayContaining([
-      { labels: { network: "mainnet", contract: "Pair_factory" }, value },
-      { labels: { network: "mainnet", contract: "Erc20" }, value },
-      { labels: { network: "mainnet", contract: "Pair" }, value },
+      { labels: { network: "mainnet", source: "Pair_factory" }, value },
+      { labels: { network: "mainnet", source: "Erc20" }, value },
+      { labels: { network: "mainnet", source: "Pair" }, value },
     ]),
   );
 
@@ -257,11 +342,20 @@ test("start() adds log filter events to sync store", async (context) => {
     toCheckpoint: maxCheckpoint,
     limit: 100,
   });
-  const events = drainAsyncGenerator(ag);
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(2);
 
   const erc20Events = await getEventsErc20(sources);
 
-  expect(erc20Events).toMatchObject(events);
+  expect({
+    ...erc20Events[0],
+    transactionReceipt: undefined,
+  }).toMatchObject(events[0]);
+  expect({
+    ...erc20Events[1],
+    transactionReceipt: undefined,
+  }).toMatchObject(events[1]);
 
   service.kill();
   await service.onIdle();
@@ -293,6 +387,45 @@ test("start() adds factory events to sync store", async (context) => {
   const events = await drainAsyncGenerator(ag);
 
   expect(events).toHaveLength(1);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
+test("start() adds block filter events to sync store", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumbers = await getBlockNumbers();
+
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueues[0],
+    sources: [sources[2]],
+  });
+  await service.setup(blockNumbers);
+  service.start();
+  await service.onIdle();
+
+  const ag = syncStore.getLogEvents({
+    sources: [sources[2]],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(2);
+
+  expect(events[0].log).toBeUndefined();
+  expect(events[0].transaction).toBeUndefined();
+  expect(events[0].block.number).toBe(1n);
+
+  expect(events[1].log).toBeUndefined();
+  expect(events[1].transaction).toBeUndefined();
+  expect(events[1].block.number).toBe(3n);
 
   service.kill();
   await service.onIdle();
@@ -462,8 +595,8 @@ test("start() emits historicalCheckpoint event", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     ...maxCheckpoint,
     blockTimestamp: Number(finalizedBlock.timestamp),
-    chainId: 1,
-    blockNumber: Number(finalizedBlock.number),
+    chainId: 1n,
+    blockNumber: BigInt(finalizedBlock.number),
   });
 
   service.kill();

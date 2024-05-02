@@ -1,9 +1,11 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import {
+  type BlockSource,
   type EventSource,
   type FactorySource,
   type LogSource,
+  sourceIsBlock,
   sourceIsFactory,
   sourceIsLog,
 } from "@/config/sources.js";
@@ -63,6 +65,7 @@ export type Service = {
   hasTransactionReceiptSource: boolean;
   logFilterSources: LogSource[];
   factorySources: FactorySource[];
+  blockSources: BlockSource[];
 };
 
 export type RealtimeSyncEvent =
@@ -108,6 +111,8 @@ export const create = ({
 }): Service => {
   // get event selectors from sources
   const eventSelectors = sources.flatMap((source) => {
+    if (!sourceIsFactory(source) && !sourceIsLog(source)) return [];
+
     const topics: Hex[] = [];
 
     if (sourceIsFactory(source)) {
@@ -121,6 +126,10 @@ export const create = ({
     }
     return topics;
   });
+
+  const logFilterSources = sources.filter(sourceIsLog);
+  const factorySources = sources.filter(sourceIsFactory);
+  const blockSources = sources.filter(sourceIsBlock);
 
   return {
     common,
@@ -136,11 +145,12 @@ export const create = ({
     onFatalError,
     eventSelectors,
     hasFactorySource: sources.some(sourceIsFactory),
-    hasTransactionReceiptSource: sources.some(
-      (s) => s.criteria.includeTransactionReceipts,
-    ),
-    logFilterSources: sources.filter(sourceIsLog),
-    factorySources: sources.filter(sourceIsFactory),
+    hasTransactionReceiptSource:
+      logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
+      factorySources.some((s) => s.criteria.includeTransactionReceipts),
+    logFilterSources,
+    factorySources,
+    blockSources,
   };
 };
 
@@ -363,6 +373,13 @@ export const handleBlock = async (
       )
     : [];
 
+  const isBlockFilterMatched = service.blockSources.some(
+    (blockSource) =>
+      (newHeadBlockNumber - blockSource.criteria.offset) %
+        blockSource.criteria.interval ===
+      0,
+  );
+
   if (newLogs.length > 0) {
     await service.syncStore.insertRealtimeBlock({
       chainId: service.network.chainId,
@@ -378,10 +395,18 @@ export const handleBlock = async (
       service: "realtime",
       msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
-  } else {
-    service.common.logger.debug({
+  } else if (isBlockFilterMatched) {
+    await service.syncStore.insertRealtimeBlock({
+      chainId: service.network.chainId,
+      block: newHeadBlock,
+      transactions: [],
+      transactionReceipts: [],
+      logs: [],
+    });
+
+    service.common.logger.info({
       service: "realtime",
-      msg: `Synced 0 logs from '${service.network.name}' block ${newHeadBlockNumber}`,
+      msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,
     });
   }
 
@@ -391,8 +416,8 @@ export const handleBlock = async (
     checkpoint: {
       ...maxCheckpoint,
       blockTimestamp: newHeadBlockTimestamp,
-      chainId: service.network.chainId,
-      blockNumber: newHeadBlockNumber,
+      chainId: BigInt(service.network.chainId),
+      blockNumber: BigInt(newHeadBlockNumber),
     } satisfies Checkpoint,
   });
 
@@ -468,6 +493,7 @@ export const handleBlock = async (
       chainId: service.network.chainId,
       logFilters: service.logFilterSources.map((l) => l.criteria),
       factories: service.factorySources.map((f) => f.criteria),
+      blockFilters: service.blockSources.map((b) => b.criteria),
       interval: {
         startBlock: BigInt(service.finalizedBlock.number + 1),
         endBlock: BigInt(pendingFinalizedBlock.number),
@@ -495,8 +521,8 @@ export const handleBlock = async (
       checkpoint: {
         ...maxCheckpoint,
         blockTimestamp: service.finalizedBlock.timestamp,
-        chainId: service.network.chainId,
-        blockNumber: service.finalizedBlock.number,
+        chainId: BigInt(service.network.chainId),
+        blockNumber: BigInt(service.finalizedBlock.number),
       } satisfies Checkpoint,
     });
   }
@@ -553,8 +579,8 @@ export const handleReorg = async (
         safeCheckpoint: {
           ...maxCheckpoint,
           blockTimestamp: parentBlock.timestamp,
-          chainId: service.network.chainId,
-          blockNumber: parentBlock.number,
+          chainId: BigInt(service.network.chainId),
+          blockNumber: BigInt(parentBlock.number),
         },
       });
 
@@ -604,7 +630,7 @@ const getMatchedLogs = async (
   if (service.hasFactorySource === false) {
     return filterLogs({
       logs,
-      logFilters: service.sources.map((s) => s.criteria),
+      logFilters: service.logFilterSources.map((s) => s.criteria),
     });
   } else {
     if (insertChildAddressLogs) {

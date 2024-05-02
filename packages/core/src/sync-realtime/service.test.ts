@@ -62,7 +62,7 @@ test("start() handles block", async (context) => {
 
   const finalizedBlock = await requestQueues[0].request({
     method: "eth_getBlockByNumber",
-    params: ["0x3", false],
+    params: ["0x4", false],
   });
 
   const realtimeSyncService = create({
@@ -92,7 +92,7 @@ test("start() no-op when receiving same block twice", async (context) => {
 
   const finalizedBlock = await requestQueues[0].request({
     method: "eth_getBlockByNumber",
-    params: ["0x3", false],
+    params: ["0x4", false],
   });
 
   const realtimeSyncService = create({
@@ -108,7 +108,7 @@ test("start() no-op when receiving same block twice", async (context) => {
 
   const queue = await start(realtimeSyncService);
 
-  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 4 }).then(
+  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 5 }).then(
     queue.add,
   );
 
@@ -147,8 +147,8 @@ test("start() gets missing block", async (context) => {
 
   await queue.onIdle();
 
-  expect(realtimeSyncService.localChain).toHaveLength(4);
-  expect(insertSpy).toHaveBeenCalledTimes(2);
+  expect(realtimeSyncService.localChain).toHaveLength(5);
+  expect(insertSpy).toHaveBeenCalledTimes(5);
 
   await kill(realtimeSyncService);
 
@@ -220,12 +220,12 @@ test("start() finds reorg with block hash", async (context) => {
   const queue = await start(realtimeSyncService);
   await queue.onIdle();
 
-  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 4 }).then(
+  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 5 }).then(
     (block) => {
       queue.add({
         ...block,
-        number: "0x5",
-        parentHash: realtimeSyncService.localChain[2].block.hash,
+        number: "0x6",
+        parentHash: realtimeSyncService.localChain[3].block.hash,
         hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
       });
     },
@@ -267,8 +267,8 @@ test("start() retries on error", async (context) => {
 
   await queue.onIdle();
 
-  expect(realtimeSyncService.localChain).toHaveLength(4);
-  expect(insertSpy).toHaveBeenCalledTimes(3);
+  expect(realtimeSyncService.localChain).toHaveLength(5);
+  expect(insertSpy).toHaveBeenCalledTimes(6);
 
   await kill(realtimeSyncService);
 
@@ -281,7 +281,7 @@ test("start() emits fatal error", async (context) => {
 
   const finalizedBlock = await requestQueues[0].request({
     method: "eth_getBlockByNumber",
-    params: ["0x3", false],
+    params: ["0x4", false],
   });
 
   const onFatalError = vi.fn();
@@ -381,7 +381,7 @@ test("handleBlock() ingests block and logs", async (context) => {
     .selectAll()
     .execute();
 
-  expect(blocks).toHaveLength(2);
+  expect(blocks).toHaveLength(4);
   expect(logs).toHaveLength(4);
   expect(transactions).toHaveLength(3);
 
@@ -398,8 +398,8 @@ test("handleBlock() ingests block and logs", async (context) => {
     checkpoint: {
       ...maxCheckpoint,
       blockTimestamp: expect.any(Number),
-      chainId: expect.any(Number),
-      blockNumber: 4,
+      chainId: expect.any(BigInt),
+      blockNumber: 4n,
     },
   });
 
@@ -554,8 +554,8 @@ test("handleBlock() finalizes range", async (context) => {
     checkpoint: {
       ...maxCheckpoint,
       blockTimestamp: expect.any(Number),
-      chainId: expect.any(Number),
-      blockNumber: 4,
+      chainId: expect.any(BigInt),
+      blockNumber: 4n,
     },
   });
 
@@ -616,8 +616,8 @@ test("handleReorg() finds common ancestor", async (context) => {
     safeCheckpoint: {
       ...maxCheckpoint,
       blockTimestamp: expect.any(Number),
-      chainId: expect.any(Number),
-      blockNumber: 2,
+      chainId: expect.any(BigInt),
+      blockNumber: 2n,
     },
   });
 

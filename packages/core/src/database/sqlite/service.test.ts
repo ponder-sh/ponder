@@ -181,9 +181,10 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     // Simulate progress being made by updating the checkpoints.
+    // TODO: Actually use the indexing store.
     const newCheckpoint = {
       ...zeroCheckpoint,
-      blockNumber: 10,
+      blockNumber: 10n,
     };
 
     await database.db
@@ -197,7 +198,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       tableName: "Pet",
       encodedCheckpoint: encodeCheckpoint({
         ...zeroCheckpoint,
-        blockNumber: 9,
+        blockNumber: 9n,
       }),
       id: "id1",
       data: { name: "Skip" },
@@ -206,7 +207,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       tableName: "Pet",
       encodedCheckpoint: encodeCheckpoint({
         ...zeroCheckpoint,
-        blockNumber: 11,
+        blockNumber: 11n,
       }),
       id: "id2",
       data: { name: "Kevin" },
@@ -215,7 +216,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       tableName: "Pet",
       encodedCheckpoint: encodeCheckpoint({
         ...zeroCheckpoint,
-        blockNumber: 12,
+        blockNumber: 12n,
       }),
       id: "id3",
       data: { name: "Foo" },

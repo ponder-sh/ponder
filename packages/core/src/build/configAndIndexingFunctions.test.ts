@@ -1,5 +1,6 @@
 import path from "path";
 import type { Options } from "@/common/options.js";
+import type { LogSource } from "@/config/sources.js";
 import { http, getEventSelector, parseAbiItem } from "viem";
 import { expect, test, vi } from "vitest";
 import { type Config, createConfig } from "../config/config.js";
@@ -51,7 +52,7 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
     options,
   });
 
-  expect(sources[0].criteria.topics).toMatchObject([
+  expect((sources[0] as LogSource).criteria.topics).toMatchObject([
     [getEventSelector(event0), getEventSelector(event1)],
   ]);
 });
@@ -85,7 +86,7 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
     options,
   });
 
-  expect(sources[0].criteria.topics).toMatchObject([
+  expect((sources[0] as LogSource).criteria.topics).toMatchObject([
     [getEventSelector(event1), getEventSelector(event1Overloaded)],
   ]);
 });
@@ -142,7 +143,7 @@ test("buildConfigAndIndexingFunctions() builds topics for event with args", asyn
     options,
   });
 
-  expect(sources[0].criteria.topics).toMatchObject([
+  expect((sources[0] as LogSource).criteria.topics).toMatchObject([
     [getEventSelector(event0)],
     bytes1,
   ]);
@@ -175,7 +176,7 @@ test("buildConfigAndIndexingFunctions() builds topics for event with unnamed par
     options,
   });
 
-  expect(sources[0].criteria.topics).toMatchObject([
+  expect((sources[0] as LogSource).criteria.topics).toMatchObject([
     [getEventSelector(event1Overloaded)],
     [bytes1, bytes2],
   ]);
@@ -209,7 +210,7 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
     options,
   });
 
-  expect(sources[0].criteria.address).toBe(address2);
+  expect((sources[0] as LogSource).criteria.address).toBe(address2);
 });
 
 test("buildConfigAndIndexingFunctions() handles network name shortcut", async () => {
@@ -459,7 +460,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to 0", async () =
     options,
   });
 
-  expect(sources[0].startBlock).toBe(0);
+  expect((sources[0] as LogSource).startBlock).toBe(0);
 });
 
 test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
@@ -486,8 +487,12 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
     options,
   });
 
-  expect(sources[0].criteria.includeTransactionReceipts).toBe(true);
-  expect(sources[1].criteria.includeTransactionReceipts).toBe(false);
+  expect((sources[0] as LogSource).criteria.includeTransactionReceipts).toBe(
+    true,
+  );
+  expect((sources[1] as LogSource).criteria.includeTransactionReceipts).toBe(
+    false,
+  );
 });
 
 test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {

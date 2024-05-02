@@ -12,7 +12,7 @@ import {
   isRpcUrlPublic,
 } from "@/config/networks.js";
 import type {
-  EventSource,
+  BlockSource,
   FactorySource,
   LogSource,
 } from "@/config/sources.js";
@@ -268,10 +268,10 @@ export async function buildConfigAndIndexingFunctions({
 
   for (const { name: eventName, fn } of rawIndexingFunctions) {
     const eventNameComponents = eventName.split(":");
-    const [sourceName, logEventName] = eventNameComponents;
-    if (eventNameComponents.length !== 2 || !sourceName || !logEventName) {
+    const [sourceName, sourceEventName] = eventNameComponents;
+    if (eventNameComponents.length !== 2 || !sourceName || !sourceEventName) {
       throw new Error(
-        `Validation failed: Invalid event '${eventName}', expected format '{contractName}:{logEventName}'.`,
+        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}'.`,
       );
     }
 
@@ -281,15 +281,19 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    // Validate that the indexing function uses a contractName that is present in the config.
-    const matchedContractName = Object.keys(config.contracts).find(
-      (contractName) => contractName === sourceName,
-    );
-    if (!matchedContractName) {
-      // Multi-network contracts have N sources, but the hint here should not have duplicates.
-      const uniqueContractNames = dedupe(Object.keys(config.contracts));
+    // Validate that the indexing function uses a sourceName that is present in the config.
+    const matchedSourceName = Object.keys({
+      ...(config.contracts ?? {}),
+      ...(config.blocks ?? {}),
+    }).find((_sourceName) => _sourceName === sourceName);
+
+    if (!matchedSourceName) {
+      // Multi-network has N sources, but the hint here should not have duplicates.
+      const uniqueSourceNames = dedupe(
+        Object.keys({ ...(config.contracts ?? {}), ...(config.blocks ?? {}) }),
+      );
       throw new Error(
-        `Validation failed: Invalid contract name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueContractNames
+        `Validation failed: Invalid source name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueSourceNames
           .map((n) => `'${n}'`)
           .join(", ")}].`,
       );
@@ -303,7 +307,9 @@ export async function buildConfigAndIndexingFunctions({
     logs.push({ level: "warn", msg: "No indexing functions were registered." });
   }
 
-  const sources: EventSource[] = Object.entries(config.contracts)
+  const logOrFactorySources: (LogSource | FactorySource)[] = Object.entries(
+    config.contracts ?? {},
+  )
     // First, apply any network-specific overrides and flatten the result.
     .flatMap(([contractName, contract]) => {
       if (contract.network === null || contract.network === undefined) {
@@ -577,11 +583,128 @@ export async function buildConfigAndIndexingFunctions({
       if (!hasRegisteredIndexingFunctions) {
         logs.push({
           level: "debug",
-          msg: `No indexing functions were registered for contract ${source.contractName}`,
+          msg: `No indexing functions were registered for contract '${source.contractName}'`,
         });
       }
       return hasRegisteredIndexingFunctions;
     });
+
+  const blockSources: BlockSource[] = Object.entries(config.blocks ?? {})
+    .flatMap(([sourceName, blockSourceConfig]) => {
+      const startBlockMaybeNan = blockSourceConfig.startBlock ?? 0;
+      const startBlock = Number.isNaN(startBlockMaybeNan)
+        ? 0
+        : startBlockMaybeNan;
+      const endBlockMaybeNan = blockSourceConfig.endBlock;
+      const endBlock = Number.isNaN(endBlockMaybeNan)
+        ? undefined
+        : endBlockMaybeNan;
+
+      const intervalMaybeNan = blockSourceConfig.interval;
+      const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
+
+      if (!Number.isInteger(interval) || interval === 0) {
+        throw Error(
+          `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
+        );
+      }
+
+      if (typeof blockSourceConfig.network === "string") {
+        const network = networks.find(
+          (n) => n.name === blockSourceConfig.network,
+        );
+        if (!network) {
+          throw new Error(
+            `Validation failed: Invalid network for block source '${sourceName}'. Got '${
+              blockSourceConfig.network
+            }', expected one of [${networks
+              .map((n) => `'${n.name}'`)
+              .join(", ")}].`,
+          );
+        }
+
+        return {
+          type: "block",
+          id: `${sourceName}_${blockSourceConfig.network}`,
+          sourceName,
+          networkName: blockSourceConfig.network,
+          chainId: network.chainId,
+          startBlock,
+          endBlock,
+          criteria: {
+            interval: interval,
+            offset: startBlock % interval,
+          },
+        } as const;
+      }
+
+      type DefinedNetworkOverride = NonNullable<
+        Exclude<Config["blocks"][string]["network"], string>[string]
+      >;
+
+      return Object.entries(blockSourceConfig.network)
+        .filter((n): n is [string, DefinedNetworkOverride] => !!n[1])
+        .map(([networkName, overrides]) => {
+          const network = networks.find((n) => n.name === networkName);
+          if (!network) {
+            throw new Error(
+              `Validation failed: Invalid network for block source '${sourceName}'. Got '${networkName}', expected one of [${networks
+                .map((n) => `'${n.name}'`)
+                .join(", ")}].`,
+            );
+          }
+
+          const startBlockMaybeNan =
+            overrides.startBlock ?? blockSourceConfig.startBlock ?? 0;
+          const startBlock = Number.isNaN(startBlockMaybeNan)
+            ? 0
+            : startBlockMaybeNan;
+          const endBlockMaybeNan =
+            overrides.endBlock ?? blockSourceConfig.endBlock;
+          const endBlock = Number.isNaN(endBlockMaybeNan)
+            ? undefined
+            : endBlockMaybeNan;
+
+          const intervalMaybeNan =
+            overrides.interval ?? blockSourceConfig.interval;
+          const interval = Number.isNaN(intervalMaybeNan)
+            ? 0
+            : intervalMaybeNan;
+
+          if (!Number.isInteger(interval) || interval === 0) {
+            throw Error(
+              `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
+            );
+          }
+
+          return {
+            type: "block",
+            id: `${sourceName}_${networkName}`,
+            sourceName,
+            networkName,
+            chainId: network.chainId,
+            startBlock,
+            endBlock,
+            criteria: {
+              interval: interval,
+              offset: startBlock % interval,
+            },
+          } as const;
+        });
+    })
+    .filter((blockSource) => {
+      const hasRegisteredIndexingFunction =
+        indexingFunctions[`${blockSource.sourceName}:block`] !== undefined;
+      if (!hasRegisteredIndexingFunction) {
+        logs.push({
+          level: "debug",
+          msg: `No indexing functions were registered for block source '${blockSource.sourceName}'`,
+        });
+      }
+      return hasRegisteredIndexingFunction;
+    });
+
+  const sources = [...logOrFactorySources, ...blockSources];
 
   // Filter out any networks that don't have any sources registered.
   const networksWithSources = networks.filter((network) => {
@@ -591,7 +714,7 @@ export async function buildConfigAndIndexingFunctions({
     if (!hasSources) {
       logs.push({
         level: "warn",
-        msg: `No contracts registered for network '${network.name}'`,
+        msg: `No sources registered for network '${network.name}'`,
       });
     }
     return hasSources;
