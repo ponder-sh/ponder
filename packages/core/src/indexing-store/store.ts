@@ -41,7 +41,7 @@ export type WriteStore<
   create(
     options: {
       tableName: string;
-      id: string | number | bigint;
+      id: UserIdColumn;
       data?: Omit<UserRow, "id">;
     } & checkpointProp,
   ): Promise<UserRow>;
@@ -56,7 +56,7 @@ export type WriteStore<
   update(
     options: {
       tableName: string;
-      id: string | number | bigint;
+      id: UserIdColumn;
       data?:
         | Partial<Omit<UserRow, "id">>
         | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
@@ -76,7 +76,7 @@ export type WriteStore<
   upsert(
     options: {
       tableName: string;
-      id: string | number | bigint;
+      id: UserIdColumn;
       create?: Omit<UserRow, "id">;
       update?:
         | Partial<Omit<UserRow, "id">>
@@ -87,7 +87,7 @@ export type WriteStore<
   delete(
     options: {
       tableName: string;
-      id: string | number | bigint;
+      id: UserIdColumn;
     } & checkpointProp,
   ): Promise<boolean>;
 };
