@@ -549,9 +549,7 @@ ponder.on("ERC20:Transfer", async ({ event }) => {
 
 ## Block range
 
-The optional `startBlock` and `endBlock` options specify the block range to index.
-
-The default value for `startBlock` is `0{:ts}`, and the default value for `endBlock` is `undefined{:ts}`. When `endBlock` is `undefined{:ts}`, Ponder will index the contract in realtime as new blocks are mined and automatically handle chain reorganizations.
+The optional `startBlock` and `endBlock` options specify the block range to index. The default value for `startBlock` is `0{:ts}`, and the default value for `endBlock` is `undefined{:ts}`. When `endBlock` is `undefined{:ts}`, Ponder will index the contract in realtime.
 
 If `endBlock` is defined, Ponder will not sync or index any events after that block. This option can be useful if you're only interested in a slice of historical data, or to enable faster feedback loops during development where it's not necessary to index the entire history.
 
