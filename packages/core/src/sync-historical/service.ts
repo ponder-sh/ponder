@@ -2,10 +2,12 @@ import type { Common } from "@/common/common.js";
 import { getHistoricalSyncProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import {
+  type BlockSource,
   type EventSource,
   type FactorySource,
   type LogFilterCriteria,
   type LogSource,
+  sourceIsFactory,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -78,6 +80,13 @@ type FactoryLogFilterTask = {
   toBlock: number;
 };
 
+type BlockFilterTask = {
+  kind: "BLOCK_FILTER";
+  blockFilter: BlockSource;
+  fromBlock: number;
+  toBlock: number;
+};
+
 type BlockTask = {
   kind: "BLOCK";
   blockNumber: number;
@@ -88,6 +97,7 @@ type HistoricalSyncTask =
   | LogFilterTask
   | FactoryChildAddressTask
   | FactoryLogFilterTask
+  | BlockFilterTask
   | BlockTask;
 
 type HistoricalBlock = RpcBlock<"finalized", true>;
@@ -114,6 +124,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     {};
   private factoryLogFilterProgressTrackers: Record<string, ProgressTracker> =
     {};
+  private blockFilterProgressTrackers: Record<string, ProgressTracker> = {};
   private blockProgressTracker: BlockProgressTracker =
     new BlockProgressTracker();
 
@@ -193,7 +204,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               completed: [[startBlock, finalizedBlockNumber]],
             });
             this.common.metrics.ponder_historical_total_blocks.set(
-              { network: this.network.name, contract: source.contractName },
+              { network: this.network.name, source: source.contractName },
               0,
             );
             this.common.logger.warn({
@@ -247,11 +258,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             targetBlockCount - intervalSum(requiredLogFilterIntervals);
 
           this.common.metrics.ponder_historical_total_blocks.set(
-            { network: this.network.name, contract: source.contractName },
+            { network: this.network.name, source: source.contractName },
             targetBlockCount,
           );
           this.common.metrics.ponder_historical_cached_blocks.set(
-            { network: this.network.name, contract: source.contractName },
+            { network: this.network.name, source: source.contractName },
             cachedBlockCount,
           );
 
@@ -263,7 +274,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               this.network.name
             })`,
           });
-        } else {
+        } else if (sourceIsFactory(source)) {
           // Factory
           if (!isHistoricalSyncRequired) {
             this.factoryChildAddressProgressTrackers[source.id] =
@@ -277,7 +288,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 completed: [[startBlock, finalizedBlockNumber]],
               });
             this.common.metrics.ponder_historical_total_blocks.set(
-              { network: this.network.name, contract: source.contractName },
+              { network: this.network.name, source: source.contractName },
               0,
             );
             this.common.logger.warn({
@@ -340,14 +351,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           this.common.metrics.ponder_historical_total_blocks.set(
             {
               network: this.network.name,
-              contract: `${source.contractName}_factory`,
+              source: `${source.contractName}_factory`,
             },
             targetFactoryChildAddressBlockCount,
           );
           this.common.metrics.ponder_historical_cached_blocks.set(
             {
               network: this.network.name,
-              contract: `${source.contractName}_factory`,
+              source: `${source.contractName}_factory`,
             },
             cachedFactoryChildAddressBlockCount,
           );
@@ -408,11 +419,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             intervalSum(requiredFactoryLogFilterIntervals);
 
           this.common.metrics.ponder_historical_total_blocks.set(
-            { network: this.network.name, contract: source.contractName },
+            { network: this.network.name, source: source.contractName },
             targetFactoryLogFilterBlockCount,
           );
           this.common.metrics.ponder_historical_cached_blocks.set(
-            { network: this.network.name, contract: source.contractName },
+            { network: this.network.name, source: source.contractName },
             cachedFactoryLogFilterBlockCount,
           );
 
@@ -431,6 +442,85 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               this.network.name
             })`,
           });
+        } else {
+          // Block filter
+          if (!isHistoricalSyncRequired) {
+            this.blockFilterProgressTrackers[source.id] = new ProgressTracker({
+              target: [startBlock, finalizedBlockNumber],
+              completed: [[startBlock, finalizedBlockNumber]],
+            });
+            this.common.metrics.ponder_historical_total_blocks.set(
+              { network: this.network.name, source: source.sourceName },
+              0,
+            );
+            this.common.logger.warn({
+              service: "historical",
+              msg: `Start block is in unfinalized range, skipping historical sync (contract=${source.id})`,
+            });
+            return;
+          }
+
+          const completedBlockFilterIntervals =
+            await this.syncStore.getBlockFilterIntervals({
+              chainId: source.chainId,
+              blockFilter: source.criteria,
+            });
+          const blockFilterProgressTracker = new ProgressTracker({
+            target: [startBlock, endBlock],
+            completed: completedBlockFilterIntervals,
+          });
+          this.blockFilterProgressTrackers[source.id] =
+            blockFilterProgressTracker;
+
+          const requiredBlockFilterIntervals =
+            blockFilterProgressTracker.getRequired();
+
+          // block filters are chunked into intervals to avoid unmanageable
+          // amounts of block callbacks being added at once.
+
+          const blockFilterTaskChunks = getChunks({
+            intervals: requiredBlockFilterIntervals,
+            maxChunkSize: this.network.defaultMaxBlockRange,
+          });
+
+          for (const [fromBlock, toBlock] of blockFilterTaskChunks) {
+            this.queue.addTask(
+              {
+                kind: "BLOCK_FILTER",
+                blockFilter: source,
+                fromBlock,
+                toBlock,
+              },
+              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+            );
+          }
+          if (blockFilterTaskChunks.length > 0) {
+            const total = intervalSum(requiredBlockFilterIntervals);
+            this.common.logger.debug({
+              service: "historical",
+              msg: `Added BLOCK_FILTER tasks for ${total}-block range (network=${this.network.name})`,
+            });
+          }
+
+          const targetBlockCount = endBlock - startBlock + 1;
+          const cachedBlockCount =
+            targetBlockCount - intervalSum(requiredBlockFilterIntervals);
+
+          this.common.metrics.ponder_historical_total_blocks.set(
+            { network: this.network.name, source: source.sourceName },
+            targetBlockCount,
+          );
+          this.common.metrics.ponder_historical_cached_blocks.set(
+            { network: this.network.name, source: source.sourceName },
+            cachedBlockCount,
+          );
+
+          this.common.logger.info({
+            service: "historical",
+            msg: `Started sync with ${formatPercentage(
+              Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
+            )} cached (network=${this.network.name})`,
+          });
         }
       }),
     );
@@ -443,13 +533,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.progressLogInterval = setInterval(async () => {
       const historical = await getHistoricalSyncProgress(this.common.metrics);
 
-      historical.contracts.forEach(({ contractName, progress, eta }) => {
+      historical.sources.forEach(({ sourceName, progress, eta }) => {
         if (progress === 1) return;
         this.common.logger.info({
           service: "historical",
           msg: `Sync is ${formatPercentage(progress ?? 0)} complete${
             eta !== undefined ? ` with ~${formatEta(eta)} remaining` : ""
-          } (contract=${contractName}, network=${this.network.name})`,
+          } (source=${sourceName}, network=${this.network.name})`,
           network: this.network.name,
         });
       });
@@ -499,6 +589,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         }
         case "FACTORY_LOG_FILTER": {
           await this.factoryLogFilterTaskWorker(task);
+          break;
+        }
+        case "BLOCK_FILTER": {
+          await this.blockFilterTaskWorker(task);
           break;
         }
         case "BLOCK": {
@@ -646,7 +740,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
-          { network: this.network.name, contract: logFilter.contractName },
+          { network: this.network.name, source: logFilter.contractName },
           endBlock - startBlock + 1,
         );
       });
@@ -723,7 +817,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
-          { network: this.network.name, contract: factory.contractName },
+          { network: this.network.name, source: factory.contractName },
           endBlock - startBlock + 1,
         );
       });
@@ -819,7 +913,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.common.metrics.ponder_historical_completed_blocks.inc(
       {
         network: this.network.name,
-        contract: `${factory.contractName}_factory`,
+        source: `${factory.contractName}_factory`,
       },
       toBlock - fromBlock + 1,
     );
@@ -827,6 +921,97 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.common.logger.trace({
       service: "historical",
       msg: `Completed FACTORY_CHILD_ADDRESS task [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
+    });
+  };
+
+  private blockFilterTaskWorker = async ({
+    blockFilter,
+    fromBlock,
+    toBlock,
+  }: BlockFilterTask) => {
+    const baseOffset =
+      (fromBlock - blockFilter.criteria.offset) % blockFilter.criteria.interval;
+    const offset =
+      baseOffset === 0 ? 0 : blockFilter.criteria.interval - baseOffset;
+
+    // Determine which blocks are matched by the block filter, and add a callback for
+    // each block. A block callback, and subsequent "eth_getBlock" request can be
+    // skipped if the block is already present in the database.
+
+    const requiredBlocks: number[] = [];
+    for (
+      let blockNumber = fromBlock + offset;
+      blockNumber <= toBlock;
+      blockNumber += blockFilter.criteria.interval
+    ) {
+      requiredBlocks.push(blockNumber);
+    }
+
+    // If toBlock is not already required, add it. This is necessary
+    // to mark the full block range of the eth_getLogs request as cached.
+    if (!requiredBlocks.includes(toBlock)) {
+      requiredBlocks.push(toBlock);
+    }
+
+    let prevBlockNumber = fromBlock;
+    for (const blockNumber of requiredBlocks) {
+      const hasBlock = await this.syncStore.getBlock({
+        chainId: blockFilter.chainId,
+        blockNumber,
+      });
+
+      const startBlock = prevBlockNumber;
+      const endBlock = blockNumber;
+
+      if (hasBlock) {
+        await this.syncStore.insertBlockFilterInterval({
+          chainId: blockFilter.chainId,
+          blockFilter: blockFilter.criteria,
+          interval: {
+            startBlock: BigInt(startBlock),
+            endBlock: BigInt(endBlock),
+          },
+        });
+
+        this.common.metrics.ponder_historical_completed_blocks.inc(
+          { network: this.network.name, source: blockFilter.sourceName },
+          endBlock - startBlock + 1,
+        );
+      } else {
+        if (this.blockCallbacks[blockNumber] === undefined)
+          this.blockCallbacks[blockNumber] = [];
+
+        this.blockCallbacks[blockNumber].push(async (block) => {
+          await this.syncStore.insertBlockFilterInterval({
+            chainId: blockFilter.chainId,
+            blockFilter: blockFilter.criteria,
+            block,
+            interval: {
+              startBlock: BigInt(startBlock),
+              endBlock: BigInt(endBlock),
+            },
+          });
+
+          this.common.metrics.ponder_historical_completed_blocks.inc(
+            { network: this.network.name, source: blockFilter.sourceName },
+            endBlock - startBlock + 1,
+          );
+        });
+      }
+
+      prevBlockNumber = blockNumber + 1;
+    }
+
+    this.blockFilterProgressTrackers[blockFilter.id].addCompletedInterval([
+      fromBlock,
+      toBlock,
+    ]);
+
+    this.enqueueBlockTasks();
+
+    this.common.logger.trace({
+      service: "historical",
+      msg: `Completed BLOCK_FILTER task [${fromBlock}, ${toBlock}] ( network=${this.network.name})`,
     });
   };
 
@@ -848,8 +1033,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       this.debouncedEmitCheckpoint.call({
         ...maxCheckpoint,
         blockTimestamp: newBlockCheckpoint.blockTimestamp,
-        chainId: this.network.chainId,
-        blockNumber: newBlockCheckpoint.blockNumber,
+        chainId: BigInt(this.network.chainId),
+        blockNumber: BigInt(newBlockCheckpoint.blockNumber),
       });
     }
 
@@ -923,6 +1108,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         ...Object.values(this.logFilterProgressTrackers),
         ...Object.values(this.factoryChildAddressProgressTrackers),
         ...Object.values(this.factoryLogFilterProgressTrackers),
+        ...Object.values(this.blockFilterProgressTrackers),
       ]
         .filter((i) => i.getRequired().length > 0)
         .map((i) => i.getCheckpoint()),

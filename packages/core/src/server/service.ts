@@ -37,6 +37,7 @@ export async function createServer({
 
   let port = common.options.port;
   let isHealthy = false;
+  const startTime = Date.now();
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const commonLabels = { method: c.req.method, path: c.req.path };
@@ -92,7 +93,7 @@ export async function createServer({
       }
 
       const max = common.options.maxHealthcheckDuration;
-      const elapsed = Math.floor(process.uptime());
+      const elapsed = (Date.now() - startTime) / 1000;
 
       if (elapsed > max) {
         common.logger.warn({

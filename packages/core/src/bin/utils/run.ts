@@ -14,20 +14,29 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Event } from "@/sync/events.js";
+import { decodeEvents } from "@/sync/events.js";
 import { createSyncService } from "@/sync/index.js";
-import { type Checkpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  isCheckpointEqual,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
 
 export type RealtimeEvent =
   | {
       type: "newEvents";
-      events: Event[];
-      lastEventCheckpoint: Checkpoint | undefined;
+      fromCheckpoint: Checkpoint;
+      toCheckpoint: Checkpoint;
     }
   | {
       type: "reorg";
       safeCheckpoint: Checkpoint;
+    }
+  | {
+      type: "finalize";
+      checkpoint: Checkpoint;
     };
 
 /**
@@ -57,13 +66,14 @@ export async function run({
   let database: DatabaseService;
   let syncStore: SyncStore;
   let namespaceInfo: NamespaceInfo;
+  let initialCheckpoint: Checkpoint;
 
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
-    namespaceInfo = await database
+    [namespaceInfo, initialCheckpoint] = await database
       .setup({ schema, buildId })
-      .then(({ namespaceInfo }) => namespaceInfo);
+      .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
 
     syncStore = new SqliteSyncStore({ db: database.syncDb });
   } else {
@@ -74,9 +84,9 @@ export async function run({
       userNamespace,
       publishSchema,
     });
-    namespaceInfo = await database
+    [namespaceInfo, initialCheckpoint] = await database
       .setup({ schema, buildId })
-      .then(({ namespaceInfo }) => namespaceInfo);
+      .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
 
     syncStore = new PostgresSyncStore({ db: database.syncDb });
   }
@@ -104,8 +114,11 @@ export async function run({
     sources,
     // Note: this is not great because it references the
     // `realtimeQueue` which isn't defined yet
-    onRealtimeEvent: (realtimeEvent) => realtimeQueue.add(realtimeEvent),
+    onRealtimeEvent: (realtimeEvent) => {
+      realtimeQueue.add(realtimeEvent);
+    },
     onFatalError,
+    initialCheckpoint,
   });
 
   const handleEvents = async (
@@ -128,22 +141,43 @@ export async function run({
     });
   };
 
+  const handleFinalize = async (checkpoint: Checkpoint) => {
+    await database.updateFinalizedCheckpoint({ checkpoint });
+  };
+
   const realtimeQueue = createQueue({
-    initialStart: false,
+    initialStart: true,
     browser: false,
     concurrency: 1,
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "newEvents": {
-          const result = await handleEvents(
-            event.events,
-            event.lastEventCheckpoint,
-          );
-          if (result.status === "error") onReloadableError(result.error);
+          const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
+            sources: sources,
+            fromCheckpoint: event.fromCheckpoint,
+            toCheckpoint: event.toCheckpoint,
+          });
+          for await (const rawEvents of syncStore.getLogEvents({
+            sources,
+            fromCheckpoint: event.fromCheckpoint,
+            toCheckpoint: event.toCheckpoint,
+            limit: 1_000,
+          })) {
+            const result = await handleEvents(
+              decodeEvents(syncService, rawEvents),
+              lastEventCheckpoint,
+            );
+            if (result.status === "error") onReloadableError(result.error);
+          }
+
           break;
         }
         case "reorg":
           await handleReorg(event.safeCheckpoint);
+          break;
+
+        case "finalize":
+          await handleFinalize(event.checkpoint);
           break;
 
         default:
@@ -167,7 +201,7 @@ export async function run({
     }),
   };
 
-  let indexingService = createIndexingService({
+  const indexingService = createIndexingService({
     indexingFunctions,
     common,
     indexingStore,
@@ -177,33 +211,51 @@ export async function run({
     schema,
   });
 
-  (async () => {
+  const start = async () => {
     syncService.startHistorical();
 
-    // process setup events
-    const result = await indexingService.processSetupEvents({
-      sources,
-      networks,
-    });
-    if (result.status === "killed") {
-      return;
-    } else if (result.status === "error") {
-      onReloadableError(result.error);
-      return;
-    }
-
-    // Run historical indexing until complete.
-    for await (const {
-      events,
-      lastEventCheckpoint,
-    } of syncService.getHistoricalEvents()) {
-      const result = await handleEvents(events, lastEventCheckpoint);
-
+    // If the initial checkpoint is zero, we need to run setup events.
+    if (isCheckpointEqual(initialCheckpoint, zeroCheckpoint)) {
+      const result = await indexingService.processSetupEvents({
+        sources,
+        networks,
+      });
       if (result.status === "killed") {
         return;
       } else if (result.status === "error") {
         onReloadableError(result.error);
         return;
+      }
+    }
+
+    // Run historical indexing until complete.
+    for await (const {
+      fromCheckpoint,
+      toCheckpoint,
+    } of syncService.getHistoricalCheckpoint()) {
+      const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
+        sources: sources,
+        fromCheckpoint,
+        toCheckpoint,
+      });
+
+      for await (const rawEvents of syncStore.getLogEvents({
+        sources: sources,
+        fromCheckpoint,
+        toCheckpoint,
+        limit: 1_000,
+      })) {
+        const result = await handleEvents(
+          decodeEvents(syncService, rawEvents),
+          lastEventCheckpoint,
+        );
+
+        if (result.status === "killed") {
+          return;
+        } else if (result.status === "error") {
+          onReloadableError(result.error);
+          return;
+        }
       }
     }
 
@@ -216,6 +268,7 @@ export async function run({
     if (database.kind === "postgres") {
       await database.publish();
     }
+    await handleFinalize(syncService.finalizedCheckpoint);
 
     server.setHealthy();
     common.logger.info({
@@ -238,27 +291,22 @@ export async function run({
       }),
     };
 
-    indexingService = createIndexingService({
-      indexingFunctions,
-      common,
-      indexingStore,
-      sources,
-      networks,
-      syncService,
-      schema,
-    });
+    indexingService.updateIndexingStore({ indexingStore, schema });
 
     syncService.startRealtime();
-    realtimeQueue.start();
-  })();
+  };
+
+  const startPromise = start();
 
   return async () => {
+    const serverPromise = server.kill();
+    indexingService.kill();
+    await syncService.kill();
     realtimeQueue.pause();
     realtimeQueue.clear();
-    indexingService.kill();
-    await server.kill();
-    await syncService.kill();
     await realtimeQueue.onIdle();
+    await startPromise;
+    await serverPromise;
     await database.kill();
   };
 }

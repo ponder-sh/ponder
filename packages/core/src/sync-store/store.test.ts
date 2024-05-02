@@ -7,7 +7,13 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import {
+  type BlockFilterCriteria,
+  type FactoryCriteria,
+  type LogFilterCriteria,
+  sourceIsFactory,
+  sourceIsLog,
+} from "@/config/sources.js";
 import {
   EVENT_TYPES,
   maxCheckpoint,
@@ -163,8 +169,8 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
     ...rpcData.block1,
     interval: {
-      startBlock: hexToBigInt(rpcData.block1.block.number!),
-      endBlock: hexToBigInt(rpcData.block1.block.number!),
+      startBlock: 2n,
+      endBlock: 2n,
     },
   });
 
@@ -177,8 +183,8 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
     ...rpcData.block3,
     interval: {
-      startBlock: hexToBigInt(rpcData.block3.block.number!),
-      endBlock: hexToBigInt(rpcData.block3.block.number!),
+      startBlock: 4n,
+      endBlock: 4n,
     },
   });
 
@@ -192,14 +198,8 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
   });
 
   expect(logFilterRanges).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block1.block.number!),
-    ],
-    [
-      Number(rpcData.block3.block.number!),
-      Number(rpcData.block3.block.number!),
-    ],
+    [2, 2],
+    [4, 4],
   ]);
 
   await syncStore.insertLogFilterInterval({
@@ -211,8 +211,8 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
     ...rpcData.block2,
     interval: {
-      startBlock: hexToBigInt(rpcData.block2.block.number!),
-      endBlock: hexToBigInt(rpcData.block2.block.number!),
+      startBlock: 3n,
+      endBlock: 3n,
     },
   });
 
@@ -225,12 +225,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
   });
 
-  expect(logFilterRanges).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block3.block.number!),
-    ],
-  ]);
+  expect(logFilterRanges).toMatchObject([[2, 4]]);
   await cleanup();
 });
 
@@ -249,8 +244,8 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
       },
       ...rpcData.block1,
       interval: {
-        startBlock: hexToBigInt(rpcData.block1.block.number!),
-        endBlock: hexToBigInt(rpcData.block1.block.number!),
+        startBlock: 2n,
+        endBlock: 2n,
       },
     }),
     syncStore.insertLogFilterInterval({
@@ -262,8 +257,8 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
       },
       ...rpcData.block2,
       interval: {
-        startBlock: hexToBigInt(rpcData.block2.block.number!),
-        endBlock: hexToBigInt(rpcData.block2.block.number!),
+        startBlock: 3n,
+        endBlock: 3n,
       },
     }),
     syncStore.insertLogFilterInterval({
@@ -275,8 +270,8 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
       },
       ...rpcData.block3,
       interval: {
-        startBlock: hexToBigInt(rpcData.block3.block.number!),
-        endBlock: hexToBigInt(rpcData.block3.block.number!),
+        startBlock: 4n,
+        endBlock: 4n,
       },
     }),
   ]);
@@ -290,12 +285,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
     },
   });
 
-  expect(logFilterRanges).toMatchObject([
-    [
-      Number(rpcData.block1.block.number!),
-      Number(rpcData.block3.block.number!),
-    ],
-  ]);
+  expect(logFilterRanges).toMatchObject([[2, 4]]);
   await cleanup();
 });
 
@@ -322,8 +312,8 @@ test("insertLogFilterInterval updates log checkpoints on conflict", async (conte
     },
     ...rpcData.block2,
     interval: {
-      startBlock: hexToBigInt(rpcData.block2.block.number!),
-      endBlock: hexToBigInt(rpcData.block2.block.number!),
+      startBlock: 3n,
+      endBlock: 3n,
     },
   });
 
@@ -1117,6 +1107,157 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
   await cleanup();
 });
 
+test("insertBlockFilterIntervals inserts block", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 1,
+      offset: 0,
+    },
+    block: rpcData.block1.block,
+    interval: {
+      startBlock: hexToBigInt(rpcData.block1.block.number),
+      endBlock: hexToBigInt(rpcData.block1.block.number),
+    },
+  });
+
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+  expect(blocks).toHaveLength(1);
+
+  await cleanup();
+});
+
+test("insertBlockFilterIntervals inserts block filter intervals", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 1,
+      offset: 0,
+    },
+    block: rpcData.block1.block,
+    interval: { startBlock: 0n, endBlock: 100n },
+  });
+
+  const blockFilterRanges = await syncStore.getBlockFilterIntervals({
+    chainId: 1,
+    blockFilter: {
+      interval: 1,
+      offset: 0,
+    },
+  });
+
+  expect(blockFilterRanges).toMatchObject([[0, 100]]);
+  await cleanup();
+});
+
+test("insertBlockFilterIntervals merges on insertion", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 1,
+      offset: 0,
+    },
+    block: rpcData.block1.block,
+    interval: {
+      startBlock: hexToBigInt(rpcData.block1.block.number),
+      endBlock: hexToBigInt(rpcData.block1.block.number),
+    },
+  });
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 1,
+      offset: 0,
+    },
+    block: rpcData.block3.block,
+    interval: {
+      startBlock: hexToBigInt(rpcData.block3.block.number),
+      endBlock: hexToBigInt(rpcData.block3.block.number),
+    },
+  });
+
+  let blockFilterRanges = await syncStore.getBlockFilterIntervals({
+    chainId: 1,
+    blockFilter: {
+      interval: 1,
+      offset: 0,
+    },
+  });
+
+  expect(blockFilterRanges).toMatchObject([
+    [2, 2],
+    [4, 4],
+  ]);
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 1,
+      offset: 0,
+    },
+    block: rpcData.block2.block,
+    interval: {
+      startBlock: hexToBigInt(rpcData.block2.block.number),
+      endBlock: hexToBigInt(rpcData.block2.block.number),
+    },
+  });
+
+  blockFilterRanges = await syncStore.getBlockFilterIntervals({
+    chainId: 1,
+    blockFilter: {
+      interval: 1,
+      offset: 0,
+    },
+  });
+
+  expect(blockFilterRanges).toMatchObject([[2, 4]]);
+
+  await cleanup();
+});
+
+test("getBlockFilterIntervals retrns interval", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    chainId: 1,
+    blockFilter: {
+      interval: 4,
+      offset: 1,
+    },
+    block: rpcData.block1.block,
+    interval: { startBlock: 10n, endBlock: 100n },
+  });
+
+  const blockFilterRanges = await syncStore.getBlockFilterIntervals({
+    chainId: 1,
+    blockFilter: {
+      interval: 4,
+      offset: 1,
+    },
+  });
+
+  expect(blockFilterRanges).toMatchObject([[10, 100]]);
+  await cleanup();
+});
+
 test("insertRealtimeBlock inserts data", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -1186,7 +1327,7 @@ test("insertRealtimeBlock upserts transactions", async (context) => {
   await cleanup();
 });
 
-test("insertRealtimeInterval inserts log filter intervals", async (context) => {
+test("insertRealtimeInterval inserts intervals", async (context) => {
   const { erc20 } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -1212,10 +1353,16 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
     includeTransactionReceipts: false,
   } satisfies FactoryCriteria;
 
+  const blockFilterCriteria = {
+    interval: 10,
+    offset: 0,
+  } satisfies BlockFilterCriteria;
+
   await syncStore.insertRealtimeInterval({
     chainId: 1,
     logFilters: [logFilterCriteria],
     factories: [factoryCriteriaOne, factoryCriteriaTwo],
+    blockFilters: [blockFilterCriteria],
     interval: { startBlock: 500n, endBlock: 550n },
   });
 
@@ -1261,6 +1408,15 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
       factory: factoryCriteriaTwo,
     }),
   ).toMatchObject([[500, 550]]);
+
+  // Confirm block filters have been inserted
+  expect(
+    await syncStore.getBlockFilterIntervals({
+      chainId: 1,
+      blockFilter: blockFilterCriteria,
+    }),
+  ).toMatchObject([[500, 550]]);
+
   await cleanup();
 });
 
@@ -1278,8 +1434,8 @@ test("deleteRealtimeData deletes logs", async (context) => {
     },
     ...rpcData.block1,
     interval: {
-      startBlock: hexToBigInt(rpcData.block1.block.number!),
-      endBlock: hexToBigInt(rpcData.block1.block.number!),
+      startBlock: 2n,
+      endBlock: 2n,
     },
   });
 
@@ -1292,8 +1448,8 @@ test("deleteRealtimeData deletes logs", async (context) => {
     },
     ...rpcData.block2,
     interval: {
-      startBlock: hexToBigInt(rpcData.block2.block.number!),
-      endBlock: hexToBigInt(rpcData.block2.block.number!),
+      startBlock: 3n,
+      endBlock: 3n,
     },
   });
 
@@ -1302,7 +1458,7 @@ test("deleteRealtimeData deletes logs", async (context) => {
 
   await syncStore.deleteRealtimeData({
     chainId: 1,
-    fromBlock: hexToBigInt(rpcData.block1.block.number!),
+    fromBlock: 2n,
   });
 
   logs = await syncStore.db.selectFrom("logs").selectAll().execute();
@@ -1439,7 +1595,7 @@ test("getLogEvents returns log events", async (context) => {
   });
 
   const ag = syncStore.getLogEvents({
-    sources,
+    sources: sources.filter((s) => sourceIsFactory(s) || sourceIsLog(s)),
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -1448,19 +1604,19 @@ test("getLogEvents returns log events", async (context) => {
 
   expect(events).toHaveLength(3);
 
-  expect(events[0].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
   expect(events[0].transactionReceipt).toBeUndefined();
 
-  expect(events[1].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
   expect(events[1].transactionReceipt).toBeUndefined();
 
-  expect(events[2].log.address).toBe(checksumAddress(factory.pair));
+  expect(events[2].log!.address).toBe(checksumAddress(factory.pair));
   expect(events[2].block.hash).toBe(rpcData.block3.block.hash);
-  expect(events[2].transaction.hash).toBe(rpcData.block3.transactions[0].hash);
+  expect(events[2].transaction!.hash).toBe(rpcData.block3.transactions[0].hash);
   expect(events[2].transactionReceipt).toBeUndefined();
 
   await cleanup();
@@ -1485,10 +1641,13 @@ test("getLogEvents returns log events with receipts", async (context) => {
   });
 
   const ag = syncStore.getLogEvents({
-    sources: sources.map((s) => ({
-      ...s,
-      criteria: { ...s.criteria, includeTransactionReceipts: true },
-    })),
+    // @ts-ignore
+    sources: sources
+      .filter((s) => sourceIsLog(s) || sourceIsFactory(s))
+      .map((s) => ({
+        ...s,
+        criteria: { ...s.criteria, includeTransactionReceipts: true },
+      })),
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -1497,26 +1656,57 @@ test("getLogEvents returns log events with receipts", async (context) => {
 
   expect(events).toHaveLength(3);
 
-  expect(events[0].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
   expect(events[0].transactionReceipt?.transactionHash).toBe(
     rpcData.block1.transactionReceipts[0].transactionHash,
   );
 
-  expect(events[1].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
   expect(events[1].transactionReceipt?.transactionHash).toBe(
     rpcData.block1.transactionReceipts[1].transactionHash,
   );
 
-  expect(events[2].log.address).toBe(checksumAddress(factory.pair));
+  expect(events[2].log!.address).toBe(checksumAddress(factory.pair));
   expect(events[2].block.hash).toBe(rpcData.block3.block.hash);
-  expect(events[2].transaction.hash).toBe(rpcData.block3.transactions[0].hash);
+  expect(events[2].transaction!.hash).toBe(rpcData.block3.transactions[0].hash);
   expect(events[2].transactionReceipt?.transactionHash).toBe(
     rpcData.block3.transactionReceipts[0].transactionHash,
   );
+
+  await cleanup();
+});
+
+test("getLogEvents with block filters", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block1,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block2,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block3,
+  });
+
+  const ag = syncStore.getLogEvents({
+    sources,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(4);
 
   await cleanup();
 });
@@ -1778,13 +1968,13 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async (context) => {
   const ag = syncStore.getLogEvents({
     sources: [sources[0]],
     fromCheckpoint: {
-      chainId: 1,
+      chainId: 1n,
       blockTimestamp: Number(rpcData.block1.block.timestamp!),
-      blockNumber: Number(rpcData.block1.block.number!),
-      transactionIndex: 0,
+      blockNumber: 2n,
+      transactionIndex: 0n,
       eventType: EVENT_TYPES.logs,
       // Should exclude the 1st log in the first block.
-      eventIndex: Number(rpcData.block1.logs[0].logIndex),
+      eventIndex: hexToBigInt(rpcData.block1.logs[0].logIndex!),
     },
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -1815,13 +2005,13 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
     sources: [sources[0]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: {
-      chainId: 1,
+      chainId: 1n,
       blockTimestamp: Number(rpcData.block1.block.timestamp!),
-      blockNumber: Number(rpcData.block1.block.number!),
-      transactionIndex: 1,
+      blockNumber: 2n,
+      transactionIndex: 1n,
       eventType: EVENT_TYPES.logs,
       // Should include the 2nd log in the first block.
-      eventIndex: Number(rpcData.block1.logs[1].logIndex),
+      eventIndex: hexToBigInt(rpcData.block1.logs[1].logIndex!),
     },
     limit: 100,
   });
@@ -1870,19 +2060,19 @@ test("getLogEvents multiple sources", async (context) => {
   expect(events).toHaveLength(3);
 
   expect(events[0].sourceId).toBe("Erc20_mainnet");
-  expect(events[0].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
 
   expect(events[1].sourceId).toBe("Erc20_mainnet");
-  expect(events[1].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
 
   expect(events[2].sourceId).toBe("kevin");
-  expect(events[2].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[2].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[2].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[2].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[2].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
 
   await cleanup();
 });
@@ -1950,14 +2140,14 @@ test("getLogEvents multichain", async (context) => {
   expect(events).toHaveLength(2);
 
   expect(events[0].sourceId).toBe("Erc20_mainnet");
-  expect(events[0].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
 
   expect(events[1].sourceId).toBe("Erc20_mainnet");
-  expect(events[1].log.address).toBe(checksumAddress(erc20.address));
+  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
 
   await cleanup();
 });
@@ -2045,10 +2235,9 @@ test("getLastEventCheckpoint", async (context) => {
     toCheckpoint: maxCheckpoint,
   });
 
-  expect(lastEventCheckpoint?.blockNumber).toBe(2);
-  expect(lastEventCheckpoint?.eventIndex).toBe(
-    hexToNumber(rpcData.block1.logs[1].logIndex!),
-  );
+  expect(lastEventCheckpoint?.blockNumber).toBe(2n);
+  expect(lastEventCheckpoint?.transactionIndex).toBe(1n);
+  expect(lastEventCheckpoint?.eventIndex).toBe(1n);
 
   await cleanup();
 });

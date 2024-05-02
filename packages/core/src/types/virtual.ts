@@ -33,63 +33,73 @@ export namespace Virtual {
       : safeEventNames;
 
   /** "{ContractName}:{EventName}". */
-  export type FormatEventNames<contracts extends Config["contracts"]> = {
-    [name in keyof contracts]: `${name & string}:${
-      | _FormatEventNames<contracts[name]>
-      | Setup}`;
-  }[keyof contracts];
+  export type FormatEventNames<
+    contracts extends Config["contracts"],
+    blocks extends Config["blocks"],
+  > =
+    | {
+        [name in keyof contracts]: `${name & string}:${
+          | _FormatEventNames<contracts[name]>
+          | Setup}`;
+      }[keyof contracts]
+    | {
+        [name in keyof blocks]: `${name & string}:block`;
+      }[keyof blocks];
 
   export type ExtractEventName<name extends string> =
     name extends `${string}:${infer EventName extends string}`
       ? EventName
       : never;
 
-  export type ExtractContractName<name extends string> =
-    name extends `${infer ContractName extends string}:${string}`
-      ? ContractName
+  export type ExtractSourceName<name extends string> =
+    name extends `${infer SourceName extends string}:${string}`
+      ? SourceName
       : never;
 
   export type EventNames<config extends Config> = FormatEventNames<
-    config["contracts"]
+    config["contracts"],
+    config["blocks"]
   >;
 
   export type Event<
     config extends Config,
     name extends EventNames<config>,
     ///
-    contractName extends ExtractContractName<name> = ExtractContractName<name>,
+    contractName extends ExtractSourceName<name> = ExtractSourceName<name>,
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
-  > = eventName extends Setup
-    ? never
-    : {
-        name: eventName;
-        args: GetEventArgs<
-          Abi,
-          string,
-          {
-            EnableUnion: false;
-            IndexedOnly: false;
-            Required: true;
-          },
-          ParseAbiEvent<config["contracts"][contractName]["abi"], eventName>
-        >;
-        log: Prettify<Log>;
-        block: Prettify<Block>;
-        transaction: Prettify<Transaction>;
-      } & (ExtractOverridenProperty<
-        config["contracts"][contractName],
-        "includeTransactionReceipts"
-      > extends infer includeTxr
-        ? includeTxr extends includeTxr
-          ? includeTxr extends true
-            ? {
-                transactionReceipt: Prettify<TransactionReceipt>;
-              }
-            : {
-                transactionReceipt?: never;
-              }
-          : never
-        : never);
+  > = name extends `${string}:block`
+    ? { block: Prettify<Block> }
+    : eventName extends Setup
+      ? never
+      : {
+          name: eventName;
+          args: GetEventArgs<
+            Abi,
+            string,
+            {
+              EnableUnion: false;
+              IndexedOnly: false;
+              Required: true;
+            },
+            ParseAbiEvent<config["contracts"][contractName]["abi"], eventName>
+          >;
+          log: Prettify<Log>;
+          block: Prettify<Block>;
+          transaction: Prettify<Transaction>;
+        } & (ExtractOverridenProperty<
+          config["contracts"][contractName],
+          "includeTransactionReceipts"
+        > extends infer includeTxr
+          ? includeTxr extends includeTxr
+            ? includeTxr extends true
+              ? {
+                  transactionReceipt: Prettify<TransactionReceipt>;
+                }
+              : {
+                  transactionReceipt?: never;
+                }
+            : never
+          : never);
 
   type ContextContractProperty = Exclude<
     keyof Config["contracts"][string],
@@ -112,7 +122,14 @@ export namespace Virtual {
     schema extends BuilderSchema,
     name extends EventNames<config>,
     ///
-    contractName extends ExtractContractName<name> = ExtractContractName<name>,
+    sourceName extends ExtractSourceName<name> = ExtractSourceName<name>,
+    sourceNetwork =
+      | (unknown extends config["contracts"][sourceName]["network"]
+          ? never
+          : config["contracts"][sourceName]["network"])
+      | (unknown extends config["blocks"][sourceName]["network"]
+          ? never
+          : config["blocks"][sourceName]["network"]),
   > = {
     contracts: {
       [_contractName in keyof config["contracts"]]: {
@@ -131,20 +148,21 @@ export namespace Virtual {
         >;
       };
     };
-    network: config["contracts"][contractName]["network"] extends string
+    b?: sourceNetwork;
+    network: sourceNetwork extends string
       ? // 1. No network overriding
         {
-          name: config["contracts"][contractName]["network"];
-          chainId: config["networks"][config["contracts"][contractName]["network"]]["chainId"];
+          name: sourceNetwork;
+          chainId: config["networks"][sourceNetwork]["chainId"];
         }
       : // 2. Network overrides
         {
-          [key in keyof config["contracts"][contractName]["network"]]: {
+          [key in keyof sourceNetwork]: {
             name: key;
             chainId: config["networks"][key &
               keyof config["networks"]]["chainId"];
           };
-        }[keyof config["contracts"][contractName]["network"]];
+        }[keyof sourceNetwork];
     client: Prettify<
       Omit<
         ReadOnlyClient,

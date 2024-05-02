@@ -9,19 +9,16 @@ import {
   createRealtimeSyncService,
 } from "@/sync-realtime/index.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import { type Event, decodeEvents } from "@/sync/events.js";
 import {
   type Checkpoint,
   checkpointMin,
-  isCheckpointEqual,
   isCheckpointGreaterThan,
   maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
-import { type Transport, hexToNumber } from "viem";
+import { type Transport, hexToBigInt, hexToNumber } from "viem";
 import { type SyncBlock, _eth_getBlockByNumber } from "./index.js";
 import { cachedTransport } from "./transport.js";
 
@@ -33,6 +30,7 @@ export type Service = {
 
   // state
   checkpoint: Checkpoint;
+  finalizedCheckpoint: Checkpoint;
   isKilled: boolean;
 
   // network specific services
@@ -48,6 +46,7 @@ export type Service = {
       | {
           realtimeSync: RealtimeSyncService;
           checkpoint: Checkpoint;
+          finalizedCheckpoint: Checkpoint;
           finalizedBlock: SyncBlock;
         }
       | undefined;
@@ -72,13 +71,15 @@ export const create = async ({
   sources,
   onRealtimeEvent,
   onFatalError,
+  initialCheckpoint,
 }: {
   common: Common;
   syncStore: SyncStore;
   networks: Network[];
   sources: EventSource[];
-  onRealtimeEvent: (realtimeEvent: RealtimeEvent) => Promise<void>;
+  onRealtimeEvent: (realtimeEvent: RealtimeEvent) => void;
   onFatalError: (error: Error) => void;
+  initialCheckpoint: Checkpoint;
 }): Promise<Service> => {
   const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
     acc[cur.id] = cur;
@@ -88,8 +89,6 @@ export const create = async ({
   const onRealtimeSyncEvent = (realtimeSyncEvent: RealtimeSyncEvent) => {
     switch (realtimeSyncEvent.type) {
       case "checkpoint": {
-        if (syncService.isKilled) return;
-
         syncService.networkServices.find(
           (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
         )!.realtime!.checkpoint = realtimeSyncEvent.checkpoint;
@@ -102,44 +101,28 @@ export const create = async ({
             .map((ns) => ns.realtime!.checkpoint),
         );
 
-        if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) return;
+        // Do nothing if the checkpoint hasn't advanced. This also protects against
+        // edged cases in the caching logic with un-trustworthy finalized checkpoints.
+        if (!isCheckpointGreaterThan(newCheckpoint, syncService.checkpoint))
+          return;
 
-        // Pass decoded events while respecting pagination. Must be cautious to deep copy
-        // checkpoints.
+        // Must be cautious to deep copy checkpoints.
 
         const fromCheckpoint = { ...syncService.checkpoint };
         const toCheckpoint = { ...newCheckpoint };
 
         syncService.checkpoint = newCheckpoint;
 
-        (async () => {
-          const lastEventCheckpoint =
-            await syncService.syncStore.getLastEventCheckpoint({
-              sources: syncService.sources,
-              fromCheckpoint,
-              toCheckpoint,
-            });
-
-          for await (const rawEvents of syncStore.getLogEvents({
-            sources,
-            fromCheckpoint,
-            toCheckpoint,
-            limit: 1_000,
-          })) {
-            await onRealtimeEvent({
-              type: "newEvents",
-              events: decodeEvents({ common, sourceById }, rawEvents),
-              lastEventCheckpoint: lastEventCheckpoint,
-            });
-          }
-        })();
+        onRealtimeEvent({
+          type: "newEvents",
+          fromCheckpoint,
+          toCheckpoint,
+        });
 
         break;
       }
 
       case "reorg": {
-        if (syncService.isKilled) return;
-
         syncService.networkServices.find(
           (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
         )!.realtime!.checkpoint = realtimeSyncEvent.safeCheckpoint;
@@ -154,6 +137,33 @@ export const create = async ({
         }
 
         onRealtimeEvent(realtimeSyncEvent);
+
+        break;
+      }
+
+      case "finalize": {
+        syncService.networkServices.find(
+          (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
+        )!.realtime!.finalizedCheckpoint = realtimeSyncEvent.checkpoint;
+
+        const newFinalizedCheckpoint = checkpointMin(
+          ...syncService.networkServices
+            .filter((ns) => ns.realtime !== undefined)
+            .map((ns) => ns.realtime!.finalizedCheckpoint),
+        );
+
+        if (
+          isCheckpointGreaterThan(
+            newFinalizedCheckpoint,
+            syncService.finalizedCheckpoint,
+          )
+        ) {
+          onRealtimeEvent({
+            type: "finalize",
+            checkpoint: newFinalizedCheckpoint,
+          });
+          syncService.finalizedCheckpoint = newFinalizedCheckpoint;
+        }
 
         break;
       }
@@ -206,8 +216,8 @@ export const create = async ({
       const initialFinalizedCheckpoint: Checkpoint = {
         ...maxCheckpoint,
         blockTimestamp: hexToNumber(finalizedBlock.timestamp),
-        chainId: network.chainId,
-        blockNumber: hexToNumber(finalizedBlock.number),
+        chainId: BigInt(network.chainId),
+        blockNumber: hexToBigInt(finalizedBlock.number),
       };
 
       const canSkipRealtime = getCanSkipRealtime({
@@ -250,6 +260,7 @@ export const create = async ({
           realtime: {
             realtimeSync,
             checkpoint: initialFinalizedCheckpoint,
+            finalizedCheckpoint: initialFinalizedCheckpoint,
             finalizedBlock,
           },
           historical: {
@@ -297,7 +308,10 @@ export const create = async ({
     sources,
     networkServices,
     isKilled: false,
-    checkpoint: zeroCheckpoint,
+    checkpoint: initialCheckpoint,
+    finalizedCheckpoint: checkpointMin(
+      ...networkServices.map((ns) => ns.initialFinalizedCheckpoint),
+    ),
     sourceById,
   };
 
@@ -314,15 +328,12 @@ export const startHistorical = (syncService: Service) => {
 };
 
 /**
- * Returns an async generator of events that resolves
+ * Returns an async generator of checkpoints that resolves
  * when historical sync is complete.
  */
-export const getHistoricalEvents = async function* (
+export const getHistoricalCheckpoint = async function* (
   syncService: Service,
-): AsyncGenerator<{
-  events: Event[];
-  lastEventCheckpoint: Checkpoint | undefined;
-}> {
+): AsyncGenerator<{ fromCheckpoint: Checkpoint; toCheckpoint: Checkpoint }> {
   while (true) {
     if (syncService.isKilled) return;
 
@@ -337,24 +348,15 @@ export const getHistoricalEvents = async function* (
         ),
       );
 
-      const lastEventCheckpoint =
-        await syncService.syncStore.getLastEventCheckpoint({
-          sources: syncService.sources,
-          fromCheckpoint: syncService.checkpoint,
-          toCheckpoint: finalityCheckpoint,
-        });
+      // Do nothing if the checkpoint hasn't advanced. This also protects against
+      // edged cases in the caching logic with un-trustworthy finalized checkpoints.
+      if (!isCheckpointGreaterThan(finalityCheckpoint, syncService.checkpoint))
+        break;
 
-      for await (const rawEvents of syncService.syncStore.getLogEvents({
-        sources: syncService.sources,
+      yield {
         fromCheckpoint: syncService.checkpoint,
         toCheckpoint: finalityCheckpoint,
-        limit: 1_000,
-      })) {
-        yield {
-          events: decodeEvents(syncService, rawEvents),
-          lastEventCheckpoint: lastEventCheckpoint,
-        };
-      }
+      };
 
       syncService.checkpoint = finalityCheckpoint;
 
@@ -376,28 +378,15 @@ export const getHistoricalEvents = async function* (
         ...(networkCheckpoints as Checkpoint[]),
       );
 
-      if (isCheckpointEqual(newCheckpoint, syncService.checkpoint)) {
+      // Do nothing if the checkpoint hasn't advanced.
+      if (!isCheckpointGreaterThan(newCheckpoint, syncService.checkpoint)) {
         continue;
       }
 
-      const lastEventCheckpoint =
-        await syncService.syncStore.getLastEventCheckpoint({
-          sources: syncService.sources,
-          fromCheckpoint: syncService.checkpoint,
-          toCheckpoint: newCheckpoint,
-        });
-
-      for await (const rawEvents of syncService.syncStore.getLogEvents({
-        sources: syncService.sources,
+      yield {
         fromCheckpoint: syncService.checkpoint,
         toCheckpoint: newCheckpoint,
-        limit: 1_000,
-      })) {
-        yield {
-          events: decodeEvents(syncService, rawEvents),
-          lastEventCheckpoint: lastEventCheckpoint,
-        };
-      }
+      };
 
       syncService.checkpoint = newCheckpoint;
     }

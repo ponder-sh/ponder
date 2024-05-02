@@ -33,5 +33,9 @@ export interface BaseDatabaseService {
     namespaceInfo: NamespaceInfo;
   }): Promise<void>;
 
+  updateFinalizedCheckpoint({
+    checkpoint,
+  }: { checkpoint: Checkpoint }): Promise<void>;
+
   kill(): Promise<void>;
 }

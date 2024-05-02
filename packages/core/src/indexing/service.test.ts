@@ -9,6 +9,7 @@ import {
 import { getEventsErc20 } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { createSyncService } from "@/sync/index.js";
+import { zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { type Address, checksumAddress, parseEther, toHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -50,6 +51,7 @@ test("createIndexing()", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -82,6 +84,7 @@ test("processSetupEvents() empty", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -118,6 +121,7 @@ test("processSetupEvents()", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingFunctions = {
@@ -183,6 +187,7 @@ test("processEvent() log events", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingFunctions = {
@@ -265,6 +270,7 @@ test("processEvents killed", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingFunctions = {
@@ -313,6 +319,7 @@ test("processEvents eventCount", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingFunctions = {
@@ -361,6 +368,7 @@ test("executeSetup() context.client", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingFunctions = {
@@ -415,6 +423,7 @@ test("executeSetup() context.db", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingFunctions = {
@@ -482,6 +491,7 @@ test("executeSetup() metrics", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -522,6 +532,7 @@ test("executeSetup() error", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingFunctions = {
@@ -565,6 +576,7 @@ test("executeLog() context.client", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -618,6 +630,7 @@ test("executeLog() context.db", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -677,6 +690,7 @@ test("executeLog() metrics", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -718,6 +732,7 @@ test("executeLog() error", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingFunctions = {
@@ -772,6 +787,7 @@ test("executeLog() error after killed", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const { promise, reject } = promiseWithResolvers();
@@ -817,6 +833,7 @@ test("ponderActions getBalance()", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -852,6 +869,7 @@ test("ponderActions getBytecode()", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -887,6 +905,7 @@ test("ponderActions getStorageAt()", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -924,6 +943,7 @@ test("ponderActions readContract()", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -961,6 +981,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({
@@ -1000,6 +1021,7 @@ test.skip("ponderActions multicall()", async (context) => {
     sources,
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
   });
 
   const indexingService = create({

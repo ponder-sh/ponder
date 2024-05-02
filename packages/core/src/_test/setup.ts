@@ -10,7 +10,11 @@ import { createTelemetry } from "@/common/telemetry.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
-import type { FactorySource, LogSource } from "@/config/sources.js";
+import type {
+  BlockSource,
+  FactorySource,
+  LogSource,
+} from "@/config/sources.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
@@ -34,7 +38,7 @@ declare module "vitest" {
   export interface TestContext {
     common: Common;
     databaseConfig: DatabaseConfig;
-    sources: [LogSource, FactorySource];
+    sources: [LogSource, FactorySource, BlockSource];
     networks: Network[];
     requestQueues: RequestQueue[];
     config: Config;
@@ -45,7 +49,7 @@ declare module "vitest" {
 
 export function setupCommon(context: TestContext) {
   const options = {
-    ...buildOptions({ cliOptions: { config: "", root: "" } }),
+    ...buildOptions({ cliOptions: { command: "start", config: "", root: "" } }),
     telemetryDisabled: true,
   };
   const logger = new LoggerService({ level: "silent" });
@@ -249,6 +253,7 @@ export async function setupAnvil(context: TestContext) {
   // Chain state setup shared across all tests.
   const addresses = await deploy();
   const pair = await simulate(addresses);
+  await testClient.mine({ blocks: 1 });
 
   context.config = getConfig(addresses);
 
@@ -258,7 +263,7 @@ export async function setupAnvil(context: TestContext) {
   );
   context.networks = networks;
   context.requestQueues = requestQueues;
-  context.sources = sources as [LogSource, FactorySource];
+  context.sources = sources as [LogSource, FactorySource, BlockSource];
   context.erc20 = { address: addresses.erc20Address };
   context.factory = {
     address: addresses.factoryAddress,

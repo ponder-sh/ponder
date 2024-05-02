@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import type { Config } from "@/config/config.js";
@@ -23,6 +23,8 @@ import {
 import { vitePluginPonder } from "./plugin.js";
 import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
+
+const BUILD_ID_VERSION = "1";
 
 export type Service = {
   // static
@@ -54,9 +56,12 @@ export type BuildResult =
   | { status: "error"; error: Error };
 
 type RawBuild = {
-  config: Config;
-  schema: Schema;
-  indexingFunctions: RawIndexingFunctions;
+  config: { config: Config; contentHash: string };
+  schema: { schema: Schema; contentHash: string };
+  indexingFunctions: {
+    indexingFunctions: RawIndexingFunctions;
+    contentHash: string;
+  };
 };
 
 export const create = async ({
@@ -146,30 +151,27 @@ export const start = async (
 ): Promise<BuildResult> => {
   const { common } = buildService;
 
-  const [
-    executeConfigResult,
-    executeSchemaResult,
-    executeIndexingFunctionsResult,
-  ] = await Promise.all([
-    executeConfig(buildService),
-    executeSchema(buildService),
-    executeIndexingFunctions(buildService),
-  ]);
+  const [configResult, schemaResult, indexingFunctionsResult] =
+    await Promise.all([
+      executeConfig(buildService),
+      executeSchema(buildService),
+      executeIndexingFunctions(buildService),
+    ]);
 
-  if (executeConfigResult.status === "error") {
-    return { status: "error", error: executeConfigResult.error };
+  if (configResult.status === "error") {
+    return { status: "error", error: configResult.error };
   }
-  if (executeSchemaResult.status === "error") {
-    return { status: "error", error: executeSchemaResult.error };
+  if (schemaResult.status === "error") {
+    return { status: "error", error: schemaResult.error };
   }
-  if (executeIndexingFunctionsResult.status === "error") {
-    return { status: "error", error: executeIndexingFunctionsResult.error };
+  if (indexingFunctionsResult.status === "error") {
+    return { status: "error", error: indexingFunctionsResult.error };
   }
 
   const rawBuild: RawBuild = {
-    config: executeConfigResult.config,
-    schema: executeSchemaResult.schema,
-    indexingFunctions: executeIndexingFunctionsResult.indexingFunctions,
+    config: configResult,
+    schema: schemaResult,
+    indexingFunctions: indexingFunctionsResult,
   };
 
   const buildResult = await validateAndBuild(buildService, rawBuild);
@@ -244,7 +246,7 @@ export const start = async (
           onBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.config = result.config;
+        rawBuild.config = result;
       }
 
       if (hasSchemaUpdate) {
@@ -253,7 +255,7 @@ export const start = async (
           onBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.schema = result.schema;
+        rawBuild.schema = result;
       }
 
       if (hasIndexingFunctionUpdate) {
@@ -262,7 +264,7 @@ export const start = async (
           onBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.indexingFunctions = result.indexingFunctions;
+        rawBuild.indexingFunctions = result;
       }
 
       const buildResult = await validateAndBuild(buildService, rawBuild);
@@ -286,7 +288,8 @@ export const kill = async (buildService: Service): Promise<void> => {
 const executeConfig = async (
   buildService: Service,
 ): Promise<
-  { status: "success"; config: Config } | { status: "error"; error: Error }
+  | { status: "success"; config: Config; contentHash: string }
+  | { status: "error"; error: Error }
 > => {
   const executeResult = await executeFile(buildService, {
     file: buildService.common.options.configFile,
@@ -304,13 +307,19 @@ const executeConfig = async (
 
   const config = executeResult.exports.default as Config;
 
-  return { status: "success", config } as const;
+  const contentHash = createHash("sha256")
+    .update(executeResult.contentHash)
+    .update(JSON.stringify(config))
+    .digest("hex");
+
+  return { status: "success", config, contentHash } as const;
 };
 
 const executeSchema = async (
   buildService: Service,
 ): Promise<
-  { status: "success"; schema: Schema } | { status: "error"; error: Error }
+  | { status: "success"; schema: Schema; contentHash: string }
+  | { status: "error"; error: Error }
 > => {
   const executeResult = await executeFile(buildService, {
     file: buildService.common.options.schemaFile,
@@ -328,13 +337,22 @@ const executeSchema = async (
 
   const schema = executeResult.exports.default as Schema;
 
-  return { status: "success", schema };
+  const contentHash = createHash("sha256")
+    .update(executeResult.contentHash)
+    .update(JSON.stringify(schema))
+    .digest("hex");
+
+  return { status: "success", schema, contentHash };
 };
 
 const executeIndexingFunctions = async (
   buildService: Service,
 ): Promise<
-  | { status: "success"; indexingFunctions: RawIndexingFunctions }
+  | {
+      status: "success";
+      indexingFunctions: RawIndexingFunctions;
+      contentHash: string;
+    }
   | { status: "error"; error: Error }
 > => {
   const pattern = path
@@ -350,6 +368,7 @@ const executeIndexingFunctions = async (
   );
 
   const indexingFunctions: RawIndexingFunctions = [];
+  const baseHash = createHash("sha256");
 
   for (const executeResult of executeResults) {
     if (executeResult.status === "error") {
@@ -366,9 +385,14 @@ const executeIndexingFunctions = async (
     }
 
     indexingFunctions.push(...(executeResult.exports?.ponder?.fns ?? []));
+    // Note that we are only hashing the file contents, not the exports. This is
+    // different from the config/schema, where we include the serializable object itself.
+    baseHash.update(executeResult.contentHash);
   }
 
-  return { status: "success", indexingFunctions };
+  const contentHash = baseHash.digest("hex");
+
+  return { status: "success", indexingFunctions, contentHash };
 };
 
 const validateAndBuild = async (
@@ -377,7 +401,7 @@ const validateAndBuild = async (
 ): Promise<BuildResult> => {
   // Validate and build the schema
   const buildSchemaResult = safeBuildSchema({
-    schema: rawBuild.schema,
+    schema: rawBuild.schema.schema,
   });
   if (buildSchemaResult.status === "error") {
     common.logger.error({
@@ -394,8 +418,8 @@ const validateAndBuild = async (
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
     await safeBuildConfigAndIndexingFunctions({
-      config: rawBuild.config,
-      rawIndexingFunctions: rawBuild.indexingFunctions,
+      config: rawBuild.config.config,
+      rawIndexingFunctions: rawBuild.indexingFunctions.indexingFunctions,
       options: common.options,
     });
   if (buildConfigAndIndexingFunctionsResult.status === "error") {
@@ -412,10 +436,23 @@ const validateAndBuild = async (
     common.logger[log.level]({ service: "build", msg: log.msg });
   }
 
+  const buildId = createHash("sha256")
+    .update(BUILD_ID_VERSION)
+    .update(rawBuild.config.contentHash)
+    .update(rawBuild.schema.contentHash)
+    .update(rawBuild.indexingFunctions.contentHash)
+    .digest("hex")
+    .slice(0, 10);
+
+  common.logger.debug({
+    service: "build",
+    msg: `Completed build with ID '${buildId}' (hash of project file contents)`,
+  });
+
   return {
     status: "success",
     build: {
-      buildId: randomBytes(5).toString("hex"),
+      buildId,
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
@@ -431,18 +468,23 @@ const executeFile = async (
   { common, viteNodeRunner }: Service,
   { file }: { file: string },
 ): Promise<
-  | {
-      status: "success";
-      exports: any;
-    }
-  | {
-      status: "error";
-      error: Error;
-    }
+  | { status: "success"; exports: any; contentHash: string }
+  | { status: "error"; error: Error }
 > => {
   try {
     const exports = await viteNodeRunner.executeFile(file);
-    return { status: "success", exports } as const;
+
+    const hash = createHash("sha256");
+    const updateHash = (file: string) => {
+      const module = viteNodeRunner.moduleCache.getByModuleId(file);
+      // Note that this seems to fall back to the file path for all package.json dependencies
+      hash.update(module.code ?? file);
+      module.imports.forEach(updateHash);
+    };
+    updateHash(file);
+    const contentHash = hash.digest("hex");
+
+    return { status: "success", exports, contentHash } as const;
   } catch (error_) {
     const relativePath = path.relative(common.options.rootDir, file);
     const error = parseViteNodeError(relativePath, error_ as Error);

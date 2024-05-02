@@ -616,6 +616,84 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_04_23_0_block_filters": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("blockFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${interval}_${offset}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("interval", "integer", (col) => col.notNull())
+        .addColumn("offset", "integer", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createTable("blockFilterIntervals")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("blockFilterId", "text", (col) =>
+          col.notNull().references("blockFilters.id"),
+        )
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("blockFilterIntervalsBlockFilterId")
+        .on("blockFilterIntervals")
+        .column("blockFilterId")
+        .execute();
+
+      await db.schema
+        .alterTable("blocks")
+        .addColumn("checkpoint", "varchar(75)")
+        .execute();
+
+      await db.executeQuery(
+        sql`
+          CREATE TEMP TABLE bcp_vals AS 
+          SELECT
+            blocks.hash,
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(blocks."chainId"::text, 16, '0') ||
+            lpad(blocks.number::text, 16, '0') ||
+            '9999999999999999' ||
+            '5' ||
+            '0000000000000000') AS checkpoint
+          FROM ponder_sync.blocks
+          `.compile(db),
+      );
+
+      await db.executeQuery(
+        sql`
+          UPDATE ponder_sync.blocks
+          SET checkpoint=bcp_vals.checkpoint
+          FROM bcp_vals
+          WHERE ponder_sync.blocks.hash = bcp_vals.hash
+        `.compile(db),
+      );
+
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("checkpoint", (col) => col.setNotNull())
+        .execute();
+
+      // The blocks.number index supports getLogEvents and deleteRealtimeData
+      await db.schema
+        .createIndex("blockNumberIndex")
+        .on("blocks")
+        .column("number")
+        .execute();
+      // The blocks.chainId index supports getLogEvents and deleteRealtimeData
+      await db.schema
+        .createIndex("blockChainIdIndex")
+        .on("blocks")
+        .column("chainId")
+        .execute();
+      // The blocks.number index supports getLogEvents
+      await db.schema
+        .createIndex("blockCheckpointIndex")
+        .on("blocks")
+        .column("checkpoint")
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

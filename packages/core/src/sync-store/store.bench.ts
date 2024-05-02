@@ -6,7 +6,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { LogFilterCriteria } from "@/config/sources.js";
+import type { EventSource, LogFilterCriteria } from "@/config/sources.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { range } from "@/utils/range.js";
@@ -298,11 +298,11 @@ const checkpointBounds = (
   const fromCheckpoint: Checkpoint = {
     ...maxCheckpoint,
     blockTimestamp: startBlock,
-    blockNumber: startBlock,
+    blockNumber: BigInt(startBlock),
   };
   const toCheckpoint: Checkpoint = {
     ...maxCheckpoint,
-    blockNumber: startBlock + endBlock,
+    blockNumber: BigInt(startBlock + endBlock),
     blockTimestamp: startBlock + endBlock,
   };
 
@@ -325,6 +325,7 @@ for (const c of LOG_FILTER_CASES) {
           sources: [
             {
               id: "benchFilter",
+
               startBlock: 0,
               type: "log",
               criteria: {
@@ -333,7 +334,7 @@ for (const c of LOG_FILTER_CASES) {
                 includeTransactionReceipts: false,
               },
             },
-          ],
+          ] as EventSource[],
           toCheckpoint,
           fromCheckpoint,
           limit: 5000,
@@ -375,7 +376,7 @@ for (const c of LOG_FILTER_CASES) {
                 includeTransactionReceipts: false,
               },
             },
-          ],
+          ] as EventSource[],
           toCheckpoint,
           fromCheckpoint,
           limit: 5000,
@@ -417,7 +418,7 @@ for (const c of LOG_FILTER_CASES) {
                 includeTransactionReceipts: false,
               },
             },
-          ],
+          ] as EventSource[],
           toCheckpoint,
           fromCheckpoint,
           limit: 5000,

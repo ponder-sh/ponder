@@ -15,7 +15,12 @@ export type FactoryCriteria = {
   includeTransactionReceipts: boolean;
 };
 
-type BaseSource = {
+export type BlockFilterCriteria = {
+  interval: number;
+  offset: number;
+};
+
+type BaseLogSource = {
   id: string;
   contractName: string;
   networkName: string;
@@ -27,17 +32,28 @@ type BaseSource = {
   maxBlockRange?: number;
 };
 
-export type LogSource = BaseSource & {
+export type LogSource = BaseLogSource & {
   type: "log";
   criteria: LogFilterCriteria;
 };
 
-export type FactorySource = BaseSource & {
+export type FactorySource = BaseLogSource & {
   type: "factory";
   criteria: FactoryCriteria;
 };
 
-export type EventSource = LogSource | FactorySource;
+export type BlockSource = {
+  type: "block";
+  id: string;
+  sourceName: string;
+  networkName: string;
+  chainId: number;
+  startBlock: number;
+  endBlock?: number;
+  criteria: BlockFilterCriteria;
+};
+
+export type EventSource = LogSource | FactorySource | BlockSource;
 
 export const sourceIsLog = (
   source: Pick<EventSource, "type">,
@@ -46,3 +62,7 @@ export const sourceIsLog = (
 export const sourceIsFactory = (
   source: Pick<EventSource, "type">,
 ): source is FactorySource => source.type === "factory";
+
+export const sourceIsBlock = (
+  source: Pick<EventSource, "type">,
+): source is BlockSource => source.type === "block";
