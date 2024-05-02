@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.15
+
+### Patch Changes
+
+- [#848](https://github.com/ponder-sh/ponder/pull/848) [`94710535352d27d9ae877e8bb548a662e179d972`](https://github.com/ponder-sh/ponder/commit/94710535352d27d9ae877e8bb548a662e179d972) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved crash recovery mechanism. Now, when using `ponder start`, a restarted Ponder app (running the same code) will attempt to continue indexing where it previously left off.
+
 ## 0.4.14
 
 ### Patch Changes
