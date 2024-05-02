@@ -600,12 +600,12 @@ export async function buildConfigAndIndexingFunctions({
         ? undefined
         : endBlockMaybeNan;
 
-      const frequencyMaybeNan = blockSourceConfig.frequency;
-      const frequency = Number.isNaN(frequencyMaybeNan) ? 0 : frequencyMaybeNan;
+      const intervalMaybeNan = blockSourceConfig.interval;
+      const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
 
-      if (!Number.isInteger(frequency) || frequency === 0) {
+      if (!Number.isInteger(interval) || interval === 0) {
         throw Error(
-          `Validation failed: Invalid frequency for block source '${sourceName}'. Got ${frequency}, expected a non-zero integer.`,
+          `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
         );
       }
 
@@ -632,8 +632,8 @@ export async function buildConfigAndIndexingFunctions({
           startBlock,
           endBlock,
           criteria: {
-            frequency: frequency,
-            offset: startBlock % frequency,
+            interval: interval,
+            offset: startBlock % interval,
           },
         } as const;
       }
@@ -665,15 +665,15 @@ export async function buildConfigAndIndexingFunctions({
             ? undefined
             : endBlockMaybeNan;
 
-          const frequencyMaybeNan =
-            overrides.frequency ?? blockSourceConfig.frequency;
-          const frequency = Number.isNaN(frequencyMaybeNan)
+          const intervalMaybeNan =
+            overrides.interval ?? blockSourceConfig.interval;
+          const interval = Number.isNaN(intervalMaybeNan)
             ? 0
-            : frequencyMaybeNan;
+            : intervalMaybeNan;
 
-          if (!Number.isInteger(frequency) || frequency === 0) {
+          if (!Number.isInteger(interval) || interval === 0) {
             throw Error(
-              `Validation failed: Invalid frequency for block source '${sourceName}'. Got ${frequency}, expected a non-zero integer.`,
+              `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
             );
           }
 
@@ -686,8 +686,8 @@ export async function buildConfigAndIndexingFunctions({
             startBlock,
             endBlock,
             criteria: {
-              frequency: frequency,
-              offset: startBlock % frequency,
+              interval: interval,
+              offset: startBlock % interval,
             },
           } as const;
         });

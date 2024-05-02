@@ -592,9 +592,9 @@ export class SqliteSyncStore implements SyncStore {
   }) => {
     return this.db.wrap({ method: "getBlockFilterIntervals" }, async () => {
       const fragment = {
-        id: `${chainId}_${blockFilter.frequency}_${blockFilter.offset}`,
+        id: `${chainId}_${blockFilter.interval}_${blockFilter.offset}`,
         chainId,
-        frequency: blockFilter.frequency,
+        interval: blockFilter.interval,
         offset: blockFilter.offset,
       };
 
@@ -961,9 +961,9 @@ export class SqliteSyncStore implements SyncStore {
   }) => {
     const blockFilterFragments = blockFilters.flatMap((blockFilter) => {
       return {
-        id: `${chainId}_${blockFilter.frequency}_${blockFilter.offset}`,
+        id: `${chainId}_${blockFilter.interval}_${blockFilter.offset}`,
         chainId,
-        frequency: blockFilter.frequency,
+        interval: blockFilter.interval,
         offset: blockFilter.offset,
       };
     });
@@ -1178,7 +1178,7 @@ export class SqliteSyncStore implements SyncStore {
                                   ),
                                 ]
                               : []),
-                            sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.frequency} = 0`,
+                            sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.interval} = 0`,
                             eb("source_id", "=", blockFilter.id),
                           ]),
                         );
@@ -1532,7 +1532,7 @@ export class SqliteSyncStore implements SyncStore {
                     ...(blockFilter.endBlock !== undefined
                       ? [eb("number", "<=", encodeAsText(blockFilter.endBlock))]
                       : []),
-                    sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.frequency} = 0`,
+                    sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.interval} = 0`,
                   ]),
                 );
               }

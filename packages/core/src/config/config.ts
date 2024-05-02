@@ -60,7 +60,7 @@ export type NetworkConfig<network> = {
    * ```
    */
   transport: Transport;
-  /** Polling frequency (in ms). Default: `1_000`. */
+  /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
   /** Maximum number of RPC requests per second. Default: `50`. */
   maxRequestsPerSecond?: number;
@@ -71,7 +71,7 @@ export type NetworkConfig<network> = {
 export type BlockFilterConfig = {
   startBlock: number;
   endBlock?: number;
-  frequency: number;
+  interval: number;
 };
 
 type GetBlockFilter<

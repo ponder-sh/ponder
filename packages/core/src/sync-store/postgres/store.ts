@@ -591,9 +591,9 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     return this.db.wrap({ method: "getBlockFilterIntervals" }, async () => {
       const fragment = {
-        id: `${chainId}_${blockFilter.frequency}_${blockFilter.offset}`,
+        id: `${chainId}_${blockFilter.interval}_${blockFilter.offset}`,
         chainId,
-        frequency: blockFilter.frequency,
+        interval: blockFilter.interval,
         offset: blockFilter.offset,
       };
 
@@ -918,9 +918,9 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     const blockFilterFragments = blockFilters.flatMap((blockFilter) => {
       return {
-        id: `${chainId}_${blockFilter.frequency}_${blockFilter.offset}`,
+        id: `${chainId}_${blockFilter.interval}_${blockFilter.offset}`,
         chainId,
-        frequency: blockFilter.frequency,
+        interval: blockFilter.interval,
         offset: blockFilter.offset,
       };
     });
@@ -1152,7 +1152,7 @@ export class PostgresSyncStore implements SyncStore {
                             sql`(number - ${sql.val(
                               blockFilter.criteria.offset,
                             )}) % ${sql.val(
-                              blockFilter.criteria.frequency,
+                              blockFilter.criteria.interval,
                             )} = 0`,
                             eb("source_id", "=", blockFilter.id),
                           ]),
@@ -1489,7 +1489,7 @@ export class PostgresSyncStore implements SyncStore {
                     sql`(number - ${sql.val(
                       BigInt(blockFilter.criteria.offset),
                     )}) % ${sql.val(
-                      BigInt(blockFilter.criteria.frequency),
+                      BigInt(blockFilter.criteria.interval),
                     )} = 0`,
                   ]),
                 );

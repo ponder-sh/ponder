@@ -620,9 +620,9 @@ const migrations: Record<string, Migration> = {
     async up(db: Kysely<any>) {
       await db.schema
         .createTable("blockFilters")
-        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${frequency}_${offset}`
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${interval}_${offset}`
         .addColumn("chainId", "integer", (col) => col.notNull())
-        .addColumn("frequency", "integer", (col) => col.notNull())
+        .addColumn("interval", "integer", (col) => col.notNull())
         .addColumn("offset", "integer", (col) => col.notNull())
         .execute();
       await db.schema

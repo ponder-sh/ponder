@@ -53,7 +53,7 @@ const config = createConfig({
   },
   blocks: {
     b1: {
-      frequency: 2,
+      interval: 2,
       startBlock: 1,
       network: "mainnet",
     },
@@ -155,7 +155,7 @@ test("FormatEventName with blocks", () => {
   type a = Virtual.FormatEventNames<
     // ^?
     {},
-    { block: { frequency: 2; startBlock: 1; network: "mainnet" } }
+    { block: { interval: 2; startBlock: 1; network: "mainnet" } }
   >;
 
   assertType<a>({} as any as "block:block");

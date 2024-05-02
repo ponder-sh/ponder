@@ -16,7 +16,7 @@ export type FactoryCriteria = {
 };
 
 export type BlockFilterCriteria = {
-  frequency: number;
+  interval: number;
   offset: number;
 };
 

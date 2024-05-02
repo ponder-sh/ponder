@@ -930,10 +930,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     toBlock,
   }: BlockFilterTask) => {
     const baseOffset =
-      (fromBlock - blockFilter.criteria.offset) %
-      blockFilter.criteria.frequency;
+      (fromBlock - blockFilter.criteria.offset) % blockFilter.criteria.interval;
     const offset =
-      baseOffset === 0 ? 0 : blockFilter.criteria.frequency - baseOffset;
+      baseOffset === 0 ? 0 : blockFilter.criteria.interval - baseOffset;
 
     // Determine which blocks are matched by the block filter, and add a callback for
     // each block. A block callback, and subsequent "eth_getBlock" request can be
@@ -943,7 +942,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     for (
       let blockNumber = fromBlock + offset;
       blockNumber <= toBlock;
-      blockNumber += blockFilter.criteria.frequency
+      blockNumber += blockFilter.criteria.interval
     ) {
       requiredBlocks.push(blockNumber);
     }

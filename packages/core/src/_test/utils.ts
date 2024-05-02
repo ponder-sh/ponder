@@ -119,7 +119,7 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
     blocks: {
       OddBlocks: {
         startBlock: 1,
-        frequency: 2,
+        interval: 2,
         network: "mainnet",
       },
     },

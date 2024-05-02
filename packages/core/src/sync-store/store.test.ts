@@ -1115,7 +1115,7 @@ test("insertBlockFilterIntervals inserts block", async (context) => {
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      frequency: 1,
+      interval: 1,
       offset: 0,
     },
     block: rpcData.block1.block,
@@ -1140,7 +1140,7 @@ test("insertBlockFilterIntervals inserts block filter intervals", async (context
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      frequency: 1,
+      interval: 1,
       offset: 0,
     },
     block: rpcData.block1.block,
@@ -1150,7 +1150,7 @@ test("insertBlockFilterIntervals inserts block filter intervals", async (context
   const blockFilterRanges = await syncStore.getBlockFilterIntervals({
     chainId: 1,
     blockFilter: {
-      frequency: 1,
+      interval: 1,
       offset: 0,
     },
   });
@@ -1168,7 +1168,7 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      frequency: 1,
+      interval: 1,
       offset: 0,
     },
     block: rpcData.block1.block,
@@ -1181,7 +1181,7 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      frequency: 1,
+      interval: 1,
       offset: 0,
     },
     block: rpcData.block3.block,
@@ -1194,7 +1194,7 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   let blockFilterRanges = await syncStore.getBlockFilterIntervals({
     chainId: 1,
     blockFilter: {
-      frequency: 1,
+      interval: 1,
       offset: 0,
     },
   });
@@ -1207,7 +1207,7 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      frequency: 1,
+      interval: 1,
       offset: 0,
     },
     block: rpcData.block2.block,
@@ -1220,7 +1220,7 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   blockFilterRanges = await syncStore.getBlockFilterIntervals({
     chainId: 1,
     blockFilter: {
-      frequency: 1,
+      interval: 1,
       offset: 0,
     },
   });
@@ -1239,7 +1239,7 @@ test("getBlockFilterIntervals retrns interval", async (context) => {
   await syncStore.insertBlockFilterInterval({
     chainId: 1,
     blockFilter: {
-      frequency: 4,
+      interval: 4,
       offset: 1,
     },
     block: rpcData.block1.block,
@@ -1249,7 +1249,7 @@ test("getBlockFilterIntervals retrns interval", async (context) => {
   const blockFilterRanges = await syncStore.getBlockFilterIntervals({
     chainId: 1,
     blockFilter: {
-      frequency: 4,
+      interval: 4,
       offset: 1,
     },
   });
@@ -1354,7 +1354,7 @@ test("insertRealtimeInterval inserts intervals", async (context) => {
   } satisfies FactoryCriteria;
 
   const blockFilterCriteria = {
-    frequency: 10,
+    interval: 10,
     offset: 0,
   } satisfies BlockFilterCriteria;
 

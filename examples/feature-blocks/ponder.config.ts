@@ -11,7 +11,7 @@ export default createConfig({
   blocks: {
     ChainlinkPriceOracle: {
       startBlock: 19_750_000,
-      frequency: 5, // every minute
+      interval: 5, // every minute
       network: "mainnet",
     },
   },
