@@ -114,7 +114,7 @@ export async function buildConfigAndIndexingFunctions({
       } else {
         logs.push({
           level: "debug",
-          msg: "Not publishing views (publish schema was not set in ponder.config.ts)",
+          msg: "Will not publish views (publish schema was not set in ponder.config.ts)",
         });
       }
 
@@ -197,7 +197,7 @@ export async function buildConfigAndIndexingFunctions({
       } else {
         logs.push({
           level: "debug",
-          msg: "Not publishing views (publish schema was not set in ponder.config.ts)",
+          msg: "Will not publish views (publish schema was not set in ponder.config.ts)",
         });
       }
 

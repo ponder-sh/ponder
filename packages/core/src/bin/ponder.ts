@@ -45,15 +45,19 @@ const ponder = new Command("ponder")
   .showHelpAfterError()
   .enablePositionalOptions(false);
 
-type GlobalOptions = ReturnType<typeof ponder.opts>;
+type GlobalOptions = {
+  command: "dev" | "start" | "serve" | "codegen";
+} & ReturnType<typeof ponder.opts>;
 
 const devCommand = new Command("dev")
   .description("Start the development server with hot reloading")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
   .action(async (_, command) => {
-    const cliOptions = command.optsWithGlobals() as GlobalOptions &
-      ReturnType<typeof command.opts>;
+    const cliOptions = {
+      ...command.optsWithGlobals(),
+      command: command.name(),
+    } as GlobalOptions & ReturnType<typeof command.opts>;
     await dev({ cliOptions });
   });
 
@@ -62,8 +66,10 @@ const startCommand = new Command("start")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
   .action(async (_, command) => {
-    const cliOptions = command.optsWithGlobals() as GlobalOptions &
-      ReturnType<typeof command.opts>;
+    const cliOptions = {
+      ...command.optsWithGlobals(),
+      command: command.name(),
+    } as GlobalOptions & ReturnType<typeof command.opts>;
     await start({ cliOptions });
   });
 
@@ -72,16 +78,20 @@ const serveCommand = new Command("serve")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
   .action(async (_, command) => {
-    const cliOptions = command.optsWithGlobals() as GlobalOptions &
-      ReturnType<typeof command.opts>;
+    const cliOptions = {
+      ...command.optsWithGlobals(),
+      command: command.name(),
+    } as GlobalOptions & ReturnType<typeof command.opts>;
     await serve({ cliOptions });
   });
 
 const codegenCommand = new Command("codegen")
   .description("Generate the schema.graphql file, then exit")
   .action(async (_, command) => {
-    const cliOptions = command.optsWithGlobals() as GlobalOptions &
-      ReturnType<typeof command.opts>;
+    const cliOptions = {
+      ...command.optsWithGlobals(),
+      command: command.name(),
+    } as GlobalOptions & ReturnType<typeof command.opts>;
     await codegen({ cliOptions });
   });
 

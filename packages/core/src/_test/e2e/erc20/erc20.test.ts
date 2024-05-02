@@ -30,6 +30,7 @@ test("erc20", async (context) => {
 
   const cleanup = await start({
     cliOptions: {
+      command: "start",
       root: rootDir,
       config: "ponder.config.ts",
       port,
@@ -54,20 +55,7 @@ test("erc20", async (context) => {
   let body = (await response.json()) as any;
   expect(body.errors).toBe(undefined);
   let accounts = body.data.accounts.items;
-
-  expect(accounts).toHaveLength(3);
-  expect(accounts[0]).toMatchObject({
-    id: zeroAddress,
-    balance: (-1 * 10 ** 18).toString(),
-  });
-  expect(accounts[1]).toMatchObject({
-    id: BOB.toLowerCase(),
-    balance: (1 * 10 ** 18).toString(),
-  });
-  expect(accounts[2]).toMatchObject({
-    id: ALICE.toLowerCase(),
-    balance: "0",
-  });
+  expect(accounts).toHaveLength(0);
 
   await simulate({
     erc20Address: context.erc20.address,
@@ -119,6 +107,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const cleanupStart = await start({
       cliOptions: {
+        command: "start",
         root: "./src/_test/e2e/erc20",
         config: "ponder.config.ts",
         port: startPort,
@@ -138,6 +127,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const cleanupServe = await serve({
       cliOptions: {
+        command: "serve",
         root: "./src/_test/e2e/erc20",
         config: "ponder.config.ts",
         port: servePort,

@@ -5,11 +5,10 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
-import { promiseWithResolvers } from "@ponder/common";
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import {
   create,
-  getHistoricalEvents,
+  getHistoricalCheckpoint,
   kill,
   startHistorical,
   startRealtime,
@@ -52,6 +51,7 @@ test("createSyncService()", async (context) => {
     sources,
     onRealtimeEvent: vi.fn(),
     onFatalError: vi.fn(),
+    initialCheckpoint: zeroCheckpoint,
   });
 
   expect(syncService.checkpoint).toStrictEqual(zeroCheckpoint);
@@ -90,6 +90,7 @@ test("createSyncService() no realtime", async (context) => {
     sources: [sources[0], { ...sources[1], endBlock: 0 }],
     onRealtimeEvent: vi.fn(),
     onFatalError: vi.fn(),
+    initialCheckpoint: zeroCheckpoint,
   });
 
   expect(syncService.networkServices[0].realtime).toBeDefined();
@@ -111,6 +112,7 @@ test("kill()", async (context) => {
     sources,
     onRealtimeEvent: vi.fn(),
     onFatalError: vi.fn(),
+    initialCheckpoint: zeroCheckpoint,
   });
 
   startHistorical(syncService);
@@ -122,12 +124,10 @@ test("kill()", async (context) => {
   await cleanup();
 });
 
-test("getHistoricalEvents returns events", async (context) => {
+test("getHistoricalEvents returns checkpoints", async (context) => {
   const { common } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
-
-  const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
 
   const syncService = await create({
     common,
@@ -136,9 +136,10 @@ test("getHistoricalEvents returns events", async (context) => {
     sources,
     onRealtimeEvent: vi.fn(),
     onFatalError: vi.fn(),
+    initialCheckpoint: zeroCheckpoint,
   });
 
-  const ag = getHistoricalEvents(syncService);
+  const ag = getHistoricalCheckpoint(syncService);
 
   syncService.networkServices[0].historical.checkpoint = createCheckpoint({
     blockNumber: 1n,
@@ -159,8 +160,6 @@ test("getHistoricalEvents returns events", async (context) => {
   const iter3 = await ag.next();
   expect(iter3.done).toBe(true);
 
-  expect(getLogEventsSpy).toHaveBeenCalledTimes(2);
-
   await kill(syncService);
   await cleanup();
 });
@@ -170,8 +169,6 @@ test("getHistoricalEvents resolves when complete", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
-  const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
-
   const syncService = await create({
     common,
     syncStore,
@@ -179,18 +176,17 @@ test("getHistoricalEvents resolves when complete", async (context) => {
     sources,
     onRealtimeEvent: vi.fn(),
     onFatalError: vi.fn(),
+    initialCheckpoint: zeroCheckpoint,
   });
 
   syncService.networkServices[0].historical.isHistoricalSyncComplete = true;
   syncService.networkServices[1].historical.isHistoricalSyncComplete = true;
 
-  const ag = getHistoricalEvents(syncService);
+  const ag = getHistoricalCheckpoint(syncService);
 
   // wait for async generator to resolve
   for await (const _ of ag) {
   }
-
-  expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
 
   expect(syncService.checkpoint.blockNumber).toBe(1n);
 
@@ -198,23 +194,21 @@ test("getHistoricalEvents resolves when complete", async (context) => {
   await cleanup();
 });
 
-test("onRealtimeSyncEvent gets events", async (context) => {
+test("onRealtimeSyncEvent gets checkpoints", async (context) => {
   const { common } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
-  const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
-  const onRealtimeEventPromiseResolver = promiseWithResolvers<void>();
+  const onRealtimeEvent = vi.fn();
 
   const syncService = await create({
     common,
     syncStore,
     networks,
     sources,
-    onRealtimeEvent: async () => {
-      onRealtimeEventPromiseResolver.resolve();
-    },
+    onRealtimeEvent,
     onFatalError: vi.fn(),
+    initialCheckpoint: zeroCheckpoint,
   });
 
   syncService.networkServices[0].realtime!.checkpoint = zeroCheckpoint;
@@ -226,7 +220,7 @@ test("onRealtimeSyncEvent gets events", async (context) => {
     checkpoint: createCheckpoint({ blockNumber: 4n }),
   });
 
-  expect(getLogEventsSpy).toHaveBeenCalledTimes(0);
+  expect(onRealtimeEvent).toHaveBeenCalledTimes(0);
 
   syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "checkpoint",
@@ -234,9 +228,7 @@ test("onRealtimeSyncEvent gets events", async (context) => {
     checkpoint: createCheckpoint({ blockNumber: 4n }),
   });
 
-  await onRealtimeEventPromiseResolver.promise;
-
-  expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
+  expect(onRealtimeEvent).toHaveBeenCalledTimes(1);
 
   await kill(syncService);
   await cleanup();
@@ -254,6 +246,7 @@ test("onRealtimeSyncEvent reorg", async (context) => {
     sources,
     onRealtimeEvent: vi.fn(),
     onFatalError: vi.fn(),
+    initialCheckpoint: zeroCheckpoint,
   });
 
   syncService.networkServices[0].realtime!.checkpoint = createCheckpoint({
@@ -287,18 +280,16 @@ test("onRealtimeSyncEvent multi network", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
-  const getLogEventsSpy = vi.spyOn(syncStore, "getLogEvents");
-  const onRealtimeEventPromiseResolver = promiseWithResolvers<void>();
+  const onRealtimeEvent = vi.fn();
 
   const syncService = await create({
     common,
     syncStore,
     networks,
     sources: [sources[0], { ...sources[1], endBlock: 0 }],
-    onRealtimeEvent: async () => {
-      onRealtimeEventPromiseResolver.resolve();
-    },
+    onRealtimeEvent,
     onFatalError: vi.fn(),
+    initialCheckpoint: zeroCheckpoint,
   });
 
   syncService.networkServices[0].realtime!.realtimeSync.onEvent({
@@ -307,9 +298,69 @@ test("onRealtimeSyncEvent multi network", async (context) => {
     checkpoint: createCheckpoint({ blockNumber: 4n }),
   });
 
-  await onRealtimeEventPromiseResolver.promise;
+  expect(onRealtimeEvent).toHaveBeenCalledTimes(1);
 
-  expect(getLogEventsSpy).toHaveBeenCalledTimes(1);
+  await kill(syncService);
+  await cleanup();
+});
+
+test("onRealtimeSyncEvent finalize", async (context) => {
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+
+  const onRealtimeEvent = vi.fn();
+
+  const syncService = await create({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent,
+    onFatalError: vi.fn(),
+    initialCheckpoint: zeroCheckpoint,
+  });
+
+  syncService.networkServices[0].realtime!.finalizedCheckpoint =
+    createCheckpoint({
+      blockNumber: 6n,
+    });
+  syncService.networkServices[1].realtime!.finalizedCheckpoint =
+    createCheckpoint({
+      blockNumber: 4n,
+    });
+
+  syncService.finalizedCheckpoint = createCheckpoint({ blockNumber: 4n });
+
+  syncService.networkServices[0].realtime!.realtimeSync.onEvent({
+    type: "finalize",
+    chainId: networks[0].chainId,
+    checkpoint: createCheckpoint({ blockNumber: 7n }),
+  });
+
+  expect(
+    syncService.networkServices[0].realtime!.finalizedCheckpoint,
+  ).toStrictEqual(createCheckpoint({ blockNumber: 7n }));
+  expect(syncService.finalizedCheckpoint).toStrictEqual(
+    createCheckpoint({ blockNumber: 4n }),
+  );
+
+  expect(onRealtimeEvent).toHaveBeenCalledTimes(0);
+
+  syncService.networkServices[1].realtime!.realtimeSync.onEvent({
+    type: "finalize",
+    chainId: networks[1].chainId,
+    checkpoint: createCheckpoint({ blockNumber: 6n }),
+  });
+
+  expect(
+    syncService.networkServices[1].realtime!.finalizedCheckpoint,
+  ).toStrictEqual(createCheckpoint({ blockNumber: 6n }));
+  expect(syncService.finalizedCheckpoint).toStrictEqual(
+    createCheckpoint({ blockNumber: 6n }),
+  );
+
+  expect(onRealtimeEvent).toHaveBeenCalledTimes(1);
 
   await kill(syncService);
   await cleanup();

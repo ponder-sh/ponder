@@ -49,7 +49,7 @@ declare module "vitest" {
 
 export function setupCommon(context: TestContext) {
   const options = {
-    ...buildOptions({ cliOptions: { config: "", root: "" } }),
+    ...buildOptions({ cliOptions: { command: "start", config: "", root: "" } }),
     telemetryDisabled: true,
   };
   const logger = new LoggerService({ level: "silent" });
