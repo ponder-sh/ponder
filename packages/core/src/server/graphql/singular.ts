@@ -1,4 +1,4 @@
-import type { Schema } from "@/schema/common.js";
+import type { Table } from "@/schema/common.js";
 import type { GraphQLObjectType } from "graphql";
 import {
   type GraphQLFieldConfig,
@@ -19,7 +19,7 @@ export const buildSingularField = ({
   entityType,
 }: {
   tableName: string;
-  table: Schema["tables"][string];
+  table: Table;
   entityType: GraphQLObjectType<Parent, Context>;
 }): GraphQLFieldConfig<Parent, Context> => {
   const resolver: SingularResolver = async (_, args, context) => {
@@ -39,7 +39,7 @@ export const buildSingularField = ({
   return {
     type: entityType,
     args: {
-      id: { type: new GraphQLNonNull(SCALARS[table.id.type]) },
+      id: { type: new GraphQLNonNull(SCALARS[table.id[" scalar"]]) },
     },
     resolve: resolver,
   };

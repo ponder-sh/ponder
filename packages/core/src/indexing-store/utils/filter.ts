@@ -1,6 +1,13 @@
 import { StoreError } from "@/common/errors.js";
-import type { Schema } from "@/schema/common.js";
-import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
+import type { EnumColumn, ScalarColumn, Table } from "@/schema/common.js";
+import {
+  isEnumColumn,
+  isListColumn,
+  isManyColumn,
+  isOneColumn,
+  isReferenceColumn,
+  isScalarColumn,
+} from "@/schema/utils.js";
 import type {
   ComparisonOperatorExpression,
   ExpressionBuilder,
@@ -85,7 +92,7 @@ export function buildWhereConditions({
 }: {
   eb: ExpressionBuilder<any, string>;
   where: Record<string, any>;
-  table: Schema["tables"][keyof Schema["tables"]];
+  table: Table;
   encoding: "sqlite" | "postgres";
 }) {
   const exprs: ExpressionWrapper<any, string, any>[] = [];
@@ -113,13 +120,18 @@ export function buildWhereConditions({
         `Invalid filter. Column does not exist. Got '${columnName}', expected one of [${Object.keys(
           table,
         )
-          .filter((key) => isBaseColumn(table[key]) || isEnumColumn(table[key]))
+          .filter(
+            (columnName) =>
+              isScalarColumn(table[columnName]) ||
+              isReferenceColumn(table[columnName]) ||
+              isEnumColumn(table[columnName]),
+          )
           .map((c) => `'${c}'`)
           .join(", ")}]`,
       );
     }
 
-    if (column._type === "m" || column._type === "o") {
+    if (isOneColumn(column) || isManyColumn(column)) {
       throw new StoreError(
         `Invalid filter. Cannot filter on virtual column '${columnName}'.`,
       );
@@ -130,10 +142,12 @@ export function buildWhereConditions({
       Array.isArray(rhs) || typeof rhs !== "object" ? { equals: rhs } : rhs;
 
     for (const [condition, value] of Object.entries(conditionsForColumn)) {
-      const filterType = column._type === "e" ? "string" : column.type;
+      const filterType = isEnumColumn(column) ? "string" : column[" scalar"];
 
       const allowedConditions =
-        filterValidityMap[filterType]?.[column.list ? "list" : "singular"];
+        filterValidityMap[filterType]?.[
+          isListColumn(column) ? "list" : "singular"
+        ];
       if (!allowedConditions.includes(condition)) {
         throw new StoreError(
           `Invalid filter condition for column '${columnName}'. Got '${condition}', expected one of [${allowedConditions
@@ -147,8 +161,13 @@ export function buildWhereConditions({
       // Handle special case for list column types `has` and `notHas`.
       // We need to use the singular encoding function for the arguments.
       const encode =
-        column.list && (condition === "has" || condition === "notHas")
-          ? (v: any) => encodeValue(v, { ...column, list: false }, encoding)
+        isListColumn(column) && (condition === "has" || condition === "notHas")
+          ? (v: any) =>
+              encodeValue(
+                v,
+                { ...column, " list": false } as ScalarColumn | EnumColumn,
+                encoding,
+              )
           : (v: any) => encodeValue(v, column, encoding);
 
       const [comparator, encodedValue] = filterEncodingFn(value, encode);

@@ -31,7 +31,7 @@ test("buildWhereConditions handles equals shortcut", () => {
   const conditions = buildWhereConditions({
     eb: buildMockEb(),
     where: { id: "abc" },
-    table: schema.tables.Pet,
+    table: schema.Pet,
     encoding: "sqlite",
   });
 
@@ -44,7 +44,7 @@ test("buildWhereConditions handles not", () => {
   const conditions = buildWhereConditions({
     eb: buildMockEb(),
     where: { id: { not: "abc" } },
-    table: schema.tables.Pet,
+    table: schema.Pet,
     encoding: "sqlite",
   });
 
@@ -57,7 +57,7 @@ test("buildWhereConditions handles multiple conditions for one column", () => {
   const conditions = buildWhereConditions({
     eb: buildMockEb(),
     where: { id: { contains: "abc", notStartsWith: "z" } },
-    table: schema.tables.Pet,
+    table: schema.Pet,
     encoding: "sqlite",
   });
 
@@ -73,7 +73,7 @@ test("buildWhereConditions uses specified encoding", () => {
   const conditionsSqlite = buildWhereConditions({
     eb: buildMockEb(),
     where: { bigAge: { lt: 10n } },
-    table: schema.tables.Pet,
+    table: schema.Pet,
     encoding: "sqlite",
   });
 
@@ -90,7 +90,7 @@ test("buildWhereConditions uses specified encoding", () => {
   const conditionsPostgres = buildWhereConditions({
     eb: buildMockEb(),
     where: { bigAge: { lt: 10n } },
-    table: schema.tables.Pet,
+    table: schema.Pet,
     encoding: "postgres",
   });
 
@@ -103,7 +103,7 @@ test("buildWhereConditions handles list filters with encoding", () => {
   const conditions = buildWhereConditions({
     eb: buildMockEb(),
     where: { bigAge: { in: [12n, 15n] } },
-    table: schema.tables.Pet,
+    table: schema.Pet,
     encoding: "sqlite",
   });
 
@@ -125,7 +125,7 @@ test("buildWhereConditions filters on reference column", () => {
   const conditions = buildWhereConditions({
     eb: buildMockEb(),
     where: { personId: 5n },
-    table: schema.tables.Pet,
+    table: schema.Pet,
     encoding: "postgres",
   });
 
@@ -138,7 +138,7 @@ test("buildWhereConditions handles list column 'has' and 'notHas' special case",
   const conditions = buildWhereConditions({
     eb: buildMockEb(),
     where: { names: { has: "Marty" } },
-    table: schema.tables.Pet,
+    table: schema.Pet,
     encoding: "sqlite",
   });
 
@@ -152,7 +152,7 @@ test("buildWhereConditions handles or operator", () => {
       bigAge: { lt: 10n },
       OR: [{ id: { contains: "abc" } }, { id: { notStartsWith: "z" } }],
     },
-    table: schema.tables.Pet,
+    table: schema.Pet,
     encoding: "postgres",
   });
 
@@ -174,7 +174,7 @@ test("buildWhereConditions throws for unknown column", () => {
     buildWhereConditions({
       eb: buildMockEb(),
       where: { someFakeColumn: { equals: false } },
-      table: schema.tables.Pet,
+      table: schema.Pet,
       encoding: "sqlite",
     }),
   ).toThrow(
@@ -187,7 +187,7 @@ test("buildWhereConditions throws for virtual column", () => {
     buildWhereConditions({
       eb: buildMockEb(),
       where: { person: { equals: 5n } },
-      table: schema.tables.Pet,
+      table: schema.Pet,
       encoding: "sqlite",
     }),
   ).toThrow("Invalid filter. Cannot filter on virtual column 'person'");
@@ -199,7 +199,7 @@ test("buildWhereConditions throws for invalid filter condition", () => {
       eb: buildMockEb(),
       // @ts-ignore
       where: { personId: { notACondition: 5n } },
-      table: schema.tables.Pet,
+      table: schema.Pet,
       encoding: "sqlite",
     }),
   ).toThrow(

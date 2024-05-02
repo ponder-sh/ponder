@@ -1,5 +1,13 @@
 import type { Schema } from "@/schema/common.js";
-import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
+import {
+  isEnumColumn,
+  isListColumn,
+  isManyColumn,
+  isOneColumn,
+  isReferenceColumn,
+  isScalarColumn,
+  schemaToTables,
+} from "@/schema/utils.js";
 import {
   type GraphQLEnumType,
   type GraphQLInputFieldConfigMap,
@@ -29,7 +37,7 @@ export const buildEntityFilterTypes = ({
 }: { schema: Schema; enumTypes: Record<string, GraphQLEnumType> }) => {
   const entityFilterTypes: Record<string, GraphQLInputObjectType> = {};
 
-  for (const [tableName, table] of Object.entries(schema.tables)) {
+  for (const [tableName, table] of Object.entries(schemaToTables(schema))) {
     const filterType = new GraphQLInputObjectType({
       name: `${tableName}Filter`,
       fields: () => {
@@ -45,10 +53,10 @@ export const buildEntityFilterTypes = ({
           if (isManyColumn(column)) return;
 
           const type = isEnumColumn(column)
-            ? enumTypes[column.type]
-            : SCALARS[column.type];
+            ? enumTypes[column[" enum"]]
+            : SCALARS[column[" scalar"]];
 
-          if (column.list) {
+          if (isListColumn(column)) {
             // List fields => universal, plural
             filterOperators.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
@@ -76,7 +84,10 @@ export const buildEntityFilterTypes = ({
               };
             });
 
-            if (["int", "bigint", "float", "hex"].includes(column.type)) {
+            if (
+              (isScalarColumn(column) || isReferenceColumn(column)) &&
+              ["int", "bigint", "float", "hex"].includes(column[" scalar"])
+            ) {
               filterOperators.numeric.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
@@ -84,7 +95,10 @@ export const buildEntityFilterTypes = ({
               });
             }
 
-            if ("string" === column.type) {
+            if (
+              (isScalarColumn(column) || isReferenceColumn(column)) &&
+              "string" === column[" scalar"]
+            ) {
               filterOperators.string.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,

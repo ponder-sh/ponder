@@ -163,6 +163,7 @@ export namespace Virtual {
     >;
     db: {
       [key in keyof InferSchemaType<schema>]: DatabaseModel<
+        // @ts-ignore
         InferSchemaType<schema>[key]
       >;
     };

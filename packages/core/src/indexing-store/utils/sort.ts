@@ -1,6 +1,12 @@
 import { StoreError } from "@/common/errors.js";
-import type { Schema } from "@/schema/common.js";
-import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
+import type { Table } from "@/schema/common.js";
+import {
+  isEnumColumn,
+  isManyColumn,
+  isOneColumn,
+  isReferenceColumn,
+  isScalarColumn,
+} from "@/schema/utils.js";
 import type { OrderByInput } from "../store.js";
 
 export type OrderByConditions = [
@@ -13,7 +19,7 @@ export function buildOrderByConditions({
   table,
 }: {
   orderBy: OrderByInput<any> | undefined;
-  table: Schema["tables"][keyof Schema["tables"]];
+  table: Table;
 }): OrderByConditions {
   if (!orderBy) {
     return [["id", "asc"]];
@@ -32,12 +38,17 @@ export function buildOrderByConditions({
       `Invalid sort. Column does not exist. Got '${columnName}', expected one of [${Object.keys(
         table,
       )
-        .filter((key) => isBaseColumn(table[key]) || isEnumColumn(table[key]))
+        .filter(
+          (columnName) =>
+            isScalarColumn(table[columnName]) ||
+            isReferenceColumn(table[columnName]) ||
+            isEnumColumn(table[columnName]),
+        )
         .map((c) => `'${c}'`)
         .join(", ")}]`,
     );
   }
-  if (column._type === "m" || column._type === "o") {
+  if (isOneColumn(column) || isManyColumn(column)) {
     throw new StoreError(
       `Invalid sort. Cannot filter on virtual column '${columnName}'.`,
     );

@@ -1,7 +1,7 @@
 import { StoreError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
-import type { Schema } from "@/schema/common.js";
+import type { Schema, Table } from "@/schema/common.js";
 import type { UserIdColumn } from "@/types/schema.js";
 import { sql } from "kysely";
 import type { OrderByInput, ReadonlyStore, WhereInput } from "./store.js";
@@ -38,7 +38,7 @@ export const getReadonlyStore = ({
     tableName: string;
     id: UserIdColumn;
   }) => {
-    const table = schema.tables[tableName];
+    const table = schema[tableName] as Table;
 
     return db.wrap({ method: `${tableName}.findUnique` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
@@ -70,7 +70,7 @@ export const getReadonlyStore = ({
     after?: string | null;
     limit?: number;
   }) => {
-    const table = schema.tables[tableName];
+    const table = schema[tableName] as Table;
 
     return db.wrap({ method: `${tableName}.findMany` }, async () => {
       let query = db

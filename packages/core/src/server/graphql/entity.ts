@@ -1,9 +1,12 @@
-import type { ReferenceColumn, Schema } from "@/schema/types.js";
+import type { ReferenceColumn, Schema } from "@/schema/common.js";
 import {
+  extractReferenceTable,
   isEnumColumn,
+  isListColumn,
   isManyColumn,
   isOneColumn,
-  referencedTableName,
+  isOptionalColumn,
+  schemaToTables,
 } from "@/schema/utils.js";
 import {
   GraphQLBoolean,
@@ -46,7 +49,7 @@ export const buildEntityTypes = ({
   const entityTypes: Record<string, GraphQLObjectType<Parent, Context>> = {};
   const entityPageTypes: Record<string, GraphQLObjectType> = {};
 
-  for (const [tableName, table] of Object.entries(schema.tables)) {
+  for (const [tableName, table] of Object.entries(schemaToTables(schema))) {
     entityTypes[tableName] = new GraphQLObjectType({
       name: tableName,
       fields: () => {
@@ -57,11 +60,9 @@ export const buildEntityTypes = ({
             // Column must resolve the foreign key of the referenced column
             // Note: this relies on the fact that reference columns can't be lists.
             const referenceColumn = table[
-              column.referenceColumn
+              column[" reference"]
             ] as ReferenceColumn;
-            const referencedTable = referencedTableName(
-              referenceColumn.references,
-            );
+            const referencedTable = extractReferenceTable(referenceColumn);
 
             const resolver: GraphQLFieldResolver<Parent, Context> = async (
               parent,
@@ -69,7 +70,7 @@ export const buildEntityTypes = ({
               context,
             ) => {
               // The parent object gets passed in here containing reference column values.
-              const relatedRecordId = parent[column.referenceColumn];
+              const relatedRecordId = parent[column[" reference"]];
               // Note: Don't query with a null or undefined id, indexing store will throw error.
               if (relatedRecordId === null || relatedRecordId === undefined)
                 return null;
@@ -82,7 +83,7 @@ export const buildEntityTypes = ({
             };
 
             fieldConfigMap[columnName] = {
-              type: referenceColumn.optional
+              type: isOptionalColumn(referenceColumn)
                 ? entityTypes[referencedTable]
                 : new GraphQLNonNull(entityTypes[referencedTable]),
               resolve: resolver,
@@ -97,7 +98,8 @@ export const buildEntityTypes = ({
               const whereObject = where ? buildWhereObject(where) : {};
               // Add the parent record ID to the where object.
               // Note that this overrides any existing equals condition.
-              (whereObject[column.referenceColumn] ??= {}).equals = parent.id;
+              (whereObject[column[" referenceColumn"]] ??= {}).equals =
+                parent.id;
 
               const orderByObject = orderBy
                 ? { [orderBy]: orderDirection ?? "asc" }
@@ -106,7 +108,7 @@ export const buildEntityTypes = ({
               // Query for the IDs of the matching records.
               // TODO: Update query to only fetch IDs, not entire records.
               const result = await store.findMany({
-                tableName: column.referenceTable,
+                tableName: column[" referenceTable"],
                 where: whereObject,
                 orderBy: orderByObject,
                 limit,
@@ -116,7 +118,7 @@ export const buildEntityTypes = ({
 
               // Load entire records objects using the loader.
               const loader = context.get("getLoader")({
-                tableName: column.referenceTable,
+                tableName: column[" referenceTable"],
               });
 
               const ids = result.items.map((item) => item.id);
@@ -126,7 +128,7 @@ export const buildEntityTypes = ({
             };
 
             fieldConfigMap[columnName] = {
-              type: entityPageTypes[column.referenceTable],
+              type: entityPageTypes[column[" referenceTable"]],
               args: {
                 where: { type: entityFilterTypes[tableName] },
                 orderBy: { type: GraphQLString },
@@ -139,16 +141,20 @@ export const buildEntityTypes = ({
             };
           } else {
             const type = isEnumColumn(column)
-              ? enumTypes[column.type]
-              : SCALARS[column.type];
-            if (column.list) {
+              ? enumTypes[column[" enum"]]
+              : SCALARS[column[" scalar"]];
+            if (isListColumn(column)) {
               const listType = new GraphQLList(new GraphQLNonNull(type));
               fieldConfigMap[columnName] = {
-                type: column.optional ? listType : new GraphQLNonNull(listType),
+                type: isOptionalColumn(column)
+                  ? listType
+                  : new GraphQLNonNull(listType),
               };
             } else {
               fieldConfigMap[columnName] = {
-                type: column.optional ? type : new GraphQLNonNull(type),
+                type: isOptionalColumn(column)
+                  ? type
+                  : new GraphQLNonNull(type),
               };
             }
           }

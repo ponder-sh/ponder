@@ -1,6 +1,6 @@
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
-import type { Schema } from "@/schema/common.js";
+import type { Schema, Table } from "@/schema/common.js";
 import type { DatabaseRow, UserIdColumn, UserRow } from "@/types/schema.js";
 import { sql } from "kysely";
 import type { WhereInput, WriteStore } from "./store.js";
@@ -30,7 +30,7 @@ export const getHistoricalStore = ({
     id: UserIdColumn;
     data?: Omit<UserRow, "id">;
   }) => {
-    const table = schema.tables[tableName];
+    const table = schema[tableName] as Table;
 
     return db.wrap({ method: `${tableName}.create` }, async () => {
       const createRow = encodeRow({ id, ...data }, table, kind);
@@ -55,7 +55,7 @@ export const getHistoricalStore = ({
     tableName: string;
     data: UserRow[];
   }) => {
-    const table = schema.tables[tableName];
+    const table = schema[tableName] as Table;
 
     const rows: DatabaseRow[] = [];
 
@@ -92,7 +92,7 @@ export const getHistoricalStore = ({
       | Partial<Omit<UserRow, "id">>
       | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
   }) => {
-    const table = schema.tables[tableName];
+    const table = schema[tableName] as Table;
 
     return db.wrap({ method: `${tableName}.update` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
@@ -140,7 +140,7 @@ export const getHistoricalStore = ({
       | Partial<Omit<UserRow, "id">>
       | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
   }) => {
-    const table = schema.tables[tableName];
+    const table = schema[tableName] as Table;
 
     return db.wrap({ method: `${tableName}.updateMany` }, async () => {
       if (typeof data === "function") {
@@ -232,7 +232,7 @@ export const getHistoricalStore = ({
       | Partial<Omit<UserRow, "id">>
       | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
   }) => {
-    const table = schema.tables[tableName];
+    const table = schema[tableName] as Table;
 
     return db.wrap({ method: `${tableName}.upsert` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
@@ -315,7 +315,7 @@ export const getHistoricalStore = ({
     tableName: string;
     id: UserIdColumn;
   }) => {
-    const table = schema.tables[tableName];
+    const table = schema[tableName] as Table;
 
     return db.wrap({ method: `${tableName}.delete` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);

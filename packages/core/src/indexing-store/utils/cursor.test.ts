@@ -23,7 +23,7 @@ const schema = createSchema((p) => ({
 test("cursor encoding handles default order by condition", () => {
   const orderByConditions = buildOrderByConditions({
     orderBy: { id: "asc" },
-    table: schema.tables.Pet,
+    table: schema.Pet,
   });
 
   const record = { id: "abc" };
@@ -39,7 +39,7 @@ test("cursor encoding handles default order by condition", () => {
 test("cursor encoding handles custom order by condition", () => {
   const orderByConditions = buildOrderByConditions({
     orderBy: { age: "desc" },
-    table: schema.tables.Pet,
+    table: schema.Pet,
   });
 
   const record = { id: "abc", age: 10 };
@@ -58,7 +58,7 @@ test("cursor encoding handles custom order by condition", () => {
 test("cursor encoding handles null values", () => {
   const orderByConditions = buildOrderByConditions({
     orderBy: { age: "desc" },
-    table: schema.tables.Pet,
+    table: schema.Pet,
   });
 
   const record = { id: "abc", age: null };
@@ -77,7 +77,7 @@ test("cursor encoding handles null values", () => {
 test("cursor encoding handles bigint values", () => {
   const orderByConditions = buildOrderByConditions({
     orderBy: { bigAge: "desc" },
-    table: schema.tables.Pet,
+    table: schema.Pet,
   });
 
   const record = { id: "abc", bigAge: 20n };
@@ -96,7 +96,7 @@ test("cursor encoding handles bigint values", () => {
 test("cursor encoding handles bigint list values", () => {
   const orderByConditions = buildOrderByConditions({
     orderBy: { bigAges: "desc" },
-    table: schema.tables.Pet,
+    table: schema.Pet,
   });
 
   const record = { id: "abc", bigAges: [20n, -12n] };

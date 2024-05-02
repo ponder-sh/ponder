@@ -543,7 +543,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         // Handle enum types
         builder = builder.addColumn(columnName, "text", (col) => {
           if (isOptionalColumn(column) === false) col = col.notNull();
-          if (column[" list"] === false) {
+          if (isListColumn(column) === false) {
             col = col.check(
               sql`${sql.ref(columnName)} in (${sql.join(
                 schemaToEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
@@ -552,7 +552,13 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           }
           return col;
         });
-      } else if (isReferenceColumn(column) || isListColumn(column) === false) {
+      } else if (isListColumn(column)) {
+        // Handle scalar list table
+        builder = builder.addColumn(columnName, "text", (col) => {
+          if (isOptionalColumn(column) === false) col = col.notNull();
+          return col;
+        });
+      } else {
         // Non-list base columns
         builder = builder.addColumn(
           columnName,
@@ -563,12 +569,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             return col;
           },
         );
-      } else {
-        // Handle scalar list table
-        builder = builder.addColumn(columnName, "text", (col) => {
-          if (isOptionalColumn(column) === false) col = col.notNull();
-          return col;
-        });
       }
     });
 

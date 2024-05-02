@@ -1,5 +1,6 @@
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
+import { schemaToTables } from "@/schema/utils.js";
 import {
   type GraphQLFieldConfig,
   GraphQLObjectType,
@@ -36,7 +37,7 @@ export const buildGraphqlSchema = (schema: Schema): GraphQLSchema => {
     entityFilterTypes,
   });
 
-  for (const [tableName, table] of Object.entries(schema.tables)) {
+  for (const [tableName, table] of Object.entries(schemaToTables(schema))) {
     const entityType = entityTypes[tableName];
     const entityPageType = entityPageTypes[tableName];
     const entityFilterType = entityFilterTypes[tableName];

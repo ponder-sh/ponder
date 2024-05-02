@@ -25,12 +25,16 @@ export const isManyColumn = (column: Column): column is ManyColumn =>
 export const isEnumColumn = (column: Column): column is EnumColumn =>
   column[" type"] === "enum";
 
-export const isOptionalColumn = (
-  column: ScalarColumn | EnumColumn | ReferenceColumn,
-): boolean => column[" optional"];
+export const isOptionalColumn = (column: Column): boolean => {
+  if (isManyColumn(column) || isOneColumn(column)) return false;
+  return column[" optional"];
+};
 
-export const isListColumn = (column: ScalarColumn | EnumColumn): boolean =>
-  column[" list"];
+export const isListColumn = (column: Column): boolean => {
+  if (isManyColumn(column) || isOneColumn(column) || isReferenceColumn(column))
+    return false;
+  return column[" list"];
+};
 
 export const isTable = (tableOrEnum: Schema[string]): tableOrEnum is Table =>
   Array.isArray(tableOrEnum) === false;
