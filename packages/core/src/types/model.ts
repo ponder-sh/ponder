@@ -1,5 +1,5 @@
 import type { OrderByInput, WhereInput } from "@/indexing-store/store.js";
-import type { Hex } from "viem";
+import type { UserTable } from "./schema.js";
 import type {
   HasOnlyIdProperty,
   HasRequiredPropertiesOtherThanId,
@@ -8,90 +8,92 @@ import type {
 
 export type StoreMethod = Prettify<keyof DatabaseModel<any>>;
 
-export type DatabaseModel<T extends { id: string | number | bigint | Hex }> = {
+export type DatabaseModel<table extends UserTable> = {
   create: (
     options: Prettify<
       {
-        id: T["id"];
-      } & (HasOnlyIdProperty<T> extends true
+        id: table["id"];
+      } & (HasOnlyIdProperty<table> extends true
         ? { data?: never }
-        : HasRequiredPropertiesOtherThanId<T> extends true
-          ? { data: Prettify<Omit<T, "id">> }
-          : { data?: Prettify<Omit<T, "id">> })
+        : HasRequiredPropertiesOtherThanId<table> extends true
+          ? { data: Prettify<Omit<table, "id">> }
+          : { data?: Prettify<Omit<table, "id">> })
     >,
-  ) => Promise<Prettify<T>>;
+  ) => Promise<Prettify<table>>;
 
-  createMany: (options: { data: Prettify<T>[] }) => Promise<Prettify<T>[]>;
+  createMany: (options: { data: Prettify<table>[] }) => Promise<
+    Prettify<table>[]
+  >;
 
   update: (
     options: Prettify<
       {
-        id: T["id"];
-      } & (HasOnlyIdProperty<T> extends true
+        id: table["id"];
+      } & (HasOnlyIdProperty<table> extends true
         ? { data?: never }
-        : HasRequiredPropertiesOtherThanId<T> extends true
+        : HasRequiredPropertiesOtherThanId<table> extends true
           ? {
               data:
-                | Prettify<Omit<Partial<T>, "id">>
+                | Prettify<Omit<Partial<table>, "id">>
                 | ((options: {
-                    current: Prettify<T>;
-                  }) => Prettify<Omit<Partial<T>, "id">>);
+                    current: Prettify<table>;
+                  }) => Prettify<Omit<Partial<table>, "id">>);
             }
           : {
               data?:
-                | Prettify<Omit<Partial<T>, "id">>
+                | Prettify<Omit<Partial<table>, "id">>
                 | ((options: {
-                    current: Prettify<T>;
-                  }) => Prettify<Omit<Partial<T>, "id">>);
+                    current: Prettify<table>;
+                  }) => Prettify<Omit<Partial<table>, "id">>);
             })
     >,
-  ) => Promise<Prettify<T>>;
+  ) => Promise<Prettify<table>>;
 
   updateMany: (options: {
-    where: Prettify<WhereInput<T>>;
+    where: Prettify<WhereInput<table>>;
     data:
-      | Prettify<Omit<Partial<T>, "id">>
+      | Prettify<Omit<Partial<table>, "id">>
       | ((options: {
-          current: Prettify<T>;
-        }) => Prettify<Omit<Partial<T>, "id">>);
-  }) => Promise<Prettify<T>[]>;
+          current: Prettify<table>;
+        }) => Prettify<Omit<Partial<table>, "id">>);
+  }) => Promise<Prettify<table>[]>;
 
   upsert: (
     options: Prettify<
       {
-        id: T["id"];
-      } & (HasOnlyIdProperty<T> extends true
+        id: table["id"];
+      } & (HasOnlyIdProperty<table> extends true
         ? { create?: never; update?: never }
-        : HasRequiredPropertiesOtherThanId<T> extends true
+        : HasRequiredPropertiesOtherThanId<table> extends true
           ? {
-              create: Prettify<Omit<T, "id">>;
+              create: Prettify<Omit<table, "id">>;
               update:
-                | Prettify<Omit<Partial<T>, "id">>
+                | Prettify<Omit<Partial<table>, "id">>
                 | ((options: {
-                    current: Prettify<T>;
-                  }) => Prettify<Omit<Partial<T>, "id">>);
+                    current: Prettify<table>;
+                  }) => Prettify<Omit<Partial<table>, "id">>);
             }
           : {
-              create?: Prettify<Omit<T, "id">>;
+              create?: Prettify<Omit<table, "id">>;
               update?:
-                | Prettify<Omit<Partial<T>, "id">>
+                | Prettify<Omit<Partial<table>, "id">>
                 | ((options: {
-                    current: Prettify<T>;
-                  }) => Prettify<Omit<Partial<T>, "id">>);
+                    current: Prettify<table>;
+                  }) => Prettify<Omit<Partial<table>, "id">>);
             })
     >,
-  ) => Promise<Prettify<T>>;
+  ) => Promise<Prettify<table>>;
 
-  findUnique: (options: { id: T["id"] }) => Promise<Prettify<T> | null>;
+  findUnique: (options: { id: table["id"] }) => Promise<Prettify<table> | null>;
 
   findMany: (options?: {
-    where?: Prettify<WhereInput<T>>;
-    orderBy?: Prettify<OrderByInput<T>>;
+    where?: Prettify<WhereInput<table>>;
+    orderBy?: Prettify<OrderByInput<table>>;
     limit?: number;
     before?: string;
     after?: string;
   }) => Promise<{
-    items: Prettify<T>[];
+    items: Prettify<table>[];
     pageInfo: {
       startCursor: string | null;
       endCursor: string | null;
@@ -100,5 +102,5 @@ export type DatabaseModel<T extends { id: string | number | bigint | Hex }> = {
     };
   }>;
 
-  delete: (options: { id: T["id"] }) => Promise<boolean>;
+  delete: (options: { id: table["id"] }) => Promise<boolean>;
 };

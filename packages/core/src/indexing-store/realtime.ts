@@ -1,7 +1,8 @@
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema } from "@/schema/types.js";
-import type { Row, WhereInput, WriteStore } from "./store.js";
+import type { DatabaseRow, UserIdColumn, UserRow } from "@/types/schema.js";
+import type { WhereInput, WriteStore } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
@@ -27,8 +28,8 @@ export const getRealtimeStore = ({
   }: {
     tableName: string;
     encodedCheckpoint: string;
-    id: string | number | bigint;
-    data?: Omit<Row, "id">;
+    id: UserIdColumn;
+    data?: Omit<UserRow, "id">;
   }) => {
     const table = schema.tables[tableName];
 
@@ -67,12 +68,12 @@ export const getRealtimeStore = ({
   }: {
     tableName: string;
     encodedCheckpoint: string;
-    data: Row[];
+    data: UserRow[];
   }) => {
     const table = schema.tables[tableName];
 
     return db.wrap({ method: `${tableName}.createMany` }, async () => {
-      const rows: Row[] = [];
+      const rows: DatabaseRow[] = [];
       await db.transaction().execute(async (tx) => {
         for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
           const createRows = data
@@ -89,7 +90,7 @@ export const getRealtimeStore = ({
               throw parseStoreError(err, data.length > 0 ? data[0] : {});
             });
 
-          rows.push(...(_rows as Row[]));
+          rows.push(..._rows);
 
           await tx
             .withSchema(namespaceInfo.internalNamespace)
@@ -116,10 +117,10 @@ export const getRealtimeStore = ({
   }: {
     tableName: string;
     encodedCheckpoint: string;
-    id: string | number | bigint;
+    id: UserIdColumn;
     data?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+      | Partial<Omit<UserRow, "id">>
+      | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
   }) => {
     const table = schema.tables[tableName];
 
@@ -182,8 +183,8 @@ export const getRealtimeStore = ({
     encodedCheckpoint: string;
     where: WhereInput<any>;
     data?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+      | Partial<Omit<UserRow, "id">>
+      | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
   }) => {
     const table = schema.tables[tableName];
 
@@ -255,11 +256,11 @@ export const getRealtimeStore = ({
   }: {
     tableName: string;
     encodedCheckpoint: string;
-    id: string | number | bigint;
-    create?: Omit<Row, "id">;
+    id: UserIdColumn;
+    create?: Omit<UserRow, "id">;
     update?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+      | Partial<Omit<UserRow, "id">>
+      | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
   }) => {
     const table = schema.tables[tableName];
 
@@ -355,7 +356,7 @@ export const getRealtimeStore = ({
   }: {
     tableName: string;
     encodedCheckpoint: string;
-    id: string | number | bigint;
+    id: UserIdColumn;
   }) => {
     const table = schema.tables[tableName];
 

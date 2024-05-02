@@ -1,8 +1,6 @@
-import { test } from "vitest";
-
 import { createSchema } from "@/schema/schema.js";
 import type { RecoverTableType } from "@/schema/types.js";
-
+import { test } from "vitest";
 import type { DatabaseModel } from "./model.js";
 
 test("model", () => {

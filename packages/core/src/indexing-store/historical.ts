@@ -1,8 +1,9 @@
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema } from "@/schema/types.js";
+import type { DatabaseRow, UserIdColumn, UserRow } from "@/types/schema.js";
 import { sql } from "kysely";
-import type { Row, WhereInput, WriteStore } from "./store.js";
+import type { WhereInput, WriteStore } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
@@ -26,8 +27,8 @@ export const getHistoricalStore = ({
     data = {},
   }: {
     tableName: string;
-    id: string | number | bigint;
-    data?: Omit<Row, "id">;
+    id: UserIdColumn;
+    data?: Omit<UserRow, "id">;
   }) => {
     const table = schema.tables[tableName];
 
@@ -52,11 +53,11 @@ export const getHistoricalStore = ({
     data,
   }: {
     tableName: string;
-    data: Row[];
+    data: UserRow[];
   }) => {
     const table = schema.tables[tableName];
 
-    const rows: Row[] = [];
+    const rows: DatabaseRow[] = [];
 
     for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
       await db.wrap({ method: `${tableName}.createMany` }, async () => {
@@ -74,11 +75,11 @@ export const getHistoricalStore = ({
             throw parseStoreError(err, data.length > 0 ? data[0] : {});
           });
 
-        rows.push(...(_rows as Row[]));
+        rows.push(..._rows);
       });
     }
 
-    return rows;
+    return rows.map((row) => decodeRow(row, table, kind));
   },
   update: async ({
     tableName,
@@ -86,17 +87,17 @@ export const getHistoricalStore = ({
     data = {},
   }: {
     tableName: string;
-    id: string | number | bigint;
+    id: UserIdColumn;
     data?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+      | Partial<Omit<UserRow, "id">>
+      | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
   }) => {
     const table = schema.tables[tableName];
 
     return db.wrap({ method: `${tableName}.update` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
 
-      let updateObject: Partial<Omit<Row, "id">>;
+      let updateObject: Partial<Omit<UserRow, "id">>;
       if (typeof data === "function") {
         const latestRow = await db
           .withSchema(namespaceInfo.userNamespace)
@@ -136,8 +137,8 @@ export const getHistoricalStore = ({
     tableName: string;
     where: WhereInput<any>;
     data?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+      | Partial<Omit<UserRow, "id">>
+      | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
   }) => {
     const table = schema.tables[tableName];
 
@@ -225,11 +226,11 @@ export const getHistoricalStore = ({
     update = {},
   }: {
     tableName: string;
-    id: string | number | bigint;
-    create?: Omit<Row, "id">;
+    id: UserIdColumn;
+    create?: Omit<UserRow, "id">;
     update?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+      | Partial<Omit<UserRow, "id">>
+      | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
   }) => {
     const table = schema.tables[tableName];
 
@@ -312,7 +313,7 @@ export const getHistoricalStore = ({
     id,
   }: {
     tableName: string;
-    id: string | number | bigint;
+    id: UserIdColumn;
   }) => {
     const table = schema.tables[tableName];
 

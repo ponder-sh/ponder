@@ -7,9 +7,14 @@ import type {
   Schema,
 } from "@/schema/types.js";
 import { isBaseColumn, isEnumColumn } from "@/schema/utils.js";
+import type {
+  DatabaseColumn,
+  DatabaseRow,
+  UserColumn,
+  UserRow,
+} from "@/types/schema.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import { bytesToHex, hexToBytes, isHex } from "viem";
-import type { Row } from "../store.js";
 
 const scalarToTsType = {
   int: "number",
@@ -24,10 +29,10 @@ const scalarToTsType = {
  * Convert a user-land row into a database-ready object.
  */
 export function encodeRow(
-  data: Partial<Row>,
+  data: Partial<UserRow>,
   table: Schema["tables"][keyof Schema["tables"]],
   encoding: "sqlite" | "postgres",
-) {
+): DatabaseRow {
   const instance: { [key: string]: string | number | null | bigint | Buffer } =
     {};
 
@@ -53,10 +58,10 @@ export function encodeRow(
  * Convert a user-land value into a database-ready value.
  */
 export function encodeValue(
-  value: unknown,
+  value: UserColumn,
   column: Schema["tables"][keyof Schema["tables"]][string],
   encoding: "sqlite" | "postgres",
-): string | number | null | bigint | Buffer {
+): DatabaseColumn {
   if (isEnumColumn(column)) {
     if (column.optional && (value === undefined || value === null)) {
       return null;
@@ -159,12 +164,11 @@ export function encodeValue(
 }
 
 export function decodeRow(
-  data: Partial<Row>,
+  data: DatabaseRow,
   table: Schema["tables"][keyof Schema["tables"]],
   encoding: "sqlite" | "postgres",
-): Row {
-  const instance: { [key: string]: string | number | null | bigint | Buffer } =
-    {};
+): UserRow {
+  const instance = {} as UserRow;
 
   for (const [columnName, column] of Object.entries(table)) {
     if (isBaseColumn(column) || isEnumColumn(column)) {
@@ -172,14 +176,14 @@ export function decodeRow(
     }
   }
 
-  return instance as Row;
+  return instance;
 }
 
 function decodeValue(
-  value: unknown,
+  value: DatabaseColumn,
   column: NonReferenceColumn | ReferenceColumn | EnumColumn,
   encoding: "sqlite" | "postgres",
-) {
+): UserColumn {
   if (value === null) return null;
   else if (column.list) {
     return column.type === "bigint"
@@ -192,6 +196,6 @@ function decodeValue(
   } else if (column.type === "bigint" && encoding === "sqlite") {
     return decodeToBigInt(value as string);
   } else {
-    return value;
+    return value as UserColumn;
   }
 }

@@ -67,7 +67,6 @@ export type IsTable<a extends Table | Enum> = a extends readonly unknown[]
   ? false
   : true;
 
-// TODO(kyle) support enums
 export type Schema = { [tableName: string]: Table } & {
   [enumName: string]: Enum;
 };

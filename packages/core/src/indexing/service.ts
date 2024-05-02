@@ -3,10 +3,11 @@ import type { Common } from "@/common/common.js";
 import { getBaseError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import { type EventSource } from "@/config/sources.js";
-import type { IndexingStore, Row } from "@/indexing-store/store.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/types.js";
 import type { SyncService } from "@/sync/index.js";
 import type { DatabaseModel } from "@/types/model.js";
+import type { UserRow } from "@/types/schema.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
@@ -28,7 +29,7 @@ import { addUserStackTrace } from "./trace.js";
 export type Context = {
   network: { chainId: number; name: string };
   client: ReadOnlyClient;
-  db: Record<string, DatabaseModel<Row>>;
+  db: Record<string, DatabaseModel<UserRow>>;
   contracts: Record<
     string,
     {

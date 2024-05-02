@@ -1,11 +1,17 @@
+import type {
+  UserColumn,
+  UserIdColumn,
+  UserRow,
+  UserTable,
+} from "@/types/schema.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Hex } from "viem";
 
 export type ReadonlyStore = {
   findUnique(options: {
     tableName: string;
-    id: string | number | bigint;
-  }): Promise<Row | null>;
+    id: UserIdColumn;
+  }): Promise<UserRow | null>;
 
   findMany(options: {
     tableName: string;
@@ -15,7 +21,7 @@ export type ReadonlyStore = {
     after?: string | null;
     limit?: number;
   }): Promise<{
-    items: Row[];
+    items: UserRow[];
     pageInfo: {
       startCursor: string | null;
       endCursor: string | null;
@@ -36,47 +42,47 @@ export type WriteStore<
     options: {
       tableName: string;
       id: string | number | bigint;
-      data?: Omit<Row, "id">;
+      data?: Omit<UserRow, "id">;
     } & checkpointProp,
-  ): Promise<Row>;
+  ): Promise<UserRow>;
 
   createMany(
     options: {
       tableName: string;
-      data: Row[];
+      data: UserRow[];
     } & checkpointProp,
-  ): Promise<Row[]>;
+  ): Promise<UserRow[]>;
 
   update(
     options: {
       tableName: string;
       id: string | number | bigint;
       data?:
-        | Partial<Omit<Row, "id">>
-        | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+        | Partial<Omit<UserRow, "id">>
+        | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
     } & checkpointProp,
-  ): Promise<Row>;
+  ): Promise<UserRow>;
 
   updateMany(
     options: {
       tableName: string;
       where?: WhereInput<any>;
       data?:
-        | Partial<Omit<Row, "id">>
-        | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+        | Partial<Omit<UserRow, "id">>
+        | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
     } & checkpointProp,
-  ): Promise<Row[]>;
+  ): Promise<UserRow[]>;
 
   upsert(
     options: {
       tableName: string;
       id: string | number | bigint;
-      create?: Omit<Row, "id">;
+      create?: Omit<UserRow, "id">;
       update?:
-        | Partial<Omit<Row, "id">>
-        | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+        | Partial<Omit<UserRow, "id">>
+        | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
     } & checkpointProp,
-  ): Promise<Row>;
+  ): Promise<UserRow>;
 
   delete(
     options: {
@@ -90,76 +96,46 @@ export type IndexingStore<
   env extends "historical" | "realtime" = "historical" | "realtime",
 > = ReadonlyStore & WriteStore<env>;
 
-export type Table = {
-  [key: string]:
-    | string
-    | bigint
-    | number
-    | boolean
-    | Hex
-    | (string | bigint | number | boolean | Hex)[];
-};
-
-export type Row = {
-  id: string | number | bigint | Hex;
-  [key: string]:
-    | string
-    | bigint
-    | number
-    | boolean
-    | Hex
-    | (string | bigint | number | boolean | Hex)[]
-    | null;
-};
-
-type OperatorMap<
-  TField extends
-    | string
-    | bigint
-    | number
-    | boolean
-    | Hex
-    | (string | bigint | number | boolean | Hex)[],
-> = {
-  equals?: TField;
-  not?: TField;
-} & (TField extends any[]
+type OperatorMap<column extends UserColumn> = {
+  equals?: column;
+  not?: column;
+} & (column extends unknown[]
   ? {
-      has?: TField[number];
-      notHas?: TField[number];
+      has?: column[number];
+      notHas?: column[number];
     }
   : {
-      in?: TField[];
-      notIn?: TField[];
+      in?: column[];
+      notIn?: column[];
     }) &
-  (TField extends string
-    ? TField extends Hex
+  (column extends string
+    ? column extends Hex
       ? {}
       : {
-          contains?: TField;
-          notContains?: TField;
-          startsWith?: TField;
-          notStartsWith?: TField;
-          endsWith?: TField;
-          notEndsWith?: TField;
+          contains?: column;
+          notContains?: column;
+          startsWith?: column;
+          notStartsWith?: column;
+          endsWith?: column;
+          notEndsWith?: column;
         }
     : {}) &
-  (TField extends number | bigint | Hex
+  (column extends number | bigint | Hex
     ? {
-        gt?: TField;
-        gte?: TField;
-        lt?: TField;
-        lte?: TField;
+        gt?: column;
+        gte?: column;
+        lt?: column;
+        lte?: column;
       }
     : {});
 
-export type WhereInput<TTable extends Table> = {
-  [ColumnName in keyof TTable]?:
-    | Prettify<OperatorMap<TTable[ColumnName]>>
-    | TTable[ColumnName];
+export type WhereInput<table extends UserTable> = {
+  [columnName in keyof table]?:
+    | Prettify<OperatorMap<table[columnName]>>
+    | table[columnName];
 } & {
-  AND?: Prettify<WhereInput<TTable>>[];
-  OR?: Prettify<WhereInput<TTable>>[];
+  AND?: Prettify<WhereInput<table>>[];
+  OR?: Prettify<WhereInput<table>>[];
 };
 
 export type OrderByInput<table, columns extends keyof table = keyof table> = {

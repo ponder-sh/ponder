@@ -1,11 +1,11 @@
 import { StoreError } from "@/common/errors.js";
+import type { UserRow } from "@/types/schema.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
 import type { ExpressionBuilder } from "kysely";
-import type { Row } from "../store.js";
 import type { OrderByConditions } from "./sort.js";
 
 export function encodeCursor(
-  record: Row,
+  record: UserRow,
   orderByConditions: OrderByConditions,
 ) {
   const cursorValues = orderByConditions.map(([columnName]) => [
