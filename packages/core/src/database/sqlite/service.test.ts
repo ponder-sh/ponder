@@ -8,8 +8,9 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
+import { wait } from "@/utils/wait.js";
 import { sql } from "kysely";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 import type { HeadlessKysely } from "../kysely.js";
 import { SqliteDatabaseService } from "./service.js";
 
@@ -252,73 +253,76 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.kill();
   });
 
-  test("setup throws if the namespace is locked", async (context) => {
+  test("setup succeeds if the lock expires after waiting to expire", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
+    const options = {
+      ...context.common.options,
+      databaseHeartbeatInterval: 250,
+      databaseHeartbeatTimeout: 625,
+    };
+
     const database = new SqliteDatabaseService({
-      common: context.common,
+      common: { ...context.common, options },
       directory: context.databaseConfig.directory,
     });
 
-    await database.setup({ schema, buildId: "abc" });
+    const { namespaceInfo } = await database.setup({ schema, buildId: "abc" });
+    await database.kill();
 
     const databaseTwo = new SqliteDatabaseService({
-      common: context.common,
+      common: { ...context.common, options },
       directory: context.databaseConfig.directory,
     });
 
-    await expect(() =>
-      databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
-    ).rejects.toThrow(
-      "Database file 'public.db' is locked by a different Ponder app (lock expires in",
-    );
+    // Update the prior app lock row to simulate a abrupt shutdown.
+    await databaseTwo.db
+      .withSchema(namespaceInfo.internalNamespace)
+      .updateTable("namespace_lock")
+      .where("namespace", "=", "public")
+      .set({ is_locked: 1 })
+      .execute();
 
-    await database.kill();
+    const result = await databaseTwo.setup({
+      schema: schemaTwo,
+      buildId: "def",
+    });
+
+    expect(result).toMatchObject({ checkpoint: zeroCheckpoint });
+
     await databaseTwo.kill();
   });
 
-  test("setup succeeds if the previous lock has timed out", async (context) => {
+  test("setup throws if the namespace is still locked after waiting to expire", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
+    const options = {
+      ...context.common.options,
+      databaseHeartbeatInterval: 250,
+      databaseHeartbeatTimeout: 625,
+    };
+
     const database = new SqliteDatabaseService({
-      common: context.common,
+      common: { ...context.common, options },
       directory: context.databaseConfig.directory,
     });
 
     await database.setup({ schema, buildId: "abc" });
 
     const databaseTwo = new SqliteDatabaseService({
-      common: context.common,
+      common: { ...context.common, options },
       directory: context.databaseConfig.directory,
     });
 
     await expect(() =>
-      databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
+      databaseTwo.setup({
+        schema: schemaTwo,
+        buildId: "def",
+      }),
     ).rejects.toThrow(
-      "Database file 'public.db' is locked by a different Ponder app (lock expires in",
+      "Failed to acquire lock on database file 'public.db'. A different Ponder app is actively using this database.",
     );
-
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
-
-    const now = Date.now();
-    vi.stubGlobal("Date", {
-      now() {
-        return now + 1000 * 60;
-      },
-    });
-
-    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
-
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "Dog",
-      "Apple",
-    ]);
 
     await database.kill();
     await databaseTwo.kill();
-
-    vi.unstubAllGlobals();
   });
 
   test("setup throws if there is a table name collision", async (context) => {
@@ -345,12 +349,16 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
 
   test("heartbeat updates the heartbeat_at value", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
+    const options = {
+      ...context.common.options,
+      databaseHeartbeatInterval: 250,
+      databaseHeartbeatTimeout: 625,
+    };
+
     const database = new SqliteDatabaseService({
-      common: context.common,
+      common: { ...context.common, options },
       directory: context.databaseConfig.directory,
     });
-
-    vi.useFakeTimers();
 
     await database.setup({ schema, buildId: "abc" });
 
@@ -359,7 +367,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       .select(["heartbeat_at"])
       .executeTakeFirst();
 
-    await vi.advanceTimersToNextTimerAsync();
+    await wait(500);
 
     const rowAfterHeartbeat = await database.db
       .selectFrom("namespace_lock")
@@ -371,8 +379,6 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     );
 
     await database.kill();
-
-    vi.useRealTimers();
   });
 
   test("updateFinalizedCheckpoint updates lock table", async (context) => {
