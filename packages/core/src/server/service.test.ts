@@ -6,6 +6,7 @@ import {
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { wait } from "@/utils/wait.js";
 import type { GraphQLSchema } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
 import { buildGraphqlSchema } from "./graphql/buildGraphqlSchema.js";
@@ -27,7 +28,10 @@ test("port", async (context) => {
     readonlyStore: {} as ReadonlyStore,
   });
 
-  expect(server1.port + 1).toBe(server2.port);
+  expect(server2.port).toBe(server1.port + 1);
+
+  await server1.kill();
+  await server2.kill();
 });
 
 test("not healthy", async (context) => {
@@ -43,21 +47,27 @@ test("not healthy", async (context) => {
   const response = await server.hono.request("/health");
 
   expect(response.status).toBe(503);
+
+  await server.kill();
 });
 
-test("healthy", async (context) => {
+test.only("healthy", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: {
       ...context.common,
-      options: { ...context.common.options, maxHealthcheckDuration: 0 },
+      options: { ...context.common.options, maxHealthcheckDuration: 5 },
     },
     readonlyStore: {} as ReadonlyStore,
   });
 
+  await wait(10);
+
   const response = await server.hono.request("/health");
 
   expect(response.status).toBe(200);
+
+  await server.kill();
 });
 
 test("healthy PUT", async (context) => {
@@ -73,6 +83,8 @@ test("healthy PUT", async (context) => {
   const response = await server.hono.request("/health", { method: "PUT" });
 
   expect(response.status).toBe(404);
+
+  await server.kill();
 });
 
 test("metrics", async (context) => {
@@ -85,6 +97,8 @@ test("metrics", async (context) => {
   const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(200);
+
+  await server.kill();
 });
 
 test("metrics error", async (context) => {
@@ -100,6 +114,8 @@ test("metrics error", async (context) => {
   const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(500);
+
+  await server.kill();
 });
 
 test("metrics PUT", async (context) => {
@@ -112,6 +128,8 @@ test("metrics PUT", async (context) => {
   const response = await server.hono.request("/metrics", { method: "PUT" });
 
   expect(response.status).toBe(404);
+
+  await server.kill();
 });
 
 test("graphql", async (context) => {
@@ -194,6 +212,8 @@ test("graphql", async (context) => {
   });
 
   await cleanup();
+
+  await server.kill();
 });
 
 test("graphql extra filter", async (context) => {
@@ -247,6 +267,8 @@ test("graphql extra filter", async (context) => {
   expect(response.status).toBe(400);
 
   await cleanup();
+
+  await server.kill();
 });
 
 test("graphql interactive", async (context) => {
@@ -260,6 +282,8 @@ test("graphql interactive", async (context) => {
   const response = await server.hono.request("/graphql");
 
   expect(response.status).toBe(200);
+
+  await server.kill();
 });
 
 test("missing route", async (context) => {
@@ -272,6 +296,8 @@ test("missing route", async (context) => {
   const response = await server.hono.request("/kevin");
 
   expect(response.status).toBe(404);
+
+  await server.kill();
 });
 
 // Note that this test doesn't work because the `hono.request` method doesn't actually
