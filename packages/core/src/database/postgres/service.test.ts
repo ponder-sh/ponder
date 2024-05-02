@@ -1,9 +1,16 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
+import { getReadonlyStore } from "@/indexing-store/readonly.js";
+import { getRealtimeStore } from "@/indexing-store/realtime.js";
 import { createSchema } from "@/schema/schema.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  encodeCheckpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
+import { wait } from "@/utils/wait.js";
 import { sql } from "kysely";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 import type { HeadlessKysely } from "../kysely.js";
 import { PostgresDatabaseService } from "./service.js";
 
@@ -216,80 +223,148 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await databaseTwo.kill();
   });
 
-  test.todo(
-    "setup with the same build ID and namespace reverts to and returns the finality checkpoint",
-    async (context) => {
-      if (context.databaseConfig.kind !== "postgres") return;
-      const database = new PostgresDatabaseService({
-        common: context.common,
-        poolConfig: context.databaseConfig.poolConfig,
-        userNamespace: context.databaseConfig.schema,
-      });
+  test("setup with the same build ID and namespace reverts to and returns the finality checkpoint", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
 
-      await database.setup({ schema, buildId: "abc" });
+    const { namespaceInfo } = await database.setup({ schema, buildId: "abc" });
 
-      // Simulate progress being made by updating the checkpoints.
-      // TODO: Actually use the indexing store.
-      const newCheckpoint = {
+    const realtimeIndexingStore = getRealtimeStore({
+      kind: context.databaseConfig.kind,
+      schema,
+      db: database.indexingDb,
+      namespaceInfo,
+    });
+
+    // Simulate progress being made by updating the checkpoints.
+    const newCheckpoint = {
+      ...zeroCheckpoint,
+      blockNumber: 10,
+    };
+
+    await database.db
+      .withSchema(namespaceInfo.internalNamespace)
+      .updateTable("namespace_lock")
+      .set({ finalized_checkpoint: encodeCheckpoint(newCheckpoint) })
+      .where("namespace", "=", "public")
+      .execute();
+
+    await realtimeIndexingStore.create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint({
         ...zeroCheckpoint,
-        blockNumber: 10,
-      };
+        blockNumber: 9,
+      }),
+      id: "id1",
+      data: { name: "Skip" },
+    });
+    await realtimeIndexingStore.create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockNumber: 11,
+      }),
+      id: "id2",
+      data: { name: "Kevin" },
+    });
+    await realtimeIndexingStore.create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockNumber: 12,
+      }),
+      id: "id3",
+      data: { name: "Foo" },
+    });
 
-      await database.db
-        .updateTable("namespace_lock")
-        .set({ finalized_checkpoint: encodeCheckpoint(newCheckpoint) })
-        .where("namespace", "=", "public")
-        .execute();
+    await database.kill();
 
-      await database.kill();
+    const databaseTwo = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
 
-      const databaseTwo = new PostgresDatabaseService({
-        common: context.common,
-        poolConfig: context.databaseConfig.poolConfig,
-        userNamespace: context.databaseConfig.schema,
-      });
-
-      const { checkpoint } = await databaseTwo.setup({
+    const { checkpoint, namespaceInfo: namespaceInfoTwo } =
+      await databaseTwo.setup({
         schema: schema,
         buildId: "abc",
       });
 
-      expect(checkpoint).toMatchObject(newCheckpoint);
-
-      await databaseTwo.kill();
-    },
-  );
-
-  test("setup throws if the namespace is locked", async (context) => {
-    if (context.databaseConfig.kind !== "postgres") return;
-    const database = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-      userNamespace: context.databaseConfig.schema,
+    const readonlyIndexingStore = getReadonlyStore({
+      kind: context.databaseConfig.kind,
+      schema,
+      db: databaseTwo.indexingDb,
+      namespaceInfo: namespaceInfoTwo,
     });
 
-    await database.setup({ schema, buildId: "abc" });
+    expect(checkpoint).toMatchObject(newCheckpoint);
 
-    const databaseTwo = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-      userNamespace: context.databaseConfig.schema,
+    const { items: pets } = await readonlyIndexingStore.findMany({
+      tableName: "Pet",
     });
 
-    await expect(() =>
-      databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
-    ).rejects.toThrow(
-      "Schema 'public' is in use by a different Ponder app (lock expires in",
-    );
+    expect(pets.length).toBe(1);
+    expect(pets[0].name).toBe("Skip");
 
-    await database.kill();
     await databaseTwo.kill();
   });
 
-  test("setup succeeds if the previous lock has timed out", async (context) => {
+  test("setup succeeds if the lock expires after waiting to expire", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
+    const options = {
+      ...context.common.options,
+      databaseHeartbeatInterval: 250,
+      databaseHeartbeatTimeout: 625,
+    };
+
     const database = new PostgresDatabaseService({
-      common: context.common,
+      common: { ...context.common, options },
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+    await database.kill();
+
+    const databaseTwo = new PostgresDatabaseService({
+      common: { ...context.common, options },
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    // Update the prior app lock row to simulate a abrupt shutdown.
+    await databaseTwo.db
+      .withSchema("ponder")
+      .updateTable("namespace_lock")
+      .where("namespace", "=", context.databaseConfig.schema)
+      .set({ is_locked: 1 })
+      .execute();
+
+    const result = await databaseTwo.setup({
+      schema: schemaTwo,
+      buildId: "def",
+    });
+
+    expect(result).toMatchObject({ checkpoint: zeroCheckpoint });
+
+    await databaseTwo.kill();
+  });
+
+  test("setup throws if the namespace is still locked after waiting to expire", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const options = {
+      ...context.common.options,
+      databaseHeartbeatInterval: 250,
+      databaseHeartbeatTimeout: 625,
+    };
+
+    const database = new PostgresDatabaseService({
+      common: { ...context.common, options },
       poolConfig: context.databaseConfig.poolConfig,
       userNamespace: context.databaseConfig.schema,
     });
@@ -297,36 +372,19 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.setup({ schema, buildId: "abc" });
 
     const databaseTwo = new PostgresDatabaseService({
-      common: context.common,
+      common: { ...context.common, options },
       poolConfig: context.databaseConfig.poolConfig,
       userNamespace: context.databaseConfig.schema,
     });
 
     await expect(() =>
-      databaseTwo.setup({ schema: schemaTwo, buildId: "def" }),
+      databaseTwo.setup({
+        schema: schemaTwo,
+        buildId: "def",
+      }),
     ).rejects.toThrow(
-      "Schema 'public' is in use by a different Ponder app (lock expires in",
+      "Failed to acquire lock on schema 'public'. A different Ponder app is actively using this schema.",
     );
-
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
-
-    // Stubbing Date.now() breaks the Kysely Migrator, so just update the row instead.
-    await databaseTwo.db
-      .withSchema("ponder")
-      .updateTable("namespace_lock")
-      .set({ heartbeat_at: Date.now() - 1000 * 120 })
-      .where("namespace", "=", "public")
-      .execute();
-
-    await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
-
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "Dog",
-      "Apple",
-    ]);
 
     await database.kill();
     await databaseTwo.kill();
@@ -357,13 +415,17 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
   test("heartbeat updates the heartbeat_at value", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
+    const options = {
+      ...context.common.options,
+      databaseHeartbeatInterval: 250,
+      databaseHeartbeatTimeout: 625,
+    };
+
     const database = new PostgresDatabaseService({
-      common: context.common,
+      common: { ...context.common, options },
       poolConfig: context.databaseConfig.poolConfig,
       userNamespace: context.databaseConfig.schema,
     });
-
-    vi.useFakeTimers();
 
     await database.setup({ schema, buildId: "abc" });
 
@@ -373,7 +435,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       .select(["heartbeat_at"])
       .executeTakeFirst();
 
-    await vi.advanceTimersToNextTimerAsync();
+    await wait(500);
 
     const rowAfterHeartbeat = await database.db
       .withSchema("ponder")
@@ -386,8 +448,32 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
 
     await database.kill();
+  });
 
-    vi.useRealTimers();
+  test("updateFinalizedCheckpoint updates lock table", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    const { namespaceInfo } = await database.setup({ schema, buildId: "abc" });
+
+    await database.updateFinalizedCheckpoint({ checkpoint: maxCheckpoint });
+
+    const rows = await database.db
+      .withSchema(namespaceInfo.internalNamespace)
+      .selectFrom("namespace_lock")
+      .selectAll()
+      .execute();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].finalized_checkpoint).toStrictEqual(
+      encodeCheckpoint(maxCheckpoint),
+    );
+
+    await database.kill();
   });
 
   test("kill releases the namespace lock", async (context) => {

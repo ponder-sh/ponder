@@ -27,6 +27,7 @@ test("factory", async (context) => {
 
   const cleanup = await start({
     cliOptions: {
+      command: "start",
       root: "./src/_test/e2e/factory",
       config: "ponder.config.ts",
       port,
@@ -35,6 +36,7 @@ test("factory", async (context) => {
 
   await waitForHealthy(port);
 
+  // TODO: Find a consistent way to wait for indexing to be complete.
   await wait(500);
 
   let response = await postGraphql(

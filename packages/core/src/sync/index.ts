@@ -20,7 +20,7 @@ import {
   type Service,
   create,
   getCachedTransport,
-  getHistoricalEvents,
+  getHistoricalCheckpoint,
   kill,
   startHistorical,
   startRealtime,
@@ -28,7 +28,7 @@ import {
 
 const methods = {
   startHistorical,
-  getHistoricalEvents,
+  getHistoricalCheckpoint,
   startRealtime,
   getCachedTransport,
   kill,
