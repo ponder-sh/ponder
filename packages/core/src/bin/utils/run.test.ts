@@ -120,6 +120,8 @@ test.todo("run() reorg ignored");
 
 test.todo("run() reorg");
 
+test.todo("run() finalize");
+
 test.todo("run() error");
 
 test.todo("run() healthy");

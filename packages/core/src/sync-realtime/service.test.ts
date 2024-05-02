@@ -548,6 +548,17 @@ test("handleBlock() finalizes range", async (context) => {
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
 
+  expect(onEvent).toHaveBeenCalledWith({
+    type: "finalize",
+    chainId: expect.any(Number),
+    checkpoint: {
+      ...maxCheckpoint,
+      blockTimestamp: expect.any(Number),
+      chainId: expect.any(BigInt),
+      blockNumber: 4n,
+    },
+  });
+
   await kill(realtimeSyncService);
 
   await cleanup();

@@ -10,9 +10,9 @@ export default createConfig({
   },
   blocks: {
     ChainlinkPriceOracle: {
+      network: "mainnet",
       startBlock: 19_750_000,
       interval: 5, // every minute
-      network: "mainnet",
     },
   },
 });

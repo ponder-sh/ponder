@@ -3,6 +3,8 @@ import type { CliOptions } from "@/bin/ponder.js";
 import type { LevelWithSilent } from "pino";
 
 export type Options = {
+  command: "dev" | "start" | "serve" | "codegen";
+
   configFile: string;
   schemaFile: string;
   rootDir: string;
@@ -20,6 +22,9 @@ export type Options = {
   telemetryConfigDir: string | undefined;
 
   logLevel: LevelWithSilent;
+
+  databaseHeartbeatInterval: number;
+  databaseHeartbeatTimeout: number;
 };
 
 export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
@@ -64,6 +69,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
   }
 
   return {
+    command: cliOptions.command,
+
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),
     schemaFile: path.join(rootDir, "ponder.schema.ts"),
@@ -81,5 +88,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     telemetryConfigDir: undefined,
 
     logLevel,
+
+    databaseHeartbeatInterval: 10 * 1000,
+    databaseHeartbeatTimeout: 25 * 1000,
   } satisfies Options;
 };
