@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.4.16
+
+### Patch Changes
+
+- [#831](https://github.com/ponder-sh/ponder/pull/831) [`273079c40ebd3f7e68afc14fe534e134519c4c03`](https://github.com/ponder-sh/ponder/commit/273079c40ebd3f7e68afc14fe534e134519c4c03) Thanks [@kyscott18](https://github.com/kyscott18)! - Added a template for the block events feature.
+
 ## 0.4.15
 
 ## 0.4.14
