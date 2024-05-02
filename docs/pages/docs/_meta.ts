@@ -1,7 +1,7 @@
 export default {
   "getting-started": "Getting started",
   "contracts-and-networks": "Contracts & networks",
-  "blocks": "Block events",
+  "block-events": "Block events",
   schema: "Design your schema",
   "indexing": "Write indexing functions",
   "query": "Query the database",
