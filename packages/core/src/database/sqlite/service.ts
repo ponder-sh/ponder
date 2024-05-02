@@ -188,7 +188,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
           // Function to create the operation log tables and user tables.
           const createTables = async () => {
-            for (const [tableName, columns] of Object.entries(
+            for (const [tableName, table] of Object.entries(
               schemaToTables(schema),
             )) {
               const tableId = namespaceInfo.internalTableIds[tableName];
@@ -197,7 +197,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 .withSchema(this.internalNamespace)
                 .createTable(tableId)
                 .$call((builder) =>
-                  this.buildOperationLogColumns(builder, columns),
+                  this.buildOperationLogColumns(builder, table[0]),
                 )
                 .execute();
 
@@ -212,7 +212,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                   .withSchema(this.userNamespace)
                   .createTable(tableName)
                   .$call((builder) =>
-                    this.buildColumns(builder, schema, columns),
+                    this.buildColumns(builder, schema, table[0]),
                   )
                   .execute();
               } catch (err) {

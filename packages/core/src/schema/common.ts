@@ -50,6 +50,11 @@ export type EnumColumn<
   " list": list;
 };
 
+export type Index<column extends string | readonly string[]> = {
+  " type": "index";
+  " column": column;
+};
+
 export type Column =
   | ScalarColumn
   | ReferenceColumn
@@ -63,18 +68,22 @@ export type Table = { id: IdColumn } & {
 
 export type Enum = readonly string[];
 
+export type Constraints = {
+  [name: string]: Index<string | readonly string[]>;
+};
+
 export type IsTable<a extends Table | Enum> = a extends readonly unknown[]
   ? false
   : true;
 
-export type Schema = { [name: string]: Table | Enum };
+export type Schema = { [name: string]: readonly [Table, Constraints] | Enum };
 
 export type ExtractTableNames<
   schema extends Schema | unknown,
   ///
   names = keyof schema & string,
 > = names extends names
-  ? schema[names & keyof schema] extends Table
+  ? schema[names & keyof schema] extends readonly [Table, Constraints]
     ? names
     : never
   : never;
@@ -90,8 +99,11 @@ export type ExtractEnumNames<
   : never;
 
 export type ExtractOptionalColumnNames<
-  table extends Table | unknown,
+  tableAndConstraints extends readonly [Table, Constraints] | unknown,
   ///
+  table = tableAndConstraints extends readonly [Table, Constraints]
+    ? tableAndConstraints[0]
+    : Table,
   columnNames = keyof table & string,
 > = columnNames extends columnNames
   ? table[columnNames & keyof table] extends
@@ -105,8 +117,11 @@ export type ExtractOptionalColumnNames<
   : never;
 
 export type ExtractRequiredColumnNames<
-  table extends Table | unknown,
+  tableAndConstraints extends readonly [Table, Constraints] | unknown,
   ///
+  table = tableAndConstraints extends readonly [Table, Constraints]
+    ? tableAndConstraints[0]
+    : Table,
   columnNames = keyof table & string,
 > = columnNames extends columnNames
   ? table[columnNames & keyof table] extends
@@ -120,9 +135,12 @@ export type ExtractRequiredColumnNames<
   : never;
 
 export type ExtractReferenceColumnNames<
-  table extends Table | unknown,
+  tableAndConstraints extends readonly [Table, Constraints] | unknown,
   referenceTable extends string = string,
   ///
+  table = tableAndConstraints extends readonly [Table, Constraints]
+    ? tableAndConstraints[0]
+    : Table,
   columnNames = keyof table & string,
 > = columnNames extends columnNames
   ? table[columnNames & keyof table] extends ReferenceColumn<

@@ -350,7 +350,7 @@ export async function waitForHealthy(port: number) {
       reject(new Error("Timed out while waiting for app to become healthy."));
     }, 5_000);
     const interval = setInterval(async () => {
-      const response = await fetch(`http://localhost:${port}/health`);
+      const response = await fetch(`http://0.0.0.0:${port}/health`);
       if (response.status === 200) {
         clearTimeout(timeout);
         clearInterval(interval);
@@ -361,7 +361,7 @@ export async function waitForHealthy(port: number) {
 }
 
 export async function postGraphql(port: number, query: string) {
-  const response = await fetch(`http://localhost:${port}/graphql`, {
+  const response = await fetch(`http://0.0.0.0:${port}/graphql`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query: `query { ${query} }` }),
@@ -370,6 +370,6 @@ export async function postGraphql(port: number, query: string) {
 }
 
 export async function getMetrics(port: number) {
-  const response = await fetch(`http://localhost:${port}/metrics`);
+  const response = await fetch(`http://0.0.0.0:${port}/metrics`);
   return await response.text();
 }

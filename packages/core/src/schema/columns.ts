@@ -1,6 +1,7 @@
 import type { Prettify } from "@/types/utils.js";
 import type {
   EnumColumn,
+  Index,
   ReferenceColumn,
   Scalar,
   ScalarColumn,
@@ -294,5 +295,14 @@ export const _enum = <_enum extends string>(
     ...column,
     optional: enumOptional(column),
     list: enumList(column),
+  };
+};
+
+export const index = <const column extends string | readonly string[]>(
+  c: column,
+): Index<column> => {
+  return {
+    " type": "index",
+    " column": c,
   };
 };

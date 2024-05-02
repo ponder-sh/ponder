@@ -2,6 +2,7 @@ import type { Prettify } from "@/types/utils.js";
 import type { Hex } from "viem";
 import type {
   Column,
+  Constraints,
   Enum,
   EnumColumn,
   ExtractOptionalColumnNames,
@@ -11,6 +12,7 @@ import type {
   Scalar,
   ScalarColumn,
   Schema,
+  Table,
 } from "./common.js";
 
 export type InferScalarType<scalar extends Scalar> = scalar extends "string"
@@ -40,19 +42,24 @@ export type InferColumnType<
       ? (schema[column[" enum"] & keyof schema] & Enum)[number]
       : never;
 
-export type InferTableType<table, schema> = Prettify<
-  {
-    [columnName in ExtractRequiredColumnNames<table>]: InferColumnType<
-      table[columnName],
-      schema
-    >;
-  } & {
-    [columnName in ExtractOptionalColumnNames<table>]?: InferColumnType<
-      table[columnName],
-      schema
-    >;
-  }
->;
+export type InferTableType<table, schema> = table extends readonly [
+  Table,
+  Constraints,
+]
+  ? Prettify<
+      {
+        [columnName in ExtractRequiredColumnNames<table>]: InferColumnType<
+          table[0][columnName],
+          schema
+        >;
+      } & {
+        [columnName in ExtractOptionalColumnNames<table>]?: InferColumnType<
+          table[0][columnName],
+          schema
+        >;
+      }
+    >
+  : never;
 
 export type InferSchemaType<schema extends Schema | unknown> = {
   [tableName in ExtractTableNames<schema>]: InferTableType<

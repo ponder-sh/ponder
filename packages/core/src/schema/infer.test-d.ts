@@ -82,14 +82,17 @@ test("infer enum", () => {
 test("infer table", () => {
   type inferred = InferTableType<
     // ^?
-    {
-      id: ScalarColumn<"string", false, false>;
-      col: ScalarColumn<"string", true, false>;
-      ref: ReferenceColumn<"string", false, "table.id">;
-      one: OneColumn<"ref">;
-      many: ManyColumn<"table", "col">;
-      enum: EnumColumn<"enum", false, false>;
-    },
+    readonly [
+      {
+        id: ScalarColumn<"string", false, false>;
+        col: ScalarColumn<"string", true, false>;
+        ref: ReferenceColumn<"string", false, "table.id">;
+        one: OneColumn<"ref">;
+        many: ManyColumn<"table", "col">;
+        enum: EnumColumn<"enum", false, false>;
+      },
+      {},
+    ],
     { enum: ["one", "two"] }
   >;
 

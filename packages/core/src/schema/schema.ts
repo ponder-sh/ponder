@@ -8,6 +8,7 @@ import {
   boolean,
   float,
   hex,
+  index,
   int,
   many,
   one,
@@ -15,17 +16,19 @@ import {
 } from "./columns.js";
 import type {
   Column,
-  Enum,
+  Constraints,
   EnumColumn,
   ExtractEnumNames,
   ExtractReferenceColumnNames,
   ExtractTableNames,
   IdColumn,
+  Index,
   ManyColumn,
   OneColumn,
   ReferenceColumn,
   ScalarColumn,
   Schema,
+  Table,
 } from "./common.js";
 
 type GetTable<
@@ -79,8 +82,21 @@ type GetTable<
         [columnName: string]: Column;
       };
 
-export const createTable = <const table>(t: GetTable<table>): table =>
-  t as table;
+type GetConstraints<
+  constraints,
+  table,
+  ///
+  columnName extends string = keyof table & string,
+> = {} extends constraints
+  ? {}
+  : {
+      [name in keyof constraints]: Index<columnName | readonly columnName[]>;
+    };
+
+export const createTable = <const table, const constraints>(
+  t: GetTable<table>,
+  c?: GetConstraints<constraints, table>,
+): readonly [table, constraints] => [t as table, c as constraints];
 
 export const createEnum = <const _enum extends readonly string[]>(e: _enum) =>
   e;
@@ -97,10 +113,14 @@ const P = {
   one,
   many,
   enum: _enum,
+  index,
 };
 
 type P = {
-  createTable: <const table>(t: GetTable<table>) => table;
+  createTable: <const table, const constraints>(
+    t: GetTable<table>,
+    c?: GetConstraints<constraints, table>,
+  ) => readonly [table, constraints];
   createEnum: <const _enum extends readonly string[]>(e: _enum) => _enum;
   string: () => BuilderScalarColumn<"string", false, false>;
   bigint: () => BuilderScalarColumn<"bigint", false, false>;
@@ -117,19 +137,28 @@ type P = {
   enum: <_enum extends string>(
     __enum: _enum,
   ) => BuilderEnumColumn<_enum, false, false>;
+  index: <const column extends string | readonly string[]>(
+    c: column,
+  ) => Index<column>;
 };
 
 type CreateSchemaParameters<schema> = {} extends schema
   ? {}
   : {
-      [tableName in keyof schema]: schema[tableName] extends Enum
-        ? readonly string[]
-        : GetTable<schema[tableName], tableName & string, schema>;
+      [tableName in keyof schema]: schema[tableName] extends readonly [
+        infer table extends Table,
+        infer constraints extends Constraints,
+      ]
+        ? readonly [
+            GetTable<table, tableName & string, schema>,
+            GetConstraints<constraints, table>,
+          ]
+        : readonly string[];
     };
 
 export const createSchema = <const schema>(
   _schema: (p: P) => CreateSchemaParameters<schema>,
 ): unknown extends schema ? Schema : schema => {
   // @ts-ignore
-  return _schema(P);
+  return _schema(P) as schema;
 };

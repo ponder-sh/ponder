@@ -1,5 +1,5 @@
 import { assertType, test } from "vitest";
-import { _enum, many, one, string } from "./columns.js";
+import { _enum, index, many, one, string } from "./columns.js";
 
 test("base", () => {
   const c = string();
@@ -197,6 +197,18 @@ test("enum list + optional", () => {
       " enum": "enum";
       " optional": true;
       " list": true;
+    },
+  );
+});
+
+test("index", () => {
+  const i = index(["column"]);
+  //    ^?
+
+  assertType<typeof i>(
+    {} as unknown as {
+      " type": "index";
+      " column": readonly ["column"];
     },
   );
 });

@@ -21,7 +21,7 @@ const schema = createSchema((p) => ({
 test("buildOrderByConditions defaults to id ascending", () => {
   const conditions = buildOrderByConditions({
     orderBy: undefined,
-    table: schema.Pet,
+    table: schema.Pet[0],
   });
 
   expect(conditions).toEqual([["id", "asc"]]);
@@ -30,7 +30,7 @@ test("buildOrderByConditions defaults to id ascending", () => {
 test("buildOrderByConditions adds secondary sort for non-id columns using the same direction", () => {
   const conditionsAsc = buildOrderByConditions({
     orderBy: { names: "asc" },
-    table: schema.Pet,
+    table: schema.Pet[0],
   });
 
   expect(conditionsAsc).toEqual([
@@ -40,7 +40,7 @@ test("buildOrderByConditions adds secondary sort for non-id columns using the sa
 
   const conditionsDesc = buildOrderByConditions({
     orderBy: { names: "desc" },
-    table: schema.Pet,
+    table: schema.Pet[0],
   });
 
   expect(conditionsDesc).toEqual([
@@ -53,7 +53,7 @@ test("buildOrderByConditions throws for sorting on multiple columns", () => {
   expect(() =>
     buildOrderByConditions({
       orderBy: { names: "desc", age: "asc" },
-      table: schema.Pet,
+      table: schema.Pet[0],
     }),
   ).toThrow("Cannot sort by multiple columns.");
 });
@@ -62,7 +62,7 @@ test("buildOrderByConditions throws for unknown column", () => {
   expect(() =>
     buildOrderByConditions({
       orderBy: { someFakeColumn: "asc" },
-      table: schema.Pet,
+      table: schema.Pet[0],
     }),
   ).toThrow(
     "Invalid sort. Column does not exist. Got 'someFakeColumn', expected one of ['id', 'names', 'age', 'bigAge', 'kind', 'personId']",
@@ -73,7 +73,7 @@ test("buildOrderByConditions throws for virtual column", () => {
   expect(() =>
     buildOrderByConditions({
       orderBy: { person: "desc" },
-      table: schema.Pet,
+      table: schema.Pet[0],
     }),
   ).toThrow("Invalid sort. Cannot filter on virtual column 'person'");
 });
@@ -83,7 +83,7 @@ test("buildOrderByConditions throws for invalid order direction", () => {
     buildOrderByConditions({
       // @ts-ignore
       orderBy: { personId: "aaaaasc" },
-      table: schema.Pet,
+      table: schema.Pet[0],
     }),
   ).toThrow("Invalid sort direction. Got 'aaaaasc', expected 'asc' or 'desc'");
 });
@@ -91,7 +91,7 @@ test("buildOrderByConditions throws for invalid order direction", () => {
 test("reverseOrderByConditions reverses with one condition", () => {
   const conditions = buildOrderByConditions({
     orderBy: undefined,
-    table: schema.Pet,
+    table: schema.Pet[0],
   });
 
   expect(conditions).toEqual([["id", "asc"]]);
@@ -103,7 +103,7 @@ test("reverseOrderByConditions reverses with one condition", () => {
 test("reverseOrderByConditions reverses with two conditions", () => {
   const conditions = buildOrderByConditions({
     orderBy: { names: "desc" },
-    table: schema.Pet,
+    table: schema.Pet[0],
   });
 
   expect(conditions).toEqual([

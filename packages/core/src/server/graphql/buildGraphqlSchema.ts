@@ -37,7 +37,7 @@ export const buildGraphqlSchema = (schema: Schema): GraphQLSchema => {
     entityFilterTypes,
   });
 
-  for (const [tableName, table] of Object.entries(schemaToTables(schema))) {
+  for (const [tableName, [table]] of Object.entries(schemaToTables(schema))) {
     const entityType = entityTypes[tableName];
     const entityPageType = entityPageTypes[tableName];
     const entityFilterType = entityFilterTypes[tableName];

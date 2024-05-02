@@ -28,7 +28,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
   });
 
   // Validate tables
-  Object.entries(schemaToTables(schema)).forEach(([tableName, table]) => {
+  Object.entries(schemaToTables(schema)).forEach(([tableName, [table]]) => {
     validateTableOrColumnName(tableName, "Table");
 
     // Validate the id column
@@ -130,7 +130,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
           );
         }
 
-        const usedTableColumns = Object.entries(usedTable[1]);
+        const usedTableColumns = Object.entries(usedTable[1][0]);
         const usedColumn = usedTableColumns.find(
           ([columnName]) => columnName === column[" referenceColumn"],
         );
@@ -191,9 +191,9 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
           );
         }
 
-        if (referencedTable[1].id[" scalar"] !== column[" scalar"]) {
+        if (referencedTable[1][0].id[" scalar"] !== column[" scalar"]) {
           throw new Error(
-            `Validation failed: Foreign key column '${tableName}.${columnName}' type does not match the referenced table's ID column type. Got '${column[" scalar"]}', expected '${referencedTable[1].id[" scalar"]}'.`,
+            `Validation failed: Foreign key column '${tableName}.${columnName}' type does not match the referenced table's ID column type. Got '${column[" scalar"]}', expected '${referencedTable[1][0].id[" scalar"]}'.`,
           );
         }
 
