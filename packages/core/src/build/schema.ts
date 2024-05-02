@@ -2,8 +2,10 @@ import type { Schema } from "@/schema/common.js";
 import {
   extractReferenceTable,
   isEnumColumn,
+  isListColumn,
   isManyColumn,
   isOneColumn,
+  isOptionalColumn,
   isReferenceColumn,
   schemaToEnums,
   schemaToTables,
@@ -62,13 +64,11 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
         `Validation failed: Invalid type for ID column '${tableName}.id'. Got '${table.id[" scalar"]}', expected one of ['string', 'hex', 'bigint', 'int'].`,
       );
 
-    // @ts-expect-error
-    if (table.id.optional === true)
+    if (isOptionalColumn(table.id))
       throw new Error(
         `Validation failed: Invalid type for ID column '${tableName}.id'. ID columns cannot be optional.`,
       );
-    // @ts-expect-error
-    if (table.id.list === true)
+    if (isListColumn(table.id))
       throw new Error(
         `Validation failed: Invalid type for ID column '${tableName}.id'. ID columns cannot be a list.`,
       );

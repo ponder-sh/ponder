@@ -87,6 +87,7 @@ export const createEnum = <const _enum extends readonly string[]>(e: _enum) =>
 
 const P = {
   createTable,
+  createEnum,
   string,
   bigint,
   int,
