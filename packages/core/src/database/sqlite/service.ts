@@ -523,7 +523,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
           this.common.logger.info({
             service: "database",
-            msg: `Created index '${tableName}_${name}' on table '${tableName}' in '${this.userNamespace}.db'`,
+            msg: `Created index '${tableName}_${name}' on columns (${
+              Array.isArray(index[" column"])
+                ? index[" column"].join(", ")
+                : index[" column"]
+            }) in '${this.userNamespace}.db'`,
           });
         });
       }),

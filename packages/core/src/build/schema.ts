@@ -13,6 +13,8 @@ import {
 import { dedupe } from "@ponder/common";
 
 export const buildSchema = ({ schema }: { schema: Schema }) => {
+  const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
+
   // Validate enums
   Object.entries(getEnums(schema)).forEach(([name, _enum]) => {
     validateTableOrColumnName(name, "Enum");
@@ -263,15 +265,26 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
               );
           }
         } else {
-          // TODO(kyle) should this be an error
-          // if (column === "id") {
-          // }
+          if (column === "id") {
+            logs.push({
+              level: "warn",
+              msg: `Ignoring index '${name}'. Column 'id' has a primary key constraint by default.`,
+            });
+            delete constraints[name];
+            continue;
+          }
 
           if (table[column] === undefined)
             throw new Error(
-              `Validation failed: Index '${name}' does not reference a valid column. Got '${column}', expected one of [${Object.keys(
+              `Validation failed: Index '${name}' does not reference a valid column. Got '${column}', expected one of [${Object.entries(
                 table,
-              ).join(", ")}].`,
+              )
+                .filter(
+                  ([_, column]) =>
+                    !isOneColumn(column) && !isManyColumn(column),
+                )
+                .map(([columnName]) => columnName)
+                .join(", ")}].`,
             );
 
           if (isOneColumn(table[column]))
@@ -288,7 +301,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
     },
   );
 
-  return { schema };
+  return { schema, logs };
 };
 
 const validateTableOrColumnName = (key: string, type: string) => {
@@ -306,7 +319,11 @@ const validateTableOrColumnName = (key: string, type: string) => {
 export function safeBuildSchema({ schema }: { schema: Schema }) {
   try {
     const result = buildSchema({ schema });
-    return { status: "success", schema: result.schema } as const;
+    return {
+      status: "success",
+      schema: result.schema,
+      logs: result.logs,
+    } as const;
   } catch (error_) {
     const error = error_ as Error;
     return { status: "error", error } as const;
