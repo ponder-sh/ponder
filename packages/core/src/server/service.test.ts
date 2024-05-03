@@ -6,7 +6,6 @@ import {
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
-import { wait } from "@/utils/wait.js";
 import type { GraphQLSchema } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
 import { buildGraphqlSchema } from "./graphql/buildGraphqlSchema.js";
@@ -39,7 +38,7 @@ test("not healthy", async (context) => {
     graphqlSchema: {} as GraphQLSchema,
     common: {
       ...context.common,
-      options: { ...context.common.options, maxHealthcheckDuration: 5_000 },
+      options: { ...context.common.options, maxHealthcheckDuration: 5 },
     },
     readonlyStore: {} as ReadonlyStore,
   });
@@ -51,17 +50,15 @@ test("not healthy", async (context) => {
   await server.kill();
 });
 
-test.only("healthy", async (context) => {
+test("healthy", async (context) => {
   const server = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: {
       ...context.common,
-      options: { ...context.common.options, maxHealthcheckDuration: 5 },
+      options: { ...context.common.options, maxHealthcheckDuration: 0 },
     },
     readonlyStore: {} as ReadonlyStore,
   });
-
-  await wait(10);
 
   const response = await server.hono.request("/health");
 
