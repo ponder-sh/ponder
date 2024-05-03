@@ -309,6 +309,21 @@ type P = {
   enum: <_enum extends string>(
     __enum: _enum,
   ) => BuilderEnumColumn<_enum, false, false>;
+  /**
+   * Create a table index.
+   *
+   * - Docs: TODO(kyle)
+   *
+   * @example
+   * export default createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     age: p.int(),
+   *   }, {
+   *     ageIndex: p.index("age"),
+   *   })
+   * })
+   */
   index: <const column extends string | readonly string[]>(
     c: column,
   ) => Index<column>;
