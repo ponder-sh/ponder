@@ -270,6 +270,8 @@ export async function run({
     }
     await handleFinalize(syncService.finalizedCheckpoint);
 
+    await database.addIndexes({ schema });
+
     server.setHealthy();
     common.logger.info({
       service: "server",

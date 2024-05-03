@@ -597,6 +597,25 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     });
   }
 
+  async addIndexes({ schema }: { schema: Schema }) {
+    for (const [tableName, table] of Object.entries(schemaToTables(schema))) {
+      if (table[1] === undefined) continue;
+
+      for (const [name, index] of Object.entries(table[1])) {
+        await this.db.schema
+          .withSchema(this.userNamespace)
+          .createIndex(`${tableName}_${name}`)
+          .on(tableName)
+          .$call((builder) =>
+            Array.isArray(index[" column"])
+              ? builder.columns(index[" column"] as string[])
+              : builder.column(index[" column"]),
+          )
+          .execute();
+      }
+    }
+  }
+
   async kill() {
     await this.db.wrap({ method: "kill" }, async () => {
       clearInterval(this.heartbeatInterval);
