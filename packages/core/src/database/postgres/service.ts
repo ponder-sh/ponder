@@ -598,22 +598,32 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   }
 
   async addIndexes({ schema }: { schema: Schema }) {
-    for (const [tableName, table] of Object.entries(schemaToTables(schema))) {
-      if (table[1] === undefined) continue;
+    await Promise.all(
+      Object.entries(schemaToTables(schema)).flatMap(([tableName, table]) => {
+        if (table[1] === undefined) return [];
 
-      for (const [name, index] of Object.entries(table[1])) {
-        await this.db.schema
-          .withSchema(this.userNamespace)
-          .createIndex(`${tableName}_${name}`)
-          .on(tableName)
-          .$call((builder) =>
-            Array.isArray(index[" column"])
-              ? builder.columns(index[" column"] as string[])
-              : builder.column(index[" column"]),
-          )
-          .execute();
-      }
-    }
+        return Object.entries(table[1]).map(async ([name, index]) => {
+          await this.db.wrap({ method: "addIndexes" }, async () => {
+            const indexName = `${tableName}_${name}`;
+
+            await this.db.schema
+              .createIndex(indexName)
+              .on(tableName)
+              .$call((builder) =>
+                Array.isArray(index[" column"])
+                  ? builder.columns(index[" column"] as string[])
+                  : builder.column(index[" column"]),
+              )
+              .execute();
+          });
+
+          this.common.logger.info({
+            service: "database",
+            msg: `Created index '${name}' on table '${tableName}' in schema '${this.userNamespace}'`,
+          });
+        });
+      }),
+    );
   }
 
   async kill() {

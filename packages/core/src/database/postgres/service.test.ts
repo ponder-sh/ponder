@@ -19,17 +19,27 @@ beforeEach(setupIsolatedDatabase);
 
 const schema = createSchema((p) => ({
   PetKind: p.createEnum(["CAT", "DOG"]),
-  Pet: p.createTable({
-    id: p.string(),
-    name: p.string(),
-    age: p.int().optional(),
-    bigAge: p.bigint().optional(),
-    kind: p.enum("PetKind").optional(),
-  }),
-  Person: p.createTable({
-    id: p.string(),
-    name: p.string(),
-  }),
+  Pet: p.createTable(
+    {
+      id: p.string(),
+      name: p.string(),
+      age: p.int().optional(),
+      bigAge: p.bigint().optional(),
+      kind: p.enum("PetKind").optional(),
+    },
+    {
+      multiIndex: p.index(["id", "age"]),
+    },
+  ),
+  Person: p.createTable(
+    {
+      id: p.string(),
+      name: p.string(),
+    },
+    {
+      nameIndex: p.index("name"),
+    },
+  ),
 }));
 
 const schemaTwo = createSchema((p) => ({
@@ -694,6 +704,48 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.kill();
   });
+
+  test("addIndexes adds a single column index", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    await database.addIndexes({ schema });
+
+    const indexes = await getTableIndexes(database.db, "Person", "public");
+
+    expect(indexes).toHaveLength(2);
+
+    expect(indexes[1]).toBe("Person_nameIndex");
+
+    await database.kill();
+  });
+
+  test("addIndexes adds a multi column index", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    await database.addIndexes({ schema });
+
+    const indexes = await getTableIndexes(database.db, "Pet", "public");
+
+    expect(indexes).toHaveLength(2);
+
+    expect(indexes[1]).toBe("Pet_multiIndex");
+
+    await database.kill();
+  });
 });
 
 async function getTableNames(db: HeadlessKysely<any>, schemaName: string) {
@@ -722,4 +774,22 @@ async function getViewNames(db: HeadlessKysely<any>, schemaName: string) {
     `.compile(db),
   );
   return rows.map((r) => r.table_name);
+}
+
+async function getTableIndexes(
+  db: HeadlessKysely<any>,
+  tableName: string,
+  schemaName: string,
+) {
+  const { rows } = await db.executeQuery<{
+    indexname: string;
+  }>(
+    sql`
+      SELECT *
+      FROM pg_indexes
+      WHERE schemaname = '${sql.raw(schemaName)}'
+      AND tablename = '${sql.raw(tableName)}'
+    `.compile(db),
+  );
+  return rows.map((row) => row.indexname);
 }

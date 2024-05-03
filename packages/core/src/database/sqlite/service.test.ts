@@ -19,17 +19,27 @@ beforeEach(setupIsolatedDatabase);
 
 const schema = createSchema((p) => ({
   PetKind: p.createEnum(["CAT", "DOG"]),
-  Pet: p.createTable({
-    id: p.string(),
-    name: p.string(),
-    age: p.int().optional(),
-    bigAge: p.bigint().optional(),
-    kind: p.enum("PetKind").optional(),
-  }),
-  Person: p.createTable({
-    id: p.string(),
-    name: p.string(),
-  }),
+  Pet: p.createTable(
+    {
+      id: p.string(),
+      name: p.string(),
+      age: p.int().optional(),
+      bigAge: p.bigint().optional(),
+      kind: p.enum("PetKind").optional(),
+    },
+    {
+      multiIndex: p.index(["name", "age"]),
+    },
+  ),
+  Person: p.createTable(
+    {
+      id: p.string(),
+      name: p.string(),
+    },
+    {
+      nameIndex: p.index("name"),
+    },
+  ),
 }));
 
 const schemaTwo = createSchema((p) => ({
@@ -527,6 +537,46 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.kill();
     await databaseTwo.kill();
   });
+
+  test("addIndexes adds a single column index", async (context) => {
+    if (context.databaseConfig.kind !== "sqlite") return;
+    const database = new SqliteDatabaseService({
+      common: context.common,
+      directory: context.databaseConfig.directory,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    await database.addIndexes({ schema });
+
+    const indexes = await getIndexNames(database.db, "Person", "public");
+
+    expect(indexes).toHaveLength(2);
+
+    expect(indexes[1]).toBe("Person_nameIndex");
+
+    await database.kill();
+  });
+
+  test("addIndexes adds a multi column index", async (context) => {
+    if (context.databaseConfig.kind !== "sqlite") return;
+    const database = new SqliteDatabaseService({
+      common: context.common,
+      directory: context.databaseConfig.directory,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    await database.addIndexes({ schema });
+
+    const indexes = await getIndexNames(database.db, "Pet", "public");
+
+    expect(indexes).toHaveLength(2);
+
+    expect(indexes[1]).toBe("Pet_multiIndex");
+
+    await database.kill();
+  });
 });
 
 async function getTableNames(db: HeadlessKysely<any>, schemaName?: string) {
@@ -534,6 +584,21 @@ async function getTableNames(db: HeadlessKysely<any>, schemaName?: string) {
     sql`SELECT name FROM ${sql.raw(
       schemaName ? `${schemaName}.` : "",
     )}sqlite_master WHERE type='table'`.compile(db),
+  );
+  return rows.map((r) => r.name);
+}
+
+async function getIndexNames(
+  db: HeadlessKysely<any>,
+  tableName: string,
+  schemaName?: string,
+) {
+  const { rows } = await db.executeQuery<{ name: string; tbl_name: string }>(
+    sql`SELECT name, tbl_name FROM ${sql.raw(
+      schemaName ? `${schemaName}.` : "",
+    )}sqlite_master WHERE type='index' AND tbl_name='${sql.raw(
+      tableName,
+    )}'`.compile(db),
   );
   return rows.map((r) => r.name);
 }

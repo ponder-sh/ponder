@@ -327,3 +327,85 @@ test("safeBuildSchema() returns error for foreign key column type mismatch", () 
     "type does not match the referenced table's ID column type",
   );
 });
+
+test("safeBuildSchema() returns error for empty index", () => {
+  const schema = createSchema((p) => ({
+    myTable: p.createTable(
+      {
+        id: p.string(),
+        col: p.int(),
+      },
+      {
+        colIndex: p.index([]),
+      },
+    ),
+  }));
+
+  const result = safeBuildSchema({ schema });
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toContain("Index 'colIndex' cannot be empty.");
+});
+
+test("safeBuildSchema() returns error for duplicate index", () => {
+  const schema = createSchema((p) => ({
+    myTable: p.createTable(
+      {
+        id: p.string(),
+        col: p.int(),
+      },
+      {
+        colIndex: p.index(["col", "col"]),
+      },
+    ),
+  }));
+
+  const result = safeBuildSchema({ schema });
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toContain(
+    "Index 'colIndex' cannot contain duplicate columns.",
+  );
+});
+
+test("safeBuildSchema() returns error for invalid multi-column index", () => {
+  const schema = createSchema((p) => ({
+    // @ts-expect-error
+    myTable: p.createTable(
+      {
+        id: p.string(),
+        col: p.int(),
+      },
+      {
+        // @ts-expect-error
+        colIndex: p.index(["coll"]),
+      },
+    ),
+  }));
+
+  const result = safeBuildSchema({ schema });
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toContain(
+    "Index 'colIndex' does not reference a valid column.",
+  );
+});
+
+test("safeBuildSchema() returns error for invalid index", () => {
+  const schema = createSchema((p) => ({
+    // @ts-expect-error
+    myTable: p.createTable(
+      {
+        id: p.string(),
+        col: p.int(),
+      },
+      {
+        // @ts-expect-error
+        colIndex: p.index("col1"),
+      },
+    ),
+  }));
+
+  const result = safeBuildSchema({ schema });
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toContain(
+    "Index 'colIndex' does not reference a valid column.",
+  );
+});
