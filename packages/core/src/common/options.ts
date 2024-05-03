@@ -17,6 +17,9 @@ export type Options = {
   hostname?: string;
   maxHealthcheckDuration: number;
 
+  graphqlMaxOperationDepth: number;
+  graphqlMaxOperationAliases: number;
+
   telemetryUrl: string;
   telemetryDisabled: boolean;
   telemetryConfigDir: string | undefined;
@@ -60,14 +63,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
   const hostname = cliOptions.hostname;
 
-  let maxHealthcheckDuration: number;
-  if (process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC) {
-    const railwayTimeout = Number(process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC);
-    maxHealthcheckDuration = Math.max(railwayTimeout - 5, 0);
-  } else {
-    maxHealthcheckDuration = 240;
-  }
-
   return {
     command: cliOptions.command,
 
@@ -81,7 +76,12 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     port,
     hostname,
-    maxHealthcheckDuration,
+    maxHealthcheckDuration: 240, // 4 minutes
+
+    // Default limits are from Apollo:
+    // https://www.apollographql.com/blog/prevent-graph-misuse-with-operation-size-and-complexity-limits
+    graphqlMaxOperationDepth: 100,
+    graphqlMaxOperationAliases: 30,
 
     telemetryUrl: "https://ponder.sh/api/telemetry",
     telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),

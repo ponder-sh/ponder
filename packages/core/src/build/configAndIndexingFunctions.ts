@@ -34,7 +34,7 @@ export type IndexingFunctions = {
 export async function buildConfigAndIndexingFunctions({
   config,
   rawIndexingFunctions,
-  options,
+  options: { rootDir, ponderDir },
 }: {
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
@@ -45,8 +45,8 @@ export async function buildConfigAndIndexingFunctions({
   // Build database.
   let databaseConfig: DatabaseConfig;
 
-  const sqliteDir = path.join(options.ponderDir, "sqlite");
-  const sqlitePrintPath = path.relative(options.rootDir, sqliteDir);
+  const sqliteDir = path.join(ponderDir, "sqlite");
+  const sqlitePrintPath = path.relative(rootDir, sqliteDir);
 
   if (config.database?.kind) {
     if (config.database.kind === "postgres") {
@@ -720,8 +720,19 @@ export async function buildConfigAndIndexingFunctions({
     return hasSources;
   });
 
+  const optionsConfig: Partial<Options> = {};
+  if (config.options?.maxHealthcheckDuration !== undefined) {
+    optionsConfig.maxHealthcheckDuration =
+      config.options.maxHealthcheckDuration;
+    logs.push({
+      level: "info",
+      msg: `Set max healthcheck duration to ${optionsConfig.maxHealthcheckDuration} seconds (from ponder.config.ts)`,
+    });
+  }
+
   return {
     databaseConfig,
+    optionsConfig,
     networks: networksWithSources,
     sources,
     indexingFunctions,
@@ -751,6 +762,7 @@ export async function safeBuildConfigAndIndexingFunctions({
       networks: result.networks,
       indexingFunctions: result.indexingFunctions,
       databaseConfig: result.databaseConfig,
+      optionsConfig: result.optionsConfig,
       logs: result.logs,
     } as const;
   } catch (error_) {

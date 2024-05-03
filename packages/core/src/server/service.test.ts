@@ -27,7 +27,10 @@ test("port", async (context) => {
     readonlyStore: {} as ReadonlyStore,
   });
 
-  expect(server1.port + 1).toBe(server2.port);
+  expect(server2.port).toBe(server1.port + 1);
+
+  await server1.kill();
+  await server2.kill();
 });
 
 test("not healthy", async (context) => {
@@ -35,7 +38,7 @@ test("not healthy", async (context) => {
     graphqlSchema: {} as GraphQLSchema,
     common: {
       ...context.common,
-      options: { ...context.common.options, maxHealthcheckDuration: 5_000 },
+      options: { ...context.common.options, maxHealthcheckDuration: 5 },
     },
     readonlyStore: {} as ReadonlyStore,
   });
@@ -43,6 +46,8 @@ test("not healthy", async (context) => {
   const response = await server.hono.request("/health");
 
   expect(response.status).toBe(503);
+
+  await server.kill();
 });
 
 test("healthy", async (context) => {
@@ -58,6 +63,8 @@ test("healthy", async (context) => {
   const response = await server.hono.request("/health");
 
   expect(response.status).toBe(200);
+
+  await server.kill();
 });
 
 test("healthy PUT", async (context) => {
@@ -73,6 +80,8 @@ test("healthy PUT", async (context) => {
   const response = await server.hono.request("/health", { method: "PUT" });
 
   expect(response.status).toBe(404);
+
+  await server.kill();
 });
 
 test("metrics", async (context) => {
@@ -85,6 +94,8 @@ test("metrics", async (context) => {
   const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(200);
+
+  await server.kill();
 });
 
 test("metrics error", async (context) => {
@@ -100,6 +111,8 @@ test("metrics error", async (context) => {
   const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(500);
+
+  await server.kill();
 });
 
 test("metrics PUT", async (context) => {
@@ -112,6 +125,8 @@ test("metrics PUT", async (context) => {
   const response = await server.hono.request("/metrics", { method: "PUT" });
 
   expect(response.status).toBe(404);
+
+  await server.kill();
 });
 
 test("graphql", async (context) => {
@@ -194,6 +209,8 @@ test("graphql", async (context) => {
   });
 
   await cleanup();
+
+  await server.kill();
 });
 
 test("graphql extra filter", async (context) => {
@@ -224,29 +241,153 @@ test("graphql extra filter", async (context) => {
 
   const response = await server.hono.request("/graphql", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       query: `
-      query {
-        table(id: "0", doesntExist: "kevin") {
-          id
-          string
-          int
-          float
-          boolean
-          hex
-          bigint
+        {
+          table(id: "0", doesntExist: "kevin") {
+            id
+            string
+            int
+            float
+            boolean
+            hex
+            bigint
+          }
         }
-      }
-    `,
+      `,
     }),
   });
 
   expect(response.status).toBe(400);
 
   await cleanup();
+
+  await server.kill();
+});
+
+test("graphql depth limit error", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({ id: p.string() }),
+  }));
+
+  const { readonlyStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const server = await createServer({
+    graphqlSchema: graphqlSchema,
+    common: {
+      ...context.common,
+      options: { ...context.common.options, graphqlMaxOperationDepth: 5 },
+    },
+    readonlyStore: readonlyStore,
+  });
+  server.setHealthy();
+
+  const response = await server.hono.request("/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: `
+        {
+          __schema {
+            types {
+              fields {
+                type {
+                  fields {
+                    type {
+                      description
+                    }              
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+    }),
+  });
+
+  expect(response.status).toBe(400);
+  const body = (await response.json()) as any;
+
+  expect(body.errors).toMatchObject([
+    { message: "Syntax Error: Query depth limit of 5 exceeded, found 7." },
+  ]);
+
+  await cleanup();
+
+  await server.kill();
+});
+
+test("graphql max aliases error", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({ id: p.string() }),
+  }));
+
+  const { readonlyStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const server = await createServer({
+    graphqlSchema: graphqlSchema,
+    common: {
+      ...context.common,
+      options: { ...context.common.options, graphqlMaxOperationAliases: 2 },
+    },
+    readonlyStore: readonlyStore,
+  });
+  server.setHealthy();
+
+  const response = await server.hono.request("/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: `
+        {
+          __schema {
+            types {
+              fields {
+                type {
+                  alias1: fields {
+                    type {
+                      description
+                    }
+                  }
+                  alias2: fields {
+                    type {
+                      description
+                    }
+                  }
+                  alias3: fields {
+                    type {
+                      description
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+    }),
+  });
+
+  expect(response.status).toBe(400);
+  const body = (await response.json()) as any;
+
+  expect(body.errors).toMatchObject([
+    { message: "Syntax Error: Aliases limit of 2 exceeded, found 3." },
+  ]);
+
+  await cleanup();
+
+  await server.kill();
 });
 
 test("graphql interactive", async (context) => {
@@ -260,6 +401,8 @@ test("graphql interactive", async (context) => {
   const response = await server.hono.request("/graphql");
 
   expect(response.status).toBe(200);
+
+  await server.kill();
 });
 
 test("missing route", async (context) => {
@@ -272,6 +415,8 @@ test("missing route", async (context) => {
   const response = await server.hono.request("/kevin");
 
   expect(response.status).toBe(404);
+
+  await server.kill();
 });
 
 // Note that this test doesn't work because the `hono.request` method doesn't actually

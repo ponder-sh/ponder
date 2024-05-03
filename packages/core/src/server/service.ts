@@ -14,6 +14,10 @@ import {
   type GetLoader,
   buildLoaderCache,
 } from "./graphql/buildLoaderCache.js";
+import {
+  createMaxAliasesRule,
+  createMaxDepthRule,
+} from "./graphql/validate.js";
 
 type Server = {
   hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;
@@ -75,6 +79,20 @@ export async function createServer({
     }
   });
 
+  const graphqlHandler = graphqlServer({
+    schema: graphqlSchema,
+    validationRules: [
+      createMaxDepthRule({
+        n: common.options.graphqlMaxOperationDepth,
+        ignoreIntrospection: false,
+      }),
+      createMaxAliasesRule({
+        n: common.options.graphqlMaxOperationAliases,
+        allowList: [],
+      }),
+    ],
+  });
+
   hono
     .use(cors())
     .use(metricsMiddleware)
@@ -88,65 +106,47 @@ export async function createServer({
     })
     .get("/health", async (c) => {
       if (isHealthy) {
-        c.status(200);
-        return c.text("");
+        return c.text("", 200);
       }
 
-      const max = common.options.maxHealthcheckDuration;
       const elapsed = (Date.now() - startTime) / 1000;
+      const max = common.options.maxHealthcheckDuration;
 
       if (elapsed > max) {
         common.logger.warn({
           service: "server",
-          msg: `Historical sync duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
+          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
         });
 
-        c.status(200);
-        return c.text("");
+        return c.text("", 200);
       }
 
-      c.status(503);
-      return c.text("Historical indexing is not complete.");
-    })
-    .use("/graphql", async (c, next) => {
-      if (isHealthy === false) {
-        c.status(503);
-        return c.json({
-          data: undefined,
-          errors: [new GraphQLError("Historical indexing in not complete")],
-        });
-      }
-
-      if (c.req.method === "POST") {
-        const getLoader = buildLoaderCache({ store: readonlyStore });
-
-        c.set("store", readonlyStore);
-        c.set("getLoader", getLoader);
-
-        return graphqlServer({
-          schema: graphqlSchema,
-        })(c);
-      }
-      return next();
+      return c.text("Historical indexing is not complete.", 503);
     })
     .get("/graphql", (c) => {
       return c.html(graphiQLHtml);
     })
-    .use("/", async (c, next) => {
-      if (c.req.method === "POST") {
-        const getLoader = buildLoaderCache({ store: readonlyStore });
-
-        c.set("store", readonlyStore);
-        c.set("getLoader", getLoader);
-
-        return graphqlServer({
-          schema: graphqlSchema,
-        })(c);
+    .post("/graphql", (c) => {
+      if (isHealthy === false) {
+        return c.json(
+          { errors: [new GraphQLError("Historical indexing is not complete")] },
+          503,
+        );
       }
-      return next();
+
+      const getLoader = buildLoaderCache({ store: readonlyStore });
+      c.set("store", readonlyStore);
+      c.set("getLoader", getLoader);
+      return graphqlHandler(c);
     })
     .get("/", (c) => {
       return c.html(graphiQLHtml);
+    })
+    .post("/", (c) => {
+      const getLoader = buildLoaderCache({ store: readonlyStore });
+      c.set("store", readonlyStore);
+      c.set("getLoader", getLoader);
+      return graphqlHandler(c);
     });
 
   const createServerWithNextAvailablePort: typeof http.createServer = (
