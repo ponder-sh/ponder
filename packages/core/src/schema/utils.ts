@@ -71,3 +71,10 @@ export const schemaToEnums = (schema: Schema): { [enumName: string]: Enum } => {
 export const extractReferenceTable = (ref: ReferenceColumn): string => {
   return ref[" reference"].split(".")[0];
 };
+
+export const encodeSchema = (schema: Schema) => {
+  return JSON.stringify({
+    tables: schemaToTables(schema),
+    enums: schemaToEnums(schema),
+  });
+};

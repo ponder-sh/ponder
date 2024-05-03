@@ -4,6 +4,7 @@ import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
+  encodeSchema,
   isEnumColumn,
   isListColumn,
   isManyColumn,
@@ -183,7 +184,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             heartbeat_at: Date.now(),
             build_id: this.buildId,
             finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
-            schema: JSON.stringify(schema),
+            schema: encodeSchema(schema),
           } satisfies Insertable<InternalTables["namespace_lock"]>;
 
           // Function to create the operation log tables and user tables.
@@ -373,7 +374,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             msg: `Acquired lock on schema '${this.userNamespace}' previously used by build '${previousBuildId}'`,
           });
 
-          for (const tableName of Object.keys(schemaToTables(previousSchema))) {
+          for (const tableName of Object.keys(previousSchema.tables)) {
             const tableId = hash([
               this.userNamespace,
               previousBuildId,
