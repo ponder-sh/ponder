@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.4.19
+
+### Patch Changes
+
+- [#853](https://github.com/ponder-sh/ponder/pull/853) [`19eef7b5873a4786e03d83ff2205f2e1bf86d2c6`](https://github.com/ponder-sh/ponder/commit/19eef7b5873a4786e03d83ff2205f2e1bf86d2c6) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the `maxHealthcheckDuration` option in `ponder.config.ts` was not being used. Removed support for setting the max healthcheck duration using the `RAILWAY_HEALTHCHECK_TIMEOUT_SEC` environment variable (Railway no longer provides this variable).
+
+- [#853](https://github.com/ponder-sh/ponder/pull/853) [`19eef7b5873a4786e03d83ff2205f2e1bf86d2c6`](https://github.com/ponder-sh/ponder/commit/19eef7b5873a4786e03d83ff2205f2e1bf86d2c6) Thanks [@0xOlias](https://github.com/0xOlias)! - Added GraphQL operation validations for max depth (100) and max number of aliases (30).
+
 ## 0.4.18
 
 ### Patch Changes
