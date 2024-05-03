@@ -525,6 +525,25 @@ query {
 
 </div>
 
+## Custom Indexes
+
+Database indexes can be added to tables by passing a second argument to `p.createTable(){:ts}`. Then, use `p.index(){:ts}` passing the name of the column.
+
+```ts filename="ponder.schema.ts" {8}
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Person: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }, {
+    ageIndex: p.index("age"),
+  }),
+}));
+```
+
+Multi column indexes can be created by passing an array of column names to `p.index(){:ts}`.
+
 ## ERC20 example
 
 Here's a schema for a simple ERC20 app.
