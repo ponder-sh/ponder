@@ -60,14 +60,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
   const hostname = cliOptions.hostname;
 
-  let maxHealthcheckDuration: number;
-  if (process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC) {
-    const railwayTimeout = Number(process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC);
-    maxHealthcheckDuration = Math.max(railwayTimeout - 5, 0);
-  } else {
-    maxHealthcheckDuration = 240;
-  }
-
   return {
     command: cliOptions.command,
 
@@ -81,7 +73,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     port,
     hostname,
-    maxHealthcheckDuration,
+    maxHealthcheckDuration: 240, // 4 minutes
 
     telemetryUrl: "https://ponder.sh/api/telemetry",
     telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),

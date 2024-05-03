@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
-import type { Config } from "@/config/config.js";
+import type { Config, OptionsConfig } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { EventSource } from "@/config/sources.js";
@@ -42,6 +42,7 @@ export type Build = {
   buildId: string;
   // Config
   databaseConfig: DatabaseConfig;
+  optionsConfig: OptionsConfig;
   sources: EventSource[];
   networks: Network[];
   // Schema
@@ -454,6 +455,7 @@ const validateAndBuild = async (
     build: {
       buildId,
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
+      optionsConfig: buildConfigAndIndexingFunctionsResult.optionsConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
       schema: buildSchemaResult.schema,

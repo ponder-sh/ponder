@@ -92,20 +92,13 @@ export async function createServer({
         return c.text("");
       }
 
-      const max = common.options.maxHealthcheckDuration;
       const elapsed = (Date.now() - startTime) / 1000;
-
-      console.log({
-        max,
-        elapsed,
-        startTime,
-        now: Date.now(),
-      });
+      const max = common.options.maxHealthcheckDuration;
 
       if (elapsed > max) {
         common.logger.warn({
           service: "server",
-          msg: `Historical sync duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
+          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
         });
 
         c.status(200);
@@ -120,7 +113,7 @@ export async function createServer({
         c.status(503);
         return c.json({
           data: undefined,
-          errors: [new GraphQLError("Historical indexing in not complete")],
+          errors: [new GraphQLError("Historical indexing is not complete")],
         });
       }
 

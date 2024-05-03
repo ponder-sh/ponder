@@ -35,8 +35,8 @@ type DatabaseConfig =
       };
     };
 
-export type OptionConfig = {
-  /** Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
+export type OptionsConfig = {
+  /** Maximum number of seconds to wait for historical indexing to complete before responding as healthy. If historical indexing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
   maxHealthcheckDuration?: number;
 };
 
@@ -189,7 +189,7 @@ export const createConfig = <
   networks: NetworksConfig<Narrow<networks>>;
   contracts?: ContractsConfig<networks, Narrow<contracts>>;
   database?: DatabaseConfig;
-  options?: OptionConfig;
+  options?: OptionsConfig;
   blocks?: BlockFiltersConfig<networks, blocks>;
 }): CreateConfigReturnType<networks, contracts, blocks> =>
   config as Prettify<CreateConfigReturnType<networks, contracts, blocks>>;
@@ -198,7 +198,7 @@ export type Config = {
   networks: { [networkName: string]: NetworkConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
   database?: DatabaseConfig;
-  options?: OptionConfig;
+  options?: OptionsConfig;
   blocks: {
     [sourceName: string]: GetBlockFilter<unknown>;
   };
@@ -208,6 +208,6 @@ export type CreateConfigReturnType<networks, contracts, blocks> = {
   networks: networks;
   contracts: contracts;
   database?: DatabaseConfig;
-  options?: OptionConfig;
+  options?: OptionsConfig;
   blocks: blocks;
 };
