@@ -122,13 +122,15 @@ export namespace Virtual {
     name extends EventNames<config>,
     ///
     sourceName extends ExtractSourceName<name> = ExtractSourceName<name>,
-    sourceNetwork =
-      | (unknown extends config["contracts"][sourceName]["network"]
-          ? never
-          : config["contracts"][sourceName]["network"])
-      | (unknown extends config["blocks"][sourceName]["network"]
-          ? never
-          : config["blocks"][sourceName]["network"]),
+    sourceNetwork = sourceName extends sourceName
+      ?
+          | (unknown extends config["contracts"][sourceName]["network"]
+              ? never
+              : config["contracts"][sourceName]["network"])
+          | (unknown extends config["blocks"][sourceName]["network"]
+              ? never
+              : config["blocks"][sourceName]["network"])
+      : never,
   > = {
     contracts: {
       [_contractName in keyof config["contracts"]]: {
@@ -147,7 +149,6 @@ export namespace Virtual {
         >;
       };
     };
-    b?: sourceNetwork;
     network: sourceNetwork extends string
       ? // 1. No network overriding
         {
