@@ -3,11 +3,9 @@ import type { Common } from "@/common/common.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
-import { maxAliasesRule } from "@escape.tech/graphql-armor-max-aliases";
-import { maxDepthRule } from "@escape.tech/graphql-armor-max-depth";
 import { graphqlServer } from "@hono/graphql-server";
 import { serve } from "@hono/node-server";
-import { GraphQLError, type GraphQLSchema, type ValidationRule } from "graphql";
+import { GraphQLError, type GraphQLSchema } from "graphql";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
@@ -16,6 +14,10 @@ import {
   type GetLoader,
   buildLoaderCache,
 } from "./graphql/buildLoaderCache.js";
+import {
+  createMaxAliasesRule,
+  createMaxDepthRule,
+} from "./graphql/validate.js";
 
 type Server = {
   hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;
@@ -77,26 +79,18 @@ export async function createServer({
     }
   });
 
-  // Validation rules for GraphQL operations using GraphQL Armor:
-  // https://escape.tech/graphql-armor/docs/plugins/max-depth
-  const maxDepthRuleWrapped: ValidationRule = (context) =>
-    maxDepthRule({
-      n: common.options.graphqlMaxOperationDepth,
-      ignoreIntrospection: false,
-      onReject: [(_, error) => context.reportError(error)],
-      propagateOnRejection: false,
-    })(context);
-  const maxAliasesRuleWrapped: ValidationRule = (context) =>
-    maxAliasesRule({
-      n: common.options.graphqlMaxOperationAliases,
-      allowList: [],
-      onReject: [(_, error) => context.reportError(error)],
-      propagateOnRejection: false,
-    })(context);
-
   const graphqlHandler = graphqlServer({
     schema: graphqlSchema,
-    validationRules: [maxDepthRuleWrapped, maxAliasesRuleWrapped],
+    validationRules: [
+      createMaxDepthRule({
+        n: common.options.graphqlMaxOperationDepth,
+        ignoreIntrospection: false,
+      }),
+      createMaxAliasesRule({
+        n: common.options.graphqlMaxOperationAliases,
+        allowList: [],
+      }),
+    ],
   });
 
   hono
