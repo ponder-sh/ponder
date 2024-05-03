@@ -721,7 +721,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     expect(indexes).toHaveLength(2);
 
-    expect(indexes[1]).toBe("Person_nameIndex");
+    expect(indexes).toContain("Person_nameIndex");
 
     await database.kill();
   });
@@ -742,7 +742,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     expect(indexes).toHaveLength(2);
 
-    expect(indexes[1]).toBe("Pet_multiIndex");
+    expect(indexes).toContain("Pet_multiIndex");
 
     await database.kill();
   });
