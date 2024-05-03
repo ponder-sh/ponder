@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import type { Config } from "@/config/config.js";
@@ -308,7 +309,6 @@ const executeConfig = async (
   const config = executeResult.exports.default as Config;
 
   const contentHash = createHash("sha256")
-    .update(executeResult.contentHash)
     .update(JSON.stringify(config))
     .digest("hex");
 
@@ -338,7 +338,6 @@ const executeSchema = async (
   const schema = executeResult.exports.default as Schema;
 
   const contentHash = createHash("sha256")
-    .update(executeResult.contentHash)
     .update(JSON.stringify(schema))
     .digest("hex");
 
@@ -368,7 +367,6 @@ const executeIndexingFunctions = async (
   );
 
   const indexingFunctions: RawIndexingFunctions = [];
-  const baseHash = createHash("sha256");
 
   for (const executeResult of executeResults) {
     if (executeResult.status === "error") {
@@ -385,12 +383,24 @@ const executeIndexingFunctions = async (
     }
 
     indexingFunctions.push(...(executeResult.exports?.ponder?.fns ?? []));
-    // Note that we are only hashing the file contents, not the exports. This is
-    // different from the config/schema, where we include the serializable object itself.
-    baseHash.update(executeResult.contentHash);
   }
 
-  const contentHash = baseHash.digest("hex");
+  // Note that we are only hashing the file contents, not the exports. This is
+  // different from the config/schema, where we include the serializable object itself.
+  const hash = createHash("sha256");
+  for (const file of files) {
+    try {
+      const contents = readFileSync(file, "utf-8");
+      console.log(file, contents);
+      hash.update(contents);
+    } catch (e) {
+      buildService.common.logger.warn({
+        service: "build",
+        msg: `Unable to read contents of file '${file}' while constructin build ID`,
+      });
+    }
+  }
+  const contentHash = hash.digest("hex");
 
   return { status: "success", indexingFunctions, contentHash };
 };
@@ -468,23 +478,11 @@ const executeFile = async (
   { common, viteNodeRunner }: Service,
   { file }: { file: string },
 ): Promise<
-  | { status: "success"; exports: any; contentHash: string }
-  | { status: "error"; error: Error }
+  { status: "success"; exports: any } | { status: "error"; error: Error }
 > => {
   try {
     const exports = await viteNodeRunner.executeFile(file);
-
-    const hash = createHash("sha256");
-    const updateHash = (file: string) => {
-      const module = viteNodeRunner.moduleCache.getByModuleId(file);
-      // Note that this seems to fall back to the file path for all package.json dependencies
-      hash.update(module.code ?? file);
-      module.imports.forEach(updateHash);
-    };
-    updateHash(file);
-    const contentHash = hash.digest("hex");
-
-    return { status: "success", exports, contentHash } as const;
+    return { status: "success", exports } as const;
   } catch (error_) {
     const relativePath = path.relative(common.options.rootDir, file);
     const error = parseViteNodeError(relativePath, error_ as Error);
