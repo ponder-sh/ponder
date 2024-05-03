@@ -1,7 +1,7 @@
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
-import type { DatabaseRow, UserIdColumn, UserRow } from "@/types/schema.js";
+import type { DatabaseRecord, UserId, UserRecord } from "@/types/schema.js";
 import { sql } from "kysely";
 import type { WhereInput, WriteStore } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
@@ -27,8 +27,8 @@ export const getHistoricalStore = ({
     data = {},
   }: {
     tableName: string;
-    id: UserIdColumn;
-    data?: Omit<UserRow, "id">;
+    id: UserId;
+    data?: Omit<UserRecord, "id">;
   }) => {
     const table = schema[tableName] as Table;
 
@@ -53,11 +53,11 @@ export const getHistoricalStore = ({
     data,
   }: {
     tableName: string;
-    data: UserRow[];
+    data: UserRecord[];
   }) => {
     const table = schema[tableName] as Table;
 
-    const rows: DatabaseRow[] = [];
+    const rows: DatabaseRecord[] = [];
 
     for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
       await db.wrap({ method: `${tableName}.createMany` }, async () => {
@@ -87,17 +87,17 @@ export const getHistoricalStore = ({
     data = {},
   }: {
     tableName: string;
-    id: UserIdColumn;
+    id: UserId;
     data?:
-      | Partial<Omit<UserRow, "id">>
-      | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
+      | Partial<Omit<UserRecord, "id">>
+      | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
     const table = schema[tableName] as Table;
 
     return db.wrap({ method: `${tableName}.update` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
 
-      let updateObject: Partial<Omit<UserRow, "id">>;
+      let updateObject: Partial<Omit<UserRecord, "id">>;
       if (typeof data === "function") {
         const latestRow = await db
           .withSchema(namespaceInfo.userNamespace)
@@ -137,8 +137,8 @@ export const getHistoricalStore = ({
     tableName: string;
     where: WhereInput<any>;
     data?:
-      | Partial<Omit<UserRow, "id">>
-      | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
+      | Partial<Omit<UserRecord, "id">>
+      | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
     const table = schema[tableName] as Table;
 
@@ -226,11 +226,11 @@ export const getHistoricalStore = ({
     update = {},
   }: {
     tableName: string;
-    id: UserIdColumn;
-    create?: Omit<UserRow, "id">;
+    id: UserId;
+    create?: Omit<UserRecord, "id">;
     update?:
-      | Partial<Omit<UserRow, "id">>
-      | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
+      | Partial<Omit<UserRecord, "id">>
+      | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
     const table = schema[tableName] as Table;
 
@@ -313,7 +313,7 @@ export const getHistoricalStore = ({
     id,
   }: {
     tableName: string;
-    id: UserIdColumn;
+    id: UserId;
   }) => {
     const table = schema[tableName] as Table;
 

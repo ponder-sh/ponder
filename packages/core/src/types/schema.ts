@@ -1,6 +1,6 @@
 import type { Hex } from "viem";
 
-export type UserIdColumn = string | number | Hex | bigint;
+export type UserId = string | number | Hex | bigint;
 
 export type UserColumn =
   | string
@@ -16,7 +16,7 @@ export type UserColumn =
   | null
   | undefined;
 
-export type UserRow = {
+export type UserRecord = {
   id: string | number | Hex | bigint;
   [columnName: string]: UserColumn;
 };
@@ -28,4 +28,4 @@ export type UserTable = {
 
 export type DatabaseColumn = string | number | Buffer | bigint | null;
 
-export type DatabaseRow = { [columnName: string]: DatabaseColumn };
+export type DatabaseRecord = { [columnName: string]: DatabaseColumn };

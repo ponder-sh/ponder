@@ -17,9 +17,9 @@ import {
 } from "@/schema/utils.js";
 import type {
   DatabaseColumn,
-  DatabaseRow,
+  DatabaseRecord,
   UserColumn,
-  UserRow,
+  UserRecord,
 } from "@/types/schema.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import { bytesToHex, hexToBytes, isHex } from "viem";
@@ -37,11 +37,11 @@ const scalarToTsType = {
  * Convert a user-land row into a database-ready object.
  */
 export function encodeRow(
-  data: Partial<UserRow>,
+  data: Partial<UserRecord>,
   table: Table,
   encoding: "sqlite" | "postgres",
-): DatabaseRow {
-  const instance: DatabaseRow = {};
+): DatabaseRecord {
+  const instance: DatabaseRecord = {};
 
   for (const [columnName, value] of Object.entries(data)) {
     const column = table[columnName];
@@ -176,11 +176,11 @@ export function encodeValue(
 }
 
 export function decodeRow(
-  data: DatabaseRow,
+  data: DatabaseRecord,
   table: Table,
   encoding: "sqlite" | "postgres",
-): UserRow {
-  const instance = {} as UserRow;
+): UserRecord {
+  const instance = {} as UserRecord;
 
   for (const [columnName, column] of Object.entries(table)) {
     if (

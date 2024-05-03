@@ -11,7 +11,6 @@ import {
   isManyColumn,
   isOneColumn,
   isOptionalColumn,
-  isReferenceColumn,
 } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
 import {
@@ -707,7 +706,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         // Handle enum types
         // Omit the CHECK constraint because its included in the user table
         builder = builder.addColumn(columnName, "text");
-      } else if (isReferenceColumn(column) || isListColumn(column) === false) {
+      } else if (isListColumn(column)) {
+        // Handle scalar list columns
+        builder = builder.addColumn(columnName, "text");
+      } else {
         // Non-list base columns
         builder = builder.addColumn(
           columnName,
@@ -717,9 +719,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             return col;
           },
         );
-      } else {
-        // Handle scalar list columns
-        builder = builder.addColumn(columnName, "text");
       }
     });
 

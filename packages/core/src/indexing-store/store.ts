@@ -1,7 +1,7 @@
 import type {
   UserColumn,
-  UserIdColumn,
-  UserRow,
+  UserId,
+  UserRecord,
   UserTable,
 } from "@/types/schema.js";
 import type { Prettify } from "@/types/utils.js";
@@ -10,8 +10,8 @@ import type { Hex } from "viem";
 export type ReadonlyStore = {
   findUnique(options: {
     tableName: string;
-    id: UserIdColumn;
-  }): Promise<UserRow | null>;
+    id: UserId;
+  }): Promise<UserRecord | null>;
 
   findMany(options: {
     tableName: string;
@@ -21,7 +21,7 @@ export type ReadonlyStore = {
     after?: string | null;
     limit?: number;
   }): Promise<{
-    items: UserRow[];
+    items: UserRecord[];
     pageInfo: {
       startCursor: string | null;
       endCursor: string | null;
@@ -41,53 +41,53 @@ export type WriteStore<
   create(
     options: {
       tableName: string;
-      id: UserIdColumn;
-      data?: Omit<UserRow, "id">;
+      id: UserId;
+      data?: Omit<UserRecord, "id">;
     } & checkpointProp,
-  ): Promise<UserRow>;
+  ): Promise<UserRecord>;
 
   createMany(
     options: {
       tableName: string;
-      data: UserRow[];
+      data: UserRecord[];
     } & checkpointProp,
-  ): Promise<UserRow[]>;
+  ): Promise<UserRecord[]>;
 
   update(
     options: {
       tableName: string;
-      id: UserIdColumn;
+      id: UserId;
       data?:
-        | Partial<Omit<UserRow, "id">>
-        | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
+        | Partial<Omit<UserRecord, "id">>
+        | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     } & checkpointProp,
-  ): Promise<UserRow>;
+  ): Promise<UserRecord>;
 
   updateMany(
     options: {
       tableName: string;
       where?: WhereInput<any>;
       data?:
-        | Partial<Omit<UserRow, "id">>
-        | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
+        | Partial<Omit<UserRecord, "id">>
+        | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     } & checkpointProp,
-  ): Promise<UserRow[]>;
+  ): Promise<UserRecord[]>;
 
   upsert(
     options: {
       tableName: string;
-      id: UserIdColumn;
-      create?: Omit<UserRow, "id">;
+      id: UserId;
+      create?: Omit<UserRecord, "id">;
       update?:
-        | Partial<Omit<UserRow, "id">>
-        | ((args: { current: UserRow }) => Partial<Omit<UserRow, "id">>);
+        | Partial<Omit<UserRecord, "id">>
+        | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     } & checkpointProp,
-  ): Promise<UserRow>;
+  ): Promise<UserRecord>;
 
   delete(
     options: {
       tableName: string;
-      id: UserIdColumn;
+      id: UserId;
     } & checkpointProp,
   ): Promise<boolean>;
 };

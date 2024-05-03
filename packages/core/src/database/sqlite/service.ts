@@ -12,7 +12,6 @@ import {
   isManyColumn,
   isOneColumn,
   isOptionalColumn,
-  isReferenceColumn,
 } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/sqlite/encoding.js";
 import { migrationProvider as syncMigrationProvider } from "@/sync-store/sqlite/migrations.js";
@@ -564,7 +563,13 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           }
           return col;
         });
-      } else if (isReferenceColumn(column) || isListColumn(column) === false) {
+      } else if (isListColumn(column)) {
+        // Handle scalar list columns
+        builder = builder.addColumn(columnName, "text", (col) => {
+          if (isOptionalColumn(column) === false) col = col.notNull();
+          return col;
+        });
+      } else {
         // Non-list base columns
         builder = builder.addColumn(
           columnName,
@@ -575,12 +580,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             return col;
           },
         );
-      } else {
-        // Handle scalar list columns
-        builder = builder.addColumn(columnName, "text", (col) => {
-          if (isOptionalColumn(column) === false) col = col.notNull();
-          return col;
-        });
       }
     });
 
