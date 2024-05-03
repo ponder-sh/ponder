@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.17
+
+### Patch Changes
+
+- [#855](https://github.com/ponder-sh/ponder/pull/855) [`92c99c45302c490708fcf0753096be72527ff640`](https://github.com/ponder-sh/ponder/commit/92c99c45302c490708fcf0753096be72527ff640) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a type-level bug with the utility type "Context".
+
 ## 0.4.16
 
 ### Patch Changes
