@@ -42,9 +42,7 @@ export const isTable = (tableOrEnum: Schema[string]): tableOrEnum is Table =>
 export const isEnum = (tableOrEnum: Schema[string]): tableOrEnum is Enum =>
   Array.isArray(tableOrEnum) === true;
 
-export const schemaToTables = (
-  schema: Schema,
-): { [tableName: string]: Table } => {
+export const getTables = (schema: Schema): { [tableName: string]: Table } => {
   const tables: { [tableName: string]: Table } = {};
 
   for (const [name, tableOrEnum] of Object.entries(schema)) {
@@ -56,7 +54,7 @@ export const schemaToTables = (
   return tables;
 };
 
-export const schemaToEnums = (schema: Schema): { [enumName: string]: Enum } => {
+export const getEnums = (schema: Schema): { [enumName: string]: Enum } => {
   const enums: { [enumName: string]: Enum } = {};
 
   for (const [name, tableOrEnum] of Object.entries(schema)) {
@@ -74,7 +72,7 @@ export const extractReferenceTable = (ref: ReferenceColumn): string => {
 
 export const encodeSchema = (schema: Schema) => {
   return JSON.stringify({
-    tables: schemaToTables(schema),
-    enums: schemaToEnums(schema),
+    tables: getTables(schema),
+    enums: getEnums(schema),
   });
 };

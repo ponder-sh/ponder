@@ -1,12 +1,12 @@
 import type { ReferenceColumn, Schema } from "@/schema/common.js";
 import {
   extractReferenceTable,
+  getTables,
   isEnumColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
   isOptionalColumn,
-  schemaToTables,
 } from "@/schema/utils.js";
 import {
   GraphQLBoolean,
@@ -49,7 +49,7 @@ export const buildEntityTypes = ({
   const entityTypes: Record<string, GraphQLObjectType<Parent, Context>> = {};
   const entityPageTypes: Record<string, GraphQLObjectType> = {};
 
-  for (const [tableName, table] of Object.entries(schemaToTables(schema))) {
+  for (const [tableName, table] of Object.entries(getTables(schema))) {
     entityTypes[tableName] = new GraphQLObjectType({
       name: tableName,
       fields: () => {

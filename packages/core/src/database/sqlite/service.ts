@@ -5,14 +5,14 @@ import { NonRetryableError } from "@/common/errors.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
   encodeSchema,
+  getEnums,
+  getTables,
   isEnumColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
   isOptionalColumn,
   isReferenceColumn,
-  schemaToEnums,
-  schemaToTables,
 } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/sqlite/encoding.js";
 import { migrationProvider as syncMigrationProvider } from "@/sync-store/sqlite/migrations.js";
@@ -159,7 +159,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     const namespaceInfo = {
       userNamespace: this.userNamespace,
       internalNamespace: this.internalNamespace,
-      internalTableIds: Object.keys(schemaToTables(schema)).reduce(
+      internalTableIds: Object.keys(getTables(schema)).reduce(
         (acc, tableName) => {
           acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
           return acc;
@@ -190,7 +190,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           // Function to create the operation log tables and user tables.
           const createTables = async () => {
             for (const [tableName, columns] of Object.entries(
-              schemaToTables(schema),
+              getTables(schema),
             )) {
               const tableId = namespaceInfo.internalTableIds[tableName];
 
@@ -558,7 +558,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           if (isListColumn(column) === false) {
             col = col.check(
               sql`${sql.ref(columnName)} in (${sql.join(
-                schemaToEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
+                getEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
               )})`,
             );
           }

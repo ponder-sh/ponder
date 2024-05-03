@@ -4,14 +4,14 @@ import type { PoolConfig } from "@/config/database.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
   encodeSchema,
+  getEnums,
+  getTables,
   isEnumColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
   isOptionalColumn,
   isReferenceColumn,
-  schemaToEnums,
-  schemaToTables,
 } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
 import {
@@ -187,7 +187,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     const namespaceInfo = {
       userNamespace: this.userNamespace,
       internalNamespace: this.internalNamespace,
-      internalTableIds: Object.keys(schemaToTables(schema)).reduce(
+      internalTableIds: Object.keys(getTables(schema)).reduce(
         (acc, tableName) => {
           acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
           return acc;
@@ -218,7 +218,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           // Function to create the operation log tables and user tables.
           const createTables = async () => {
             for (const [tableName, columns] of Object.entries(
-              schemaToTables(schema),
+              getTables(schema),
             )) {
               const tableId = namespaceInfo.internalTableIds[tableName];
 
@@ -542,7 +542,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         // Create the publish schema if it doesn't exist.
         await tx.schema.createSchema(publishSchema).ifNotExists().execute();
 
-        for (const tableName of Object.keys(schemaToTables(this.schema))) {
+        for (const tableName of Object.keys(getTables(this.schema))) {
           // Check if there is an existing relation with the name we're about to publish.
           const result = await tx.executeQuery<{
             table_type: string;
@@ -667,7 +667,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           if (isListColumn(column) === false) {
             col = col.check(
               sql`${sql.ref(columnName)} in (${sql.join(
-                schemaToEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
+                getEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
               )})`,
             );
           }

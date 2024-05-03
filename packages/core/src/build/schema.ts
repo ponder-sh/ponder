@@ -1,19 +1,19 @@
 import type { Schema } from "@/schema/common.js";
 import {
   extractReferenceTable,
+  getEnums,
+  getTables,
   isEnumColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
   isOptionalColumn,
   isReferenceColumn,
-  schemaToEnums,
-  schemaToTables,
 } from "@/schema/utils.js";
 
 export const buildSchema = ({ schema }: { schema: Schema }) => {
   // Validate enums
-  Object.entries(schemaToEnums(schema)).forEach(([name, _enum]) => {
+  Object.entries(getEnums(schema)).forEach(([name, _enum]) => {
     validateTableOrColumnName(name, "Enum");
 
     const enumValues = new Set<string>();
@@ -28,7 +28,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
   });
 
   // Validate tables
-  Object.entries(schemaToTables(schema)).forEach(([tableName, table]) => {
+  Object.entries(getTables(schema)).forEach(([tableName, table]) => {
     validateTableOrColumnName(tableName, "Table");
 
     // Validate the id column
@@ -112,12 +112,12 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
       }
 
       if (isManyColumn(column)) {
-        const usedTable = Object.entries(schemaToTables(schema)).find(
+        const usedTable = Object.entries(getTables(schema)).find(
           ([name]) => name === column[" referenceTable"],
         );
 
         if (usedTable === undefined) {
-          const otherTables = Object.keys(schemaToTables(schema)).filter(
+          const otherTables = Object.keys(getTables(schema)).filter(
             (t) => t !== tableName,
           );
 
@@ -162,14 +162,14 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
       }
 
       if (isEnumColumn(column)) {
-        const referencedEnum = Object.entries(schemaToEnums(schema)).find(
+        const referencedEnum = Object.entries(getEnums(schema)).find(
           ([enumName]) => enumName === column[" enum"],
         );
         if (referencedEnum === undefined) {
           throw new Error(
             `Validation failed: Enum column '${tableName}.${columnName}' doesn't reference a valid enum. Got '${
               column[" enum"]
-            }', expected one of [${Object.keys(schemaToEnums(schema))
+            }', expected one of [${Object.keys(getEnums(schema))
               .map((e) => `'${e}'`)
               .join(", ")}].`,
           );
@@ -177,7 +177,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
       }
 
       if (isReferenceColumn(column)) {
-        const referencedTable = Object.entries(schemaToTables(schema)).find(
+        const referencedTable = Object.entries(getTables(schema)).find(
           ([tableName]) => tableName === extractReferenceTable(column),
         );
 
@@ -185,7 +185,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
           throw new Error(
             `Validation failed: Foreign key column '${tableName}.${columnName}' does not reference a valid ID column. Got '${extractReferenceTable(
               column,
-            )}', expected one of [${Object.keys(schemaToTables(schema))
+            )}', expected one of [${Object.keys(getTables(schema))
               .map((t) => `'${t}.id'`)
               .join(", ")}].`,
           );
