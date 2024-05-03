@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.18
+
+### Patch Changes
+
+- [#857](https://github.com/ponder-sh/ponder/pull/857) [`e6638f38d24498a61c0d26fae99800ada3f85696`](https://github.com/ponder-sh/ponder/commit/e6638f38d24498a61c0d26fae99800ada3f85696) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug introduced in 0.4.15 where the initial build would sometimes fail with an "Maximum call stack size exceeded" error.
+
 ## 0.4.17
 
 ### Patch Changes
