@@ -391,13 +391,13 @@ const executeIndexingFunctions = async (
   for (const file of files) {
     try {
       const contents = readFileSync(file, "utf-8");
-      console.log(file, contents);
       hash.update(contents);
     } catch (e) {
       buildService.common.logger.warn({
         service: "build",
         msg: `Unable to read contents of file '${file}' while constructin build ID`,
       });
+      hash.update(file);
     }
   }
   const contentHash = hash.digest("hex");
