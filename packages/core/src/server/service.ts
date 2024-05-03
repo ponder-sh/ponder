@@ -3,9 +3,11 @@ import type { Common } from "@/common/common.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
+import { maxAliasesRule } from "@escape.tech/graphql-armor-max-aliases";
+import { maxDepthRule } from "@escape.tech/graphql-armor-max-depth";
 import { graphqlServer } from "@hono/graphql-server";
 import { serve } from "@hono/node-server";
-import { GraphQLError, type GraphQLSchema } from "graphql";
+import { GraphQLError, type GraphQLSchema, type ValidationRule } from "graphql";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
@@ -75,6 +77,28 @@ export async function createServer({
     }
   });
 
+  // Validation rules for GraphQL operations using GraphQL Armor:
+  // https://escape.tech/graphql-armor/docs/plugins/max-depth
+  const maxDepthRuleWrapped: ValidationRule = (context) =>
+    maxDepthRule({
+      n: common.options.graphqlMaxOperationDepth,
+      ignoreIntrospection: false,
+      onReject: [(_, error) => context.reportError(error)],
+      propagateOnRejection: false,
+    })(context);
+  const maxAliasesRuleWrapped: ValidationRule = (context) =>
+    maxAliasesRule({
+      n: common.options.graphqlMaxOperationAliases,
+      allowList: [],
+      onReject: [(_, error) => context.reportError(error)],
+      propagateOnRejection: false,
+    })(context);
+
+  const graphqlHandler = graphqlServer({
+    schema: graphqlSchema,
+    validationRules: [maxDepthRuleWrapped, maxAliasesRuleWrapped],
+  });
+
   hono
     .use(cors())
     .use(metricsMiddleware)
@@ -88,8 +112,7 @@ export async function createServer({
     })
     .get("/health", async (c) => {
       if (isHealthy) {
-        c.status(200);
-        return c.text("");
+        return c.text("", 200);
       }
 
       const elapsed = (Date.now() - startTime) / 1000;
@@ -101,52 +124,35 @@ export async function createServer({
           msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
         });
 
-        c.status(200);
-        return c.text("");
+        return c.text("", 200);
       }
 
-      c.status(503);
-      return c.text("Historical indexing is not complete.");
-    })
-    .use("/graphql", async (c, next) => {
-      if (isHealthy === false) {
-        c.status(503);
-        return c.json({
-          data: undefined,
-          errors: [new GraphQLError("Historical indexing is not complete")],
-        });
-      }
-
-      if (c.req.method === "POST") {
-        const getLoader = buildLoaderCache({ store: readonlyStore });
-
-        c.set("store", readonlyStore);
-        c.set("getLoader", getLoader);
-
-        return graphqlServer({
-          schema: graphqlSchema,
-        })(c);
-      }
-      return next();
+      return c.text("Historical indexing is not complete.", 503);
     })
     .get("/graphql", (c) => {
       return c.html(graphiQLHtml);
     })
-    .use("/", async (c, next) => {
-      if (c.req.method === "POST") {
-        const getLoader = buildLoaderCache({ store: readonlyStore });
-
-        c.set("store", readonlyStore);
-        c.set("getLoader", getLoader);
-
-        return graphqlServer({
-          schema: graphqlSchema,
-        })(c);
+    .post("/graphql", (c) => {
+      if (isHealthy === false) {
+        return c.json(
+          { errors: [new GraphQLError("Historical indexing is not complete")] },
+          503,
+        );
       }
-      return next();
+
+      const getLoader = buildLoaderCache({ store: readonlyStore });
+      c.set("store", readonlyStore);
+      c.set("getLoader", getLoader);
+      return graphqlHandler(c);
     })
     .get("/", (c) => {
       return c.html(graphiQLHtml);
+    })
+    .post("/", (c) => {
+      const getLoader = buildLoaderCache({ store: readonlyStore });
+      c.set("store", readonlyStore);
+      c.set("getLoader", getLoader);
+      return graphqlHandler(c);
     });
 
   const createServerWithNextAvailablePort: typeof http.createServer = (

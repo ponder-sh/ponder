@@ -241,27 +241,149 @@ test("graphql extra filter", async (context) => {
 
   const response = await server.hono.request("/graphql", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       query: `
-      query {
-        table(id: "0", doesntExist: "kevin") {
-          id
-          string
-          int
-          float
-          boolean
-          hex
-          bigint
+        {
+          table(id: "0", doesntExist: "kevin") {
+            id
+            string
+            int
+            float
+            boolean
+            hex
+            bigint
+          }
         }
-      }
-    `,
+      `,
     }),
   });
 
   expect(response.status).toBe(400);
+
+  await cleanup();
+
+  await server.kill();
+});
+
+test("graphql depth limit error", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({ id: p.string() }),
+  }));
+
+  const { readonlyStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const server = await createServer({
+    graphqlSchema: graphqlSchema,
+    common: {
+      ...context.common,
+      options: { ...context.common.options, graphqlMaxOperationDepth: 5 },
+    },
+    readonlyStore: readonlyStore,
+  });
+  server.setHealthy();
+
+  const response = await server.hono.request("/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: `
+        {
+          __schema {
+            types {
+              fields {
+                type {
+                  fields {
+                    type {
+                      description
+                    }              
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+    }),
+  });
+
+  expect(response.status).toBe(400);
+  const body = (await response.json()) as any;
+
+  expect(body.errors).toMatchObject([
+    { message: "Syntax Error: Query depth limit of 5 exceeded, found 7." },
+  ]);
+
+  await cleanup();
+
+  await server.kill();
+});
+
+test("graphql max aliases error", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({ id: p.string() }),
+  }));
+
+  const { readonlyStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const server = await createServer({
+    graphqlSchema: graphqlSchema,
+    common: {
+      ...context.common,
+      options: { ...context.common.options, graphqlMaxOperationAliases: 2 },
+    },
+    readonlyStore: readonlyStore,
+  });
+  server.setHealthy();
+
+  const response = await server.hono.request("/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: `
+        {
+          __schema {
+            types {
+              fields {
+                type {
+                  alias1: fields {
+                    type {
+                      description
+                    }
+                  }
+                  alias2: fields {
+                    type {
+                      description
+                    }
+                  }
+                  alias3: fields {
+                    type {
+                      description
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+    }),
+  });
+
+  expect(response.status).toBe(400);
+  const body = (await response.json()) as any;
+
+  expect(body.errors).toMatchObject([
+    { message: "Syntax Error: Aliases limit of 2 exceeded, found 3." },
+  ]);
 
   await cleanup();
 
