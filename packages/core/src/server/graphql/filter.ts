@@ -1,12 +1,12 @@
 import type { Schema } from "@/schema/common.js";
 import {
+  getTables,
   isEnumColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
   isReferenceColumn,
   isScalarColumn,
-  schemaToTables,
 } from "@/schema/utils.js";
 import {
   type GraphQLEnumType,
@@ -37,7 +37,7 @@ export const buildEntityFilterTypes = ({
 }: { schema: Schema; enumTypes: Record<string, GraphQLEnumType> }) => {
   const entityFilterTypes: Record<string, GraphQLInputObjectType> = {};
 
-  for (const [tableName, [table]] of Object.entries(schemaToTables(schema))) {
+  for (const [tableName, [table]] of Object.entries(getTables(schema))) {
     const filterType = new GraphQLInputObjectType({
       name: `${tableName}Filter`,
       fields: () => {

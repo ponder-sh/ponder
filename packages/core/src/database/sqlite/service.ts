@@ -4,14 +4,14 @@ import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
+  encodeSchema,
+  getEnums,
+  getTables,
   isEnumColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
   isOptionalColumn,
-  isReferenceColumn,
-  schemaToEnums,
-  schemaToTables,
 } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/sqlite/encoding.js";
 import { migrationProvider as syncMigrationProvider } from "@/sync-store/sqlite/migrations.js";
@@ -158,7 +158,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     const namespaceInfo = {
       userNamespace: this.userNamespace,
       internalNamespace: this.internalNamespace,
-      internalTableIds: Object.keys(schemaToTables(schema)).reduce(
+      internalTableIds: Object.keys(getTables(schema)).reduce(
         (acc, tableName) => {
           acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
           return acc;
@@ -183,13 +183,13 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             heartbeat_at: Date.now(),
             build_id: this.buildId,
             finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
-            schema: JSON.stringify(schema),
+            schema: encodeSchema(schema),
           } satisfies Insertable<InternalTables["namespace_lock"]>;
 
           // Function to create the operation log tables and user tables.
           const createTables = async () => {
             for (const [tableName, table] of Object.entries(
-              schemaToTables(schema),
+              getTables(schema),
             )) {
               const tableId = namespaceInfo.internalTableIds[tableName];
 
@@ -373,7 +373,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             msg: `Acquired lock on schema '${this.userNamespace}' previously used by build '${previousBuildId}'`,
           });
 
-          for (const tableName of Object.keys(schemaToTables(previousSchema))) {
+          for (const tableName of Object.keys(previousSchema.tables)) {
             const tableId = hash([
               this.userNamespace,
               previousBuildId,
@@ -500,7 +500,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
   async addIndexes({ schema }: { schema: Schema }) {
     await Promise.all(
-      Object.entries(schemaToTables(schema)).flatMap(([tableName, table]) => {
+      Object.entries(getTables(schema)).flatMap(([tableName, table]) => {
         if (table[1] === undefined) return [];
 
         return Object.entries(table[1]).map(async ([name, index]) => {
@@ -589,13 +589,19 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           if (isListColumn(column) === false) {
             col = col.check(
               sql`${sql.ref(columnName)} in (${sql.join(
-                schemaToEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
+                getEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
               )})`,
             );
           }
           return col;
         });
-      } else if (isReferenceColumn(column) || isListColumn(column) === false) {
+      } else if (isListColumn(column)) {
+        // Handle scalar list columns
+        builder = builder.addColumn(columnName, "text", (col) => {
+          if (isOptionalColumn(column) === false) col = col.notNull();
+          return col;
+        });
+      } else {
         // Non-list base columns
         builder = builder.addColumn(
           columnName,
@@ -606,12 +612,6 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             return col;
           },
         );
-      } else {
-        // Handle scalar list columns
-        builder = builder.addColumn(columnName, "text", (col) => {
-          if (isOptionalColumn(column) === false) col = col.notNull();
-          return col;
-        });
       }
     });
 

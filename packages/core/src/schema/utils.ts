@@ -45,7 +45,7 @@ export const isTable = (
 export const isEnum = (tableOrEnum: Schema[string]): tableOrEnum is Enum =>
   typeof tableOrEnum[0] === "string";
 
-export const schemaToTables = (
+export const getTables = (
   schema: Schema,
 ): { [tableName: string]: readonly [Table, Constraints] } => {
   const tables: { [tableName: string]: readonly [Table, Constraints] } = {};
@@ -59,7 +59,7 @@ export const schemaToTables = (
   return tables;
 };
 
-export const schemaToEnums = (schema: Schema): { [enumName: string]: Enum } => {
+export const getEnums = (schema: Schema): { [enumName: string]: Enum } => {
   const enums: { [enumName: string]: Enum } = {};
 
   for (const [name, tableOrEnum] of Object.entries(schema)) {
@@ -73,4 +73,11 @@ export const schemaToEnums = (schema: Schema): { [enumName: string]: Enum } => {
 
 export const extractReferenceTable = (ref: ReferenceColumn): string => {
   return ref[" reference"].split(".")[0];
+};
+
+export const encodeSchema = (schema: Schema) => {
+  return JSON.stringify({
+    tables: getTables(schema),
+    enums: getEnums(schema),
+  });
 };

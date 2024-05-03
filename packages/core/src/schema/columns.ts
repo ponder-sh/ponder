@@ -187,16 +187,96 @@ export type BuilderScalarColumn<
 > = list extends false
   ? optional extends false
     ? base & {
+        /**
+         * Mark the column as optional.
+         *
+         * - Docs: https://ponder.sh/docs/schema#optional
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   t: p.createTable({
+         *     id: p.string(),
+         *     o: p.int().optional(),
+         *   })
+         * })
+         */
         optional: Optional<base>;
+        /**
+         * Mark the column as a list.
+         *
+         * - Docs: https://ponder.sh/docs/schema#list
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   t: p.createTable({
+         *     id: p.string(),
+         *     l: p.int().list(),
+         *   })
+         * })
+         */
         list: List<base>;
         references: References<base>;
       }
     : base & {
+        /**
+         * Mark the column as a list.
+         *
+         * - Docs: https://ponder.sh/docs/schema#list
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   t: p.createTable({
+         *     id: p.string(),
+         *     l: p.int().list(),
+         *   })
+         * })
+         */
         list: List<base>;
+        /**
+         * Mark the column as a foreign key.
+         *
+         * - Docs: https://ponder.sh/docs/schema#foreign-key
+         *
+         * @param references Table that this column is a key of.
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   a: p.createTable({
+         *     id: p.string(),
+         *     b_id: p.string.references("b.id"),
+         *   })
+         *   b: p.createTable({
+         *     id: p.string(),
+         *   })
+         * })
+         */
         references: References<base>;
       }
   : optional extends false
     ? base & {
+        /**
+         * Mark the column as optional.
+         *
+         * - Docs: https://ponder.sh/docs/schema#optional
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   t: p.createTable({
+         *     id: p.string(),
+         *     o: p.int().optional(),
+         *   })
+         * })
+         */
         optional: Optional<base>;
       }
     : base;
@@ -213,6 +293,21 @@ export type BuilderReferenceColumn<
   >,
 > = optional extends false
   ? base & {
+      /**
+       * Mark the column as optional.
+       *
+       * - Docs: https://ponder.sh/docs/schema#optional
+       *
+       * @example
+       * import { p } from '@ponder/core'
+       *
+       * export default p.createSchema({
+       *   t: p.createTable({
+       *     id: p.string(),
+       *     o: p.int().optional(),
+       *   })
+       * })
+       */
       optional: ReferenceOptional<base>;
     }
   : base;
@@ -244,14 +339,78 @@ export type BuilderEnumColumn<
 > = list extends false
   ? optional extends false
     ? base & {
+        /**
+         * Mark the column as optional.
+         *
+         * - Docs: https://ponder.sh/docs/schema#optional
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   e: p.createEnum(["ONE", "TWO"])
+         *   t: p.createTable({
+         *     id: p.string(),
+         *     a: p.enum("e").optional(),
+         *   })
+         * })
+         */
         optional: EnumOptional<base>;
+        /**
+         * Mark the column as a list.
+         *
+         * - Docs: https://ponder.sh/docs/schema#list
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   e: p.createEnum(["ONE", "TWO"])
+         *   t: p.createTable({
+         *     id: p.string(),
+         *     a: p.enum("e").list(),
+         *   })
+         * })
+         */
         list: EnumList<base>;
       }
     : base & {
+        /**
+         * Mark the column as a list.
+         *
+         * - Docs: https://ponder.sh/docs/schema#list
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   e: p.createEnum(["ONE", "TWO"])
+         *   t: p.createTable({
+         *     id: p.string(),
+         *     a: p.enum("e").list(),
+         *   })
+         * })
+         */
         list: EnumList<base>;
       }
   : optional extends false
     ? base & {
+        /**
+         * Mark the column as optional.
+         *
+         * - Docs: https://ponder.sh/docs/schema#optional
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   e: p.createEnum(["ONE", "TWO"])
+         *   t: p.createTable({
+         *     id: p.string(),
+         *     a: p.enum("e").optional(),
+         *   })
+         * })
+         */
         optional: EnumOptional<base>;
       }
     : base;

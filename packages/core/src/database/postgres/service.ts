@@ -3,14 +3,14 @@ import { NonRetryableError } from "@/common/errors.js";
 import type { PoolConfig } from "@/config/database.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
+  encodeSchema,
+  getEnums,
+  getTables,
   isEnumColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
   isOptionalColumn,
-  isReferenceColumn,
-  schemaToEnums,
-  schemaToTables,
 } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
 import {
@@ -186,7 +186,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     const namespaceInfo = {
       userNamespace: this.userNamespace,
       internalNamespace: this.internalNamespace,
-      internalTableIds: Object.keys(schemaToTables(schema)).reduce(
+      internalTableIds: Object.keys(getTables(schema)).reduce(
         (acc, tableName) => {
           acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
           return acc;
@@ -211,13 +211,13 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             heartbeat_at: Date.now(),
             build_id: this.buildId,
             finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
-            schema: JSON.stringify(schema),
+            schema: encodeSchema(schema),
           } satisfies Insertable<InternalTables["namespace_lock"]>;
 
           // Function to create the operation log tables and user tables.
           const createTables = async () => {
             for (const [tableName, table] of Object.entries(
-              schemaToTables(schema),
+              getTables(schema),
             )) {
               const tableId = namespaceInfo.internalTableIds[tableName];
 
@@ -400,7 +400,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             msg: `Acquired lock on schema '${this.userNamespace}' previously used by build '${previousBuildId}'`,
           });
 
-          for (const tableName of Object.keys(schemaToTables(previousSchema))) {
+          for (const tableName of Object.keys(previousSchema.tables)) {
             const tableId = hash([
               this.userNamespace,
               previousBuildId,
@@ -541,7 +541,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         // Create the publish schema if it doesn't exist.
         await tx.schema.createSchema(publishSchema).ifNotExists().execute();
 
-        for (const tableName of Object.keys(schemaToTables(this.schema))) {
+        for (const tableName of Object.keys(getTables(this.schema))) {
           // Check if there is an existing relation with the name we're about to publish.
           const result = await tx.executeQuery<{
             table_type: string;
@@ -599,7 +599,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
   async addIndexes({ schema }: { schema: Schema }) {
     await Promise.all(
-      Object.entries(schemaToTables(schema)).flatMap(([tableName, table]) => {
+      Object.entries(getTables(schema)).flatMap(([tableName, table]) => {
         if (table[1] === undefined) return [];
 
         return Object.entries(table[1]).map(async ([name, index]) => {
@@ -695,7 +695,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           if (isListColumn(column) === false) {
             col = col.check(
               sql`${sql.ref(columnName)} in (${sql.join(
-                schemaToEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
+                getEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
               )})`,
             );
           }
@@ -735,7 +735,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         // Handle enum types
         // Omit the CHECK constraint because its included in the user table
         builder = builder.addColumn(columnName, "text");
-      } else if (isReferenceColumn(column) || isListColumn(column) === false) {
+      } else if (isListColumn(column)) {
+        // Handle scalar list columns
+        builder = builder.addColumn(columnName, "text");
+      } else {
         // Non-list base columns
         builder = builder.addColumn(
           columnName,
@@ -745,9 +748,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             return col;
           },
         );
-      } else {
-        // Handle scalar list columns
-        builder = builder.addColumn(columnName, "text");
       }
     });
 
