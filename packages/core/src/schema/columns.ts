@@ -193,14 +193,14 @@ export type BuilderScalarColumn<
          * - Docs: https://ponder.sh/docs/schema#optional
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   t: p.createTable({
          *     id: p.string(),
          *     o: p.int().optional(),
          *   })
-         * })
+         * }));
          */
         optional: Optional<base>;
         /**
@@ -209,14 +209,14 @@ export type BuilderScalarColumn<
          * - Docs: https://ponder.sh/docs/schema#list
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   t: p.createTable({
          *     id: p.string(),
          *     l: p.int().list(),
          *   })
-         * })
+         * }));
          */
         list: List<base>;
         references: References<base>;
@@ -228,14 +228,14 @@ export type BuilderScalarColumn<
          * - Docs: https://ponder.sh/docs/schema#list
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   t: p.createTable({
          *     id: p.string(),
          *     l: p.int().list(),
          *   })
-         * })
+         * }))
          */
         list: List<base>;
         /**
@@ -246,9 +246,9 @@ export type BuilderScalarColumn<
          * @param references Table that this column is a key of.
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   a: p.createTable({
          *     id: p.string(),
          *     b_id: p.string.references("b.id"),
@@ -256,7 +256,7 @@ export type BuilderScalarColumn<
          *   b: p.createTable({
          *     id: p.string(),
          *   })
-         * })
+         * }));
          */
         references: References<base>;
       }
@@ -268,14 +268,14 @@ export type BuilderScalarColumn<
          * - Docs: https://ponder.sh/docs/schema#optional
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   t: p.createTable({
          *     id: p.string(),
          *     o: p.int().optional(),
          *   })
-         * })
+         * }));
          */
         optional: Optional<base>;
       }
@@ -299,9 +299,9 @@ export type BuilderReferenceColumn<
        * - Docs: https://ponder.sh/docs/schema#optional
        *
        * @example
-       * import { p } from '@ponder/core'
+       * import { createSchema } from "@ponder/core";
        *
-       * export default p.createSchema({
+       * export default createSchema((p) => ({
        *   t: p.createTable({
        *     id: p.string(),
        *     o: p.int().optional(),
@@ -345,15 +345,15 @@ export type BuilderEnumColumn<
          * - Docs: https://ponder.sh/docs/schema#optional
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   e: p.createEnum(["ONE", "TWO"])
          *   t: p.createTable({
          *     id: p.string(),
          *     a: p.enum("e").optional(),
          *   })
-         * })
+         * }));
          */
         optional: EnumOptional<base>;
         /**
@@ -362,15 +362,15 @@ export type BuilderEnumColumn<
          * - Docs: https://ponder.sh/docs/schema#list
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   e: p.createEnum(["ONE", "TWO"])
          *   t: p.createTable({
          *     id: p.string(),
          *     a: p.enum("e").list(),
          *   })
-         * })
+         * }));
          */
         list: EnumList<base>;
       }
@@ -381,15 +381,15 @@ export type BuilderEnumColumn<
          * - Docs: https://ponder.sh/docs/schema#list
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   e: p.createEnum(["ONE", "TWO"])
          *   t: p.createTable({
          *     id: p.string(),
          *     a: p.enum("e").list(),
          *   })
-         * })
+         * }));
          */
         list: EnumList<base>;
       }
@@ -401,15 +401,15 @@ export type BuilderEnumColumn<
          * - Docs: https://ponder.sh/docs/schema#optional
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   e: p.createEnum(["ONE", "TWO"])
          *   t: p.createTable({
          *     id: p.string(),
          *     a: p.enum("e").optional(),
          *   })
-         * })
+         * }));
          */
         optional: EnumOptional<base>;
       }

@@ -124,11 +124,11 @@ type P = {
    * - Docs: https://ponder.sh/docs/schema#tables
    *
    * @example
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   t: p.createTable({
    *     id: p.string(),
    *   })
-   * })
+   * }));
    */
   createTable: <const table, const constraints>(
     t: GetTable<table>,
@@ -140,13 +140,13 @@ type P = {
    * - Docs: https://ponder.sh/docs/schema#tables
    *
    * @example
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   e: p.createEnum(["ONE", "TWO"])
    *   t: p.createTable({
    *     id: p.string(),
    *     a: p.enum("e"),
    *   })
-   * })
+   * }));
    */
 
   createEnum: <const _enum extends readonly string[]>(e: _enum) => _enum;
@@ -156,13 +156,13 @@ type P = {
    * - Docs: https://ponder.sh/docs/schema#primitives
    *
    * @example
-   * import { p } from '@ponder/core'
+   * import { createSchema } from "@ponder/core";
    *
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   t: p.createTable({
    *     id: p.string(),
    *   })
-   * })
+   * }));
    */
   string: () => BuilderScalarColumn<"string", false, false>;
   /**
@@ -171,13 +171,13 @@ type P = {
    * - Docs: https://ponder.sh/docs/schema#primitives
    *
    * @example
-   * import { p } from '@ponder/core'
+   * import { createSchema } from "@ponder/core";
    *
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   t: p.createTable({
    *     id: p.bigint(),
    *   })
-   * })
+   * }));
    */
   bigint: () => BuilderScalarColumn<"bigint", false, false>;
   /**
@@ -186,13 +186,13 @@ type P = {
    * - Docs: https://ponder.sh/docs/schema#primitives
    *
    * @example
-   * import { p } from '@ponder/core'
+   * import { createSchema } from "@ponder/core";
    *
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   t: p.createTable({
    *     id: p.int(),
    *   })
-   * })
+   * }));
    */
   int: () => BuilderScalarColumn<"int", false, false>;
   /**
@@ -201,14 +201,14 @@ type P = {
    * - Docs: https://ponder.sh/docs/schema#primitives
    *
    * @example
-   * import { p } from '@ponder/core'
+   * import { createSchema } from "@ponder/core";
    *
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   t: p.createTable({
    *     id: p.string(),
    *     f: p.float(),
    *   })
-   * })
+   * }));
    */
 
   float: () => BuilderScalarColumn<"float", false, false>;
@@ -218,13 +218,13 @@ type P = {
    * - Docs: https://ponder.sh/docs/schema#primitives
    *
    * @example
-   * import { p } from '@ponder/core'
+   * import { createSchema } from "@ponder/core";
    *
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   t: p.createTable({
    *     id: p.hex(),
    *   })
-   * })
+   * }));
    */
   hex: () => BuilderScalarColumn<"hex", false, false>;
   /**
@@ -233,14 +233,14 @@ type P = {
    * - Docs: https://ponder.sh/docs/schema#primitives
    *
    * @example
-   * import { p } from '@ponder/core'
+   * import { createSchema } from "@ponder/core";
    *
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   t: p.createTable({
    *     id: p.string(),
    *     b: p.boolean(),
    *   })
-   * })
+   * }));
    */
   boolean: () => BuilderScalarColumn<"boolean", false, false>;
   /**
@@ -251,9 +251,9 @@ type P = {
    * @param reference Reference column to be resolved.
    *
    * @example
-   * import { p } from '@ponder/core'
+   * import { createSchema } from "@ponder/core";
    *
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   a: p.createTable({
    *     id: p.string(),
    *     b_id: p.string.references("b.id"),
@@ -262,7 +262,7 @@ type P = {
    *   b: p.createTable({
    *     id: p.string(),
    *   })
-   * })
+   * }));
    */
   one: <reference extends string>(
     ref: reference,
@@ -275,9 +275,9 @@ type P = {
    * @param reference Reference column that references the `id` column of the current table.
    *
    * @example
-   * import { p } from '@ponder/core'
+   * import { createSchema } from "@ponder/core";
    *
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   a: p.createTable({
    *     id: p.string(),
    *     ref: p.string.references("b.id"),
@@ -286,7 +286,7 @@ type P = {
    *     id: p.string(),
    *     m: p.many("a.ref"),
    *   })
-   * })
+   * }));
    */
   many: <referenceTable extends string, referenceColumn extends string>(
     ref: `${referenceTable}.${referenceColumn}`,
@@ -299,13 +299,13 @@ type P = {
    * @param type Enum defined elsewhere in the schema with `p.createEnum()`.
    *
    * @example
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   e: p.createEnum(["ONE", "TWO"])
    *   t: p.createTable({
    *     id: p.string(),
    *     a: p.enum("e"),
    *   })
-   * })
+   * }));
    */
   enum: <_enum extends string>(
     __enum: _enum,
@@ -316,14 +316,14 @@ type P = {
    * - Docs: TODO(kyle)
    *
    * @example
-   * export default createSchema({
+   * export default createSchema((p) => ({
    *   t: p.createTable({
    *     id: p.string(),
    *     age: p.int(),
    *   }, {
    *     ageIndex: p.index("age"),
    *   })
-   * })
+   * }));
    */
   index: <const column extends string | readonly string[]>(
     c: column,
