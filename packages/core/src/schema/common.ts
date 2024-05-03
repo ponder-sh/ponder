@@ -151,3 +151,16 @@ export type ExtractReferenceColumnNames<
     ? columnNames
     : never
   : never;
+
+export type ExtractNonVirtualColumnNames<
+  table extends Table | unknown,
+  ///
+  columnNames = keyof table & string,
+> = columnNames extends columnNames
+  ? table[columnNames & keyof table] extends
+      | ReferenceColumn
+      | ScalarColumn
+      | EnumColumn
+    ? columnNames
+    : never
+  : never;

@@ -19,6 +19,7 @@ import type {
   Constraints,
   EnumColumn,
   ExtractEnumNames,
+  ExtractNonVirtualColumnNames,
   ExtractReferenceColumnNames,
   ExtractTableNames,
   IdColumn,
@@ -86,7 +87,7 @@ type GetConstraints<
   constraints,
   table,
   ///
-  columnName extends string = keyof table & string,
+  columnName extends string = ExtractNonVirtualColumnNames<table>,
 > = {} extends constraints
   ? {}
   : {

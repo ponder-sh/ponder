@@ -251,6 +251,16 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
                   table,
                 ).join(", ")}].`,
               );
+
+            if (isOneColumn(table[c]))
+              throw new Error(
+                `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'one', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
+              );
+
+            if (isManyColumn(table[c]))
+              throw new Error(
+                `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'many', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
+              );
           }
         } else {
           // TODO(kyle) should this be an error
@@ -262,6 +272,16 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
               `Validation failed: Index '${name}' does not reference a valid column. Got '${column}', expected one of [${Object.keys(
                 table,
               ).join(", ")}].`,
+            );
+
+          if (isOneColumn(table[column]))
+            throw new Error(
+              `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'one', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
+            );
+
+          if (isManyColumn(table[column]))
+            throw new Error(
+              `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'many', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
             );
         }
       }

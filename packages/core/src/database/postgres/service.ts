@@ -619,7 +619,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
           this.common.logger.info({
             service: "database",
-            msg: `Created index '${name}' on table '${tableName}' in schema '${this.userNamespace}'`,
+            msg: `Created index '${tableName}_${name}' on table '${tableName}' in schema '${this.userNamespace}'`,
           });
         });
       }),
