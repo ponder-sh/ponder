@@ -21,7 +21,6 @@ import {
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
 import { type Address, type Hex, hexToNumber } from "viem";
 import { isMatchedLogInBloomFilter, zeroLogsBloom } from "./bloom.js";
@@ -53,6 +52,7 @@ export type Service = {
    */
   localChain: LocalBlockchainState[];
   queue: Queue<void, SyncBlock> | undefined;
+  consecutiveErrors: number;
 
   // callbacks
   onEvent: (event: RealtimeSyncEvent) => void;
@@ -89,6 +89,8 @@ type LocalBlockchainState = {
   block: LightBlock;
   logs: LightLog[];
 };
+
+const MAX_CONSECUTIVE_ERRORS = 10;
 
 export const create = ({
   common,
@@ -141,6 +143,7 @@ export const create = ({
     finalizedBlock: syncBlockToLightBlock(finalizedBlock),
     localChain: [],
     queue: undefined,
+    consecutiveErrors: 0,
     onEvent,
     onFatalError,
     eventSelectors,
@@ -183,89 +186,95 @@ export const start = (service: Service) => {
         return;
       }
 
-      for (let i = 0; i < 6; i++) {
-        try {
-          // Quickly check for a reorg by comparing block numbers. If the block
-          // number has not increased, a reorg must have occurred.
-          if (latestLocalBlock.number >= newHeadBlockNumber) {
-            await handleReorg(service, newHeadBlock);
+      try {
+        // Quickly check for a reorg by comparing block numbers. If the block
+        // number has not increased, a reorg must have occurred.
+        if (latestLocalBlock.number >= newHeadBlockNumber) {
+          await handleReorg(service, newHeadBlock);
 
-            queue.clear();
-            return;
-          }
-
-          // Blocks are missing. They should be fetched and enqueued.
-          if (latestLocalBlock.number + 1 < newHeadBlockNumber) {
-            // Retrieve missing blocks, but only fetch 50 at most.
-            const missingBlockRange = range(
-              latestLocalBlock.number + 1,
-              Math.min(newHeadBlockNumber, latestLocalBlock.number + 51),
-            );
-            const pendingBlocks = await Promise.all(
-              missingBlockRange.map((blockNumber) =>
-                _eth_getBlockByNumber(service, { blockNumber }),
-              ),
-            );
-
-            service.common.logger.debug({
-              service: "realtime",
-              msg: `Fetched ${missingBlockRange.length} missing '${
-                service.network.name
-              }' blocks from ${latestLocalBlock.number + 1} to ${Math.min(
-                newHeadBlockNumber,
-                latestLocalBlock.number + 51,
-              )}`,
-            });
-
-            // This is needed to ensure proper `kill()` behavior. When the service
-            // is killed, nothing should be added to the queue, or else `onIdle()`
-            // will never resolve.
-            if (service.isKilled) return;
-
-            queue.clear();
-
-            for (const pendingBlock of pendingBlocks) {
-              queue.add(pendingBlock);
-            }
-
-            queue.add(newHeadBlock);
-
-            return;
-          }
-
-          // Check if a reorg occurred by validating the chain of block hashes.
-          if (newHeadBlock.parentHash !== latestLocalBlock.hash) {
-            await handleReorg(service, newHeadBlock);
-            queue.clear();
-            return;
-          }
-
-          // New block is exactly one block ahead of the local chain.
-          // Attempt to ingest it.
-          await handleBlock(service, { newHeadBlock });
-
+          queue.clear();
           return;
-        } catch (_error) {
-          if (service.isKilled) return;
+        }
 
-          const error = _error as Error;
+        // Blocks are missing. They should be fetched and enqueued.
+        if (latestLocalBlock.number + 1 < newHeadBlockNumber) {
+          // Retrieve missing blocks, but only fetch 50 at most.
+          const missingBlockRange = range(
+            latestLocalBlock.number + 1,
+            Math.min(newHeadBlockNumber, latestLocalBlock.number + 51),
+          );
+          const pendingBlocks = await Promise.all(
+            missingBlockRange.map((blockNumber) =>
+              _eth_getBlockByNumber(service, { blockNumber }),
+            ),
+          );
 
-          service.common.logger.warn({
+          service.common.logger.debug({
             service: "realtime",
-            msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error}`,
+            msg: `Fetched ${missingBlockRange.length} missing '${
+              service.network.name
+            }' blocks from ${latestLocalBlock.number + 1} to ${Math.min(
+              newHeadBlockNumber,
+              latestLocalBlock.number + 51,
+            )}`,
           });
 
-          if (i === 5) {
-            service.common.logger.error({
-              service: "realtime",
-              msg: `Fatal error: Unable to process '${service.network.name}' block ${newHeadBlockNumber} after 5 attempts due to error:`,
-              error,
-            });
+          // This is needed to ensure proper `kill()` behavior. When the service
+          // is killed, nothing should be added to the queue, or else `onIdle()`
+          // will never resolve.
+          if (service.isKilled) return;
 
-            service.onFatalError(error);
-          } else {
-            await wait(250 * 2 ** i);
+          queue.clear();
+
+          for (const pendingBlock of pendingBlocks) {
+            queue.add(pendingBlock);
           }
+
+          queue.add(newHeadBlock);
+
+          return;
+        }
+
+        // Check if a reorg occurred by validating the chain of block hashes.
+        if (newHeadBlock.parentHash !== latestLocalBlock.hash) {
+          await handleReorg(service, newHeadBlock);
+          queue.clear();
+          return;
+        }
+
+        // New block is exactly one block ahead of the local chain.
+        // Attempt to ingest it.
+        await handleBlock(service, { newHeadBlock });
+
+        // Reset the error state after successfully completing the happy path.
+        service.consecutiveErrors = 0;
+
+        return;
+      } catch (_error) {
+        if (service.isKilled) return;
+
+        const error = _error as Error;
+
+        service.common.logger.warn({
+          service: "realtime",
+          msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error}`,
+        });
+
+        // Note: could add a "wait" here
+
+        // Remove all blocks from the queue. This protects against an
+        // erroneous block causing a fatal error.
+        queue.clear();
+
+        // After a certain number of attempts, emit a fatal error.
+        if (++service.consecutiveErrors === MAX_CONSECUTIVE_ERRORS) {
+          service.common.logger.error({
+            service: "realtime",
+            msg: `Fatal error: Unable to process '${service.network.name}' block ${newHeadBlockNumber} after ${MAX_CONSECUTIVE_ERRORS} attempts due to error:`,
+            error,
+          });
+
+          service.onFatalError(error);
         }
       }
     },
