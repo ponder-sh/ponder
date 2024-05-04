@@ -116,6 +116,117 @@ const enumList =
     }
   };
 
+type Asc<index extends Index> = () => BuilderIndex<
+  index[" column"],
+  "asc",
+  index[" nulls"]
+>;
+
+const asc =
+  <index extends BuilderIndex>(i: index): Asc<index> =>
+  // @ts-expect-error
+  () => {
+    const newIndex = {
+      " type": i[" type"],
+      " column": i[" column"],
+      " order": "asc",
+      " nulls": i[" nulls"],
+    } as const;
+
+    if (newIndex[" nulls"] === undefined) {
+      return {
+        ...newIndex,
+        nullsFirst: nullsFirst(newIndex),
+        nullsLast: nullsLast(newIndex),
+      };
+    } else {
+      return newIndex;
+    }
+  };
+
+type Desc<index extends BuilderIndex> = () => BuilderIndex<
+  index[" column"],
+  "desc",
+  index[" nulls"]
+>;
+
+const desc =
+  <index extends BuilderIndex>(i: index): Desc<index> =>
+  // @ts-expect-error
+  () => {
+    const newIndex = {
+      " type": i[" type"],
+      " column": i[" column"],
+      " order": "desc",
+      " nulls": i[" nulls"],
+    } as const;
+
+    if (newIndex[" nulls"] === undefined) {
+      return {
+        ...newIndex,
+        nullsFirst: nullsFirst(newIndex),
+        nullsLast: nullsLast(newIndex),
+      };
+    } else {
+      return newIndex;
+    }
+  };
+
+type NullsFirst<index extends BuilderIndex> = () => BuilderIndex<
+  index[" column"],
+  index[" order"],
+  "first"
+>;
+
+const nullsFirst =
+  <index extends BuilderIndex>(i: index): NullsFirst<index> =>
+  // @ts-expect-error
+  () => {
+    const newIndex = {
+      " type": i[" type"],
+      " column": i[" column"],
+      " order": i[" order"],
+      " nulls": "first",
+    } as const;
+
+    if (newIndex[" order"] === undefined) {
+      return {
+        ...newIndex,
+        asc: asc(newIndex),
+        desc: desc(newIndex),
+      };
+    } else {
+      return newIndex;
+    }
+  };
+
+type NullsLast<index extends BuilderIndex> = () => BuilderIndex<
+  index[" column"],
+  index[" order"],
+  "last"
+>;
+
+const nullsLast =
+  <index extends BuilderIndex>(i: index): NullsLast<index> =>
+  // @ts-expect-error
+  () => {
+    const newIndex = {
+      " type": i[" type"],
+      " column": i[" column"],
+      " order": i[" order"],
+      " nulls": "last",
+    } as const;
+
+    if (newIndex[" order"] === undefined) {
+      return {
+        ...newIndex,
+        asc: asc(newIndex),
+        desc: desc(newIndex),
+      };
+    } else {
+      return newIndex;
+    }
+  };
 type ReferenceOptional<column extends BuilderReferenceColumn> =
   () => BuilderReferenceColumn<column[" scalar"], true, column[" reference"]>;
 
@@ -415,6 +526,28 @@ export type BuilderEnumColumn<
       }
     : base;
 
+export type BuilderIndex<
+  column extends string | readonly string[] = string | readonly string[],
+  order extends "asc" | "desc" | undefined = "asc" | "desc" | undefined,
+  nulls extends "first" | "last" | undefined = "first" | "last" | undefined,
+  ///
+  base extends Index<column, order, nulls> = Index<column, order, nulls>,
+> = order extends undefined
+  ? nulls extends undefined
+    ? base & {
+        asc: Asc<base>;
+        desc: Desc<base>;
+        nullsFirst: NullsFirst<base>;
+        nullsLast: NullsLast<base>;
+      }
+    : base & {
+        asc: Asc<base>;
+        desc: Desc<base>;
+      }
+  : nulls extends undefined
+    ? base & { nullsFirst: NullsFirst<base>; nullsLast: NullsLast<base> }
+    : base;
+
 export const string = scalarColumn("string");
 export const int = scalarColumn("int");
 export const float = scalarColumn("float");
@@ -459,9 +592,19 @@ export const _enum = <_enum extends string>(
 
 export const index = <const column extends string | readonly string[]>(
   c: column,
-): Index<column> => {
-  return {
+): BuilderIndex<column, undefined, undefined> => {
+  const index = {
     " type": "index",
     " column": c,
+    " order": undefined,
+    " nulls": undefined,
+  } as const;
+
+  return {
+    ...index,
+    asc: asc(index),
+    desc: desc(index),
+    nullsFirst: nullsFirst(index),
+    nullsLast: nullsLast(index),
   };
 };

@@ -50,9 +50,15 @@ export type EnumColumn<
   " list": list;
 };
 
-export type Index<column extends string | readonly string[]> = {
+export type Index<
+  column extends string | readonly string[] = string | readonly string[],
+  order extends "asc" | "desc" | undefined = "asc" | "desc" | undefined,
+  nulls extends "first" | "last" | undefined = "first" | "last" | undefined,
+> = {
   " type": "index";
   " column": column;
+  " order": order;
+  " nulls": nulls;
 };
 
 export type Column =
@@ -69,7 +75,7 @@ export type Table = { id: IdColumn } & {
 export type Enum = readonly string[];
 
 export type Constraints = {
-  [name: string]: Index<string | readonly string[]>;
+  [name: string]: Index;
 };
 
 export type IsTable<a extends Table | Enum> = a extends readonly unknown[]
