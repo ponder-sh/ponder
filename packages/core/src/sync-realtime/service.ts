@@ -21,6 +21,7 @@ import {
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
+import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
 import { type Address, type Hex, hexToNumber } from "viem";
 import { isMatchedLogInBloomFilter, zeroLogsBloom } from "./bloom.js";
@@ -260,7 +261,7 @@ export const start = (service: Service) => {
           msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error}`,
         });
 
-        // Note: could add a "wait" here
+        await wait(250 * 2 ** service.consecutiveErrors);
 
         // Remove all blocks from the queue. This protects against an
         // erroneous block causing a fatal error.
