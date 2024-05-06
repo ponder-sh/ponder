@@ -779,6 +779,27 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.kill();
   });
+
+  test("createIndexes with a custom user namespace", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: `_${context.databaseConfig.schema}`,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    await database.createIndexes({ schema });
+
+    const indexes = await getTableIndexes(database.db, "Person", "_public");
+
+    expect(indexes).toHaveLength(2);
+
+    expect(indexes).toContain("Person_nameIndex");
+
+    await database.kill();
+  });
 });
 
 async function getTableNames(db: HeadlessKysely<any>, schemaName: string) {

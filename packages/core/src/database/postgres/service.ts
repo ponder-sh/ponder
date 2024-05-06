@@ -624,7 +624,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
             await this.db.executeQuery(
               sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
-                tableName,
+                `${this.userNamespace}.${tableName}`,
               )} (${sql.raw(columns)})`.compile(this.db),
             );
           });
