@@ -33,7 +33,11 @@ const migrations: Record<string, Migration> = {
       for (const row of rows) {
         await db
           .updateTable("namespace_lock")
-          .set({ table_name: Object.keys(JSON.parse(row.schema).table) })
+          .set({
+            table_names: JSON.stringify(
+              Object.keys(JSON.parse(row.schema).tables),
+            ),
+          })
           .where("namespace", "=", row.namespace)
           .execute();
       }
