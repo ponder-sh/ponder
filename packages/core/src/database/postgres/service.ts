@@ -3,8 +3,6 @@ import { NonRetryableError } from "@/common/errors.js";
 import type { PoolConfig } from "@/config/database.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
-  decodeSchemaTableNames,
-  encodeSchema,
   getEnums,
   getTables,
   isEnumColumn,
@@ -212,7 +210,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             heartbeat_at: Date.now(),
             build_id: this.buildId,
             finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
-            schema: encodeSchema(schema),
+            table_names: JSON.stringify(Object.keys(getTables(schema))),
           } satisfies Insertable<InternalTables["namespace_lock"]>;
 
           // Function to create the operation log tables and user tables.
@@ -387,6 +385,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           // Otherwise, the lock row has a different build ID or a zero finalized checkpoint,
           // so we need to drop the previous app's tables and create new ones.
           const previousBuildId = previousLockRow.build_id;
+          const previousTableNames = JSON.parse(
+            previousLockRow.table_names,
+          ) as string[];
 
           await tx
             .withSchema(this.internalNamespace)
@@ -400,9 +401,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             msg: `Acquired lock on schema '${this.userNamespace}' previously used by build '${previousBuildId}'`,
           });
 
-          for (const tableName of decodeSchemaTableNames(
-            previousLockRow.schema,
-          )) {
+          for (const tableName of previousTableNames) {
             const tableId = hash([
               this.userNamespace,
               previousBuildId,

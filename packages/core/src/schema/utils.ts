@@ -69,16 +69,3 @@ export const getEnums = (schema: Schema): { [enumName: string]: Enum } => {
 export const extractReferenceTable = (ref: ReferenceColumn): string => {
   return ref[" reference"].split(".")[0];
 };
-
-export const encodeSchema = (schema: Schema) => {
-  return JSON.stringify({
-    tables: getTables(schema),
-    enums: getEnums(schema),
-  });
-};
-
-// Must handle the `schema` value in the lock table for both postgres and sqlite.
-export const decodeSchemaTableNames = (s: any): string[] => {
-  if (typeof s === "object") return Object.keys(s.tables);
-  else return Object.keys(JSON.parse(s).tables);
-};

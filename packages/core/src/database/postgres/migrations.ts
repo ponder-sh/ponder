@@ -18,6 +18,37 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_05_06_0_table_names": {
+    async up(db: Kysely<any>) {
+      const rows = await db
+        .selectFrom("namespace_lock")
+        .select(["schema", "namespace"])
+        .execute();
+
+      await db.schema
+        .alterTable("namespace_lock")
+        .addColumn("table_names", "text")
+        .execute();
+
+      for (const row of rows) {
+        await db
+          .updateTable("namespace_lock")
+          .set({ table_name: Object.keys(row.schema.table) })
+          .where("namespace", "=", row.namespace)
+          .execute();
+      }
+
+      await db.schema
+        .alterTable("namespace_lock")
+        .alterColumn("table_names", (col) => col.setNotNull())
+        .execute();
+
+      await db.schema
+        .alterTable("namespace_lock")
+        .dropColumn("schema")
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -35,6 +66,6 @@ export type InternalTables = {
     heartbeat_at: number;
     build_id: string;
     finalized_checkpoint: string;
-    schema: string;
+    table_names: string;
   };
 };
