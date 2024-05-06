@@ -868,21 +868,7 @@ const columnDropNotNull = async ({
 
 class StaticMigrationProvider implements MigrationProvider {
   async getMigrations() {
-    // Kysely does not run SQLite migrations within a transaction: https://github.com/kysely-org/kysely/issues/56
-    // However we want this behavior, so add it manually here.
-    // Note that some statements will not work: https://stackoverflow.com/a/34053874
-    const wrappedMigrations: Record<string, Migration> = {};
-    for (const [name, migration] of Object.entries(migrations)) {
-      wrappedMigrations[name] = {
-        up: async (db: Kysely<any>) => {
-          await db.transaction().execute(async (tx) => {
-            await migration.up(tx);
-          });
-        },
-      };
-    }
-
-    return wrappedMigrations;
+    return migrations;
   }
 }
 
