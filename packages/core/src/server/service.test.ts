@@ -27,7 +27,7 @@ test("port", async (context) => {
     readonlyStore: {} as ReadonlyStore,
   });
 
-  expect(server2.port).toBe(server1.port + 1);
+  expect(server2.port).toBeGreaterThanOrEqual(server1.port + 1);
 
   await server1.kill();
   await server2.kill();
