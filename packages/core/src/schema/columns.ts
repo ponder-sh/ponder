@@ -532,20 +532,30 @@ export type BuilderIndex<
   nulls extends "first" | "last" | undefined = "first" | "last" | undefined,
   ///
   base extends Index<column, order, nulls> = Index<column, order, nulls>,
+  isSingleColumn = column extends readonly string[] ? false : true,
 > = order extends undefined
   ? nulls extends undefined
-    ? base & {
-        asc: Asc<base>;
-        desc: Desc<base>;
-        nullsFirst: NullsFirst<base>;
-        nullsLast: NullsLast<base>;
-      }
-    : base & {
-        asc: Asc<base>;
-        desc: Desc<base>;
-      }
+    ? isSingleColumn extends true
+      ? base & {
+          asc: Asc<base>;
+          desc: Desc<base>;
+          nullsFirst: NullsFirst<base>;
+          nullsLast: NullsLast<base>;
+        }
+      : base
+    : isSingleColumn extends true
+      ? base & {
+          asc: Asc<base>;
+          desc: Desc<base>;
+        }
+      : base
   : nulls extends undefined
-    ? base & { nullsFirst: NullsFirst<base>; nullsLast: NullsLast<base> }
+    ? isSingleColumn extends true
+      ? base & {
+          nullsFirst: NullsFirst<base>;
+          nullsLast: NullsLast<base>;
+        }
+      : base
     : base;
 
 export const string = scalarColumn("string");
@@ -606,5 +616,5 @@ export const index = <const column extends string | readonly string[]>(
     desc: desc(index),
     nullsFirst: nullsFirst(index),
     nullsLast: nullsLast(index),
-  };
+  } as BuilderIndex<column, undefined, undefined>;
 };

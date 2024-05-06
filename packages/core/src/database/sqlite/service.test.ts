@@ -577,6 +577,38 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
 
     await database.kill();
   });
+
+  test("createIndexes with ordering", async (context) => {
+    if (context.databaseConfig.kind !== "sqlite") return;
+    const database = new SqliteDatabaseService({
+      common: context.common,
+      directory: context.databaseConfig.directory,
+    });
+
+    const schema = createSchema((p) => ({
+      Kevin: p.createTable(
+        {
+          id: p.string(),
+          age: p.int(),
+        },
+        {
+          kevinIndex: p.index("age").asc().nullsLast(),
+        },
+      ),
+    }));
+
+    await database.setup({ schema, buildId: "abc" });
+
+    await database.createIndexes({ schema });
+
+    const indexes = await getIndexNames(database.db, "Kevin", "public");
+
+    expect(indexes).toHaveLength(2);
+
+    expect(indexes).toContain("Kevin_kevinIndex");
+
+    await database.kill();
+  });
 });
 
 async function getTableNames(db: HeadlessKysely<any>, schemaName?: string) {

@@ -202,7 +202,7 @@ test("enum list + optional", () => {
 });
 
 test("index", () => {
-  const i = index(["column"]);
+  const i = index("column");
   //    ^?
 
   assertType<keyof typeof i>(
@@ -211,7 +211,7 @@ test("index", () => {
   assertType<Omit<typeof i, "asc" | "desc" | "nullsFirst" | "nullsLast">>(
     {} as unknown as {
       " type": "index";
-      " column": readonly ["column"];
+      " column": "column";
       " order": undefined;
       " nulls": undefined;
     },
@@ -219,14 +219,14 @@ test("index", () => {
 });
 
 test("index asc", () => {
-  const i = index(["column"]).asc();
+  const i = index("column").asc();
   //    ^?
 
   assertType<keyof typeof i>({} as unknown as "nullsFirst" | "nullsLast");
   assertType<Omit<typeof i, "nullsFirst" | "nullsLast">>(
     {} as unknown as {
       " type": "index";
-      " column": readonly ["column"];
+      " column": "column";
       " order": "asc";
       " nulls": undefined;
     },
@@ -234,14 +234,14 @@ test("index asc", () => {
 });
 
 test("index nullsFirst", () => {
-  const i = index(["column"]).nullsFirst();
+  const i = index("column").nullsFirst();
   //    ^?
 
   assertType<keyof typeof i>({} as unknown as "asc" | "desc");
   assertType<Omit<typeof i, "asc" | "desc">>(
     {} as unknown as {
       " type": "index";
-      " column": readonly ["column"];
+      " column": "column";
       " order": undefined;
       " nulls": "first";
     },
@@ -249,14 +249,14 @@ test("index nullsFirst", () => {
 });
 
 test("index desc + nullsLast", () => {
-  const i = index(["column"]).desc().nullsLast();
+  const i = index("column").desc().nullsLast();
   //    ^?
 
   assertType<keyof typeof i>({} as unknown as never);
   assertType<typeof i>(
     {} as unknown as {
       " type": "index";
-      " column": readonly ["column"];
+      " column": "column";
       " order": "desc";
       " nulls": "last";
     },
@@ -264,16 +264,31 @@ test("index desc + nullsLast", () => {
 });
 
 test("index nullsLast + desc", () => {
-  const i = index(["column"]).nullsLast().desc();
+  const i = index("column").nullsLast().desc();
   //    ^?
 
   assertType<keyof typeof i>({} as unknown as never);
   assertType<typeof i>(
     {} as unknown as {
       " type": "index";
-      " column": readonly ["column"];
+      " column": "column";
       " order": "desc";
       " nulls": "last";
+    },
+  );
+});
+
+test("index multi column", () => {
+  const i = index(["col1", "col2"]);
+  //    ^?
+
+  assertType<keyof typeof i>({} as unknown as never);
+  assertType<typeof i>(
+    {} as unknown as {
+      " type": "index";
+      " column": readonly ["col1", "col2"];
+      " order": undefined;
+      " nulls": undefined;
     },
   );
 });
