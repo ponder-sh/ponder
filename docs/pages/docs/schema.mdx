@@ -544,6 +544,8 @@ export default createSchema((p) => ({
 
 Multi column indexes can be created by passing an array of column names to `p.index(){:ts}`.
 
+Use the `.asc(){:ts}`, `.desc(){:ts}`, `.nullsFirst(){:ts}`, or `.nullsLast(){:ts}` modifiers to apply an ordering to a single column index.
+
 ## ERC20 example
 
 Here's a schema for a simple ERC20 app.
