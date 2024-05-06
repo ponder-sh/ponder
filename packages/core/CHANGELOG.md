@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.4.20
+
+### Patch Changes
+
+- [#863](https://github.com/ponder-sh/ponder/pull/863) [`3f46d9e1303c178dc3da9839675a4e52f1d7adea`](https://github.com/ponder-sh/ponder/commit/3f46d9e1303c178dc3da9839675a4e52f1d7adea) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a regression introduced in 0.4.15 that caused apps using SQLite to encounter errors like `NOT NULL constraint failed: blocks.mixHash` when using chains that do not include all properties on the RPC block object.
+
+- [#860](https://github.com/ponder-sh/ponder/pull/860) [`e07956a9f1c0117e6b27aee6ea9c06ca2217b4c5`](https://github.com/ponder-sh/ponder/commit/e07956a9f1c0117e6b27aee6ea9c06ca2217b4c5) Thanks [@kyscott18](https://github.com/kyscott18)! - Increased realtime sync retry threshold. Now, realtime sync errors will continue retrying for 10 minutes before throwing a fatal error. This improves stability when using RPC providers that are slow to index block hashes for [EIP-234](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-234.md) requests.
+
+- [#865](https://github.com/ponder-sh/ponder/pull/865) [`ba16f324f8b591d57714320c01f10d46497c8894`](https://github.com/ponder-sh/ponder/commit/ba16f324f8b591d57714320c01f10d46497c8894) Thanks [@0xOlias](https://github.com/0xOlias)! - Added GraphQL operation validations for max token count (1000).
+
 ## 0.4.19
 
 ### Patch Changes
