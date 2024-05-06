@@ -705,7 +705,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
-  test("addIndexes adds a single column index", async (context) => {
+  test("createIndexes adds a single column index", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
@@ -715,7 +715,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.setup({ schema, buildId: "abc" });
 
-    await database.addIndexes({ schema });
+    await database.createIndexes({ schema });
 
     const indexes = await getTableIndexes(database.db, "Person", "public");
 
@@ -726,7 +726,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
-  test("addIndexes adds a multi column index", async (context) => {
+  test("createIndexes adds a multi column index", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
@@ -736,7 +736,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.setup({ schema, buildId: "abc" });
 
-    await database.addIndexes({ schema });
+    await database.createIndexes({ schema });
 
     const indexes = await getTableIndexes(database.db, "Pet", "public");
 

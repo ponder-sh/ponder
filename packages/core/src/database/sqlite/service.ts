@@ -498,13 +498,13 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     });
   }
 
-  async addIndexes({ schema }: { schema: Schema }) {
+  async createIndexes({ schema }: { schema: Schema }) {
     await Promise.all(
       Object.entries(getTables(schema)).flatMap(([tableName, table]) => {
         if (table[1] === undefined) return [];
 
         return Object.entries(table[1]).map(async ([name, index]) => {
-          await this.db.wrap({ method: "addIndexes" }, async () => {
+          await this.db.wrap({ method: "createIndexes" }, async () => {
             const indexName = `${tableName}_${name}`;
 
             const indexColumn = index[" column"];

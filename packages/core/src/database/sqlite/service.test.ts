@@ -538,7 +538,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.kill();
   });
 
-  test("addIndexes adds a single column index", async (context) => {
+  test("createIndexes adds a single column index", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,
@@ -547,7 +547,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
 
     await database.setup({ schema, buildId: "abc" });
 
-    await database.addIndexes({ schema });
+    await database.createIndexes({ schema });
 
     const indexes = await getIndexNames(database.db, "Person", "public");
 
@@ -558,7 +558,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await database.kill();
   });
 
-  test("addIndexes adds a multi column index", async (context) => {
+  test("createIndexes adds a multi column index", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,
@@ -567,7 +567,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
 
     await database.setup({ schema, buildId: "abc" });
 
-    await database.addIndexes({ schema });
+    await database.createIndexes({ schema });
 
     const indexes = await getIndexNames(database.db, "Pet", "public");
 
