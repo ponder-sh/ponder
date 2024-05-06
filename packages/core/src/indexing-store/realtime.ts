@@ -31,7 +31,7 @@ export const getRealtimeStore = ({
     id: UserId;
     data?: Omit<UserRecord, "id">;
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.create` }, async () => {
       const createRow = encodeRow({ id, ...data }, table, kind);
@@ -70,7 +70,7 @@ export const getRealtimeStore = ({
     encodedCheckpoint: string;
     data: UserRecord[];
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.createMany` }, async () => {
       const rows: DatabaseRecord[] = [];
@@ -122,7 +122,7 @@ export const getRealtimeStore = ({
       | Partial<Omit<UserRecord, "id">>
       | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.update` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
@@ -186,7 +186,7 @@ export const getRealtimeStore = ({
       | Partial<Omit<UserRecord, "id">>
       | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.updateMany` }, async () => {
       const rows = await db.transaction().execute(async (tx) => {
@@ -262,7 +262,7 @@ export const getRealtimeStore = ({
       | Partial<Omit<UserRecord, "id">>
       | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.upsert` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
@@ -358,7 +358,7 @@ export const getRealtimeStore = ({
     encodedCheckpoint: string;
     id: UserId;
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.delete` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);

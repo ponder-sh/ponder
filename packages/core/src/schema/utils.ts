@@ -39,16 +39,18 @@ export const isListColumn = (column: Column): boolean => {
 
 export const isTable = (
   tableOrEnum: Schema[string],
-): tableOrEnum is readonly [Table, Constraints] =>
-  typeof tableOrEnum[0] === "object";
+): tableOrEnum is { table: Table; constraints: Constraints } =>
+  !Array.isArray(tableOrEnum);
 
 export const isEnum = (tableOrEnum: Schema[string]): tableOrEnum is Enum =>
-  typeof tableOrEnum[0] === "string";
+  Array.isArray(tableOrEnum);
 
 export const getTables = (
   schema: Schema,
-): { [tableName: string]: readonly [Table, Constraints] } => {
-  const tables: { [tableName: string]: readonly [Table, Constraints] } = {};
+): { [tableName: string]: { table: Table; constraints: Constraints } } => {
+  const tables: {
+    [tableName: string]: { table: Table; constraints: Constraints };
+  } = {};
 
   for (const [name, tableOrEnum] of Object.entries(schema)) {
     if (isTable(tableOrEnum)) {

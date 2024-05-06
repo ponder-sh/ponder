@@ -30,7 +30,7 @@ export const getHistoricalStore = ({
     id: UserId;
     data?: Omit<UserRecord, "id">;
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.create` }, async () => {
       const createRow = encodeRow({ id, ...data }, table, kind);
@@ -55,7 +55,7 @@ export const getHistoricalStore = ({
     tableName: string;
     data: UserRecord[];
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     const rows: DatabaseRecord[] = [];
 
@@ -92,7 +92,7 @@ export const getHistoricalStore = ({
       | Partial<Omit<UserRecord, "id">>
       | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.update` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
@@ -140,7 +140,7 @@ export const getHistoricalStore = ({
       | Partial<Omit<UserRecord, "id">>
       | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.updateMany` }, async () => {
       if (typeof data === "function") {
@@ -232,7 +232,7 @@ export const getHistoricalStore = ({
       | Partial<Omit<UserRecord, "id">>
       | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.upsert` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
@@ -315,7 +315,7 @@ export const getHistoricalStore = ({
     tableName: string;
     id: UserId;
   }) => {
-    const table = schema[tableName][0] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.delete` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);

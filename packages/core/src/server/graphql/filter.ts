@@ -37,7 +37,7 @@ export const buildEntityFilterTypes = ({
 }: { schema: Schema; enumTypes: Record<string, GraphQLEnumType> }) => {
   const entityFilterTypes: Record<string, GraphQLInputObjectType> = {};
 
-  for (const [tableName, [table]] of Object.entries(getTables(schema))) {
+  for (const [tableName, { table }] of Object.entries(getTables(schema))) {
     const filterType = new GraphQLInputObjectType({
       name: `${tableName}Filter`,
       fields: () => {

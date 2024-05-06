@@ -82,14 +82,19 @@ export type IsTable<a extends Table | Enum> = a extends readonly unknown[]
   ? false
   : true;
 
-export type Schema = { [name: string]: readonly [Table, Constraints] | Enum };
+export type Schema = {
+  [name: string]: { table: Table; constraints: Constraints } | Enum;
+};
 
 export type ExtractTableNames<
   schema extends Schema | unknown,
   ///
   names = keyof schema & string,
 > = names extends names
-  ? schema[names & keyof schema] extends readonly [Table, Constraints]
+  ? schema[names & keyof schema] extends {
+      table: Table;
+      constraints: Constraints;
+    }
     ? names
     : never
   : never;
@@ -105,10 +110,12 @@ export type ExtractEnumNames<
   : never;
 
 export type ExtractOptionalColumnNames<
-  tableAndConstraints extends readonly [Table, Constraints] | unknown,
+  tableAndConstraints extends
+    | { table: Table; constraints: Constraints }
+    | unknown,
   ///
-  table = tableAndConstraints extends readonly [Table, Constraints]
-    ? tableAndConstraints[0]
+  table = tableAndConstraints extends { table: Table; constraints: Constraints }
+    ? tableAndConstraints["table"]
     : Table,
   columnNames = keyof table & string,
 > = columnNames extends columnNames
@@ -123,10 +130,12 @@ export type ExtractOptionalColumnNames<
   : never;
 
 export type ExtractRequiredColumnNames<
-  tableAndConstraints extends readonly [Table, Constraints] | unknown,
+  tableAndConstraints extends
+    | { table: Table; constraints: Constraints }
+    | unknown,
   ///
-  table = tableAndConstraints extends readonly [Table, Constraints]
-    ? tableAndConstraints[0]
+  table = tableAndConstraints extends { table: Table; constraints: Constraints }
+    ? tableAndConstraints["table"]
     : Table,
   columnNames = keyof table & string,
 > = columnNames extends columnNames
@@ -141,11 +150,13 @@ export type ExtractRequiredColumnNames<
   : never;
 
 export type ExtractReferenceColumnNames<
-  tableAndConstraints extends readonly [Table, Constraints] | unknown,
+  tableAndConstraints extends
+    | { table: Table; constraints: Constraints }
+    | unknown,
   referenceTable extends string = string,
   ///
-  table = tableAndConstraints extends readonly [Table, Constraints]
-    ? tableAndConstraints[0]
+  table = tableAndConstraints extends { table: Table; constraints: Constraints }
+    ? tableAndConstraints["table"]
     : Table,
   columnNames = keyof table & string,
 > = columnNames extends columnNames

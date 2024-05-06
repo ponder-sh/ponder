@@ -98,7 +98,10 @@ type GetConstraints<
 export const createTable = <const table, const constraints>(
   t: GetTable<table>,
   c?: GetConstraints<constraints, table>,
-): readonly [table, constraints] => [t as table, c as constraints];
+): { table: table; constraints: constraints } => ({
+  table: t as table,
+  constraints: c as constraints,
+});
 
 export const createEnum = <const _enum extends readonly string[]>(e: _enum) =>
   e;
@@ -134,7 +137,7 @@ type P = {
   createTable: <const table, const constraints>(
     t: GetTable<table>,
     c?: GetConstraints<constraints, table>,
-  ) => readonly [table, constraints];
+  ) => { table: table; constraints: constraints };
   /**
    * Create an Enum type for the database.
    *
@@ -334,14 +337,14 @@ type P = {
 type CreateSchemaParameters<schema> = {} extends schema
   ? {}
   : {
-      [tableName in keyof schema]: schema[tableName] extends readonly [
-        infer table extends Table,
-        infer constraints extends Constraints,
-      ]
-        ? readonly [
-            GetTable<table, tableName & string, schema>,
-            GetConstraints<constraints, table>,
-          ]
+      [tableName in keyof schema]: schema[tableName] extends {
+        table: infer table extends Table;
+        constraints: infer constraints extends Constraints;
+      }
+        ? {
+            table: GetTable<table, tableName & string, schema>;
+            constraints: GetConstraints<constraints, table>;
+          }
         : readonly string[];
     };
 

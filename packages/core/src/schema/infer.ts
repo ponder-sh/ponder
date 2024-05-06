@@ -42,19 +42,19 @@ export type InferColumnType<
       ? (schema[column[" enum"] & keyof schema] & Enum)[number]
       : never;
 
-export type InferTableType<table, schema> = table extends readonly [
-  Table,
-  Constraints,
-]
+export type InferTableType<table, schema> = table extends {
+  table: Table;
+  constraints: Constraints;
+}
   ? Prettify<
       {
         [columnName in ExtractRequiredColumnNames<table>]: InferColumnType<
-          table[0][columnName],
+          table["table"][columnName],
           schema
         >;
       } & {
         [columnName in ExtractOptionalColumnNames<table>]?: InferColumnType<
-          table[0][columnName],
+          table["table"][columnName],
           schema
         >;
       }

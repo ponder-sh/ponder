@@ -197,7 +197,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 .withSchema(this.internalNamespace)
                 .createTable(tableId)
                 .$call((builder) =>
-                  this.buildOperationLogColumns(builder, table[0]),
+                  this.buildOperationLogColumns(builder, table.table),
                 )
                 .execute();
 
@@ -212,7 +212,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                   .withSchema(this.userNamespace)
                   .createTable(tableName)
                   .$call((builder) =>
-                    this.buildColumns(builder, schema, table[0]),
+                    this.buildColumns(builder, schema, table.table),
                   )
                   .execute();
               } catch (err) {
@@ -501,15 +501,14 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   async createIndexes({ schema }: { schema: Schema }) {
     await Promise.all(
       Object.entries(getTables(schema)).flatMap(([tableName, table]) => {
-        if (table[1] === undefined) return [];
+        if (table.constraints === undefined) return [];
 
-        return Object.entries(table[1]).map(async ([name, index]) => {
+        return Object.entries(table.constraints).map(async ([name, index]) => {
           await this.db.wrap({ method: "createIndexes" }, async () => {
             const indexName = `${tableName}_${name}`;
 
             const indexColumn = index[" column"];
             const order = index[" order"];
-            const nulls = index[" nulls"];
 
             const columns = Array.isArray(indexColumn)
               ? indexColumn.map((ic) => `"${ic}"`).join(", ")
