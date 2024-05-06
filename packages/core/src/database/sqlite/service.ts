@@ -508,14 +508,19 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             const indexName = `${tableName}_${name}`;
 
             const indexColumn = index[" column"];
+            const order = index[" order"];
+            const nulls = index[" nulls"];
+
             const columns = Array.isArray(indexColumn)
               ? indexColumn.map((ic) => `"${ic}"`).join(", ")
-              : `"${indexColumn}"`;
+              : `"${indexColumn}" ${
+                  order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""
+                }`;
 
             await this.db.executeQuery(
-              sql`CREATE INDEX "${sql.raw(this.userNamespace)}"."${sql.raw(
+              sql`CREATE INDEX ${sql.ref(this.userNamespace)}.${sql.ref(
                 indexName,
-              )}" ON "${sql.raw(tableName)}" (${sql.raw(columns)})`.compile(
+              )} ON ${sql.table(tableName)} (${sql.raw(columns)})`.compile(
                 this.db,
               ),
             );

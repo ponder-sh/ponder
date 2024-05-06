@@ -606,15 +606,27 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           await this.db.wrap({ method: "createIndexes" }, async () => {
             const indexName = `${tableName}_${name}`;
 
-            await this.db.schema
-              .createIndex(indexName)
-              .on(tableName)
-              .$call((builder) =>
-                Array.isArray(index[" column"])
-                  ? builder.columns(index[" column"] as string[])
-                  : builder.column(index[" column"]),
-              )
-              .execute();
+            const indexColumn = index[" column"];
+            const order = index[" order"];
+            const nulls = index[" nulls"];
+
+            const columns = Array.isArray(indexColumn)
+              ? indexColumn.map((ic) => `"${ic}"`).join(", ")
+              : `"${indexColumn}" ${
+                  order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""
+                } ${
+                  nulls === "first"
+                    ? "NULLS FIRST"
+                    : nulls === "last"
+                      ? "NULLS LAST"
+                      : ""
+                }`;
+
+            await this.db.executeQuery(
+              sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
+                tableName,
+              )} (${sql.raw(columns)})`.compile(this.db),
+            );
           });
 
           this.common.logger.info({

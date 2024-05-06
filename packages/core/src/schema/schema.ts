@@ -1,5 +1,6 @@
 import {
   type BuilderEnumColumn,
+  type BuilderIndex,
   type BuilderManyColumn,
   type BuilderOneColumn,
   type BuilderScalarColumn,
@@ -327,7 +328,7 @@ type P = {
    */
   index: <const column extends string | readonly string[]>(
     c: column,
-  ) => Index<column>;
+  ) => BuilderIndex<column, undefined, undefined>;
 };
 
 type CreateSchemaParameters<schema> = {} extends schema
