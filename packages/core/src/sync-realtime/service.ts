@@ -92,6 +92,7 @@ type LocalBlockchainState = {
 };
 
 const MAX_CONSECUTIVE_ERRORS = 10;
+const MAX_QUEUED_BLOCKS = 25;
 
 export const create = ({
   common,
@@ -199,10 +200,13 @@ export const start = (service: Service) => {
 
         // Blocks are missing. They should be fetched and enqueued.
         if (latestLocalBlock.number + 1 < newHeadBlockNumber) {
-          // Retrieve missing blocks, but only fetch 50 at most.
+          // Retrieve missing blocks, but only fetch a certain amount.
           const missingBlockRange = range(
             latestLocalBlock.number + 1,
-            Math.min(newHeadBlockNumber, latestLocalBlock.number + 51),
+            Math.min(
+              newHeadBlockNumber,
+              latestLocalBlock.number + MAX_QUEUED_BLOCKS,
+            ),
           );
           const pendingBlocks = await Promise.all(
             missingBlockRange.map((blockNumber) =>
@@ -216,7 +220,7 @@ export const start = (service: Service) => {
               service.network.name
             }' blocks from ${latestLocalBlock.number + 1} to ${Math.min(
               newHeadBlockNumber,
-              latestLocalBlock.number + 51,
+              latestLocalBlock.number + MAX_QUEUED_BLOCKS,
             )}`,
           });
 
@@ -261,7 +265,9 @@ export const start = (service: Service) => {
           msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error}`,
         });
 
-        await wait(250 * 2 ** service.consecutiveErrors);
+        // Wait 1, 2, 4, 8, 16, 32, 32, 32, 32, 32 seconds.
+        const duration = 1_000 * 2 ** service.consecutiveErrors;
+        await wait(Math.min(duration, 32_000));
 
         // Remove all blocks from the queue. This protects against an
         // erroneous block causing a fatal error.
