@@ -74,7 +74,7 @@ export const buildEntityTypes = ({
               if (relatedRecordId === null || relatedRecordId === undefined)
                 return null;
 
-              const loader = context.get("getLoader")({
+              const loader = context.getLoader({
                 tableName: referencedTable,
               });
 
@@ -89,8 +89,6 @@ export const buildEntityTypes = ({
             };
           } else if (isManyColumn(column)) {
             const resolver: PluralResolver = async (parent, args, context) => {
-              const store = context.get("store");
-
               const { where, orderBy, orderDirection, limit, after, before } =
                 args;
 
@@ -105,7 +103,7 @@ export const buildEntityTypes = ({
 
               // Query for the IDs of the matching records.
               // TODO: Update query to only fetch IDs, not entire records.
-              const result = await store.findMany({
+              const result = await context.store.findMany({
                 tableName: column.referenceTable,
                 where: whereObject,
                 orderBy: orderByObject,
@@ -115,7 +113,7 @@ export const buildEntityTypes = ({
               });
 
               // Load entire records objects using the loader.
-              const loader = context.get("getLoader")({
+              const loader = context.getLoader({
                 tableName: column.referenceTable,
               });
 

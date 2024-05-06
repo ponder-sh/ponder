@@ -259,7 +259,67 @@ test("graphql extra filter", async (context) => {
     }),
   });
 
-  expect(response.status).toBe(400);
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.errors[0].message).toBe(
+    'Unknown argument "doesntExist" on field "Query.table".',
+  );
+
+  await cleanup();
+
+  await server.kill();
+});
+
+test("graphql token limit error", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({ id: p.string() }),
+  }));
+
+  const { readonlyStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const server = await createServer({
+    graphqlSchema: graphqlSchema,
+    common: {
+      ...context.common,
+      options: { ...context.common.options, graphqlMaxOperationTokens: 3 },
+    },
+    readonlyStore: readonlyStore,
+  });
+  server.setHealthy();
+
+  const response = await server.hono.request("/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: `
+        {
+          __schema {
+            types {
+              fields {
+                type {
+                  fields {
+                    type {
+                      description
+                    }              
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+    }),
+  });
+
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.errors[0].message).toBe(
+    "Syntax Error: Token limit of 3 exceeded.",
+  );
 
   await cleanup();
 
@@ -311,12 +371,11 @@ test("graphql depth limit error", async (context) => {
     }),
   });
 
-  expect(response.status).toBe(400);
-  const body = (await response.json()) as any;
-
-  expect(body.errors).toMatchObject([
-    { message: "Syntax Error: Query depth limit of 5 exceeded, found 7." },
-  ]);
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.errors[0].message).toBe(
+    "Syntax Error: Query depth limit of 5 exceeded, found 7.",
+  );
 
   await cleanup();
 
@@ -378,12 +437,11 @@ test("graphql max aliases error", async (context) => {
     }),
   });
 
-  expect(response.status).toBe(400);
-  const body = (await response.json()) as any;
-
-  expect(body.errors).toMatchObject([
-    { message: "Syntax Error: Aliases limit of 2 exceeded, found 3." },
-  ]);
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.errors[0].message).toBe(
+    "Syntax Error: Aliases limit of 2 exceeded, found 3.",
+  );
 
   await cleanup();
 

@@ -3,9 +3,12 @@ import type { Common } from "@/common/common.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
-import { graphqlServer } from "@hono/graphql-server";
+import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
+import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
+import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { serve } from "@hono/node-server";
-import { GraphQLError, type GraphQLSchema } from "graphql";
+import { GraphQLError, GraphQLSchema } from "graphql";
+import { createYoga } from "graphql-yoga";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
@@ -14,10 +17,6 @@ import {
   type GetLoader,
   buildLoaderCache,
 } from "./graphql/buildLoaderCache.js";
-import {
-  createMaxAliasesRule,
-  createMaxDepthRule,
-} from "./graphql/validate.js";
 
 type Server = {
   hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;
@@ -79,14 +78,24 @@ export async function createServer({
     }
   });
 
-  const graphqlHandler = graphqlServer({
+  const graphqlYoga = createYoga({
     schema: graphqlSchema,
-    validationRules: [
-      createMaxDepthRule({
+    context: () => {
+      const getLoader = buildLoaderCache({ store: readonlyStore });
+      return { store: readonlyStore, getLoader };
+    },
+    graphqlEndpoint: "/graphql",
+    maskedErrors: process.env.NODE_ENV === "production",
+    logging: false,
+    graphiql: false,
+    parserAndValidationCache: false,
+    plugins: [
+      maxTokensPlugin({ n: common.options.graphqlMaxOperationTokens }),
+      maxDepthPlugin({
         n: common.options.graphqlMaxOperationDepth,
         ignoreIntrospection: false,
       }),
-      createMaxAliasesRule({
+      maxAliasesPlugin({
         n: common.options.graphqlMaxOperationAliases,
         allowList: [],
       }),
@@ -117,15 +126,14 @@ export async function createServer({
           service: "server",
           msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
         });
-
         return c.text("", 200);
       }
 
       return c.text("Historical indexing is not complete.", 503);
     })
-    .get("/graphql", (c) => {
-      return c.html(graphiQLHtml);
-    })
+    // Renders GraphiQL
+    .get("/graphql", (c) => c.html(graphiQLHtml))
+    // Serves GraphQL POST requests following healthcheck rules
     .post("/graphql", (c) => {
       if (isHealthy === false) {
         return c.json(
@@ -134,19 +142,17 @@ export async function createServer({
         );
       }
 
-      const getLoader = buildLoaderCache({ store: readonlyStore });
-      c.set("store", readonlyStore);
-      c.set("getLoader", getLoader);
-      return graphqlHandler(c);
+      return graphqlYoga.handle(c.req.raw);
     })
-    .get("/", (c) => {
-      return c.html(graphiQLHtml);
-    })
+    // Renders GraphiQL
+    .get("/", (c) => c.html(graphiQLHtml))
+    // Serves GraphQL POST requests regardless of health status, e.g. "dev UI"
     .post("/", (c) => {
-      const getLoader = buildLoaderCache({ store: readonlyStore });
-      c.set("store", readonlyStore);
-      c.set("getLoader", getLoader);
-      return graphqlHandler(c);
+      // Note: graphql-yoga returns a 404 if the request path does not match the
+      // graphqlEndpoint option. To avoid creating an entire additional graphqlYoga
+      // instance, just manually set it.
+      c.req.path = "/graphql";
+      return graphqlYoga.handle(c.req.raw);
     });
 
   const createServerWithNextAvailablePort: typeof http.createServer = (
