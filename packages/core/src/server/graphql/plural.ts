@@ -31,8 +31,6 @@ export const buildPluralField = ({
   entityFilterType: GraphQLInputObjectType;
 }): GraphQLFieldConfig<Parent, Context> => {
   const resolver: PluralResolver = async (_, args, context) => {
-    const store = context.get("store");
-
     const { where, orderBy, orderDirection, before, limit, after } = args;
 
     const whereObject = where ? buildWhereObject(where) : {};
@@ -41,7 +39,7 @@ export const buildPluralField = ({
       ? { [orderBy]: orderDirection || "asc" }
       : undefined;
 
-    return await store.findMany({
+    return await context.store.findMany({
       tableName,
       where: whereObject,
       orderBy: orderByObject,

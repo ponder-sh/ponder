@@ -17,6 +17,7 @@ export type Options = {
   hostname?: string;
   maxHealthcheckDuration: number;
 
+  graphqlMaxOperationTokens: number;
   graphqlMaxOperationDepth: number;
   graphqlMaxOperationAliases: number;
 
@@ -80,6 +81,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     // Default limits are from Apollo:
     // https://www.apollographql.com/blog/prevent-graph-misuse-with-operation-size-and-complexity-limits
+    graphqlMaxOperationTokens: 1000,
     graphqlMaxOperationDepth: 100,
     graphqlMaxOperationAliases: 30,
 
