@@ -91,7 +91,7 @@ type LocalBlockchainState = {
   logs: LightLog[];
 };
 
-const MAX_CONSECUTIVE_ERRORS = 10;
+const ERROR_TIMEOUT = [1, 2, 5, 10, 30, 60, 60, 60, 60, 60] as const;
 const MAX_QUEUED_BLOCKS = 25;
 
 export const create = ({
@@ -265,19 +265,26 @@ export const start = (service: Service) => {
           msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error}`,
         });
 
-        // Wait 1, 2, 4, 8, 16, 32, 32, 32, 32, 32 seconds.
-        const duration = 1_000 * 2 ** service.consecutiveErrors;
-        await wait(Math.min(duration, 32_000));
+        const duration = ERROR_TIMEOUT[service.consecutiveErrors];
+
+        service.common.logger.warn({
+          service: "realtime",
+          msg: `Retrying '${service.network.name}' sync after ${duration} ${
+            duration === 1 ? "second" : "seconds"
+          }.`,
+        });
+
+        await wait(duration * 1_000);
 
         // Remove all blocks from the queue. This protects against an
         // erroneous block causing a fatal error.
         queue.clear();
 
         // After a certain number of attempts, emit a fatal error.
-        if (++service.consecutiveErrors === MAX_CONSECUTIVE_ERRORS) {
+        if (++service.consecutiveErrors === ERROR_TIMEOUT.length) {
           service.common.logger.error({
             service: "realtime",
-            msg: `Fatal error: Unable to process '${service.network.name}' block ${newHeadBlockNumber} after ${MAX_CONSECUTIVE_ERRORS} attempts due to error:`,
+            msg: `Fatal error: Unable to process '${service.network.name}' block ${newHeadBlockNumber} after ${ERROR_TIMEOUT.length} attempts due to error:`,
             error,
           });
 
