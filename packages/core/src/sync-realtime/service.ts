@@ -91,7 +91,9 @@ type LocalBlockchainState = {
   logs: LightLog[];
 };
 
-const ERROR_TIMEOUT = [1, 2, 5, 10, 30, 60, 60, 60, 60, 60] as const;
+const ERROR_TIMEOUT = [
+  1, 2, 5, 10, 30, 60, 60, 60, 60, 60, 60, 60, 60, 60,
+] as const;
 const MAX_QUEUED_BLOCKS = 25;
 
 export const create = ({
