@@ -525,26 +525,75 @@ query {
 
 </div>
 
-## Custom Indexes
+## Indexes
 
-Database indexes can be added to tables by passing a second argument to `p.createTable(){:ts}`. Then, use `p.index(){:ts}` passing the name of the column.
+To create a database index, include a second argument to the `p.createTable(){:ts}` function, and use `p.index(){:ts}` to specify which column(s) to include in the index.
 
-```ts filename="ponder.schema.ts" {8}
+<Callout type="info">
+  Database indexes are created _after_ historical indexing is complete, just
+  before the app becomes healthy.
+</Callout>
+
+### Single column
+
+To create a index on a single column, pass the column name to `p.index(){:ts}`.
+
+{/* prettier-ignore */}
+```ts filename="ponder.schema.ts" {10,17}
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Person: p.createTable({
+    id: p.string(),
+    name: p.string(),
+    dogs: p.many("Dog.ownerId"),
+  }, {
+    // Index the `name` column to speed up search queries.
+    nameIndex: p.index("name"),
+  }),
+  Dog: p.createTable({
+    id: p.string(),
+    ownerId: p.string().references("Person.id"),
+  }, {
+    // Index the `ownerId` column to speed up relational queries (the `Person.dogs` field).
+    ownerIdIndex: p.index("ownerId"),
+  }),
+}));
+```
+
+For single-column indexes, you can also specify the direction of the index using `.asc(){:ts}` or `.desc(){:ts}`, and the null ordering behavior using `.nullsFirst(){:ts}` or `.nullsLast(){:ts}`. These options improve query performance if you use the column in an `ORDER BY{:sql}` clause.
+
+```ts filename="ponder.schema.ts" {6}
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Person: p.createTable(
+    { id: p.string(), age: p.string() },
+    { ageIndex: p.index("age").asc().nullsLast() }
+  ),
+}));
+```
+
+### Multiple columns
+
+To create a multi-column index, pass an array of column names to `p.index(){:ts}`.
+
+{/* prettier-ignore */}
+```ts filename="ponder.schema.ts" {9}
 import { createSchema } from "@ponder/core";
 
 export default createSchema((p) => ({
   Person: p.createTable({
     id: p.string(),
     age: p.int(),
+    salary: p.bigint(),
   }, {
-    ageIndex: p.index("age"),
+    seniorityIndex: p.index(["age", "salary"]),
   }),
 }));
 ```
 
-Multi column indexes can be created by passing an array of column names to `p.index(){:ts}`.
-
-Use the `.asc(){:ts}`, `.desc(){:ts}`, `.nullsFirst(){:ts}`, or `.nullsLast(){:ts}` modifiers to apply an ordering to a single column index.
+The `.asc(){:ts}`, `.desc(){:ts}`, `.nullsFirst(){:ts}` and `.nullsLast(){:ts}` modifiers are not currently supported for multi-column indexes.
 
 ## ERC20 example
 
