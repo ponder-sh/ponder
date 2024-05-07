@@ -22,17 +22,20 @@ export default createSchema((p) => ({
     owner: p.one("ownerId"),
     spender: p.one("spenderId"),
   }),
-  TransferEvent: p.createTable({
-    id: p.string(),
-    amount: p.bigint(),
-    timestamp: p.int(),
+  TransferEvent: p.createTable(
+    {
+      id: p.string(),
+      amount: p.bigint(),
+      timestamp: p.int(),
 
-    fromId: p.hex().references("Account.id"),
-    toId: p.hex().references("Account.id"),
+      fromId: p.hex().references("Account.id"),
+      toId: p.hex().references("Account.id"),
 
-    from: p.one("fromId"),
-    to: p.one("toId"),
-  }),
+      from: p.one("fromId"),
+      to: p.one("toId"),
+    },
+    { fromIdIndex: p.index("fromId") },
+  ),
   ApprovalEvent: p.createTable({
     id: p.string(),
     amount: p.bigint(),

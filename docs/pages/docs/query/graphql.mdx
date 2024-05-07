@@ -479,6 +479,15 @@ type Person {
 
 </div>
 
+## How to speed up queries
+
+Here are a few tips for speeding up slow queries.
+
+1. **Create database indexes**: Create indexes to speed up filters, joins, and sort conditions. [Read more](/docs/schema#indexes).
+2. **Enable horizontal scaling**: If the GraphQL API is struggling to keep up with reqeust volume, consider spreading the load across multiple instances. [Read more](/docs/production/horizontal-scaling).
+3. **Limit query depth**: Each layer of depth in a GraphQL query introduces at least one additional sequential database query. Avoid queries that are more than 2 layers deep.
+3. **Use pagination**: Use cursor-based pagination to fetch records in smaller, more manageable chunks. This can help reduce the load on the database.
+
 ## Time-travel queries
 
 <Callout type="warning">Native support for time-travel queries was removed in `0.4.0`. [Read more](/docs/indexing/time-series).</Callout>

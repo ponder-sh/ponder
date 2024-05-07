@@ -1,8 +1,9 @@
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
-import type { Schema } from "@/schema/types.js";
+import type { Schema, Table } from "@/schema/common.js";
+import type { DatabaseRecord, UserId, UserRecord } from "@/types/schema.js";
 import { sql } from "kysely";
-import type { Row, WhereInput, WriteStore } from "./store.js";
+import type { WhereInput, WriteStore } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
@@ -26,10 +27,10 @@ export const getHistoricalStore = ({
     data = {},
   }: {
     tableName: string;
-    id: string | number | bigint;
-    data?: Omit<Row, "id">;
+    id: UserId;
+    data?: Omit<UserRecord, "id">;
   }) => {
-    const table = schema.tables[tableName];
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.create` }, async () => {
       const createRow = encodeRow({ id, ...data }, table, kind);
@@ -52,11 +53,11 @@ export const getHistoricalStore = ({
     data,
   }: {
     tableName: string;
-    data: Row[];
+    data: UserRecord[];
   }) => {
-    const table = schema.tables[tableName];
+    const table = (schema[tableName] as { table: Table }).table;
 
-    const rows: Row[] = [];
+    const rows: DatabaseRecord[] = [];
 
     for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
       await db.wrap({ method: `${tableName}.createMany` }, async () => {
@@ -74,11 +75,11 @@ export const getHistoricalStore = ({
             throw parseStoreError(err, data.length > 0 ? data[0] : {});
           });
 
-        rows.push(...(_rows as Row[]));
+        rows.push(..._rows);
       });
     }
 
-    return rows;
+    return rows.map((row) => decodeRow(row, table, kind));
   },
   update: async ({
     tableName,
@@ -86,17 +87,17 @@ export const getHistoricalStore = ({
     data = {},
   }: {
     tableName: string;
-    id: string | number | bigint;
+    id: UserId;
     data?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+      | Partial<Omit<UserRecord, "id">>
+      | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
-    const table = schema.tables[tableName];
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.update` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
 
-      let updateObject: Partial<Omit<Row, "id">>;
+      let updateObject: Partial<Omit<UserRecord, "id">>;
       if (typeof data === "function") {
         const latestRow = await db
           .withSchema(namespaceInfo.userNamespace)
@@ -136,10 +137,10 @@ export const getHistoricalStore = ({
     tableName: string;
     where: WhereInput<any>;
     data?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+      | Partial<Omit<UserRecord, "id">>
+      | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
-    const table = schema.tables[tableName];
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.updateMany` }, async () => {
       if (typeof data === "function") {
@@ -225,13 +226,13 @@ export const getHistoricalStore = ({
     update = {},
   }: {
     tableName: string;
-    id: string | number | bigint;
-    create?: Omit<Row, "id">;
+    id: UserId;
+    create?: Omit<UserRecord, "id">;
     update?:
-      | Partial<Omit<Row, "id">>
-      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+      | Partial<Omit<UserRecord, "id">>
+      | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
   }) => {
-    const table = schema.tables[tableName];
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.upsert` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
@@ -312,9 +313,9 @@ export const getHistoricalStore = ({
     id,
   }: {
     tableName: string;
-    id: string | number | bigint;
+    id: UserId;
   }) => {
-    const table = schema.tables[tableName];
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.delete` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);

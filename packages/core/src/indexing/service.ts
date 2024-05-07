@@ -9,10 +9,11 @@ import {
   sourceIsFactory,
   sourceIsLog,
 } from "@/config/sources.js";
-import type { IndexingStore, Row } from "@/indexing-store/store.js";
-import type { Schema } from "@/schema/types.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
+import type { Schema } from "@/schema/common.js";
 import type { SyncService } from "@/sync/index.js";
 import type { DatabaseModel } from "@/types/model.js";
+import type { UserRecord } from "@/types/schema.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
@@ -40,7 +41,7 @@ import { addUserStackTrace } from "./trace.js";
 export type Context = {
   network: { chainId: number; name: string };
   client: ReadOnlyClient;
-  db: Record<string, DatabaseModel<Row>>;
+  db: Record<string, DatabaseModel<UserRecord>>;
   contracts: Record<
     string,
     {

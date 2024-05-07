@@ -1,4 +1,4 @@
-import type { Scalar } from "@/schema/types.js";
+import type { Scalar } from "@/schema/common.js";
 import {
   GraphQLBoolean,
   GraphQLFloat,

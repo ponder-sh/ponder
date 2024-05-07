@@ -1,8 +1,6 @@
-import { test } from "vitest";
-
+import type { InferSchemaType } from "@/schema/infer.js";
 import { createSchema } from "@/schema/schema.js";
-import type { RecoverTableType } from "@/schema/types.js";
-
+import { test } from "vitest";
 import type { DatabaseModel } from "./model.js";
 
 test("model", () => {
@@ -12,9 +10,9 @@ test("model", () => {
     }),
   }));
 
-  type t = RecoverTableType<{}, (typeof schema)["tables"]["name"]>;
+  type s = InferSchemaType<typeof schema>;
 
   // @ts-ignore
-  type _ = DatabaseModel<t>;
+  type _ = DatabaseModel<s["name"]>;
   //   ^?
 });
