@@ -1,6 +1,7 @@
 import type { Prettify } from "@/types/utils.js";
 import type {
   EnumColumn,
+  Index,
   ReferenceColumn,
   Scalar,
   ScalarColumn,
@@ -115,6 +116,117 @@ const enumList =
     }
   };
 
+type Asc<index extends Index> = () => BuilderIndex<
+  index[" column"],
+  "asc",
+  index[" nulls"]
+>;
+
+const asc =
+  <index extends BuilderIndex>(i: index): Asc<index> =>
+  // @ts-expect-error
+  () => {
+    const newIndex = {
+      " type": i[" type"],
+      " column": i[" column"],
+      " order": "asc",
+      " nulls": i[" nulls"],
+    } as const;
+
+    if (newIndex[" nulls"] === undefined) {
+      return {
+        ...newIndex,
+        nullsFirst: nullsFirst(newIndex),
+        nullsLast: nullsLast(newIndex),
+      };
+    } else {
+      return newIndex;
+    }
+  };
+
+type Desc<index extends BuilderIndex> = () => BuilderIndex<
+  index[" column"],
+  "desc",
+  index[" nulls"]
+>;
+
+const desc =
+  <index extends BuilderIndex>(i: index): Desc<index> =>
+  // @ts-expect-error
+  () => {
+    const newIndex = {
+      " type": i[" type"],
+      " column": i[" column"],
+      " order": "desc",
+      " nulls": i[" nulls"],
+    } as const;
+
+    if (newIndex[" nulls"] === undefined) {
+      return {
+        ...newIndex,
+        nullsFirst: nullsFirst(newIndex),
+        nullsLast: nullsLast(newIndex),
+      };
+    } else {
+      return newIndex;
+    }
+  };
+
+type NullsFirst<index extends BuilderIndex> = () => BuilderIndex<
+  index[" column"],
+  index[" order"],
+  "first"
+>;
+
+const nullsFirst =
+  <index extends BuilderIndex>(i: index): NullsFirst<index> =>
+  // @ts-expect-error
+  () => {
+    const newIndex = {
+      " type": i[" type"],
+      " column": i[" column"],
+      " order": i[" order"],
+      " nulls": "first",
+    } as const;
+
+    if (newIndex[" order"] === undefined) {
+      return {
+        ...newIndex,
+        asc: asc(newIndex),
+        desc: desc(newIndex),
+      };
+    } else {
+      return newIndex;
+    }
+  };
+
+type NullsLast<index extends BuilderIndex> = () => BuilderIndex<
+  index[" column"],
+  index[" order"],
+  "last"
+>;
+
+const nullsLast =
+  <index extends BuilderIndex>(i: index): NullsLast<index> =>
+  // @ts-expect-error
+  () => {
+    const newIndex = {
+      " type": i[" type"],
+      " column": i[" column"],
+      " order": i[" order"],
+      " nulls": "last",
+    } as const;
+
+    if (newIndex[" order"] === undefined) {
+      return {
+        ...newIndex,
+        asc: asc(newIndex),
+        desc: desc(newIndex),
+      };
+    } else {
+      return newIndex;
+    }
+  };
 type ReferenceOptional<column extends BuilderReferenceColumn> =
   () => BuilderReferenceColumn<column[" scalar"], true, column[" reference"]>;
 
@@ -192,14 +304,14 @@ export type BuilderScalarColumn<
          * - Docs: https://ponder.sh/docs/schema#optional
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   t: p.createTable({
          *     id: p.string(),
          *     o: p.int().optional(),
          *   })
-         * })
+         * }));
          */
         optional: Optional<base>;
         /**
@@ -208,14 +320,14 @@ export type BuilderScalarColumn<
          * - Docs: https://ponder.sh/docs/schema#list
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   t: p.createTable({
          *     id: p.string(),
          *     l: p.int().list(),
          *   })
-         * })
+         * }));
          */
         list: List<base>;
         references: References<base>;
@@ -227,14 +339,14 @@ export type BuilderScalarColumn<
          * - Docs: https://ponder.sh/docs/schema#list
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   t: p.createTable({
          *     id: p.string(),
          *     l: p.int().list(),
          *   })
-         * })
+         * }))
          */
         list: List<base>;
         /**
@@ -245,9 +357,9 @@ export type BuilderScalarColumn<
          * @param references Table that this column is a key of.
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   a: p.createTable({
          *     id: p.string(),
          *     b_id: p.string.references("b.id"),
@@ -255,7 +367,7 @@ export type BuilderScalarColumn<
          *   b: p.createTable({
          *     id: p.string(),
          *   })
-         * })
+         * }));
          */
         references: References<base>;
       }
@@ -267,14 +379,14 @@ export type BuilderScalarColumn<
          * - Docs: https://ponder.sh/docs/schema#optional
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   t: p.createTable({
          *     id: p.string(),
          *     o: p.int().optional(),
          *   })
-         * })
+         * }));
          */
         optional: Optional<base>;
       }
@@ -298,9 +410,9 @@ export type BuilderReferenceColumn<
        * - Docs: https://ponder.sh/docs/schema#optional
        *
        * @example
-       * import { p } from '@ponder/core'
+       * import { createSchema } from "@ponder/core";
        *
-       * export default p.createSchema({
+       * export default createSchema((p) => ({
        *   t: p.createTable({
        *     id: p.string(),
        *     o: p.int().optional(),
@@ -344,15 +456,15 @@ export type BuilderEnumColumn<
          * - Docs: https://ponder.sh/docs/schema#optional
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   e: p.createEnum(["ONE", "TWO"])
          *   t: p.createTable({
          *     id: p.string(),
          *     a: p.enum("e").optional(),
          *   })
-         * })
+         * }));
          */
         optional: EnumOptional<base>;
         /**
@@ -361,15 +473,15 @@ export type BuilderEnumColumn<
          * - Docs: https://ponder.sh/docs/schema#list
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   e: p.createEnum(["ONE", "TWO"])
          *   t: p.createTable({
          *     id: p.string(),
          *     a: p.enum("e").list(),
          *   })
-         * })
+         * }));
          */
         list: EnumList<base>;
       }
@@ -380,15 +492,15 @@ export type BuilderEnumColumn<
          * - Docs: https://ponder.sh/docs/schema#list
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   e: p.createEnum(["ONE", "TWO"])
          *   t: p.createTable({
          *     id: p.string(),
          *     a: p.enum("e").list(),
          *   })
-         * })
+         * }));
          */
         list: EnumList<base>;
       }
@@ -400,18 +512,50 @@ export type BuilderEnumColumn<
          * - Docs: https://ponder.sh/docs/schema#optional
          *
          * @example
-         * import { p } from '@ponder/core'
+         * import { createSchema } from "@ponder/core";
          *
-         * export default p.createSchema({
+         * export default createSchema((p) => ({
          *   e: p.createEnum(["ONE", "TWO"])
          *   t: p.createTable({
          *     id: p.string(),
          *     a: p.enum("e").optional(),
          *   })
-         * })
+         * }));
          */
         optional: EnumOptional<base>;
       }
+    : base;
+
+export type BuilderIndex<
+  column extends string | readonly string[] = string | readonly string[],
+  order extends "asc" | "desc" | undefined = "asc" | "desc" | undefined,
+  nulls extends "first" | "last" | undefined = "first" | "last" | undefined,
+  ///
+  base extends Index<column, order, nulls> = Index<column, order, nulls>,
+  isSingleColumn = column extends readonly string[] ? false : true,
+> = order extends undefined
+  ? nulls extends undefined
+    ? isSingleColumn extends true
+      ? base & {
+          asc: Asc<base>;
+          desc: Desc<base>;
+          nullsFirst: NullsFirst<base>;
+          nullsLast: NullsLast<base>;
+        }
+      : base
+    : isSingleColumn extends true
+      ? base & {
+          asc: Asc<base>;
+          desc: Desc<base>;
+        }
+      : base
+  : nulls extends undefined
+    ? isSingleColumn extends true
+      ? base & {
+          nullsFirst: NullsFirst<base>;
+          nullsLast: NullsLast<base>;
+        }
+      : base
     : base;
 
 export const string = scalarColumn("string");
@@ -454,4 +598,23 @@ export const _enum = <_enum extends string>(
     optional: enumOptional(column),
     list: enumList(column),
   };
+};
+
+export const index = <const column extends string | readonly string[]>(
+  c: column,
+): BuilderIndex<column, undefined, undefined> => {
+  const index = {
+    " type": "index",
+    " column": c,
+    " order": undefined,
+    " nulls": undefined,
+  } as const;
+
+  return {
+    ...index,
+    asc: asc(index),
+    desc: desc(index),
+    nullsFirst: nullsFirst(index),
+    nullsLast: nullsLast(index),
+  } as BuilderIndex<column, undefined, undefined>;
 };

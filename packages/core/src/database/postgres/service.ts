@@ -218,7 +218,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
           // Function to create the operation log tables and user tables.
           const createTables = async () => {
-            for (const [tableName, columns] of Object.entries(
+            for (const [tableName, table] of Object.entries(
               getTables(schema),
             )) {
               const tableId = namespaceInfo.internalTableIds[tableName];
@@ -227,7 +227,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 .withSchema(this.internalNamespace)
                 .createTable(tableId)
                 .$call((builder) =>
-                  this.buildOperationLogColumns(builder, columns),
+                  this.buildOperationLogColumns(builder, table.table),
                 )
                 .execute();
 
@@ -243,7 +243,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                   .withSchema(this.userNamespace)
                   .createTable(tableName)
                   .$call((builder) =>
-                    this.buildColumns(builder, schema, columns),
+                    this.buildColumns(builder, schema, table.table),
                   )
                   .execute();
               } catch (err) {
@@ -602,6 +602,51 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         }
       });
     });
+  }
+
+  async createIndexes({ schema }: { schema: Schema }) {
+    await Promise.all(
+      Object.entries(getTables(schema)).flatMap(([tableName, table]) => {
+        if (table.constraints === undefined) return [];
+
+        return Object.entries(table.constraints).map(async ([name, index]) => {
+          await this.db.wrap({ method: "createIndexes" }, async () => {
+            const indexName = `${tableName}_${name}`;
+
+            const indexColumn = index[" column"];
+            const order = index[" order"];
+            const nulls = index[" nulls"];
+
+            const columns = Array.isArray(indexColumn)
+              ? indexColumn.map((ic) => `"${ic}"`).join(", ")
+              : `"${indexColumn}" ${
+                  order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""
+                } ${
+                  nulls === "first"
+                    ? "NULLS FIRST"
+                    : nulls === "last"
+                      ? "NULLS LAST"
+                      : ""
+                }`;
+
+            await this.db.executeQuery(
+              sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
+                `${this.userNamespace}.${tableName}`,
+              )} (${sql.raw(columns)})`.compile(this.db),
+            );
+          });
+
+          this.common.logger.info({
+            service: "database",
+            msg: `Created index '${tableName}_${name}' on columns (${
+              Array.isArray(index[" column"])
+                ? index[" column"].join(", ")
+                : index[" column"]
+            }) in schema '${this.userNamespace}'`,
+          });
+        });
+      }),
+    );
   }
 
   async kill() {

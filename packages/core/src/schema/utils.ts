@@ -1,5 +1,6 @@
 import type {
   Column,
+  Constraints,
   Enum,
   EnumColumn,
   ManyColumn,
@@ -36,14 +37,20 @@ export const isListColumn = (column: Column): boolean => {
   return column[" list"];
 };
 
-export const isTable = (tableOrEnum: Schema[string]): tableOrEnum is Table =>
-  Array.isArray(tableOrEnum) === false;
+export const isTable = (
+  tableOrEnum: Schema[string],
+): tableOrEnum is { table: Table; constraints: Constraints } =>
+  !Array.isArray(tableOrEnum);
 
 export const isEnum = (tableOrEnum: Schema[string]): tableOrEnum is Enum =>
-  Array.isArray(tableOrEnum) === true;
+  Array.isArray(tableOrEnum);
 
-export const getTables = (schema: Schema): { [tableName: string]: Table } => {
-  const tables: { [tableName: string]: Table } = {};
+export const getTables = (
+  schema: Schema,
+): { [tableName: string]: { table: Table; constraints: Constraints } } => {
+  const tables: {
+    [tableName: string]: { table: Table; constraints: Constraints };
+  } = {};
 
   for (const [name, tableOrEnum] of Object.entries(schema)) {
     if (isTable(tableOrEnum)) {

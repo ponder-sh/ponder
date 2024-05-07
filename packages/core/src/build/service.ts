@@ -424,6 +424,10 @@ const validateAndBuild = async (
     return buildSchemaResult;
   }
 
+  for (const log of buildSchemaResult.logs) {
+    common.logger[log.level]({ service: "build", msg: log.msg });
+  }
+
   const graphqlSchema = buildGraphqlSchema(buildSchemaResult.schema);
 
   // Validates and build the config

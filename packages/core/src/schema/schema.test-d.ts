@@ -158,3 +158,38 @@ test("createSchema enum error", () => {
     }),
   }));
 });
+
+test("createSchema index", () => {
+  const schema = createSchema((p) => ({
+    //  ^?
+    t: p.createTable(
+      {
+        id: p.string(),
+      },
+      {
+        idIndex: p.index(["id"]),
+      },
+    ),
+  }));
+
+  type inferred = InferSchemaType<typeof schema>;
+  //   ^?
+
+  assertType<inferred>({} as unknown as { t: { id: string } });
+});
+
+test("createSchema index error", () => {
+  createSchema((p) => ({
+    //  ^?
+    // @ts-expect-error
+    t: p.createTable(
+      {
+        id: p.string(),
+      },
+      {
+        // @ts-expect-error
+        idIndex: p.index("idd"),
+      },
+    ),
+  }));
+});

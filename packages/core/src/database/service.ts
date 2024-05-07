@@ -37,5 +37,7 @@ export interface BaseDatabaseService {
     checkpoint,
   }: { checkpoint: Checkpoint }): Promise<void>;
 
+  createIndexes({ schema }: { schema: Schema }): Promise<void>;
+
   kill(): Promise<void>;
 }

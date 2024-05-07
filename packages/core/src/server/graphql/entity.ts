@@ -49,7 +49,7 @@ export const buildEntityTypes = ({
   const entityTypes: Record<string, GraphQLObjectType<Parent, Context>> = {};
   const entityPageTypes: Record<string, GraphQLObjectType> = {};
 
-  for (const [tableName, table] of Object.entries(getTables(schema))) {
+  for (const [tableName, { table }] of Object.entries(getTables(schema))) {
     entityTypes[tableName] = new GraphQLObjectType({
       name: tableName,
       fields: () => {

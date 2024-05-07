@@ -38,7 +38,7 @@ export const getReadonlyStore = ({
     tableName: string;
     id: UserId;
   }) => {
-    const table = schema[tableName] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findUnique` }, async () => {
       const encodedId = encodeValue(id, table.id, kind);
@@ -70,7 +70,7 @@ export const getReadonlyStore = ({
     after?: string | null;
     limit?: number;
   }) => {
-    const table = schema[tableName] as Table;
+    const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findMany` }, async () => {
       let query = db
