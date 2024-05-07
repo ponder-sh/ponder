@@ -76,9 +76,3 @@ export const encodeSchema = (schema: Schema) => {
     enums: getEnums(schema),
   });
 };
-
-// Must handle the `schema` value in the lock table for both postgres and sqlite.
-export const decodeSchemaTableNames = (s: any): string[] => {
-  if (typeof s === "object") return Object.keys(s.tables);
-  else return Object.keys(JSON.parse(s).tables);
-};

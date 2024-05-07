@@ -4,7 +4,6 @@ import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
-  decodeSchemaTableNames,
   encodeSchema,
   getEnums,
   getTables,
@@ -360,6 +359,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           // Otherwise, the lock row has a different build ID or a zero finalized checkpoint,
           // so we need to drop the previous app's tables and create new ones.
           const previousBuildId = previousLockRow.build_id;
+          const previousSchema = JSON.parse(previousLockRow.schema) as Schema;
 
           await tx
             .withSchema(this.internalNamespace)
@@ -373,9 +373,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             msg: `Acquired lock on schema '${this.userNamespace}' previously used by build '${previousBuildId}'`,
           });
 
-          for (const tableName of decodeSchemaTableNames(
-            previousLockRow.schema,
-          )) {
+          for (const tableName of Object.keys(previousSchema.tables)) {
             const tableId = hash([
               this.userNamespace,
               previousBuildId,
