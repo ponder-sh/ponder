@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.21
+
+### Patch Changes
+
+- [#852](https://github.com/ponder-sh/ponder/pull/852) [`b16ab1ac805a418614eb87ea2b16f06394bd67e0`](https://github.com/ponder-sh/ponder/commit/b16ab1ac805a418614eb87ea2b16f06394bd67e0) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for database indexes using the `p.index()` function in `ponder.schema.ts`. [Read more](https://ponder.sh/docs/schema#indexes).
+
 ## 0.4.20
 
 ### Patch Changes
