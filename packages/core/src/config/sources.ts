@@ -21,8 +21,9 @@ export type BlockFilterCriteria = {
 };
 
 export type TraceFilterCriteria = {
-  fromAddress?: Address;
-  toAddress?: Address;
+  fromAddress?: Address | Address[];
+  toAddress?: Address | Address[];
+  includeTransactionReceipts: boolean;
 };
 
 type BaseLogSource = {

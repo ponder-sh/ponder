@@ -10,6 +10,7 @@ import {
   sourceIsLog,
 } from "@/config/sources.js";
 import type { RawEvent } from "@/sync-store/store.js";
+import type { SyncTrace } from "@/sync/index.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
@@ -230,6 +231,7 @@ export const getRawRPCData = async (sources: EventSource[]) => {
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[0]?.number,
       ),
+      traces: [] as SyncTrace[],
     },
     block2: {
       logs: [logs[2]],
@@ -238,6 +240,7 @@ export const getRawRPCData = async (sources: EventSource[]) => {
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[1]?.number,
       ),
+      traces: [] as SyncTrace[],
     },
     block3: {
       logs: [logs[3]],
@@ -246,6 +249,7 @@ export const getRawRPCData = async (sources: EventSource[]) => {
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[2]?.number,
       ),
+      traces: [] as SyncTrace[],
     },
   } as {
     block1: {
@@ -253,18 +257,21 @@ export const getRawRPCData = async (sources: EventSource[]) => {
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction, RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt, RpcTransactionReceipt];
+      traces: SyncTrace[];
     };
     block2: {
       logs: [RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt];
+      traces: SyncTrace[];
     };
     block3: {
       logs: [RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt];
+      traces: SyncTrace[];
     };
   };
 };

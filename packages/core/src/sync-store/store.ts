@@ -182,8 +182,8 @@ export interface SyncStore {
     block: RpcBlock;
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
-    traces: SyncTrace[];
     logs: RpcLog[];
+    traces: SyncTrace[];
   }): Promise<void>;
 
   /**

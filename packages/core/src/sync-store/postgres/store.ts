@@ -5,12 +5,13 @@ import {
   type FactorySource,
   type LogFilterCriteria,
   type LogSource,
+  type TraceFilterCriteria,
   sourceIsBlock,
   sourceIsFactory,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { SyncLog } from "@/sync/index.js";
+import type { SyncLog, SyncTrace } from "@/sync/index.js";
 import type { Log, TransactionReceipt } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
@@ -24,6 +25,7 @@ import {
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
+  buildTraceFilterFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
@@ -44,9 +46,11 @@ import {
 } from "viem";
 import type { RawEvent, SyncStore } from "../store.js";
 import {
+  type InsertableTrace,
   type SyncStoreTables,
   rpcToPostgresBlock,
   rpcToPostgresLog,
+  rpcToPostgresTrace,
   rpcToPostgresTransaction,
   rpcToPostgresTransactionReceipt,
 } from "./encoding.js";
@@ -669,6 +673,220 @@ export class PostgresSyncStore implements SyncStore {
     return hasBlock !== undefined;
   };
 
+  insertTraceFilterInterval = async ({
+    chainId,
+    traceFilter,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    transactionReceipts: rpcTransactionReceipts,
+    traces: rpcTraces,
+    interval,
+  }: {
+    chainId: number;
+    traceFilter: TraceFilterCriteria;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
+    traces: SyncTrace[];
+    interval: { startBlock: bigint; endBlock: bigint };
+  }) => {
+    return this.db.wrap({ method: "insertTraceFilterInterval" }, async () => {
+      await this.db.transaction().execute(async (tx) => {
+        await tx
+          .insertInto("blocks")
+          .values({
+            ...rpcToPostgresBlock(rpcBlock),
+            chainId,
+            checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
+          })
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+
+        if (rpcTransactions.length > 0) {
+          const transactions = rpcTransactions.map((transaction) => ({
+            ...rpcToPostgresTransaction(transaction),
+            chainId,
+          }));
+          await tx
+            .insertInto("transactions")
+            .values(transactions)
+            .onConflict((oc) => oc.column("hash").doNothing())
+            .execute();
+        }
+
+        if (rpcTransactionReceipts.length > 0) {
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
+          await tx
+            .insertInto("transactionReceipts")
+            .values(transactionReceipts)
+            .onConflict((oc) => oc.column("transactionHash").doNothing())
+            .execute();
+        }
+
+        // Delete existing traces with the same `transactionHash`. Then, calculate "traces.checkpoint"
+        // based on the ordering of "traces.traceAddress" and add all traces to "traces" table.
+        for (const trace of rpcTraces) {
+          const traces = await tx
+            .deleteFrom("traces")
+            .returningAll()
+            .where("transactionHash", "=", trace.result.transactionHash)
+            .where("chainId", "=", chainId)
+            .execute();
+
+          (traces as Omit<InsertableTrace, "checkpoint">[]).push(
+            ...rpcTraces.map((trace) => ({
+              ...rpcToPostgresTrace(trace),
+              chainId,
+            })),
+          );
+
+          // Use lexographical sort of stringified `traceAddress`.
+          traces.sort((a, b) => {
+            return a.traceAddress < b.traceAddress ? -1 : 1;
+          });
+
+          for (let i = 0; i < traces.length; i++) {
+            const trace = traces[i];
+            const checkpoint = encodeCheckpoint({
+              blockTimestamp: hexToNumber(rpcBlock.timestamp),
+              chainId: BigInt(chainId),
+              blockNumber: trace.blockNumber,
+              // TODO(kyle) is this the same?
+              transactionIndex: BigInt(trace.transactionPosition),
+              eventType: EVENT_TYPES.traces,
+              eventIndex: BigInt(i),
+            });
+
+            trace.checkpoint = checkpoint;
+          }
+
+          await tx
+            .insertInto("traces")
+            .values(traces)
+            .onConflict((oc) =>
+              oc
+                .columns(["transactionHash", "transactionPosition"])
+                .doNothing(),
+            )
+            .execute();
+        }
+
+        await this._insertTraceFilterInterval({
+          tx,
+          chainId,
+          traceFilters: [traceFilter],
+          interval,
+        });
+      });
+    });
+  };
+
+  getTraceFilterIntervals = async ({
+    traceFilter,
+    chainId,
+  }: {
+    chainId: number;
+    traceFilter: TraceFilterCriteria;
+  }) => {
+    return this.db.wrap({ method: "getTraceFilterIntervals" }, async () => {
+      const fragments = buildTraceFilterFragments({ ...traceFilter, chainId });
+
+      // First, attempt to merge overlapping and adjacent intervals.
+      await Promise.all(
+        fragments.map(async (fragment) => {
+          return await this.db.transaction().execute(async (tx) => {
+            const { id: traceFilterId } = await tx
+              .insertInto("traceFilters")
+              .values(fragment)
+              .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+              .returningAll()
+              .executeTakeFirstOrThrow();
+
+            const existingIntervalRows = await tx
+              .deleteFrom("traceFilterIntervals")
+              .where("traceFilterId", "=", traceFilterId)
+              .returningAll()
+              .execute();
+
+            const mergedIntervals = intervalUnion(
+              existingIntervalRows.map((i) => [
+                Number(i.startBlock),
+                Number(i.endBlock),
+              ]),
+            );
+
+            const mergedIntervalRows = mergedIntervals.map(
+              ([startBlock, endBlock]) => ({
+                traceFilterId,
+                startBlock: BigInt(startBlock),
+                endBlock: BigInt(endBlock),
+              }),
+            );
+
+            if (mergedIntervalRows.length > 0) {
+              await tx
+                .insertInto("traceFilterIntervals")
+                .values(mergedIntervalRows)
+                .execute();
+            }
+          });
+        }),
+      );
+
+      const intervals = await this.db
+        .with(
+          "traceFilterFragments(fragmentId, fragmentFromAddress, fragmentToAddress, fragmentIncludeTransactionReceipts)",
+          () =>
+            sql`( values ${sql.join(
+              fragments.map(
+                (f) =>
+                  sql`( ${sql.val(f.id)}, ${sql.val(f.fromAddress)}, ${sql.val(
+                    f.toAddress,
+                  )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+              ),
+            )} )`,
+        )
+        .selectFrom("traceFilterIntervals")
+        .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
+        .innerJoin("traceFilterFragments", (join) => {
+          return join.on((eb) =>
+            eb.and([
+              eb.or([
+                eb("fromAddress", "is", null),
+                eb("fragmentFromAddress", "=", sql.ref("fromAddress")),
+              ]),
+              eb.or([
+                eb("toAddress", "is", null),
+                eb("fragmentToAddress", "=", sql.ref("toAddress")),
+              ]),
+            ]),
+          );
+        })
+        .select(["fragmentId", "startBlock", "endBlock"])
+        .where("chainId", "=", chainId)
+        .execute();
+
+      const intervalsByFragmentId = intervals.reduce(
+        (acc, cur) => {
+          const { fragmentId, startBlock, endBlock } = cur;
+          (acc[fragmentId] ||= []).push([Number(startBlock), Number(endBlock)]);
+          return acc;
+        },
+        {} as Record<string, [number, number][]>,
+      );
+
+      const intervalsForEachFragment = fragments.map((f) =>
+        intervalUnion(intervalsByFragmentId[f.id] ?? []),
+      );
+      return intervalIntersectionMany(intervalsForEachFragment);
+    });
+  };
+
   private createLogCheckpoint = (
     rpcLog: RpcLog,
     block: RpcBlock,
@@ -714,12 +932,14 @@ export class PostgresSyncStore implements SyncStore {
     transactions: rpcTransactions,
     transactionReceipts: rpcTransactionReceipts,
     logs: rpcLogs,
+    traces: rpcTraces,
   }: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
+    traces: SyncTrace[];
   }) => {
     return this.db.wrap({ method: "insertRealtimeBlock" }, async () => {
       await this.db.transaction().execute(async (tx) => {
@@ -793,6 +1013,56 @@ export class PostgresSyncStore implements SyncStore {
             )
             .execute();
         }
+
+        if (rpcTraces.length > 0) {
+          // Delete existing traces with the same `transactionHash`. Then, calculate "traces.checkpoint"
+          // based on the ordering of "traces.traceAddress" and add all traces to "traces" table.
+          for (const trace of rpcTraces) {
+            const traces = await tx
+              .deleteFrom("traces")
+              .returningAll()
+              .where("transactionHash", "=", trace.result.transactionHash)
+              .where("chainId", "=", chainId)
+              .execute();
+
+            (traces as Omit<InsertableTrace, "checkpoint">[]).push(
+              ...rpcTraces.map((trace) => ({
+                ...rpcToPostgresTrace(trace),
+                chainId,
+              })),
+            );
+
+            // Use lexographical sort of stringified `traceAddress`.
+            traces.sort((a, b) => {
+              return a.traceAddress < b.traceAddress ? -1 : 1;
+            });
+
+            for (let i = 0; i < traces.length; i++) {
+              const trace = traces[i];
+              const checkpoint = encodeCheckpoint({
+                blockTimestamp: hexToNumber(rpcBlock.timestamp),
+                chainId: BigInt(chainId),
+                blockNumber: trace.blockNumber,
+                // TODO(kyle) is this the same?
+                transactionIndex: BigInt(trace.transactionPosition),
+                eventType: EVENT_TYPES.traces,
+                eventIndex: BigInt(i),
+              });
+
+              trace.checkpoint = checkpoint;
+            }
+
+            await tx
+              .insertInto("traces")
+              .values(traces)
+              .onConflict((oc) =>
+                oc
+                  .columns(["transactionHash", "transactionPosition"])
+                  .doNothing(),
+              )
+              .execute();
+          }
+        }
       });
     });
   };
@@ -802,12 +1072,14 @@ export class PostgresSyncStore implements SyncStore {
     logFilters,
     factories,
     blockFilters,
+    traceFilters,
     interval,
   }: {
     chainId: number;
     logFilters: LogFilterCriteria[];
     factories: FactoryCriteria[];
     blockFilters: BlockFilterCriteria[];
+    traceFilters: TraceFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     return this.db.wrap({ method: "insertRealtimeInterval" }, async () => {
@@ -839,6 +1111,13 @@ export class PostgresSyncStore implements SyncStore {
           blockFilters,
           interval,
         });
+
+        await this._insertTraceFilterInterval({
+          tx,
+          chainId,
+          traceFilters,
+          interval,
+        });
       });
     });
   };
@@ -864,6 +1143,12 @@ export class PostgresSyncStore implements SyncStore {
           .execute();
         await tx
           .deleteFrom("rpcRequestResults")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">", fromBlock)
+          .execute();
+
+        await tx
+          .deleteFrom("traces")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)
           .execute();
@@ -916,7 +1201,7 @@ export class PostgresSyncStore implements SyncStore {
     blockFilters: BlockFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const blockFilterFragments = blockFilters.flatMap((blockFilter) => {
+    const blockFilterFragments = blockFilters.map((blockFilter) => {
       return {
         id: `${chainId}_${blockFilter.interval}_${blockFilter.offset}`,
         chainId,
@@ -937,6 +1222,38 @@ export class PostgresSyncStore implements SyncStore {
         await tx
           .insertInto("blockFilterIntervals")
           .values({ blockFilterId, startBlock, endBlock })
+          .execute();
+      }),
+    );
+  };
+
+  private _insertTraceFilterInterval = async ({
+    tx,
+    chainId,
+    traceFilters,
+    interval: { startBlock, endBlock },
+  }: {
+    tx: KyselyTransaction<SyncStoreTables>;
+    chainId: number;
+    traceFilters: TraceFilterCriteria[];
+    interval: { startBlock: bigint; endBlock: bigint };
+  }) => {
+    const traceFilterFragments = traceFilters.flatMap((traceFilter) =>
+      buildTraceFilterFragments({ ...traceFilter, chainId }),
+    );
+
+    await Promise.all(
+      traceFilterFragments.map(async (traceFilterFragment) => {
+        const { id: traceFilterId } = await tx
+          .insertInto("traceFilters")
+          .values(traceFilterFragment)
+          .onConflict((oc) => oc.column("id").doUpdateSet(traceFilterFragment))
+          .returningAll()
+          .executeTakeFirstOrThrow();
+
+        await tx
+          .insertInto("traceFilterIntervals")
+          .values({ traceFilterId, startBlock, endBlock })
           .execute();
       }),
     );

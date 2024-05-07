@@ -1,4 +1,8 @@
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type {
+  FactoryCriteria,
+  LogFilterCriteria,
+  TraceFilterCriteria,
+} from "@/config/sources.js";
 import type { Address, Hex } from "viem";
 
 /**
@@ -15,7 +19,7 @@ export function buildLogFilterFragments({
 }: LogFilterCriteria & {
   chainId: number;
 }) {
-  return buildFragments({
+  return buildLogFragments({
     address,
     topics,
     includeTransactionReceipts,
@@ -43,7 +47,7 @@ export function buildFactoryFragments({
 }: FactoryCriteria & {
   chainId: number;
 }) {
-  const fragments = buildFragments({
+  const fragments = buildLogFragments({
     address,
     topics,
     includeTransactionReceipts,
@@ -63,7 +67,7 @@ export function buildFactoryFragments({
     >)[];
 }
 
-function buildFragments({
+function buildLogFragments({
   address,
   topics,
   chainId,
@@ -130,4 +134,44 @@ function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
     topic2: Hex | Hex[] | null;
     topic3: Hex | Hex[] | null;
   };
+}
+
+/**
+ * Generates trace filter fragments from a trace filter.
+ */
+export function buildTraceFilterFragments({
+  fromAddress,
+  toAddress,
+  includeTransactionReceipts,
+  chainId,
+}: TraceFilterCriteria & {
+  chainId: number;
+}) {
+  const fragments: {
+    id: string;
+    chainId: number;
+    fromAddress: Hex | null;
+    toAddress: Hex | null;
+    includeTransactionReceipts: 0 | 1;
+  }[] = [];
+
+  for (const _fromAddress of Array.isArray(fromAddress)
+    ? fromAddress
+    : [fromAddress ?? null]) {
+    for (const _toAddress of Array.isArray(toAddress)
+      ? toAddress
+      : [toAddress ?? null]) {
+      fragments.push({
+        id: `${chainId}_${_fromAddress}_${_toAddress}_${
+          includeTransactionReceipts ? 1 : 0
+        }`,
+        chainId,
+        fromAddress: _fromAddress,
+        toAddress: _toAddress,
+        includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+      });
+    }
+  }
+
+  return fragments;
 }

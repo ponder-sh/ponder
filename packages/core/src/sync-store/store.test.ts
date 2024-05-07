@@ -1363,6 +1363,7 @@ test("insertRealtimeInterval inserts intervals", async (context) => {
     logFilters: [logFilterCriteria],
     factories: [factoryCriteriaOne, factoryCriteriaTwo],
     blockFilters: [blockFilterCriteria],
+    traceFilters: [],
     interval: { startBlock: 500n, endBlock: 550n },
   });
 
@@ -1875,6 +1876,7 @@ test("getLogEvents filters on simple factory", async (context) => {
     transactions: rpcData.block3.transactions,
     logs: rpcData.block3.logs,
     transactionReceipts: rpcData.block3.transactionReceipts,
+    traces: [],
   });
 
   const ag = syncStore.getLogEvents({
@@ -2093,6 +2095,7 @@ test("getLogEvents event filter on factory", async (context) => {
     transactions: rpcData.block3.transactions,
     logs: rpcData.block3.logs,
     transactionReceipts: [],
+    traces: [],
   });
 
   const ag = syncStore.getLogEvents({
