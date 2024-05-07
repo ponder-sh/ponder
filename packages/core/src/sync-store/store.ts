@@ -3,8 +3,10 @@ import type {
   EventSource,
   FactoryCriteria,
   LogFilterCriteria,
+  TraceFilterCriteria,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
+import type { SyncTrace } from "@/sync/index.js";
 import type {
   Block,
   Log,
@@ -145,6 +147,32 @@ export interface SyncStore {
   }): Promise<boolean>;
 
   /**
+   * Insert a list of traces & associated transactions matching a given trace filter
+   * within a specific block. Also insert the trace interval recording the trace_filter
+   * request that was made and returned this result.
+   *
+   * Note that `block.number` should always be equal to `interval.endBlock`.
+   */
+  insertTraceFilterInterval(options: {
+    chainId: number;
+    traceFilter: TraceFilterCriteria;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
+    traces: SyncTrace[];
+    interval: { startBlock: bigint; endBlock: bigint };
+  }): Promise<void>;
+
+  /**
+   * Get all trace intervals where traces (and associated blocks & transactions)
+   * matching the specified trace filter have already been inserted.
+   */
+  getTraceFilterIntervals(options: {
+    chainId: number;
+    traceFilter: TraceFilterCriteria;
+  }): Promise<[number, number][]>;
+
+  /**
    * Inserts a new realtime block and any logs/transactions that match the
    * registered sources. Does NOT insert intervals to mark this data as finalized,
    * see insertRealtimeInterval for that.
@@ -154,6 +182,7 @@ export interface SyncStore {
     block: RpcBlock;
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
+    traces: SyncTrace[];
     logs: RpcLog[];
   }): Promise<void>;
 
@@ -166,6 +195,7 @@ export interface SyncStore {
     logFilters: LogFilterCriteria[];
     factories: FactoryCriteria[];
     blockFilters: BlockFilterCriteria[];
+    traceFilters: TraceFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 

@@ -47,6 +47,27 @@ export type BaseSyncService = {
 export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
 export type SyncLog = Log<Hex, Hex, false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
+export type SyncTrace = {
+  action: {
+    callType: "call" | "delegateCall";
+    from: Address;
+    gas: Hex;
+    input: Hex;
+    to: Address;
+    value: Hex;
+  };
+  blockHash: Hex;
+  blockNumber: Hex;
+  result: {
+    gasUsed: Hex;
+    output: Hex;
+    subtraces: number;
+    traceAddress: number[];
+    transactionHash: Hex;
+    transactionPosition: number;
+    type: "call" | "create";
+  };
+};
 
 /**
  * Helper function for "eth_getBlockByNumber" request.
