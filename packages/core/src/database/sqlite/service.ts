@@ -2,7 +2,7 @@ import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
-import type { Schema, Table } from "@/schema/common.js";
+import type { Enum, Schema, Table } from "@/schema/common.js";
 import {
   encodeSchema,
   getEnums,
@@ -183,6 +183,8 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             heartbeat_at: Date.now(),
             build_id: this.buildId,
             finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
+            // Schema is encoded to be backwards compatible with old versions.
+            // `schema` should have to properties "tables" and "enums".
             schema: encodeSchema(schema),
           } satisfies Insertable<InternalTables["namespace_lock"]>;
 
@@ -359,7 +361,12 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           // Otherwise, the lock row has a different build ID or a zero finalized checkpoint,
           // so we need to drop the previous app's tables and create new ones.
           const previousBuildId = previousLockRow.build_id;
-          const previousSchema = JSON.parse(previousLockRow.schema) as Schema;
+          // Note: `previousSchema` should only be used to get table names or enum names because
+          // the types of `Table` and `Enum` have changed between versions.
+          const previousSchema = JSON.parse(previousLockRow.schema) as {
+            tables: { [tableName: string]: Table };
+            enums: { [enumName: string]: Enum };
+          };
 
           await tx
             .withSchema(this.internalNamespace)

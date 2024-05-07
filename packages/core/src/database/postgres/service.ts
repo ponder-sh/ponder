@@ -1,7 +1,7 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { PoolConfig } from "@/config/database.js";
-import type { Schema, Table } from "@/schema/common.js";
+import type { Enum, Schema, Table } from "@/schema/common.js";
 import {
   encodeSchema,
   getEnums,
@@ -211,6 +211,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             heartbeat_at: Date.now(),
             build_id: this.buildId,
             finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
+            // Schema is encoded to be backwards compatible with old versions.
+            // `schema` should have to properties "tables" and "enums".
             schema: encodeSchema(schema),
           } satisfies Insertable<InternalTables["namespace_lock"]>;
 
@@ -386,7 +388,12 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           // Otherwise, the lock row has a different build ID or a zero finalized checkpoint,
           // so we need to drop the previous app's tables and create new ones.
           const previousBuildId = previousLockRow.build_id;
-          const previousSchema = previousLockRow.schema as unknown as Schema;
+          // Note: `previousSchema` should only be used to get table names or enum names because
+          // the types of `Table` and `Enum` have changed between versions.
+          const previousSchema = previousLockRow.schema as unknown as {
+            tables: { [tableName: string]: Table };
+            enums: { [enumName: string]: Enum };
+          };
 
           await tx
             .withSchema(this.internalNamespace)
