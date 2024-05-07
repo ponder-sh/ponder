@@ -743,7 +743,6 @@ const migrations: Record<string, Migration> = {
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
         .addPrimaryKeyConstraint("tracesPrimaryKey", [
-          "chainId",
           "transactionHash",
           "traceAddress",
         ])

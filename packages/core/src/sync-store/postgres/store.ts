@@ -730,16 +730,27 @@ export class PostgresSyncStore implements SyncStore {
 
         // Delete existing traces with the same `transactionHash`. Then, calculate "traces.checkpoint"
         // based on the ordering of "traces.traceAddress" and add all traces to "traces" table.
+        const traceByTransactionHash: { [transacionHash: Hex]: SyncTrace[] } =
+          {};
         for (const trace of rpcTraces) {
+          if (
+            traceByTransactionHash[trace.result.transactionHash] === undefined
+          ) {
+            traceByTransactionHash[trace.result.transactionHash] = [];
+          }
+          traceByTransactionHash[trace.result.transactionHash].push(trace);
+        }
+
+        for (const transactionHash of Object.keys(traceByTransactionHash)) {
           const traces = await tx
             .deleteFrom("traces")
             .returningAll()
-            .where("transactionHash", "=", trace.result.transactionHash)
+            .where("transactionHash", "=", transactionHash as Hex)
             .where("chainId", "=", chainId)
             .execute();
 
           (traces as Omit<InsertableTrace, "checkpoint">[]).push(
-            ...rpcTraces.map((trace) => ({
+            ...traceByTransactionHash[transactionHash as Hex].map((trace) => ({
               ...rpcToPostgresTrace(trace),
               chainId,
             })),
@@ -769,9 +780,7 @@ export class PostgresSyncStore implements SyncStore {
             .insertInto("traces")
             .values(traces)
             .onConflict((oc) =>
-              oc
-                .columns(["transactionHash", "transactionPosition"])
-                .doNothing(),
+              oc.columns(["transactionHash", "traceAddress"]).doNothing(),
             )
             .execute();
         }
@@ -860,6 +869,11 @@ export class PostgresSyncStore implements SyncStore {
                 eb("fromAddress", "is", null),
                 eb("fragmentFromAddress", "=", sql.ref("fromAddress")),
               ]),
+              eb(
+                "fragmentIncludeTransactionReceipts",
+                "<=",
+                sql.ref("includeTransactionReceipts"),
+              ),
               eb.or([
                 eb("toAddress", "is", null),
                 eb("fragmentToAddress", "=", sql.ref("toAddress")),
@@ -1015,53 +1029,27 @@ export class PostgresSyncStore implements SyncStore {
         }
 
         if (rpcTraces.length > 0) {
-          // Delete existing traces with the same `transactionHash`. Then, calculate "traces.checkpoint"
-          // based on the ordering of "traces.traceAddress" and add all traces to "traces" table.
-          for (const trace of rpcTraces) {
-            const traces = await tx
-              .deleteFrom("traces")
-              .returningAll()
-              .where("transactionHash", "=", trace.result.transactionHash)
-              .where("chainId", "=", chainId)
-              .execute();
-
-            (traces as Omit<InsertableTrace, "checkpoint">[]).push(
-              ...rpcTraces.map((trace) => ({
-                ...rpcToPostgresTrace(trace),
-                chainId,
-              })),
-            );
-
-            // Use lexographical sort of stringified `traceAddress`.
-            traces.sort((a, b) => {
+          const traces = rpcTraces
+            .map((trace, i) => ({
+              ...rpcToPostgresTrace(trace),
+              chainId,
+              checkpoint: encodeCheckpoint({
+                blockTimestamp: hexToNumber(rpcBlock.timestamp),
+                chainId: BigInt(chainId),
+                blockNumber: hexToBigInt(trace.blockNumber),
+                // TODO(kyle) is this the same?
+                transactionIndex: BigInt(trace.result.transactionPosition),
+                eventType: EVENT_TYPES.traces,
+                eventIndex: BigInt(i),
+              }),
+            }))
+            .sort((a, b) => {
+              // TODO(kyle) take into account the different transactionHashes
               return a.traceAddress < b.traceAddress ? -1 : 1;
             });
 
-            for (let i = 0; i < traces.length; i++) {
-              const trace = traces[i];
-              const checkpoint = encodeCheckpoint({
-                blockTimestamp: hexToNumber(rpcBlock.timestamp),
-                chainId: BigInt(chainId),
-                blockNumber: trace.blockNumber,
-                // TODO(kyle) is this the same?
-                transactionIndex: BigInt(trace.transactionPosition),
-                eventType: EVENT_TYPES.traces,
-                eventIndex: BigInt(i),
-              });
-
-              trace.checkpoint = checkpoint;
-            }
-
-            await tx
-              .insertInto("traces")
-              .values(traces)
-              .onConflict((oc) =>
-                oc
-                  .columns(["transactionHash", "transactionPosition"])
-                  .doNothing(),
-              )
-              .execute();
-          }
+          // TODO(kyle) onConflict
+          await tx.insertInto("traces").values(traces).execute();
         }
       });
     });

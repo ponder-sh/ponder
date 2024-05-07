@@ -22,7 +22,11 @@ import {
   type RpcLog,
   type RpcTransaction,
   type RpcTransactionReceipt,
+  encodeFunctionData,
+  encodeFunctionResult,
   formatTransactionReceipt,
+  hexToNumber,
+  parseEther,
 } from "viem";
 import {
   http,
@@ -38,7 +42,7 @@ import {
   toHex,
 } from "viem";
 import { mainnet } from "viem/chains";
-import { ALICE } from "./constants.js";
+import { ALICE, BOB } from "./constants.js";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
 import type { deploy } from "./simulate.js";
 
@@ -231,47 +235,162 @@ export const getRawRPCData = async (sources: EventSource[]) => {
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[0]?.number,
       ),
-      traces: [] as SyncTrace[],
+      traces: [
+        {
+          action: {
+            callType: "call",
+            from: ALICE,
+            gas: "0x0",
+            input: encodeFunctionData({
+              abi: erc20ABI,
+              functionName: "mint",
+              args: [ALICE, parseEther("1")],
+            }),
+            to: logs[0]!.address,
+            value: "0x0",
+          },
+          blockHash: blocks[0]!.hash,
+          blockNumber: blocks[0]!.number,
+          result: {
+            gasUsed: "0x0",
+            output: encodeFunctionResult({
+              abi: erc20ABI,
+              functionName: "mint",
+            }),
+            subtraces: 0,
+            traceAddress: [0],
+            transactionHash: logs[0]!.transactionHash!,
+            transactionPosition: hexToNumber(logs[0]!.transactionIndex!),
+            type: "call",
+          },
+        },
+        {
+          action: {
+            callType: "call",
+            from: ALICE,
+            gas: "0x0",
+            input: encodeFunctionData({
+              abi: erc20ABI,
+              functionName: "mint",
+              args: [BOB, parseEther("1")],
+            }),
+            to: logs[1]!.address,
+            value: "0x0",
+          },
+          blockHash: blocks[0]!.hash,
+          blockNumber: blocks[0]!.number,
+          result: {
+            gasUsed: "0x0",
+            output: encodeFunctionResult({
+              abi: erc20ABI,
+              functionName: "mint",
+            }),
+            subtraces: 0,
+            traceAddress: [0],
+            transactionHash: logs[1]!.transactionHash!,
+            transactionPosition: hexToNumber(logs[1]!.transactionIndex!),
+            type: "call",
+          },
+        },
+      ],
     },
     block2: {
       logs: [logs[2]],
-      block: blocks[1],
+      block: blocks[1]!,
       transactions: blocks[1]!.transactions,
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[1]?.number,
       ),
-      traces: [] as SyncTrace[],
+      traces: [
+        {
+          action: {
+            callType: "call",
+            from: ALICE,
+            gas: "0x0",
+            input: encodeFunctionData({
+              abi: factoryABI,
+              functionName: "createPair",
+            }),
+            to: logs[2]!.address,
+            value: "0x0",
+          },
+          blockHash: blocks[1]!.hash,
+          blockNumber: blocks[1]!.number,
+          result: {
+            gasUsed: "0x0",
+            output: encodeFunctionResult({
+              abi: factoryABI,
+              functionName: "createPair",
+              result: logs[3].address,
+            }),
+            subtraces: 0,
+            traceAddress: [0],
+            transactionHash: logs[2]!.transactionHash!,
+            transactionPosition: hexToNumber(logs[2]!.transactionIndex!),
+            type: "call",
+          },
+        },
+      ],
     },
     block3: {
       logs: [logs[3]],
-      block: blocks[2],
+      block: blocks[2]!,
       transactions: blocks[2]!.transactions,
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[2]?.number,
       ),
-      traces: [] as SyncTrace[],
+      traces: [
+        {
+          action: {
+            callType: "call",
+            from: ALICE,
+            gas: "0x0",
+            input: encodeFunctionData({
+              abi: pairABI,
+              functionName: "swap",
+              args: [1n, 2n, ALICE],
+            }),
+            to: logs[3]!.address,
+            value: "0x0",
+          },
+          blockHash: blocks[2]!.hash,
+          blockNumber: blocks[2]!.number,
+          result: {
+            gasUsed: "0x0",
+            output: encodeFunctionResult({
+              abi: pairABI,
+              functionName: "swap",
+            }),
+            subtraces: 0,
+            traceAddress: [0],
+            transactionHash: logs[3]!.transactionHash!,
+            transactionPosition: hexToNumber(logs[3]!.transactionIndex!),
+            type: "call",
+          },
+        },
+      ],
     },
-  } as {
+  } as unknown as {
     block1: {
       logs: [RpcLog, RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction, RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt, RpcTransactionReceipt];
-      traces: SyncTrace[];
+      traces: [SyncTrace];
     };
     block2: {
       logs: [RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt];
-      traces: SyncTrace[];
+      traces: [SyncTrace];
     };
     block3: {
       logs: [RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt];
-      traces: SyncTrace[];
+      traces: [SyncTrace];
     };
   };
 };

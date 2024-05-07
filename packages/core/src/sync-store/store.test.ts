@@ -30,6 +30,7 @@ import {
   hexToNumber,
   padHex,
   toHex,
+  zeroAddress,
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
@@ -1230,32 +1231,261 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
   await cleanup();
 });
 
-test("getBlockFilterIntervals retrns interval", async (context) => {
-  const { sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+test("insertTraceFilterIntervals inserts traces", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
 
-  const rpcData = await getRawRPCData(sources);
+    await syncStore.insertTraceFilterInterval({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block1,
+      interval: {
+        startBlock: hexToBigInt(rpcData.block1.block.number),
+        endBlock: hexToBigInt(rpcData.block1.block.number),
+      },
+    });
 
-  await syncStore.insertBlockFilterInterval({
-    chainId: 1,
-    blockFilter: {
-      interval: 4,
-      offset: 1,
-    },
-    block: rpcData.block1.block,
-    interval: { startBlock: 10n, endBlock: 100n },
-  });
+    const traces = await syncStore.db
+      .selectFrom("traces")
+      .selectAll()
+      .execute();
+    expect(traces).toHaveLength(2);
 
-  const blockFilterRanges = await syncStore.getBlockFilterIntervals({
-    chainId: 1,
-    blockFilter: {
-      interval: 4,
-      offset: 1,
-    },
-  });
+    await cleanup();
+  }
+});
 
-  expect(blockFilterRanges).toMatchObject([[10, 100]]);
-  await cleanup();
+test("insertTraceFilterIntervals updates checkpoint for existing traces", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    await syncStore.insertTraceFilterInterval({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block1,
+      interval: {
+        startBlock: hexToBigInt(rpcData.block1.block.number),
+        endBlock: hexToBigInt(rpcData.block1.block.number),
+      },
+    });
+
+    await syncStore.insertTraceFilterInterval({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block1,
+      traces: [
+        {
+          ...rpcData.block1.traces[0],
+          result: {
+            ...rpcData.block1.traces[0].result,
+            traceAddress: [1],
+          },
+        },
+      ],
+      interval: {
+        startBlock: hexToBigInt(rpcData.block1.block.number),
+        endBlock: hexToBigInt(rpcData.block1.block.number),
+      },
+    });
+
+    let traces = await syncStore.db.selectFrom("traces").selectAll().execute();
+    expect(traces).toHaveLength(3);
+    // trace ordering should be 1, 2, 0
+    expect(traces[2].checkpoint > traces[1].checkpoint).toBe(true);
+    expect(traces[0].checkpoint > traces[2].checkpoint).toBe(true);
+
+    await syncStore.insertTraceFilterInterval({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block1,
+      traces: [
+        {
+          ...rpcData.block1.traces[0],
+          result: {
+            ...rpcData.block1.traces[0].result,
+            traceAddress: [0, 2],
+          },
+        },
+      ],
+      interval: {
+        startBlock: hexToBigInt(rpcData.block1.block.number),
+        endBlock: hexToBigInt(rpcData.block1.block.number),
+      },
+    });
+
+    traces = await syncStore.db.selectFrom("traces").selectAll().execute();
+    expect(traces).toHaveLength(4);
+    // trace ordering should be 1, 2, 3, 0
+    expect(traces[2].checkpoint > traces[1].checkpoint).toBe(true);
+    expect(traces[3].checkpoint > traces[2].checkpoint).toBe(true);
+    expect(traces[0].checkpoint > traces[3].checkpoint).toBe(true);
+
+    await cleanup();
+  }
+});
+
+test("insertTraceFilterIntervals inserts trace filter intervals", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    await syncStore.insertTraceFilterInterval({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block1,
+      interval: { startBlock: 0n, endBlock: 100n },
+    });
+
+    const traceFilterRanges = await syncStore.getTraceFilterIntervals({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+    });
+
+    expect(traceFilterRanges).toMatchObject([[0, 100]]);
+
+    await cleanup();
+  }
+});
+
+test("insertTraceFilterIntervals handles address filtering", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    await syncStore.insertTraceFilterInterval({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: [ALICE, BOB],
+        includeTransactionReceipts: true,
+      },
+      ...rpcData.block1,
+      interval: {
+        startBlock: 1n,
+        endBlock: 1n,
+      },
+    });
+
+    await syncStore.insertTraceFilterInterval({
+      chainId: 1,
+      traceFilter: {
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block1,
+      interval: {
+        startBlock: 2n,
+        endBlock: 2n,
+      },
+    });
+
+    let traceFilterRanges = await syncStore.getTraceFilterIntervals({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: true,
+      },
+    });
+
+    expect(traceFilterRanges).toMatchObject([[1, 1]]);
+
+    traceFilterRanges = await syncStore.getTraceFilterIntervals({
+      chainId: 1,
+      traceFilter: {
+        toAddress: zeroAddress,
+        includeTransactionReceipts: false,
+      },
+    });
+
+    expect(traceFilterRanges).toMatchObject([[2, 2]]);
+
+    await cleanup();
+  }
+});
+
+test("insertTraceFilterIntervals merges traces filters", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    await syncStore.insertTraceFilterInterval({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block1,
+      interval: { startBlock: 0n, endBlock: 100n },
+    });
+
+    await syncStore.insertTraceFilterInterval({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block1,
+      interval: { startBlock: 200n, endBlock: 300n },
+    });
+
+    let traceFilterRanges = await syncStore.getTraceFilterIntervals({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+    });
+
+    expect(traceFilterRanges).toMatchObject([
+      [0, 100],
+      [200, 300],
+    ]);
+
+    await syncStore.insertTraceFilterInterval({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block1,
+      interval: { startBlock: 100n, endBlock: 200n },
+    });
+
+    traceFilterRanges = await syncStore.getTraceFilterIntervals({
+      chainId: 1,
+      traceFilter: {
+        fromAddress: ALICE,
+        includeTransactionReceipts: false,
+      },
+    });
+
+    expect(traceFilterRanges).toMatchObject([[0, 300]]);
+
+    await cleanup();
+  }
 });
 
 test("insertRealtimeBlock inserts data", async (context) => {
@@ -1296,6 +1526,7 @@ test("insertRealtimeBlock upserts transactions", async (context) => {
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     ...rpcData.block1,
+    traces: [],
   });
 
   await syncStore.insertRealtimeBlock({
@@ -1310,6 +1541,7 @@ test("insertRealtimeBlock upserts transactions", async (context) => {
         transactionIndex: "0x67",
       },
     ],
+    traces: [],
   });
 
   const transactions = await syncStore.db
