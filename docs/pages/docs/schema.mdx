@@ -561,7 +561,7 @@ export default createSchema((p) => ({
 }));
 ```
 
-For single-column indexes, you can also specify the direction of the index using `.asc(){:ts}` or `.desc(){:ts}`, and the null ordering behavior using `.nullsFirst(){:ts}` or `.nullsLast(){:ts}`. These options improve query performance if you use the column in an `ORDER BY{:sql}` clause.
+For single-column indexes, you can also specify the direction of the index using `.asc(){:ts}` or `.desc(){:ts}`, and the null ordering behavior using `.nullsFirst(){:ts}` or `.nullsLast(){:ts}`. These options can improve query performance if you use the column in an `ORDER BY{:sql}` clause using the same options.
 
 ```ts filename="ponder.schema.ts" {6}
 import { createSchema } from "@ponder/core";
@@ -576,7 +576,7 @@ export default createSchema((p) => ({
 
 ### Multiple columns
 
-To create a multi-column index, pass an array of column names to `p.index(){:ts}`.
+To create a multi-column index, pass an array of column names to `p.index(){:ts}`. The index will be created using the same column order that you specify.
 
 {/* prettier-ignore */}
 ```ts filename="ponder.schema.ts" {9}
