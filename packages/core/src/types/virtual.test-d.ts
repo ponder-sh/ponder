@@ -259,6 +259,28 @@ test("Context contracts", () => {
   assertType<expectedAddress>({} as any as a["address"]);
 });
 
+test("Context network without event", () => {
+  type a = Virtual.Context<
+    // ^?
+    typeof config,
+    typeof schema,
+    Virtual.EventNames<typeof config>
+  >["network"];
+
+  type expectedNetwork =
+    | {
+        name: "mainnet";
+        chainId: 1;
+      }
+    | {
+        name: "optimism";
+        chainId: 10;
+      };
+
+  assertType<a>({} as any as expectedNetwork);
+  assertType<expectedNetwork>({} as any as a);
+});
+
 test("Event", () => {
   type a = Virtual.Event<typeof config, "c1:Event0">;
   //   ^?

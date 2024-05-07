@@ -23,15 +23,11 @@ export const buildSingularField = ({
   entityType: GraphQLObjectType<Parent, Context>;
 }): GraphQLFieldConfig<Parent, Context> => {
   const resolver: SingularResolver = async (_, args, context) => {
-    const store = context.get("store");
     const { id } = args;
 
     if (id === undefined) return null;
 
-    const entityInstance = await store.findUnique({
-      tableName,
-      id,
-    });
+    const entityInstance = await context.store.findUnique({ tableName, id });
 
     return entityInstance;
   };

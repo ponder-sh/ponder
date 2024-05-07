@@ -3,9 +3,12 @@ import type { Common } from "@/common/common.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
-import { graphqlServer } from "@hono/graphql-server";
+import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
+import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
+import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { serve } from "@hono/node-server";
-import { GraphQLError, type GraphQLSchema } from "graphql";
+import { GraphQLError, GraphQLSchema } from "graphql";
+import { createYoga } from "graphql-yoga";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
@@ -75,6 +78,37 @@ export async function createServer({
     }
   });
 
+  const createGraphqlYoga = (path: string) =>
+    createYoga({
+      schema: graphqlSchema,
+      context: () => {
+        const getLoader = buildLoaderCache({ store: readonlyStore });
+        return { store: readonlyStore, getLoader };
+      },
+      graphqlEndpoint: path,
+      maskedErrors: process.env.NODE_ENV === "production",
+      logging: false,
+      graphiql: false,
+      parserAndValidationCache: false,
+      plugins: [
+        maxTokensPlugin({ n: common.options.graphqlMaxOperationTokens }),
+        maxDepthPlugin({
+          n: common.options.graphqlMaxOperationDepth,
+          ignoreIntrospection: false,
+        }),
+        maxAliasesPlugin({
+          n: common.options.graphqlMaxOperationAliases,
+          allowList: [],
+        }),
+      ],
+    });
+
+  const rootYoga = createGraphqlYoga("/");
+  const rootGraphiql = graphiQLHtml("/");
+
+  const prodYoga = createGraphqlYoga("/graphql");
+  const prodGraphiql = graphiQLHtml("/graphql");
+
   hono
     .use(cors())
     .use(metricsMiddleware)
@@ -88,66 +122,39 @@ export async function createServer({
     })
     .get("/health", async (c) => {
       if (isHealthy) {
-        c.status(200);
-        return c.text("");
+        return c.text("", 200);
       }
 
-      const max = common.options.maxHealthcheckDuration;
       const elapsed = (Date.now() - startTime) / 1000;
+      const max = common.options.maxHealthcheckDuration;
 
       if (elapsed > max) {
         common.logger.warn({
           service: "server",
-          msg: `Historical sync duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
+          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
         });
-
-        c.status(200);
-        return c.text("");
+        return c.text("", 200);
       }
 
-      c.status(503);
-      return c.text("Historical indexing is not complete.");
+      return c.text("Historical indexing is not complete.", 503);
     })
-    .use("/graphql", async (c, next) => {
+    // Renders GraphiQL
+    .get("/graphql", (c) => c.html(prodGraphiql))
+    // Serves GraphQL POST requests following healthcheck rules
+    .post("/graphql", (c) => {
       if (isHealthy === false) {
-        c.status(503);
-        return c.json({
-          data: undefined,
-          errors: [new GraphQLError("Historical indexing in not complete")],
-        });
+        return c.json(
+          { errors: [new GraphQLError("Historical indexing is not complete")] },
+          503,
+        );
       }
 
-      if (c.req.method === "POST") {
-        const getLoader = buildLoaderCache({ store: readonlyStore });
-
-        c.set("store", readonlyStore);
-        c.set("getLoader", getLoader);
-
-        return graphqlServer({
-          schema: graphqlSchema,
-        })(c);
-      }
-      return next();
+      return prodYoga.handle(c.req.raw);
     })
-    .get("/graphql", (c) => {
-      return c.html(graphiQLHtml);
-    })
-    .use("/", async (c, next) => {
-      if (c.req.method === "POST") {
-        const getLoader = buildLoaderCache({ store: readonlyStore });
-
-        c.set("store", readonlyStore);
-        c.set("getLoader", getLoader);
-
-        return graphqlServer({
-          schema: graphqlSchema,
-        })(c);
-      }
-      return next();
-    })
-    .get("/", (c) => {
-      return c.html(graphiQLHtml);
-    });
+    // Renders GraphiQL
+    .get("/", (c) => c.html(rootGraphiql))
+    // Serves GraphQL POST requests regardless of health status, e.g. "dev UI"
+    .post("/", (c) => rootYoga.handle(c.req.raw));
 
   const createServerWithNextAvailablePort: typeof http.createServer = (
     ...args: any

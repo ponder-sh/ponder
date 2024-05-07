@@ -56,12 +56,15 @@ export async function run({
   const {
     buildId,
     databaseConfig,
+    optionsConfig,
     networks,
     sources,
     schema,
     graphqlSchema,
     indexingFunctions,
   } = build;
+
+  common.options = { ...common.options, ...optionsConfig };
 
   let database: DatabaseService;
   let syncStore: SyncStore;

@@ -1,6 +1,6 @@
 // https://github.com/graphql/graphiql/blob/main/examples/graphiql-cdn/index.html
 
-export const graphiQLHtml = `<!--
+export const graphiQLHtml = (path: string) => `<!--
  *  Copyright (c) 2021 GraphQL Contributors
  *  All rights reserved.
  *
@@ -44,7 +44,7 @@ export const graphiQLHtml = `<!--
     <script src="https://unpkg.com/graphiql/graphiql.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/@graphiql/plugin-explorer/dist/index.umd.js" crossorigin="anonymous"></script>
     <script>
-      const fetcher = GraphiQL.createFetcher({ url: "/" });
+      const fetcher = GraphiQL.createFetcher({ url: "${path}" });
       const explorerPlugin = GraphiQLPluginExplorer.explorerPlugin();
       const root = ReactDOM.createRoot(document.getElementById("graphiql"));
       root.render(

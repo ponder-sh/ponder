@@ -1,5 +1,41 @@
 # @ponder/core
 
+## 0.4.20
+
+### Patch Changes
+
+- [#863](https://github.com/ponder-sh/ponder/pull/863) [`3f46d9e1303c178dc3da9839675a4e52f1d7adea`](https://github.com/ponder-sh/ponder/commit/3f46d9e1303c178dc3da9839675a4e52f1d7adea) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a regression introduced in 0.4.15 that caused apps using SQLite to encounter errors like `NOT NULL constraint failed: blocks.mixHash` when using chains that do not include all properties on the RPC block object.
+
+- [#860](https://github.com/ponder-sh/ponder/pull/860) [`e07956a9f1c0117e6b27aee6ea9c06ca2217b4c5`](https://github.com/ponder-sh/ponder/commit/e07956a9f1c0117e6b27aee6ea9c06ca2217b4c5) Thanks [@kyscott18](https://github.com/kyscott18)! - Increased realtime sync retry threshold. Now, realtime sync errors will continue retrying for 10 minutes before throwing a fatal error. This improves stability when using RPC providers that are slow to index block hashes for [EIP-234](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-234.md) requests.
+
+- [#865](https://github.com/ponder-sh/ponder/pull/865) [`ba16f324f8b591d57714320c01f10d46497c8894`](https://github.com/ponder-sh/ponder/commit/ba16f324f8b591d57714320c01f10d46497c8894) Thanks [@0xOlias](https://github.com/0xOlias)! - Added GraphQL operation validations for max token count (1000).
+
+## 0.4.19
+
+### Patch Changes
+
+- [#853](https://github.com/ponder-sh/ponder/pull/853) [`19eef7b5873a4786e03d83ff2205f2e1bf86d2c6`](https://github.com/ponder-sh/ponder/commit/19eef7b5873a4786e03d83ff2205f2e1bf86d2c6) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the `maxHealthcheckDuration` option in `ponder.config.ts` was not being used. Removed support for setting the max healthcheck duration using the `RAILWAY_HEALTHCHECK_TIMEOUT_SEC` environment variable (Railway no longer provides this variable).
+
+- [#853](https://github.com/ponder-sh/ponder/pull/853) [`19eef7b5873a4786e03d83ff2205f2e1bf86d2c6`](https://github.com/ponder-sh/ponder/commit/19eef7b5873a4786e03d83ff2205f2e1bf86d2c6) Thanks [@0xOlias](https://github.com/0xOlias)! - Added GraphQL operation validations for max depth (100) and max number of aliases (30).
+
+## 0.4.18
+
+### Patch Changes
+
+- [#857](https://github.com/ponder-sh/ponder/pull/857) [`e6638f38d24498a61c0d26fae99800ada3f85696`](https://github.com/ponder-sh/ponder/commit/e6638f38d24498a61c0d26fae99800ada3f85696) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug introduced in 0.4.15 where the initial build would sometimes fail with an "Maximum call stack size exceeded" error.
+
+## 0.4.17
+
+### Patch Changes
+
+- [#855](https://github.com/ponder-sh/ponder/pull/855) [`92c99c45302c490708fcf0753096be72527ff640`](https://github.com/ponder-sh/ponder/commit/92c99c45302c490708fcf0753096be72527ff640) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a type-level bug with the utility type "Context".
+
+## 0.4.16
+
+### Patch Changes
+
+- [#831](https://github.com/ponder-sh/ponder/pull/831) [`273079c40ebd3f7e68afc14fe534e134519c4c03`](https://github.com/ponder-sh/ponder/commit/273079c40ebd3f7e68afc14fe534e134519c4c03) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for block event indexing. For more details, please [visit the documentation](https://ponder.sh/block-events).
+
 ## 0.4.15
 
 ### Patch Changes

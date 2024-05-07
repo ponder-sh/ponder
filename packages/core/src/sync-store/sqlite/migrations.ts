@@ -801,6 +801,40 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_05_06_0_drop_not_null_block_columns": {
+    async up(db: Kysely<any>) {
+      await columnDropNotNull({
+        db,
+        table: "blocks",
+        column: "baseFeePerGas",
+        columnType: "varchar(79)",
+      });
+      await columnDropNotNull({
+        db,
+        table: "blocks",
+        column: "mixHash",
+        columnType: "varchar(66)",
+      });
+      await columnDropNotNull({
+        db,
+        table: "blocks",
+        column: "nonce",
+        columnType: "varchar(18)",
+      });
+      await columnDropNotNull({
+        db,
+        table: "blocks",
+        column: "sha3Uncles",
+        columnType: "varchar(66)",
+      });
+      await columnDropNotNull({
+        db,
+        table: "blocks",
+        column: "totalDifficulty",
+        columnType: "varchar(79)",
+      });
+    },
+  },
 };
 
 async function hasCheckpointCol(db: Kysely<any>) {
@@ -826,9 +860,7 @@ const columnDropNotNull = async ({
   await db.schema.alterTable(table).addColumn(tempName, columnType).execute();
   await db
     .updateTable(table)
-    .set((eb: any) => ({
-      [tempName]: eb.selectFrom(table).select(column),
-    }))
+    .set((eb: any) => ({ [tempName]: eb.selectFrom(table).select(column) }))
     .execute();
   await db.schema.alterTable(table).dropColumn(column).execute();
   await db.schema.alterTable(table).renameColumn(tempName, column).execute();
