@@ -20,6 +20,11 @@ export type BlockFilterCriteria = {
   offset: number;
 };
 
+export type TraceFilterCriteria = {
+  fromAddress?: Address;
+  toAddress?: Address;
+};
+
 type BaseLogSource = {
   id: string;
   contractName: string;
@@ -53,7 +58,24 @@ export type BlockSource = {
   criteria: BlockFilterCriteria;
 };
 
-export type EventSource = LogSource | FactorySource | BlockSource;
+export type FunctionCallSource = {
+  type: "function";
+  id: string;
+  contractName: string;
+  networkName: string;
+  chainId: number;
+  abi: Abi;
+  startBlock: number;
+  endBlock?: number;
+  maxBlockRange?: number;
+  criteria: TraceFilterCriteria;
+};
+
+export type EventSource =
+  | LogSource
+  | FactorySource
+  | BlockSource
+  | FunctionCallSource;
 
 export const sourceIsLog = (
   source: Pick<EventSource, "type">,
@@ -66,3 +88,7 @@ export const sourceIsFactory = (
 export const sourceIsBlock = (
   source: Pick<EventSource, "type">,
 ): source is BlockSource => source.type === "block";
+
+export const sourceIsFunctionCall = (
+  source: Pick<EventSource, "type">,
+): source is FunctionCallSource => source.type === "function";
