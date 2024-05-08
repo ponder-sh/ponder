@@ -533,16 +533,18 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.progressLogInterval = setInterval(async () => {
       const historical = await getHistoricalSyncProgress(this.common.metrics);
 
-      historical.sources.forEach(({ sourceName, progress, eta }) => {
-        if (progress === 1) return;
-        this.common.logger.info({
-          service: "historical",
-          msg: `Sync is ${formatPercentage(progress ?? 0)} complete${
-            eta !== undefined ? ` with ~${formatEta(eta)} remaining` : ""
-          } (source=${sourceName}, network=${this.network.name})`,
-          network: this.network.name,
-        });
-      });
+      historical.sources.forEach(
+        ({ networkName, sourceName, progress, eta }) => {
+          if (progress === 1 || networkName !== this.network.name) return;
+          this.common.logger.info({
+            service: "historical",
+            msg: `Sync is ${formatPercentage(progress ?? 0)} complete${
+              eta !== undefined ? ` with ~${formatEta(eta)} remaining` : ""
+            } (source=${sourceName}, network=${this.network.name})`,
+            network: this.network.name,
+          });
+        },
+      );
     }, 10_000);
 
     // Edge case: If there are no tasks in the queue, this means the entire
