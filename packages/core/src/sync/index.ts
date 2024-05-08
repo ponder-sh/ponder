@@ -58,15 +58,16 @@ export type SyncTrace = {
   };
   blockHash: Hex;
   blockNumber: Hex;
+  error?: "Reverted";
   result: {
     gasUsed: Hex;
     output: Hex;
-    subtraces: number;
-    traceAddress: number[];
-    transactionHash: Hex;
-    transactionPosition: number;
-    type: "call" | "create";
   };
+  subtraces: number;
+  traceAddress: number[];
+  transactionHash: Hex;
+  transactionPosition: number;
+  type: "call" | "create";
 };
 
 /**

@@ -738,12 +738,10 @@ export class SqliteSyncStore implements SyncStore {
         const traceByTransactionHash: { [transacionHash: Hex]: SyncTrace[] } =
           {};
         for (const trace of rpcTraces) {
-          if (
-            traceByTransactionHash[trace.result.transactionHash] === undefined
-          ) {
-            traceByTransactionHash[trace.result.transactionHash] = [];
+          if (traceByTransactionHash[trace.transactionHash] === undefined) {
+            traceByTransactionHash[trace.transactionHash] = [];
           }
-          traceByTransactionHash[trace.result.transactionHash].push(trace);
+          traceByTransactionHash[trace.transactionHash].push(trace);
         }
 
         for (const transactionHash of Object.keys(traceByTransactionHash)) {
@@ -1002,7 +1000,7 @@ export class SqliteSyncStore implements SyncStore {
                 chainId: BigInt(chainId),
                 blockNumber: hexToBigInt(trace.blockNumber),
                 // TODO(kyle) is this the same?
-                transactionIndex: BigInt(trace.result.transactionPosition),
+                transactionIndex: BigInt(trace.transactionPosition),
                 eventType: EVENT_TYPES.traces,
                 eventIndex: BigInt(i),
               }),

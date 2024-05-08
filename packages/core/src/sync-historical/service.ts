@@ -35,7 +35,6 @@ import {
   type Hash,
   type RpcBlock,
   type RpcLog,
-  type RpcTransactionReceipt,
   hexToNumber,
   numberToHex,
   toHex,
@@ -1187,7 +1186,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         fromAddress: traceFilter.criteria.fromAddress,
         toAddress: traceFilter.criteria.toAddress,
       },
-    );
+    ).then((traces) => traces.filter((t) => t.error === undefined));
 
     const tracesByBlockNumber: Record<number, SyncTrace[] | undefined> = {};
     const txHashesByBlockNumber: Record<number, Set<Hash> | undefined> = {};
@@ -1203,7 +1202,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       }
 
       tracesByBlockNumber[blockNumber]!.push(trace);
-      txHashesByBlockNumber[blockNumber]!.add(trace.result.transactionHash);
+      txHashesByBlockNumber[blockNumber]!.add(trace.transactionHash);
     }
 
     const requiredBlocks = Object.keys(txHashesByBlockNumber)
@@ -1245,26 +1244,20 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         const transactions = block.transactions.filter((tx) =>
           transactionHashes.has(tx.hash),
         );
-        const transactionReceipts = await Promise.all(
-          transactions.map((tx) =>
-            _eth_getTransactionReceipt(
-              { requestQueue: this.requestQueue },
-              { hash: tx.hash },
-            ),
-          ),
-        );
-
-        const txReceiptByHash: Record<Hash, RpcTransactionReceipt> = {};
-        for (const transactionReceipt of transactionReceipts) {
-          txReceiptByHash[transactionReceipt.transactionHash] =
-            transactionReceipt;
-        }
+        const transactionReceipts =
+          traceFilter.criteria.includeTransactionReceipts === true
+            ? await Promise.all(
+                transactions.map((tx) =>
+                  _eth_getTransactionReceipt(
+                    { requestQueue: this.requestQueue },
+                    { hash: tx.hash },
+                  ),
+                ),
+              )
+            : [];
 
         await this.syncStore.insertTraceFilterInterval({
-          // Remove traces that were not successfull.
-          traces: traceInterval.traces.filter(
-            (t) => txReceiptByHash[t.result.transactionHash].status === "0x1",
-          ),
+          traces: traceInterval.traces,
           interval: {
             startBlock: BigInt(traceInterval.startBlock),
             endBlock: BigInt(traceInterval.endBlock),

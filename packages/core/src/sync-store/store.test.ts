@@ -1241,7 +1241,7 @@ test("insertTraceFilterIntervals inserts traces", async (context) => {
     await syncStore.insertTraceFilterInterval({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
       ...rpcData.block1,
@@ -1270,16 +1270,16 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
     await syncStore.insertTraceFilterInterval({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
       ...rpcData.block1,
       traces: [
         {
           ...rpcData.block1.traces[0],
+          traceAddress: [0, 0],
           result: {
             ...rpcData.block1.traces[0].result,
-            traceAddress: [0, 0],
           },
         },
         rpcData.block1.traces[1]!,
@@ -1293,16 +1293,16 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
     await syncStore.insertTraceFilterInterval({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
       ...rpcData.block1,
       traces: [
         {
           ...rpcData.block1.traces[0],
+          traceAddress: [1],
           result: {
             ...rpcData.block1.traces[0].result,
-            traceAddress: [1],
           },
         },
       ],
@@ -1334,16 +1334,16 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
     await syncStore.insertTraceFilterInterval({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
       ...rpcData.block1,
       traces: [
         {
           ...rpcData.block1.traces[0],
+          traceAddress: [0, 2],
           result: {
             ...rpcData.block1.traces[0].result,
-            traceAddress: [0, 2],
           },
         },
       ],
@@ -1389,7 +1389,7 @@ test("insertTraceFilterIntervals inserts trace filter intervals", async (context
     await syncStore.insertTraceFilterInterval({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
       ...rpcData.block1,
@@ -1399,7 +1399,7 @@ test("insertTraceFilterIntervals inserts trace filter intervals", async (context
     const traceFilterRanges = await syncStore.getTraceFilterIntervals({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
     });
@@ -1444,7 +1444,7 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
     let traceFilterRanges = await syncStore.getTraceFilterIntervals({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: true,
       },
     });
@@ -1454,7 +1454,7 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
     traceFilterRanges = await syncStore.getTraceFilterIntervals({
       chainId: 1,
       traceFilter: {
-        toAddress: zeroAddress,
+        toAddress: [zeroAddress],
         includeTransactionReceipts: false,
       },
     });
@@ -1474,7 +1474,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
     await syncStore.insertTraceFilterInterval({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
       ...rpcData.block1,
@@ -1484,7 +1484,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
     await syncStore.insertTraceFilterInterval({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
       ...rpcData.block1,
@@ -1494,7 +1494,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
     let traceFilterRanges = await syncStore.getTraceFilterIntervals({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
     });
@@ -1507,7 +1507,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
     await syncStore.insertTraceFilterInterval({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
       ...rpcData.block1,
@@ -1517,7 +1517,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
     traceFilterRanges = await syncStore.getTraceFilterIntervals({
       chainId: 1,
       traceFilter: {
-        fromAddress: ALICE,
+        fromAddress: [ALICE],
         includeTransactionReceipts: false,
       },
     });

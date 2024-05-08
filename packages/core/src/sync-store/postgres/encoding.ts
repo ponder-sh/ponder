@@ -238,9 +238,7 @@ export function rpcToPostgresTrace(
   trace: SyncTrace,
 ): Omit<InsertableTrace, "chainId" | "checkpoint"> {
   return {
-    id: `${trace.result.transactionHash}-${JSON.stringify(
-      trace.result.traceAddress,
-    )}`,
+    id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
     callType: trace.action.callType,
     from: toLowerCase(trace.action.from),
     gas: hexToBigInt(trace.action.gas),
@@ -251,11 +249,11 @@ export function rpcToPostgresTrace(
     blockNumber: hexToBigInt(trace.blockNumber),
     gasUsed: hexToBigInt(trace.result.gasUsed),
     output: trace.result.output,
-    subtraces: trace.result.subtraces,
-    traceAddress: JSON.stringify(trace.result.traceAddress),
-    transactionHash: trace.result.transactionHash,
-    transactionPosition: trace.result.transactionPosition,
-    type: trace.result.type,
+    subtraces: trace.subtraces,
+    traceAddress: JSON.stringify(trace.traceAddress),
+    transactionHash: trace.transactionHash,
+    transactionPosition: trace.transactionPosition,
+    type: trace.type,
   };
 }
 
