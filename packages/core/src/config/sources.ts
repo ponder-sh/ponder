@@ -1,5 +1,5 @@
 import type { Abi, Address, Hex, LogTopic } from "viem";
-import type { AbiEvents } from "./abi.js";
+import type { AbiEvents, AbiFunctions } from "./abi.js";
 
 export type LogFilterCriteria = {
   address?: Address | Address[];
@@ -24,7 +24,7 @@ export type TraceFilterCriteria = {
   fromAddress?: Address[];
   toAddress?: Address[];
   includeTransactionReceipts: boolean;
-  // TODO(kyle) maybe include function selectors
+  functionSelectors: Hex[];
 };
 
 type BaseLogSource = {
@@ -70,6 +70,7 @@ export type FunctionCallSource = {
   networkName: string;
   chainId: number;
   abi: Abi;
+  abiFunctions: AbiFunctions;
   startBlock: number;
   endBlock?: number;
   maxBlockRange?: number;

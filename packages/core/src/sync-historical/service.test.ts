@@ -506,27 +506,12 @@ test("start() adds trace filter events to sync store", async (context) => {
   });
   const events = await drainAsyncGenerator(ag);
 
-  expect(events).toHaveLength(4);
+  expect(events).toHaveLength(1);
 
   expect(events[0].log).toBeUndefined();
   expect(events[0].transaction).toBeDefined();
   expect(events[0].trace).toBeDefined();
-  expect(events[0].block.number).toBe(2n);
-
-  expect(events[1].log).toBeUndefined();
-  expect(events[1].transaction).toBeDefined();
-  expect(events[1].trace).toBeDefined();
-  expect(events[1].block.number).toBe(2n);
-
-  expect(events[2].log).toBeUndefined();
-  expect(events[2].transaction).toBeDefined();
-  expect(events[2].trace).toBeDefined();
-  expect(events[2].block.number).toBe(3n);
-
-  expect(events[3].log).toBeUndefined();
-  expect(events[3].transaction).toBeDefined();
-  expect(events[3].trace).toBeDefined();
-  expect(events[3].block.number).toBe(4n);
+  expect(events[0].block.number).toBe(3n);
 
   service.kill();
   await service.onIdle();

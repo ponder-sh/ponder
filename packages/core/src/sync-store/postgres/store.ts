@@ -2078,6 +2078,15 @@ export class PostgresSyncStore implements SyncStore {
       }
     }
 
+    // Filter based on function selectors
+    exprs.push(
+      eb.or(
+        functionCallSource.criteria.functionSelectors.map(
+          (fs) => sql`SUBSTR("traces"."input", 1, 10) = ${sql.lit(fs)}`,
+        ),
+      ),
+    );
+
     if (
       functionCallSource.startBlock !== undefined &&
       functionCallSource.startBlock !== 0

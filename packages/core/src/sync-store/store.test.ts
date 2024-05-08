@@ -1243,6 +1243,7 @@ test("insertTraceFilterIntervals inserts traces", async (context) => {
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
       ...rpcData.block1,
       interval: {
@@ -1272,6 +1273,7 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
       ...rpcData.block1,
       traces: [
@@ -1295,6 +1297,7 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
       ...rpcData.block1,
       traces: [
@@ -1336,6 +1339,7 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
       ...rpcData.block1,
       traces: [
@@ -1391,6 +1395,7 @@ test("insertTraceFilterIntervals inserts trace filter intervals", async (context
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
       ...rpcData.block1,
       interval: { startBlock: 0n, endBlock: 100n },
@@ -1401,6 +1406,7 @@ test("insertTraceFilterIntervals inserts trace filter intervals", async (context
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
     });
 
@@ -1421,6 +1427,7 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
       traceFilter: {
         fromAddress: [ALICE, BOB],
         includeTransactionReceipts: true,
+        functionSelectors: [],
       },
       ...rpcData.block1,
       interval: {
@@ -1433,6 +1440,7 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
       chainId: 1,
       traceFilter: {
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
       ...rpcData.block1,
       interval: {
@@ -1446,6 +1454,7 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: true,
+        functionSelectors: [],
       },
     });
 
@@ -1456,6 +1465,7 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
       traceFilter: {
         toAddress: [zeroAddress],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
     });
 
@@ -1476,6 +1486,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
       ...rpcData.block1,
       interval: { startBlock: 0n, endBlock: 100n },
@@ -1486,6 +1497,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
       ...rpcData.block1,
       interval: { startBlock: 200n, endBlock: 300n },
@@ -1496,6 +1508,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
     });
 
@@ -1509,6 +1522,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
       ...rpcData.block1,
       interval: { startBlock: 100n, endBlock: 200n },
@@ -1519,6 +1533,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
       traceFilter: {
         fromAddress: [ALICE],
         includeTransactionReceipts: false,
+        functionSelectors: [],
       },
     });
 
@@ -2011,7 +2026,7 @@ test("getLogEvents with trace filters", async (context) => {
   });
   const events = await drainAsyncGenerator(ag);
 
-  expect(events).toHaveLength(4);
+  expect(events).toHaveLength(1);
 
   await cleanup();
 });
@@ -2387,6 +2402,7 @@ test("getLogEvents filters on trace filter criteria", async (context) => {
         criteria: {
           fromAddress: [ALICE.toLowerCase() as Address],
           includeTransactionReceipts: false,
+          functionSelectors: sources[3].criteria.functionSelectors,
         },
         endBlock: 3,
       },
@@ -2397,7 +2413,7 @@ test("getLogEvents filters on trace filter criteria", async (context) => {
   });
   const events = await drainAsyncGenerator(ag);
 
-  expect(events).toHaveLength(3);
+  expect(events).toHaveLength(1);
 
   await cleanup();
 });
@@ -2428,7 +2444,7 @@ test("getLogEvents multiple sources", async (context) => {
   });
   const events = await drainAsyncGenerator(ag);
 
-  expect(events).toHaveLength(8);
+  expect(events).toHaveLength(5);
 
   await cleanup();
 });

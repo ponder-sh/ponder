@@ -7,7 +7,12 @@ import type {
   TransactionReceipt,
 } from "@/types/eth.js";
 import { never } from "@/utils/never.js";
-import { decodeEventLog, decodeFunctionData, decodeFunctionResult } from "viem";
+import {
+  type Hex,
+  decodeEventLog,
+  decodeFunctionData,
+  decodeFunctionResult,
+} from "viem";
 import type { Service } from "./service.js";
 
 export type SetupEvent = {
@@ -99,12 +104,23 @@ export const decodeEvents = (
             functionName: data.functionName,
           });
 
+          const selector = event.trace!.input.slice(0, 10) as Hex;
+
+          if (
+            selector.length !== 10 ||
+            source.abiFunctions.bySelector[selector] === undefined
+          ) {
+            throw Error("TODO");
+          }
+
+          const functionName =
+            source.abiFunctions.bySelector[selector]!.safeName;
+
           events.push({
             type: "function",
             chainId: event.chainId,
             contractName: source.contractName,
-            // TODO(kyle) get the safeName for function
-            functionName: data.functionName,
+            functionName,
             event: {
               args: data.args,
               result,
@@ -135,8 +151,15 @@ export const decodeEvents = (
             topics: event.log!.topics,
           });
 
+          if (
+            event.log!.topics[0] === undefined ||
+            source.abiEvents.bySelector[event.log!.topics[0]] === undefined
+          ) {
+            throw Error("TODO");
+          }
+
           const logEventName =
-            source.abiEvents.bySelector[event.log!.topics[0]!]!.safeName;
+            source.abiEvents.bySelector[event.log!.topics[0]]!.safeName;
 
           events.push({
             type: "log",

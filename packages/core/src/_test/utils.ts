@@ -1,6 +1,7 @@
 import { type AddressInfo, createServer } from "node:net";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
+import { buildAbiFunctions } from "@/config/abi.js";
 import { createConfig } from "@/config/config.js";
 import {
   type EventSource,
@@ -25,6 +26,7 @@ import {
   encodeFunctionData,
   encodeFunctionResult,
   formatTransactionReceipt,
+  getFunctionSelector,
   hexToNumber,
   parseEther,
 } from "viem";
@@ -165,14 +167,20 @@ export const getNetworkAndSources = async (
       ...sources,
       {
         type: "function",
-        id: "trace_Erc20_mainnet",
-        contractName: "Erc20",
+        id: "trace_Factory_mainnet",
+        contractName: "Factory",
         networkName: "mainnet",
         chainId: 1,
-        abi: erc20ABI,
+        abi: factoryABI,
+        abiFunctions: buildAbiFunctions({ abi: factoryABI }),
         startBlock: 0,
         criteria: {
           includeTransactionReceipts: false,
+          functionSelectors: [
+            getFunctionSelector(
+              getAbiItem({ abi: factoryABI, name: "createPair" }),
+            ),
+          ],
         },
       },
     ],
