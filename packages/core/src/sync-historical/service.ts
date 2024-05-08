@@ -6,11 +6,16 @@ import type {
   EventSource,
   FactorySource,
   FunctionCallSource,
-  LogFilterCriteria,
   LogSource,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import { type SyncTrace, _trace_filter } from "@/sync/index.js";
+import {
+  type SyncTrace,
+  _eth_getBlockByNumber,
+  _eth_getLogs,
+  _eth_getTransactionReceipt,
+  _trace_filter,
+} from "@/sync/index.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
@@ -21,23 +26,15 @@ import {
   intervalIntersection,
   intervalSum,
 } from "@/utils/interval.js";
-import { toLowerCase } from "@/utils/lowercase.js";
 import { never } from "@/utils/never.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { debounce } from "@ponder/common";
 import Emittery from "emittery";
 import {
-  type Address,
-  BlockNotFoundError,
   type Hash,
-  type Hex,
-  type LogTopic,
   type RpcBlock,
   type RpcLog,
-  type RpcTransaction,
-  type RpcTransactionReceipt,
-  TransactionReceiptNotFoundError,
   hexToNumber,
   numberToHex,
   toHex,
@@ -109,13 +106,6 @@ type HistoricalSyncTask =
   | TraceFilterTask;
 
 type HistoricalBlock = RpcBlock<"finalized", true>;
-type HistoricalTransaction = RpcTransaction<false>;
-
-type LogInterval = {
-  startBlock: number;
-  endBlock: number;
-  logs: RpcLog[];
-};
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private common: Common;
@@ -847,12 +837,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     fromBlock,
     toBlock,
   }: LogFilterTask) => {
-    const logs = await this._eth_getLogs({
-      address: logFilter.criteria.address,
-      topics: logFilter.criteria.topics,
-      fromBlock: toHex(fromBlock),
-      toBlock: toHex(toBlock),
-    });
+    const logs = await _eth_getLogs(
+      { requestQueue: this.requestQueue },
+      {
+        address: logFilter.criteria.address,
+        topics: logFilter.criteria.topics,
+        fromBlock: toHex(fromBlock),
+        toBlock: toHex(toBlock),
+      },
+    );
     const logIntervals = this.buildLogIntervals({ fromBlock, toBlock, logs });
 
     for (const logInterval of logIntervals) {
@@ -870,13 +863,20 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           logFilter.criteria.includeTransactionReceipts === true
             ? await Promise.all(
                 transactions.map((tx) =>
-                  this._eth_getTransactionReceipt({ hash: tx.hash }),
+                  _eth_getTransactionReceipt(
+                    { requestQueue: this.requestQueue },
+                    { hash: tx.hash },
+                  ),
                 ),
               )
             : [];
 
-        await this._insertLogFilterInterval({
-          logInterval,
+        await this.syncStore.insertLogFilterInterval({
+          logs: logInterval.logs,
+          interval: {
+            startBlock: BigInt(logInterval.startBlock),
+            endBlock: BigInt(logInterval.endBlock),
+          },
           logFilter: logFilter.criteria,
           chainId: logFilter.chainId,
           block,
@@ -918,12 +918,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     const logs: RpcLog[] = [];
     for await (const childContractAddressBatch of iterator) {
-      const _logs = await this._eth_getLogs({
-        address: childContractAddressBatch,
-        topics: factory.criteria.topics,
-        fromBlock: numberToHex(fromBlock),
-        toBlock: numberToHex(toBlock),
-      });
+      const _logs = await _eth_getLogs(
+        { requestQueue: this.requestQueue },
+        {
+          address: childContractAddressBatch,
+          topics: factory.criteria.topics,
+          fromBlock: numberToHex(fromBlock),
+          toBlock: numberToHex(toBlock),
+        },
+      );
       logs.push(..._logs);
     }
 
@@ -943,7 +946,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           factory.criteria.includeTransactionReceipts === true
             ? await Promise.all(
                 transactions.map((tx) =>
-                  this._eth_getTransactionReceipt({ hash: tx.hash }),
+                  _eth_getTransactionReceipt(
+                    { requestQueue: this.requestQueue },
+                    { hash: tx.hash },
+                  ),
                 ),
               )
             : [];
@@ -986,12 +992,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     fromBlock,
     toBlock,
   }: FactoryChildAddressTask) => {
-    const logs = await this._eth_getLogs({
-      address: factory.criteria.address,
-      topics: [factory.criteria.eventSelector],
-      fromBlock: toHex(fromBlock),
-      toBlock: toHex(toBlock),
-    });
+    const logs = await _eth_getLogs(
+      { requestQueue: this.requestQueue },
+      {
+        address: factory.criteria.address,
+        topics: [factory.criteria.eventSelector],
+        fromBlock: toHex(fromBlock),
+        toBlock: toHex(toBlock),
+      },
+    );
 
     // Insert the new child address logs into the store.
     await this.syncStore.insertFactoryChildAddressLogs({
@@ -1014,8 +1023,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           transactionHashes.has(tx.hash),
         );
 
-        await this._insertLogFilterInterval({
-          logInterval,
+        await this.syncStore.insertLogFilterInterval({
+          logs: logInterval.logs,
+          interval: {
+            startBlock: BigInt(logInterval.startBlock),
+            endBlock: BigInt(logInterval.endBlock),
+          },
           logFilter: {
             address: factory.criteria.address,
             topics: [factory.criteria.eventSelector],
@@ -1235,7 +1248,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           traceFilter.criteria.includeTransactionReceipts === true
             ? await Promise.all(
                 transactions.map((tx) =>
-                  this._eth_getTransactionReceipt({ hash: tx.hash }),
+                  _eth_getTransactionReceipt(
+                    { requestQueue: this.requestQueue },
+                    { hash: tx.hash },
+                  ),
                 ),
               )
             : [];
@@ -1274,9 +1290,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   };
 
   private blockTaskWorker = async ({ blockNumber, callbacks }: BlockTask) => {
-    const block = await this._eth_getBlockByNumber({
-      blockNumber,
-    });
+    const block = await _eth_getBlockByNumber(
+      { requestQueue: this.requestQueue },
+      {
+        blockNumber,
+      },
+    );
 
     for (const callback of callbacks) {
       await callback(block);
@@ -1402,105 +1421,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       this.blockTasksEnqueuedCheckpoint = blockTasksCanBeEnqueuedTo;
     }
   };
-
-  /**
-   * Helper function for "eth_getLogs" rpc request.
-   * Handles different error types and retries the request if applicable.
-   */
-  private _eth_getLogs = (params: {
-    address?: Address | Address[];
-    topics?: LogTopic[];
-    fromBlock: Hex;
-    toBlock: Hex;
-  }): Promise<RpcLog[]> => {
-    return this.requestQueue.request({
-      method: "eth_getLogs",
-      params: [
-        {
-          fromBlock: params.fromBlock,
-          toBlock: params.toBlock,
-
-          topics: params.topics,
-          address: params.address
-            ? Array.isArray(params.address)
-              ? params.address.map((a) => toLowerCase(a))
-              : toLowerCase(params.address)
-            : undefined,
-        },
-      ],
-    });
-  };
-
-  /**
-   * Helper function for "eth_getBlockByNumber" request.
-   */
-  private _eth_getBlockByNumber = (params: {
-    blockNumber: number;
-  }): Promise<HistoricalBlock> =>
-    this.requestQueue
-      .request({
-        method: "eth_getBlockByNumber",
-        params: [numberToHex(params.blockNumber), true],
-      })
-      .then((block) => {
-        if (!block)
-          throw new BlockNotFoundError({
-            blockNumber: BigInt(params.blockNumber),
-          });
-        return block as HistoricalBlock;
-      });
-
-  /**
-   * Helper function for "eth_getTransactionReceipt" request.
-   */
-  private _eth_getTransactionReceipt = ({
-    hash,
-  }: {
-    hash: Hex;
-  }): Promise<RpcTransactionReceipt> =>
-    this.requestQueue
-      .request({
-        method: "eth_getTransactionReceipt",
-        params: [hash],
-      })
-      .then((receipt) => {
-        if (!receipt)
-          throw new TransactionReceiptNotFoundError({
-            hash,
-          });
-        return receipt as RpcTransactionReceipt;
-      });
-
-  /**
-   * Helper function for "insertLogFilterInterval"
-   */
-  private _insertLogFilterInterval = ({
-    logInterval: { logs, startBlock, endBlock },
-    logFilter,
-    block,
-    transactions,
-    transactionReceipts,
-    chainId,
-  }: {
-    logInterval: LogInterval;
-    logFilter: LogFilterCriteria;
-    block: HistoricalBlock;
-    transactions: HistoricalTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
-    chainId: number;
-  }) =>
-    this.syncStore.insertLogFilterInterval({
-      chainId,
-      logFilter,
-      block,
-      transactions,
-      transactionReceipts,
-      logs,
-      interval: {
-        startBlock: BigInt(startBlock),
-        endBlock: BigInt(endBlock),
-      },
-    });
 
   private debouncedEmitCheckpoint = debounce(
     HISTORICAL_CHECKPOINT_EMIT_INTERVAL,
