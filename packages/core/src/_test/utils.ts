@@ -12,7 +12,11 @@ import {
 } from "@/config/sources.js";
 import type { RawEvent } from "@/sync-store/store.js";
 import type { SyncTrace } from "@/sync/index.js";
-import { encodeCheckpoint } from "@/utils/checkpoint.js";
+import {
+  encodeCheckpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   type BlockTag,
@@ -27,6 +31,7 @@ import {
   encodeFunctionResult,
   formatTransactionReceipt,
   getFunctionSelector,
+  hexToBigInt,
   hexToNumber,
   parseEther,
 } from "viem";
@@ -423,9 +428,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
 };
 
 /**
- * Mock function for `getLogEvents` that specifically returns the event data for the erc20 source.
+ * Mock function for `getLogEvents` that specifically returns the event data for the log and factory sources.
  */
-export const getEventsErc20 = async (
+export const getEventsLog = async (
   sources: EventSource[],
 ): Promise<RawEvent[]> => {
   const rpcData = await getRawRPCData(sources);
@@ -443,6 +448,12 @@ export const getEventsErc20 = async (
       transaction: rpcData.block1.transactions[1]!,
       transactionReceipt: rpcData.block1.transactionReceipts[1]!,
     },
+    {
+      log: rpcData.block3.logs[0],
+      block: rpcData.block3.block,
+      transaction: rpcData.block3.transactions[0]!,
+      transactionReceipt: rpcData.block3.transactionReceipts[0]!,
+    },
   ]
     .map((e) => ({
       log: formatLog(e.log),
@@ -450,8 +461,8 @@ export const getEventsErc20 = async (
       transaction: formatTransaction(e.transaction),
       transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
     }))
-    .map(({ log, block, transaction, transactionReceipt }) => ({
-      sourceId: sources[0].id,
+    .map(({ log, block, transaction, transactionReceipt }, i) => ({
+      sourceId: i === 0 || i === 1 ? sources[0].id : sources[1].id,
       chainId: sources[0].chainId,
       log: {
         ...log,
@@ -482,6 +493,102 @@ export const getEventsErc20 = async (
         transactionIndex: BigInt(transaction.transactionIndex!),
         eventType: 5,
         eventIndex: BigInt(log.logIndex!),
+      }),
+    })) as RawEvent[];
+};
+
+/**
+ * Mock function for `getLogEvents` that specifically returns the event data for the block sources.
+ */
+export const getEventsBlock = async (
+  sources: EventSource[],
+): Promise<RawEvent[]> => {
+  const rpcData = await getRawRPCData(sources);
+
+  return [
+    {
+      block: rpcData.block2.block,
+    },
+  ]
+    .map((e) => ({
+      block: formatBlock(e.block),
+    }))
+    .map(({ block }) => ({
+      sourceId: sources[2].id,
+      chainId: sources[2].chainId,
+
+      block: { ...block, miner: checksumAddress(block.miner) },
+
+      encodedCheckpoint: encodeCheckpoint({
+        blockTimestamp: Number(block.timestamp),
+        chainId: BigInt(sources[0].chainId),
+        blockNumber: block.number!,
+        transactionIndex: maxCheckpoint.transactionIndex,
+        eventType: 5,
+        eventIndex: zeroCheckpoint.eventIndex,
+      }),
+    })) as RawEvent[];
+};
+
+/**
+ * Mock function for `getLogEvents` that specifically returns the event data for the trace sources.
+ */
+export const getEventsTrace = async (
+  sources: EventSource[],
+): Promise<RawEvent[]> => {
+  const rpcData = await getRawRPCData(sources);
+
+  return [
+    {
+      trace: rpcData.block2.traces[0],
+      block: rpcData.block2.block,
+      transaction: rpcData.block2.transactions[0]!,
+      transactionReceipt: rpcData.block2.transactionReceipts[0]!,
+    },
+  ]
+    .map((e) => ({
+      trace: e.trace,
+      block: formatBlock(e.block),
+      transaction: formatTransaction(e.transaction),
+      transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
+    }))
+    .map(({ trace, block, transaction, transactionReceipt }) => ({
+      sourceId: sources[3].id,
+      chainId: sources[3].chainId,
+      trace: {
+        id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
+        from: checksumAddress(trace.action.from),
+        input: trace.action.input,
+        to: checksumAddress(trace.action.to),
+        value: hexToBigInt(trace.action.value),
+        blockHash: trace.blockHash,
+        blockNumber: hexToBigInt(trace.blockNumber),
+        output: trace.result.output,
+      },
+      block: { ...block, miner: checksumAddress(block.miner) },
+      transaction: {
+        ...transaction,
+        from: checksumAddress(transaction.from),
+        to: transaction.to ? checksumAddress(transaction.to) : transaction.to,
+      },
+      transactionReceipt: {
+        ...transactionReceipt,
+        from: checksumAddress(transactionReceipt.from),
+        to: transactionReceipt.to
+          ? checksumAddress(transactionReceipt.to)
+          : transactionReceipt.to,
+        logs: transactionReceipt.logs.map((l) => ({
+          ...l,
+          id: `${l.blockHash}-${toHex(l.logIndex!)}`,
+        })),
+      },
+      encodedCheckpoint: encodeCheckpoint({
+        blockTimestamp: Number(block.timestamp),
+        chainId: BigInt(sources[0].chainId),
+        blockNumber: block.number!,
+        transactionIndex: BigInt(transaction.transactionIndex!),
+        eventType: 7,
+        eventIndex: 0n,
       }),
     })) as RawEvent[];
 };

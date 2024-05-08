@@ -100,7 +100,7 @@ export const decodeEvents = (
 
           const result = decodeFunctionResult({
             abi,
-            data: event.trace!.input,
+            data: event.trace!.output,
             functionName: data.functionName,
           });
 

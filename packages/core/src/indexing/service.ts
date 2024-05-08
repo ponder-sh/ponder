@@ -27,6 +27,7 @@ import { checksumAddress, createClient } from "viem";
 import type {
   BlockEvent,
   Event,
+  FunctionCallEvent,
   LogEvent,
   SetupEvent,
 } from "../sync/events.js";
@@ -121,6 +122,7 @@ export const create = ({
   // build contractsByChainId
   for (const source of sources) {
     if (source.type === "block") continue;
+    if (source.type === "function") continue;
 
     const address =
       typeof source.criteria.address === "string"
@@ -326,6 +328,34 @@ export const processEvents = async (
         });
 
         const result = await executeBlock(indexingService, { event });
+        if (result.status !== "success") {
+          return result;
+        }
+
+        if (eventCounts[eventName] === undefined) eventCounts[eventName] = 0;
+        eventCounts[eventName]++;
+
+        indexingService.common.logger.trace({
+          service: "indexing",
+          msg: `Completed indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
+        });
+
+        break;
+      }
+
+      case "function": {
+        const eventName = `${event.contractName}.${event.functionName}`;
+
+        indexingService.eventCount[eventName][
+          indexingService.networkByChainId[event.chainId].name
+        ]++;
+
+        indexingService.common.logger.trace({
+          service: "indexing",
+          msg: `Started indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
+        });
+
+        const result = await executeFunctionCall(indexingService, { event });
         if (result.status !== "success") {
           return result;
         }
@@ -639,6 +669,81 @@ const executeBlock = async (
     common.logger.error({
       service: "indexing",
       msg: `Error while processing ${eventName} event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+      error,
+    });
+
+    common.metrics.ponder_indexing_has_error.set(1);
+
+    return { status: "error", error: error };
+  }
+
+  return { status: "success" };
+};
+
+const executeFunctionCall = async (
+  indexingService: Service,
+  { event }: { event: FunctionCallEvent },
+): Promise<
+  | { status: "error"; error: Error }
+  | { status: "success" }
+  | { status: "killed" }
+> => {
+  const {
+    common,
+    indexingFunctions,
+    currentEvent,
+    networkByChainId,
+    contractsByChainId,
+    clientByChainId,
+  } = indexingService;
+  const eventName = `${event.contractName}.${event.functionName}`;
+  const indexingFunction = indexingFunctions[eventName];
+
+  const networkName = networkByChainId[event.chainId].name;
+  const metricLabel = { event: eventName, network: networkName };
+
+  try {
+    // set currentEvent
+    currentEvent.context.network.chainId = event.chainId;
+    currentEvent.context.network.name = networkByChainId[event.chainId].name;
+    currentEvent.context.client = clientByChainId[event.chainId];
+    currentEvent.context.contracts = contractsByChainId[event.chainId];
+    currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
+    currentEvent.contextState.blockNumber = event.event.block.number;
+
+    const endClock = startClock();
+
+    await indexingFunction({
+      event: {
+        args: event.event.args,
+        result: event.event.result,
+        trace: event.event.trace,
+        block: event.event.block,
+        transaction: event.event.transaction,
+        transactionReceipt: event.event.transactionReceipt,
+      },
+      context: currentEvent.context,
+    });
+
+    common.metrics.ponder_indexing_function_duration.observe(
+      metricLabel,
+      endClock(),
+    );
+  } catch (error_) {
+    if (indexingService.isKilled) return { status: "killed" };
+    const error = getBaseError(error_);
+
+    common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
+
+    const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
+
+    error.meta.push(`Function arguments:\n${prettyPrint(event.event.args)}`);
+
+    addUserStackTrace(error, common.options);
+
+    common.logger.error({
+      service: "indexing",
+      msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 

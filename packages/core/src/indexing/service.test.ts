@@ -6,7 +6,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { getEventsErc20 } from "@/_test/utils.js";
+import { getEventsBlock, getEventsLog, getEventsTrace } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
 import { createSyncService } from "@/sync/index.js";
 import { zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -193,6 +193,7 @@ test("processEvent() log events", async (context) => {
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
       vi.fn(),
+    "Pair:Swap": vi.fn(),
   };
 
   const indexingService = create({
@@ -205,7 +206,7 @@ test("processEvent() log events", async (context) => {
     schema,
   });
 
-  const rawEvents = await getEventsErc20(sources);
+  const rawEvents = await getEventsLog(sources);
   const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
@@ -256,6 +257,149 @@ test("processEvent() log events", async (context) => {
   await cleanup();
 });
 
+test("processEvents() block events", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => Promise.resolve(),
+    onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
+  });
+
+  const indexingFunctions = {
+    "OddBlocks:block": vi.fn(),
+  };
+
+  const indexingService = create({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const rawEvents = await getEventsBlock(sources);
+  const events = decodeEvents(syncService, rawEvents);
+  const result = await processEvents(indexingService, {
+    events,
+  });
+  expect(result).toStrictEqual({ status: "success" });
+
+  expect(indexingFunctions["OddBlocks:block"]).toHaveBeenCalledTimes(1);
+  expect(indexingFunctions["OddBlocks:block"]).toHaveBeenCalledWith({
+    event: {
+      block: expect.any(Object),
+    },
+    context: {
+      network: { chainId: 1, name: "mainnet" },
+      contracts: {
+        Erc20: {
+          abi: expect.any(Object),
+          address: checksumAddress(sources[0].criteria.address as Address),
+          startBlock: sources[0].startBlock,
+          endBlock: sources[0].endBlock,
+          maxBlockRange: sources[0].maxBlockRange,
+        },
+        Pair: {
+          abi: expect.any(Object),
+          address: checksumAddress(sources[1].criteria.address as Address),
+          startBlock: sources[1].startBlock,
+          endBlock: sources[1].endBlock,
+          maxBlockRange: sources[1].maxBlockRange,
+        },
+      },
+      client: expect.any(Object),
+      db: expect.any(Object),
+    },
+  });
+
+  await cleanup();
+});
+
+test("processEvents() function events", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => Promise.resolve(),
+    onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
+  });
+
+  const indexingFunctions = {
+    "Factory.createPair": vi.fn(),
+  };
+
+  const indexingService = create({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  const rawEvents = await getEventsTrace(sources);
+  const events = decodeEvents(syncService, rawEvents);
+  const result = await processEvents(indexingService, {
+    events,
+  });
+  expect(result).toStrictEqual({ status: "success" });
+
+  expect(indexingFunctions["Factory.createPair"]).toHaveBeenCalledTimes(1);
+  expect(indexingFunctions["Factory.createPair"]).toHaveBeenCalledWith({
+    event: {
+      args: undefined,
+      result: expect.any(String),
+      block: expect.any(Object),
+      trace: expect.any(Object),
+      transaction: expect.any(Object),
+      transactionReceipt: expect.any(Object),
+    },
+    context: {
+      network: { chainId: 1, name: "mainnet" },
+      contracts: {
+        Erc20: {
+          abi: expect.any(Object),
+          address: checksumAddress(sources[0].criteria.address as Address),
+          startBlock: sources[0].startBlock,
+          endBlock: sources[0].endBlock,
+          maxBlockRange: sources[0].maxBlockRange,
+        },
+        Pair: {
+          abi: expect.any(Object),
+          address: checksumAddress(sources[1].criteria.address as Address),
+          startBlock: sources[1].startBlock,
+          endBlock: sources[1].endBlock,
+          maxBlockRange: sources[1].maxBlockRange,
+        },
+      },
+      client: expect.any(Object),
+      db: expect.any(Object),
+    },
+  });
+
+  await cleanup();
+});
+
 test("processEvents killed", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
@@ -276,6 +420,7 @@ test("processEvents killed", async (context) => {
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
       vi.fn(),
+    "Pair:Swap": vi.fn(),
   };
 
   const indexingService = create({
@@ -289,7 +434,7 @@ test("processEvents killed", async (context) => {
   });
   kill(indexingService);
 
-  const rawEvents = await getEventsErc20(sources);
+  const rawEvents = await getEventsLog(sources);
   const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
@@ -325,6 +470,7 @@ test("processEvents eventCount", async (context) => {
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
       vi.fn(),
+    "Pair:Swap": vi.fn(),
   };
 
   const indexingService = create({
@@ -337,7 +483,7 @@ test("processEvents eventCount", async (context) => {
     schema,
   });
 
-  const rawEvents = await getEventsErc20(sources);
+  const rawEvents = await getEventsLog(sources);
   const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
@@ -349,6 +495,9 @@ test("processEvents eventCount", async (context) => {
       {
         mainnet: 2,
       },
+    "Pair:Swap": {
+      mainnet: 1,
+    },
   });
 
   await cleanup();
@@ -562,7 +711,7 @@ test("executeSetup() error", async (context) => {
   await cleanup();
 });
 
-test("executeLog() context.client", async (context) => {
+test("processEvents() context.client", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
@@ -579,14 +728,19 @@ test("executeLog() context.client", async (context) => {
     initialCheckpoint: zeroCheckpoint,
   });
 
+  const clientCall = async ({ context }: { context: Context }) => {
+    await context.client.getBalance({
+      address: BOB,
+    });
+  };
+
   const indexingService = create({
     indexingFunctions: {
       "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        async ({ context }: { context: Context }) => {
-          await context.client.getBalance({
-            address: BOB,
-          });
-        },
+        clientCall,
+      "Pair:Swap": clientCall,
+      "OddBlocks:block": clientCall,
+      "Factory.createPair": clientCall,
     },
     common,
     sources,
@@ -601,14 +755,18 @@ test("executeLog() context.client", async (context) => {
     "getBalance",
   );
 
-  const rawEvents = await getEventsErc20(sources);
+  const rawEvents = [
+    ...(await getEventsLog(sources)),
+    ...(await getEventsBlock(sources)),
+    ...(await getEventsTrace(sources)),
+  ];
   const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(getBalanceSpy).toHaveBeenCalledTimes(2);
+  expect(getBalanceSpy).toHaveBeenCalledTimes(5);
   expect(getBalanceSpy).toHaveBeenCalledWith({
     address: BOB,
   });
@@ -616,7 +774,7 @@ test("executeLog() context.client", async (context) => {
   await cleanup();
 });
 
-test("executeLog() context.db", async (context) => {
+test("processEvents() context.db", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
@@ -633,17 +791,25 @@ test("executeLog() context.db", async (context) => {
     initialCheckpoint: zeroCheckpoint,
   });
 
+  const dbCall = async ({
+    event,
+    context,
+  }: { event: any; context: Context }) => {
+    await context.db.TransferEvent.create({
+      id: event.transaction?.hash ?? event.block.hash,
+      data: {
+        timestamp: Number(event.block.timestamp),
+      },
+    });
+  };
+
   const indexingService = create({
     indexingFunctions: {
       "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        async ({ event, context }: { event: any; context: Context }) => {
-          await context.db.TransferEvent.create({
-            id: event.log.id,
-            data: {
-              timestamp: Number(event.block.timestamp),
-            },
-          });
-        },
+        dbCall,
+      "Pair:Swap": dbCall,
+      "OddBlocks:block": dbCall,
+      "Factory.createPair": dbCall,
     },
     common,
     sources,
@@ -658,25 +824,29 @@ test("executeLog() context.db", async (context) => {
     "create",
   );
 
-  const rawEvents = await getEventsErc20(sources);
+  const rawEvents = [
+    ...(await getEventsLog(sources)),
+    ...(await getEventsBlock(sources)),
+    ...(await getEventsTrace(sources)),
+  ];
   const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(createSpy).toHaveBeenCalledTimes(2);
+  expect(createSpy).toHaveBeenCalledTimes(5);
 
   const transferEvents = await indexingStore.findMany({
     tableName: "TransferEvent",
   });
 
-  expect(transferEvents.items).toHaveLength(2);
+  expect(transferEvents.items).toHaveLength(5);
 
   await cleanup();
 });
 
-test("executeLog() metrics", async (context) => {
+test("processEvents() metrics", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
@@ -697,6 +867,9 @@ test("executeLog() metrics", async (context) => {
     indexingFunctions: {
       "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
         vi.fn(),
+      "Pair:Swap": vi.fn(),
+      "OddBlocks:block": vi.fn(),
+      "Factory.createPair": vi.fn(),
     },
     common,
     sources,
@@ -706,7 +879,11 @@ test("executeLog() metrics", async (context) => {
     schema,
   });
 
-  const rawEvents = await getEventsErc20(sources);
+  const rawEvents = [
+    ...(await getEventsLog(sources)),
+    ...(await getEventsBlock(sources)),
+    ...(await getEventsTrace(sources)),
+  ];
   const events = decodeEvents(syncService, rawEvents);
   await processEvents(indexingService, {
     events,
@@ -718,7 +895,7 @@ test("executeLog() metrics", async (context) => {
   await cleanup();
 });
 
-test("executeLog() error", async (context) => {
+test("processEvents() error", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
@@ -738,6 +915,9 @@ test("executeLog() error", async (context) => {
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
       vi.fn(),
+    "Pair:Swap": vi.fn(),
+    "OddBlocks:block": vi.fn(),
+    "Factory.createPair": vi.fn(),
   };
 
   const indexingService = create({
@@ -754,7 +934,11 @@ test("executeLog() error", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
   ].mockRejectedValue(new Error());
 
-  const rawEvents = await getEventsErc20(sources);
+  const rawEvents = [
+    ...(await getEventsLog(sources)),
+    ...(await getEventsBlock(sources)),
+    ...(await getEventsTrace(sources)),
+  ];
   const events = decodeEvents(syncService, rawEvents);
   const result = await processEvents(indexingService, {
     events,
@@ -769,11 +953,14 @@ test("executeLog() error", async (context) => {
       "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
     ],
   ).toHaveBeenCalledTimes(1);
+  expect(indexingFunctions["Pair:Swap"]).toHaveBeenCalledTimes(0);
+  expect(indexingFunctions["OddBlocks:block"]).toHaveBeenCalledTimes(0);
+  expect(indexingFunctions["Factory.createPair"]).toHaveBeenCalledTimes(0);
 
   await cleanup();
 });
 
-test("executeLog() error after killed", async (context) => {
+test("execute() error after killed", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
@@ -806,7 +993,7 @@ test("executeLog() error after killed", async (context) => {
     schema,
   });
 
-  const rawEvents = await getEventsErc20(sources);
+  const rawEvents = await getEventsLog(sources);
   const events = decodeEvents(syncService, rawEvents);
   const resultPromise = processEvents(indexingService, { events });
   kill(indexingService);

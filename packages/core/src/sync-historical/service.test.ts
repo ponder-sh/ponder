@@ -4,7 +4,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { getEventsErc20, getRawRPCData, publicClient } from "@/_test/utils.js";
+import { getEventsLog, getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { EventSource } from "@/config/sources.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
@@ -430,7 +430,7 @@ test("start() adds log filter events to sync store", async (context) => {
 
   expect(events).toHaveLength(2);
 
-  const erc20Events = await getEventsErc20(sources);
+  const erc20Events = await getEventsLog(sources);
 
   expect({
     ...erc20Events[0],
