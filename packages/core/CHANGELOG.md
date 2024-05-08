@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.4.22
+
+### Patch Changes
+
+- [`91e6328c2bb9b8c80d1afbdc0f4ba545b768f2ed`](https://github.com/ponder-sh/ponder/commit/91e6328c2bb9b8c80d1afbdc0f4ba545b768f2ed) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where some historical sync logs would be duplicated when using `ponder start`.
+
+- [#871](https://github.com/ponder-sh/ponder/pull/871) [`7c60c0cb10eb7093b33bde24e9842b54ded458ad`](https://github.com/ponder-sh/ponder/commit/7c60c0cb10eb7093b33bde24e9842b54ded458ad) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a logger bug that caused a memory leak during historical indexing that could crash large apps when the sync is fully cached. Stopped writing logs to files in the `.ponder/logs` directory.
+
 ## 0.4.21
 
 ### Patch Changes
