@@ -29,9 +29,15 @@ export class MetricsService {
   ponder_indexing_function_error_total: prometheus.Counter<"network" | "event">;
 
   ponder_historical_start_timestamp: prometheus.Gauge<"network">;
-  ponder_historical_total_blocks: prometheus.Gauge<"network" | "source">;
-  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "source">;
-  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "source">;
+  ponder_historical_total_blocks: prometheus.Gauge<
+    "network" | "source" | "type"
+  >;
+  ponder_historical_cached_blocks: prometheus.Gauge<
+    "network" | "source" | "type"
+  >;
+  ponder_historical_completed_blocks: prometheus.Gauge<
+    "network" | "source" | "type"
+  >;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
@@ -114,19 +120,19 @@ export class MetricsService {
     this.ponder_historical_total_blocks = new prometheus.Gauge({
       name: "ponder_historical_total_blocks",
       help: "Number of blocks required for the historical sync",
-      labelNames: ["network", "source"] as const,
+      labelNames: ["network", "source", "type"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_cached_blocks = new prometheus.Gauge({
       name: "ponder_historical_cached_blocks",
       help: "Number of blocks that were found in the cache for the historical sync",
-      labelNames: ["network", "source"] as const,
+      labelNames: ["network", "source", "type"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_completed_blocks = new prometheus.Gauge({
       name: "ponder_historical_completed_blocks",
       help: "Number of blocks that have been processed for the historical sync",
-      labelNames: ["network", "source"] as const,
+      labelNames: ["network", "source", "type"] as const,
       registers: [this.registry],
     });
 

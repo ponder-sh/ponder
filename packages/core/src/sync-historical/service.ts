@@ -205,7 +205,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 completed: [[startBlock, finalizedBlockNumber]],
               });
               this.common.metrics.ponder_historical_total_blocks.set(
-                { network: this.network.name, source: source.contractName },
+                {
+                  network: this.network.name,
+                  source: source.contractName,
+                  type: "log",
+                },
                 0,
               );
               this.common.logger.warn({
@@ -260,11 +264,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               targetBlockCount - intervalSum(requiredLogFilterIntervals);
 
             this.common.metrics.ponder_historical_total_blocks.set(
-              { network: this.network.name, source: source.contractName },
+              {
+                network: this.network.name,
+                source: source.contractName,
+                type: "log",
+              },
               targetBlockCount,
             );
             this.common.metrics.ponder_historical_cached_blocks.set(
-              { network: this.network.name, source: source.contractName },
+              {
+                network: this.network.name,
+                source: source.contractName,
+                type: "log",
+              },
               cachedBlockCount,
             );
 
@@ -293,7 +305,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                   completed: [[startBlock, finalizedBlockNumber]],
                 });
               this.common.metrics.ponder_historical_total_blocks.set(
-                { network: this.network.name, source: source.contractName },
+                {
+                  network: this.network.name,
+                  source: source.contractName,
+                  type: "log",
+                },
                 0,
               );
               this.common.logger.warn({
@@ -358,6 +374,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               {
                 network: this.network.name,
                 source: `${source.contractName}_factory`,
+                type: "log",
               },
               targetFactoryChildAddressBlockCount,
             );
@@ -365,6 +382,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               {
                 network: this.network.name,
                 source: `${source.contractName}_factory`,
+                type: "log",
               },
               cachedFactoryChildAddressBlockCount,
             );
@@ -425,11 +443,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               intervalSum(requiredFactoryLogFilterIntervals);
 
             this.common.metrics.ponder_historical_total_blocks.set(
-              { network: this.network.name, source: source.contractName },
+              {
+                network: this.network.name,
+                source: source.contractName,
+                type: "log",
+              },
               targetFactoryLogFilterBlockCount,
             );
             this.common.metrics.ponder_historical_cached_blocks.set(
-              { network: this.network.name, source: source.contractName },
+              {
+                network: this.network.name,
+                source: source.contractName,
+                type: "log",
+              },
               cachedFactoryLogFilterBlockCount,
             );
 
@@ -461,7 +487,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 },
               );
               this.common.metrics.ponder_historical_total_blocks.set(
-                { network: this.network.name, source: source.sourceName },
+                {
+                  network: this.network.name,
+                  source: source.sourceName,
+                  type: "block",
+                },
                 0,
               );
               this.common.logger.warn({
@@ -518,11 +548,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               targetBlockCount - intervalSum(requiredBlockFilterIntervals);
 
             this.common.metrics.ponder_historical_total_blocks.set(
-              { network: this.network.name, source: source.sourceName },
+              {
+                network: this.network.name,
+                source: source.sourceName,
+                type: "block",
+              },
               targetBlockCount,
             );
             this.common.metrics.ponder_historical_cached_blocks.set(
-              { network: this.network.name, source: source.sourceName },
+              {
+                network: this.network.name,
+                source: source.sourceName,
+                type: "block",
+              },
               cachedBlockCount,
             );
 
@@ -545,7 +583,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 },
               );
               this.common.metrics.ponder_historical_total_blocks.set(
-                { network: this.network.name, source: source.contractName },
+                {
+                  network: this.network.name,
+                  source: source.contractName,
+                  type: "trace",
+                },
                 0,
               );
               this.common.logger.warn({
@@ -599,13 +641,20 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             const cachedBlockCount =
               targetBlockCount - intervalSum(requiredTraceFilterIntervals);
 
-            // TODO(kyle) contract name is not a unique identifier
             this.common.metrics.ponder_historical_total_blocks.set(
-              { network: this.network.name, source: source.contractName },
+              {
+                network: this.network.name,
+                source: source.contractName,
+                type: "trace",
+              },
               targetBlockCount,
             );
             this.common.metrics.ponder_historical_cached_blocks.set(
-              { network: this.network.name, source: source.contractName },
+              {
+                network: this.network.name,
+                source: source.contractName,
+                type: "trace",
+              },
               cachedBlockCount,
             );
 
@@ -885,7 +934,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
-          { network: this.network.name, source: logFilter.contractName },
+          {
+            network: this.network.name,
+            source: logFilter.contractName,
+            type: "log",
+          },
           endBlock - startBlock + 1,
         );
       });
@@ -968,7 +1021,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
-          { network: this.network.name, source: factory.contractName },
+          {
+            network: this.network.name,
+            source: factory.contractName,
+            type: "log",
+          },
           endBlock - startBlock + 1,
         );
       });
@@ -1072,6 +1129,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       {
         network: this.network.name,
         source: `${factory.contractName}_factory`,
+        type: "log",
       },
       toBlock - fromBlock + 1,
     );
@@ -1132,7 +1190,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
-          { network: this.network.name, source: blockFilter.sourceName },
+          {
+            network: this.network.name,
+            source: blockFilter.sourceName,
+            type: "block",
+          },
           endBlock - startBlock + 1,
         );
       } else {
@@ -1151,7 +1213,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           });
 
           this.common.metrics.ponder_historical_completed_blocks.inc(
-            { network: this.network.name, source: blockFilter.sourceName },
+            {
+              network: this.network.name,
+              source: blockFilter.sourceName,
+              type: "block",
+            },
             endBlock - startBlock + 1,
           );
         });
@@ -1270,7 +1336,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
-          { network: this.network.name, source: traceFilter.contractName },
+          {
+            network: this.network.name,
+            source: traceFilter.contractName,
+            type: "trace",
+          },
           endBlock - startBlock + 1,
         );
       });

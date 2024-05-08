@@ -287,49 +287,7 @@ test("start() with block filter skips blocks already in database", async (contex
   await cleanup();
 });
 
-test("setup() with log filter and factory contract updates block metrics", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const blockNumbers = await getBlockNumbers();
-
-  const service = new HistoricalSyncService({
-    common,
-    syncStore,
-    network: networks[0],
-    requestQueue: requestQueues[0],
-    sources,
-  });
-  await service.setup(blockNumbers);
-
-  const cachedBlocksMetric = (
-    await common.metrics.ponder_historical_cached_blocks.get()
-  ).values;
-  expect(cachedBlocksMetric).toEqual(
-    expect.arrayContaining([
-      { labels: { network: "mainnet", source: "Erc20" }, value: 0 },
-      { labels: { network: "mainnet", source: "Pair_factory" }, value: 0 },
-      { labels: { network: "mainnet", source: "Pair" }, value: 0 },
-    ]),
-  );
-
-  const totalBlocksMetric = (
-    await common.metrics.ponder_historical_total_blocks.get()
-  ).values;
-  const value = blockNumbers.finalizedBlockNumber + 1;
-  expect(totalBlocksMetric).toEqual(
-    expect.arrayContaining([
-      { labels: { network: "mainnet", source: "Erc20" }, value },
-      { labels: { network: "mainnet", source: "Pair_factory" }, value },
-      { labels: { network: "mainnet", source: "Pair" }, value },
-    ]),
-  );
-
-  service.kill();
-  await service.onIdle();
-  await cleanup();
-});
-
-test("start() with log filter and factory contract updates completed blocks metrics", async (context) => {
+test("setup() updates block metrics", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
@@ -342,7 +300,77 @@ test("start() with log filter and factory contract updates completed blocks metr
       sources,
       requestQueue: requestQueues[0],
     }),
-    sources: [sources[0], sources[1], sources[2]],
+    sources,
+  });
+  await service.setup(blockNumbers);
+
+  const cachedBlocksMetric = (
+    await common.metrics.ponder_historical_cached_blocks.get()
+  ).values;
+  expect(cachedBlocksMetric).toEqual(
+    expect.arrayContaining([
+      {
+        labels: { network: "mainnet", source: "Erc20", type: "log" },
+        value: 0,
+      },
+      {
+        labels: { network: "mainnet", source: "Pair_factory", type: "log" },
+        value: 0,
+      },
+      { labels: { network: "mainnet", source: "Pair", type: "log" }, value: 0 },
+      {
+        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
+        value: 0,
+      },
+      {
+        labels: { network: "mainnet", source: "Factory", type: "trace" },
+        value: 0,
+      },
+    ]),
+  );
+
+  const totalBlocksMetric = (
+    await common.metrics.ponder_historical_total_blocks.get()
+  ).values;
+  const value = blockNumbers.finalizedBlockNumber + 1;
+  expect(totalBlocksMetric).toEqual(
+    expect.arrayContaining([
+      { labels: { network: "mainnet", source: "Erc20", type: "log" }, value },
+      {
+        labels: { network: "mainnet", source: "Pair_factory", type: "log" },
+        value,
+      },
+      { labels: { network: "mainnet", source: "Pair", type: "log" }, value },
+      {
+        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
+        value: value - 1,
+      },
+      {
+        labels: { network: "mainnet", source: "Factory", type: "trace" },
+        value,
+      },
+    ]),
+  );
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
+test("start() updates completed blocks metrics", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumbers = await getBlockNumbers();
+
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
+    sources,
   });
   await service.setup(blockNumbers);
   service.start();
@@ -354,9 +382,20 @@ test("start() with log filter and factory contract updates completed blocks metr
   const value = blockNumbers.finalizedBlockNumber + 1;
   expect(completedBlocksMetric).toEqual(
     expect.arrayContaining([
-      { labels: { network: "mainnet", source: "Pair_factory" }, value },
-      { labels: { network: "mainnet", source: "Erc20" }, value },
-      { labels: { network: "mainnet", source: "Pair" }, value },
+      {
+        labels: { network: "mainnet", source: "Pair_factory", type: "log" },
+        value,
+      },
+      { labels: { network: "mainnet", source: "Erc20", type: "log" }, value },
+      { labels: { network: "mainnet", source: "Pair", type: "log" }, value },
+      {
+        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
+        value: value - 1,
+      },
+      {
+        labels: { network: "mainnet", source: "Factory", type: "trace" },
+        value,
+      },
     ]),
   );
 
