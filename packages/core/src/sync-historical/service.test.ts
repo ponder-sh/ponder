@@ -213,6 +213,7 @@ test("start() with block filter skips blocks already in database", async (contex
     logs: [],
     transactions: [],
     transactionReceipts: [],
+    traces: [],
   });
 
   const service = new HistoricalSyncService({
