@@ -759,6 +759,13 @@ const migrations: Record<string, Migration> = {
         .column("blockHash")
         .execute();
 
+      // The traces.transactionHash index supports getLogEvents
+      await db.schema
+        .createIndex("tracesTransactionHashIndex")
+        .on("traces")
+        .column("transactionHash")
+        .execute();
+
       // The traces.checkpoint index supports getLogEvents
       await db.schema
         .createIndex("tracesCheckpointIndex")
@@ -766,7 +773,26 @@ const migrations: Record<string, Migration> = {
         .column("checkpoint")
         .execute();
 
-      // TODO(kyle) add from and to indexes
+      // The traces.chainId index supports getLogEvents
+      await db.schema
+        .createIndex("tracesChainIdIndex")
+        .on("traces")
+        .column("chainId")
+        .execute();
+
+      // The traces.from index supports getLogEvents
+      await db.schema
+        .createIndex("tracesFromIndex")
+        .on("traces")
+        .column("from")
+        .execute();
+
+      // The traces.to index supports getLogEvents
+      await db.schema
+        .createIndex("tracesToIndex")
+        .on("traces")
+        .column("to")
+        .execute();
     },
   },
 };
