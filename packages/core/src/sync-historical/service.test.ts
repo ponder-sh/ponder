@@ -5,6 +5,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getEventsErc20, getRawRPCData, publicClient } from "@/_test/utils.js";
+import type { EventSource } from "@/config/sources.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -23,6 +24,45 @@ const getBlockNumbers = () =>
     latestBlockNumber: Number(b) + 5,
     finalizedBlockNumber: Number(b),
   }));
+
+// Helper function used to spoof "trace_filter" requests
+// because they aren't supported by foundry.
+const getRequestQueue = async ({
+  sources,
+  requestQueue,
+}: { sources: EventSource[]; requestQueue: RequestQueue }) => {
+  const rpcData = await getRawRPCData(sources);
+
+  return {
+    ...requestQueue,
+    request: (request: any) => {
+      if (request.method === "trace_filter") {
+        let traces = [
+          ...rpcData.block1.traces,
+          ...rpcData.block2.traces,
+          ...rpcData.block3.traces,
+        ];
+
+        if (request.params[0].fromBlock !== undefined) {
+          traces = traces.filter(
+            (t) =>
+              hexToNumber(t.blockNumber) >=
+              hexToNumber(request.params[0].fromBlock),
+          );
+        }
+        if (request.params[0].toBlock) {
+          traces = traces.filter(
+            (t) =>
+              hexToNumber(t.blockNumber) <=
+              hexToNumber(request.params[0].toBlock),
+          );
+        }
+
+        return Promise.resolve(traces);
+      } else return requestQueue.request(request);
+    },
+  } as RequestQueue;
+};
 
 test("start() with log filter inserts log filter interval records", async (context) => {
   const { common, networks, requestQueues, sources } = context;
@@ -294,44 +334,14 @@ test("start() with log filter and factory contract updates completed blocks metr
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
-  const rpcData = await getRawRPCData(sources);
-
-  // Mock because request is not supported by foundry
-  const requestQueue = {
-    ...requestQueues[0],
-    request: (request: any) => {
-      if (request.method === "trace_filter") {
-        let traces = [
-          ...rpcData.block1.traces,
-          ...rpcData.block2.traces,
-          ...rpcData.block3.traces,
-        ];
-
-        if (request.params[0].fromBlock !== undefined) {
-          traces = traces.filter(
-            (t) =>
-              hexToNumber(t.blockNumber) >=
-              hexToNumber(request.params[0].fromBlock),
-          );
-        }
-        if (request.params[0].toBlock) {
-          traces = traces.filter(
-            (t) =>
-              hexToNumber(t.blockNumber) <=
-              hexToNumber(request.params[0].toBlock),
-          );
-        }
-
-        return Promise.resolve(traces);
-      } else return requestQueues[0].request(request);
-    },
-  } as RequestQueue;
-
   const service = new HistoricalSyncService({
     common,
     syncStore,
     network: networks[0],
-    requestQueue,
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources: [sources[0], sources[1], sources[2]],
   });
   await service.setup(blockNumbers);
@@ -474,44 +484,14 @@ test("start() adds trace filter events to sync store", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
-  const rpcData = await getRawRPCData(sources);
-
-  // Mock because request is not supported by foundry
-  const requestQueue = {
-    ...requestQueues[0],
-    request: (request: any) => {
-      if (request.method === "trace_filter") {
-        let traces = [
-          ...rpcData.block1.traces,
-          ...rpcData.block2.traces,
-          ...rpcData.block3.traces,
-        ];
-
-        if (request.params[0].fromBlock !== undefined) {
-          traces = traces.filter(
-            (t) =>
-              hexToNumber(t.blockNumber) >=
-              hexToNumber(request.params[0].fromBlock),
-          );
-        }
-        if (request.params[0].toBlock) {
-          traces = traces.filter(
-            (t) =>
-              hexToNumber(t.blockNumber) <=
-              hexToNumber(request.params[0].toBlock),
-          );
-        }
-
-        return Promise.resolve(traces);
-      } else return requestQueues[0].request(request);
-    },
-  } as RequestQueue;
-
   const service = new HistoricalSyncService({
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueue,
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources: [sources[3]],
   });
   await service.setup(blockNumbers);

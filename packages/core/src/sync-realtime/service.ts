@@ -4,19 +4,23 @@ import {
   type BlockSource,
   type EventSource,
   type FactorySource,
+  type FunctionCallSource,
   type LogSource,
   sourceIsBlock,
   sourceIsFactory,
+  sourceIsFunctionCall,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import {
   type SyncBlock,
   type SyncLog,
+  type SyncTrace,
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
+  _trace_filter,
 } from "@/sync/index.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
@@ -67,6 +71,7 @@ export type Service = {
   logFilterSources: LogSource[];
   factorySources: FactorySource[];
   blockSources: BlockSource[];
+  functionCallSources: FunctionCallSource[];
 };
 
 export type RealtimeSyncEvent =
@@ -136,6 +141,7 @@ export const create = ({
   const logFilterSources = sources.filter(sourceIsLog);
   const factorySources = sources.filter(sourceIsFactory);
   const blockSources = sources.filter(sourceIsBlock);
+  const functionCallSources = sources.filter(sourceIsFunctionCall);
 
   return {
     common,
@@ -154,10 +160,12 @@ export const create = ({
     hasFactorySource: sources.some(sourceIsFactory),
     hasTransactionReceiptSource:
       logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
-      factorySources.some((s) => s.criteria.includeTransactionReceipts),
+      factorySources.some((s) => s.criteria.includeTransactionReceipts) ||
+      functionCallSources.length > 0,
     logFilterSources,
     factorySources,
     blockSources,
+    functionCallSources,
   };
 };
 
@@ -398,6 +406,16 @@ export const handleBlock = async (
       )
     : [];
 
+  const newTraces: SyncTrace[] =
+    service.functionCallSources.length > 0
+      ? await _trace_filter(service, {
+          fromBlock: newHeadBlockNumber,
+          toBlock: newHeadBlockNumber,
+        })
+      : [];
+
+  // TODO(kyle) filter traces
+
   const isBlockFilterMatched = service.blockSources.some(
     (blockSource) =>
       (newHeadBlockNumber - blockSource.criteria.offset) %
@@ -405,30 +423,30 @@ export const handleBlock = async (
       0,
   );
 
-  if (newLogs.length > 0) {
-    await service.syncStore.insertRealtimeBlock({
-      chainId: service.network.chainId,
-      block: newHeadBlock,
-      transactions,
-      transactionReceipts: newTransactionReceipts,
-      logs: newLogs,
-    });
+  await service.syncStore.insertRealtimeBlock({
+    chainId: service.network.chainId,
+    block: newHeadBlock,
+    transactions,
+    transactionReceipts: newTransactionReceipts,
+    logs: newLogs,
+    traces: newTraces,
+  });
 
+  if (newLogs.length > 0) {
     const logCountText =
       newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
     service.common.logger.info({
       service: "realtime",
       msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
-  } else if (isBlockFilterMatched) {
-    await service.syncStore.insertRealtimeBlock({
-      chainId: service.network.chainId,
-      block: newHeadBlock,
-      transactions: [],
-      transactionReceipts: [],
-      logs: [],
+  } else if (newTraces.length > 0) {
+    const traceCountText =
+      newTraces.length === 1 ? "1 trace" : `${newTraces.length} traces`;
+    service.common.logger.info({
+      service: "realtime",
+      msg: `Synced ${traceCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
-
+  } else if (isBlockFilterMatched) {
     service.common.logger.info({
       service: "realtime",
       msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,
@@ -519,6 +537,7 @@ export const handleBlock = async (
       logFilters: service.logFilterSources.map((l) => l.criteria),
       factories: service.factorySources.map((f) => f.criteria),
       blockFilters: service.blockSources.map((b) => b.criteria),
+      traceFilters: service.functionCallSources.map((f) => f.criteria),
       interval: {
         startBlock: BigInt(service.finalizedBlock.number + 1),
         endBlock: BigInt(pendingFinalizedBlock.number),
