@@ -1,6 +1,6 @@
 import { createBuildService } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
-import { LoggerService } from "@/common/logger.js";
+import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { createTelemetry } from "@/common/telemetry.js";
@@ -10,10 +10,7 @@ import { setupShutdown } from "../utils/shutdown.js";
 export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
-  const logger = new LoggerService({
-    level: options.logLevel,
-    dir: options.logDir,
-  });
+  const logger = createLogger({ level: options.logLevel });
 
   const [major, minor, _patch] = process.versions.node.split(".").map(Number);
   if (major < 18 || (major === 18 && minor < 14)) {
@@ -21,7 +18,7 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
       service: "process",
       msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
     });
-    logger.kill();
+    await logger.kill();
     process.exit(1);
   }
 

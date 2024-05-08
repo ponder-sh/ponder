@@ -23,12 +23,12 @@ export function setupShutdown({
   }: { reason: string; code: 0 | 1 }) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
-    setTimeout(() => {
+    setTimeout(async () => {
       common.logger.fatal({
         service: "process",
         msg: "Failed to shutdown within 5 seconds, terminating (exit code 1)",
       });
-      common.logger.kill();
+      await common.logger.kill();
       process.exit(1);
     }, SHUTDOWN_GRACE_PERIOD_MS);
 
@@ -51,7 +51,7 @@ export function setupShutdown({
       msg: `Finished shutdown sequence, terminating (exit code ${code})`,
     });
 
-    common.logger.kill();
+    await common.logger.kill();
     process.exit(code);
   };
 

@@ -1,13 +1,92 @@
-import path from "node:path";
+import type { Prettify } from "@/types/utils.js";
 import pc from "picocolors";
-import {
-  type LevelWithSilent,
-  type Logger,
-  type StreamEntry,
-  pino,
-} from "pino";
+import { type DestinationStream, type LevelWithSilent, pino } from "pino";
 
-type LogOptions = { msg?: string; service?: string } & { [key: string]: any };
+export type LogMode = "pretty" | "structured";
+export type LogLevel = Prettify<LevelWithSilent>;
+export type Logger = ReturnType<typeof createLogger>;
+
+type LogOptions = { msg: string; service: string } & { [key: string]: any };
+
+export function createLogger({
+  level,
+  mode = "pretty",
+}: { level: LogLevel; mode?: LogMode }) {
+  const stream: DestinationStream = {
+    write(logString: string) {
+      if (mode === "structured") {
+        // Remove trailing newline character. Note that this is bad for performance.
+        console.log(logString.trimEnd());
+        return;
+      }
+
+      const log = JSON.parse(logString);
+      const prettyLog = format(log);
+      console.log(prettyLog);
+
+      // If there is an "error" property, log the stack trace.
+      if (log.error) {
+        const message = log.error.stack ?? log.error.message ?? log.error;
+        console.log(message);
+        if (typeof log.error?.meta === "string") console.log(log.error.meta);
+        if (Array.isArray(log.error?.meta))
+          console.log(log.error.meta.join("\n"));
+      }
+    },
+  };
+
+  const logger = pino(
+    {
+      level,
+      serializers: { error: pino.stdSerializers.errWithCause },
+      // Removes "pid" and "hostname" properties from the log.
+      base: undefined,
+    },
+    stream,
+  );
+
+  return {
+    fatal(options: LogOptions) {
+      logger.fatal(options);
+    },
+    error(options: LogOptions & { error: Error }) {
+      logger.error(options);
+    },
+    warn(options: LogOptions) {
+      logger.warn(options);
+    },
+    info(options: LogOptions) {
+      logger.info(options);
+    },
+    debug(options: LogOptions) {
+      logger.debug(options);
+    },
+    trace(options: LogOptions) {
+      logger.trace(options);
+    },
+    async kill() {
+      // TODO: Ask kyle about this
+      // return new Promise<void>((resolve, reject) => {
+      //   logger.flush((error) => {
+      //     if (error) {
+      //       reject(error);
+      //     } else {
+      //       resolve();
+      //     }
+      //   });
+      // }),
+    },
+  };
+}
+
+const levels = {
+  60: { label: "FATAL", colorLabel: pc.bgRed("FATAL") },
+  50: { label: "ERROR", colorLabel: pc.red("ERROR") },
+  40: { label: "WARN ", colorLabel: pc.yellow("WARN ") },
+  30: { label: "INFO ", colorLabel: pc.green("INFO ") },
+  20: { label: "DEBUG", colorLabel: pc.blue("DEBUG") },
+  10: { label: "TRACE", colorLabel: pc.gray("TRACE") },
+} as const;
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
@@ -15,123 +94,21 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   second: "numeric",
 });
 
-export class LoggerService {
-  private logger: Logger;
-  private cleanup = () => {};
+const format = (log: LogOptions) => {
+  const time = timeFormatter.format(new Date(log.time));
+  const message = log.msg ?? log.error?.message;
 
-  constructor({
-    level = "info",
-    dir,
-  }: { level?: LevelWithSilent; dir?: string } = {}) {
-    const streams: StreamEntry[] = [];
+  const levelObject =
+    levels[(log.level as keyof typeof levels) ?? 30] ?? levels[30];
 
-    if (level !== "silent") {
-      const stream: StreamEntry = {
-        level,
-        stream: {
-          write(logString: string) {
-            const log = JSON.parse(logString);
-            const prettyLog = formatMessage(log);
-            console.log(prettyLog);
-
-            // If there is an "error" property, log the stack trace.
-            if (log.error) {
-              const message = log.error.stack ?? log.error.message ?? log.error;
-              console.log(message);
-              if (typeof log.error?.meta === "string")
-                console.log(log.error.meta);
-              if (Array.isArray(log.error?.meta))
-                console.log(log.error.meta.join("\n"));
-            }
-
-            // TODO: Consider also logging any inner `cause` errors.
-            // if (log.error?.cause?.stack) {
-            //   console.log("Details:");
-            //   console.log("  " + log.error.cause.stack);
-            // }
-          },
-        },
-      };
-
-      streams.push(stream);
-    }
-
-    if (dir) {
-      const timestamp = new Date().toISOString().replace(/[-:.]/g, "_");
-      const logFile = path.join(dir, `${timestamp}.log`);
-      const sonicBoom = pino.destination({
-        dest: logFile,
-        sync: false,
-        mkdir: true,
-      });
-      const stream: StreamEntry = { level: "trace", stream: sonicBoom };
-      streams.push(stream);
-
-      this.cleanup = () => {
-        sonicBoom.flushSync();
-        sonicBoom.destroy();
-      };
-    }
-
-    this.logger = pino(
-      {
-        level: "trace",
-        serializers: { error: pino.stdSerializers.errWithCause },
-      },
-      pino.multistream(streams),
-    );
+  if (pc.isColorSupported) {
+    const level = levelObject.colorLabel;
+    const service = log.service ? pc.cyan(log.service.padEnd(10, " ")) : "";
+    const messageText = pc.reset(message);
+    return `${pc.gray(time)} ${level} ${service} ${messageText}`;
+  } else {
+    const level = levelObject.label;
+    const service = log.service ? log.service.padEnd(10, " ") : "";
+    return `${time} ${level} ${service} ${message}`;
   }
-
-  kill = () => {
-    this.cleanup();
-  };
-
-  fatal = (options: LogOptions & { error?: Error }) => {
-    this.logger.fatal(options);
-  };
-  error = (options: LogOptions & { error?: Error }) => {
-    this.logger.error(options);
-  };
-  warn = (options: LogOptions & { msg: string }) => {
-    this.logger.warn(options);
-  };
-  info = (options: LogOptions & { msg: string }) => {
-    this.logger.info(options);
-  };
-  debug = (options: LogOptions & { msg: string }) => {
-    this.logger.debug(options);
-  };
-  trace = (options: LogOptions & { msg: string }) => {
-    this.logger.trace(options);
-  };
-}
-
-const levels = {
-  60: { label: "FATAL", colorize: (s: string) => pc.bgRed(s) },
-  50: { label: "ERROR", colorize: (s: string) => pc.red(s) },
-  40: { label: "WARN ", colorize: (s: string) => pc.yellow(s) },
-  30: { label: "INFO ", colorize: (s: string) => pc.green(s) },
-  20: { label: "DEBUG", colorize: (s: string) => pc.blue(s) },
-  10: { label: "TRACE", colorize: (s: string) => pc.gray(s) },
-} as const;
-
-const formatMessage = (log: { [key: string]: any }) => {
-  let result = "";
-
-  const timestamp = log.time as number;
-  const time = timeFormatter.format(new Date(timestamp));
-  const level = levels[(log.level as keyof typeof levels) ?? 30];
-  const msg = log.msg as string | undefined;
-  const errorMessage = log.error?.message as string | undefined;
-  const message = msg ?? errorMessage;
-  const service = log.service as string | undefined;
-
-  result += pc.isColorSupported ? pc.gray(`${time} `) : `${time} `;
-  result += pc.isColorSupported ? level.colorize(level.label) : level.label;
-  if (service)
-    result += pc.isColorSupported
-      ? ` ${pc.cyan(service.padEnd(10, " "))}`
-      : ` ${service.padEnd(10, " ")}`;
-  result += pc.reset(` ${message}`);
-  return result;
 };
