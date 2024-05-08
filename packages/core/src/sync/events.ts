@@ -2,11 +2,12 @@ import type { RawEvent } from "@/sync-store/store.js";
 import type {
   Block,
   Log,
+  Trace,
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
 import { never } from "@/utils/never.js";
-import { decodeEventLog } from "viem";
+import { decodeEventLog, decodeFunctionData, decodeFunctionResult } from "viem";
 import type { Service } from "./service.js";
 
 export type SetupEvent = {
@@ -42,7 +43,23 @@ export type BlockEvent = {
   encodedCheckpoint: string;
 };
 
-export type Event = LogEvent | BlockEvent;
+export type FunctionCallEvent = {
+  type: "function";
+  chainId: number;
+  contractName: string;
+  functionName: string;
+  event: {
+    args: any;
+    result: any;
+    trace: Trace;
+    block: Block;
+    transaction: Transaction;
+    transactionReceipt?: TransactionReceipt;
+  };
+  encodedCheckpoint: string;
+};
+
+export type Event = LogEvent | BlockEvent | FunctionCallEvent;
 
 export const decodeEvents = (
   { common, sourceById }: Pick<Service, "sourceById" | "common">,
@@ -64,6 +81,46 @@ export const decodeEvents = (
           },
           encodedCheckpoint: event.encodedCheckpoint,
         });
+        break;
+      }
+
+      case "function": {
+        try {
+          const abi = source.abi;
+
+          const data = decodeFunctionData({
+            abi,
+            data: event.trace!.input,
+          });
+
+          const result = decodeFunctionResult({
+            abi,
+            data: event.trace!.input,
+            functionName: data.functionName,
+          });
+
+          events.push({
+            type: "function",
+            chainId: event.chainId,
+            contractName: source.contractName,
+            // TODO(kyle) get the safeName for function
+            functionName: data.functionName,
+            event: {
+              args: data.args,
+              result,
+              trace: event.trace!,
+              block: event.block,
+              transaction: event.transaction!,
+              transactionReceipt: event.transactionReceipt,
+            },
+            encodedCheckpoint: event.encodedCheckpoint,
+          });
+        } catch (err) {
+          common.logger.debug({
+            service: "app",
+            msg: `Unable to decode trace, skipping it. id: ${event.trace?.id}, input: ${event.trace?.input}, output: ${event.trace?.output}`,
+          });
+        }
         break;
       }
 
@@ -99,9 +156,7 @@ export const decodeEvents = (
           // TODO(kyle) Because we are strictly setting all `topics` now, this should be a bigger error.
           common.logger.debug({
             service: "app",
-            msg: `Unable to decode log, skipping it. id: ${
-              event.log!.id
-            }, data: ${event.log!.data}, topics: ${event.log!.topics}`,
+            msg: `Unable to decode log, skipping it. id: ${event.log?.id}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
           });
         }
         break;
