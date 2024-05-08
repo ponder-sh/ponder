@@ -835,6 +835,107 @@ const migrations: Record<string, Migration> = {
       });
     },
   },
+  "2024_05_07_0_trace_filters": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("traceFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${fromAddress}_${toAddress}_${includeTransactionReceipts}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("fromAddress", "varchar(42)")
+        .addColumn("toAddress", "varchar(42)")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
+        .execute();
+      await db.schema
+        .createTable("traceFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("traceFilterId", "text", (col) =>
+          col.notNull().references("traceFilters.id"),
+        )
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("traceFilterIntervalsTraceFilterId")
+        .on("traceFilterIntervals")
+        .column("traceFilterId")
+        .execute();
+
+      await db.schema
+        .createTable("traces")
+        .addColumn("callType", "text", (col) => col.notNull())
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("gas", "varchar(79)", (col) => col.notNull())
+        .addColumn("input", "text", (col) => col.notNull())
+        // This might be null for a contract creation
+        .addColumn("to", "varchar(42)", (col) => col.notNull())
+        .addColumn("value", "varchar(79)", (col) => col.notNull())
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
+        .addColumn("gasUsed", "varchar(79)", (col) => col.notNull())
+        // This might be null for functions that don't return
+        .addColumn("output", "text", (col) => col.notNull())
+        .addColumn("subtraces", "integer", (col) => col.notNull())
+        .addColumn("traceAddress", "text", (col) => col.notNull())
+        .addColumn("transactionHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("transactionPosition", "integer", (col) => col.notNull())
+        .addColumn("type", "text", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
+        .execute();
+
+      // The traces.blockNumber index supports getLogEvents and deleteRealtimeData
+      await db.schema
+        .createIndex("tracesBlockNumberIndex")
+        .on("traces")
+        .column("blockNumber")
+        .execute();
+
+      // The traces.blockHash index supports getLogEvents
+      await db.schema
+        .createIndex("tracesBlockHashIndex")
+        .on("traces")
+        .column("blockHash")
+        .execute();
+
+      // The traces.transactionHash index supports getLogEvents
+      await db.schema
+        .createIndex("tracesTransactionHashIndex")
+        .on("traces")
+        .column("transactionHash")
+        .execute();
+
+      // The traces.checkpoint index supports getLogEvents
+      await db.schema
+        .createIndex("tracesCheckpointIndex")
+        .on("traces")
+        .column("checkpoint")
+        .execute();
+
+      // The traces.chainId index supports getLogEvents
+      await db.schema
+        .createIndex("tracesChainIdIndex")
+        .on("traces")
+        .column("chainId")
+        .execute();
+
+      // The traces.from index supports getLogEvents
+      await db.schema
+        .createIndex("tracesFromIndex")
+        .on("traces")
+        .column("from")
+        .execute();
+
+      // The traces.to index supports getLogEvents
+      await db.schema
+        .createIndex("tracesToIndex")
+        .on("traces")
+        .column("to")
+        .execute();
+    },
+  },
 };
 
 async function hasCheckpointCol(db: Kysely<any>) {

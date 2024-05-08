@@ -7,6 +7,7 @@ import {
   hexToNumber,
 } from "viem";
 
+import type { SyncTrace } from "@/sync/index.js";
 import { encodeAsText } from "@/utils/encoding.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
@@ -209,6 +210,54 @@ export function rpcToSqliteLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   };
 }
 
+type TracesTable = {
+  id: string;
+  callType: string;
+  from: Address;
+  gas: BigIntText;
+  input: Hex;
+  to: Address;
+  value: BigIntText;
+  blockHash: Hex;
+  blockNumber: BigIntText;
+  gasUsed: BigIntText;
+  output: Hex;
+  subtraces: number;
+  traceAddress: string;
+  transactionHash: Hex;
+  transactionPosition: number;
+  type: string;
+  chainId: number;
+  checkpoint: string;
+};
+
+export type InsertableTrace = Insertable<TracesTable>;
+
+export function rpcToSqliteTrace(
+  trace: SyncTrace,
+): Omit<InsertableTrace, "chainId" | "checkpoint"> {
+  return {
+    id: `${trace.result.transactionHash}-${JSON.stringify(
+      trace.result.traceAddress,
+    )}`,
+    callType: trace.action.callType,
+    from: toLowerCase(trace.action.from),
+    gas: encodeAsText(trace.action.gas),
+    input: trace.action.input,
+    to: toLowerCase(trace.action.to),
+    value: encodeAsText(trace.action.value),
+    blockHash: trace.blockHash,
+    blockNumber: encodeAsText(trace.blockNumber),
+    gasUsed: encodeAsText(trace.result.gasUsed),
+    output: trace.result.output,
+    subtraces: trace.result.subtraces,
+    traceAddress: JSON.stringify(trace.result.traceAddress),
+    transactionHash: trace.result.transactionHash,
+    transactionPosition: trace.result.transactionPosition,
+    type: trace.result.type,
+  };
+}
+
 type RpcRequestResultsTable = {
   blockNumber: BigIntText;
   chainId: number;
@@ -268,11 +317,27 @@ type BlockFilterIntervalsTable = {
   endBlock: BigIntText;
 };
 
+type TraceFiltersTable = {
+  id: string;
+  chainId: number;
+  fromAddress: Address | null;
+  toAddress: Address | null;
+  includeTransactionReceipts: 0 | 1;
+};
+
+type TraceFilterIntervalsTable = {
+  id: Generated<number>;
+  traceFilterId: string;
+  startBlock: BigIntText;
+  endBlock: BigIntText;
+};
+
 export type SyncStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
   transactionReceipts: TransactionReceiptsTable;
   logs: LogsTable;
+  traces: TracesTable;
   rpcRequestResults: RpcRequestResultsTable;
 
   logFilters: LogFiltersTable;
@@ -281,4 +346,6 @@ export type SyncStoreTables = {
   factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
   blockFilters: BlockFiltersTable;
   blockFilterIntervals: BlockFilterIntervalsTable;
+  traceFilters: TraceFiltersTable;
+  traceFilterIntervals: TraceFilterIntervalsTable;
 };

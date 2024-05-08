@@ -1135,7 +1135,6 @@ export class PostgresSyncStore implements SyncStore {
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)
           .execute();
-
         await tx
           .deleteFrom("traces")
           .where("chainId", "=", chainId)

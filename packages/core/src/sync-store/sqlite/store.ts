@@ -3,14 +3,17 @@ import {
   type EventSource,
   type FactoryCriteria,
   type FactorySource,
+  type FunctionCallSource,
   type LogFilterCriteria,
   type LogSource,
+  type TraceFilterCriteria,
   sourceIsBlock,
   sourceIsFactory,
+  sourceIsFunctionCall,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { SyncLog } from "@/sync/index.js";
+import type { SyncLog, SyncTrace } from "@/sync/index.js";
 import type { Log } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
@@ -25,6 +28,7 @@ import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
+  buildTraceFilterFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
@@ -45,7 +49,11 @@ import {
   hexToNumber,
 } from "viem";
 import type { RawEvent, SyncStore } from "../store.js";
-import { rpcToSqliteTransactionReceipt } from "./encoding.js";
+import {
+  type InsertableTrace,
+  rpcToSqliteTrace,
+  rpcToSqliteTransactionReceipt,
+} from "./encoding.js";
 import {
   type SyncStoreTables,
   rpcToSqliteBlock,
@@ -670,18 +678,246 @@ export class SqliteSyncStore implements SyncStore {
     return hasBlock !== undefined;
   };
 
+  insertTraceFilterInterval = async ({
+    chainId,
+    traceFilter,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    transactionReceipts: rpcTransactionReceipts,
+    traces: rpcTraces,
+    interval,
+  }: {
+    chainId: number;
+    traceFilter: TraceFilterCriteria;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
+    traces: SyncTrace[];
+    interval: { startBlock: bigint; endBlock: bigint };
+  }) => {
+    return this.db.wrap({ method: "insertTraceFilterInterval" }, async () => {
+      await this.db.transaction().execute(async (tx) => {
+        await tx
+          .insertInto("blocks")
+          .values({
+            ...rpcToSqliteBlock(rpcBlock),
+            chainId,
+            checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
+          })
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+
+        if (rpcTransactions.length > 0) {
+          const transactions = rpcTransactions.map((transaction) => ({
+            ...rpcToSqliteTransaction(transaction),
+            chainId,
+          }));
+          await tx
+            .insertInto("transactions")
+            .values(transactions)
+            .onConflict((oc) => oc.column("hash").doNothing())
+            .execute();
+        }
+
+        if (rpcTransactionReceipts.length > 0) {
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
+          await tx
+            .insertInto("transactionReceipts")
+            .values(transactionReceipts)
+            .onConflict((oc) => oc.column("transactionHash").doNothing())
+            .execute();
+        }
+
+        // Delete existing traces with the same `transactionHash`. Then, calculate "traces.checkpoint"
+        // based on the ordering of "traces.traceAddress" and add all traces to "traces" table.
+        const traceByTransactionHash: { [transacionHash: Hex]: SyncTrace[] } =
+          {};
+        for (const trace of rpcTraces) {
+          if (
+            traceByTransactionHash[trace.result.transactionHash] === undefined
+          ) {
+            traceByTransactionHash[trace.result.transactionHash] = [];
+          }
+          traceByTransactionHash[trace.result.transactionHash].push(trace);
+        }
+
+        for (const transactionHash of Object.keys(traceByTransactionHash)) {
+          const traces = await tx
+            .deleteFrom("traces")
+            .returningAll()
+            .where("transactionHash", "=", transactionHash as Hex)
+            .where("chainId", "=", chainId)
+            .execute();
+
+          (traces as Omit<InsertableTrace, "checkpoint">[]).push(
+            ...traceByTransactionHash[transactionHash as Hex].map((trace) => ({
+              ...rpcToSqliteTrace(trace),
+              chainId,
+            })),
+          );
+
+          // Use lexographical sort of stringified `traceAddress`.
+          traces.sort((a, b) => {
+            return a.traceAddress < b.traceAddress ? -1 : 1;
+          });
+
+          for (let i = 0; i < traces.length; i++) {
+            const trace = traces[i];
+            const checkpoint = encodeCheckpoint({
+              blockTimestamp: hexToNumber(rpcBlock.timestamp),
+              chainId: BigInt(chainId),
+              blockNumber: decodeToBigInt(trace.blockNumber),
+              // TODO(kyle) is this the same?
+              transactionIndex: BigInt(trace.transactionPosition),
+              eventType: EVENT_TYPES.traces,
+              eventIndex: BigInt(i),
+            });
+
+            trace.checkpoint = checkpoint;
+          }
+
+          await tx
+            .insertInto("traces")
+            .values(traces)
+            .onConflict((oc) => oc.column("id").doNothing())
+            .execute();
+        }
+
+        await this._insertTraceFilterInterval({
+          tx,
+          chainId,
+          traceFilters: [traceFilter],
+          interval,
+        });
+      });
+    });
+  };
+
+  getTraceFilterIntervals = async ({
+    traceFilter,
+    chainId,
+  }: {
+    chainId: number;
+    traceFilter: TraceFilterCriteria;
+  }) => {
+    return this.db.wrap({ method: "getTraceFilterIntervals" }, async () => {
+      const fragments = buildTraceFilterFragments({ ...traceFilter, chainId });
+
+      // First, attempt to merge overlapping and adjacent intervals.
+      await Promise.all(
+        fragments.map(async (fragment) => {
+          return await this.db.transaction().execute(async (tx) => {
+            const { id: traceFilterId } = await tx
+              .insertInto("traceFilters")
+              .values(fragment)
+              .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+              .returningAll()
+              .executeTakeFirstOrThrow();
+
+            const existingIntervalRows = await tx
+              .deleteFrom("traceFilterIntervals")
+              .where("traceFilterId", "=", traceFilterId)
+              .returningAll()
+              .execute();
+
+            const mergedIntervals = intervalUnion(
+              existingIntervalRows.map((i) => [
+                Number(decodeToBigInt(i.startBlock)),
+                Number(decodeToBigInt(i.endBlock)),
+              ]),
+            );
+
+            const mergedIntervalRows = mergedIntervals.map(
+              ([startBlock, endBlock]) => ({
+                traceFilterId,
+                startBlock: encodeAsText(startBlock),
+                endBlock: encodeAsText(endBlock),
+              }),
+            );
+
+            if (mergedIntervalRows.length > 0) {
+              await tx
+                .insertInto("traceFilterIntervals")
+                .values(mergedIntervalRows)
+                .execute();
+            }
+          });
+        }),
+      );
+
+      const intervals = await this.db
+        .with(
+          "traceFilterFragments(fragmentId, fragmentFromAddress, fragmentToAddress, fragmentIncludeTransactionReceipts)",
+          () =>
+            sql`( values ${sql.join(
+              fragments.map(
+                (f) =>
+                  sql`( ${sql.val(f.id)}, ${sql.val(f.fromAddress)}, ${sql.val(
+                    f.toAddress,
+                  )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+              ),
+            )} )`,
+        )
+        .selectFrom("traceFilterIntervals")
+        .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
+        .innerJoin("traceFilterFragments", (join) => {
+          return join.on((eb) =>
+            eb.and([
+              eb.or([
+                eb("fromAddress", "is", null),
+                eb("fragmentFromAddress", "=", sql.ref("fromAddress")),
+              ]),
+              eb(
+                "fragmentIncludeTransactionReceipts",
+                "<=",
+                sql.ref("includeTransactionReceipts"),
+              ),
+              eb.or([
+                eb("toAddress", "is", null),
+                eb("fragmentToAddress", "=", sql.ref("toAddress")),
+              ]),
+            ]),
+          );
+        })
+        .select(["fragmentId", "startBlock", "endBlock"])
+        .where("chainId", "=", chainId)
+        .execute();
+
+      const intervalsByFragmentId = intervals.reduce(
+        (acc, cur) => {
+          const { fragmentId, startBlock, endBlock } = cur;
+          (acc[fragmentId] ||= []).push([Number(startBlock), Number(endBlock)]);
+          return acc;
+        },
+        {} as Record<string, [number, number][]>,
+      );
+
+      const intervalsForEachFragment = fragments.map((f) =>
+        intervalUnion(intervalsByFragmentId[f.id] ?? []),
+      );
+      return intervalIntersectionMany(intervalsForEachFragment);
+    });
+  };
+
   insertRealtimeBlock = async ({
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
     transactionReceipts: rpcTransactionReceipts,
     logs: rpcLogs,
+    traces: rpcTraces,
   }: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
+    traces: SyncTrace[];
   }) => {
     return this.db.wrap({ method: "insertRealtimeBlock" }, async () => {
       await this.db.transaction().execute(async (tx) => {
@@ -755,6 +991,31 @@ export class SqliteSyncStore implements SyncStore {
             )
             .execute();
         }
+
+        if (rpcTraces.length > 0) {
+          const traces = rpcTraces
+            .map((trace, i) => ({
+              ...rpcToSqliteTrace(trace),
+              chainId,
+              checkpoint: encodeCheckpoint({
+                blockTimestamp: hexToNumber(rpcBlock.timestamp),
+                chainId: BigInt(chainId),
+                blockNumber: hexToBigInt(trace.blockNumber),
+                // TODO(kyle) is this the same?
+                transactionIndex: BigInt(trace.result.transactionPosition),
+                eventType: EVENT_TYPES.traces,
+                eventIndex: BigInt(i),
+              }),
+            }))
+            .sort((a, b) => {
+              if (a.transactionHash < b.transactionHash) return -1;
+              if (a.transactionHash > b.transactionHash) return 1;
+              return a.traceAddress < b.traceAddress ? -1 : 1;
+            });
+
+          // TODO(kyle) onConflict
+          await tx.insertInto("traces").values(traces).execute();
+        }
       });
     });
   };
@@ -803,12 +1064,14 @@ export class SqliteSyncStore implements SyncStore {
     logFilters,
     factories,
     blockFilters,
+    traceFilters,
     interval,
   }: {
     chainId: number;
     logFilters: LogFilterCriteria[];
     factories: FactoryCriteria[];
     blockFilters: BlockFilterCriteria[];
+    traceFilters: TraceFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     return this.db.wrap({ method: "insertRealtimeInterval" }, async () => {
@@ -840,6 +1103,13 @@ export class SqliteSyncStore implements SyncStore {
           blockFilters,
           interval,
         });
+
+        await this._insertTraceFilterInterval({
+          tx,
+          chainId,
+          traceFilters,
+          interval,
+        });
       });
     });
   };
@@ -867,6 +1137,11 @@ export class SqliteSyncStore implements SyncStore {
           .execute();
         await tx
           .deleteFrom("rpcRequestResults")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">", fromBlock)
+          .execute();
+        await tx
+          .deleteFrom("traces")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)
           .execute();
@@ -989,6 +1264,42 @@ export class SqliteSyncStore implements SyncStore {
     );
   };
 
+  private _insertTraceFilterInterval = async ({
+    tx,
+    chainId,
+    traceFilters,
+    interval: { startBlock, endBlock },
+  }: {
+    tx: KyselyTransaction<SyncStoreTables>;
+    chainId: number;
+    traceFilters: TraceFilterCriteria[];
+    interval: { startBlock: bigint; endBlock: bigint };
+  }) => {
+    const traceFilterFragments = traceFilters.flatMap((traceFilter) =>
+      buildTraceFilterFragments({ ...traceFilter, chainId }),
+    );
+
+    await Promise.all(
+      traceFilterFragments.map(async (traceFilterFragment) => {
+        const { id: traceFilterId } = await tx
+          .insertInto("traceFilters")
+          .values(traceFilterFragment)
+          .onConflict((oc) => oc.column("id").doUpdateSet(traceFilterFragment))
+          .returningAll()
+          .executeTakeFirstOrThrow();
+
+        await tx
+          .insertInto("traceFilterIntervals")
+          .values({
+            traceFilterId,
+            startBlock: encodeAsText(startBlock),
+            endBlock: encodeAsText(endBlock),
+          })
+          .execute();
+      }),
+    );
+  };
+
   /** CONTRACT READS */
 
   insertRpcRequestResult = async ({
@@ -1064,21 +1375,25 @@ export class SqliteSyncStore implements SyncStore {
       return acc;
     }, {});
 
-    // We can assume that source won't be empty. `sources` will
-    // be only log/factory, only block, or a mix
-    const hasOnlyLogOrFactorySources = sources.every(
-      (s) => sourceIsLog(s) || sourceIsFactory(s),
-    );
+    // We can assume that source won't be empty.
     const logOrFactorySources = sources.filter(
       (s): s is LogSource | FactorySource =>
         sourceIsLog(s) || sourceIsFactory(s),
     );
-    const hasOnlyBlockSources = sources.every(sourceIsBlock);
     const blockSources = sources.filter(sourceIsBlock);
+    const functionCallSources = sources.filter(sourceIsFunctionCall);
 
-    const shouldJoinReceipts = logOrFactorySources.some(
-      (source) => source.criteria.includeTransactionReceipts,
-    );
+    const shouldJoinLogs = logOrFactorySources.length !== 0;
+    const shouldJoinTransactions =
+      logOrFactorySources.length !== 0 || functionCallSources.length !== 0;
+    const shouldJoinTraces = functionCallSources.length !== 0;
+    const shouldJoinReceipts =
+      logOrFactorySources.some(
+        (source) => source.criteria.includeTransactionReceipts,
+      ) ||
+      functionCallSources.some(
+        (source) => source.criteria.includeTransactionReceipts,
+      );
 
     while (true) {
       const events = await this.db.wrap(
@@ -1090,7 +1405,7 @@ export class SqliteSyncStore implements SyncStore {
               "log_sources(source_id)",
               () =>
                 sql`( values ${
-                  hasOnlyBlockSources
+                  logOrFactorySources.length === 0
                     ? sql`( null )`
                     : sql.join(
                         logOrFactorySources.map(
@@ -1103,10 +1418,23 @@ export class SqliteSyncStore implements SyncStore {
               "block_sources(source_id)",
               () =>
                 sql`( values ${
-                  hasOnlyLogOrFactorySources
+                  blockSources.length === 0
                     ? sql`( null )`
                     : sql.join(
                         blockSources.map(
+                          (source) => sql`( ${sql.val(source.id)} )`,
+                        ),
+                      )
+                } )`,
+            )
+            .with(
+              "function_call_sources(source_id)",
+              () =>
+                sql`( values ${
+                  functionCallSources.length === 0
+                    ? sql`( null )`
+                    : sql.join(
+                        functionCallSources.map(
                           (source) => sql`( ${sql.val(source.id)} )`,
                         ),
                       )
@@ -1137,20 +1465,12 @@ export class SqliteSyncStore implements SyncStore {
                 })
                 .select([
                   "source_id",
-                  "logs.checkpoint as checkpoint",
-                  "logs.address as log_address",
-                  "logs.blockHash as log_blockHash",
-                  "logs.blockNumber as log_blockNumber",
-                  "logs.chainId as log_chainId",
-                  "logs.data as log_data",
+                  "checkpoint",
+                  "blockHash",
+                  "transactionHash",
+
                   "logs.id as log_id",
-                  "logs.logIndex as log_logIndex",
-                  "logs.topic0 as log_topic0",
-                  "logs.topic1 as log_topic1",
-                  "logs.topic2 as log_topic2",
-                  "logs.topic3 as log_topic3",
-                  "logs.transactionHash as log_transactionHash",
-                  "logs.transactionIndex as log_transactionIndex",
+                  sql`null`.as("trace_id"),
                 ])
                 .unionAll(
                   // @ts-ignore
@@ -1186,72 +1506,51 @@ export class SqliteSyncStore implements SyncStore {
                       return eb.or(exprs);
                     })
                     .select([
-                      "source_id",
-                      "blocks.checkpoint as checkpoint",
-                      sql`null`.as("log_address"),
-                      "blocks.hash as log_blockHash",
-                      sql`null`.as("log_blockNumber"),
-                      sql`null`.as("log_chainId"),
-                      sql`null`.as("log_data"),
+                      "block_sources.source_id",
+                      "checkpoint",
+                      "hash as blockHash",
+                      sql`null`.as("transactionHash"),
+
                       sql`null`.as("log_id"),
-                      sql`null`.as("log_logIndex"),
-                      sql`null`.as("log_topic0"),
-                      sql`null`.as("log_topic1"),
-                      sql`null`.as("log_topic2"),
-                      sql`null`.as("log_topic3"),
-                      sql`null`.as("log_transactionHash"),
-                      sql`null`.as("log_transactionIndex"),
+                      sql`null`.as("trace_id"),
+                    ]),
+                )
+                .unionAll(
+                  // @ts-ignore
+                  db
+                    .selectFrom("traces")
+                    .innerJoin("function_call_sources", (join) => join.onTrue())
+                    .where((eb) => {
+                      const exprs = [];
+                      for (const functionCallSource of functionCallSources) {
+                        exprs.push(
+                          eb.and([
+                            ...this.buildTraceFilterCmpr({
+                              eb,
+                              functionCallSource,
+                            }),
+                            eb("source_id", "=", functionCallSource.id),
+                          ]),
+                        );
+                      }
+                      return eb.or(exprs);
+                    })
+                    .select([
+                      "source_id",
+                      "checkpoint",
+                      "blockHash",
+                      "transactionHash",
+
+                      sql`null`.as("log_id"),
+                      "traces.id as trace_id",
                     ]),
                 ),
             )
             .selectFrom("events")
-            .innerJoin("blocks", "blocks.hash", "log_blockHash")
-            .leftJoin(
-              "transactions",
-              "transactions.hash",
-              "log_transactionHash",
-            )
-            .$if(shouldJoinReceipts, (qb) =>
-              qb
-                .leftJoin(
-                  "transactionReceipts",
-                  "transactionReceipts.transactionHash",
-                  "log_transactionHash",
-                )
-                .select([
-                  "transactionReceipts.blockHash as txr_blockHash",
-                  "transactionReceipts.blockNumber as txr_blockNumber",
-                  "transactionReceipts.contractAddress as txr_contractAddress",
-                  "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
-                  "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
-                  "transactionReceipts.from as txr_from",
-                  "transactionReceipts.gasUsed as txr_gasUsed",
-                  "transactionReceipts.logs as txr_logs",
-                  "transactionReceipts.logsBloom as txr_logsBloom",
-                  "transactionReceipts.status as txr_status",
-                  "transactionReceipts.to as txr_to",
-                  "transactionReceipts.transactionHash as txr_transactionHash",
-                  "transactionReceipts.transactionIndex as txr_transactionIndex",
-                  "transactionReceipts.type as txr_type",
-                ]),
-            )
+            .innerJoin("blocks", "blocks.hash", "events.blockHash")
             .select([
-              "source_id",
+              "events.source_id",
               "events.checkpoint",
-
-              "events.log_address",
-              "events.log_blockHash",
-              "events.log_blockNumber",
-              "events.log_chainId",
-              "events.log_data",
-              "events.log_id",
-              "events.log_logIndex",
-              "events.log_topic0",
-              "events.log_topic1",
-              "events.log_topic2",
-              "events.log_topic3",
-              "events.log_transactionHash",
-              "events.log_transactionIndex",
 
               "blocks.baseFeePerGas as block_baseFeePerGas",
               "blocks.difficulty as block_difficulty",
@@ -1272,26 +1571,102 @@ export class SqliteSyncStore implements SyncStore {
               "blocks.timestamp as block_timestamp",
               "blocks.totalDifficulty as block_totalDifficulty",
               "blocks.transactionsRoot as block_transactionsRoot",
-
-              "transactions.accessList as tx_accessList",
-              "transactions.blockHash as tx_blockHash",
-              "transactions.blockNumber as tx_blockNumber",
-              "transactions.from as tx_from",
-              "transactions.gas as tx_gas",
-              "transactions.gasPrice as tx_gasPrice",
-              "transactions.hash as tx_hash",
-              "transactions.input as tx_input",
-              "transactions.maxFeePerGas as tx_maxFeePerGas",
-              "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
-              "transactions.nonce as tx_nonce",
-              "transactions.r as tx_r",
-              "transactions.s as tx_s",
-              "transactions.to as tx_to",
-              "transactions.transactionIndex as tx_transactionIndex",
-              "transactions.type as tx_type",
-              "transactions.value as tx_value",
-              "transactions.v as tx_v",
             ])
+            .$if(shouldJoinLogs, (qb) =>
+              qb
+                .leftJoin("logs", "logs.id", "events.log_id")
+                .select([
+                  "logs.address as log_address",
+                  "logs.blockHash as log_blockHash",
+                  "logs.blockNumber as log_blockNumber",
+                  "logs.chainId as log_chainId",
+                  "logs.data as log_data",
+                  "logs.id as log_id",
+                  "logs.logIndex as log_logIndex",
+                  "logs.topic0 as log_topic0",
+                  "logs.topic1 as log_topic1",
+                  "logs.topic2 as log_topic2",
+                  "logs.topic3 as log_topic3",
+                  "logs.transactionHash as log_transactionHash",
+                  "logs.transactionIndex as log_transactionIndex",
+                ]),
+            )
+            .$if(shouldJoinTransactions, (qb) =>
+              qb
+                .leftJoin(
+                  "transactions",
+                  "transactions.hash",
+                  "events.transactionHash",
+                )
+                .select([
+                  "transactions.accessList as tx_accessList",
+                  "transactions.blockHash as tx_blockHash",
+                  "transactions.blockNumber as tx_blockNumber",
+                  "transactions.from as tx_from",
+                  "transactions.gas as tx_gas",
+                  "transactions.gasPrice as tx_gasPrice",
+                  "transactions.hash as tx_hash",
+                  "transactions.input as tx_input",
+                  "transactions.maxFeePerGas as tx_maxFeePerGas",
+                  "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
+                  "transactions.nonce as tx_nonce",
+                  "transactions.r as tx_r",
+                  "transactions.s as tx_s",
+                  "transactions.to as tx_to",
+                  "transactions.transactionIndex as tx_transactionIndex",
+                  "transactions.type as tx_type",
+                  "transactions.value as tx_value",
+                  "transactions.v as tx_v",
+                ]),
+            )
+            .$if(shouldJoinTraces, (qb) =>
+              qb
+                .leftJoin("traces", "traces.id", "events.trace_id")
+                .select([
+                  "traces.id as trace_id",
+                  "traces.callType as trace_callType",
+                  "traces.from as trace_from",
+                  "traces.gas as trace_gas",
+                  "traces.input as trace_input",
+                  "traces.to as trace_to",
+                  "traces.value as trace_value",
+                  "traces.blockHash as trace_blockHash",
+                  "traces.blockNumber as trace_blockNumber",
+                  "traces.gasUsed as trace_gasUsed",
+                  "traces.output as trace_output",
+                  "traces.subtraces as trace_subtraces",
+                  "traces.traceAddress as trace_traceAddress",
+                  "traces.transactionHash as trace_transactionHash",
+                  "traces.transactionPosition as trace_transactionPosition",
+                  "traces.type as trace_type",
+                  "traces.chainId as trace_chainId",
+                  "traces.checkpoint as trace_checkpoint",
+                ]),
+            )
+            .$if(shouldJoinReceipts, (qb) =>
+              qb
+                .leftJoin(
+                  "transactionReceipts",
+                  "transactionReceipts.transactionHash",
+                  "events.transactionHash",
+                )
+                .select([
+                  "transactionReceipts.blockHash as txr_blockHash",
+                  "transactionReceipts.blockNumber as txr_blockNumber",
+                  "transactionReceipts.contractAddress as txr_contractAddress",
+                  "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
+                  "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
+                  "transactionReceipts.from as txr_from",
+                  "transactionReceipts.gasUsed as txr_gasUsed",
+                  "transactionReceipts.logs as txr_logs",
+                  "transactionReceipts.logsBloom as txr_logsBloom",
+                  "transactionReceipts.status as txr_status",
+                  "transactionReceipts.to as txr_to",
+                  "transactionReceipts.transactionHash as txr_transactionHash",
+                  "transactionReceipts.transactionIndex as txr_transactionIndex",
+                  "transactionReceipts.type as txr_type",
+                ]),
+            )
             .where("events.checkpoint", ">", cursor)
             .where("events.checkpoint", "<=", encodedToCheckpoint)
             .orderBy("events.checkpoint", "asc")
@@ -1306,8 +1681,13 @@ export class SqliteSyncStore implements SyncStore {
 
             const source = sourcesById[row.source_id];
 
-            const shouldIncludeLogsAndTransaction =
+            const shouldIncludeLog =
               sourceIsLog(source) || sourceIsFactory(source);
+            const shouldIncludeTransaction =
+              sourceIsLog(source) ||
+              sourceIsFactory(source) ||
+              sourceIsFunctionCall(source);
+            const shouldIncludeTrace = sourceIsFunctionCall(source);
             const shouldIncludeTransactionReceipt =
               (sourceIsLog(source) &&
                 source.criteria.includeTransactionReceipts) ||
@@ -1317,7 +1697,7 @@ export class SqliteSyncStore implements SyncStore {
               chainId: source.chainId,
               sourceId: row.source_id,
               encodedCheckpoint: row.checkpoint,
-              log: shouldIncludeLogsAndTransaction
+              log: shouldIncludeLog
                 ? {
                     address: checksumAddress(row.log_address),
                     blockHash: row.log_blockHash,
@@ -1363,7 +1743,7 @@ export class SqliteSyncStore implements SyncStore {
                   : null,
                 transactionsRoot: row.block_transactionsRoot,
               },
-              transaction: shouldIncludeLogsAndTransaction
+              transaction: shouldIncludeTransaction
                 ? {
                     blockHash: row.tx_blockHash,
                     blockNumber: decodeToBigInt(row.tx_blockNumber),
@@ -1413,6 +1793,28 @@ export class SqliteSyncStore implements SyncStore {
                             : {
                                 type: row.tx_type,
                               }),
+                  }
+                : undefined,
+              trace: shouldIncludeTrace
+                ? {
+                    id: row.trace_id,
+                    // callType: row.trace_callType as Trace["callType"],
+                    from: checksumAddress(row.trace_from),
+                    // gas: row.trace_gas,
+                    input: row.trace_input,
+                    to: checksumAddress(row.trace_to),
+                    value: decodeToBigInt(row.trace_value),
+                    blockHash: row.trace_blockHash,
+                    blockNumber: decodeToBigInt(row.trace_blockNumber),
+                    // gasUsed: row.trace_gasUsed,
+                    output: row.trace_output,
+                    // subtraces: row.trace_subtraces,
+                    // traceAddress: row.trace_traceAddress,
+                    // transactionHash: row.trace_transactionHash,
+                    // transactionPosition: row.trace_transactionPosition,
+                    // type: row.trace_type,
+                    // chainId: row.trace_chainId,
+                    // checkpoint: row.trace_checkpoint,
                   }
                 : undefined,
               transactionReceipt: shouldIncludeTransactionReceipt
@@ -1540,6 +1942,22 @@ export class SqliteSyncStore implements SyncStore {
             })
             .select("checkpoint"),
         )
+        .unionAll(
+          this.db
+            .selectFrom("traces")
+            .where((eb) =>
+              eb.or(
+                sources
+                  .filter(sourceIsFunctionCall)
+                  .map((functionCallSource) =>
+                    eb.and(
+                      this.buildTraceFilterCmpr({ eb, functionCallSource }),
+                    ),
+                  ),
+              ),
+            )
+            .select("checkpoint"),
+        )
         .where("checkpoint", ">", encodeCheckpoint(fromCheckpoint))
         .where("checkpoint", "<=", encodeCheckpoint(toCheckpoint))
         .orderBy("checkpoint", "desc")
@@ -1655,6 +2073,74 @@ export class SqliteSyncStore implements SyncStore {
       );
     if (factory.endBlock)
       exprs.push(eb("logs.blockNumber", "<=", encodeAsText(factory.endBlock)));
+
+    return exprs;
+  };
+
+  private buildTraceFilterCmpr = ({
+    eb,
+    functionCallSource,
+  }: {
+    eb: ExpressionBuilder<any, any>;
+    functionCallSource: FunctionCallSource;
+  }) => {
+    const exprs = [];
+
+    exprs.push(
+      eb(
+        "traces.chainId",
+        "=",
+        sql`cast (${sql.val(functionCallSource.chainId)} as numeric(16, 0))`,
+      ),
+    );
+
+    if (functionCallSource.criteria.fromAddress) {
+      // If it's an array of length 1, collapse it.
+      const fromAddress =
+        Array.isArray(functionCallSource.criteria.fromAddress) &&
+        functionCallSource.criteria.fromAddress.length === 1
+          ? functionCallSource.criteria.fromAddress[0]
+          : functionCallSource.criteria.fromAddress;
+      if (Array.isArray(fromAddress)) {
+        exprs.push(eb.or(fromAddress.map((a) => eb("traces.from", "=", a))));
+      } else {
+        exprs.push(eb("traces.from", "=", fromAddress));
+      }
+    }
+
+    if (functionCallSource.criteria.toAddress) {
+      // If it's an array of length 1, collapse it.
+      const toAddress =
+        Array.isArray(functionCallSource.criteria.toAddress) &&
+        functionCallSource.criteria.toAddress.length === 1
+          ? functionCallSource.criteria.toAddress[0]
+          : functionCallSource.criteria.toAddress;
+      if (Array.isArray(toAddress)) {
+        exprs.push(eb.or(toAddress.map((a) => eb("traces.to", "=", a))));
+      } else {
+        exprs.push(eb("traces.to", "=", toAddress));
+      }
+    }
+
+    if (
+      functionCallSource.startBlock !== undefined &&
+      functionCallSource.startBlock !== 0
+    )
+      exprs.push(
+        eb(
+          "traces.blockNumber",
+          ">=",
+          encodeAsText(functionCallSource.startBlock),
+        ),
+      );
+    if (functionCallSource.endBlock)
+      exprs.push(
+        eb(
+          "traces.blockNumber",
+          "<=",
+          encodeAsText(functionCallSource.endBlock),
+        ),
+      );
 
     return exprs;
   };
