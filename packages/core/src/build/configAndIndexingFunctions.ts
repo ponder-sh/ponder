@@ -249,7 +249,7 @@ export async function buildConfigAndIndexingFunctions({
 
       return {
         name: networkName,
-        chainId: chainId,
+        chainId,
         chain,
         transport: network.transport({ chain }),
         maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
@@ -332,7 +332,7 @@ export async function buildConfigAndIndexingFunctions({
       // Single network case.
       if (typeof contract.network === "string") {
         return {
-          id: `${contractName}_${contract.network}`,
+          id: `log_${contractName}_${contract.network}`,
           contractName,
           networkName: contract.network,
           abi: contract.abi,
@@ -369,7 +369,7 @@ export async function buildConfigAndIndexingFunctions({
             : endBlockMaybeNan;
 
           return {
-            id: `${contractName}_${networkName}`,
+            id: `log_${contractName}_${networkName}`,
             contractName,
             networkName,
             abi: contract.abi,
@@ -625,7 +625,7 @@ export async function buildConfigAndIndexingFunctions({
 
         return {
           type: "block",
-          id: `${sourceName}_${blockSourceConfig.network}`,
+          id: `block_${sourceName}_${blockSourceConfig.network}`,
           sourceName,
           networkName: blockSourceConfig.network,
           chainId: network.chainId,
@@ -679,7 +679,7 @@ export async function buildConfigAndIndexingFunctions({
 
           return {
             type: "block",
-            id: `${sourceName}_${networkName}`,
+            id: `block_${sourceName}_${networkName}`,
             sourceName,
             networkName,
             chainId: network.chainId,

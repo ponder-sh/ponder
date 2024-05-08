@@ -165,7 +165,7 @@ export const getNetworkAndSources = async (
       ...sources,
       {
         type: "function",
-        id: "Erc20_mainnet_function",
+        id: "trace_Erc20_mainnet",
         contractName: "Erc20",
         networkName: "mainnet",
         chainId: 1,

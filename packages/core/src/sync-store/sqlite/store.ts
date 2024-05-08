@@ -770,7 +770,6 @@ export class SqliteSyncStore implements SyncStore {
               blockTimestamp: hexToNumber(rpcBlock.timestamp),
               chainId: BigInt(chainId),
               blockNumber: decodeToBigInt(trace.blockNumber),
-              // TODO(kyle) is this the same?
               transactionIndex: BigInt(trace.transactionPosition),
               eventType: EVENT_TYPES.traces,
               eventIndex: BigInt(i),
@@ -999,7 +998,6 @@ export class SqliteSyncStore implements SyncStore {
                 blockTimestamp: hexToNumber(rpcBlock.timestamp),
                 chainId: BigInt(chainId),
                 blockNumber: hexToBigInt(trace.blockNumber),
-                // TODO(kyle) is this the same?
                 transactionIndex: BigInt(trace.transactionPosition),
                 eventType: EVENT_TYPES.traces,
                 eventIndex: BigInt(i),

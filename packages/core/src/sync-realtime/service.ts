@@ -160,8 +160,7 @@ export const create = ({
     hasFactorySource: sources.some(sourceIsFactory),
     hasTransactionReceiptSource:
       logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
-      factorySources.some((s) => s.criteria.includeTransactionReceipts) ||
-      functionCallSources.length > 0,
+      factorySources.some((s) => s.criteria.includeTransactionReceipts),
     logFilterSources,
     factorySources,
     blockSources,
@@ -411,7 +410,7 @@ export const handleBlock = async (
       ? await _trace_filter(service, {
           fromBlock: newHeadBlockNumber,
           toBlock: newHeadBlockNumber,
-        })
+        }).then((traces) => traces.filter((t) => t.error === undefined))
       : [];
 
   // TODO(kyle) filter traces

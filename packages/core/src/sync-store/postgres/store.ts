@@ -767,7 +767,6 @@ export class PostgresSyncStore implements SyncStore {
               blockTimestamp: hexToNumber(rpcBlock.timestamp),
               chainId: BigInt(chainId),
               blockNumber: trace.blockNumber,
-              // TODO(kyle) is this the same?
               transactionIndex: BigInt(trace.transactionPosition),
               eventType: EVENT_TYPES.traces,
               eventIndex: BigInt(i),
@@ -1035,7 +1034,6 @@ export class PostgresSyncStore implements SyncStore {
                 blockTimestamp: hexToNumber(rpcBlock.timestamp),
                 chainId: BigInt(chainId),
                 blockNumber: hexToBigInt(trace.blockNumber),
-                // TODO(kyle) is this the same?
                 transactionIndex: BigInt(trace.transactionPosition),
                 eventType: EVENT_TYPES.traces,
                 eventIndex: BigInt(i),

@@ -28,6 +28,7 @@ export type TraceFilterCriteria = {
 };
 
 type BaseLogSource = {
+  /** `log_${contractName}_${networkName}` */
   id: string;
   contractName: string;
   networkName: string;
@@ -51,6 +52,7 @@ export type FactorySource = BaseLogSource & {
 
 export type BlockSource = {
   type: "block";
+  /** `block_${sourceName}_${networkName}` */
   id: string;
   sourceName: string;
   networkName: string;
@@ -62,6 +64,7 @@ export type BlockSource = {
 
 export type FunctionCallSource = {
   type: "function";
+  /** `trace_${contractName}_${networkName}` */
   id: string;
   contractName: string;
   networkName: string;

@@ -2496,12 +2496,12 @@ test("getLogEvents multichain", async (context) => {
 
   expect(events).toHaveLength(2);
 
-  expect(events[0].sourceId).toBe("Erc20_mainnet");
+  expect(events[0].sourceId).toBe("log_Erc20_mainnet");
   expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
   expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
 
-  expect(events[1].sourceId).toBe("Erc20_mainnet");
+  expect(events[1].sourceId).toBe("log_Erc20_mainnet");
   expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
   expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
   expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
