@@ -10,6 +10,7 @@ import type {
   LogSource,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
+import { type SyncTrace, _trace_filter } from "@/sync/index.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
@@ -711,7 +712,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           break;
         }
         case "TRACE_FILTER": {
-          // TODO(kyle)
+          await this.traceFilterTaskWorker(task);
           break;
         }
 
@@ -1156,6 +1157,119 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.common.logger.trace({
       service: "historical",
       msg: `Completed BLOCK_FILTER task [${fromBlock}, ${toBlock}] ( network=${this.network.name})`,
+    });
+  };
+
+  private traceFilterTaskWorker = async ({
+    traceFilter,
+    fromBlock,
+    toBlock,
+  }: TraceFilterTask) => {
+    const traces = await _trace_filter(
+      { requestQueue: this.requestQueue },
+      {
+        fromBlock,
+        toBlock,
+        fromAddress: traceFilter.criteria.fromAddress,
+        toAddress: traceFilter.criteria.toAddress,
+      },
+    );
+
+    const tracesByBlockNumber: Record<number, SyncTrace[] | undefined> = {};
+    const txHashesByBlockNumber: Record<number, Set<Hash> | undefined> = {};
+
+    for (const trace of traces) {
+      const blockNumber = hexToNumber(trace.blockNumber);
+
+      if (tracesByBlockNumber[blockNumber] === undefined) {
+        tracesByBlockNumber[blockNumber] = [];
+      }
+      if (txHashesByBlockNumber[blockNumber] === undefined) {
+        txHashesByBlockNumber[blockNumber] = new Set<Hash>();
+      }
+
+      tracesByBlockNumber[blockNumber]!.push(trace);
+      txHashesByBlockNumber[blockNumber]!.add(trace.result.transactionHash);
+    }
+
+    const requiredBlocks = Object.keys(txHashesByBlockNumber)
+      .map(Number)
+      .sort((a, b) => a - b);
+
+    // If toBlock is not already required, add it. This is necessary
+    // to mark the full block range of the trace_filter request as cached.
+    if (!requiredBlocks.includes(toBlock)) {
+      requiredBlocks.push(toBlock);
+    }
+
+    const traceIntervals: {
+      startBlock: number;
+      endBlock: number;
+      traces: SyncTrace[];
+      transactionHashes: Set<Hash>;
+    }[] = [];
+
+    let prev = fromBlock;
+    for (const blockNumber of requiredBlocks) {
+      traceIntervals.push({
+        startBlock: prev,
+        endBlock: blockNumber,
+        traces: tracesByBlockNumber[blockNumber] ?? [],
+        transactionHashes: txHashesByBlockNumber[blockNumber] ?? new Set(),
+      });
+      prev = blockNumber + 1;
+    }
+
+    for (const traceInterval of traceIntervals) {
+      const { startBlock, endBlock } = traceInterval;
+
+      if (this.blockCallbacks[endBlock] === undefined)
+        this.blockCallbacks[endBlock] = [];
+
+      this.blockCallbacks[endBlock].push(async (block) => {
+        const { transactionHashes } = traceInterval;
+        const transactions = block.transactions.filter((tx) =>
+          transactionHashes.has(tx.hash),
+        );
+        const transactionReceipts =
+          traceFilter.criteria.includeTransactionReceipts === true
+            ? await Promise.all(
+                transactions.map((tx) =>
+                  this._eth_getTransactionReceipt({ hash: tx.hash }),
+                ),
+              )
+            : [];
+
+        await this.syncStore.insertTraceFilterInterval({
+          traces: traceInterval.traces,
+          interval: {
+            startBlock: BigInt(traceInterval.startBlock),
+            endBlock: BigInt(traceInterval.endBlock),
+          },
+          traceFilter: traceFilter.criteria,
+          chainId: traceFilter.chainId,
+          block,
+          transactions,
+          transactionReceipts,
+        });
+
+        this.common.metrics.ponder_historical_completed_blocks.inc(
+          { network: this.network.name, source: traceFilter.contractName },
+          endBlock - startBlock + 1,
+        );
+      });
+    }
+
+    this.traceFilterProgressTrackers[traceFilter.id].addCompletedInterval([
+      fromBlock,
+      toBlock,
+    ]);
+
+    this.enqueueBlockTasks();
+
+    this.common.logger.trace({
+      service: "historical",
+      msg: `Completed LOG_FILTER task adding ${traceIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${traceFilter.contractName}, network=${this.network.name})`,
     });
   };
 

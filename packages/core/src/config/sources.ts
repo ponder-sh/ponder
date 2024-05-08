@@ -21,8 +21,8 @@ export type BlockFilterCriteria = {
 };
 
 export type TraceFilterCriteria = {
-  fromAddress?: Address | Address[];
-  toAddress?: Address | Address[];
+  fromAddress?: Address[];
+  toAddress?: Address[];
   includeTransactionReceipts: boolean;
   // TODO(kyle) maybe include function selectors
 };

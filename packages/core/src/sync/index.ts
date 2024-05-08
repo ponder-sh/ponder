@@ -198,3 +198,39 @@ export const _eth_getTransactionReceipt = (
         });
       return receipt as SyncTransactionReceipt;
     });
+
+/**
+ * Helper function for "trace_filter" request.
+ *
+ * Note: No strict typing is available.
+ */
+export const _trace_filter = (
+  { requestQueue }: Pick<BaseSyncService, "requestQueue">,
+  params: {
+    fromBlock: Hex | number;
+    toBlock: Hex | number;
+    fromAddress?: Address[];
+    toAddress?: Address[];
+  },
+): Promise<SyncTrace[]> =>
+  requestQueue.request({
+    method: "trace_filter",
+    params: [
+      {
+        fromBlock:
+          typeof params.fromBlock === "number"
+            ? numberToHex(params.fromBlock)
+            : params.fromBlock,
+        toBlock:
+          typeof params.toBlock === "number"
+            ? numberToHex(params.toBlock)
+            : params.toBlock,
+        fromAddress: params.fromAddress
+          ? params.fromAddress.map((a) => toLowerCase(a))
+          : undefined,
+        toAddress: params.toAddress
+          ? params.toAddress.map((a) => toLowerCase(a))
+          : undefined,
+      },
+    ],
+  } as any) as unknown as Promise<SyncTrace[]>;
