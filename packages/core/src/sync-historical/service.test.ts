@@ -4,12 +4,13 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { getEventsErc20, publicClient } from "@/_test/utils.js";
+import { getEventsErc20, getRawRPCData, publicClient } from "@/_test/utils.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
-import { numberToHex } from "viem";
+import { hexToNumber, numberToHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
@@ -293,12 +294,45 @@ test("start() with log filter and factory contract updates completed blocks metr
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
+  const rpcData = await getRawRPCData(sources);
+
+  // Mock because request is not supported by foundry
+  const requestQueue = {
+    ...requestQueues[0],
+    request: (request: any) => {
+      if (request.method === "trace_filter") {
+        let traces = [
+          ...rpcData.block1.traces,
+          ...rpcData.block2.traces,
+          ...rpcData.block3.traces,
+        ];
+
+        if (request.params[0].fromBlock !== undefined) {
+          traces = traces.filter(
+            (t) =>
+              hexToNumber(t.blockNumber) >=
+              hexToNumber(request.params[0].fromBlock),
+          );
+        }
+        if (request.params[0].toBlock) {
+          traces = traces.filter(
+            (t) =>
+              hexToNumber(t.blockNumber) <=
+              hexToNumber(request.params[0].toBlock),
+          );
+        }
+
+        return Promise.resolve(traces);
+      } else return requestQueues[0].request(request);
+    },
+  } as RequestQueue;
+
   const service = new HistoricalSyncService({
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
-    sources,
+    requestQueue,
+    sources: [sources[0], sources[1], sources[2]],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -352,10 +386,12 @@ test("start() adds log filter events to sync store", async (context) => {
   expect({
     ...erc20Events[0],
     transactionReceipt: undefined,
+    trace: undefined,
   }).toMatchObject(events[0]);
   expect({
     ...erc20Events[1],
     transactionReceipt: undefined,
+    trace: undefined,
   }).toMatchObject(events[1]);
 
   service.kill();
@@ -373,7 +409,7 @@ test("start() adds factory events to sync store", async (context) => {
     syncStore,
     network: networks[0],
     requestQueue: requestQueues[0],
-    sources,
+    sources: [sources[1]],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -427,6 +463,90 @@ test("start() adds block filter events to sync store", async (context) => {
   expect(events[1].log).toBeUndefined();
   expect(events[1].transaction).toBeUndefined();
   expect(events[1].block.number).toBe(3n);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
+test("start() adds trace filter events to sync store", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumbers = await getBlockNumbers();
+
+  const rpcData = await getRawRPCData(sources);
+
+  // Mock because request is not supported by foundry
+  const requestQueue = {
+    ...requestQueues[0],
+    request: (request: any) => {
+      if (request.method === "trace_filter") {
+        let traces = [
+          ...rpcData.block1.traces,
+          ...rpcData.block2.traces,
+          ...rpcData.block3.traces,
+        ];
+
+        if (request.params[0].fromBlock !== undefined) {
+          traces = traces.filter(
+            (t) =>
+              hexToNumber(t.blockNumber) >=
+              hexToNumber(request.params[0].fromBlock),
+          );
+        }
+        if (request.params[0].toBlock) {
+          traces = traces.filter(
+            (t) =>
+              hexToNumber(t.blockNumber) <=
+              hexToNumber(request.params[0].toBlock),
+          );
+        }
+
+        return Promise.resolve(traces);
+      } else return requestQueues[0].request(request);
+    },
+  } as RequestQueue;
+
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: requestQueue,
+    sources: [sources[3]],
+  });
+  await service.setup(blockNumbers);
+  service.start();
+  await service.onIdle();
+
+  const ag = syncStore.getLogEvents({
+    sources: [sources[3]],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(4);
+
+  expect(events[0].log).toBeUndefined();
+  expect(events[0].transaction).toBeDefined();
+  expect(events[0].trace).toBeDefined();
+  expect(events[0].block.number).toBe(2n);
+
+  expect(events[1].log).toBeUndefined();
+  expect(events[1].transaction).toBeDefined();
+  expect(events[1].trace).toBeDefined();
+  expect(events[1].block.number).toBe(2n);
+
+  expect(events[2].log).toBeUndefined();
+  expect(events[2].transaction).toBeDefined();
+  expect(events[2].trace).toBeDefined();
+  expect(events[2].block.number).toBe(3n);
+
+  expect(events[3].log).toBeUndefined();
+  expect(events[3].transaction).toBeDefined();
+  expect(events[3].trace).toBeDefined();
+  expect(events[3].block.number).toBe(4n);
 
   service.kill();
   await service.onIdle();

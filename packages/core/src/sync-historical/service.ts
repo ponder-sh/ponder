@@ -1275,7 +1275,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         );
       });
     }
-
     this.traceFilterProgressTrackers[traceFilter.id].addCompletedInterval([
       fromBlock,
       toBlock,
