@@ -10,6 +10,7 @@ import type { SyncTrace } from "@/sync/index.js";
 import type {
   Block,
   Log,
+  Trace,
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
@@ -29,6 +30,7 @@ export type RawEvent = {
   block: Block;
   transaction?: Transaction;
   transactionReceipt?: TransactionReceipt;
+  trace?: Trace;
   encodedCheckpoint: string;
 };
 

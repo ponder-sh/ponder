@@ -742,10 +742,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("type", "text", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
-        .addPrimaryKeyConstraint("tracesPrimaryKey", [
-          "transactionHash",
-          "traceAddress",
-        ])
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
         .execute();
 
       // The traces.blockNumber index supports getLogEvents and deleteRealtimeData

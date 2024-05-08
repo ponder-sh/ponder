@@ -24,6 +24,7 @@ export type TraceFilterCriteria = {
   fromAddress?: Address | Address[];
   toAddress?: Address | Address[];
   includeTransactionReceipts: boolean;
+  // TODO(kyle) maybe include function selectors
 };
 
 type BaseLogSource = {

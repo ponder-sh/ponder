@@ -192,3 +192,27 @@ export type TransactionReceipt = {
   /** Transaction type */
   type: TransactionType;
 };
+
+/**
+ * An Ethereum trace.
+ *
+ * TODO(kyle) finish this
+ */
+export type Trace = {
+  /** Globally unique identifier for this trace (`${transactionHash}-${traceAddress}`). */
+  id: string;
+  /** Hash of block containing this transaction */
+  blockHash: Hash;
+  /** Number of block containing this transaction */
+  blockNumber: bigint;
+  /** Contract code or a hashed method call */
+  input: Hex;
+  /** Contract code or a hashed method call */
+  output: Hex;
+  /** Message sender */
+  from: Address;
+  /** Message recipient or `null` if deploying a contract */
+  to: Address | null;
+  /** Value in wei sent with this message */
+  value: bigint;
+};

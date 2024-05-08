@@ -3,11 +3,13 @@ import {
   type EventSource,
   type FactoryCriteria,
   type FactorySource,
+  type FunctionCallSource,
   type LogFilterCriteria,
   type LogSource,
   type TraceFilterCriteria,
   sourceIsBlock,
   sourceIsFactory,
+  sourceIsFunctionCall,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
@@ -779,9 +781,7 @@ export class PostgresSyncStore implements SyncStore {
           await tx
             .insertInto("traces")
             .values(traces)
-            .onConflict((oc) =>
-              oc.columns(["transactionHash", "traceAddress"]).doNothing(),
-            )
+            .onConflict((oc) => oc.column("id").doNothing())
             .execute();
         }
 
@@ -1044,7 +1044,8 @@ export class PostgresSyncStore implements SyncStore {
               }),
             }))
             .sort((a, b) => {
-              // TODO(kyle) take into account the different transactionHashes
+              if (a.transactionHash < b.transactionHash) return -1;
+              if (a.transactionHash > b.transactionHash) return 1;
               return a.traceAddress < b.traceAddress ? -1 : 1;
             });
 
@@ -1344,21 +1345,25 @@ export class PostgresSyncStore implements SyncStore {
       return acc;
     }, {});
 
-    // We can assume that source won't be empty. `sources` will
-    // be only log/factory, only block, or a mix
-    const hasOnlyLogOrFactorySources = sources.every(
-      (s) => sourceIsLog(s) || sourceIsFactory(s),
-    );
+    // We can assume that source won't be empty.
     const logOrFactorySources = sources.filter(
       (s): s is LogSource | FactorySource =>
         sourceIsLog(s) || sourceIsFactory(s),
     );
-    const hasOnlyBlockSources = sources.every(sourceIsBlock);
     const blockSources = sources.filter(sourceIsBlock);
+    const functionCallSources = sources.filter(sourceIsFunctionCall);
 
-    const shouldJoinReceipts = logOrFactorySources.some(
-      (source) => source.criteria.includeTransactionReceipts,
-    );
+    const shouldJoinLogs = logOrFactorySources.length !== 0;
+    const shouldJoinTransactions =
+      logOrFactorySources.length !== 0 || functionCallSources.length !== 0;
+    const shouldJoinTraces = functionCallSources.length !== 0;
+    const shouldJoinReceipts =
+      logOrFactorySources.some(
+        (source) => source.criteria.includeTransactionReceipts,
+      ) ||
+      functionCallSources.some(
+        (source) => source.criteria.includeTransactionReceipts,
+      );
 
     while (true) {
       const events = await this.db.wrap(
@@ -1370,7 +1375,7 @@ export class PostgresSyncStore implements SyncStore {
               "log_sources(source_id)",
               () =>
                 sql`( values ${
-                  hasOnlyBlockSources
+                  logOrFactorySources.length === 0
                     ? sql`( null )`
                     : sql.join(
                         logOrFactorySources.map(
@@ -1383,10 +1388,23 @@ export class PostgresSyncStore implements SyncStore {
               "block_sources(source_id)",
               () =>
                 sql`( values ${
-                  hasOnlyLogOrFactorySources
+                  blockSources.length === 0
                     ? sql`( null )`
                     : sql.join(
                         blockSources.map(
+                          (source) => sql`( ${sql.val(source.id)} )`,
+                        ),
+                      )
+                } )`,
+            )
+            .with(
+              "function_call_sources(source_id)",
+              () =>
+                sql`( values ${
+                  functionCallSources.length === 0
+                    ? sql`( null )`
+                    : sql.join(
+                        functionCallSources.map(
                           (source) => sql`( ${sql.val(source.id)} )`,
                         ),
                       )
@@ -1400,7 +1418,10 @@ export class PostgresSyncStore implements SyncStore {
                   const logFilterCmprs = sources
                     .filter(sourceIsLog)
                     .map((logFilter) => {
-                      const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+                      const exprs = this.buildLogFilterCmprs({
+                        eb,
+                        logFilter,
+                      });
                       exprs.push(eb("source_id", "=", logFilter.id));
                       return eb.and(exprs);
                     });
@@ -1417,20 +1438,12 @@ export class PostgresSyncStore implements SyncStore {
                 })
                 .select([
                   "source_id",
-                  "logs.checkpoint as checkpoint",
-                  "logs.address as log_address",
-                  "logs.blockHash as log_blockHash",
-                  "logs.blockNumber as log_blockNumber",
-                  "logs.chainId as log_chainId",
-                  "logs.data as log_data",
+                  "checkpoint",
+                  "blockHash",
+                  "transactionHash",
+
                   "logs.id as log_id",
-                  "logs.logIndex as log_logIndex",
-                  "logs.topic0 as log_topic0",
-                  "logs.topic1 as log_topic1",
-                  "logs.topic2 as log_topic2",
-                  "logs.topic3 as log_topic3",
-                  "logs.transactionHash as log_transactionHash",
-                  "logs.transactionIndex as log_transactionIndex",
+                  sql`null`.as("trace_id"),
                 ])
                 .unionAll(
                   // @ts-ignore
@@ -1439,27 +1452,56 @@ export class PostgresSyncStore implements SyncStore {
                     .innerJoin("block_sources", (join) => join.onTrue())
                     .where((eb) => {
                       const exprs = [];
-                      const blockFilters = sources.filter(sourceIsBlock);
-                      for (const blockFilter of blockFilters) {
+                      for (const blockSource of blockSources) {
                         exprs.push(
                           eb.and([
-                            eb("chainId", "=", blockFilter.chainId),
-                            eb("number", ">=", BigInt(blockFilter.startBlock)),
-                            ...(blockFilter.endBlock !== undefined
+                            eb("chainId", "=", blockSource.chainId),
+                            eb("number", ">=", BigInt(blockSource.startBlock)),
+                            ...(blockSource.endBlock !== undefined
                               ? [
                                   eb(
                                     "number",
                                     "<=",
-                                    BigInt(blockFilter.endBlock),
+                                    BigInt(blockSource.endBlock),
                                   ),
                                 ]
                               : []),
                             sql`(number - ${sql.val(
-                              blockFilter.criteria.offset,
+                              blockSource.criteria.offset,
                             )}) % ${sql.val(
-                              blockFilter.criteria.interval,
+                              blockSource.criteria.interval,
                             )} = 0`,
-                            eb("source_id", "=", blockFilter.id),
+                            eb("source_id", "=", blockSource.id),
+                          ]),
+                        );
+                      }
+                      return eb.or(exprs);
+                    })
+                    .select([
+                      "block_sources.source_id",
+                      "checkpoint",
+                      "hash as blockHash",
+                      sql`null`.as("transactionHash"),
+
+                      sql`null`.as("log_id"),
+                      sql`null`.as("trace_id"),
+                    ]),
+                )
+                .unionAll(
+                  // @ts-ignore
+                  db
+                    .selectFrom("traces")
+                    .innerJoin("function_call_sources", (join) => join.onTrue())
+                    .where((eb) => {
+                      const exprs = [];
+                      for (const functionCallSource of functionCallSources) {
+                        exprs.push(
+                          eb.and([
+                            ...this.buildTraceFilterCmpr({
+                              eb,
+                              functionCallSource,
+                            }),
+                            eb("source_id", "=", functionCallSource.id),
                           ]),
                         );
                       }
@@ -1467,71 +1509,20 @@ export class PostgresSyncStore implements SyncStore {
                     })
                     .select([
                       "source_id",
-                      "blocks.checkpoint as checkpoint",
-                      sql`null`.as("log_address"),
-                      "blocks.hash as log_blockHash",
-                      sql`null`.as("log_blockNumber"),
-                      sql`null`.as("log_chainId"),
-                      sql`null`.as("log_data"),
+                      "checkpoint",
+                      "blockHash",
+                      "transactionHash",
+
                       sql`null`.as("log_id"),
-                      sql`null`.as("log_logIndex"),
-                      sql`null`.as("log_topic0"),
-                      sql`null`.as("log_topic1"),
-                      sql`null`.as("log_topic2"),
-                      sql`null`.as("log_topic3"),
-                      sql`null`.as("log_transactionHash"),
-                      sql`null`.as("log_transactionIndex"),
+                      "traces.id as trace_id",
                     ]),
                 ),
             )
             .selectFrom("events")
-            .innerJoin("blocks", "blocks.hash", "log_blockHash")
-            .leftJoin(
-              "transactions",
-              "transactions.hash",
-              "log_transactionHash",
-            )
-            .$if(shouldJoinReceipts, (qb) =>
-              qb
-                .leftJoin(
-                  "transactionReceipts",
-                  "transactionReceipts.transactionHash",
-                  "log_transactionHash",
-                )
-                .select([
-                  "transactionReceipts.blockHash as txr_blockHash",
-                  "transactionReceipts.blockNumber as txr_blockNumber",
-                  "transactionReceipts.contractAddress as txr_contractAddress",
-                  "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
-                  "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
-                  "transactionReceipts.from as txr_from",
-                  "transactionReceipts.gasUsed as txr_gasUsed",
-                  "transactionReceipts.logs as txr_logs",
-                  "transactionReceipts.logsBloom as txr_logsBloom",
-                  "transactionReceipts.status as txr_status",
-                  "transactionReceipts.to as txr_to",
-                  "transactionReceipts.transactionHash as txr_transactionHash",
-                  "transactionReceipts.transactionIndex as txr_transactionIndex",
-                  "transactionReceipts.type as txr_type",
-                ]),
-            )
+            .innerJoin("blocks", "blocks.hash", "events.blockHash")
             .select([
-              "source_id",
+              "events.source_id",
               "events.checkpoint",
-
-              "events.log_address",
-              "events.log_blockHash",
-              "events.log_blockNumber",
-              "events.log_chainId",
-              "events.log_data",
-              "events.log_id",
-              "events.log_logIndex",
-              "events.log_topic0",
-              "events.log_topic1",
-              "events.log_topic2",
-              "events.log_topic3",
-              "events.log_transactionHash",
-              "events.log_transactionIndex",
 
               "blocks.baseFeePerGas as block_baseFeePerGas",
               "blocks.difficulty as block_difficulty",
@@ -1552,26 +1543,102 @@ export class PostgresSyncStore implements SyncStore {
               "blocks.timestamp as block_timestamp",
               "blocks.totalDifficulty as block_totalDifficulty",
               "blocks.transactionsRoot as block_transactionsRoot",
-
-              "transactions.accessList as tx_accessList",
-              "transactions.blockHash as tx_blockHash",
-              "transactions.blockNumber as tx_blockNumber",
-              "transactions.from as tx_from",
-              "transactions.gas as tx_gas",
-              "transactions.gasPrice as tx_gasPrice",
-              "transactions.hash as tx_hash",
-              "transactions.input as tx_input",
-              "transactions.maxFeePerGas as tx_maxFeePerGas",
-              "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
-              "transactions.nonce as tx_nonce",
-              "transactions.r as tx_r",
-              "transactions.s as tx_s",
-              "transactions.to as tx_to",
-              "transactions.transactionIndex as tx_transactionIndex",
-              "transactions.type as tx_type",
-              "transactions.value as tx_value",
-              "transactions.v as tx_v",
             ])
+            .$if(shouldJoinLogs, (qb) =>
+              qb
+                .leftJoin("logs", "logs.id", "events.log_id")
+                .select([
+                  "logs.address as log_address",
+                  "logs.blockHash as log_blockHash",
+                  "logs.blockNumber as log_blockNumber",
+                  "logs.chainId as log_chainId",
+                  "logs.data as log_data",
+                  "logs.id as log_id",
+                  "logs.logIndex as log_logIndex",
+                  "logs.topic0 as log_topic0",
+                  "logs.topic1 as log_topic1",
+                  "logs.topic2 as log_topic2",
+                  "logs.topic3 as log_topic3",
+                  "logs.transactionHash as log_transactionHash",
+                  "logs.transactionIndex as log_transactionIndex",
+                ]),
+            )
+            .$if(shouldJoinTransactions, (qb) =>
+              qb
+                .leftJoin(
+                  "transactions",
+                  "transactions.hash",
+                  "events.transactionHash",
+                )
+                .select([
+                  "transactions.accessList as tx_accessList",
+                  "transactions.blockHash as tx_blockHash",
+                  "transactions.blockNumber as tx_blockNumber",
+                  "transactions.from as tx_from",
+                  "transactions.gas as tx_gas",
+                  "transactions.gasPrice as tx_gasPrice",
+                  "transactions.hash as tx_hash",
+                  "transactions.input as tx_input",
+                  "transactions.maxFeePerGas as tx_maxFeePerGas",
+                  "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
+                  "transactions.nonce as tx_nonce",
+                  "transactions.r as tx_r",
+                  "transactions.s as tx_s",
+                  "transactions.to as tx_to",
+                  "transactions.transactionIndex as tx_transactionIndex",
+                  "transactions.type as tx_type",
+                  "transactions.value as tx_value",
+                  "transactions.v as tx_v",
+                ]),
+            )
+            .$if(shouldJoinTraces, (qb) =>
+              qb
+                .leftJoin("traces", "traces.id", "events.trace_id")
+                .select([
+                  "traces.id as trace_id",
+                  "traces.callType as trace_callType",
+                  "traces.from as trace_from",
+                  "traces.gas as trace_gas",
+                  "traces.input as trace_input",
+                  "traces.to as trace_to",
+                  "traces.value as trace_value",
+                  "traces.blockHash as trace_blockHash",
+                  "traces.blockNumber as trace_blockNumber",
+                  "traces.gasUsed as trace_gasUsed",
+                  "traces.output as trace_output",
+                  "traces.subtraces as trace_subtraces",
+                  "traces.traceAddress as trace_traceAddress",
+                  "traces.transactionHash as trace_transactionHash",
+                  "traces.transactionPosition as trace_transactionPosition",
+                  "traces.type as trace_type",
+                  "traces.chainId as trace_chainId",
+                  "traces.checkpoint as trace_checkpoint",
+                ]),
+            )
+            .$if(shouldJoinReceipts, (qb) =>
+              qb
+                .leftJoin(
+                  "transactionReceipts",
+                  "transactionReceipts.transactionHash",
+                  "events.transactionHash",
+                )
+                .select([
+                  "transactionReceipts.blockHash as txr_blockHash",
+                  "transactionReceipts.blockNumber as txr_blockNumber",
+                  "transactionReceipts.contractAddress as txr_contractAddress",
+                  "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
+                  "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
+                  "transactionReceipts.from as txr_from",
+                  "transactionReceipts.gasUsed as txr_gasUsed",
+                  "transactionReceipts.logs as txr_logs",
+                  "transactionReceipts.logsBloom as txr_logsBloom",
+                  "transactionReceipts.status as txr_status",
+                  "transactionReceipts.to as txr_to",
+                  "transactionReceipts.transactionHash as txr_transactionHash",
+                  "transactionReceipts.transactionIndex as txr_transactionIndex",
+                  "transactionReceipts.type as txr_type",
+                ]),
+            )
             .where("events.checkpoint", ">", cursor)
             .where("events.checkpoint", "<=", encodedToCheckpoint)
             .orderBy("events.checkpoint", "asc")
@@ -1586,8 +1653,13 @@ export class PostgresSyncStore implements SyncStore {
 
             const source = sourcesById[row.source_id];
 
-            const shouldIncludeLogsAndTransaction =
+            const shouldIncludeLog =
               sourceIsLog(source) || sourceIsFactory(source);
+            const shouldIncludeTransaction =
+              sourceIsLog(source) ||
+              sourceIsFactory(source) ||
+              sourceIsFunctionCall(source);
+            const shouldIncludeTrace = sourceIsFunctionCall(source);
             const shouldIncludeTransactionReceipt =
               (sourceIsLog(source) &&
                 source.criteria.includeTransactionReceipts) ||
@@ -1597,7 +1669,7 @@ export class PostgresSyncStore implements SyncStore {
               chainId: source.chainId,
               sourceId: row.source_id,
               encodedCheckpoint: row.checkpoint,
-              log: shouldIncludeLogsAndTransaction
+              log: shouldIncludeLog
                 ? {
                     address: checksumAddress(row.log_address),
                     blockHash: row.log_blockHash,
@@ -1639,7 +1711,7 @@ export class PostgresSyncStore implements SyncStore {
                 totalDifficulty: row.block_totalDifficulty,
                 transactionsRoot: row.block_transactionsRoot,
               },
-              transaction: shouldIncludeLogsAndTransaction
+              transaction: shouldIncludeTransaction
                 ? {
                     blockHash: row.tx_blockHash,
                     blockNumber: row.tx_blockNumber,
@@ -1676,6 +1748,28 @@ export class PostgresSyncStore implements SyncStore {
                                   row.tx_maxPriorityFeePerGas ?? undefined,
                               }
                             : { type: row.tx_type }),
+                  }
+                : undefined,
+              trace: shouldIncludeTrace
+                ? {
+                    id: row.trace_id,
+                    // callType: row.trace_callType as Trace["callType"],
+                    from: checksumAddress(row.trace_from),
+                    // gas: row.trace_gas,
+                    input: row.trace_input,
+                    to: checksumAddress(row.trace_to),
+                    value: row.trace_value,
+                    blockHash: row.trace_blockHash,
+                    blockNumber: row.trace_blockNumber,
+                    // gasUsed: row.trace_gasUsed,
+                    output: row.trace_output,
+                    // subtraces: row.trace_subtraces,
+                    // traceAddress: row.trace_traceAddress,
+                    // transactionHash: row.trace_transactionHash,
+                    // transactionPosition: row.trace_transactionPosition,
+                    // type: row.trace_type,
+                    // chainId: row.trace_chainId,
+                    // checkpoint: row.trace_checkpoint,
                   }
                 : undefined,
               transactionReceipt: shouldIncludeTransactionReceipt
@@ -1803,6 +1897,22 @@ export class PostgresSyncStore implements SyncStore {
             })
             .select("checkpoint"),
         )
+        .unionAll(
+          this.db
+            .selectFrom("traces")
+            .where((eb) =>
+              eb.or(
+                sources
+                  .filter(sourceIsFunctionCall)
+                  .map((functionCallSource) =>
+                    eb.and(
+                      this.buildTraceFilterCmpr({ eb, functionCallSource }),
+                    ),
+                  ),
+              ),
+            )
+            .select("checkpoint"),
+        )
         .where("checkpoint", ">", encodeCheckpoint(fromCheckpoint))
         .where("checkpoint", "<=", encodeCheckpoint(toCheckpoint))
         .orderBy("checkpoint", "desc")
@@ -1924,6 +2034,66 @@ export class PostgresSyncStore implements SyncStore {
       exprs.push(eb("logs.blockNumber", ">=", BigInt(factory.startBlock)));
     if (factory.endBlock)
       exprs.push(eb("logs.blockNumber", "<=", BigInt(factory.endBlock)));
+
+    return exprs;
+  };
+
+  private buildTraceFilterCmpr = ({
+    eb,
+    functionCallSource,
+  }: {
+    eb: ExpressionBuilder<any, any>;
+    functionCallSource: FunctionCallSource;
+  }) => {
+    const exprs = [];
+
+    exprs.push(
+      eb(
+        "traces.chainId",
+        "=",
+        sql`cast (${sql.val(functionCallSource.chainId)} as numeric(16, 0))`,
+      ),
+    );
+
+    if (functionCallSource.criteria.fromAddress) {
+      // If it's an array of length 1, collapse it.
+      const fromAddress =
+        Array.isArray(functionCallSource.criteria.fromAddress) &&
+        functionCallSource.criteria.fromAddress.length === 1
+          ? functionCallSource.criteria.fromAddress[0]
+          : functionCallSource.criteria.fromAddress;
+      if (Array.isArray(fromAddress)) {
+        exprs.push(eb.or(fromAddress.map((a) => eb("traces.from", "=", a))));
+      } else {
+        exprs.push(eb("traces.from", "=", fromAddress));
+      }
+    }
+
+    if (functionCallSource.criteria.toAddress) {
+      // If it's an array of length 1, collapse it.
+      const toAddress =
+        Array.isArray(functionCallSource.criteria.toAddress) &&
+        functionCallSource.criteria.toAddress.length === 1
+          ? functionCallSource.criteria.toAddress[0]
+          : functionCallSource.criteria.toAddress;
+      if (Array.isArray(toAddress)) {
+        exprs.push(eb.or(toAddress.map((a) => eb("traces.to", "=", a))));
+      } else {
+        exprs.push(eb("traces.to", "=", toAddress));
+      }
+    }
+
+    if (
+      functionCallSource.startBlock !== undefined &&
+      functionCallSource.startBlock !== 0
+    )
+      exprs.push(
+        eb("traces.blockNumber", ">=", BigInt(functionCallSource.startBlock)),
+      );
+    if (functionCallSource.endBlock)
+      exprs.push(
+        eb("traces.blockNumber", "<=", BigInt(functionCallSource.endBlock)),
+      );
 
     return exprs;
   };

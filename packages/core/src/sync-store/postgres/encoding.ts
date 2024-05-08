@@ -212,6 +212,7 @@ export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
 }
 
 type TracesTable = {
+  id: string;
   callType: string;
   from: Address;
   gas: bigint;
@@ -237,6 +238,9 @@ export function rpcToPostgresTrace(
   trace: SyncTrace,
 ): Omit<InsertableTrace, "chainId" | "checkpoint"> {
   return {
+    id: `${trace.result.transactionHash}-${JSON.stringify(
+      trace.result.traceAddress,
+    )}`,
     callType: trace.action.callType,
     from: toLowerCase(trace.action.from),
     gas: hexToBigInt(trace.action.gas),

@@ -139,6 +139,7 @@ export const getNetworkAndSources = async (
   common: Common,
 ) => {
   const config = getConfig(addresses);
+  // TODO(kyle) update config with function call sources
   const { networks, sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [
@@ -158,7 +159,25 @@ export const getNetworkAndSources = async (
     common,
   });
 
-  return { networks: [mainnet], sources, requestQueues: [requestQueue] };
+  return {
+    networks: [mainnet],
+    sources: [
+      ...sources,
+      {
+        type: "function",
+        id: "Erc20_mainnet_function",
+        contractName: "Erc20",
+        networkName: "mainnet",
+        chainId: 1,
+        abi: erc20ABI,
+        startBlock: 0,
+        criteria: {
+          includeTransactionReceipts: false,
+        },
+      },
+    ],
+    requestQueues: [requestQueue],
+  };
 };
 
 /**
@@ -376,7 +395,7 @@ export const getRawRPCData = async (sources: EventSource[]) => {
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction, RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt, RpcTransactionReceipt];
-      traces: [SyncTrace];
+      traces: [SyncTrace, SyncTrace];
     };
     block2: {
       logs: [RpcLog];
