@@ -9,7 +9,7 @@ import type { Service } from "./service.js";
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 
-test("decodeEvents()", async (context) => {
+test("decodeEvents() log", async (context) => {
   const { common, sources } = context;
 
   const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
@@ -18,6 +18,7 @@ test("decodeEvents()", async (context) => {
   }, {});
 
   const rawEvents = await getEventsErc20(sources);
+
   const events = decodeEvents({ common, sourceById }, rawEvents) as [
     LogEvent,
     LogEvent,
@@ -47,7 +48,7 @@ test("decodeEvents()", async (context) => {
   );
 });
 
-test("decodeEvents() error", async (context) => {
+test("decodeEvents() log error", async (context) => {
   const { common, sources } = context;
 
   const sourceById = sources.reduce<Service["sourceById"]>((acc, cur) => {
@@ -72,3 +73,9 @@ test("decodeEvents() error", async (context) => {
     amount: parseEther("1"),
   });
 });
+
+test.todo("decodeEvents() block");
+
+test.todo("decodeEvents() trace");
+
+test.todo("decodeEvents() trace error");
