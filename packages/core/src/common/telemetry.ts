@@ -12,7 +12,7 @@ import { wait } from "@/utils/wait.js";
 import { createQueue } from "@ponder/common";
 import Conf from "conf";
 import { type PM, detect, getNpmVersion } from "detect-package-manager";
-import type { LoggerService } from "./logger.js";
+import type { Logger } from "./logger.js";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 
@@ -65,10 +65,7 @@ export type Telemetry = ReturnType<typeof createTelemetry>;
 export function createTelemetry({
   options,
   logger,
-}: {
-  options: Options;
-  logger: LoggerService;
-}) {
+}: { options: Options; logger: Logger }) {
   if (options.telemetryDisabled) {
     return { record: (_event: TelemetryEvent) => {}, kill: async () => {} };
   }
@@ -81,6 +78,7 @@ export function createTelemetry({
   if (conf.get("notifiedAt") === undefined) {
     conf.set("notifiedAt", Date.now().toString());
     logger.info({
+      service: "telemetry",
       msg: "Ponder collects anonymous telemetry data to identify issues and prioritize features. See https://ponder.sh/advanced/telemetry for more information.",
     });
   }
