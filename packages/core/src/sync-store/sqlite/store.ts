@@ -1009,8 +1009,11 @@ export class SqliteSyncStore implements SyncStore {
               return a.traceAddress < b.traceAddress ? -1 : 1;
             });
 
-          // TODO(kyle) onConflict
-          await tx.insertInto("traces").values(traces).execute();
+          await tx
+            .insertInto("traces")
+            .values(traces)
+            .onConflict((oc) => oc.column("id").doNothing())
+            .execute();
         }
       });
     });
