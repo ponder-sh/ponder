@@ -126,7 +126,7 @@ export const buildAbiFunctions = ({ abi }: { abi: Abi }) => {
       const signature = formatAbiItem(item);
       const safeName = overloadedFunctionNames.has(item.name)
         ? signature.split("function ")[1]
-        : item.name;
+        : `${item.name}()`;
       const selector = getFunctionSelector(item);
 
       const abiEventMeta = { safeName, signature, selector, item };
