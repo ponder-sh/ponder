@@ -244,56 +244,85 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
   const startTimestampMetric =
     (await metrics.ponder_historical_start_timestamp.get()).values?.[0]
       ?.value ?? Date.now();
-  const cachedBlocksMetric = (
-    await metrics.ponder_historical_cached_blocks.get()
-  ).values;
-  const totalBlocksMetric = (await metrics.ponder_historical_total_blocks.get())
-    .values;
-  const completedBlocksMetric = (
-    await metrics.ponder_historical_completed_blocks.get()
-  ).values;
 
-  const sources = totalBlocksMetric.map((m) => {
-    const source = m.labels.source as string;
-    const network = m.labels.network as string;
-    const totalBlocks = m.value;
+  /** Aggregate block metrics for different "types" of sources. */
+  const reduceBlockMetrics = (
+    values: prometheus.MetricValue<"network" | "source" | "type">[],
+  ) =>
+    values.reduce<{
+      [id: string]: {
+        labels: { source: string; network: string };
+        value: number;
+      };
+    }>((acc, cur) => {
+      const id = `${cur.labels.source}_${cur.labels.network}_${
+        cur.labels.type === "block" ? "block" : "contract"
+      }`;
 
-    const cachedBlocks = cachedBlocksMetric.find(
-      (c) => c.labels.source === source && c.labels.network === network,
-    )?.value;
+      if (acc[id] === undefined) {
+        acc[id] = {
+          labels: {
+            source: cur.labels.source as string,
+            network: cur.labels.network as string,
+          },
+          value: cur.value,
+        };
+      } else {
+        acc[id].value += cur.value;
+      }
 
-    const completedBlocks =
-      completedBlocksMetric.find(
-        (c) => c.labels.source === source && c.labels.network === network,
-      )?.value ?? 0;
+      return acc;
+    }, {});
 
-    // If cachedBlocks is not set, setup is not complete.
-    if (cachedBlocks === undefined) {
+  const cachedBlocksMetric = await metrics.ponder_historical_cached_blocks
+    .get()
+    .then(({ values }) => reduceBlockMetrics(values));
+  const totalBlocksMetric = await metrics.ponder_historical_total_blocks
+    .get()
+    .then(({ values }) => reduceBlockMetrics(values));
+  const completedBlocksMetric = await metrics.ponder_historical_completed_blocks
+    .get()
+    .then(({ values }) => reduceBlockMetrics(values));
+
+  const sources = Object.entries(totalBlocksMetric).map(
+    ([
+      id,
+      {
+        labels: { source, network },
+        value: totalBlocks,
+      },
+    ]) => {
+      const cachedBlocks = cachedBlocksMetric[id]?.value;
+      const completedBlocks = completedBlocksMetric[id]?.value ?? 0;
+
+      // If cachedBlocks is not set, setup is not complete.
+      if (cachedBlocks === undefined) {
+        return {
+          sourceName: source,
+          networkName: network,
+          totalBlocks,
+          completedBlocks,
+        };
+      }
+
+      const progress = (completedBlocks + cachedBlocks) / totalBlocks;
+
+      const elapsed = Date.now() - startTimestampMetric;
+      const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
+      // The ETA is low quality if we've completed only one or two blocks.
+      const eta = completedBlocks >= 3 ? total - elapsed : undefined;
+
       return {
         sourceName: source,
         networkName: network,
         totalBlocks,
+        cachedBlocks,
         completedBlocks,
+        progress,
+        eta,
       };
-    }
-
-    const progress = (completedBlocks + cachedBlocks) / totalBlocks;
-
-    const elapsed = Date.now() - startTimestampMetric;
-    const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
-    // The ETA is low quality if we've completed only one or two blocks.
-    const eta = completedBlocks >= 3 ? total - elapsed : undefined;
-
-    return {
-      sourceName: source,
-      networkName: network,
-      totalBlocks,
-      cachedBlocks,
-      completedBlocks,
-      progress,
-      eta,
-    };
-  });
+    },
+  );
 
   const totalBlocks = sources.reduce((a, c) => a + c.totalBlocks, 0);
   const cachedBlocks = sources.reduce((a, c) => a + (c.cachedBlocks ?? 0), 0);
