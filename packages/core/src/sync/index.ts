@@ -58,7 +58,7 @@ export type SyncTrace = {
   };
   blockHash: Hex;
   blockNumber: Hex;
-  error?: "Reverted";
+  error?: string;
   result: {
     gasUsed: Hex;
     output: Hex;

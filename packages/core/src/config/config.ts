@@ -97,6 +97,10 @@ type TransactionReceiptConfig = {
   includeTransactionReceipts?: boolean;
 };
 
+type FunctionCallConfig = {
+  includeFunctionCalls?: boolean;
+};
+
 type GetNetwork<
   networks,
   contract,
@@ -119,6 +123,7 @@ type GetNetwork<
               GetAddress<NonStrictPick<network, "factory" | "address">> &
                 GetEventFilter<abi, NonStrictPick<contract, "filter">> &
                 TransactionReceiptConfig &
+                FunctionCallConfig &
                 BlockConfig
             >;
           };
@@ -136,6 +141,7 @@ type GetNetwork<
               GetAddress<unknown> &
                 GetEventFilter<abi, unknown> &
                 TransactionReceiptConfig &
+                FunctionCallConfig &
                 BlockConfig
             >;
           };
@@ -147,6 +153,7 @@ type ContractConfig<networks, contract, abi extends Abi> = Prettify<
     GetAddress<NonStrictPick<contract, "factory" | "address">> &
     GetEventFilter<abi, NonStrictPick<contract, "filter">> &
     TransactionReceiptConfig &
+    FunctionCallConfig &
     BlockConfig
 >;
 
