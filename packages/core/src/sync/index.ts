@@ -49,7 +49,7 @@ export type SyncLog = Log<Hex, Hex, false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
 export type SyncTrace = {
   action: {
-    callType: "call" | "delegateCall";
+    callType: "call" | "delegatecall" | "staticcall";
     from: Address;
     gas: Hex;
     input: Hex;
@@ -67,8 +67,43 @@ export type SyncTrace = {
   traceAddress: number[];
   transactionHash: Hex;
   transactionPosition: number;
-  type: "call" | "create";
+  type: "call";
 };
+// | {
+//     action: {
+//       from: Address;
+//       gas: Hex;
+//       init: Hex;
+//       value: Hex;
+//     };
+//     blockHash: Hex;
+//     blockNumber: Hex;
+//     result: {
+//       address: Address;
+//       code: Hex;
+//       gasUsed: Hex;
+//     };
+//     subtraces: number;
+//     traceAddress: number[];
+//     transactionHash: Hex;
+//     transactionPosition: number;
+//     type: "create";
+//   }
+// | {
+//     action: {
+//       address: Address;
+//       refundAddress: Address;
+//       balance: Hex;
+//     };
+//     blockHash: Hex;
+//     blockNumber: Hex;
+//     result: null;
+//     subtraces: number;
+//     traceAddress: number[];
+//     transactionHash: Hex;
+//     transactionPosition: number;
+//     type: "suicide";
+//   };
 
 /**
  * Helper function for "eth_getBlockByNumber" request.

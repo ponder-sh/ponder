@@ -837,6 +837,8 @@ const migrations: Record<string, Migration> = {
   },
   "2024_05_07_0_trace_filters": {
     async up(db: Kysely<any>) {
+      // TODO(kyle) drop foreign key constraint on "blockFilterIntervals.blockFilterId".
+
       await db.schema
         .createTable("traceFilters")
         .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${fromAddress}_${toAddress}_${includeTransactionReceipts}`
