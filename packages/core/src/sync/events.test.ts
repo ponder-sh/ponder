@@ -125,7 +125,7 @@ test("decodeEvents() trace", async (context) => {
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toBeUndefined();
   expect(events[0].event.result).toBe(checksumAddress(context.factory.pair));
-  expect(events[0].functionName).toBe("createPair");
+  expect(events[0].functionName).toBe("createPair()");
 });
 
 test("decodeEvents() trace error", async (context) => {

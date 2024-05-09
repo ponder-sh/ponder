@@ -1,7 +1,6 @@
 import { type AddressInfo, createServer } from "node:net";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
-import { buildAbiFunctions } from "@/config/abi.js";
 import { createConfig } from "@/config/config.js";
 import {
   type EventSource,
@@ -30,7 +29,6 @@ import {
   encodeFunctionData,
   encodeFunctionResult,
   formatTransactionReceipt,
-  getFunctionSelector,
   hexToBigInt,
   hexToNumber,
   parseEther,
@@ -127,6 +125,12 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
           event: ["Swap"],
         },
       },
+      Factory: {
+        abi: factoryABI,
+        network: "mainnet",
+        address: addresses.factoryAddress,
+        includeFunctionCalls: true,
+      },
     },
     blocks: {
       OddBlocks: {
@@ -146,7 +150,6 @@ export const getNetworkAndSources = async (
   common: Common,
 ) => {
   const config = getConfig(addresses);
-  // TODO(kyle) update config with function call sources
   const { networks, sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [
@@ -156,6 +159,7 @@ export const getNetworkAndSources = async (
       },
       { name: "Pair:Swap", fn: () => {} },
       { name: "OddBlocks:block", fn: () => {} },
+      { name: "Factory.createPair()", fn: () => {} },
     ],
     options: common.options,
   });
@@ -168,27 +172,7 @@ export const getNetworkAndSources = async (
 
   return {
     networks: [mainnet],
-    sources: [
-      ...sources,
-      {
-        type: "function",
-        id: "trace_Factory_mainnet",
-        contractName: "Factory",
-        networkName: "mainnet",
-        chainId: 1,
-        abi: factoryABI,
-        abiFunctions: buildAbiFunctions({ abi: factoryABI }),
-        startBlock: 0,
-        criteria: {
-          includeTransactionReceipts: false,
-          functionSelectors: [
-            getFunctionSelector(
-              getAbiItem({ abi: factoryABI, name: "createPair" }),
-            ),
-          ],
-        },
-      },
-    ],
+    sources,
     requestQueues: [requestQueue],
   };
 };
@@ -514,8 +498,8 @@ export const getEventsBlock = async (
       block: formatBlock(e.block),
     }))
     .map(({ block }) => ({
-      sourceId: sources[2].id,
-      chainId: sources[2].chainId,
+      sourceId: sources[3].id,
+      chainId: sources[3].chainId,
 
       block: { ...block, miner: checksumAddress(block.miner) },
 
@@ -553,8 +537,8 @@ export const getEventsTrace = async (
       transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
     }))
     .map(({ trace, block, transaction, transactionReceipt }) => ({
-      sourceId: sources[3].id,
-      chainId: sources[3].chainId,
+      sourceId: sources[2].id,
+      chainId: sources[2].chainId,
       trace: {
         id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
         from: checksumAddress(trace.action.from),

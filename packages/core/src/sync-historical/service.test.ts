@@ -212,7 +212,7 @@ test("start() with block filter inserts block filter interval", async (context) 
     syncStore,
     network: networks[0],
     requestQueue: requestQueues[0],
-    sources: [sources[2]],
+    sources: [sources[3]],
   });
   await service.setup(blockNumbers);
 
@@ -222,8 +222,8 @@ test("start() with block filter inserts block filter interval", async (context) 
   await service.onIdle();
 
   const blockFilterIntervals = await syncStore.getBlockFilterIntervals({
-    chainId: sources[2].chainId,
-    blockFilter: sources[2].criteria,
+    chainId: sources[3].chainId,
+    blockFilter: sources[3].criteria,
   });
 
   expect(blockFilterIntervals).toMatchObject([
@@ -262,7 +262,7 @@ test("start() with block filter skips blocks already in database", async (contex
     syncStore,
     network: networks[0],
     requestQueue: requestQueues[0],
-    sources: [sources[2]],
+    sources: [sources[3]],
   });
   await service.setup(blockNumbers);
 
@@ -272,8 +272,8 @@ test("start() with block filter skips blocks already in database", async (contex
   await service.onIdle();
 
   const blockFilterIntervals = await syncStore.getBlockFilterIntervals({
-    chainId: sources[2].chainId,
-    blockFilter: sources[2].criteria,
+    chainId: sources[3].chainId,
+    blockFilter: sources[3].criteria,
   });
 
   expect(blockFilterIntervals).toMatchObject([
@@ -489,14 +489,14 @@ test("start() adds block filter events to sync store", async (context) => {
     syncStore,
     network: networks[0],
     requestQueue: requestQueues[0],
-    sources: [sources[2]],
+    sources: [sources[3]],
   });
   await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
 
   const ag = syncStore.getLogEvents({
-    sources: [sources[2]],
+    sources: [sources[3]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -531,14 +531,14 @@ test("start() adds trace filter events to sync store", async (context) => {
       sources,
       requestQueue: requestQueues[0],
     }),
-    sources: [sources[3]],
+    sources: [sources[2]],
   });
   await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
 
   const ag = syncStore.getLogEvents({
-    sources: [sources[3]],
+    sources: [sources[2]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,

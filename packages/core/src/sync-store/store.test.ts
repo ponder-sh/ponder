@@ -1987,7 +1987,7 @@ test("getLogEvents with block filters", async (context) => {
   });
 
   const ag = syncStore.getLogEvents({
-    sources: [sources[2]],
+    sources: [sources[3]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -2019,7 +2019,7 @@ test("getLogEvents with trace filters", async (context) => {
   });
 
   const ag = syncStore.getLogEvents({
-    sources: [sources[3]],
+    sources: [sources[2]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -2365,7 +2365,7 @@ test("getLogEvents filters on block filter criteria", async (context) => {
   });
 
   const ag = syncStore.getLogEvents({
-    sources: [{ ...sources[2], endBlock: 3 }],
+    sources: [{ ...sources[3], endBlock: 3 }],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -2398,11 +2398,12 @@ test("getLogEvents filters on trace filter criteria", async (context) => {
   const ag = syncStore.getLogEvents({
     sources: [
       {
-        ...sources[3],
+        ...sources[2],
         criteria: {
           fromAddress: [ALICE.toLowerCase() as Address],
+          toAddress: [context.factory.address],
           includeTransactionReceipts: false,
-          functionSelectors: sources[3].criteria.functionSelectors,
+          functionSelectors: sources[2].criteria.functionSelectors,
         },
         endBlock: 3,
       },
