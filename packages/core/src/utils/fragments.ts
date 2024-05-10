@@ -142,7 +142,6 @@ function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
 export function buildTraceFilterFragments({
   fromAddress,
   toAddress,
-  includeTransactionReceipts,
   chainId,
 }: TraceFilterCriteria & {
   chainId: number;
@@ -152,7 +151,6 @@ export function buildTraceFilterFragments({
     chainId: number;
     fromAddress: Hex | null;
     toAddress: Hex | null;
-    includeTransactionReceipts: 0 | 1;
   }[] = [];
 
   for (const _fromAddress of Array.isArray(fromAddress)
@@ -162,13 +160,10 @@ export function buildTraceFilterFragments({
       ? toAddress
       : [toAddress ?? null]) {
       fragments.push({
-        id: `${chainId}_${_fromAddress}_${_toAddress}_${
-          includeTransactionReceipts ? 1 : 0
-        }`,
+        id: `${chainId}_${_fromAddress}_${_toAddress}`,
         chainId,
         fromAddress: _fromAddress,
         toAddress: _toAddress,
-        includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
       });
     }
   }

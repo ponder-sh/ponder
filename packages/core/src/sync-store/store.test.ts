@@ -1426,7 +1426,7 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
       chainId: 1,
       traceFilter: {
         fromAddress: [ALICE, BOB],
-        includeTransactionReceipts: true,
+        includeTransactionReceipts: false,
         functionSelectors: [],
       },
       ...rpcData.block1,
@@ -1453,12 +1453,12 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
       chainId: 1,
       traceFilter: {
         fromAddress: [ALICE],
-        includeTransactionReceipts: true,
+        includeTransactionReceipts: false,
         functionSelectors: [],
       },
     });
 
-    expect(traceFilterRanges).toMatchObject([[1, 1]]);
+    expect(traceFilterRanges).toMatchObject([[1, 2]]);
 
     traceFilterRanges = await syncStore.getTraceFilterIntervals({
       chainId: 1,

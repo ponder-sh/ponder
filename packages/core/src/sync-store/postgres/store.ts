@@ -846,14 +846,14 @@ export class PostgresSyncStore implements SyncStore {
 
       const intervals = await this.db
         .with(
-          "traceFilterFragments(fragmentId, fragmentFromAddress, fragmentToAddress, fragmentIncludeTransactionReceipts)",
+          "traceFilterFragments(fragmentId, fragmentFromAddress, fragmentToAddress)",
           () =>
             sql`( values ${sql.join(
               fragments.map(
                 (f) =>
                   sql`( ${sql.val(f.id)}, ${sql.val(f.fromAddress)}, ${sql.val(
                     f.toAddress,
-                  )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                  )} )`,
               ),
             )} )`,
         )
@@ -866,11 +866,6 @@ export class PostgresSyncStore implements SyncStore {
                 eb("fromAddress", "is", null),
                 eb("fragmentFromAddress", "=", sql.ref("fromAddress")),
               ]),
-              eb(
-                "fragmentIncludeTransactionReceipts",
-                "<=",
-                sql.ref("includeTransactionReceipts"),
-              ),
               eb.or([
                 eb("toAddress", "is", null),
                 eb("fragmentToAddress", "=", sql.ref("toAddress")),

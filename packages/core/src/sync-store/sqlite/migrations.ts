@@ -845,16 +845,11 @@ const migrations: Record<string, Migration> = {
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("fromAddress", "varchar(42)")
         .addColumn("toAddress", "varchar(42)")
-        .addColumn("includeTransactionReceipts", "integer", (col) =>
-          col.notNull(),
-        )
         .execute();
       await db.schema
         .createTable("traceFilterIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("traceFilterId", "text", (col) =>
-          col.notNull().references("traceFilters.id"),
-        )
+        .addColumn("traceFilterId", "text", (col) => col.notNull())
         .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
         .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
         .execute();

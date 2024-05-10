@@ -700,20 +700,15 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("traceFilters")
-        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${fromAddress}_${toAddress}_${includeTransactionReceipts}`
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${fromAddress}_${toAddress}`
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("fromAddress", "varchar(42)")
         .addColumn("toAddress", "varchar(42)")
-        .addColumn("includeTransactionReceipts", "integer", (col) =>
-          col.notNull(),
-        )
         .execute();
       await db.schema
         .createTable("traceFilterIntervals")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("traceFilterId", "text", (col) =>
-          col.notNull().references("traceFilters.id"),
-        )
+        .addColumn("traceFilterId", "text", (col) => col.notNull())
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
         .execute();

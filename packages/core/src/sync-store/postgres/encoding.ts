@@ -321,7 +321,6 @@ type TraceFiltersTable = {
   chainId: number;
   fromAddress: Address | null;
   toAddress: Address | null;
-  includeTransactionReceipts: 0 | 1;
 };
 
 type TraceFilterIntervalsTable = {
