@@ -7,10 +7,14 @@ import {
 } from "@/_test/setup.js";
 import { getRawRPCData, testClient } from "@/_test/utils.js";
 import type { EventSource } from "@/config/sources.js";
-import { type SyncBlock, _eth_getBlockByNumber } from "@/sync/index.js";
+import {
+  type SyncBlock,
+  type SyncCallTrace,
+  _eth_getBlockByNumber,
+} from "@/sync/index.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { getAbiItem, getEventSelector, hexToNumber } from "viem";
+import { getAbiItem, getEventSelector, hexToBigInt, hexToNumber } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { syncBlockToLightBlock } from "./format.js";
 import {
@@ -37,12 +41,14 @@ const getRequestQueue = async ({
   return {
     ...requestQueue,
     request: (request: any) => {
-      if (request.method === "trace_filter") {
-        let traces = [
-          ...rpcData.block1.traces,
-          ...rpcData.block2.traces,
-          ...rpcData.block3.traces,
-        ];
+      if (request.method === "trace_block") {
+        const blockNumber = request.params[0];
+        let traces: SyncCallTrace[] =
+          blockNumber === rpcData.block1.block.number
+            ? rpcData.block1.traces
+            : blockNumber === rpcData.block2.block.number
+              ? rpcData.block2.traces
+              : rpcData.block3.traces;
 
         if (request.params[0].fromBlock !== undefined) {
           traces = traces.filter(
@@ -451,7 +457,10 @@ test("handleBlock() ingests block and logs", async (context) => {
     .selectFrom("transactions")
     .selectAll()
     .execute();
-  const traces = await syncStore.db.selectFrom("traces").selectAll().execute();
+  const traces = await syncStore.db
+    .selectFrom("callTraces")
+    .selectAll()
+    .execute();
   const transactionReceipts = await syncStore.db
     .selectFrom("transactionReceipts")
     .selectAll()

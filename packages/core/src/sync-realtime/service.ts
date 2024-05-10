@@ -414,6 +414,8 @@ export const handleBlock = async (
 
   // TODO(kyle) filter traces
 
+  // TODO(kyle) if trace.blockHash !== block.hash: blow up!
+
   const isBlockFilterMatched = service.blockSources.some(
     (blockSource) =>
       (newHeadBlockNumber - blockSource.criteria.offset) %
