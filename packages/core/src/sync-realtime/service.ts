@@ -383,6 +383,7 @@ export const handleBlock = async (
       upToBlockNumber: BigInt(newHeadBlockNumber),
     });
   } else {
+    // TODO(kyle) remove when no log sources
     service.common.logger.debug({
       service: "realtime",
       msg: `Skipped fetching logs for '${service.network.name}' block ${newHeadBlockNumber} due to bloom filter result`,
