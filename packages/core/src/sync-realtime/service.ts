@@ -14,13 +14,13 @@ import {
 import type { SyncStore } from "@/sync-store/store.js";
 import {
   type SyncBlock,
+  type SyncCallTrace,
   type SyncLog,
-  type SyncTrace,
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
-  _trace_filter,
+  _trace_block,
 } from "@/sync/index.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
@@ -405,11 +405,10 @@ export const handleBlock = async (
       )
     : [];
 
-  const newTraces: SyncTrace[] =
+  const newTraces: SyncCallTrace[] =
     service.functionCallSources.length > 0
-      ? await _trace_filter(service, {
-          fromBlock: newHeadBlockNumber,
-          toBlock: newHeadBlockNumber,
+      ? await _trace_block(service, {
+          blockNumber: newHeadBlockNumber,
         }).then((traces) => traces.filter((t) => t.error === undefined))
       : [];
 

@@ -1,7 +1,7 @@
 import type {
+  CallTraceFilterCriteria,
   FactoryCriteria,
   LogFilterCriteria,
-  TraceFilterCriteria,
 } from "@/config/sources.js";
 import type { Address, Hex } from "viem";
 
@@ -143,7 +143,7 @@ export function buildTraceFilterFragments({
   fromAddress,
   toAddress,
   chainId,
-}: TraceFilterCriteria & {
+}: CallTraceFilterCriteria & {
   chainId: number;
 }) {
   const fragments: {

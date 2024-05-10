@@ -1,3 +1,5 @@
+import type { SyncCallTrace } from "@/sync/index.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import type { Generated, Insertable } from "kysely";
 import {
   type Address,
@@ -12,9 +14,6 @@ import {
   type RpcTransaction,
   hexToNumber,
 } from "viem";
-
-import type { SyncTrace } from "@/sync/index.js";
-import { toLowerCase } from "@/utils/lowercase.js";
 
 type BlocksTable = {
   baseFeePerGas: bigint | null;
@@ -211,7 +210,7 @@ export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   };
 }
 
-type TracesTable = {
+type CallTracesTable = {
   id: string;
   callType: string;
   from: Address;
@@ -221,22 +220,23 @@ type TracesTable = {
   value: bigint;
   blockHash: Hex;
   blockNumber: bigint;
+  error: string | null;
   gasUsed: bigint;
   output: Hex;
   subtraces: number;
   traceAddress: string;
   transactionHash: Hex;
   transactionPosition: number;
-  type: string;
+  functionSelector: Hex;
   chainId: number;
   checkpoint: string;
 };
 
-export type InsertableTrace = Insertable<TracesTable>;
+export type InsertableCallTrace = Insertable<CallTracesTable>;
 
 export function rpcToPostgresTrace(
-  trace: SyncTrace,
-): Omit<InsertableTrace, "chainId" | "checkpoint"> {
+  trace: SyncCallTrace,
+): Omit<InsertableCallTrace, "chainId" | "checkpoint"> {
   return {
     id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
     callType: trace.action.callType,
@@ -247,13 +247,14 @@ export function rpcToPostgresTrace(
     value: hexToBigInt(trace.action.value),
     blockHash: trace.blockHash,
     blockNumber: hexToBigInt(trace.blockNumber),
+    error: trace.error ?? null,
     gasUsed: hexToBigInt(trace.result.gasUsed),
     output: trace.result.output,
     subtraces: trace.subtraces,
     traceAddress: JSON.stringify(trace.traceAddress),
     transactionHash: trace.transactionHash,
     transactionPosition: trace.transactionPosition,
-    type: trace.type,
+    functionSelector: trace.action.input.slice(0, 10) as Hex,
   };
 }
 
@@ -335,7 +336,7 @@ export type SyncStoreTables = {
   transactions: TransactionsTable;
   transactionReceipts: TransactionReceiptsTable;
   logs: LogsTable;
-  traces: TracesTable;
+  callTraces: CallTracesTable;
   rpcRequestResults: RpcRequestResultsTable;
 
   logFilters: LogFiltersTable;

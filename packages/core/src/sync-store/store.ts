@@ -1,12 +1,12 @@
 import type {
   BlockFilterCriteria,
+  CallTraceFilterCriteria,
   EventSource,
   FactoryCriteria,
   LogFilterCriteria,
-  TraceFilterCriteria,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { SyncTrace } from "@/sync/index.js";
+import type { SyncCallTrace } from "@/sync/index.js";
 import type {
   Block,
   Log,
@@ -157,11 +157,11 @@ export interface SyncStore {
    */
   insertTraceFilterInterval(options: {
     chainId: number;
-    traceFilter: TraceFilterCriteria;
+    traceFilter: CallTraceFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
-    traces: SyncTrace[];
+    traces: SyncCallTrace[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 
@@ -171,7 +171,7 @@ export interface SyncStore {
    */
   getTraceFilterIntervals(options: {
     chainId: number;
-    traceFilter: TraceFilterCriteria;
+    traceFilter: CallTraceFilterCriteria;
   }): Promise<[number, number][]>;
 
   /**
@@ -185,7 +185,7 @@ export interface SyncStore {
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
-    traces: SyncTrace[];
+    traces: SyncCallTrace[];
   }): Promise<void>;
 
   /**
@@ -197,7 +197,7 @@ export interface SyncStore {
     logFilters: LogFilterCriteria[];
     factories: FactoryCriteria[];
     blockFilters: BlockFilterCriteria[];
-    traceFilters: TraceFilterCriteria[];
+    traceFilters: CallTraceFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 

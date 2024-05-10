@@ -47,7 +47,7 @@ export type BaseSyncService = {
 export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
 export type SyncLog = Log<Hex, Hex, false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
-export type SyncTrace = {
+export type SyncCallTrace = {
   action: {
     callType: "call" | "delegatecall" | "staticcall";
     from: Address;
@@ -69,41 +69,54 @@ export type SyncTrace = {
   transactionPosition: number;
   type: "call";
 };
-// | {
-//     action: {
-//       from: Address;
-//       gas: Hex;
-//       init: Hex;
-//       value: Hex;
-//     };
-//     blockHash: Hex;
-//     blockNumber: Hex;
-//     result: {
-//       address: Address;
-//       code: Hex;
-//       gasUsed: Hex;
-//     };
-//     subtraces: number;
-//     traceAddress: number[];
-//     transactionHash: Hex;
-//     transactionPosition: number;
-//     type: "create";
-//   }
-// | {
-//     action: {
-//       address: Address;
-//       refundAddress: Address;
-//       balance: Hex;
-//     };
-//     blockHash: Hex;
-//     blockNumber: Hex;
-//     result: null;
-//     subtraces: number;
-//     traceAddress: number[];
-//     transactionHash: Hex;
-//     transactionPosition: number;
-//     type: "suicide";
-//   };
+export type SyncCreateTrace = {
+  action: {
+    from: Address;
+    gas: Hex;
+    init: Hex;
+    value: Hex;
+  };
+  blockHash: Hex;
+  blockNumber: Hex;
+  result: {
+    address: Address;
+    code: Hex;
+    gasUsed: Hex;
+  };
+  subtraces: number;
+  traceAddress: number[];
+  transactionHash: Hex;
+  transactionPosition: number;
+  type: "create";
+};
+export type SyncSuicideTrace = {
+  action: {
+    address: Address;
+    refundAddress: Address;
+    balance: Hex;
+  };
+  blockHash: Hex;
+  blockNumber: Hex;
+  result: null;
+  subtraces: number;
+  traceAddress: number[];
+  transactionHash: Hex;
+  transactionPosition: number;
+  type: "suicide";
+};
+export type SyncRewardTrace = {
+  action: {
+    author: Address;
+    rewardType: "block" | "uncle";
+    value: Hex;
+  };
+  blockHash: Hex;
+  blockNumber: Hex;
+  result: null;
+  subtraces: number;
+  traceAddress: number[];
+  type: "reward";
+};
 
 /**
  * Helper function for "eth_getBlockByNumber" request.
@@ -238,6 +251,8 @@ export const _eth_getTransactionReceipt = (
 /**
  * Helper function for "trace_filter" request.
  *
+ * TODO(kyle) filter out other traces
+ *
  * Note: No strict typing is available.
  */
 export const _trace_filter = (
@@ -248,7 +263,7 @@ export const _trace_filter = (
     fromAddress?: Address[];
     toAddress?: Address[];
   },
-): Promise<SyncTrace[]> =>
+): Promise<SyncCallTrace[]> =>
   requestQueue.request({
     method: "trace_filter",
     params: [
@@ -269,4 +284,24 @@ export const _trace_filter = (
           : undefined,
       },
     ],
-  } as any) as unknown as Promise<SyncTrace[]>;
+  } as any) as unknown as Promise<SyncCallTrace[]>;
+
+/**
+ * Helper function for "trace_block" request.
+ *
+ * Note: No strict typing is available.
+ */
+export const _trace_block = (
+  { requestQueue }: Pick<BaseSyncService, "requestQueue">,
+  params: {
+    blockNumber: Hex | number;
+  },
+): Promise<SyncCallTrace[]> =>
+  requestQueue.request({
+    method: "trace_block",
+    params: [
+      typeof params.blockNumber === "number"
+        ? numberToHex(params.blockNumber)
+        : params.blockNumber,
+    ],
+  } as any) as unknown as Promise<SyncCallTrace[]>;

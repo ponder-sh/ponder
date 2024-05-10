@@ -32,7 +32,7 @@ const CHECKPOINT_LENGTH =
 export const EVENT_TYPES = {
   blocks: 5,
   logs: 5,
-  traces: 7,
+  callTraces: 7,
 } as const;
 
 export const encodeCheckpoint = (checkpoint: Checkpoint) => {

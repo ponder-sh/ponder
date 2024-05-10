@@ -30,7 +30,7 @@ export type BlockFilterCriteria = {
   offset: number;
 };
 
-export type TraceFilterCriteria = {
+export type CallTraceFilterCriteria = {
   fromAddress?: Address[];
   toAddress?: Address[];
   includeTransactionReceipts: boolean;
@@ -74,7 +74,7 @@ export type BlockSource = {
 
 export type FunctionCallSource = {
   type: "function";
-  /** `trace_${contractName}_${networkName}` */
+  /** `function_${contractName}_${networkName}` */
   id: string;
   contractName: string;
   networkName: string;
@@ -84,7 +84,7 @@ export type FunctionCallSource = {
   startBlock: number;
   endBlock?: number;
   maxBlockRange?: number;
-  criteria: TraceFilterCriteria;
+  criteria: CallTraceFilterCriteria;
 };
 
 export type EventSource =

@@ -10,7 +10,7 @@ import {
   sourceIsLog,
 } from "@/config/sources.js";
 import type { RawEvent } from "@/sync-store/store.js";
-import type { SyncTrace } from "@/sync/index.js";
+import type { SyncCallTrace } from "@/sync/index.js";
 import {
   encodeCheckpoint,
   maxCheckpoint,
@@ -392,21 +392,21 @@ export const getRawRPCData = async (sources: EventSource[]) => {
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction, RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt, RpcTransactionReceipt];
-      traces: [SyncTrace, SyncTrace];
+      traces: [SyncCallTrace, SyncCallTrace];
     };
     block2: {
       logs: [RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt];
-      traces: [SyncTrace];
+      traces: [SyncCallTrace];
     };
     block3: {
       logs: [RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt];
-      traces: [SyncTrace];
+      traces: [SyncCallTrace];
     };
   };
 };

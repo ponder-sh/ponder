@@ -1,5 +1,5 @@
-import { type Kysely, sql } from "kysely";
-import { type Migration, type MigrationProvider } from "kysely";
+import type { Kysely, Migration, MigrationProvider } from "kysely";
+import { sql } from "kysely";
 
 const migrations: Record<string, Migration> = {
   "2023_05_15_0_initial": {
@@ -860,75 +860,88 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       await db.schema
-        .createTable("traces")
+        .createTable("callTraces")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
         .addColumn("callType", "text", (col) => col.notNull())
         .addColumn("from", "varchar(42)", (col) => col.notNull())
         .addColumn("gas", "varchar(79)", (col) => col.notNull())
         .addColumn("input", "text", (col) => col.notNull())
-        // This might be null for a contract creation
         .addColumn("to", "varchar(42)", (col) => col.notNull())
         .addColumn("value", "varchar(79)", (col) => col.notNull())
         .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
         .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
+        .addColumn("error", "text")
         .addColumn("gasUsed", "varchar(79)", (col) => col.notNull())
-        // This might be null for functions that don't return
         .addColumn("output", "text", (col) => col.notNull())
         .addColumn("subtraces", "integer", (col) => col.notNull())
         .addColumn("traceAddress", "text", (col) => col.notNull())
         .addColumn("transactionHash", "varchar(66)", (col) => col.notNull())
         .addColumn("transactionPosition", "integer", (col) => col.notNull())
-        .addColumn("type", "text", (col) => col.notNull())
+        .addColumn("functionSelector", "varchar(10)", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
-        .addColumn("id", "text", (col) => col.notNull().primaryKey())
         .execute();
 
-      // The traces.blockNumber index supports getLogEvents and deleteRealtimeData
+      // The callTraces.blockNumber index supports getLogEvents and deleteRealtimeData
       await db.schema
-        .createIndex("tracesBlockNumberIndex")
-        .on("traces")
+        .createIndex("callTracesBlockNumberIndex")
+        .on("callTraces")
         .column("blockNumber")
         .execute();
 
-      // The traces.blockHash index supports getLogEvents
+      // The callTraces.functionSelector index supports getLogEvents
       await db.schema
-        .createIndex("tracesBlockHashIndex")
-        .on("traces")
+        .createIndex("callTracesFunctionSelectorIndex")
+        .on("callTraces")
+        .column("functionSelector")
+        .execute();
+
+      // The callTraces.error index supports getLogEvents
+      await db.schema
+        .createIndex("callTracesErrorIndex")
+        .on("callTraces")
+        .column("error")
+        .execute();
+
+      // The callTraces.blockHash index supports getLogEvents
+      await db.schema
+        .createIndex("callTracesBlockHashIndex")
+        .on("callTraces")
         .column("blockHash")
         .execute();
 
-      // The traces.transactionHash index supports getLogEvents
+      // The callTraces.transactionHash index supports getLogEvents
       await db.schema
-        .createIndex("tracesTransactionHashIndex")
-        .on("traces")
+        .createIndex("callTracesTransactionHashIndex")
+        .on("callTraces")
         .column("transactionHash")
         .execute();
 
-      // The traces.checkpoint index supports getLogEvents
+      // The callTraces.checkpoint index supports getLogEvents
       await db.schema
-        .createIndex("tracesCheckpointIndex")
-        .on("traces")
+        .createIndex("callTracesCheckpointIndex")
+        .on("callTraces")
         .column("checkpoint")
         .execute();
 
-      // The traces.chainId index supports getLogEvents
+      // The callTraces.chainId index supports getLogEvents
       await db.schema
-        .createIndex("tracesChainIdIndex")
-        .on("traces")
+        .createIndex("callTracesChainIdIndex")
+        .on("callTraces")
         .column("chainId")
         .execute();
 
-      // The traces.from index supports getLogEvents
+      // The callTraces.from index supports getLogEvents
       await db.schema
-        .createIndex("tracesFromIndex")
-        .on("traces")
+        .createIndex("callTracesFromIndex")
+        .on("callTraces")
         .column("from")
         .execute();
 
-      // The traces.to index supports getLogEvents
+      // The callTraces.to index supports getLogEvents
       await db.schema
-        .createIndex("tracesToIndex")
-        .on("traces")
+        .createIndex("callTracesToIndex")
+        .on("callTraces")
         .column("to")
         .execute();
     },

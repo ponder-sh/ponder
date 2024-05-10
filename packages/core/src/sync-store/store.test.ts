@@ -1253,7 +1253,7 @@ test("insertTraceFilterIntervals inserts traces", async (context) => {
     });
 
     const traces = await syncStore.db
-      .selectFrom("traces")
+      .selectFrom("callTraces")
       .selectAll()
       .execute();
     expect(traces).toHaveLength(2);
@@ -1316,7 +1316,7 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
     });
 
     let traces = await syncStore.db
-      .selectFrom("traces")
+      .selectFrom("callTraces")
       .selectAll()
       .orderBy("checkpoint")
       .execute();
@@ -1358,7 +1358,7 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
     });
 
     traces = await syncStore.db
-      .selectFrom("traces")
+      .selectFrom("callTraces")
       .selectAll()
       .orderBy("checkpoint")
       .execute();

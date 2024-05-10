@@ -1,19 +1,19 @@
 import {
   type BlockFilterCriteria,
+  type CallTraceFilterCriteria,
   type EventSource,
   type FactoryCriteria,
   type FactorySource,
   type FunctionCallSource,
   type LogFilterCriteria,
   type LogSource,
-  type TraceFilterCriteria,
   sourceIsBlock,
   sourceIsFactory,
   sourceIsFunctionCall,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { SyncLog, SyncTrace } from "@/sync/index.js";
+import type { SyncCallTrace, SyncLog } from "@/sync/index.js";
 import type { Log, TransactionReceipt } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
@@ -33,6 +33,8 @@ import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
 import {
   type ExpressionBuilder,
+  type OperandExpression,
+  type SqlBool,
   type Transaction as KyselyTransaction,
   sql,
 } from "kysely";
@@ -48,7 +50,7 @@ import {
 } from "viem";
 import type { RawEvent, SyncStore } from "../store.js";
 import {
-  type InsertableTrace,
+  type InsertableCallTrace,
   type SyncStoreTables,
   rpcToPostgresBlock,
   rpcToPostgresLog,
@@ -685,11 +687,11 @@ export class PostgresSyncStore implements SyncStore {
     interval,
   }: {
     chainId: number;
-    traceFilter: TraceFilterCriteria;
+    traceFilter: CallTraceFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
-    traces: SyncTrace[];
+    traces: SyncCallTrace[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     return this.db.wrap({ method: "insertTraceFilterInterval" }, async () => {
@@ -730,10 +732,11 @@ export class PostgresSyncStore implements SyncStore {
             .execute();
         }
 
-        // Delete existing traces with the same `transactionHash`. Then, calculate "traces.checkpoint"
-        // based on the ordering of "traces.traceAddress" and add all traces to "traces" table.
-        const traceByTransactionHash: { [transacionHash: Hex]: SyncTrace[] } =
-          {};
+        // Delete existing traces with the same `transactionHash`. Then, calculate "callTraces.checkpoint"
+        // based on the ordering of "callTraces.traceAddress" and add all traces to "callTraces" table.
+        const traceByTransactionHash: {
+          [transacionHash: Hex]: SyncCallTrace[];
+        } = {};
         for (const trace of rpcTraces) {
           if (traceByTransactionHash[trace.transactionHash] === undefined) {
             traceByTransactionHash[trace.transactionHash] = [];
@@ -743,13 +746,13 @@ export class PostgresSyncStore implements SyncStore {
 
         for (const transactionHash of Object.keys(traceByTransactionHash)) {
           const traces = await tx
-            .deleteFrom("traces")
+            .deleteFrom("callTraces")
             .returningAll()
             .where("transactionHash", "=", transactionHash as Hex)
             .where("chainId", "=", chainId)
             .execute();
 
-          (traces as Omit<InsertableTrace, "checkpoint">[]).push(
+          (traces as Omit<InsertableCallTrace, "checkpoint">[]).push(
             ...traceByTransactionHash[transactionHash as Hex].map((trace) => ({
               ...rpcToPostgresTrace(trace),
               chainId,
@@ -768,7 +771,7 @@ export class PostgresSyncStore implements SyncStore {
               chainId: BigInt(chainId),
               blockNumber: trace.blockNumber,
               transactionIndex: BigInt(trace.transactionPosition),
-              eventType: EVENT_TYPES.traces,
+              eventType: EVENT_TYPES.callTraces,
               eventIndex: BigInt(i),
             });
 
@@ -776,7 +779,7 @@ export class PostgresSyncStore implements SyncStore {
           }
 
           await tx
-            .insertInto("traces")
+            .insertInto("callTraces")
             .values(traces)
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
@@ -797,7 +800,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId,
   }: {
     chainId: number;
-    traceFilter: TraceFilterCriteria;
+    traceFilter: CallTraceFilterCriteria;
   }) => {
     return this.db.wrap({ method: "getTraceFilterIntervals" }, async () => {
       const fragments = buildTraceFilterFragments({ ...traceFilter, chainId });
@@ -945,7 +948,7 @@ export class PostgresSyncStore implements SyncStore {
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
     logs: RpcLog[];
-    traces: SyncTrace[];
+    traces: SyncCallTrace[];
   }) => {
     return this.db.wrap({ method: "insertRealtimeBlock" }, async () => {
       await this.db.transaction().execute(async (tx) => {
@@ -1030,7 +1033,7 @@ export class PostgresSyncStore implements SyncStore {
                 chainId: BigInt(chainId),
                 blockNumber: hexToBigInt(trace.blockNumber),
                 transactionIndex: BigInt(trace.transactionPosition),
-                eventType: EVENT_TYPES.traces,
+                eventType: EVENT_TYPES.callTraces,
                 eventIndex: BigInt(i),
               }),
             }))
@@ -1041,7 +1044,7 @@ export class PostgresSyncStore implements SyncStore {
             });
 
           await tx
-            .insertInto("traces")
+            .insertInto("callTraces")
             .values(traces)
             .onConflict((oc) => oc.column("id").doNothing())
             .execute();
@@ -1062,7 +1065,7 @@ export class PostgresSyncStore implements SyncStore {
     logFilters: LogFilterCriteria[];
     factories: FactoryCriteria[];
     blockFilters: BlockFilterCriteria[];
-    traceFilters: TraceFilterCriteria[];
+    traceFilters: CallTraceFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     return this.db.wrap({ method: "insertRealtimeInterval" }, async () => {
@@ -1130,7 +1133,7 @@ export class PostgresSyncStore implements SyncStore {
           .where("blockNumber", ">", fromBlock)
           .execute();
         await tx
-          .deleteFrom("traces")
+          .deleteFrom("callTraces")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">", fromBlock)
           .execute();
@@ -1217,7 +1220,7 @@ export class PostgresSyncStore implements SyncStore {
   }: {
     tx: KyselyTransaction<SyncStoreTables>;
     chainId: number;
-    traceFilters: TraceFilterCriteria[];
+    traceFilters: CallTraceFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     const traceFilterFragments = traceFilters.flatMap((traceFilter) =>
@@ -1436,7 +1439,7 @@ export class PostgresSyncStore implements SyncStore {
                   "transactionHash",
 
                   "logs.id as log_id",
-                  sql`null`.as("trace_id"),
+                  sql`null`.as("callTrace_id"),
                 ])
                 .unionAll(
                   // @ts-ignore
@@ -1477,13 +1480,13 @@ export class PostgresSyncStore implements SyncStore {
                       sql`null`.as("transactionHash"),
 
                       sql`null`.as("log_id"),
-                      sql`null`.as("trace_id"),
+                      sql`null`.as("callTrace_id"),
                     ]),
                 )
                 .unionAll(
                   // @ts-ignore
                   db
-                    .selectFrom("traces")
+                    .selectFrom("callTraces")
                     .innerJoin("function_call_sources", (join) => join.onTrue())
                     .where((eb) => {
                       const exprs = [];
@@ -1507,7 +1510,7 @@ export class PostgresSyncStore implements SyncStore {
                       "transactionHash",
 
                       sql`null`.as("log_id"),
-                      "traces.id as trace_id",
+                      "callTraces.id as callTrace_id",
                     ]),
                 ),
             )
@@ -1586,26 +1589,25 @@ export class PostgresSyncStore implements SyncStore {
             )
             .$if(shouldJoinTraces, (qb) =>
               qb
-                .leftJoin("traces", "traces.id", "events.trace_id")
+                .leftJoin("callTraces", "callTraces.id", "events.callTrace_id")
                 .select([
-                  "traces.id as trace_id",
-                  "traces.callType as trace_callType",
-                  "traces.from as trace_from",
-                  "traces.gas as trace_gas",
-                  "traces.input as trace_input",
-                  "traces.to as trace_to",
-                  "traces.value as trace_value",
-                  "traces.blockHash as trace_blockHash",
-                  "traces.blockNumber as trace_blockNumber",
-                  "traces.gasUsed as trace_gasUsed",
-                  "traces.output as trace_output",
-                  "traces.subtraces as trace_subtraces",
-                  "traces.traceAddress as trace_traceAddress",
-                  "traces.transactionHash as trace_transactionHash",
-                  "traces.transactionPosition as trace_transactionPosition",
-                  "traces.type as trace_type",
-                  "traces.chainId as trace_chainId",
-                  "traces.checkpoint as trace_checkpoint",
+                  "callTraces.id as callTrace_id",
+                  "callTraces.callType as callTrace_callType",
+                  "callTraces.from as callTrace_from",
+                  "callTraces.gas as callTrace_gas",
+                  "callTraces.input as callTrace_input",
+                  "callTraces.to as callTrace_to",
+                  "callTraces.value as callTrace_value",
+                  "callTraces.blockHash as callTrace_blockHash",
+                  "callTraces.blockNumber as callTrace_blockNumber",
+                  "callTraces.gasUsed as callTrace_gasUsed",
+                  "callTraces.output as callTrace_output",
+                  "callTraces.subtraces as callTrace_subtraces",
+                  "callTraces.traceAddress as callTrace_traceAddress",
+                  "callTraces.transactionHash as callTrace_transactionHash",
+                  "callTraces.transactionPosition as callTrace_transactionPosition",
+                  "callTraces.chainId as callTrace_chainId",
+                  "callTraces.checkpoint as callTrace_checkpoint",
                 ]),
             )
             .$if(shouldJoinReceipts, (qb) =>
@@ -1745,24 +1747,24 @@ export class PostgresSyncStore implements SyncStore {
                 : undefined,
               trace: shouldIncludeTrace
                 ? {
-                    id: row.trace_id,
-                    // callType: row.trace_callType as Trace["callType"],
-                    from: checksumAddress(row.trace_from),
-                    // gas: row.trace_gas,
-                    input: row.trace_input,
-                    to: checksumAddress(row.trace_to),
-                    value: row.trace_value,
-                    blockHash: row.trace_blockHash,
-                    blockNumber: row.trace_blockNumber,
-                    // gasUsed: row.trace_gasUsed,
-                    output: row.trace_output,
-                    // subtraces: row.trace_subtraces,
-                    // traceAddress: row.trace_traceAddress,
-                    // transactionHash: row.trace_transactionHash,
-                    // transactionPosition: row.trace_transactionPosition,
-                    // type: row.trace_type,
-                    // chainId: row.trace_chainId,
-                    // checkpoint: row.trace_checkpoint,
+                    id: row.callTrace_id,
+                    // callType: row.callTrace_callType as Trace["callType"],
+                    from: checksumAddress(row.callTrace_from),
+                    // gas: row.callTrace_gas,
+                    input: row.callTrace_input,
+                    to: checksumAddress(row.callTrace_to),
+                    value: row.callTrace_value,
+                    blockHash: row.callTrace_blockHash,
+                    blockNumber: row.callTrace_blockNumber,
+                    // gasUsed: row.callTrace_gasUsed,
+                    output: row.callTrace_output,
+                    // subtraces: row.callTrace_subtraces,
+                    // traceAddress: row.callTrace_traceAddress,
+                    // transactionHash: row.callTrace_transactionHash,
+                    // transactionPosition: row.callTrace_transactionPosition,
+                    // type: row.callTrace_type,
+                    // chainId: row.callTrace_chainId,
+                    // checkpoint: row.callTrace_checkpoint,
                   }
                 : undefined,
               transactionReceipt: shouldIncludeTransactionReceipt
@@ -1892,7 +1894,7 @@ export class PostgresSyncStore implements SyncStore {
         )
         .unionAll(
           this.db
-            .selectFrom("traces")
+            .selectFrom("callTraces")
             .where((eb) =>
               eb.or(
                 sources
@@ -2042,7 +2044,7 @@ export class PostgresSyncStore implements SyncStore {
 
     exprs.push(
       eb(
-        "traces.chainId",
+        "callTraces.chainId",
         "=",
         sql`cast (${sql.val(functionCallSource.chainId)} as numeric(16, 0))`,
       ),
@@ -2056,9 +2058,11 @@ export class PostgresSyncStore implements SyncStore {
           ? functionCallSource.criteria.fromAddress[0]
           : functionCallSource.criteria.fromAddress;
       if (Array.isArray(fromAddress)) {
-        exprs.push(eb.or(fromAddress.map((a) => eb("traces.from", "=", a))));
+        exprs.push(
+          eb.or(fromAddress.map((a) => eb("callTraces.from", "=", a))),
+        );
       } else {
-        exprs.push(eb("traces.from", "=", fromAddress));
+        exprs.push(eb("callTraces.from", "=", fromAddress));
       }
     }
 
@@ -2070,19 +2074,24 @@ export class PostgresSyncStore implements SyncStore {
           ? functionCallSource.criteria.toAddress[0]
           : functionCallSource.criteria.toAddress;
       if (Array.isArray(toAddress)) {
-        exprs.push(eb.or(toAddress.map((a) => eb("traces.to", "=", a))));
+        exprs.push(eb.or(toAddress.map((a) => eb("callTraces.to", "=", a))));
       } else {
-        exprs.push(eb("traces.to", "=", toAddress));
+        exprs.push(eb("callTraces.to", "=", toAddress));
       }
     }
 
     // Filter based on function selectors
     exprs.push(
       eb.or(
-        functionCallSource.criteria.functionSelectors.map(
-          (fs) => sql`SUBSTR("traces"."input", 1, 10) = ${sql.lit(fs)}`,
+        functionCallSource.criteria.functionSelectors.map((fs) =>
+          eb("callTraces.functionSelector", "=", fs),
         ),
       ),
+    );
+
+    // Filter out callTraces with error
+    exprs.push(
+      sql`${sql.ref("callTraces.error")} IS NULL` as OperandExpression<SqlBool>,
     );
 
     if (
@@ -2090,11 +2099,15 @@ export class PostgresSyncStore implements SyncStore {
       functionCallSource.startBlock !== 0
     )
       exprs.push(
-        eb("traces.blockNumber", ">=", BigInt(functionCallSource.startBlock)),
+        eb(
+          "callTraces.blockNumber",
+          ">=",
+          BigInt(functionCallSource.startBlock),
+        ),
       );
     if (functionCallSource.endBlock)
       exprs.push(
-        eb("traces.blockNumber", "<=", BigInt(functionCallSource.endBlock)),
+        eb("callTraces.blockNumber", "<=", BigInt(functionCallSource.endBlock)),
       );
 
     return exprs;

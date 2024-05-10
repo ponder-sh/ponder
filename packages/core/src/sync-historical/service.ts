@@ -10,7 +10,7 @@ import type {
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import {
-  type SyncTrace,
+  type SyncCallTrace,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
@@ -1256,6 +1256,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       },
     ).then((traces) => traces.filter((t) => t.error === undefined));
 
+    console.log("received", traces.length);
+
     // Request transactionReceipts to check for reverted transactions.
     const transactionReceipts = await Promise.all(
       dedupe(traces.map((t) => t.transactionHash)).map((hash) =>
@@ -1281,7 +1283,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       (trace) => revertedTransactions.has(trace.transactionHash) === false,
     );
 
-    const tracesByBlockNumber: Record<number, SyncTrace[] | undefined> = {};
+    const tracesByBlockNumber: Record<number, SyncCallTrace[] | undefined> = {};
     const txHashesByBlockNumber: Record<number, Set<Hash> | undefined> = {};
 
     for (const trace of successfulTraces) {
@@ -1311,7 +1313,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const traceIntervals: {
       startBlock: number;
       endBlock: number;
-      traces: SyncTrace[];
+      traces: SyncCallTrace[];
       transactionHashes: Set<Hash>;
     }[] = [];
 
