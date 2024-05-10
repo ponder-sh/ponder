@@ -145,4 +145,8 @@ export type FormatFunctionResult<
   result = AbiParametersToPrimitiveTypes<
     ParseAbiFunction<abi, signature>["outputs"]
   >,
-> = readonly [] extends result ? never : result;
+> = readonly [] extends result
+  ? never
+  : result extends readonly [unknown]
+    ? result[0]
+    : result;
