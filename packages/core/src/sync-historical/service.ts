@@ -29,7 +29,7 @@ import {
 import { never } from "@/utils/never.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { debounce } from "@ponder/common";
+import { debounce, dedupe } from "@ponder/common";
 import Emittery from "emittery";
 import {
   type Hash,
@@ -1254,10 +1254,35 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       },
     ).then((traces) => traces.filter((t) => t.error === undefined));
 
+    // Request transactionReceipts to check for reverted transactions.
+    const transactionReceipts = await Promise.all(
+      dedupe(traces.map((t) => t.transactionHash)).map((hash) =>
+        _eth_getTransactionReceipt(
+          {
+            requestQueue: this.requestQueue,
+          },
+          {
+            hash,
+          },
+        ),
+      ),
+    );
+
+    const revertedTransactions = new Set<Hash>();
+    for (const receipt of transactionReceipts) {
+      if (receipt.status === "0x0") {
+        revertedTransactions.add(receipt.transactionHash);
+      }
+    }
+
+    const successfulTraces = traces.filter(
+      (trace) => revertedTransactions.has(trace.transactionHash) === false,
+    );
+
     const tracesByBlockNumber: Record<number, SyncTrace[] | undefined> = {};
     const txHashesByBlockNumber: Record<number, Set<Hash> | undefined> = {};
 
-    for (const trace of traces) {
+    for (const trace of successfulTraces) {
       const blockNumber = hexToNumber(trace.blockNumber);
 
       if (tracesByBlockNumber[blockNumber] === undefined) {
@@ -1310,17 +1335,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         const transactions = block.transactions.filter((tx) =>
           transactionHashes.has(tx.hash),
         );
-        const transactionReceipts =
-          traceFilter.criteria.includeTransactionReceipts === true
-            ? await Promise.all(
-                transactions.map((tx) =>
-                  _eth_getTransactionReceipt(
-                    { requestQueue: this.requestQueue },
-                    { hash: tx.hash },
-                  ),
-                ),
-              )
-            : [];
 
         await this.syncStore.insertTraceFilterInterval({
           traces: traceInterval.traces,
@@ -1332,7 +1346,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           chainId: traceFilter.chainId,
           block,
           transactions,
-          transactionReceipts,
+          transactionReceipts: transactionReceipts.filter((txr) =>
+            transactionHashes.has(txr.transactionHash),
+          ),
         });
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
