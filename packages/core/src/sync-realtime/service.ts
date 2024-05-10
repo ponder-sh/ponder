@@ -409,7 +409,13 @@ export const handleBlock = async (
     service.functionCallSources.length > 0
       ? await _trace_block(service, {
           blockNumber: newHeadBlockNumber,
-        }).then((traces) => traces.filter((t) => t.error === undefined))
+        }).then((traces) =>
+          traces.filter((t) =>
+            service.functionCallSources
+              .flatMap((f) => f.criteria.toAddress ?? [])
+              .includes(t.action.to),
+          ),
+        )
       : [];
 
   // TODO(kyle) filter traces
