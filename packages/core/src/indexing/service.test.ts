@@ -344,7 +344,7 @@ test("processEvents() function events", async (context) => {
   });
 
   const indexingFunctions = {
-    "Factory.createPair": vi.fn(),
+    "Factory.createPair()": vi.fn(),
   };
 
   const indexingService = create({
@@ -364,8 +364,8 @@ test("processEvents() function events", async (context) => {
   });
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(indexingFunctions["Factory.createPair"]).toHaveBeenCalledTimes(1);
-  expect(indexingFunctions["Factory.createPair"]).toHaveBeenCalledWith({
+  expect(indexingFunctions["Factory.createPair()"]).toHaveBeenCalledTimes(1);
+  expect(indexingFunctions["Factory.createPair()"]).toHaveBeenCalledWith({
     event: {
       args: undefined,
       result: expect.any(String),
@@ -740,7 +740,7 @@ test("processEvents() context.client", async (context) => {
         clientCall,
       "Pair:Swap": clientCall,
       "OddBlocks:block": clientCall,
-      "Factory.createPair": clientCall,
+      "Factory.createPair()": clientCall,
     },
     common,
     sources,
@@ -809,7 +809,7 @@ test("processEvents() context.db", async (context) => {
         dbCall,
       "Pair:Swap": dbCall,
       "OddBlocks:block": dbCall,
-      "Factory.createPair": dbCall,
+      "Factory.createPair()": dbCall,
     },
     common,
     sources,
@@ -869,7 +869,7 @@ test("processEvents() metrics", async (context) => {
         vi.fn(),
       "Pair:Swap": vi.fn(),
       "OddBlocks:block": vi.fn(),
-      "Factory.createPair": vi.fn(),
+      "Factory.createPair()": vi.fn(),
     },
     common,
     sources,
@@ -917,7 +917,7 @@ test("processEvents() error", async (context) => {
       vi.fn(),
     "Pair:Swap": vi.fn(),
     "OddBlocks:block": vi.fn(),
-    "Factory.createPair": vi.fn(),
+    "Factory.createPair()": vi.fn(),
   };
 
   const indexingService = create({
@@ -955,7 +955,7 @@ test("processEvents() error", async (context) => {
   ).toHaveBeenCalledTimes(1);
   expect(indexingFunctions["Pair:Swap"]).toHaveBeenCalledTimes(0);
   expect(indexingFunctions["OddBlocks:block"]).toHaveBeenCalledTimes(0);
-  expect(indexingFunctions["Factory.createPair"]).toHaveBeenCalledTimes(0);
+  expect(indexingFunctions["Factory.createPair()"]).toHaveBeenCalledTimes(0);
 
   await cleanup();
 });
