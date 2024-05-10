@@ -1,6 +1,16 @@
 import type { Abi, Address, Hex, LogTopic } from "viem";
 import type { AbiEvents, AbiFunctions } from "./abi.js";
 
+/**
+ * Fix issue with Array.isArray not checking readonly arrays
+ * {@link https://github.com/microsoft/TypeScript/issues/17002}
+ */
+declare global {
+  interface ArrayConstructor {
+    isArray(arg: ReadonlyArray<any> | any): arg is ReadonlyArray<any>;
+  }
+}
+
 export type LogFilterCriteria = {
   address?: Address | Address[];
   topics: LogTopic[];
