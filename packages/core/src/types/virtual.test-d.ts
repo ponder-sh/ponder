@@ -382,7 +382,7 @@ test("Event with functions", () => {
 
   type expectedEvent = {
     args: readonly [Address];
-    result: readonly [bigint];
+    result: bigint;
     trace: CallTrace;
     block: Block;
     transaction: Transaction;
