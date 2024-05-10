@@ -1,4 +1,4 @@
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/common.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import { PostgresDatabaseService } from "./postgres/service.js";
 import { SqliteDatabaseService } from "./sqlite/service.js";
@@ -36,6 +36,8 @@ export interface BaseDatabaseService {
   updateFinalizedCheckpoint({
     checkpoint,
   }: { checkpoint: Checkpoint }): Promise<void>;
+
+  createIndexes({ schema }: { schema: Schema }): Promise<void>;
 
   kill(): Promise<void>;
 }

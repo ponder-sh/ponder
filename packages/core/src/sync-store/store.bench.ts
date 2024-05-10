@@ -166,10 +166,7 @@ const setupStore = async () => {
   const cleanupDatabase = await setupIsolatedDatabase(context);
   const { syncStore: syncStore_, cleanup: cleanUpstore } =
     await setupDatabaseServices(context, {
-      schema: {
-        tables: {},
-        enums: {},
-      },
+      schema: {},
     });
 
   cleanup = async () => {

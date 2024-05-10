@@ -1,3 +1,4 @@
+import { getTables } from "@/schema/utils.js";
 import type { Prettify } from "@/types/utils.js";
 import type {
   Abi,
@@ -184,7 +185,7 @@ export const buildDb = ({
     "encodedCheckpoint"
   >;
 }) => {
-  return Object.keys(schema.tables).reduce<
+  return Object.keys(getTables(schema)).reduce<
     Service["currentEvent"]["context"]["db"]
   >((acc, tableName) => {
     acc[tableName] = {

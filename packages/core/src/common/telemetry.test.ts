@@ -7,7 +7,7 @@ import { wait } from "@/utils/wait.js";
 import { rimrafSync } from "rimraf";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { Common } from "./common.js";
-import { LoggerService } from "./logger.js";
+import { createLogger } from "./logger.js";
 
 const fetchSpy = vi.fn();
 
@@ -22,7 +22,7 @@ beforeEach((context) => {
   mkdirSync(tempDir, { recursive: true });
 
   context.common = {
-    logger: new LoggerService({ level: "silent" }),
+    logger: createLogger({ level: "silent" }),
     options: {
       telemetryUrl: "https://ponder.sh/api/telemetry",
       telemetryDisabled: false,

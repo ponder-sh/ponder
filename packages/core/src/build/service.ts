@@ -6,7 +6,7 @@ import type { Config, OptionsConfig } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { EventSource } from "@/config/sources.js";
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/common.js";
 import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
@@ -422,6 +422,10 @@ const validateAndBuild = async (
     });
 
     return buildSchemaResult;
+  }
+
+  for (const log of buildSchemaResult.logs) {
+    common.logger[log.level]({ service: "build", msg: log.msg });
   }
 
   const graphqlSchema = buildGraphqlSchema(buildSchemaResult.schema);

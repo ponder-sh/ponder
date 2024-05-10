@@ -3,7 +3,7 @@ import { mkdirSync } from "fs";
 import path from "node:path";
 import os from "os";
 import type { Common } from "@/common/common.js";
-import { LoggerService } from "@/common/logger.js";
+import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { createTelemetry } from "@/common/telemetry.js";
@@ -53,14 +53,14 @@ export function setupCommon(context: TestContext) {
     ...buildOptions({ cliOptions: { command: "start", config: "", root: "" } }),
     telemetryDisabled: true,
   };
-  const logger = new LoggerService({ level: "silent" });
+  const logger = createLogger({ level: "silent" });
   const metrics = new MetricsService();
   const telemetry = createTelemetry({ options, logger });
   context.common = { options, logger, metrics, telemetry };
 
   return async () => {
     await telemetry.kill();
-    logger.kill();
+    await logger.kill();
   };
 }
 

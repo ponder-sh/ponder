@@ -176,6 +176,10 @@ These are the [SQLite data types](https://www.sqlite.org/datatype3.html) used by
 
 SQLite does not natively support integers larger than 8 bytes. To safely store and compare large integers (such as 32-byte EVM `uint256{:solidity}` values) in SQLite, we designed an encoding that uses `VARCHAR(79){:sql}` and takes advantage of SQLite's native lexicographic sort. [Here is the reference implementation](https://github.com/ponder-sh/ponder/blob/main/packages/core/src/utils/encoding.ts) used by Ponder internally.
 
+### Indexes
+
+To create indexes on specific columns, use the `p.index()` function in `ponder.schema.ts` Do not manually construct database indexes. [Read more](/docs/schema#indexes).
+
 ## Postgres
 
 ### Database schema
@@ -328,3 +332,6 @@ These are the [Postgres data types](https://www.postgresql.org/docs/current/data
 | `p.float(){:ts}`   | `FLOAT8{:sql}`/`DOUBLE{:sql}` |                                                           |
 | `p.boolean(){:ts}` | `INTEGER{:sql}`               | `0` is `false{:ts}`, `1` is `true{:ts}`                   |
 
+### Indexes
+
+To create indexes on specific columns, use the `p.index()` function in `ponder.schema.ts` Do not manually construct database indexes. [Read more](/docs/schema#indexes).

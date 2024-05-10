@@ -2,8 +2,17 @@ import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
-import type { Schema } from "@/schema/types.js";
-import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
+import type { Enum, Schema, Table } from "@/schema/common.js";
+import {
+  encodeSchema,
+  getEnums,
+  getTables,
+  isEnumColumn,
+  isListColumn,
+  isManyColumn,
+  isOneColumn,
+  isOptionalColumn,
+} from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/sqlite/encoding.js";
 import { migrationProvider as syncMigrationProvider } from "@/sync-store/sqlite/migrations.js";
 import {
@@ -149,10 +158,13 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     const namespaceInfo = {
       userNamespace: this.userNamespace,
       internalNamespace: this.internalNamespace,
-      internalTableIds: Object.keys(schema.tables).reduce((acc, tableName) => {
-        acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
-        return acc;
-      }, {} as { [tableName: string]: string }),
+      internalTableIds: Object.keys(getTables(schema)).reduce(
+        (acc, tableName) => {
+          acc[tableName] = hash([this.userNamespace, this.buildId, tableName]);
+          return acc;
+        },
+        {} as { [tableName: string]: string },
+      ),
     } satisfies NamespaceInfo;
 
     return this.db.wrap({ method: "setup" }, async () => {
@@ -171,19 +183,23 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             heartbeat_at: Date.now(),
             build_id: this.buildId,
             finalized_checkpoint: encodeCheckpoint(zeroCheckpoint),
-            schema: JSON.stringify(schema),
+            // Schema is encoded to be backwards compatible with old versions.
+            // `schema` should have to properties "tables" and "enums".
+            schema: encodeSchema(schema),
           } satisfies Insertable<InternalTables["namespace_lock"]>;
 
           // Function to create the operation log tables and user tables.
           const createTables = async () => {
-            for (const [tableName, columns] of Object.entries(schema.tables)) {
+            for (const [tableName, table] of Object.entries(
+              getTables(schema),
+            )) {
               const tableId = namespaceInfo.internalTableIds[tableName];
 
               await tx.schema
                 .withSchema(this.internalNamespace)
                 .createTable(tableId)
                 .$call((builder) =>
-                  this.buildOperationLogColumns(builder, columns),
+                  this.buildOperationLogColumns(builder, table.table),
                 )
                 .execute();
 
@@ -198,7 +214,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                   .withSchema(this.userNamespace)
                   .createTable(tableName)
                   .$call((builder) =>
-                    this.buildColumns(builder, schema, columns),
+                    this.buildColumns(builder, schema, table.table),
                   )
                   .execute();
               } catch (err) {
@@ -345,7 +361,12 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           // Otherwise, the lock row has a different build ID or a zero finalized checkpoint,
           // so we need to drop the previous app's tables and create new ones.
           const previousBuildId = previousLockRow.build_id;
-          const previousSchema = JSON.parse(previousLockRow.schema) as Schema;
+          // Note: `previousSchema` should only be used to get table names or enum names because
+          // the types of `Table` and `Enum` have changed between versions.
+          const previousSchema = JSON.parse(previousLockRow.schema) as {
+            tables: { [tableName: string]: Table };
+            enums: { [enumName: string]: Enum };
+          };
 
           await tx
             .withSchema(this.internalNamespace)
@@ -484,6 +505,46 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     });
   }
 
+  async createIndexes({ schema }: { schema: Schema }) {
+    await Promise.all(
+      Object.entries(getTables(schema)).flatMap(([tableName, table]) => {
+        if (table.constraints === undefined) return [];
+
+        return Object.entries(table.constraints).map(async ([name, index]) => {
+          await this.db.wrap({ method: "createIndexes" }, async () => {
+            const indexName = `${tableName}_${name}`;
+
+            const indexColumn = index[" column"];
+            const order = index[" order"];
+
+            const columns = Array.isArray(indexColumn)
+              ? indexColumn.map((ic) => `"${ic}"`).join(", ")
+              : `"${indexColumn}" ${
+                  order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""
+                }`;
+
+            await this.db.executeQuery(
+              sql`CREATE INDEX ${sql.ref(this.userNamespace)}.${sql.ref(
+                indexName,
+              )} ON ${sql.table(tableName)} (${sql.raw(columns)})`.compile(
+                this.db,
+              ),
+            );
+          });
+
+          this.common.logger.info({
+            service: "database",
+            msg: `Created index '${tableName}_${name}' on columns (${
+              Array.isArray(index[" column"])
+                ? index[" column"].join(", ")
+                : index[" column"]
+            }) in '${this.userNamespace}.db'`,
+          });
+        });
+      }),
+    );
+  }
+
   async kill() {
     await this.db.wrap({ method: "kill" }, async () => {
       clearInterval(this.heartbeatInterval);
@@ -531,37 +592,37 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   private buildColumns<T extends string, C extends string = never>(
     builder: CreateTableBuilder<T, C>,
     schema: Schema,
-    columns: Schema["tables"][string],
+    table: Table,
   ) {
-    Object.entries(columns).forEach(([columnName, column]) => {
+    Object.entries(table).forEach(([columnName, column]) => {
       if (isOneColumn(column)) return;
       if (isManyColumn(column)) return;
       if (isEnumColumn(column)) {
         // Handle enum types
         builder = builder.addColumn(columnName, "text", (col) => {
-          if (!column.optional) col = col.notNull();
-          if (!column.list) {
+          if (isOptionalColumn(column) === false) col = col.notNull();
+          if (isListColumn(column) === false) {
             col = col.check(
               sql`${sql.ref(columnName)} in (${sql.join(
-                schema.enums[column.type].map((v) => sql.lit(v)),
+                getEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
               )})`,
             );
           }
           return col;
         });
-      } else if (column.list) {
+      } else if (isListColumn(column)) {
         // Handle scalar list columns
         builder = builder.addColumn(columnName, "text", (col) => {
-          if (!column.optional) col = col.notNull();
+          if (isOptionalColumn(column) === false) col = col.notNull();
           return col;
         });
       } else {
         // Non-list base columns
         builder = builder.addColumn(
           columnName,
-          scalarToSqlType[column.type],
+          scalarToSqlType[column[" scalar"]],
           (col) => {
-            if (!column.optional) col = col.notNull();
+            if (isOptionalColumn(column) === false) col = col.notNull();
             if (columnName === "id") col = col.primaryKey();
             return col;
           },
@@ -574,23 +635,23 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
   private buildOperationLogColumns<T extends string, C extends string = never>(
     builder: CreateTableBuilder<T, C>,
-    columns: Schema["tables"][string],
+    table: Table,
   ) {
-    Object.entries(columns).forEach(([columnName, column]) => {
+    Object.entries(table).forEach(([columnName, column]) => {
       if (isOneColumn(column)) return;
       if (isManyColumn(column)) return;
       if (isEnumColumn(column)) {
         // Handle enum types
         // Omit the CHECK constraint because its included in the user table
         builder = builder.addColumn(columnName, "text");
-      } else if (column.list) {
+      } else if (isListColumn(column)) {
         // Handle scalar list columns
         builder = builder.addColumn(columnName, "text");
       } else {
         // Non-list base columns
         builder = builder.addColumn(
           columnName,
-          scalarToSqlType[column.type],
+          scalarToSqlType[column[" scalar"]],
           (col) => {
             if (columnName === "id") col = col.notNull();
             return col;

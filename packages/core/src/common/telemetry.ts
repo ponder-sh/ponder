@@ -6,12 +6,13 @@ import path from "node:path";
 import { promisify } from "util";
 import type { Build } from "@/build/service.js";
 import type { Options } from "@/common/options.js";
+import { getTables } from "@/schema/utils.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { createQueue } from "@ponder/common";
 import Conf from "conf";
 import { type PM, detect, getNpmVersion } from "detect-package-manager";
-import type { LoggerService } from "./logger.js";
+import type { Logger } from "./logger.js";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 
@@ -64,10 +65,7 @@ export type Telemetry = ReturnType<typeof createTelemetry>;
 export function createTelemetry({
   options,
   logger,
-}: {
-  options: Options;
-  logger: LoggerService;
-}) {
+}: { options: Options; logger: Logger }) {
   if (options.telemetryDisabled) {
     return { record: (_event: TelemetryEvent) => {}, kill: async () => {} };
   }
@@ -80,6 +78,7 @@ export function createTelemetry({
   if (conf.get("notifiedAt") === undefined) {
     conf.set("notifiedAt", Date.now().toString());
     logger.info({
+      service: "telemetry",
       msg: "Ponder collects anonymous telemetry data to identify issues and prioritize features. See https://ponder.sh/advanced/telemetry for more information.",
     });
   }
@@ -272,7 +271,7 @@ function getPackageJson(rootDir: string) {
 }
 
 export function buildPayload(build: Build) {
-  const table_count = Object.keys(build.schema.tables).length;
+  const table_count = Object.keys(getTables(build.schema)).length;
   const indexing_function_count = Object.values(build.indexingFunctions).reduce(
     (acc, f) => acc + Object.keys(f).length,
     0,
