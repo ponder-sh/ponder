@@ -14,7 +14,7 @@ export type BlockConfig = {
   maxBlockRange?: number;
 };
 
-type DatabaseConfig =
+export type DatabaseConfig =
   | {
       kind: "sqlite";
       /** Directory path to use for SQLite database files. Default: `".ponder/sqlite"`. */
@@ -74,7 +74,7 @@ export type BlockFilterConfig = {
   interval: number;
 };
 
-type GetBlockFilter<
+export type GetBlockFilter<
   networks,
   ///
   allNetworkNames extends string = [keyof networks] extends [never]
@@ -158,20 +158,20 @@ type GetContract<networks = unknown, contract = unknown> = contract extends {
   : // 2. Contract has an invalid abi
     ContractConfig<networks, contract, Abi>;
 
-type ContractsConfig<networks, contracts> = {} extends contracts
+export type ContractsConfig<networks, contracts> = {} extends contracts
   ? // contracts empty, return empty
     {}
   : {
       [name in keyof contracts]: GetContract<networks, contracts[name]>;
     };
 
-type NetworksConfig<networks> = {} extends networks
+export type NetworksConfig<networks> = {} extends networks
   ? {}
   : {
       [networkName in keyof networks]: NetworkConfig<networks[networkName]>;
     };
 
-type BlockFiltersConfig<
+export type BlockFiltersConfig<
   networks = unknown,
   blocks = unknown,
 > = {} extends blocks
