@@ -411,7 +411,7 @@ test("kill()", async (context) => {
   await cleanup();
 });
 
-test.only("handleBlock() ingests block and logs", async (context) => {
+test("handleBlock() ingests block and logs", async (context) => {
   const { common, networks, requestQueues, sources, erc20, factory } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 

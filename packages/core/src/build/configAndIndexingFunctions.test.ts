@@ -504,7 +504,7 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
   );
 });
 
-test.only("buildConfigAndIndexingFunctions() includeFunctionCalls", async () => {
+test("buildConfigAndIndexingFunctions() includeFunctionCalls", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
