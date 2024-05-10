@@ -14,7 +14,7 @@ import {
 } from "@/sync/index.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { getAbiItem, getEventSelector, hexToBigInt, hexToNumber } from "viem";
+import { getAbiItem, getEventSelector, hexToNumber } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { syncBlockToLightBlock } from "./format.js";
 import {
