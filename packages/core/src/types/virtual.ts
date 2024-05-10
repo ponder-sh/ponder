@@ -11,8 +11,8 @@ import type { Schema as BuilderSchema } from "@/schema/common.js";
 import type { InferSchemaType } from "@/schema/infer.js";
 import type {
   Block,
+  CallTrace,
   Log,
-  Trace,
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
@@ -103,7 +103,7 @@ export namespace Virtual {
             config["contracts"][contractName]["abi"],
             eventName
           >;
-          trace: Prettify<Trace>;
+          trace: Prettify<CallTrace>;
           block: Prettify<Block>;
           transaction: Prettify<Transaction>;
         }

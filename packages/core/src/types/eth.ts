@@ -137,7 +137,7 @@ export type Transaction = Prettify<
  * @link https://docs.soliditylang.org/en/v0.8.20/abi-spec.html#events
  */
 export type Log = {
-  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`). */
+  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`) */
   id: string;
   /** The address from which this log originated */
   address: Address;
@@ -196,23 +196,34 @@ export type TransactionReceipt = {
 /**
  * An Ethereum trace.
  *
- * TODO(kyle) finish this
  */
-export type Trace = {
-  /** Globally unique identifier for this trace (`${transactionHash}-${traceAddress}`). */
+export type CallTrace = {
+  /** Globally unique identifier for this trace (`${transactionHash}-${traceAddress}`) */
   id: string;
-  /** Hash of block containing this transaction */
-  blockHash: Hash;
-  /** Number of block containing this transaction */
-  blockNumber: bigint;
-  /** Contract code or a hashed method call */
-  input: Hex;
-  /** Contract code or a hashed method call */
-  output: Hex;
   /** Message sender */
   from: Address;
-  /** Message recipient or `null` if deploying a contract */
-  to: Address | null;
+  /** Message receipient  */
+  to: Address;
+  /** ... */
+  gas: bigint;
   /** Value in wei sent with this message */
   value: bigint;
+  /** ... */
+  input: Hex;
+  /** ... */
+  output: Hex;
+  /** Total used gas by this trace */
+  gasUsed: bigint;
+  /** ... */
+  subtraces: number;
+  /** Hash of block containing this trace */
+  blockHash: Hash;
+  /** Number of block containing this trace */
+  blockNumber: bigint;
+  /** Hash of the transaction that created this trace */
+  transactionHash: Hash;
+  /** Index of the transaction that created this trace */
+  transactionIndex: number;
+  /** ... */
+  callType: "call" | "staticcall" | "delegatecall" | "callcode";
 };

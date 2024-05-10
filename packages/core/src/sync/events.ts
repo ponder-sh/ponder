@@ -1,8 +1,8 @@
 import type { RawEvent } from "@/sync-store/store.js";
 import type {
   Block,
+  CallTrace,
   Log,
-  Trace,
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
@@ -56,7 +56,7 @@ export type FunctionCallEvent = {
   event: {
     args: any;
     result: any;
-    trace: Trace;
+    trace: CallTrace;
     block: Block;
     transaction: Transaction;
     transactionReceipt?: TransactionReceipt;

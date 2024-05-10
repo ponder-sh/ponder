@@ -249,9 +249,8 @@ export const _eth_getTransactionReceipt = (
     });
 
 /**
- * Helper function for "trace_filter" request.
- *
- * TODO(kyle) filter out other traces
+ * Helper function for "trace_filter" request. Non-call traces
+ * are filtered out.
  *
  * Note: No strict typing is available.
  */
@@ -264,30 +263,35 @@ export const _trace_filter = (
     toAddress?: Address[];
   },
 ): Promise<SyncCallTrace[]> =>
-  requestQueue.request({
-    method: "trace_filter",
-    params: [
-      {
-        fromBlock:
-          typeof params.fromBlock === "number"
-            ? numberToHex(params.fromBlock)
-            : params.fromBlock,
-        toBlock:
-          typeof params.toBlock === "number"
-            ? numberToHex(params.toBlock)
-            : params.toBlock,
-        fromAddress: params.fromAddress
-          ? params.fromAddress.map((a) => toLowerCase(a))
-          : undefined,
-        toAddress: params.toAddress
-          ? params.toAddress.map((a) => toLowerCase(a))
-          : undefined,
-      },
-    ],
-  } as any) as unknown as Promise<SyncCallTrace[]>;
+  requestQueue
+    .request({
+      method: "trace_filter",
+      params: [
+        {
+          fromBlock:
+            typeof params.fromBlock === "number"
+              ? numberToHex(params.fromBlock)
+              : params.fromBlock,
+          toBlock:
+            typeof params.toBlock === "number"
+              ? numberToHex(params.toBlock)
+              : params.toBlock,
+          fromAddress: params.fromAddress
+            ? params.fromAddress.map((a) => toLowerCase(a))
+            : undefined,
+          toAddress: params.toAddress
+            ? params.toAddress.map((a) => toLowerCase(a))
+            : undefined,
+        },
+      ],
+    } as any)
+    .then((traces) =>
+      (traces as unknown as SyncCallTrace[]).filter((t) => t.type === "call"),
+    );
 
 /**
- * Helper function for "trace_block" request.
+ * Helper function for "trace_block" request. Non-call traces
+ * are filtered out.
  *
  * Note: No strict typing is available.
  */
@@ -297,11 +301,15 @@ export const _trace_block = (
     blockNumber: Hex | number;
   },
 ): Promise<SyncCallTrace[]> =>
-  requestQueue.request({
-    method: "trace_block",
-    params: [
-      typeof params.blockNumber === "number"
-        ? numberToHex(params.blockNumber)
-        : params.blockNumber,
-    ],
-  } as any) as unknown as Promise<SyncCallTrace[]>;
+  requestQueue
+    .request({
+      method: "trace_block",
+      params: [
+        typeof params.blockNumber === "number"
+          ? numberToHex(params.blockNumber)
+          : params.blockNumber,
+      ],
+    } as any)
+    .then((traces) =>
+      (traces as unknown as SyncCallTrace[]).filter((t) => t.type === "call"),
+    );

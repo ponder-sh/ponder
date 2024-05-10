@@ -1256,8 +1256,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       },
     ).then((traces) => traces.filter((t) => t.error === undefined));
 
-    console.log("received", traces.length);
-
     // Request transactionReceipts to check for reverted transactions.
     const transactionReceipts = await Promise.all(
       dedupe(traces.map((t) => t.transactionHash)).map((hash) =>

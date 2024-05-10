@@ -14,7 +14,7 @@ import {
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { SyncCallTrace, SyncLog } from "@/sync/index.js";
-import type { Log, TransactionReceipt } from "@/types/eth.js";
+import type { CallTrace, Log, TransactionReceipt } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
   type Checkpoint,
@@ -1748,23 +1748,19 @@ export class PostgresSyncStore implements SyncStore {
               trace: shouldIncludeTrace
                 ? {
                     id: row.callTrace_id,
-                    // callType: row.callTrace_callType as Trace["callType"],
                     from: checksumAddress(row.callTrace_from),
-                    // gas: row.callTrace_gas,
-                    input: row.callTrace_input,
                     to: checksumAddress(row.callTrace_to),
+                    gas: row.callTrace_gas,
                     value: row.callTrace_value,
+                    input: row.callTrace_input,
+                    output: row.callTrace_output,
+                    gasUsed: row.callTrace_gasUsed,
+                    subtraces: row.callTrace_subtraces,
                     blockHash: row.callTrace_blockHash,
                     blockNumber: row.callTrace_blockNumber,
-                    // gasUsed: row.callTrace_gasUsed,
-                    output: row.callTrace_output,
-                    // subtraces: row.callTrace_subtraces,
-                    // traceAddress: row.callTrace_traceAddress,
-                    // transactionHash: row.callTrace_transactionHash,
-                    // transactionPosition: row.callTrace_transactionPosition,
-                    // type: row.callTrace_type,
-                    // chainId: row.callTrace_chainId,
-                    // checkpoint: row.callTrace_checkpoint,
+                    transactionHash: row.callTrace_transactionHash,
+                    transactionIndex: row.callTrace_transactionPosition,
+                    callType: row.callTrace_callType as CallTrace["callType"],
                   }
                 : undefined,
               transactionReceipt: shouldIncludeTransactionReceipt

@@ -9,8 +9,8 @@ import type { HeadlessKysely } from "@/database/kysely.js";
 import type { SyncCallTrace } from "@/sync/index.js";
 import type {
   Block,
+  CallTrace,
   Log,
-  Trace,
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
@@ -30,7 +30,7 @@ export type RawEvent = {
   block: Block;
   transaction?: Transaction;
   transactionReceipt?: TransactionReceipt;
-  trace?: Trace;
+  trace?: CallTrace;
   encodedCheckpoint: string;
 };
 

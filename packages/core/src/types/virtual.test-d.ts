@@ -4,8 +4,8 @@ import { http, type Abi, type Address, type Hex, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
 import type {
   Block,
+  CallTrace,
   Log,
-  Trace,
   Transaction,
   TransactionReceipt,
 } from "./eth.js";
@@ -383,7 +383,7 @@ test("Event with functions", () => {
   type expectedEvent = {
     args: readonly [Address];
     result: readonly [bigint];
-    trace: Trace;
+    trace: CallTrace;
     block: Block;
     transaction: Transaction;
   };
@@ -399,7 +399,7 @@ test("Event with functions and no inputs or outputs", () => {
   type expectedEvent = {
     args: never;
     result: never;
-    trace: Trace;
+    trace: CallTrace;
     block: Block;
     transaction: Transaction;
   };
