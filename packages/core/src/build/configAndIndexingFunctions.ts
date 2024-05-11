@@ -659,7 +659,9 @@ export async function buildConfigAndIndexingFunctions({
           logs.push({
             level: "debug",
             // TODO(kyle) better message
-            msg: `No indexing functions were registered for contract '${source.contractName}'`,
+            msg: `No indexing functions were registered for '${
+              source.contractName
+            }' ${sourceIsCallTrace(source) ? "call traces" : "logs"}`,
           });
         }
         return hasRegisteredIndexingFunctions;
@@ -774,7 +776,7 @@ export async function buildConfigAndIndexingFunctions({
       if (!hasRegisteredIndexingFunction) {
         logs.push({
           level: "debug",
-          msg: `No indexing functions were registered for block source '${blockSource.sourceName}'`,
+          msg: `No indexing functions were registered for '${blockSource.sourceName}' blocks`,
         });
       }
       return hasRegisteredIndexingFunction;

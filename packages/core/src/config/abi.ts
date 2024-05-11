@@ -115,7 +115,6 @@ export const buildAbiFunctions = ({ abi }: { abi: Abi }) => {
   const abiFunctions = abi.filter(
     (item): item is AbiFunction => item.type === "function",
   );
-  // TODO(kyle) filter view and pure?
 
   const overloadedFunctionNames = getDuplicateElements(
     abiFunctions.map((item) => item.name),
