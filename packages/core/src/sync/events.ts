@@ -48,8 +48,8 @@ export type BlockEvent = {
   encodedCheckpoint: string;
 };
 
-export type FunctionCallEvent = {
-  type: "function";
+export type CallTraceEvent = {
+  type: "callTrace";
   chainId: number;
   contractName: string;
   functionName: string;
@@ -64,7 +64,7 @@ export type FunctionCallEvent = {
   encodedCheckpoint: string;
 };
 
-export type Event = LogEvent | BlockEvent | FunctionCallEvent;
+export type Event = LogEvent | BlockEvent | CallTraceEvent;
 
 export const decodeEvents = (
   { common, sourceById }: Pick<Service, "sourceById" | "common">,
@@ -89,7 +89,7 @@ export const decodeEvents = (
         break;
       }
 
-      case "function": {
+      case "callTrace": {
         try {
           const abi = source.abi;
 
@@ -117,7 +117,7 @@ export const decodeEvents = (
             source.abiFunctions.bySelector[selector]!.safeName;
 
           events.push({
-            type: "function",
+            type: "callTrace",
             chainId: event.chainId,
             contractName: source.contractName,
             functionName,

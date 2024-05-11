@@ -1,6 +1,6 @@
 import path from "path";
 import type { Options } from "@/common/options.js";
-import type { FunctionCallSource, LogSource } from "@/config/sources.js";
+import type { CallTraceSource, LogSource } from "@/config/sources.js";
 import {
   http,
   getEventSelector,
@@ -531,18 +531,16 @@ test("buildConfigAndIndexingFunctions() includeFunctionCalls", async () => {
 
   expect(sources).toHaveLength(1);
 
-  expect((sources[0] as FunctionCallSource).id).toBe("function_a_mainnet");
-  expect(
-    (sources[0] as FunctionCallSource).criteria.fromAddress,
-  ).toBeUndefined();
-  expect((sources[0] as FunctionCallSource).criteria.toAddress).toMatchObject([
+  expect((sources[0] as CallTraceSource).id).toBe("callTrace_a_mainnet");
+  expect((sources[0] as CallTraceSource).criteria.fromAddress).toBeUndefined();
+  expect((sources[0] as CallTraceSource).criteria.toAddress).toMatchObject([
     zeroAddress,
   ]);
   expect(
-    (sources[0] as FunctionCallSource).criteria.functionSelectors,
+    (sources[0] as CallTraceSource).criteria.functionSelectors,
   ).toMatchObject([getFunctionSelector(func0)]);
   expect(
-    (sources[0] as FunctionCallSource).criteria.includeTransactionReceipts,
+    (sources[0] as CallTraceSource).criteria.includeTransactionReceipts,
   ).toBe(false);
 });
 

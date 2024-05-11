@@ -72,9 +72,9 @@ export type BlockSource = {
   criteria: BlockFilterCriteria;
 };
 
-export type FunctionCallSource = {
-  type: "function";
-  /** `function_${contractName}_${networkName}` */
+export type CallTraceSource = {
+  type: "callTrace";
+  /** `callTrace_${contractName}_${networkName}` */
   id: string;
   contractName: string;
   networkName: string;
@@ -91,7 +91,7 @@ export type EventSource =
   | LogSource
   | FactorySource
   | BlockSource
-  | FunctionCallSource;
+  | CallTraceSource;
 
 export const sourceIsLog = (
   source: Pick<EventSource, "type">,
@@ -105,6 +105,6 @@ export const sourceIsBlock = (
   source: Pick<EventSource, "type">,
 ): source is BlockSource => source.type === "block";
 
-export const sourceIsFunctionCall = (
+export const sourceIsCallTrace = (
   source: Pick<EventSource, "type">,
-): source is FunctionCallSource => source.type === "function";
+): source is CallTraceSource => source.type === "callTrace";

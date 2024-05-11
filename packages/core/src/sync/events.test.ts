@@ -5,7 +5,7 @@ import { checksumAddress, parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import {
   type BlockEvent,
-  type FunctionCallEvent,
+  type CallTraceEvent,
   type LogEvent,
   decodeEvents,
 } from "./events.js";
@@ -119,7 +119,7 @@ test("decodeEvents() trace", async (context) => {
   const rawEvents = await getEventsTrace(sources);
 
   const events = decodeEvents({ common, sourceById }, rawEvents) as [
-    FunctionCallEvent,
+    CallTraceEvent,
   ];
 
   expect(events).toHaveLength(1);
@@ -141,7 +141,7 @@ test("decodeEvents() trace error", async (context) => {
   // change function selector, causing an error when decoding
   rawEvents[0].trace!.input = "0x0";
   const events = decodeEvents({ common, sourceById }, rawEvents) as [
-    FunctionCallEvent,
+    CallTraceEvent,
   ];
 
   expect(events).toHaveLength(0);

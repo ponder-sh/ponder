@@ -3,9 +3,9 @@ import { getHistoricalSyncProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import type {
   BlockSource,
+  CallTraceSource,
   EventSource,
   FactorySource,
-  FunctionCallSource,
   LogSource,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -86,7 +86,7 @@ type BlockFilterTask = {
 
 type TraceFilterTask = {
   kind: "TRACE_FILTER";
-  traceFilter: FunctionCallSource;
+  traceFilter: CallTraceSource;
   fromBlock: number;
   toBlock: number;
 };
@@ -198,7 +198,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
         switch (source.type) {
           case "log": {
-            // Log filter
             if (!isHistoricalSyncRequired) {
               this.logFilterProgressTrackers[source.id] = new ProgressTracker({
                 target: [startBlock, finalizedBlockNumber],
@@ -292,7 +291,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           break;
 
           case "factory": {
-            // Factory
             if (!isHistoricalSyncRequired) {
               this.factoryChildAddressProgressTrackers[source.id] =
                 new ProgressTracker({
@@ -476,7 +474,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           break;
 
           case "block": {
-            // Block filter
             if (!isHistoricalSyncRequired) {
               this.blockFilterProgressTrackers[source.id] = new ProgressTracker(
                 {
@@ -573,8 +570,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           }
           break;
 
-          case "function": {
-            // Trace filter
+          case "callTrace": {
             if (!isHistoricalSyncRequired) {
               this.traceFilterProgressTrackers[source.id] = new ProgressTracker(
                 {

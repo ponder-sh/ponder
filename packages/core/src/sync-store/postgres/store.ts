@@ -1,15 +1,15 @@
 import {
   type BlockFilterCriteria,
   type CallTraceFilterCriteria,
+  type CallTraceSource,
   type EventSource,
   type FactoryCriteria,
   type FactorySource,
-  type FunctionCallSource,
   type LogFilterCriteria,
   type LogSource,
   sourceIsBlock,
+  sourceIsCallTrace,
   sourceIsFactory,
-  sourceIsFunctionCall,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
@@ -1347,17 +1347,17 @@ export class PostgresSyncStore implements SyncStore {
         sourceIsLog(s) || sourceIsFactory(s),
     );
     const blockSources = sources.filter(sourceIsBlock);
-    const functionCallSources = sources.filter(sourceIsFunctionCall);
+    const callTraceSources = sources.filter(sourceIsCallTrace);
 
     const shouldJoinLogs = logOrFactorySources.length !== 0;
     const shouldJoinTransactions =
-      logOrFactorySources.length !== 0 || functionCallSources.length !== 0;
-    const shouldJoinTraces = functionCallSources.length !== 0;
+      logOrFactorySources.length !== 0 || callTraceSources.length !== 0;
+    const shouldJoinTraces = callTraceSources.length !== 0;
     const shouldJoinReceipts =
       logOrFactorySources.some(
         (source) => source.criteria.includeTransactionReceipts,
       ) ||
-      functionCallSources.some(
+      callTraceSources.some(
         (source) => source.criteria.includeTransactionReceipts,
       );
 
@@ -1394,13 +1394,13 @@ export class PostgresSyncStore implements SyncStore {
                 } )`,
             )
             .with(
-              "function_call_sources(source_id)",
+              "call_trace_sources(source_id)",
               () =>
                 sql`( values ${
-                  functionCallSources.length === 0
+                  callTraceSources.length === 0
                     ? sql`( null )`
                     : sql.join(
-                        functionCallSources.map(
+                        callTraceSources.map(
                           (source) => sql`( ${sql.val(source.id)} )`,
                         ),
                       )
@@ -1487,17 +1487,17 @@ export class PostgresSyncStore implements SyncStore {
                   // @ts-ignore
                   db
                     .selectFrom("callTraces")
-                    .innerJoin("function_call_sources", (join) => join.onTrue())
+                    .innerJoin("call_trace_sources", (join) => join.onTrue())
                     .where((eb) => {
                       const exprs = [];
-                      for (const functionCallSource of functionCallSources) {
+                      for (const callTraceSource of callTraceSources) {
                         exprs.push(
                           eb.and([
                             ...this.buildTraceFilterCmpr({
                               eb,
-                              functionCallSource,
+                              callTraceSource: callTraceSource,
                             }),
-                            eb("source_id", "=", functionCallSource.id),
+                            eb("source_id", "=", callTraceSource.id),
                           ]),
                         );
                       }
@@ -1653,8 +1653,8 @@ export class PostgresSyncStore implements SyncStore {
             const shouldIncludeTransaction =
               sourceIsLog(source) ||
               sourceIsFactory(source) ||
-              sourceIsFunctionCall(source);
-            const shouldIncludeTrace = sourceIsFunctionCall(source);
+              sourceIsCallTrace(source);
+            const shouldIncludeTrace = sourceIsCallTrace(source);
             const shouldIncludeTransactionReceipt =
               (sourceIsLog(source) &&
                 source.criteria.includeTransactionReceipts) ||
@@ -1894,11 +1894,9 @@ export class PostgresSyncStore implements SyncStore {
             .where((eb) =>
               eb.or(
                 sources
-                  .filter(sourceIsFunctionCall)
-                  .map((functionCallSource) =>
-                    eb.and(
-                      this.buildTraceFilterCmpr({ eb, functionCallSource }),
-                    ),
+                  .filter(sourceIsCallTrace)
+                  .map((callTraceSource) =>
+                    eb.and(this.buildTraceFilterCmpr({ eb, callTraceSource })),
                   ),
               ),
             )
@@ -2031,10 +2029,10 @@ export class PostgresSyncStore implements SyncStore {
 
   private buildTraceFilterCmpr = ({
     eb,
-    functionCallSource,
+    callTraceSource,
   }: {
     eb: ExpressionBuilder<any, any>;
-    functionCallSource: FunctionCallSource;
+    callTraceSource: CallTraceSource;
   }) => {
     const exprs = [];
 
@@ -2042,17 +2040,17 @@ export class PostgresSyncStore implements SyncStore {
       eb(
         "callTraces.chainId",
         "=",
-        sql`cast (${sql.val(functionCallSource.chainId)} as numeric(16, 0))`,
+        sql`cast (${sql.val(callTraceSource.chainId)} as numeric(16, 0))`,
       ),
     );
 
-    if (functionCallSource.criteria.fromAddress) {
+    if (callTraceSource.criteria.fromAddress) {
       // If it's an array of length 1, collapse it.
       const fromAddress =
-        Array.isArray(functionCallSource.criteria.fromAddress) &&
-        functionCallSource.criteria.fromAddress.length === 1
-          ? functionCallSource.criteria.fromAddress[0]
-          : functionCallSource.criteria.fromAddress;
+        Array.isArray(callTraceSource.criteria.fromAddress) &&
+        callTraceSource.criteria.fromAddress.length === 1
+          ? callTraceSource.criteria.fromAddress[0]
+          : callTraceSource.criteria.fromAddress;
       if (Array.isArray(fromAddress)) {
         exprs.push(
           eb.or(fromAddress.map((a) => eb("callTraces.from", "=", a))),
@@ -2062,13 +2060,13 @@ export class PostgresSyncStore implements SyncStore {
       }
     }
 
-    if (functionCallSource.criteria.toAddress) {
+    if (callTraceSource.criteria.toAddress) {
       // If it's an array of length 1, collapse it.
       const toAddress =
-        Array.isArray(functionCallSource.criteria.toAddress) &&
-        functionCallSource.criteria.toAddress.length === 1
-          ? functionCallSource.criteria.toAddress[0]
-          : functionCallSource.criteria.toAddress;
+        Array.isArray(callTraceSource.criteria.toAddress) &&
+        callTraceSource.criteria.toAddress.length === 1
+          ? callTraceSource.criteria.toAddress[0]
+          : callTraceSource.criteria.toAddress;
       if (Array.isArray(toAddress)) {
         exprs.push(eb.or(toAddress.map((a) => eb("callTraces.to", "=", a))));
       } else {
@@ -2079,7 +2077,7 @@ export class PostgresSyncStore implements SyncStore {
     // Filter based on function selectors
     exprs.push(
       eb.or(
-        functionCallSource.criteria.functionSelectors.map((fs) =>
+        callTraceSource.criteria.functionSelectors.map((fs) =>
           eb("callTraces.functionSelector", "=", fs),
         ),
       ),
@@ -2091,19 +2089,15 @@ export class PostgresSyncStore implements SyncStore {
     );
 
     if (
-      functionCallSource.startBlock !== undefined &&
-      functionCallSource.startBlock !== 0
+      callTraceSource.startBlock !== undefined &&
+      callTraceSource.startBlock !== 0
     )
       exprs.push(
-        eb(
-          "callTraces.blockNumber",
-          ">=",
-          BigInt(functionCallSource.startBlock),
-        ),
+        eb("callTraces.blockNumber", ">=", BigInt(callTraceSource.startBlock)),
       );
-    if (functionCallSource.endBlock)
+    if (callTraceSource.endBlock)
       exprs.push(
-        eb("callTraces.blockNumber", "<=", BigInt(functionCallSource.endBlock)),
+        eb("callTraces.blockNumber", "<=", BigInt(callTraceSource.endBlock)),
       );
 
     return exprs;

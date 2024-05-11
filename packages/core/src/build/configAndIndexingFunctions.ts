@@ -17,10 +17,10 @@ import {
 } from "@/config/networks.js";
 import {
   type BlockSource,
+  type CallTraceSource,
   type FactorySource,
-  type FunctionCallSource,
   type LogSource,
-  sourceIsFunctionCall,
+  sourceIsCallTrace,
 } from "@/config/sources.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -315,7 +315,7 @@ export async function buildConfigAndIndexingFunctions({
     logs.push({ level: "warn", msg: "No indexing functions were registered." });
   }
 
-  const contractSources: (LogSource | FactorySource | FunctionCallSource)[] =
+  const contractSources: (LogSource | FactorySource | CallTraceSource)[] =
     Object.entries(config.contracts ?? {})
       // First, apply any network-specific overrides and flatten the result.
       .flatMap(([contractName, contract]) => {
@@ -406,7 +406,7 @@ export async function buildConfigAndIndexingFunctions({
       })
       // Second, build and validate the factory or log source.
       .flatMap(
-        (rawContract): (LogSource | FactorySource | FunctionCallSource)[] => {
+        (rawContract): (LogSource | FactorySource | CallTraceSource)[] => {
           const network = networks.find(
             (n) => n.name === rawContract.networkName,
           );
@@ -632,8 +632,8 @@ export async function buildConfigAndIndexingFunctions({
               logSource,
               {
                 ...baseContract,
-                id: `function_${rawContract.contractName}_${rawContract.networkName}`,
-                type: "function",
+                id: `callTrace_${rawContract.contractName}_${rawContract.networkName}`,
+                type: "callTrace",
                 abiFunctions,
                 criteria: {
                   toAddress: Array.isArray(validatedAddress)
@@ -645,14 +645,14 @@ export async function buildConfigAndIndexingFunctions({
                   includeTransactionReceipts:
                     rawContract.includeTransactionReceipts,
                 },
-              } satisfies FunctionCallSource,
+              } satisfies CallTraceSource,
             ];
           } else return [logSource];
         },
       )
       // Remove sources with no registered indexing functions
       .filter((source) => {
-        const hasRegisteredIndexingFunctions = sourceIsFunctionCall(source)
+        const hasRegisteredIndexingFunctions = sourceIsCallTrace(source)
           ? source.criteria.functionSelectors.length !== 0
           : source.criteria.topics[0]?.length !== 0;
         if (!hasRegisteredIndexingFunctions) {

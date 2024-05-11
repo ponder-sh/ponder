@@ -2,13 +2,13 @@ import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import {
   type BlockSource,
+  type CallTraceSource,
   type EventSource,
   type FactorySource,
-  type FunctionCallSource,
   type LogSource,
   sourceIsBlock,
+  sourceIsCallTrace,
   sourceIsFactory,
-  sourceIsFunctionCall,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -71,7 +71,7 @@ export type Service = {
   logFilterSources: LogSource[];
   factorySources: FactorySource[];
   blockSources: BlockSource[];
-  functionCallSources: FunctionCallSource[];
+  callTraceSources: CallTraceSource[];
 };
 
 export type RealtimeSyncEvent =
@@ -141,7 +141,7 @@ export const create = ({
   const logFilterSources = sources.filter(sourceIsLog);
   const factorySources = sources.filter(sourceIsFactory);
   const blockSources = sources.filter(sourceIsBlock);
-  const functionCallSources = sources.filter(sourceIsFunctionCall);
+  const callTraceSources = sources.filter(sourceIsCallTrace);
 
   return {
     common,
@@ -164,7 +164,7 @@ export const create = ({
     logFilterSources,
     factorySources,
     blockSources,
-    functionCallSources,
+    callTraceSources: callTraceSources,
   };
 };
 
@@ -407,12 +407,12 @@ export const handleBlock = async (
     : [];
 
   const newTraces: SyncCallTrace[] =
-    service.functionCallSources.length > 0
+    service.callTraceSources.length > 0
       ? await _trace_block(service, {
           blockNumber: newHeadBlockNumber,
         }).then((traces) =>
           traces.filter((t) =>
-            service.functionCallSources
+            service.callTraceSources
               .flatMap((f) => f.criteria.toAddress ?? [])
               .includes(t.action.to),
           ),
@@ -544,7 +544,7 @@ export const handleBlock = async (
       logFilters: service.logFilterSources.map((l) => l.criteria),
       factories: service.factorySources.map((f) => f.criteria),
       blockFilters: service.blockSources.map((b) => b.criteria),
-      traceFilters: service.functionCallSources.map((f) => f.criteria),
+      traceFilters: service.callTraceSources.map((f) => f.criteria),
       interval: {
         startBlock: BigInt(service.finalizedBlock.number + 1),
         endBlock: BigInt(pendingFinalizedBlock.number),

@@ -27,8 +27,8 @@ import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
 import type {
   BlockEvent,
+  CallTraceEvent,
   Event,
-  FunctionCallEvent,
   LogEvent,
   SetupEvent,
 } from "../sync/events.js";
@@ -123,7 +123,7 @@ export const create = ({
   // build contractsByChainId
   for (const source of sources) {
     if (source.type === "block") continue;
-    if (source.type === "function") continue;
+    if (source.type === "callTrace") continue;
 
     const address =
       typeof source.criteria.address === "string"
@@ -344,7 +344,7 @@ export const processEvents = async (
         break;
       }
 
-      case "function": {
+      case "callTrace": {
         const eventName = `${event.contractName}.${event.functionName}`;
 
         indexingService.eventCount[eventName][
@@ -356,7 +356,7 @@ export const processEvents = async (
           msg: `Started indexing function (event="${eventName}", checkpoint=${event.encodedCheckpoint})`,
         });
 
-        const result = await executeFunctionCall(indexingService, { event });
+        const result = await executeCallTrace(indexingService, { event });
         if (result.status !== "success") {
           return result;
         }
@@ -681,9 +681,9 @@ const executeBlock = async (
   return { status: "success" };
 };
 
-const executeFunctionCall = async (
+const executeCallTrace = async (
   indexingService: Service,
-  { event }: { event: FunctionCallEvent },
+  { event }: { event: CallTraceEvent },
 ): Promise<
   | { status: "error"; error: Error }
   | { status: "success" }
