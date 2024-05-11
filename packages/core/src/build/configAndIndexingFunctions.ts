@@ -424,19 +424,23 @@ export async function buildConfigAndIndexingFunctions({
           const registeredLogEvents: string[] = [];
           const registeredFunctions: string[] = [];
           for (const eventName of Object.keys(indexingFunctions)) {
-            // ...
-            const [logContractName, logEventName] = eventName.split(":");
-            if (
-              logContractName === rawContract.contractName &&
-              logEventName !== "setup"
-            ) {
-              registeredLogEvents.push(logEventName);
+            // log event
+            if (eventName.includes(":")) {
+              const [logContractName, logEventName] = eventName.split(":");
+              if (
+                logContractName === rawContract.contractName &&
+                logEventName !== "setup"
+              ) {
+                registeredLogEvents.push(logEventName);
+              }
             }
 
-            // ...
-            const [functionContractName, functionName] = eventName.split(".");
-            if (functionContractName === rawContract.contractName) {
-              registeredFunctions.push(functionName);
+            // call trace event
+            if (eventName.includes(".")) {
+              const [functionContractName, functionName] = eventName.split(".");
+              if (functionContractName === rawContract.contractName) {
+                registeredFunctions.push(functionName);
+              }
             }
           }
 
