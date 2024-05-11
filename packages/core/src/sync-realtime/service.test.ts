@@ -470,13 +470,14 @@ test("handleBlock() ingests block and logs", async (context) => {
 
   expect(blocks).toHaveLength(4);
   expect(logs).toHaveLength(4);
-  expect(transactions).toHaveLength(3);
+  expect(transactions).toHaveLength(4);
   expect(traces).toHaveLength(1);
-  expect(transactionReceipts).toHaveLength(0);
+  expect(transactionReceipts).toHaveLength(1);
 
   expect(transactions[0].to).toBe(erc20.address);
   expect(transactions[1].to).toBe(erc20.address);
-  expect(transactions[2].to).toBe(factory.pair);
+  expect(transactions[2].to).toBe(factory.address);
+  expect(transactions[3].to).toBe(factory.pair);
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
 
@@ -540,10 +541,11 @@ test("handleBlock() gets receipts", async (context) => {
     .selectAll()
     .execute();
 
-  expect(transactionReceipts).toHaveLength(3);
+  expect(transactionReceipts).toHaveLength(4);
   expect(transactionReceipts[0].to).toBe(erc20.address);
   expect(transactionReceipts[1].to).toBe(erc20.address);
-  expect(transactionReceipts[2].to).toBe(factory.pair);
+  expect(transactionReceipts[2].to).toBe(factory.address);
+  expect(transactionReceipts[3].to).toBe(factory.pair);
 
   await kill(realtimeSyncService);
 

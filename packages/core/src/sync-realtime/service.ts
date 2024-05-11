@@ -14,7 +14,6 @@ import {
 import type { SyncStore } from "@/sync-store/store.js";
 import {
   type SyncBlock,
-  type SyncCallTrace,
   type SyncLog,
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
@@ -27,7 +26,7 @@ import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
-import { type Address, type Hex, hexToNumber } from "viem";
+import { type Address, type Hash, type Hex, hexToNumber } from "viem";
 import { isMatchedLogInBloomFilter, zeroLogsBloom } from "./bloom.js";
 import { filterCallTraces, filterLogs } from "./filter.js";
 import {
@@ -360,10 +359,8 @@ export const handleBlock = async (
     msg: `Started syncing '${service.network.name}' block ${newHeadBlockNumber}`,
   });
 
-  let newLogs: SyncLog[] = [];
-
   // "eth_getLogs" calls can be skipped if a negative match is given from "logsBloom".
-  const mustRequestGetLogs =
+  const positiveBloomFilter =
     service.hasFactorySource ||
     newHeadBlock.logsBloom === zeroLogsBloom ||
     isMatchedLogInBloomFilter({
@@ -371,61 +368,84 @@ export const handleBlock = async (
       logFilters: service.logFilterSources.map((s) => s.criteria),
     });
 
-  if (mustRequestGetLogs) {
-    const logs = await _eth_getLogs(service, {
-      topics: [service.eventSelectors],
-      blockHash: newHeadBlock.hash,
-    });
+  // Request logs
+  const blockLogs =
+    positiveBloomFilter &&
+    (service.logFilterSources.length > 0 || service.factorySources.length > 0)
+      ? await _eth_getLogs(service, { blockHash: newHeadBlock.hash })
+      : [];
+  const newLogs = await getMatchedLogs(service, {
+    logs: blockLogs,
+    insertChildAddressLogs: true,
+    upToBlockNumber: BigInt(newHeadBlockNumber),
+  });
 
-    newLogs = await getMatchedLogs(service, {
-      logs,
-      insertChildAddressLogs: true,
-      upToBlockNumber: BigInt(newHeadBlockNumber),
-    });
-  } else {
-    // TODO(kyle) remove when no log sources
+  if (
+    positiveBloomFilter === false &&
+    (service.logFilterSources.length > 0 || service.factorySources.length > 0)
+  ) {
     service.common.logger.debug({
       service: "realtime",
       msg: `Skipped fetching logs for '${service.network.name}' block ${newHeadBlockNumber} due to bloom filter result`,
     });
   }
 
-  // Add pending event data to sync store and local event data. Ordering is
-  // important because the sync store operation may throw an error, causing a retry.
-
-  const transactionHashes = new Set(newLogs.map((l) => l.transactionHash));
-  const transactions = newHeadBlock.transactions.filter((t) =>
-    transactionHashes.has(t.hash),
-  );
-
-  const newTransactionReceipts = service.hasTransactionReceiptSource
-    ? await Promise.all(
-        transactions.map(({ hash }) =>
-          _eth_getTransactionReceipt(service, { hash }),
-        ),
-      )
-    : [];
-
-  const callTraces: SyncCallTrace[] =
+  // Request traces
+  const blockCallTraces =
     service.callTraceSources.length > 0
       ? await _trace_block(service, {
           blockNumber: newHeadBlockNumber,
         })
       : [];
-
-  const newTraces = filterCallTraces({
-    callTraces,
+  const newCallTraces = filterCallTraces({
+    callTraces: blockCallTraces,
     callTraceFilters: service.callTraceSources.map((s) => s.criteria),
   });
 
-  // TODO(kyle) if trace.blockHash !== block.hash: blow up!
+  // Check that traces refer to the correct block
+  for (const callTrace of newCallTraces) {
+    if (callTrace.blockHash !== newHeadBlock.hash) {
+      throw new Error(
+        `Received call trace with block hash '${callTrace.blockHash}' that does not match current head block '${newHeadBlock.hash}'`,
+      );
+    }
+  }
 
-  const isBlockFilterMatched = service.blockSources.some(
-    (blockSource) =>
-      (newHeadBlockNumber - blockSource.criteria.offset) %
-        blockSource.criteria.interval ===
-      0,
+  const transactionHashes = new Set<Hash>();
+  for (const log of newLogs) {
+    transactionHashes.add(log.transactionHash);
+  }
+  for (const callTrace of newCallTraces) {
+    transactionHashes.add(callTrace.transactionHash);
+  }
+
+  const transactions = newHeadBlock.transactions.filter((t) =>
+    transactionHashes.has(t.hash),
   );
+
+  const newTransactionReceipts =
+    service.hasTransactionReceiptSource || newCallTraces.length > 0
+      ? await Promise.all(
+          transactions.map(({ hash }) =>
+            _eth_getTransactionReceipt(service, { hash }),
+          ),
+        )
+      : [];
+
+  // Filter out reverted call traces
+  const revertedTransactions = new Set<Hash>();
+  for (const receipt of newTransactionReceipts) {
+    if (receipt.status === "0x0") {
+      revertedTransactions.add(receipt.transactionHash);
+    }
+  }
+
+  const newSuccessfulCallTraces = newCallTraces.filter(
+    (trace) => revertedTransactions.has(trace.transactionHash) === false,
+  );
+
+  // Add pending event data to sync store and local event data. Ordering is
+  // important because the sync store operation may throw an error, causing a retry.
 
   await service.syncStore.insertRealtimeBlock({
     chainId: service.network.chainId,
@@ -433,7 +453,7 @@ export const handleBlock = async (
     transactions,
     transactionReceipts: newTransactionReceipts,
     logs: newLogs,
-    traces: newTraces,
+    traces: newSuccessfulCallTraces,
   });
 
   if (newLogs.length > 0) {
@@ -443,18 +463,33 @@ export const handleBlock = async (
       service: "realtime",
       msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
-  } else if (newTraces.length > 0) {
+  }
+
+  if (newSuccessfulCallTraces.length > 0) {
     const traceCountText =
-      newTraces.length === 1 ? "1 trace" : `${newTraces.length} traces`;
+      newSuccessfulCallTraces.length === 1
+        ? "1 trace"
+        : `${newSuccessfulCallTraces.length} traces`;
     service.common.logger.info({
       service: "realtime",
       msg: `Synced ${traceCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
-  } else if (isBlockFilterMatched) {
-    service.common.logger.info({
-      service: "realtime",
-      msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,
-    });
+  }
+
+  if (newLogs.length === 0 && newSuccessfulCallTraces.length === 0) {
+    if (
+      service.blockSources.some(
+        (blockSource) =>
+          (newHeadBlockNumber - blockSource.criteria.offset) %
+            blockSource.criteria.interval ===
+          0,
+      )
+    ) {
+      service.common.logger.info({
+        service: "realtime",
+        msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,
+      });
+    }
   }
 
   service.onEvent({
