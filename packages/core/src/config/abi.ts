@@ -17,6 +17,16 @@ import {
 } from "viem";
 import type { Config } from "./config.js";
 
+/**
+ * Fix issue with Array.isArray not checking readonly arrays
+ * {@link https://github.com/microsoft/TypeScript/issues/17002}
+ */
+declare global {
+  interface ArrayConstructor {
+    isArray(arg: ReadonlyArray<any> | any): arg is ReadonlyArray<any>;
+  }
+}
+
 type AbiEventMeta = {
   // Event name (if no overloads) or full event signature (if name is overloaded).
   // This is the event name used when registering indexing functions using `ponder.on("ContractName:EventName", ...)`
