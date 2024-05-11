@@ -317,7 +317,9 @@ type P = {
   /**
    * Create a table index.
    *
-   * - Docs: TODO(kyle)
+   * - Docs: https://ponder.sh/docs/schema#indexes
+   *
+   * @param columns Column or columns to include in the index.
    *
    * @example
    * export default createSchema((p) => ({
