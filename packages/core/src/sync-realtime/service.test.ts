@@ -48,7 +48,9 @@ const getRequestQueue = async ({
             ? rpcData.block1.traces
             : blockNumber === rpcData.block2.block.number
               ? rpcData.block2.traces
-              : rpcData.block3.traces;
+              : blockNumber === rpcData.block3.block.number
+                ? rpcData.block3.traces
+                : [];
 
         if (request.params[0].fromBlock !== undefined) {
           traces = traces.filter(
@@ -469,7 +471,7 @@ test("handleBlock() ingests block and logs", async (context) => {
   expect(blocks).toHaveLength(4);
   expect(logs).toHaveLength(4);
   expect(transactions).toHaveLength(3);
-  expect(traces).toHaveLength(4);
+  expect(traces).toHaveLength(1);
   expect(transactionReceipts).toHaveLength(0);
 
   expect(transactions[0].to).toBe(erc20.address);

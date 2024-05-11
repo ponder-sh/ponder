@@ -29,7 +29,7 @@ import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
 import { type Address, type Hex, hexToNumber } from "viem";
 import { isMatchedLogInBloomFilter, zeroLogsBloom } from "./bloom.js";
-import { filterLogs } from "./filter.js";
+import { filterCallTraces, filterLogs } from "./filter.js";
 import {
   type LightBlock,
   type LightLog,
@@ -406,20 +406,17 @@ export const handleBlock = async (
       )
     : [];
 
-  const newTraces: SyncCallTrace[] =
+  const callTraces: SyncCallTrace[] =
     service.callTraceSources.length > 0
       ? await _trace_block(service, {
           blockNumber: newHeadBlockNumber,
-        }).then((traces) =>
-          traces.filter((t) =>
-            service.callTraceSources
-              .flatMap((f) => f.criteria.toAddress ?? [])
-              .includes(t.action.to),
-          ),
-        )
+        })
       : [];
 
-  // TODO(kyle) filter traces
+  const newTraces = filterCallTraces({
+    callTraces,
+    callTraceFilters: service.callTraceSources.map((s) => s.criteria),
+  });
 
   // TODO(kyle) if trace.blockHash !== block.hash: blow up!
 
