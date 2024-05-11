@@ -1,4 +1,3 @@
-import { erc20ABI, factoryABI, pairABI } from "@/_test/generated.js";
 import {
   setupAnvil,
   setupCommon,
@@ -9,17 +8,8 @@ import { testClient } from "@/_test/utils.js";
 import type { EventSource } from "@/config/sources.js";
 import { type SyncBlock, _eth_getBlockByNumber } from "@/sync/index.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
-import { getAbiItem, getEventSelector } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
-import { syncBlockToLightBlock } from "./format.js";
-import {
-  create,
-  handleBlock,
-  handleReorg,
-  kill,
-  start,
-  validateLocalBlockchainState,
-} from "./service.js";
+import { create, handleBlock, handleReorg, kill, start } from "./service.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -47,11 +37,6 @@ test("createRealtimeSyncService()", async (context) => {
 
   expect(realtimeSyncService.finalizedBlock.number).toBe(0);
   expect(realtimeSyncService.localChain).toHaveLength(0);
-  expect(realtimeSyncService.eventSelectors).toStrictEqual([
-    getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
-    getEventSelector(getAbiItem({ abi: factoryABI, name: "PairCreated" })),
-    getEventSelector(getAbiItem({ abi: pairABI, name: "Swap" })),
-  ]);
 
   await cleanup();
 });
@@ -225,7 +210,7 @@ test("start() finds reorg with block hash", async (context) => {
       queue.add({
         ...block,
         number: "0x6",
-        parentHash: realtimeSyncService.localChain[3].block.hash,
+        parentHash: realtimeSyncService.localChain[3].hash,
         hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
       });
     },
@@ -594,7 +579,7 @@ test("handleReorg() finds common ancestor", async (context) => {
     });
   }
 
-  realtimeSyncService.localChain[2].block.hash = "0x0";
+  realtimeSyncService.localChain[2].hash = "0x0";
 
   await handleReorg(
     realtimeSyncService,
@@ -658,7 +643,7 @@ test("handleReorg() emits fatal error for deep reorg", async (context) => {
 
   realtimeSyncService.finalizedBlock.hash = "0x1";
   for (let i = 0; i < 3; i++) {
-    realtimeSyncService.localChain[i].block.hash = "0x0";
+    realtimeSyncService.localChain[i].hash = "0x0";
   }
 
   await handleReorg(
@@ -672,52 +657,6 @@ test("handleReorg() emits fatal error for deep reorg", async (context) => {
   expect(realtimeSyncService.localChain).toHaveLength(0);
 
   expect(onFatalError).toHaveBeenCalled();
-
-  await kill(realtimeSyncService);
-
-  await cleanup();
-});
-
-test("validateLocalBlockchainState()", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-
-  const finalizedBlock = await requestQueues[0].request({
-    method: "eth_getBlockByNumber",
-    params: ["0x0", false],
-  });
-
-  const realtimeSyncService = create({
-    common,
-    syncStore,
-    network: networks[0],
-    requestQueue: requestQueues[0],
-    sources,
-    finalizedBlock: finalizedBlock as SyncBlock,
-    onEvent: vi.fn(),
-    onFatalError: vi.fn(),
-  });
-
-  for (let i = 1; i <= 4; i++) {
-    await handleBlock(realtimeSyncService, {
-      newHeadBlock: await _eth_getBlockByNumber(
-        { requestQueue: requestQueues[0] },
-        { blockNumber: i },
-      ),
-    });
-  }
-
-  realtimeSyncService.localChain[1].logs[1].logIndex = "0x0";
-
-  const isInvalid = await validateLocalBlockchainState(
-    realtimeSyncService,
-    await _eth_getBlockByNumber(
-      { requestQueue: requestQueues[0] },
-      { blockNumber: 4 },
-    ).then(syncBlockToLightBlock),
-  );
-
-  expect(isInvalid).toBe(true);
 
   await kill(realtimeSyncService);
 

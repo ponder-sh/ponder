@@ -1,11 +1,5 @@
-import type { SyncBlock, SyncLog } from "@/sync/index.js";
-import {
-  type Block,
-  type BlockTag,
-  type Hex,
-  type Log,
-  hexToNumber,
-} from "viem";
+import type { SyncBlock } from "@/sync/index.js";
+import { type Block, type BlockTag, hexToNumber } from "viem";
 
 export type LightBlock = Pick<
   Block<number, boolean, Exclude<BlockTag, "pending">>,
