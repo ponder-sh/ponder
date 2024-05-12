@@ -422,7 +422,7 @@ export async function buildConfigAndIndexingFunctions({
 
           // Get indexing function that were registered for this contract
           const registeredLogEvents: string[] = [];
-          const registeredFunctions: string[] = [];
+          const registeredCallTraceEvents: string[] = [];
           for (const eventName of Object.keys(indexingFunctions)) {
             // log event
             if (eventName.includes(":")) {
@@ -439,7 +439,7 @@ export async function buildConfigAndIndexingFunctions({
             if (eventName.includes(".")) {
               const [functionContractName, functionName] = eventName.split(".");
               if (functionContractName === rawContract.contractName) {
-                registeredFunctions.push(functionName);
+                registeredCallTraceEvents.push(functionName);
               }
             }
           }
@@ -466,7 +466,7 @@ export async function buildConfigAndIndexingFunctions({
           }
 
           const registeredFunctionSelectors: Hex[] = [];
-          for (const _function of registeredFunctions) {
+          for (const _function of registeredCallTraceEvents) {
             const abiFunction = abiFunctions.bySafeName[_function];
             if (abiFunction === undefined) {
               throw new Error(

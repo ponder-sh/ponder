@@ -1273,14 +1273,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       }
     }
 
-    const successfulTraces = traces.filter(
+    const persistentTraces = traces.filter(
       (trace) => revertedTransactions.has(trace.transactionHash) === false,
     );
 
     const tracesByBlockNumber: Record<number, SyncCallTrace[] | undefined> = {};
     const txHashesByBlockNumber: Record<number, Set<Hash> | undefined> = {};
 
-    for (const trace of successfulTraces) {
+    for (const trace of persistentTraces) {
       const blockNumber = hexToNumber(trace.blockNumber);
 
       if (tracesByBlockNumber[blockNumber] === undefined) {

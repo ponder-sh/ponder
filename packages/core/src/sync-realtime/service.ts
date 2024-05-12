@@ -440,23 +440,34 @@ export const handleBlock = async (
     }
   }
 
-  const newSuccessfulCallTraces = newCallTraces.filter(
+  const newPersistentCallTraces = newCallTraces.filter(
     (trace) => revertedTransactions.has(trace.transactionHash) === false,
   );
 
   // Add pending event data to sync store and local event data. Ordering is
   // important because the sync store operation may throw an error, causing a retry.
 
-  await service.syncStore.insertRealtimeBlock({
-    chainId: service.network.chainId,
-    block: newHeadBlock,
-    transactions,
-    transactionReceipts: newTransactionReceipts,
-    logs: newLogs,
-    traces: newSuccessfulCallTraces,
-  });
+  const hasLogEvent = newLogs.length > 0;
+  const hasCallTraceEvent = newPersistentCallTraces.length > 0;
+  const hasBlockEvent = service.blockSources.some(
+    (blockSource) =>
+      (newHeadBlockNumber - blockSource.criteria.offset) %
+        blockSource.criteria.interval ===
+      0,
+  );
 
-  if (newLogs.length > 0) {
+  if (hasLogEvent || hasCallTraceEvent || hasBlockEvent) {
+    await service.syncStore.insertRealtimeBlock({
+      chainId: service.network.chainId,
+      block: newHeadBlock,
+      transactions,
+      transactionReceipts: newTransactionReceipts,
+      logs: newLogs,
+      traces: newPersistentCallTraces,
+    });
+  }
+
+  if (hasLogEvent) {
     const logCountText =
       newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
     service.common.logger.info({
@@ -465,31 +476,22 @@ export const handleBlock = async (
     });
   }
 
-  if (newSuccessfulCallTraces.length > 0) {
+  if (hasCallTraceEvent) {
     const traceCountText =
-      newSuccessfulCallTraces.length === 1
+      newPersistentCallTraces.length === 1
         ? "1 trace"
-        : `${newSuccessfulCallTraces.length} traces`;
+        : `${newPersistentCallTraces.length} traces`;
     service.common.logger.info({
       service: "realtime",
       msg: `Synced ${traceCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
   }
 
-  if (newLogs.length === 0 && newSuccessfulCallTraces.length === 0) {
-    if (
-      service.blockSources.some(
-        (blockSource) =>
-          (newHeadBlockNumber - blockSource.criteria.offset) %
-            blockSource.criteria.interval ===
-          0,
-      )
-    ) {
-      service.common.logger.info({
-        service: "realtime",
-        msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,
-      });
-    }
+  if (hasLogEvent === false && hasCallTraceEvent === false && hasBlockEvent) {
+    service.common.logger.info({
+      service: "realtime",
+      msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,
+    });
   }
 
   service.onEvent({

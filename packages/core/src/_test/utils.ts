@@ -312,7 +312,7 @@ export const getRawRPCData = async (sources: EventSource[]) => {
     },
     block2: {
       logs: [logs[2]],
-      block: blocks[1]!,
+      block: blocks[1],
       transactions: blocks[1]!.transactions,
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[1]?.number,
@@ -350,7 +350,7 @@ export const getRawRPCData = async (sources: EventSource[]) => {
     },
     block3: {
       logs: [logs[3]],
-      block: blocks[2]!,
+      block: blocks[2],
       transactions: blocks[2]!.transactions,
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[2]?.number,
