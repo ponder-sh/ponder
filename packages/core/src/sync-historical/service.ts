@@ -42,6 +42,7 @@ import {
 import { validateHistoricalBlockRange } from "./validateHistoricalBlockRange.js";
 
 const HISTORICAL_CHECKPOINT_EMIT_INTERVAL = 500;
+const TRACE_FILTER_CHUNK_SIZE = 20;
 
 type HistoricalSyncEvents = {
   /**
@@ -610,8 +611,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
             const traceFilterTaskChunks = getChunks({
               intervals: requiredTraceFilterIntervals,
-              maxChunkSize:
-                source.maxBlockRange ?? this.network.defaultMaxBlockRange,
+              maxChunkSize: TRACE_FILTER_CHUNK_SIZE,
             });
 
             for (const [fromBlock, toBlock] of traceFilterTaskChunks) {
