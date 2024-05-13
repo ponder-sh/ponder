@@ -1,0 +1,71 @@
+type Query {
+  multicalls(id: String!): multicalls
+  multicallss(where: multicallsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): multicallsPage!
+}
+
+type multicalls {
+  id: String!
+  gasUsed: BigInt!
+  bytes: Int!
+  successfulCalls: Int!
+  failedCalls: Int!
+}
+
+scalar BigInt
+
+type multicallsPage {
+  items: [multicalls!]!
+  pageInfo: PageInfo!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+input multicallsFilter {
+  AND: [multicallsFilter]
+  OR: [multicallsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_gt: String
+  id_lt: String
+  id_gte: String
+  id_lte: String
+  gasUsed: BigInt
+  gasUsed_not: BigInt
+  gasUsed_in: [BigInt]
+  gasUsed_not_in: [BigInt]
+  gasUsed_gt: BigInt
+  gasUsed_lt: BigInt
+  gasUsed_gte: BigInt
+  gasUsed_lte: BigInt
+  bytes: Int
+  bytes_not: Int
+  bytes_in: [Int]
+  bytes_not_in: [Int]
+  bytes_gt: Int
+  bytes_lt: Int
+  bytes_gte: Int
+  bytes_lte: Int
+  successfulCalls: Int
+  successfulCalls_not: Int
+  successfulCalls_in: [Int]
+  successfulCalls_not_in: [Int]
+  successfulCalls_gt: Int
+  successfulCalls_lt: Int
+  successfulCalls_gte: Int
+  successfulCalls_lte: Int
+  failedCalls: Int
+  failedCalls_not: Int
+  failedCalls_in: [Int]
+  failedCalls_not_in: [Int]
+  failedCalls_gt: Int
+  failedCalls_lt: Int
+  failedCalls_gte: Int
+  failedCalls_lte: Int
+}
