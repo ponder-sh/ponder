@@ -23,16 +23,10 @@ import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
-import { type Address, type Hex, hexToNumber } from "viem";
+import { type Address, hexToNumber } from "viem";
 import { isMatchedLogInBloomFilter, zeroLogsBloom } from "./bloom.js";
 import { filterLogs } from "./filter.js";
-import {
-  type LightBlock,
-  type LightLog,
-  sortLogs,
-  syncBlockToLightBlock,
-  syncLogToLightLog,
-} from "./format.js";
+import { type LightBlock, syncBlockToLightBlock } from "./format.js";
 
 export type Service = {
   // static
@@ -51,7 +45,7 @@ export type Service = {
    * all blocks are linked to each other,
    * `parentHash` => `hash`.
    */
-  localChain: LocalBlockchainState[];
+  localChain: LightBlock[];
   queue: Queue<void, SyncBlock> | undefined;
   consecutiveErrors: number;
 
@@ -60,8 +54,6 @@ export type Service = {
   onFatalError: (error: Error) => void;
 
   // derived static
-  /** List of all possible event selectors based on the provided `sources`. */
-  eventSelectors: Hex[];
   hasFactorySource: boolean;
   hasTransactionReceiptSource: boolean;
   logFilterSources: LogSource[];
@@ -85,11 +77,6 @@ export type RealtimeSyncEvent =
       chainId: number;
       checkpoint: Checkpoint;
     };
-
-type LocalBlockchainState = {
-  block: LightBlock;
-  logs: LightLog[];
-};
 
 const ERROR_TIMEOUT = [
   1, 2, 5, 10, 30, 60, 60, 60, 60, 60, 60, 60, 60, 60,
@@ -115,24 +102,6 @@ export const create = ({
   onEvent: (event: RealtimeSyncEvent) => void;
   onFatalError: (error: Error) => void;
 }): Service => {
-  // get event selectors from sources
-  const eventSelectors = sources.flatMap((source) => {
-    if (!sourceIsFactory(source) && !sourceIsLog(source)) return [];
-
-    const topics: Hex[] = [];
-
-    if (sourceIsFactory(source)) {
-      topics.push(source.criteria.eventSelector);
-    }
-
-    const topic0 = source.criteria.topics?.[0];
-    if (topic0 !== undefined && topic0 !== null) {
-      if (Array.isArray(topic0)) topics.push(...topic0);
-      else topics.push(topic0);
-    }
-    return topics;
-  });
-
   const logFilterSources = sources.filter(sourceIsLog);
   const factorySources = sources.filter(sourceIsFactory);
   const blockSources = sources.filter(sourceIsBlock);
@@ -150,7 +119,6 @@ export const create = ({
     consecutiveErrors: 0,
     onEvent,
     onFatalError,
-    eventSelectors,
     hasFactorySource: sources.some(sourceIsFactory),
     hasTransactionReceiptSource:
       logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
@@ -334,8 +302,7 @@ export const kill = async (service: Service) => {
  * 1) Determine if a reorg occurred.
  * 2) Insert new event data into the store.
  * 3) Determine if a new range of events has become finalized,
- *    if so validate the local chain before removing the
- *    finalized data.
+ *    if so insert interval to store and remove the finalized data.
  *
  * @param newHeadBlock Block to be injested. Must be exactly
  * 1 block ahead of the local chain.
@@ -356,7 +323,7 @@ export const handleBlock = async (
   let newLogs: SyncLog[] = [];
 
   // "eth_getLogs" calls can be skipped if a negative match is given from "logsBloom".
-  const mustRequestGetLogs =
+  const positiveBloomFilter =
     service.hasFactorySource ||
     newHeadBlock.logsBloom === zeroLogsBloom ||
     isMatchedLogInBloomFilter({
@@ -364,11 +331,17 @@ export const handleBlock = async (
       logFilters: service.logFilterSources.map((s) => s.criteria),
     });
 
-  if (mustRequestGetLogs) {
+  if (positiveBloomFilter) {
     const logs = await _eth_getLogs(service, {
-      topics: [service.eventSelectors],
       blockHash: newHeadBlock.hash,
     });
+
+    // Protect against RPCs returning empty logs. Known to happen near chain tip.
+    if (newHeadBlock.logsBloom !== zeroLogsBloom && logs.length === 0) {
+      throw new Error(
+        `Detected invalid '${service.network.name}' eth_getLogs response.`,
+      );
+    }
 
     newLogs = await getMatchedLogs(service, {
       logs,
@@ -446,10 +419,7 @@ export const handleBlock = async (
     } satisfies Checkpoint,
   });
 
-  service.localChain.push({
-    block: syncBlockToLightBlock(newHeadBlock),
-    logs: newLogs.map(syncLogToLightLog),
-  });
+  service.localChain.push(syncBlockToLightBlock(newHeadBlock));
 
   service.common.metrics.ponder_realtime_latest_block_number.set(
     { network: service.network.name },
@@ -469,48 +439,10 @@ export const handleBlock = async (
     service.finalizedBlock.number + 2 * service.network.finalityBlockCount;
   if (blockMovesFinality) {
     const pendingFinalizedBlock = service.localChain.find(
-      ({ block }) =>
+      (block) =>
         block.number ===
         newHeadBlockNumber - service.network.finalityBlockCount,
-    )!.block;
-
-    // Validate the local chain by re-requesting logs and checking for inconsistencies
-    // between the local and recently fetched data. This is neccessary because
-    // degraded rpc providers have trouble indexing logs near the tip of the chain.
-    try {
-      const hasInvalidLogs = await validateLocalBlockchainState(
-        service,
-        pendingFinalizedBlock,
-      );
-
-      if (hasInvalidLogs) {
-        service.common.logger.debug({
-          service: "realtime",
-          msg: `Detected inconsistency between local and remote '${
-            service.network.name
-          }' chain from block ${service.finalizedBlock.number + 1} to ${
-            pendingFinalizedBlock.number
-          }`,
-        });
-      } else {
-        service.common.logger.debug({
-          service: "realtime",
-          msg: `Validated local '${service.network.name}' chain from block ${
-            service.finalizedBlock.number + 1
-          } to ${pendingFinalizedBlock.number}`,
-        });
-      }
-    } catch (error_) {
-      const error = error_ as Error;
-      service.common.logger.debug({
-        service: "realtime",
-        msg: `Failed to validate local '${
-          service.network.name
-        }' chain from block ${service.finalizedBlock.number + 1} to ${
-          pendingFinalizedBlock.number
-        } with error: ${error}`,
-      });
-    }
+    )!;
 
     // Insert cache intervals into the store and update the local chain.
     // Ordering is important here because the database query can fail.
@@ -535,7 +467,7 @@ export const handleBlock = async (
     });
 
     service.localChain = service.localChain.filter(
-      ({ block }) => block.number > pendingFinalizedBlock.number,
+      (block) => block.number > pendingFinalizedBlock.number,
     );
 
     service.finalizedBlock = pendingFinalizedBlock;
@@ -578,7 +510,7 @@ export const handleReorg = async (
 
   // Prune the local chain of blocks that have been reorged out
   const newLocalChain = service.localChain.filter(
-    ({ block }) => block.number < forkedBlockNumber,
+    (block) => block.number < forkedBlockNumber,
   );
 
   // Block we are attempting to fit into the local chain.
@@ -709,48 +641,11 @@ const getMatchedLogs = async (
   }
 };
 
-export const validateLocalBlockchainState = async (
-  service: Service,
-  pendingFinalizedBlock: LightBlock,
-) => {
-  const logs = await _eth_getLogs(service, {
-    fromBlock: service.finalizedBlock.number + 1,
-    toBlock: pendingFinalizedBlock.number,
-  }).then(sortLogs);
-
-  const remoteLogs = await getMatchedLogs(service, {
-    logs,
-    insertChildAddressLogs: false,
-    upToBlockNumber: BigInt(pendingFinalizedBlock.number),
-  });
-
-  const localLogs = sortLogs(
-    service.localChain
-      .filter(({ block }) => block.number <= pendingFinalizedBlock.number)
-      .flatMap(({ logs }) => logs),
-  );
-
-  for (let i = 0; i < localLogs.length && i < remoteLogs.length; i++) {
-    if (
-      remoteLogs[i].blockHash !== localLogs[i].blockHash ||
-      remoteLogs[i].logIndex !== localLogs[i].logIndex
-    ) {
-      return true;
-    }
-  }
-
-  if (localLogs.length !== remoteLogs.length) {
-    return true;
-  }
-
-  return false;
-};
-
 const getLatestLocalBlock = ({
   localChain,
   finalizedBlock,
 }: Pick<Service, "localChain" | "finalizedBlock">) => {
   if (localChain.length === 0) {
     return finalizedBlock;
-  } else return localChain[localChain.length - 1].block;
+  } else return localChain[localChain.length - 1];
 };
