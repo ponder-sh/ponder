@@ -47,6 +47,11 @@ export type BaseSyncService = {
 export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
 export type SyncLog = Log<Hex, Hex, false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
+export type SyncTrace =
+  | SyncCallTrace
+  | SyncCreateTrace
+  | SyncRewardTrace
+  | SyncSuicideTrace;
 export type SyncCallTrace = {
   action: {
     callType: "call" | "delegatecall" | "staticcall";
@@ -249,8 +254,7 @@ export const _eth_getTransactionReceipt = (
     });
 
 /**
- * Helper function for "trace_filter" request. Non-call traces
- * are filtered out.
+ * Helper function for "trace_filter" request.
  *
  * Note: No strict typing is available.
  */
@@ -262,7 +266,7 @@ export const _trace_filter = (
     fromAddress?: Address[];
     toAddress?: Address[];
   },
-): Promise<SyncCallTrace[]> =>
+): Promise<SyncTrace[]> =>
   requestQueue
     .request({
       method: "trace_filter",
@@ -285,13 +289,10 @@ export const _trace_filter = (
         },
       ],
     } as any)
-    .then((traces) =>
-      (traces as unknown as SyncCallTrace[]).filter((t) => t.type === "call"),
-    );
+    .then((traces) => traces as unknown as SyncTrace[]);
 
 /**
- * Helper function for "trace_block" request. Non-call traces
- * are filtered out.
+ * Helper function for "trace_block" request.
  *
  * Note: No strict typing is available.
  */
@@ -300,7 +301,7 @@ export const _trace_block = (
   params: {
     blockNumber: Hex | number;
   },
-): Promise<SyncCallTrace[]> =>
+): Promise<SyncTrace[]> =>
   requestQueue
     .request({
       method: "trace_block",
@@ -310,6 +311,4 @@ export const _trace_block = (
           : params.blockNumber,
       ],
     } as any)
-    .then((traces) =>
-      (traces as unknown as SyncCallTrace[]).filter((t) => t.type === "call"),
-    );
+    .then((traces) => traces as unknown as SyncTrace[]);

@@ -1250,7 +1250,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         fromAddress: traceFilter.criteria.fromAddress,
         toAddress: traceFilter.criteria.toAddress,
       },
-    ).then((traces) => traces.filter((t) => t.error === undefined));
+    ).then(
+      (traces) => traces.filter((t) => t.type === "call") as SyncCallTrace[],
+    );
 
     // Request transactionReceipts to check for reverted transactions.
     const transactionReceipts = await Promise.all(
