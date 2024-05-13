@@ -450,13 +450,6 @@ Tip: On Etherscan, there is a link to the current implementation contract on the
 
 The `filter` option filters for events by signature and indexed argument values. This makes it possible to index events emitted by _any contract on the network_ that match the specified signature and arguments.
 
-<Callout type="info">
-  If you're indexing a popular contract but only need an infrequent event (e.g.
-  `OwnershipTransferred`), you can use the `filter` option alongside `address`
-  or `factory` to sync only those event(s). By default, the sync engine fetches
-  all events emitted by the contracts you specify.
-</Callout>
-
 ### By event name or signature
 
 The `filter.event` option accepts an event name (or list of event names) present in the provided ABI.
