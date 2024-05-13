@@ -1,7 +1,10 @@
 import { buildFactoryCriteria } from "@/config/factories.js";
 import { parseAbiItem } from "viem";
 import { expect, test } from "vitest";
-import { buildFactoryFragments, buildLogFilterFragments } from "./fragments.js";
+import {
+  buildFactoryLogFragments,
+  buildLogFilterFragments,
+} from "./fragments.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
@@ -136,7 +139,7 @@ test("buildFactoryFragments builds id containing topic", () => {
   });
 
   expect(
-    buildFactoryFragments({
+    buildFactoryLogFragments({
       chainId: 1,
       topics: [null, null, null, null],
       ...criteria,
@@ -155,7 +158,7 @@ test("buildFactoryFragments builds id containing offset", () => {
   });
 
   expect(
-    buildFactoryFragments({
+    buildFactoryLogFragments({
       chainId: 115511,
       topics: [null, null, null, null],
       ...criteria,

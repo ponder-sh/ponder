@@ -89,7 +89,8 @@ export const decodeEvents = (
         break;
       }
 
-      case "callTrace": {
+      case "callTrace":
+      case "factoryCallTrace": {
         try {
           const abi = source.abi;
 

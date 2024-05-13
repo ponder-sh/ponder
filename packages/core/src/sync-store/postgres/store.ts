@@ -3,12 +3,15 @@ import {
   type CallTraceFilterCriteria,
   type CallTraceSource,
   type EventSource,
+  type FactoryCallTraceFilterCriteria,
+  type FactoryCallTraceSource,
   type FactoryLogFilterCriteria,
   type FactoryLogSource,
   type LogFilterCriteria,
   type LogSource,
   sourceIsBlock,
   sourceIsCallTrace,
+  sourceIsFactoryCallTrace,
   sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
@@ -25,9 +28,10 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import {
-  buildFactoryFragments,
+  buildFactoryLogFragments,
+  buildFactoryTraceFragments,
   buildLogFilterFragments,
-  buildTraceFilterFragments,
+  buildTraceFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
@@ -299,7 +303,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     fromBlock: bigint;
     toBlock: bigint;
-    factory: FactoryLogFilterCriteria;
+    factory: FactoryLogFilterCriteria | FactoryCallTraceFilterCriteria;
     pageSize?: number;
   }) {
     const { address, eventSelector, childAddressLocation } = factory;
@@ -417,7 +421,7 @@ export class PostgresSyncStore implements SyncStore {
           await this._insertFactoryLogFilterInterval({
             tx,
             chainId,
-            factories: [factory],
+            factoryLogFilters: [factory],
             interval,
           });
         });
@@ -435,16 +439,13 @@ export class PostgresSyncStore implements SyncStore {
     return this.db.wrap(
       { method: "getFactoryLogFilterIntervals" },
       async () => {
-        const fragments = buildFactoryFragments({
-          ...factory,
-          chainId,
-        });
+        const fragments = buildFactoryLogFragments({ ...factory, chainId });
 
         await Promise.all(
           fragments.map(async (fragment) => {
             await this.db.transaction().execute(async (tx) => {
               const { id: factoryId } = await tx
-                .insertInto("factories")
+                .insertInto("factoryLogFilters")
                 .values(fragment)
                 .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
                 .returningAll()
@@ -499,7 +500,7 @@ export class PostgresSyncStore implements SyncStore {
               )} )`,
           )
           .selectFrom("factoryLogFilterIntervals")
-          .innerJoin("factories", "factoryId", "factories.id")
+          .innerJoin("factoryLogFilters", "factoryId", "factoryLogFilters.id")
           .innerJoin("factoryFilterFragments", (join) => {
             let baseJoin = join.on((eb) =>
               eb.and([
@@ -803,7 +804,7 @@ export class PostgresSyncStore implements SyncStore {
     traceFilter: CallTraceFilterCriteria;
   }) => {
     return this.db.wrap({ method: "getTraceFilterIntervals" }, async () => {
-      const fragments = buildTraceFilterFragments({ ...traceFilter, chainId });
+      const fragments = buildTraceFragments({ ...traceFilter, chainId });
 
       // First, attempt to merge overlapping and adjacent intervals.
       await Promise.all(
@@ -894,6 +895,244 @@ export class PostgresSyncStore implements SyncStore {
       );
       return intervalIntersectionMany(intervalsForEachFragment);
     });
+  };
+
+  insertFactoryTraceFilterInterval = async ({
+    chainId,
+    factory,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    transactionReceipts: rpcTransactionReceipts,
+    traces: rpcTraces,
+    interval,
+  }: {
+    chainId: number;
+    factory: FactoryCallTraceFilterCriteria;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
+    traces: SyncCallTrace[];
+    interval: { startBlock: bigint; endBlock: bigint };
+  }) => {
+    return this.db.wrap(
+      { method: "insertFactoryTraceFilterInterval" },
+      async () => {
+        await this.db.transaction().execute(async (tx) => {
+          await tx
+            .insertInto("blocks")
+            .values({
+              ...rpcToPostgresBlock(rpcBlock),
+              chainId,
+              checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
+            })
+            .onConflict((oc) => oc.column("hash").doNothing())
+            .execute();
+
+          if (rpcTransactions.length > 0) {
+            const transactions = rpcTransactions.map((rpcTransaction) => ({
+              ...rpcToPostgresTransaction(rpcTransaction),
+              chainId,
+            }));
+            await tx
+              .insertInto("transactions")
+              .values(transactions)
+              .onConflict((oc) => oc.column("hash").doNothing())
+              .execute();
+          }
+
+          if (rpcTransactionReceipts.length > 0) {
+            const transactionReceipts = rpcTransactionReceipts.map(
+              (rpcTransactionReceipt) => ({
+                ...rpcToPostgresTransactionReceipt(rpcTransactionReceipt),
+                chainId,
+              }),
+            );
+            await tx
+              .insertInto("transactionReceipts")
+              .values(transactionReceipts)
+              .onConflict((oc) => oc.column("transactionHash").doNothing())
+              .execute();
+          }
+
+          // Delete existing traces with the same `transactionHash`. Then, calculate "callTraces.checkpoint"
+          // based on the ordering of "callTraces.traceAddress" and add all traces to "callTraces" table.
+          const traceByTransactionHash: {
+            [transacionHash: Hex]: SyncCallTrace[];
+          } = {};
+          for (const trace of rpcTraces) {
+            if (traceByTransactionHash[trace.transactionHash] === undefined) {
+              traceByTransactionHash[trace.transactionHash] = [];
+            }
+            traceByTransactionHash[trace.transactionHash].push(trace);
+          }
+
+          for (const transactionHash of Object.keys(traceByTransactionHash)) {
+            const traces = await tx
+              .deleteFrom("callTraces")
+              .returningAll()
+              .where("transactionHash", "=", transactionHash as Hex)
+              .where("chainId", "=", chainId)
+              .execute();
+
+            (traces as Omit<InsertableCallTrace, "checkpoint">[]).push(
+              ...traceByTransactionHash[transactionHash as Hex].map(
+                (trace) => ({
+                  ...rpcToPostgresTrace(trace),
+                  chainId,
+                }),
+              ),
+            );
+
+            // Use lexographical sort of stringified `traceAddress`.
+            traces.sort((a, b) => {
+              return a.traceAddress < b.traceAddress ? -1 : 1;
+            });
+
+            for (let i = 0; i < traces.length; i++) {
+              const trace = traces[i];
+              const checkpoint = encodeCheckpoint({
+                blockTimestamp: hexToNumber(rpcBlock.timestamp),
+                chainId: BigInt(chainId),
+                blockNumber: trace.blockNumber,
+                transactionIndex: BigInt(trace.transactionPosition),
+                eventType: EVENT_TYPES.callTraces,
+                eventIndex: BigInt(i),
+              });
+
+              trace.checkpoint = checkpoint;
+            }
+
+            await tx
+              .insertInto("callTraces")
+              .values(traces)
+              .onConflict((oc) => oc.column("id").doNothing())
+              .execute();
+          }
+
+          await this._insertFactoryTraceFilterInterval({
+            tx,
+            chainId,
+            factoryTraceFilters: [factory],
+            interval,
+          });
+        });
+      },
+    );
+  };
+
+  getFactoryTraceFilterIntervals = async ({
+    chainId,
+    factory,
+  }: {
+    chainId: number;
+    factory: FactoryCallTraceFilterCriteria;
+  }) => {
+    return this.db.wrap(
+      { method: "getFactoryLogFilterIntervals" },
+      async () => {
+        const fragments = buildFactoryTraceFragments({ ...factory, chainId });
+
+        await Promise.all(
+          fragments.map(async (fragment) => {
+            return await this.db.transaction().execute(async (tx) => {
+              const { id: factoryId } = await tx
+                .insertInto("factoryTraceFilters")
+                .values(fragment)
+                .onConflict((oc) => oc.doUpdateSet(fragment))
+                .returningAll()
+                .executeTakeFirstOrThrow();
+
+              const existingIntervals = await tx
+                .deleteFrom("factoryTraceFilterIntervals")
+                .where("factoryId", "=", factoryId)
+                .returningAll()
+                .execute();
+
+              const mergedIntervals = intervalUnion(
+                existingIntervals.map((i) => [
+                  Number(i.startBlock),
+                  Number(i.endBlock),
+                ]),
+              );
+
+              const mergedIntervalRows = mergedIntervals.map(
+                ([startBlock, endBlock]) => ({
+                  factoryId,
+                  startBlock: BigInt(startBlock),
+                  endBlock: BigInt(endBlock),
+                }),
+              );
+
+              if (mergedIntervalRows.length > 0) {
+                await tx
+                  .insertInto("factoryTraceFilterIntervals")
+                  .values(mergedIntervalRows)
+                  .execute();
+              }
+            });
+          }),
+        );
+
+        const intervals = await this.db
+          .with(
+            "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentFromAddress)",
+            () =>
+              sql`( values ${sql.join(
+                fragments.map(
+                  (f) =>
+                    sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
+                      f.eventSelector,
+                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
+                      f.fromAddress,
+                    )} )`,
+                ),
+              )} )`,
+          )
+          .selectFrom("factoryTraceFilterIntervals")
+          .innerJoin(
+            "factoryTraceFilters",
+            "factoryId",
+            "factoryTraceFilters.id",
+          )
+          .innerJoin("factoryFilterFragments", (join) =>
+            join.on((eb) =>
+              eb.and([
+                eb("fragmentAddress", "=", sql.ref("address")),
+                eb("fragmentEventSelector", "=", sql.ref("eventSelector")),
+                eb(
+                  "fragmentChildAddressLocation",
+                  "=",
+                  sql.ref("childAddressLocation"),
+                ),
+                eb.or([
+                  eb("fromAddress", "is", null),
+                  eb("fragmentFromAddress", "=", sql.ref("fromAddress")),
+                ]),
+              ]),
+            ),
+          )
+          .select(["fragmentId", "startBlock", "endBlock"])
+          .where("chainId", "=", chainId)
+          .execute();
+
+        const intervalsByFragmentId = intervals.reduce(
+          (acc, cur) => {
+            const { fragmentId, startBlock, endBlock } = cur;
+            (acc[fragmentId] ||= []).push([
+              Number(startBlock),
+              Number(endBlock),
+            ]);
+            return acc;
+          },
+          {} as Record<string, [number, number][]>,
+        );
+
+        const intervalsForEachFragment = fragments.map((f) =>
+          intervalUnion(intervalsByFragmentId[f.id] ?? []),
+        );
+        return intervalIntersectionMany(intervalsForEachFragment);
+      },
+    );
   };
 
   private createLogCheckpoint = (
@@ -1056,16 +1295,18 @@ export class PostgresSyncStore implements SyncStore {
   insertRealtimeInterval = async ({
     chainId,
     logFilters,
-    factories,
-    blockFilters,
+    factoryLogFilters,
     traceFilters,
+    factoryTraceFilters,
+    blockFilters,
     interval,
   }: {
     chainId: number;
     logFilters: LogFilterCriteria[];
-    factories: FactoryLogFilterCriteria[];
-    blockFilters: BlockFilterCriteria[];
+    factoryLogFilters: FactoryLogFilterCriteria[];
     traceFilters: CallTraceFilterCriteria[];
+    factoryTraceFilters: FactoryCallTraceFilterCriteria[];
+    blockFilters: BlockFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     return this.db.wrap({ method: "insertRealtimeInterval" }, async () => {
@@ -1075,7 +1316,12 @@ export class PostgresSyncStore implements SyncStore {
           chainId,
           logFilters: [
             ...logFilters,
-            ...factories.map((f) => ({
+            ...factoryLogFilters.map((f) => ({
+              address: f.address,
+              topics: [f.eventSelector],
+              includeTransactionReceipts: f.includeTransactionReceipts,
+            })),
+            ...factoryTraceFilters.map((f) => ({
               address: f.address,
               topics: [f.eventSelector],
               includeTransactionReceipts: f.includeTransactionReceipts,
@@ -1087,7 +1333,7 @@ export class PostgresSyncStore implements SyncStore {
         await this._insertFactoryLogFilterInterval({
           tx,
           chainId,
-          factories,
+          factoryLogFilters,
           interval,
         });
 
@@ -1102,6 +1348,13 @@ export class PostgresSyncStore implements SyncStore {
           tx,
           chainId,
           traceFilters,
+          interval,
+        });
+
+        await this._insertFactoryTraceFilterInterval({
+          tx,
+          chainId,
+          factoryTraceFilters,
           interval,
         });
       });
@@ -1175,6 +1428,38 @@ export class PostgresSyncStore implements SyncStore {
     );
   };
 
+  private _insertFactoryLogFilterInterval = async ({
+    tx,
+    chainId,
+    factoryLogFilters,
+    interval: { startBlock, endBlock },
+  }: {
+    tx: KyselyTransaction<SyncStoreTables>;
+    chainId: number;
+    factoryLogFilters: FactoryLogFilterCriteria[];
+    interval: { startBlock: bigint; endBlock: bigint };
+  }) => {
+    const factoryFragments = factoryLogFilters.flatMap((factory) =>
+      buildFactoryLogFragments({ ...factory, chainId }),
+    );
+
+    await Promise.all(
+      factoryFragments.map(async (fragment) => {
+        const { id: factoryId } = await tx
+          .insertInto("factoryLogFilters")
+          .values(fragment)
+          .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+          .returningAll()
+          .executeTakeFirstOrThrow();
+
+        await tx
+          .insertInto("factoryLogFilterIntervals")
+          .values({ factoryId, startBlock, endBlock })
+          .execute();
+      }),
+    );
+  };
+
   private _insertBlockFilterInterval = async ({
     tx,
     chainId,
@@ -1224,7 +1509,7 @@ export class PostgresSyncStore implements SyncStore {
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     const traceFilterFragments = traceFilters.flatMap((traceFilter) =>
-      buildTraceFilterFragments({ ...traceFilter, chainId }),
+      buildTraceFragments({ ...traceFilter, chainId }),
     );
 
     await Promise.all(
@@ -1244,33 +1529,37 @@ export class PostgresSyncStore implements SyncStore {
     );
   };
 
-  private _insertFactoryLogFilterInterval = async ({
+  private _insertFactoryTraceFilterInterval = async ({
     tx,
     chainId,
-    factories,
+    factoryTraceFilters,
     interval: { startBlock, endBlock },
   }: {
     tx: KyselyTransaction<SyncStoreTables>;
     chainId: number;
-    factories: FactoryLogFilterCriteria[];
+    factoryTraceFilters: FactoryCallTraceFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const factoryFragments = factories.flatMap((factory) =>
-      buildFactoryFragments({ ...factory, chainId }),
+    const factoryFragments = factoryTraceFilters.flatMap((factory) =>
+      buildFactoryTraceFragments({ ...factory, chainId }),
     );
 
     await Promise.all(
       factoryFragments.map(async (fragment) => {
         const { id: factoryId } = await tx
-          .insertInto("factories")
+          .insertInto("factoryTraceFilters")
           .values(fragment)
-          .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+          .onConflict((oc) => oc.doUpdateSet(fragment))
           .returningAll()
           .executeTakeFirstOrThrow();
 
         await tx
-          .insertInto("factoryLogFilterIntervals")
-          .values({ factoryId, startBlock, endBlock })
+          .insertInto("factoryTraceFilterIntervals")
+          .values({
+            factoryId,
+            startBlock,
+            endBlock,
+          })
           .execute();
       }),
     );
@@ -1342,21 +1631,22 @@ export class PostgresSyncStore implements SyncStore {
     }, {});
 
     // We can assume that source won't be empty.
-    const logOrFactorySources = sources.filter(
+    const logSources = sources.filter(
       (s): s is LogSource | FactoryLogSource =>
         sourceIsLog(s) || sourceIsFactoryLog(s),
     );
+    const callTraceSources = sources.filter(
+      (s): s is CallTraceSource | FactoryCallTraceSource =>
+        sourceIsCallTrace(s) || sourceIsFactoryCallTrace(s),
+    );
     const blockSources = sources.filter(sourceIsBlock);
-    const callTraceSources = sources.filter(sourceIsCallTrace);
 
-    const shouldJoinLogs = logOrFactorySources.length !== 0;
+    const shouldJoinLogs = logSources.length !== 0;
     const shouldJoinTransactions =
-      logOrFactorySources.length !== 0 || callTraceSources.length !== 0;
+      logSources.length !== 0 || callTraceSources.length !== 0;
     const shouldJoinTraces = callTraceSources.length !== 0;
     const shouldJoinReceipts =
-      logOrFactorySources.some(
-        (source) => source.criteria.includeTransactionReceipts,
-      ) ||
+      logSources.some((source) => source.criteria.includeTransactionReceipts) ||
       callTraceSources.some(
         (source) => source.criteria.includeTransactionReceipts,
       );
@@ -1371,10 +1661,10 @@ export class PostgresSyncStore implements SyncStore {
               "log_sources(source_id)",
               () =>
                 sql`( values ${
-                  logOrFactorySources.length === 0
+                  logSources.length === 0
                     ? sql`( null )`
                     : sql.join(
-                        logOrFactorySources.map(
+                        logSources.map(
                           (source) => sql`( ${sql.val(source.id)} )`,
                         ),
                       )
@@ -1425,7 +1715,10 @@ export class PostgresSyncStore implements SyncStore {
                   const factoryCmprs = sources
                     .filter(sourceIsFactoryLog)
                     .map((factory) => {
-                      const exprs = this.buildFactoryCmprs({ eb, factory });
+                      const exprs = this.buildFactoryLogFilterCmprs({
+                        eb,
+                        factory,
+                      });
                       exprs.push(eb("source_id", "=", factory.id));
                       return eb.and(exprs);
                     });
@@ -1489,19 +1782,31 @@ export class PostgresSyncStore implements SyncStore {
                     .selectFrom("callTraces")
                     .innerJoin("call_trace_sources", (join) => join.onTrue())
                     .where((eb) => {
-                      const exprs = [];
-                      for (const callTraceSource of callTraceSources) {
-                        exprs.push(
-                          eb.and([
-                            ...this.buildTraceFilterCmpr({
-                              eb,
-                              callTraceSource: callTraceSource,
-                            }),
-                            eb("source_id", "=", callTraceSource.id),
-                          ]),
-                        );
-                      }
-                      return eb.or(exprs);
+                      const traceFilterCmprs = sources
+                        .filter(sourceIsCallTrace)
+                        .map((callTraceSource) => {
+                          const exprs = this.buildTraceFilterCmprs({
+                            eb,
+                            callTraceSource,
+                          });
+                          exprs.push(eb("source_id", "=", callTraceSource.id));
+                          return eb.and(exprs);
+                        });
+                      const factoryTraceFilterCmprs = sources
+                        .filter(sourceIsFactoryCallTrace)
+                        .map((factory) => {
+                          const exprs = this.buildFactoryTraceFilterCmprs({
+                            eb,
+                            factory,
+                          });
+                          exprs.push(eb("source_id", "=", factory.id));
+                          return eb.and(exprs);
+                        });
+
+                      return eb.or([
+                        ...traceFilterCmprs,
+                        ...factoryTraceFilterCmprs,
+                      ]);
                     })
                     .select([
                       "source_id",
@@ -1653,8 +1958,10 @@ export class PostgresSyncStore implements SyncStore {
             const shouldIncludeTransaction =
               sourceIsLog(source) ||
               sourceIsFactoryLog(source) ||
-              sourceIsCallTrace(source);
-            const shouldIncludeTrace = sourceIsCallTrace(source);
+              sourceIsCallTrace(source) ||
+              sourceIsFactoryCallTrace(source);
+            const shouldIncludeTrace =
+              sourceIsCallTrace(source) || sourceIsFactoryCallTrace(source);
             const shouldIncludeTransactionReceipt =
               (sourceIsLog(source) &&
                 source.criteria.includeTransactionReceipts) ||
@@ -1856,7 +2163,7 @@ export class PostgresSyncStore implements SyncStore {
           const factoryCmprs = sources
             .filter(sourceIsFactoryLog)
             .map((factory) => {
-              const exprs = this.buildFactoryCmprs({ eb, factory });
+              const exprs = this.buildFactoryLogFilterCmprs({ eb, factory });
               return eb.and(exprs);
             });
 
@@ -1892,15 +2199,29 @@ export class PostgresSyncStore implements SyncStore {
         .unionAll(
           this.db
             .selectFrom("callTraces")
-            .where((eb) =>
-              eb.or(
-                sources
-                  .filter(sourceIsCallTrace)
-                  .map((callTraceSource) =>
-                    eb.and(this.buildTraceFilterCmpr({ eb, callTraceSource })),
-                  ),
-              ),
-            )
+            .where((eb) => {
+              const traceFilterCmprs = sources
+                .filter(sourceIsCallTrace)
+                .map((callTraceSource) => {
+                  const exprs = this.buildTraceFilterCmprs({
+                    eb,
+                    callTraceSource,
+                  });
+                  return eb.and(exprs);
+                });
+
+              const factoryCallTraceCmprs = sources
+                .filter(sourceIsFactoryCallTrace)
+                .map((factory) => {
+                  const exprs = this.buildFactoryTraceFilterCmprs({
+                    eb,
+                    factory,
+                  });
+                  return eb.and(exprs);
+                });
+
+              return eb.or([...traceFilterCmprs, ...factoryCallTraceCmprs]);
+            })
             .select("checkpoint"),
         )
         .where("checkpoint", ">", encodeCheckpoint(fromCheckpoint))
@@ -1970,7 +2291,7 @@ export class PostgresSyncStore implements SyncStore {
     return exprs;
   };
 
-  private buildFactoryCmprs = ({
+  private buildFactoryLogFilterCmprs = ({
     eb,
     factory,
   }: {
@@ -2028,7 +2349,7 @@ export class PostgresSyncStore implements SyncStore {
     return exprs;
   };
 
-  private buildTraceFilterCmpr = ({
+  private buildTraceFilterCmprs = ({
     eb,
     callTraceSource,
   }: {
@@ -2100,6 +2421,80 @@ export class PostgresSyncStore implements SyncStore {
       exprs.push(
         eb("callTraces.blockNumber", "<=", BigInt(callTraceSource.endBlock)),
       );
+
+    return exprs;
+  };
+
+  private buildFactoryTraceFilterCmprs = ({
+    eb,
+    factory,
+  }: {
+    eb: ExpressionBuilder<any, any>;
+    factory: FactoryCallTraceSource;
+  }) => {
+    const exprs = [];
+
+    exprs.push(
+      eb(
+        "callTraces.chainId",
+        "=",
+        sql`cast (${sql.val(factory.chainId)} as numeric(16, 0))`,
+      ),
+    );
+    const selectChildAddressExpression =
+      buildFactoryChildAddressSelectExpression({
+        childAddressLocation: factory.criteria.childAddressLocation,
+      });
+
+    exprs.push(
+      eb(
+        "callTraces.toAddress",
+        "in",
+        eb
+          .selectFrom("logs")
+          .select(selectChildAddressExpression.as("childAddress"))
+          .where("chainId", "=", factory.chainId)
+          .where("address", "=", factory.criteria.address)
+          .where("topic0", "=", factory.criteria.eventSelector),
+      ),
+    );
+
+    if (factory.criteria.fromAddress) {
+      // If it's an array of length 1, collapse it.
+      const fromAddress =
+        Array.isArray(factory.criteria.fromAddress) &&
+        factory.criteria.fromAddress.length === 1
+          ? factory.criteria.fromAddress[0]
+          : factory.criteria.fromAddress;
+      if (Array.isArray(fromAddress)) {
+        exprs.push(
+          eb.or(fromAddress.map((a) => eb("callTraces.from", "=", a))),
+        );
+      } else {
+        exprs.push(eb("callTraces.from", "=", fromAddress));
+      }
+    }
+
+    // Filter based on function selectors
+    exprs.push(
+      eb.or(
+        factory.criteria.functionSelectors.map((fs) =>
+          eb("callTraces.functionSelector", "=", fs),
+        ),
+      ),
+    );
+
+    // Filter out callTraces with error
+    exprs.push(
+      sql`${sql.ref("callTraces.error")} IS NULL` as OperandExpression<SqlBool>,
+    );
+
+    if (factory.startBlock !== undefined && factory.startBlock !== 0)
+      exprs.push(
+        eb("callTraces.blockNumber", ">=", BigInt(factory.startBlock)),
+      );
+    if (factory.endBlock)
+      exprs.push(eb("callTraces.blockNumber", "<=", BigInt(factory.endBlock)));
 
     return exprs;
   };

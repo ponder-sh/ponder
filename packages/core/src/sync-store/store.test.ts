@@ -1648,9 +1648,10 @@ test("insertRealtimeInterval inserts intervals", async (context) => {
   await syncStore.insertRealtimeInterval({
     chainId: 1,
     logFilters: [logFilterCriteria],
-    factories: [factoryCriteriaOne, factoryCriteriaTwo],
+    factoryLogFilters: [factoryCriteriaOne, factoryCriteriaTwo],
     blockFilters: [blockFilterCriteria],
     traceFilters: [],
+    factoryTraceFilters: [],
     interval: { startBlock: 500n, endBlock: 550n },
   });
 

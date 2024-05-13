@@ -1,7 +1,7 @@
 import type { Abi, Address, Hex, LogTopic } from "viem";
 import type { AbiEvents, AbiFunctions } from "./abi.js";
 
-type ChildAddressCriteria = {
+export type ChildAddressCriteria = {
   address: Address;
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
@@ -70,18 +70,19 @@ export type BlockSource = {
   type: "block";
   /** `block_${sourceName}_${networkName}` */
   id: string;
+  criteria: BlockFilterCriteria;
   sourceName: string;
   networkName: string;
   chainId: number;
   startBlock: number;
   endBlock?: number;
-  criteria: BlockFilterCriteria;
 };
 
 export type CallTraceSource = {
   type: "callTrace";
   /** `callTrace_${contractName}_${networkName}` */
   id: string;
+  criteria: CallTraceFilterCriteria;
   contractName: string;
   networkName: string;
   chainId: number;
@@ -90,14 +91,29 @@ export type CallTraceSource = {
   startBlock: number;
   endBlock?: number;
   maxBlockRange?: number;
-  criteria: CallTraceFilterCriteria;
+};
+
+export type FactoryCallTraceSource = {
+  type: "factoryCallTrace";
+  /** `callTrace_${contractName}_${networkName}` */
+  id: string;
+  criteria: FactoryCallTraceFilterCriteria;
+  contractName: string;
+  networkName: string;
+  chainId: number;
+  abi: Abi;
+  abiFunctions: AbiFunctions;
+  startBlock: number;
+  endBlock?: number;
+  maxBlockRange?: number;
 };
 
 export type EventSource =
   | LogSource
   | FactoryLogSource
-  | BlockSource
-  | CallTraceSource;
+  | CallTraceSource
+  | FactoryCallTraceSource
+  | BlockSource;
 
 export const sourceIsLog = (
   source: Pick<EventSource, "type">,
@@ -107,10 +123,14 @@ export const sourceIsFactoryLog = (
   source: Pick<EventSource, "type">,
 ): source is FactoryLogSource => source.type === "factoryLog";
 
-export const sourceIsBlock = (
-  source: Pick<EventSource, "type">,
-): source is BlockSource => source.type === "block";
-
 export const sourceIsCallTrace = (
   source: Pick<EventSource, "type">,
 ): source is CallTraceSource => source.type === "callTrace";
+
+export const sourceIsFactoryCallTrace = (
+  source: Pick<EventSource, "type">,
+): source is FactoryCallTraceSource => source.type === "factoryCallTrace";
+
+export const sourceIsBlock = (
+  source: Pick<EventSource, "type">,
+): source is BlockSource => source.type === "block";

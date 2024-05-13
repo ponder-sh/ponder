@@ -124,6 +124,7 @@ export const create = ({
   for (const source of sources) {
     if (source.type === "block") continue;
     if (source.type === "callTrace") continue;
+    if (source.type === "factoryCallTrace") continue;
 
     const address =
       typeof source.criteria.address === "string"

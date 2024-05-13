@@ -803,6 +803,8 @@ const migrations: Record<string, Migration> = {
         .on("callTraces")
         .column("to")
         .execute();
+
+      // TODO(kyle) factory trace filter
     },
   },
 };

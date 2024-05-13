@@ -635,7 +635,7 @@ const migrations: Record<string, Migration> = {
         .execute();
       await db.schema
         .createTable("factories")
-        // `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${includeTransactionReceipts}`
+        // `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${topic0}_${topic1}_${topic2}_${topic3}_${includeTransactionReceipts}`
         .addColumn("id", "text", (col) => col.notNull().primaryKey())
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(42)", (col) => col.notNull())
@@ -944,6 +944,8 @@ const migrations: Record<string, Migration> = {
         .on("callTraces")
         .column("to")
         .execute();
+
+      // TODO(kyle) factory trace filter
     },
   },
 };
