@@ -268,7 +268,10 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
           value: cur.value,
         };
       } else {
-        acc[id].value += cur.value;
+        // Note: entries in `values` with the same `id` have the same "total"
+        // block range. Using `Math.min()` ensures that a contract with both
+        // "callTrace" and "log" type sources are displayed correctly.
+        acc[id].value = Math.min(acc[id].value, cur.value);
       }
 
       return acc;
