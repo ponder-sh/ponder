@@ -183,7 +183,7 @@ export function buildFactoryTraceFragments({
     ? fromAddress
     : [null]) {
     fragments.push({
-      id: `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${_fromAddress}_${_fromAddress}`,
+      id: `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${_fromAddress}`,
       chainId,
       address,
       eventSelector,

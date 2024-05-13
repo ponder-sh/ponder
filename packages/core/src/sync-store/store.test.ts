@@ -49,8 +49,13 @@ test("setup creates tables", async (context) => {
 
   expect(tableNames).toContain("logFilters");
   expect(tableNames).toContain("logFilterIntervals");
-  expect(tableNames).toContain("factories");
+  expect(tableNames).toContain("factoryLogFilters");
   expect(tableNames).toContain("factoryLogFilterIntervals");
+
+  expect(tableNames).toContain("traceFilters");
+  expect(tableNames).toContain("traceFilterIntervals");
+  expect(tableNames).toContain("factoryTraceFilters");
+  expect(tableNames).toContain("factoryTraceFilterIntervals");
 
   expect(tableNames).toContain("rpcRequestResults");
   await cleanup();
