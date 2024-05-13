@@ -662,7 +662,6 @@ export async function buildConfigAndIndexingFunctions({
         if (!hasRegisteredIndexingFunctions) {
           logs.push({
             level: "debug",
-            // TODO(kyle) better message
             msg: `No indexing functions were registered for '${
               source.contractName
             }' ${sourceIsCallTrace(source) ? "call traces" : "logs"}`,
