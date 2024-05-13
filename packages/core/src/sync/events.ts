@@ -106,11 +106,8 @@ export const decodeEvents = (
 
           const selector = event.trace!.input.slice(0, 10) as Hex;
 
-          if (
-            selector.length !== 10 ||
-            source.abiFunctions.bySelector[selector] === undefined
-          ) {
-            throw Error("TODO");
+          if (source.abiFunctions.bySelector[selector] === undefined) {
+            throw new Error();
           }
 
           const functionName =
@@ -155,7 +152,7 @@ export const decodeEvents = (
             event.log!.topics[0] === undefined ||
             source.abiEvents.bySelector[event.log!.topics[0]] === undefined
           ) {
-            throw Error("TODO");
+            throw new Error();
           }
 
           const logEventName =
