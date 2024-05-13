@@ -333,14 +333,24 @@ export const handleBlock = async (
 
   if (positiveBloomFilter) {
     const logs = await _eth_getLogs(service, {
-      blockHash: newHeadBlock.hash,
+      fromBlock: newHeadBlockNumber,
+      toBlock: newHeadBlockNumber,
     });
 
     // Protect against RPCs returning empty logs. Known to happen near chain tip.
     if (newHeadBlock.logsBloom !== zeroLogsBloom && logs.length === 0) {
       throw new Error(
-        `Detected invalid '${service.network.name}' eth_getLogs response.`,
+        `Detected invalid '${service.network.name}' eth_getLogs response`,
       );
+    }
+
+    // Check that logs refer to the correct block
+    for (const log of logs) {
+      if (log.blockHash !== newHeadBlock.hash) {
+        throw new Error(
+          `Received log with block hash '${log.blockHash}' that does not match current head block '${newHeadBlock.hash}'`,
+        );
+      }
     }
 
     newLogs = await getMatchedLogs(service, {
