@@ -66,6 +66,23 @@ export namespace Virtual {
           : never;
       }[keyof contracts];
 
+  type FormatTransactionReceipts<
+    contract extends Config["contracts"][string],
+    ///
+    includeTxr = ExtractOverridenProperty<
+      contract,
+      "includeTransactionReceipts"
+    >,
+  > = includeTxr extends includeTxr
+    ? includeTxr extends true
+      ? {
+          transactionReceipt: Prettify<TransactionReceipt>;
+        }
+      : {
+          transactionReceipt?: never;
+        }
+    : never;
+
   export type ExtractEventName<name extends string> =
     name extends `${string}:${infer EventName extends string}`
       ? EventName
@@ -94,44 +111,35 @@ export namespace Virtual {
   > = name extends `${string}:block`
     ? { block: Prettify<Block> }
     : name extends `${string}.${string}`
-      ? {
-          args: FormatFunctionArgs<
-            config["contracts"][contractName]["abi"],
-            eventName
-          >;
-          result: FormatFunctionResult<
-            config["contracts"][contractName]["abi"],
-            eventName
-          >;
-          trace: Prettify<CallTrace>;
-          block: Prettify<Block>;
-          transaction: Prettify<Transaction>;
-        }
-      : eventName extends Setup
-        ? never
-        : {
-            name: eventName;
-            args: FormatEventArgs<
+      ? Prettify<
+          {
+            args: FormatFunctionArgs<
               config["contracts"][contractName]["abi"],
               eventName
             >;
-            log: Prettify<Log>;
+            result: FormatFunctionResult<
+              config["contracts"][contractName]["abi"],
+              eventName
+            >;
+            trace: Prettify<CallTrace>;
             block: Prettify<Block>;
             transaction: Prettify<Transaction>;
-          } & (ExtractOverridenProperty<
-            config["contracts"][contractName],
-            "includeTransactionReceipts"
-          > extends infer includeTxr
-            ? includeTxr extends includeTxr
-              ? includeTxr extends true
-                ? {
-                    transactionReceipt: Prettify<TransactionReceipt>;
-                  }
-                : {
-                    transactionReceipt?: never;
-                  }
-              : never
-            : never);
+          } & FormatTransactionReceipts<config["contracts"][contractName]>
+        >
+      : eventName extends Setup
+        ? never
+        : Prettify<
+            {
+              name: eventName;
+              args: FormatEventArgs<
+                config["contracts"][contractName]["abi"],
+                eventName
+              >;
+              log: Prettify<Log>;
+              block: Prettify<Block>;
+              transaction: Prettify<Transaction>;
+            } & FormatTransactionReceipts<config["contracts"][contractName]>
+          >;
 
   type ContextContractProperty = Exclude<
     keyof Config["contracts"][string],
