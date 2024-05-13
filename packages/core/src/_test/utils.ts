@@ -549,6 +549,7 @@ export const getEventsTrace = async (
         output: trace.result.output,
         gasUsed: hexToBigInt(trace.result.gasUsed),
         subtraces: trace.subtraces,
+        traceAddress: trace.traceAddress,
         blockHash: trace.blockHash,
         blockNumber: hexToBigInt(trace.blockNumber),
         transactionHash: trace.transactionHash,

@@ -1802,6 +1802,7 @@ export class SqliteSyncStore implements SyncStore {
                     output: row.callTrace_output,
                     gasUsed: decodeToBigInt(row.callTrace_gasUsed),
                     subtraces: row.callTrace_subtraces,
+                    traceAddress: JSON.parse(row.callTrace_traceAddress),
                     blockHash: row.callTrace_blockHash,
                     blockNumber: decodeToBigInt(row.callTrace_blockNumber),
                     transactionHash: row.callTrace_transactionHash,

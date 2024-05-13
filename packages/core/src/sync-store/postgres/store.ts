@@ -1756,6 +1756,7 @@ export class PostgresSyncStore implements SyncStore {
                     output: row.callTrace_output,
                     gasUsed: row.callTrace_gasUsed,
                     subtraces: row.callTrace_subtraces,
+                    traceAddress: JSON.parse(row.callTrace_traceAddress),
                     blockHash: row.callTrace_blockHash,
                     blockNumber: row.callTrace_blockNumber,
                     transactionHash: row.callTrace_transactionHash,
