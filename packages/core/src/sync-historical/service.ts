@@ -5,7 +5,7 @@ import type {
   BlockSource,
   CallTraceSource,
   EventSource,
-  FactorySource,
+  FactoryLogSource,
   LogSource,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -66,14 +66,14 @@ type LogFilterTask = {
 
 type FactoryChildAddressTask = {
   kind: "FACTORY_CHILD_ADDRESS";
-  factory: FactorySource;
+  factory: FactoryLogSource;
   fromBlock: number;
   toBlock: number;
 };
 
 type FactoryLogFilterTask = {
   kind: "FACTORY_LOG_FILTER";
-  factory: FactorySource;
+  factory: FactoryLogSource;
   fromBlock: number;
   toBlock: number;
 };
@@ -291,7 +291,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           }
           break;
 
-          case "factory": {
+          case "factoryLog": {
             if (!isHistoricalSyncRequired) {
               this.factoryChildAddressProgressTrackers[source.id] =
                 new ProgressTracker({

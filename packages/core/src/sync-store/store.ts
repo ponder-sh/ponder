@@ -2,7 +2,7 @@ import type {
   BlockFilterCriteria,
   CallTraceFilterCriteria,
   EventSource,
-  FactoryCriteria,
+  FactoryLogFilterCriteria,
   LogFilterCriteria,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
@@ -85,7 +85,7 @@ export interface SyncStore {
    */
   getFactoryChildAddresses(options: {
     chainId: number;
-    factory: FactoryCriteria;
+    factory: FactoryLogFilterCriteria;
     fromBlock: bigint;
     toBlock: bigint;
     pageSize?: number;
@@ -100,7 +100,7 @@ export interface SyncStore {
    */
   insertFactoryLogFilterInterval(options: {
     chainId: number;
-    factory: FactoryCriteria;
+    factory: FactoryLogFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
@@ -115,7 +115,7 @@ export interface SyncStore {
    */
   getFactoryLogFilterIntervals(options: {
     chainId: number;
-    factory: FactoryCriteria;
+    factory: FactoryLogFilterCriteria;
   }): Promise<[number, number][]>;
 
   /**
@@ -195,7 +195,7 @@ export interface SyncStore {
   insertRealtimeInterval(options: {
     chainId: number;
     logFilters: LogFilterCriteria[];
-    factories: FactoryCriteria[];
+    factories: FactoryLogFilterCriteria[];
     blockFilters: BlockFilterCriteria[];
     traceFilters: CallTraceFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };

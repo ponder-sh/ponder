@@ -13,7 +13,7 @@ import type { Network } from "@/config/networks.js";
 import type {
   BlockSource,
   CallTraceSource,
-  FactorySource,
+  FactoryLogSource,
   LogSource,
 } from "@/config/sources.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
@@ -39,7 +39,7 @@ declare module "vitest" {
   export interface TestContext {
     common: Common;
     databaseConfig: DatabaseConfig;
-    sources: [LogSource, FactorySource, CallTraceSource, BlockSource];
+    sources: [LogSource, FactoryLogSource, CallTraceSource, BlockSource];
     networks: Network[];
     requestQueues: RequestQueue[];
     config: Config;
@@ -266,7 +266,7 @@ export async function setupAnvil(context: TestContext) {
   context.requestQueues = requestQueues;
   context.sources = sources as [
     LogSource,
-    FactorySource,
+    FactoryLogSource,
     CallTraceSource,
     BlockSource,
   ];

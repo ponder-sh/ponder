@@ -3,13 +3,13 @@ import {
   type CallTraceFilterCriteria,
   type CallTraceSource,
   type EventSource,
-  type FactoryCriteria,
-  type FactorySource,
+  type FactoryLogFilterCriteria,
+  type FactoryLogSource,
   type LogFilterCriteria,
   type LogSource,
   sourceIsBlock,
   sourceIsCallTrace,
-  sourceIsFactory,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
@@ -306,7 +306,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     fromBlock: bigint;
     toBlock: bigint;
-    factory: FactoryCriteria;
+    factory: FactoryLogFilterCriteria;
     pageSize?: number;
   }) {
     const { address, eventSelector, childAddressLocation } = factory;
@@ -356,7 +356,7 @@ export class SqliteSyncStore implements SyncStore {
     interval,
   }: {
     chainId: number;
-    factory: FactoryCriteria;
+    factory: FactoryLogFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
@@ -436,7 +436,7 @@ export class SqliteSyncStore implements SyncStore {
     factory,
   }: {
     chainId: number;
-    factory: FactoryCriteria;
+    factory: FactoryLogFilterCriteria;
   }) => {
     return this.db.wrap(
       { method: "getFactoryLogFilterIntervals" },
@@ -1066,7 +1066,7 @@ export class SqliteSyncStore implements SyncStore {
   }: {
     chainId: number;
     logFilters: LogFilterCriteria[];
-    factories: FactoryCriteria[];
+    factories: FactoryLogFilterCriteria[];
     blockFilters: BlockFilterCriteria[];
     traceFilters: CallTraceFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
@@ -1192,7 +1192,7 @@ export class SqliteSyncStore implements SyncStore {
   }: {
     tx: KyselyTransaction<SyncStoreTables>;
     chainId: number;
-    factories: FactoryCriteria[];
+    factories: FactoryLogFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     const factoryFragments = factories.flatMap((factory) =>
@@ -1374,8 +1374,8 @@ export class SqliteSyncStore implements SyncStore {
 
     // We can assume that source won't be empty.
     const logOrFactorySources = sources.filter(
-      (s): s is LogSource | FactorySource =>
-        sourceIsLog(s) || sourceIsFactory(s),
+      (s): s is LogSource | FactoryLogSource =>
+        sourceIsLog(s) || sourceIsFactoryLog(s),
     );
     const blockSources = sources.filter(sourceIsBlock);
     const callTraceSources = sources.filter(sourceIsCallTrace);
@@ -1451,7 +1451,7 @@ export class SqliteSyncStore implements SyncStore {
                     });
 
                   const factoryCmprs = sources
-                    .filter(sourceIsFactory)
+                    .filter(sourceIsFactoryLog)
                     .map((factory) => {
                       const exprs = this.buildFactoryCmprs({ eb, factory });
                       exprs.push(eb("source_id", "=", factory.id));
@@ -1678,16 +1678,16 @@ export class SqliteSyncStore implements SyncStore {
             const source = sourcesById[row.source_id];
 
             const shouldIncludeLog =
-              sourceIsLog(source) || sourceIsFactory(source);
+              sourceIsLog(source) || sourceIsFactoryLog(source);
             const shouldIncludeTransaction =
               sourceIsLog(source) ||
-              sourceIsFactory(source) ||
+              sourceIsFactoryLog(source) ||
               sourceIsCallTrace(source);
             const shouldIncludeTrace = sourceIsCallTrace(source);
             const shouldIncludeTransactionReceipt =
               (sourceIsLog(source) &&
                 source.criteria.includeTransactionReceipts) ||
-              (sourceIsFactory(source) &&
+              (sourceIsFactoryLog(source) &&
                 source.criteria.includeTransactionReceipts);
             return {
               chainId: source.chainId,
@@ -1904,7 +1904,7 @@ export class SqliteSyncStore implements SyncStore {
             });
 
           const factoryCmprs = sources
-            .filter(sourceIsFactory)
+            .filter(sourceIsFactoryLog)
             .map((factory) => {
               const exprs = this.buildFactoryCmprs({ eb, factory });
               return eb.and(exprs);
@@ -2019,7 +2019,7 @@ export class SqliteSyncStore implements SyncStore {
     factory,
   }: {
     eb: ExpressionBuilder<any, any>;
-    factory: FactorySource;
+    factory: FactoryLogSource;
   }) => {
     const exprs = [];
 
@@ -2156,7 +2156,7 @@ export class SqliteSyncStore implements SyncStore {
 function buildFactoryChildAddressSelectExpression({
   childAddressLocation,
 }: {
-  childAddressLocation: FactoryCriteria["childAddressLocation"];
+  childAddressLocation: FactoryLogFilterCriteria["childAddressLocation"];
 }) {
   if (childAddressLocation.startsWith("offset")) {
     const childAddressOffset = Number(childAddressLocation.substring(6));

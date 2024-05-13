@@ -4,9 +4,9 @@ import { getBaseError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import {
   type EventSource,
-  type FactorySource,
+  type FactoryLogSource,
   type LogSource,
-  sourceIsFactory,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
@@ -226,10 +226,10 @@ export const processSetupEvents = async (
     for (const network of networks) {
       const source = sources.find(
         (s) =>
-          (sourceIsLog(s) || sourceIsFactory(s)) &&
+          (sourceIsLog(s) || sourceIsFactoryLog(s)) &&
           s.contractName === contractName &&
           s.chainId === network.chainId,
-      )! as LogSource | FactorySource;
+      )! as LogSource | FactoryLogSource;
 
       if (indexingService.isKilled) return { status: "killed" };
       indexingService.eventCount[eventName][source.networkName]++;

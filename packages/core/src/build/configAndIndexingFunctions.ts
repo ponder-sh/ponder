@@ -18,7 +18,7 @@ import {
 import {
   type BlockSource,
   type CallTraceSource,
-  type FactorySource,
+  type FactoryLogSource,
   type LogSource,
   sourceIsCallTrace,
 } from "@/config/sources.js";
@@ -315,7 +315,7 @@ export async function buildConfigAndIndexingFunctions({
     logs.push({ level: "warn", msg: "No indexing functions were registered." });
   }
 
-  const contractSources: (LogSource | FactorySource | CallTraceSource)[] =
+  const contractSources: (LogSource | FactoryLogSource | CallTraceSource)[] =
     Object.entries(config.contracts ?? {})
       // First, apply any network-specific overrides and flatten the result.
       .flatMap(([contractName, contract]) => {
@@ -406,7 +406,7 @@ export async function buildConfigAndIndexingFunctions({
       })
       // Second, build and validate the factory or log source.
       .flatMap(
-        (rawContract): (LogSource | FactorySource | CallTraceSource)[] => {
+        (rawContract): (LogSource | FactoryLogSource | CallTraceSource)[] => {
           const network = networks.find(
             (n) => n.name === rawContract.networkName,
           );
@@ -584,13 +584,13 @@ export async function buildConfigAndIndexingFunctions({
               {
                 ...baseContract,
                 id: `log_${rawContract.contractName}_${rawContract.networkName}`,
-                type: "factory",
+                type: "factoryLog",
                 abiEvents: abiEvents,
                 criteria: {
                   ...factoryCriteria,
                   topics,
                 },
-              } satisfies FactorySource,
+              } satisfies FactoryLogSource,
             ];
           }
 

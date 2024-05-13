@@ -4,11 +4,11 @@ import {
   type BlockSource,
   type CallTraceSource,
   type EventSource,
-  type FactorySource,
+  type FactoryLogSource,
   type LogSource,
   sourceIsBlock,
   sourceIsCallTrace,
-  sourceIsFactory,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -61,7 +61,7 @@ export type Service = {
   hasFactorySource: boolean;
   hasTransactionReceiptSource: boolean;
   logFilterSources: LogSource[];
-  factorySources: FactorySource[];
+  factorySources: FactoryLogSource[];
   blockSources: BlockSource[];
   callTraceSources: CallTraceSource[];
 };
@@ -108,7 +108,7 @@ export const create = ({
   onFatalError: (error: Error) => void;
 }): Service => {
   const logFilterSources = sources.filter(sourceIsLog);
-  const factorySources = sources.filter(sourceIsFactory);
+  const factorySources = sources.filter(sourceIsFactoryLog);
   const blockSources = sources.filter(sourceIsBlock);
   const callTraceSources = sources.filter(sourceIsCallTrace);
 
@@ -125,7 +125,7 @@ export const create = ({
     consecutiveErrors: 0,
     onEvent,
     onFatalError,
-    hasFactorySource: sources.some(sourceIsFactory),
+    hasFactorySource: sources.some(sourceIsFactoryLog),
     hasTransactionReceiptSource:
       logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
       factorySources.some((s) => s.criteria.includeTransactionReceipts),

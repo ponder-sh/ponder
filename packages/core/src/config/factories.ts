@@ -2,7 +2,7 @@ import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
 import type { AbiEvent } from "abitype";
 import { getEventSelector } from "viem";
-import type { FactoryCriteria } from "./sources.js";
+import type { FactoryLogFilterCriteria } from "./sources.js";
 
 export function buildFactoryCriteria({
   address: _address,
@@ -30,7 +30,7 @@ export function buildFactoryCriteria({
       // Add 1 because inputs will not contain an element for topic0 (the signature).
       childAddressLocation: `topic${(indexedInputPosition + 1) as 1 | 2 | 3}`,
       includeTransactionReceipts,
-    } satisfies Omit<FactoryCriteria, "topics">;
+    } satisfies Omit<FactoryLogFilterCriteria, "topics">;
   }
 
   const nonIndexedInputs = event.inputs.filter(
@@ -58,5 +58,5 @@ export function buildFactoryCriteria({
     eventSelector,
     childAddressLocation: `offset${offset}`,
     includeTransactionReceipts,
-  } satisfies Omit<FactoryCriteria, "topics">;
+  } satisfies Omit<FactoryLogFilterCriteria, "topics">;
 }

@@ -1,6 +1,6 @@
 import type {
   CallTraceFilterCriteria,
-  FactoryCriteria,
+  FactoryLogFilterCriteria,
   LogFilterCriteria,
 } from "@/config/sources.js";
 import type { Address, Hex } from "viem";
@@ -44,7 +44,7 @@ export function buildFactoryFragments({
   childAddressLocation,
   eventSelector,
   chainId,
-}: FactoryCriteria & {
+}: FactoryLogFilterCriteria & {
   chainId: number;
 }) {
   const fragments = buildLogFragments({
@@ -62,7 +62,7 @@ export function buildFactoryFragments({
 
   return fragments as ((typeof fragments)[number] &
     Pick<
-      FactoryCriteria,
+      FactoryLogFilterCriteria,
       "eventSelector" | "childAddressLocation" | "address"
     >)[];
 }
@@ -74,7 +74,7 @@ function buildLogFragments({
   idCallback,
   includeTransactionReceipts,
   ...rest
-}: (LogFilterCriteria | FactoryCriteria) & {
+}: (LogFilterCriteria | FactoryLogFilterCriteria) & {
   idCallback: (
     address: Address | null,
     topic0: ReturnType<typeof parseTopics>["topic0"],

@@ -4,9 +4,9 @@ import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
 import {
   type EventSource,
-  type FactorySource,
+  type FactoryLogSource,
   type LogSource,
-  sourceIsFactory,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { RawEvent } from "@/sync-store/store.js";
@@ -189,8 +189,8 @@ export const getRawRPCData = async (sources: EventSource[]) => {
     await Promise.all(
       sources
         .filter(
-          (source): source is LogSource | FactorySource =>
-            sourceIsLog(source) || sourceIsFactory(source),
+          (source): source is LogSource | FactoryLogSource =>
+            sourceIsLog(source) || sourceIsFactoryLog(source),
         )
         .map((source) =>
           publicClient.request({

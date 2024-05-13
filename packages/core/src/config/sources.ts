@@ -1,16 +1,19 @@
 import type { Abi, Address, Hex, LogTopic } from "viem";
 import type { AbiEvents, AbiFunctions } from "./abi.js";
 
+type ChildAddressCriteria = {
+  address: Address;
+  eventSelector: Hex;
+  childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
+};
+
 export type LogFilterCriteria = {
   address?: Address | Address[];
   topics: LogTopic[];
   includeTransactionReceipts: boolean;
 };
 
-export type FactoryCriteria = {
-  address: Address;
-  eventSelector: Hex;
-  childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
+export type FactoryLogFilterCriteria = ChildAddressCriteria & {
   topics: LogTopic[];
   includeTransactionReceipts: boolean;
 };
@@ -27,9 +30,17 @@ export type CallTraceFilterCriteria = {
   functionSelectors: Hex[];
 };
 
-type BaseLogSource = {
+export type FactoryCallTraceFilterCriteria = ChildAddressCriteria & {
+  fromAddress?: Address[];
+  includeTransactionReceipts: boolean;
+  functionSelectors: Hex[];
+};
+
+export type LogSource = {
+  type: "log";
   /** `log_${contractName}_${networkName}` */
   id: string;
+  criteria: LogFilterCriteria;
   contractName: string;
   networkName: string;
   chainId: number;
@@ -40,14 +51,19 @@ type BaseLogSource = {
   maxBlockRange?: number;
 };
 
-export type LogSource = BaseLogSource & {
-  type: "log";
-  criteria: LogFilterCriteria;
-};
-
-export type FactorySource = BaseLogSource & {
-  type: "factory";
-  criteria: FactoryCriteria;
+export type FactoryLogSource = {
+  type: "factoryLog";
+  /** `log_${contractName}_${networkName}` */
+  id: string;
+  criteria: FactoryLogFilterCriteria;
+  contractName: string;
+  networkName: string;
+  chainId: number;
+  abi: Abi;
+  abiEvents: AbiEvents;
+  startBlock: number;
+  endBlock?: number;
+  maxBlockRange?: number;
 };
 
 export type BlockSource = {
@@ -79,7 +95,7 @@ export type CallTraceSource = {
 
 export type EventSource =
   | LogSource
-  | FactorySource
+  | FactoryLogSource
   | BlockSource
   | CallTraceSource;
 
@@ -87,9 +103,9 @@ export const sourceIsLog = (
   source: Pick<EventSource, "type">,
 ): source is LogSource => source.type === "log";
 
-export const sourceIsFactory = (
+export const sourceIsFactoryLog = (
   source: Pick<EventSource, "type">,
-): source is FactorySource => source.type === "factory";
+): source is FactoryLogSource => source.type === "factoryLog";
 
 export const sourceIsBlock = (
   source: Pick<EventSource, "type">,

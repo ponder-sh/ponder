@@ -9,9 +9,9 @@ import {
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
 import {
   type BlockFilterCriteria,
-  type FactoryCriteria,
+  type FactoryLogFilterCriteria,
   type LogFilterCriteria,
-  sourceIsFactory,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import {
@@ -574,7 +574,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
@@ -646,7 +646,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
     childAddressLocation: "offset32",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
@@ -701,7 +701,7 @@ test("getFactoryChildAddresses respects toBlock argument", async (context) => {
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
@@ -768,7 +768,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
@@ -883,7 +883,7 @@ test("getFactoryChildAddresses does not yield empty list", async (context) => {
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
@@ -913,7 +913,7 @@ test("insertFactoryLogFilterInterval inserts block, transactions, receipts and l
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
@@ -954,7 +954,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
@@ -1008,7 +1008,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
@@ -1034,7 +1034,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
         null,
         null,
       ],
-    } as FactoryCriteria,
+    } as FactoryLogFilterCriteria,
   });
 
   expect(intervals).toMatchObject([[0, 500]]);
@@ -1046,7 +1046,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
-  const factoryCriteria: FactoryCriteria = {
+  const factoryCriteria: FactoryLogFilterCriteria = {
     address: "0xfactory",
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -1074,7 +1074,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
     factory: {
       ...factoryCriteria,
       includeTransactionReceipts: true,
-    } as FactoryCriteria,
+    } as FactoryLogFilterCriteria,
   });
 
   expect(intervals).toMatchObject([]);
@@ -1101,7 +1101,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
     factory: {
       ...factoryCriteria,
       includeTransactionReceipts: false,
-    } as FactoryCriteria,
+    } as FactoryLogFilterCriteria,
   });
 
   expect(intervals).toMatchObject([[0, 500]]);
@@ -1630,7 +1630,7 @@ test("insertRealtimeInterval inserts intervals", async (context) => {
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   const factoryCriteriaTwo = {
     address: "0xparent",
@@ -1638,7 +1638,7 @@ test("insertRealtimeInterval inserts intervals", async (context) => {
     childAddressLocation: "offset64",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   const blockFilterCriteria = {
     interval: 10,
@@ -1883,7 +1883,7 @@ test("getLogEvents with log filters", async (context) => {
   });
 
   const ag = syncStore.getLogEvents({
-    sources: sources.filter((s) => sourceIsFactory(s) || sourceIsLog(s)),
+    sources: sources.filter((s) => sourceIsFactoryLog(s) || sourceIsLog(s)),
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -1931,7 +1931,7 @@ test("getLogEvents with logs filters and receipts", async (context) => {
   const ag = syncStore.getLogEvents({
     // @ts-ignore
     sources: sources
-      .filter((s) => sourceIsLog(s) || sourceIsFactory(s))
+      .filter((s) => sourceIsLog(s) || sourceIsFactoryLog(s))
       .map((s) => ({
         ...s,
         criteria: { ...s.criteria, includeTransactionReceipts: true },

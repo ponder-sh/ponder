@@ -138,7 +138,7 @@ export const decodeEvents = (
       }
 
       case "log":
-      case "factory": {
+      case "factoryLog": {
         try {
           const abi = source.abi;
 
