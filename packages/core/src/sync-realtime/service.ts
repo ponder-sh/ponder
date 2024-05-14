@@ -60,7 +60,6 @@ export type Service = {
   onFatalError: (error: Error) => void;
 
   // derived static
-  hasFactorySource: boolean;
   hasTransactionReceiptSource: boolean;
   logFilterSources: LogSource[];
   factoryLogSources: FactoryLogSource[];
@@ -129,7 +128,6 @@ export const create = ({
     consecutiveErrors: 0,
     onEvent,
     onFatalError,
-    hasFactorySource: sources.some(sourceIsFactoryLog),
     hasTransactionReceiptSource:
       logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
       factoryLogSources.some((s) => s.criteria.includeTransactionReceipts),
@@ -334,7 +332,7 @@ export const handleBlock = async (
 
   // "eth_getLogs" calls can be skipped if a negative match is given from "logsBloom".
   const positiveBloomFilter =
-    service.hasFactorySource ||
+    service.logFilterSources.length > 0 ||
     newHeadBlock.logsBloom === zeroLogsBloom ||
     isMatchedLogInBloomFilter({
       bloom: newHeadBlock.logsBloom,
@@ -350,7 +348,6 @@ export const handleBlock = async (
       : [];
   const newLogs = await getMatchedLogs(service, {
     logs: blockLogs,
-    insertChildAddressLogs: true,
     upToBlockNumber: BigInt(newHeadBlockNumber),
   });
 
@@ -662,35 +659,31 @@ const getMatchedLogs = async (
   service: Service,
   {
     logs,
-    insertChildAddressLogs,
     upToBlockNumber,
   }: {
     logs: SyncLog[];
-    insertChildAddressLogs: boolean;
     upToBlockNumber: bigint;
   },
 ) => {
-  if (service.hasFactorySource === false) {
+  if (service.factoryLogSources.length === 0) {
     return filterLogs({
       logs,
       logFilters: service.logFilterSources.map((s) => s.criteria),
     });
   } else {
-    if (insertChildAddressLogs) {
-      // Find and insert any new child contracts.
-      const matchedFactoryLogs = filterLogs({
-        logs,
-        logFilters: service.factoryLogSources.map((fs) => ({
-          address: fs.criteria.address,
-          topics: [fs.criteria.eventSelector],
-        })),
-      });
+    // Find and insert any new child contracts.
+    const matchedFactoryLogs = filterLogs({
+      logs,
+      logFilters: service.factoryLogSources.map((fs) => ({
+        address: fs.criteria.address,
+        topics: [fs.criteria.eventSelector],
+      })),
+    });
 
-      await service.syncStore.insertFactoryChildAddressLogs({
-        chainId: service.network.chainId,
-        logs: matchedFactoryLogs,
-      });
-    }
+    await service.syncStore.insertFactoryChildAddressLogs({
+      chainId: service.network.chainId,
+      logs: matchedFactoryLogs,
+    });
 
     // Find any logs matching log filters or child contract filters.
     // NOTE: It might make sense to just insert all logs rather than introduce
