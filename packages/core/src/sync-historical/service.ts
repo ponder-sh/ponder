@@ -702,8 +702,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       clearInterval(this.progressLogInterval);
       this.common.logger.info({
         service: "historical",
-        msg: `Finished syncing '${this.network.name}'`,
-        network: this.network.name,
+        msg: `Finished '${this.network.name}' historical sync`,
       });
       this.emit("syncComplete");
     }
@@ -716,6 +715,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     clearInterval(this.progressLogInterval);
     this.queue.pause();
     this.queue.clear();
+    this.common.logger.debug({
+      service: "historical",
+      msg: `Killed '${this.network.name}' historical sync`,
+    });
   };
 
   onIdle = () =>
@@ -768,7 +771,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       const duration = Date.now() - startTimestamp;
       this.common.logger.info({
         service: "historical",
-        msg: `Finished syncing '${this.network.name}' in ${formatEta(
+        msg: `Finished '${this.network.name}' historical sync in ${formatEta(
           duration,
         )}`,
       });
@@ -846,7 +849,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
         this.common.logger.warn({
           service: "historical",
-          msg: `Retrying '${this.network.name}' sync`,
+          msg: `Retrying failed '${this.network.name}' sync task`,
         });
       },
     });
@@ -1239,7 +1242,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }: TraceFilterTask) => {
     this.common.logger.trace({
       service: "historical",
-      msg: `Completed '${this.network.name}' TRACE_FILTER task for '${traceFilter.contractName}' from block ${fromBlock} to ${toBlock}`,
+      msg: `Starting '${this.network.name}' TRACE_FILTER task for '${traceFilter.contractName}' from block ${fromBlock} to ${toBlock}`,
     });
 
     const traces = await _trace_filter(

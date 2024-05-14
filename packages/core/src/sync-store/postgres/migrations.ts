@@ -674,19 +674,19 @@ const migrations: Record<string, Migration> = {
         .alterColumn("checkpoint", (col) => col.setNotNull())
         .execute();
 
-      // The blocks.number index supports getLogEvents and deleteRealtimeData
+      // The blocks.number index supports getEvents and deleteRealtimeData
       await db.schema
         .createIndex("blockNumberIndex")
         .on("blocks")
         .column("number")
         .execute();
-      // The blocks.chainId index supports getLogEvents and deleteRealtimeData
+      // The blocks.chainId index supports getEvents and deleteRealtimeData
       await db.schema
         .createIndex("blockChainIdIndex")
         .on("blocks")
         .column("chainId")
         .execute();
-      // The blocks.checkpoint index supports getLogEvents
+      // The blocks.checkpoint index supports getEvents
       await db.schema
         .createIndex("blockCheckpointIndex")
         .on("blocks")
@@ -741,63 +741,63 @@ const migrations: Record<string, Migration> = {
         .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
         .execute();
 
-      // The callTraces.blockNumber index supports getLogEvents and deleteRealtimeData
+      // The callTraces.blockNumber index supports getEvents and deleteRealtimeData
       await db.schema
         .createIndex("callTracesBlockNumberIndex")
         .on("callTraces")
         .column("blockNumber")
         .execute();
 
-      // The callTraces.functionSelector index supports getLogEvents
+      // The callTraces.functionSelector index supports getEvents
       await db.schema
         .createIndex("callTracesFunctionSelectorIndex")
         .on("callTraces")
         .column("functionSelector")
         .execute();
 
-      // The callTraces.error index supports getLogEvents
+      // The callTraces.error index supports getEvents
       await db.schema
         .createIndex("callTracesErrorIndex")
         .on("callTraces")
         .column("error")
         .execute();
 
-      // The callTraces.blockHash index supports getLogEvents
+      // The callTraces.blockHash index supports getEvents
       await db.schema
         .createIndex("callTracesBlockHashIndex")
         .on("callTraces")
         .column("blockHash")
         .execute();
 
-      // The callTraces.transactionHash index supports getLogEvents
+      // The callTraces.transactionHash index supports getEvents
       await db.schema
         .createIndex("callTracesTransactionHashIndex")
         .on("callTraces")
         .column("transactionHash")
         .execute();
 
-      // The callTraces.checkpoint index supports getLogEvents
+      // The callTraces.checkpoint index supports getEvents
       await db.schema
         .createIndex("callTracesCheckpointIndex")
         .on("callTraces")
         .column("checkpoint")
         .execute();
 
-      // The callTraces.chainId index supports getLogEvents
+      // The callTraces.chainId index supports getEvents
       await db.schema
         .createIndex("callTracesChainIdIndex")
         .on("callTraces")
         .column("chainId")
         .execute();
 
-      // The callTraces.from index supports getLogEvents
+      // The callTraces.from index supports getEvents
       await db.schema
         .createIndex("callTracesFromIndex")
         .on("callTraces")
         .column("from")
         .execute();
 
-      // The callTraces.to index supports getLogEvents
+      // The callTraces.to index supports getEvents
       await db.schema
         .createIndex("callTracesToIndex")
         .on("callTraces")

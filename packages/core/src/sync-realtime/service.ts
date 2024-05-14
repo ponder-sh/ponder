@@ -132,7 +132,7 @@ export const create = ({
     logFilterSources,
     factorySources,
     blockSources,
-    callTraceSources: callTraceSources,
+    callTraceSources,
   };
 };
 
@@ -391,10 +391,7 @@ export const handleBlock = async (
 
   // Protect against RPCs returning empty traces. Known to happen near chain tip.
   // Use the fact that any stateRoot change produces a trace.
-  if (
-    newHeadBlock.stateRoot !== getLatestLocalBlock(service).stateRoot &&
-    blockTraces.length === 0
-  ) {
+  if (newHeadBlock.transactions.length !== 0 && blockTraces.length === 0) {
     throw new Error(
       `Detected invalid '${service.network.name}' trace_block response.`,
     );
@@ -456,27 +453,19 @@ export const handleBlock = async (
     });
   }
 
-  if (hasLogEvent) {
+  if (hasLogEvent || hasCallTraceEvent) {
     const logCountText =
       newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
-    service.common.logger.info({
-      service: "realtime",
-      msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
-    });
-  }
-
-  if (hasCallTraceEvent) {
     const traceCountText =
-      newPersistentCallTraces.length === 1
-        ? "1 trace"
-        : `${newPersistentCallTraces.length} traces`;
+      newCallTraces.length === 1
+        ? "1 call trace"
+        : `${newCallTraces.length} call traces`;
+    const text = [logCountText, traceCountText].join(" and ");
     service.common.logger.info({
       service: "realtime",
-      msg: `Synced ${traceCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
+      msg: `Synced ${text} from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
-  }
-
-  if (hasLogEvent === false && hasCallTraceEvent === false && hasBlockEvent) {
+  } else if (hasBlockEvent) {
     service.common.logger.info({
       service: "realtime",
       msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,

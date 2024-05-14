@@ -232,7 +232,7 @@ export interface SyncStore {
 
   /** EVENTS METHOD */
 
-  getLogEvents(arg: {
+  getEvents(arg: {
     sources: EventSource[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;

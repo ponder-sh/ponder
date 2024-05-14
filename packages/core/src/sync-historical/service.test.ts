@@ -59,7 +59,8 @@ const getRequestQueue = async ({
         }
 
         return Promise.resolve(traces);
-      } else return requestQueue.request(request);
+      }
+      return requestQueue.request(request);
     },
   } as RequestQueue;
 };
@@ -420,7 +421,7 @@ test("start() adds log filter events to sync store", async (context) => {
   service.start();
   await service.onIdle();
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[0]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -464,7 +465,7 @@ test("start() adds factory events to sync store", async (context) => {
   service.start();
   await service.onIdle();
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[1]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -495,7 +496,7 @@ test("start() adds block filter events to sync store", async (context) => {
   service.start();
   await service.onIdle();
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[3]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -537,7 +538,7 @@ test("start() adds trace filter events to sync store", async (context) => {
   service.start();
   await service.onIdle();
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[2]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,

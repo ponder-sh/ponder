@@ -350,7 +350,7 @@ export async function buildConfigAndIndexingFunctions({
 
             includeTransactionReceipts:
               contract.includeTransactionReceipts ?? false,
-            includeFunctionCalls: contract.includeFunctionCalls ?? false,
+            includeCallTraces: contract.includeCallTraces ?? false,
 
             startBlock,
             endBlock,
@@ -393,9 +393,9 @@ export async function buildConfigAndIndexingFunctions({
                 overrides.includeTransactionReceipts ??
                 contract.includeTransactionReceipts ??
                 false,
-              includeFunctionCalls:
-                overrides.includeFunctionCalls ??
-                contract.includeFunctionCalls ??
+              includeCallTraces:
+                overrides.includeCallTraces ??
+                contract.includeCallTraces ??
                 false,
 
               startBlock,
@@ -548,12 +548,10 @@ export async function buildConfigAndIndexingFunctions({
           }
 
           const baseContract = {
-            // id: `log_${rawContract.contractName}_${rawContract.networkName}`,
             contractName: rawContract.contractName,
             networkName: rawContract.networkName,
             chainId: network.chainId,
             abi: rawContract.abi,
-            // abiEvents: abiEvents,
             startBlock: rawContract.startBlock,
             endBlock: rawContract.endBlock,
             maxBlockRange: rawContract.maxBlockRange,
@@ -569,7 +567,7 @@ export async function buildConfigAndIndexingFunctions({
           }
 
           if (resolvedFactory) {
-            if (rawContract.includeFunctionCalls) {
+            if (rawContract.includeCallTraces) {
               throw Error("TODO(kyle) not supported");
             }
 
@@ -631,7 +629,7 @@ export async function buildConfigAndIndexingFunctions({
             },
           } satisfies LogSource;
 
-          if (rawContract.includeFunctionCalls) {
+          if (rawContract.includeCallTraces) {
             return [
               logSource,
               {

@@ -326,7 +326,7 @@ test("processEvents() block events", async (context) => {
   await cleanup();
 });
 
-test("processEvents() function events", async (context) => {
+test("processEvents() call trace events", async (context) => {
   const { common, sources, networks } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,

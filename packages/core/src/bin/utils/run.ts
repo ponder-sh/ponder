@@ -160,7 +160,7 @@ export async function run({
             fromCheckpoint: event.fromCheckpoint,
             toCheckpoint: event.toCheckpoint,
           });
-          for await (const rawEvents of syncStore.getLogEvents({
+          for await (const rawEvents of syncStore.getEvents({
             sources,
             fromCheckpoint: event.fromCheckpoint,
             toCheckpoint: event.toCheckpoint,
@@ -242,7 +242,7 @@ export async function run({
         toCheckpoint,
       });
 
-      for await (const rawEvents of syncStore.getLogEvents({
+      for await (const rawEvents of syncStore.getEvents({
         sources: sources,
         fromCheckpoint,
         toCheckpoint,
