@@ -69,7 +69,7 @@ test("insertLogFilterInterval inserts block, transactions, receipts, and logs", 
       topics: [],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: {
       startBlock: blockNumber - 3n,
       endBlock: blockNumber,
@@ -109,7 +109,7 @@ test("insertLogFilterInterval updates sync db metrics", async (context) => {
       topics: [],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: {
       startBlock: blockNumber - 3n,
       endBlock: blockNumber,
@@ -140,7 +140,7 @@ test("insertLogFilterInterval inserts log filter intervals", async (context) => 
       topics: [["0xc", "0xd"], null, "0xe", null],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
@@ -169,7 +169,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
       topics: [],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: {
       startBlock: 2n,
       endBlock: 2n,
@@ -183,7 +183,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
       topics: [],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block3,
+    ...rpcData.block4,
     interval: {
       startBlock: 4n,
       endBlock: 4n,
@@ -211,7 +211,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
       topics: [],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block2,
+    ...rpcData.block3,
     interval: {
       startBlock: 3n,
       endBlock: 3n,
@@ -244,7 +244,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
         topics: [],
         includeTransactionReceipts: false,
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       interval: {
         startBlock: 2n,
         endBlock: 2n,
@@ -257,7 +257,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
         topics: [],
         includeTransactionReceipts: false,
       },
-      ...rpcData.block2,
+      ...rpcData.block3,
       interval: {
         startBlock: 3n,
         endBlock: 3n,
@@ -270,7 +270,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
         topics: [],
         includeTransactionReceipts: false,
       },
-      ...rpcData.block3,
+      ...rpcData.block4,
       interval: {
         startBlock: 4n,
         endBlock: 4n,
@@ -298,7 +298,7 @@ test("insertLogFilterInterval updates log checkpoints on conflict", async (conte
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
-    logs: rpcData.block2.logs,
+    logs: rpcData.block3.logs,
   });
 
   let logs = await syncStore.db.selectFrom("logs").selectAll().execute();
@@ -312,7 +312,7 @@ test("insertLogFilterInterval updates log checkpoints on conflict", async (conte
       topics: [],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block2,
+    ...rpcData.block3,
     interval: {
       startBlock: 3n,
       endBlock: 3n,
@@ -338,7 +338,7 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
       topics: [["0xc", "0xd"], null, "0xe", null],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
@@ -388,7 +388,7 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { topics: [], includeTransactionReceipts: false },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
@@ -398,7 +398,7 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
       topics: [null, ["0xc", "0xd"], null, null],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 150n, endBlock: 250n },
   });
 
@@ -435,7 +435,7 @@ test("getLogFilterIntervals merges overlapping intervals that both match a filte
       topics: [["0xc", "0xd"], null, null, null],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 50n },
   });
 
@@ -457,7 +457,7 @@ test("getLogFilterIntervals merges overlapping intervals that both match a filte
       topics: [["0xc"], null, null, null],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
@@ -486,7 +486,7 @@ test("getLogFilterIntervals handles includeTransactionReceipts", async (context)
       topics: ["0x0"],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
@@ -518,7 +518,7 @@ test("getLogFilterIntervals handles includeTransactionReceipts", async (context)
       topics: ["0x1"],
       includeTransactionReceipts: true,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
@@ -554,7 +554,7 @@ test("insertFactoryChildAddressLogs inserts logs", async (context) => {
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
-    logs: rpcData.block2.logs,
+    logs: rpcData.block3.logs,
   });
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
@@ -580,7 +580,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
     chainId: 1,
     logs: [
       {
-        ...rpcData.block1.logs[0],
+        ...rpcData.block2.logs[0],
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -590,7 +590,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
         blockNumber: toHex(100),
       },
       {
-        ...rpcData.block1.logs[1],
+        ...rpcData.block2.logs[1],
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -652,7 +652,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
     chainId: 1,
     logs: [
       {
-        ...rpcData.block1.logs[0],
+        ...rpcData.block2.logs[0],
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -661,7 +661,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
         blockNumber: toHex(100),
       },
       {
-        ...rpcData.block1.logs[1],
+        ...rpcData.block2.logs[1],
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -707,7 +707,7 @@ test("getFactoryChildAddresses respects toBlock argument", async (context) => {
     chainId: 1,
     logs: [
       {
-        ...rpcData.block1.logs[0],
+        ...rpcData.block2.logs[0],
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -716,7 +716,7 @@ test("getFactoryChildAddresses respects toBlock argument", async (context) => {
         blockNumber: toHex(100),
       },
       {
-        ...rpcData.block1.logs[1],
+        ...rpcData.block2.logs[1],
         address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -775,7 +775,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
     logs: [
       // Include one log that doesn't match the factory criteria.
       {
-        ...rpcData.block1.logs[0],
+        ...rpcData.block2.logs[0],
         blockNumber: toHex(150),
         blockHash:
           "0x000000000000000000000000child80000000000000000000000000000000000",
@@ -787,7 +787,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
         ],
       },
       {
-        ...rpcData.block1.logs[1],
+        ...rpcData.block2.logs[1],
         blockNumber: toHex(200),
         blockHash:
           "0x000000000000000000000000child20000000000000000000000000000000000",
@@ -800,7 +800,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
       },
       // Include two logs in the same block.
       {
-        ...rpcData.block1.logs[1],
+        ...rpcData.block2.logs[1],
         blockNumber: toHex(201),
         blockHash:
           "0x000000000000000000000000child30000000000000000000000000000000000",
@@ -812,7 +812,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
         ],
       },
       {
-        ...rpcData.block1.logs[1],
+        ...rpcData.block2.logs[1],
         blockNumber: toHex(201),
         blockHash:
           "0x000000000000000000000000child30000000000000000000000000000000000",
@@ -824,7 +824,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
         ],
       },
       {
-        ...rpcData.block1.logs[0],
+        ...rpcData.block2.logs[0],
         blockNumber: toHex(100),
         blockHash:
           "0x000000000000000000000000child10000000000000000000000000000000000",
@@ -836,7 +836,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
         ],
       },
       {
-        ...rpcData.block1.logs[1],
+        ...rpcData.block2.logs[1],
         blockNumber: toHex(203),
         blockHash:
           "0x000000000000000000000000child50000000000000000000000000000000000",
@@ -918,7 +918,7 @@ test("insertFactoryLogFilterInterval inserts block, transactions, receipts and l
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
@@ -959,14 +959,14 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    ...rpcData.block3,
+    ...rpcData.block4,
     interval: { startBlock: 750n, endBlock: 1000n },
   });
 
@@ -983,7 +983,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    ...rpcData.block2,
+    ...rpcData.block3,
     interval: { startBlock: 501n, endBlock: 800n },
   });
 
@@ -1013,7 +1013,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
@@ -1058,7 +1058,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
@@ -1085,7 +1085,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
@@ -1120,10 +1120,10 @@ test("insertBlockFilterIntervals inserts block", async (context) => {
       interval: 1,
       offset: 0,
     },
-    block: rpcData.block1.block,
+    block: rpcData.block2.block,
     interval: {
-      startBlock: hexToBigInt(rpcData.block1.block.number),
-      endBlock: hexToBigInt(rpcData.block1.block.number),
+      startBlock: hexToBigInt(rpcData.block2.block.number),
+      endBlock: hexToBigInt(rpcData.block2.block.number),
     },
   });
 
@@ -1145,7 +1145,7 @@ test("insertBlockFilterIntervals inserts block filter intervals", async (context
       interval: 1,
       offset: 0,
     },
-    block: rpcData.block1.block,
+    block: rpcData.block2.block,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
@@ -1173,10 +1173,10 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
       interval: 1,
       offset: 0,
     },
-    block: rpcData.block1.block,
+    block: rpcData.block2.block,
     interval: {
-      startBlock: hexToBigInt(rpcData.block1.block.number),
-      endBlock: hexToBigInt(rpcData.block1.block.number),
+      startBlock: hexToBigInt(rpcData.block2.block.number),
+      endBlock: hexToBigInt(rpcData.block2.block.number),
     },
   });
 
@@ -1186,10 +1186,10 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
       interval: 1,
       offset: 0,
     },
-    block: rpcData.block3.block,
+    block: rpcData.block4.block,
     interval: {
-      startBlock: hexToBigInt(rpcData.block3.block.number),
-      endBlock: hexToBigInt(rpcData.block3.block.number),
+      startBlock: hexToBigInt(rpcData.block4.block.number),
+      endBlock: hexToBigInt(rpcData.block4.block.number),
     },
   });
 
@@ -1212,10 +1212,10 @@ test("insertBlockFilterIntervals merges on insertion", async (context) => {
       interval: 1,
       offset: 0,
     },
-    block: rpcData.block2.block,
+    block: rpcData.block3.block,
     interval: {
-      startBlock: hexToBigInt(rpcData.block2.block.number),
-      endBlock: hexToBigInt(rpcData.block2.block.number),
+      startBlock: hexToBigInt(rpcData.block3.block.number),
+      endBlock: hexToBigInt(rpcData.block3.block.number),
     },
   });
 
@@ -1245,10 +1245,10 @@ test("insertTraceFilterIntervals inserts traces", async (context) => {
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       interval: {
-        startBlock: hexToBigInt(rpcData.block1.block.number),
-        endBlock: hexToBigInt(rpcData.block1.block.number),
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
       },
     });
 
@@ -1275,20 +1275,20 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       traces: [
         {
-          ...rpcData.block1.traces[0],
+          ...rpcData.block2.traces[0],
           traceAddress: [0, 0],
           result: {
-            ...rpcData.block1.traces[0].result,
+            ...rpcData.block2.traces[0].result,
           },
         },
-        rpcData.block1.traces[1]!,
+        rpcData.block2.traces[1]!,
       ],
       interval: {
-        startBlock: hexToBigInt(rpcData.block1.block.number),
-        endBlock: hexToBigInt(rpcData.block1.block.number),
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
       },
     });
 
@@ -1299,19 +1299,19 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       traces: [
         {
-          ...rpcData.block1.traces[0],
+          ...rpcData.block2.traces[0],
           traceAddress: [1],
           result: {
-            ...rpcData.block1.traces[0].result,
+            ...rpcData.block2.traces[0].result,
           },
         },
       ],
       interval: {
-        startBlock: hexToBigInt(rpcData.block1.block.number),
-        endBlock: hexToBigInt(rpcData.block1.block.number),
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
       },
     });
 
@@ -1322,15 +1322,15 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
       .execute();
 
     expect(traces).toHaveLength(3);
-    expect(traces[0].transactionHash).toBe(rpcData.block1.transactions[0].hash);
+    expect(traces[0].transactionHash).toBe(rpcData.block2.transactions[0].hash);
     expect(traces[0].traceAddress).toBe(JSON.stringify([0, 0]));
     expect(decodeCheckpoint(traces[0].checkpoint).eventIndex).toBe(0n);
 
-    expect(traces[1].transactionHash).toBe(rpcData.block1.transactions[0].hash);
+    expect(traces[1].transactionHash).toBe(rpcData.block2.transactions[0].hash);
     expect(traces[1].traceAddress).toBe(JSON.stringify([1]));
     expect(decodeCheckpoint(traces[1].checkpoint).eventIndex).toBe(1n);
 
-    expect(traces[2].transactionHash).toBe(rpcData.block1.transactions[1].hash);
+    expect(traces[2].transactionHash).toBe(rpcData.block2.transactions[1].hash);
     expect(traces[2].traceAddress).toBe(JSON.stringify([0]));
     expect(decodeCheckpoint(traces[2].checkpoint).eventIndex).toBe(0n);
 
@@ -1341,19 +1341,19 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       traces: [
         {
-          ...rpcData.block1.traces[0],
+          ...rpcData.block2.traces[0],
           traceAddress: [0, 2],
           result: {
-            ...rpcData.block1.traces[0].result,
+            ...rpcData.block2.traces[0].result,
           },
         },
       ],
       interval: {
-        startBlock: hexToBigInt(rpcData.block1.block.number),
-        endBlock: hexToBigInt(rpcData.block1.block.number),
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
       },
     });
 
@@ -1364,19 +1364,19 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
       .execute();
     expect(traces).toHaveLength(4);
 
-    expect(traces[0].transactionHash).toBe(rpcData.block1.transactions[0].hash);
+    expect(traces[0].transactionHash).toBe(rpcData.block2.transactions[0].hash);
     expect(traces[0].traceAddress).toBe(JSON.stringify([0, 0]));
     expect(decodeCheckpoint(traces[0].checkpoint).eventIndex).toBe(0n);
 
-    expect(traces[1].transactionHash).toBe(rpcData.block1.transactions[0].hash);
+    expect(traces[1].transactionHash).toBe(rpcData.block2.transactions[0].hash);
     expect(traces[1].traceAddress).toBe(JSON.stringify([0, 2]));
     expect(decodeCheckpoint(traces[1].checkpoint).eventIndex).toBe(1n);
 
-    expect(traces[2].transactionHash).toBe(rpcData.block1.transactions[0].hash);
+    expect(traces[2].transactionHash).toBe(rpcData.block2.transactions[0].hash);
     expect(traces[2].traceAddress).toBe(JSON.stringify([1]));
     expect(decodeCheckpoint(traces[2].checkpoint).eventIndex).toBe(2n);
 
-    expect(traces[3].transactionHash).toBe(rpcData.block1.transactions[1].hash);
+    expect(traces[3].transactionHash).toBe(rpcData.block2.transactions[1].hash);
     expect(traces[3].traceAddress).toBe(JSON.stringify([0]));
     expect(decodeCheckpoint(traces[3].checkpoint).eventIndex).toBe(0n);
 
@@ -1397,7 +1397,7 @@ test("insertTraceFilterIntervals inserts trace filter intervals", async (context
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       interval: { startBlock: 0n, endBlock: 100n },
     });
 
@@ -1429,7 +1429,7 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       interval: {
         startBlock: 1n,
         endBlock: 1n,
@@ -1442,7 +1442,7 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       interval: {
         startBlock: 2n,
         endBlock: 2n,
@@ -1488,7 +1488,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       interval: { startBlock: 0n, endBlock: 100n },
     });
 
@@ -1499,7 +1499,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       interval: { startBlock: 200n, endBlock: 300n },
     });
 
@@ -1524,7 +1524,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block1,
+      ...rpcData.block2,
       interval: { startBlock: 100n, endBlock: 200n },
     });
 
@@ -1550,7 +1550,7 @@ test("insertRealtimeBlock inserts data", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
@@ -1580,17 +1580,17 @@ test("insertRealtimeBlock upserts transactions", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
     traces: [],
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
     transactions: [
-      rpcData.block1.transactions[0],
+      rpcData.block2.transactions[0],
       {
-        ...rpcData.block1.transactions[1],
+        ...rpcData.block2.transactions[1],
         blockNumber: "0x69",
         blockHash: "0x68",
         transactionIndex: "0x67",
@@ -1720,7 +1720,7 @@ test("deleteRealtimeData deletes logs", async (context) => {
       topics: [],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block1,
+    ...rpcData.block2,
     interval: {
       startBlock: 2n,
       endBlock: 2n,
@@ -1734,7 +1734,7 @@ test("deleteRealtimeData deletes logs", async (context) => {
       topics: [],
       includeTransactionReceipts: false,
     },
-    ...rpcData.block2,
+    ...rpcData.block3,
     interval: {
       startBlock: 3n,
       endBlock: 3n,
@@ -1871,15 +1871,15 @@ test("getEvents with log filters", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
-  });
-  await syncStore.insertRealtimeBlock({
-    chainId: 1,
     ...rpcData.block2,
   });
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     ...rpcData.block3,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block4,
   });
 
   const ag = syncStore.getEvents({
@@ -1893,18 +1893,18 @@ test("getEvents with log filters", async (context) => {
   expect(events).toHaveLength(3);
 
   expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block2.transactions[0].hash);
   expect(events[0].transactionReceipt).toBeUndefined();
 
   expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block2.transactions[1].hash);
   expect(events[1].transactionReceipt).toBeUndefined();
 
   expect(events[2].log!.address).toBe(checksumAddress(factory.pair));
-  expect(events[2].block.hash).toBe(rpcData.block3.block.hash);
-  expect(events[2].transaction!.hash).toBe(rpcData.block3.transactions[0].hash);
+  expect(events[2].block.hash).toBe(rpcData.block4.block.hash);
+  expect(events[2].transaction!.hash).toBe(rpcData.block4.transactions[0].hash);
   expect(events[2].transactionReceipt).toBeUndefined();
 
   await cleanup();
@@ -1917,15 +1917,15 @@ test("getEvents with logs filters and receipts", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
-  });
-  await syncStore.insertRealtimeBlock({
-    chainId: 1,
     ...rpcData.block2,
   });
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     ...rpcData.block3,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block4,
   });
 
   const ag = syncStore.getEvents({
@@ -1945,24 +1945,24 @@ test("getEvents with logs filters and receipts", async (context) => {
   expect(events).toHaveLength(3);
 
   expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block2.transactions[0].hash);
   expect(events[0].transactionReceipt?.transactionHash).toBe(
-    rpcData.block1.transactionReceipts[0].transactionHash,
+    rpcData.block2.transactionReceipts[0].transactionHash,
   );
 
   expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block2.transactions[1].hash);
   expect(events[1].transactionReceipt?.transactionHash).toBe(
-    rpcData.block1.transactionReceipts[1].transactionHash,
+    rpcData.block2.transactionReceipts[1].transactionHash,
   );
 
   expect(events[2].log!.address).toBe(checksumAddress(factory.pair));
-  expect(events[2].block.hash).toBe(rpcData.block3.block.hash);
-  expect(events[2].transaction!.hash).toBe(rpcData.block3.transactions[0].hash);
+  expect(events[2].block.hash).toBe(rpcData.block4.block.hash);
+  expect(events[2].transaction!.hash).toBe(rpcData.block4.transactions[0].hash);
   expect(events[2].transactionReceipt?.transactionHash).toBe(
-    rpcData.block3.transactionReceipts[0].transactionHash,
+    rpcData.block4.transactionReceipts[0].transactionHash,
   );
 
   await cleanup();
@@ -1975,15 +1975,15 @@ test("getEvents with block filters", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
-  });
-  await syncStore.insertRealtimeBlock({
-    chainId: 1,
     ...rpcData.block2,
   });
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     ...rpcData.block3,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block4,
   });
 
   const ag = syncStore.getEvents({
@@ -2007,15 +2007,15 @@ test("getEvents with trace filters", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
-  });
-  await syncStore.insertRealtimeBlock({
-    chainId: 1,
     ...rpcData.block2,
   });
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     ...rpcData.block3,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block4,
   });
 
   const ag = syncStore.getEvents({
@@ -2038,12 +2038,12 @@ test("getEvents filters on log filter with multiple addresses", async (context) 
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block2,
+    ...rpcData.block3,
   });
 
   const ag = syncStore.getEvents({
@@ -2084,12 +2084,12 @@ test("getEvents filters on log filter with single topic", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block2,
+    ...rpcData.block3,
   });
 
   const transferSelector = getEventSelector(
@@ -2115,12 +2115,12 @@ test("getEvents filters on log filter with single topic", async (context) => {
   expect(events).toHaveLength(2);
   expect(events[0]).toMatchObject({
     log: {
-      topics: rpcData.block1.logs[0].topics,
+      topics: rpcData.block2.logs[0].topics,
     },
   });
   expect(events[1]).toMatchObject({
     log: {
-      topics: rpcData.block1.logs[1].topics,
+      topics: rpcData.block2.logs[1].topics,
     },
   });
   await cleanup();
@@ -2133,12 +2133,12 @@ test("getEvents filters on log filter with multiple topics", async (context) => 
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block2,
+    ...rpcData.block3,
   });
 
   const transferSelector = getEventSelector(
@@ -2186,15 +2186,15 @@ test("getEvents filters on simple factory", async (context) => {
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
-    logs: rpcData.block2.logs,
+    logs: rpcData.block3.logs,
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: rpcData.block3.block,
-    transactions: rpcData.block3.transactions,
-    logs: rpcData.block3.logs,
-    transactionReceipts: rpcData.block3.transactionReceipts,
+    block: rpcData.block4.block,
+    transactions: rpcData.block4.transactions,
+    logs: rpcData.block4.logs,
+    transactionReceipts: rpcData.block4.transactionReceipts,
     traces: [],
   });
 
@@ -2208,7 +2208,7 @@ test("getEvents filters on simple factory", async (context) => {
 
   expect(events).toHaveLength(1);
   expect(events[0]).toMatchObject({
-    log: { topics: rpcData.block3.logs[0].topics },
+    log: { topics: rpcData.block4.logs[0].topics },
   });
   await cleanup();
 });
@@ -2220,17 +2220,17 @@ test("getEvents filters on startBlock", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block2,
+    ...rpcData.block3,
   });
 
   const ag = syncStore.getEvents({
     sources: [
-      { ...sources[0], startBlock: hexToNumber(rpcData.block3.block.number) },
+      { ...sources[0], startBlock: hexToNumber(rpcData.block4.block.number) },
     ],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -2249,17 +2249,17 @@ test("getEvents filters on endBlock", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block2,
+    ...rpcData.block3,
   });
 
   const ag = syncStore.getEvents({
     sources: [
-      { ...sources[0], endBlock: hexToNumber(rpcData.block1.block.number) - 1 },
+      { ...sources[0], endBlock: hexToNumber(rpcData.block2.block.number) - 1 },
     ],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -2278,24 +2278,24 @@ test("getEvents filters on fromCheckpoint (exclusive)", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block2,
+    ...rpcData.block3,
   });
 
   const ag = syncStore.getEvents({
     sources: [sources[0]],
     fromCheckpoint: {
       chainId: 1n,
-      blockTimestamp: Number(rpcData.block1.block.timestamp!),
+      blockTimestamp: Number(rpcData.block2.block.timestamp!),
       blockNumber: 2n,
       transactionIndex: 0n,
       eventType: EVENT_TYPES.logs,
       // Should exclude the 1st log in the first block.
-      eventIndex: hexToBigInt(rpcData.block1.logs[0].logIndex!),
+      eventIndex: hexToBigInt(rpcData.block2.logs[0].logIndex!),
     },
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -2303,7 +2303,7 @@ test("getEvents filters on fromCheckpoint (exclusive)", async (context) => {
   const events = await drainAsyncGenerator(ag);
 
   expect(events).toHaveLength(1);
-  expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
+  expect(events[0].block.hash).toBe(rpcData.block2.block.hash);
   await cleanup();
 });
 
@@ -2314,12 +2314,12 @@ test("getEvents filters on toCheckpoint (inclusive)", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block2,
+    ...rpcData.block3,
   });
 
   const ag = syncStore.getEvents({
@@ -2327,12 +2327,12 @@ test("getEvents filters on toCheckpoint (inclusive)", async (context) => {
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: {
       chainId: 1n,
-      blockTimestamp: Number(rpcData.block1.block.timestamp!),
+      blockTimestamp: Number(rpcData.block2.block.timestamp!),
       blockNumber: 2n,
       transactionIndex: 1n,
       eventType: EVENT_TYPES.logs,
       // Should include the 2nd log in the first block.
-      eventIndex: hexToBigInt(rpcData.block1.logs[1].logIndex!),
+      eventIndex: hexToBigInt(rpcData.block2.logs[1].logIndex!),
     },
     limit: 100,
   });
@@ -2340,8 +2340,8 @@ test("getEvents filters on toCheckpoint (inclusive)", async (context) => {
 
   expect(events).toHaveLength(2);
   expect(events.map((e) => e.block.hash)).toMatchObject([
-    rpcData.block1.block.hash,
-    rpcData.block1.block.hash,
+    rpcData.block2.block.hash,
+    rpcData.block2.block.hash,
   ]);
   await cleanup();
 });
@@ -2353,15 +2353,15 @@ test("getEvents filters on block filter criteria", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
-  });
-  await syncStore.insertRealtimeBlock({
-    chainId: 1,
     ...rpcData.block2,
   });
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     ...rpcData.block3,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block4,
   });
 
   const ag = syncStore.getEvents({
@@ -2384,15 +2384,15 @@ test("getEvents filters on trace filter criteria", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
-  });
-  await syncStore.insertRealtimeBlock({
-    chainId: 1,
     ...rpcData.block2,
   });
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     ...rpcData.block3,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block4,
   });
 
   const ag = syncStore.getEvents({
@@ -2426,15 +2426,15 @@ test("getEvents multiple sources", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
-  });
-  await syncStore.insertRealtimeBlock({
-    chainId: 1,
     ...rpcData.block2,
   });
   await syncStore.insertRealtimeBlock({
     chainId: 1,
     ...rpcData.block3,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block4,
   });
 
   const ag = syncStore.getEvents({
@@ -2457,14 +2457,14 @@ test("getEvents event filter on factory", async (context) => {
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
-    logs: rpcData.block2.logs,
+    logs: rpcData.block3.logs,
   });
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: rpcData.block3.block,
-    transactions: rpcData.block3.transactions,
-    logs: rpcData.block3.logs,
+    block: rpcData.block4.block,
+    transactions: rpcData.block4.transactions,
+    logs: rpcData.block4.logs,
     transactionReceipts: [],
     traces: [],
   });
@@ -2493,7 +2493,7 @@ test("getEvents multichain", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   const ag = syncStore.getEvents({
@@ -2515,13 +2515,13 @@ test("getEvents multichain", async (context) => {
 
   expect(events[0].sourceId).toBe("log_Erc20_mainnet");
   expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[0].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[0].transaction!.hash).toBe(rpcData.block1.transactions[0].hash);
+  expect(events[0].block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[0].transaction!.hash).toBe(rpcData.block2.transactions[0].hash);
 
   expect(events[1].sourceId).toBe("log_Erc20_mainnet");
   expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[1].block.hash).toBe(rpcData.block1.block.hash);
-  expect(events[1].transaction!.hash).toBe(rpcData.block1.transactions[1].hash);
+  expect(events[1].block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[1].transaction!.hash).toBe(rpcData.block2.transactions[1].hash);
 
   await cleanup();
 });
@@ -2533,7 +2533,7 @@ test("getEvents pagination", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   const ag = syncStore.getEvents({
@@ -2551,9 +2551,9 @@ test("getEvents pagination", async (context) => {
   expect(firstBatchEvents.value[0].log.address).toBe(
     checksumAddress(erc20.address),
   );
-  expect(firstBatchEvents.value[0].block.hash).toBe(rpcData.block1.block.hash);
+  expect(firstBatchEvents.value[0].block.hash).toBe(rpcData.block2.block.hash);
   expect(firstBatchEvents.value[0].transaction.hash).toBe(
-    rpcData.block1.transactions[0].hash,
+    rpcData.block2.transactions[0].hash,
   );
 
   const secondBatchEvents = await ag.next();
@@ -2564,9 +2564,9 @@ test("getEvents pagination", async (context) => {
   expect(secondBatchEvents.value[0].log.address).toBe(
     checksumAddress(erc20.address),
   );
-  expect(secondBatchEvents.value[0].block.hash).toBe(rpcData.block1.block.hash);
+  expect(secondBatchEvents.value[0].block.hash).toBe(rpcData.block2.block.hash);
   expect(secondBatchEvents.value[0].transaction.hash).toBe(
-    rpcData.block1.transactions[1].hash,
+    rpcData.block2.transactions[1].hash,
   );
 
   const thirdBatchEvents = await ag.next();
@@ -2600,7 +2600,7 @@ test("getLastEventCheckpoint", async (context) => {
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    ...rpcData.block1,
+    ...rpcData.block2,
   });
 
   const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
