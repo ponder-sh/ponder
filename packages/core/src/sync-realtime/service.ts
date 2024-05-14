@@ -4,10 +4,12 @@ import {
   type BlockSource,
   type CallTraceSource,
   type EventSource,
+  type FactoryCallTraceSource,
   type FactoryLogSource,
   type LogSource,
   sourceIsBlock,
   sourceIsCallTrace,
+  sourceIsFactoryCallTrace,
   sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
@@ -61,9 +63,10 @@ export type Service = {
   hasFactorySource: boolean;
   hasTransactionReceiptSource: boolean;
   logFilterSources: LogSource[];
-  factorySources: FactoryLogSource[];
-  blockSources: BlockSource[];
+  factoryLogSources: FactoryLogSource[];
   callTraceSources: CallTraceSource[];
+  factoryCallTraceSources: FactoryCallTraceSource[];
+  blockSources: BlockSource[];
 };
 
 export type RealtimeSyncEvent =
@@ -108,9 +111,10 @@ export const create = ({
   onFatalError: (error: Error) => void;
 }): Service => {
   const logFilterSources = sources.filter(sourceIsLog);
-  const factorySources = sources.filter(sourceIsFactoryLog);
+  const factoryLogSources = sources.filter(sourceIsFactoryLog);
   const blockSources = sources.filter(sourceIsBlock);
   const callTraceSources = sources.filter(sourceIsCallTrace);
+  const factoryCallTraceSources = sources.filter(sourceIsFactoryCallTrace);
 
   return {
     common,
@@ -128,11 +132,12 @@ export const create = ({
     hasFactorySource: sources.some(sourceIsFactoryLog),
     hasTransactionReceiptSource:
       logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
-      factorySources.some((s) => s.criteria.includeTransactionReceipts),
+      factoryLogSources.some((s) => s.criteria.includeTransactionReceipts),
     logFilterSources,
-    factorySources,
+    factoryLogSources,
+    callTraceSources,
+    factoryCallTraceSources,
     blockSources,
-    callTraceSources: callTraceSources,
   };
 };
 
@@ -339,7 +344,8 @@ export const handleBlock = async (
   // Request logs
   const blockLogs =
     positiveBloomFilter &&
-    (service.logFilterSources.length > 0 || service.factorySources.length > 0)
+    (service.logFilterSources.length > 0 ||
+      service.factoryLogSources.length > 0)
       ? await _eth_getLogs(service, { blockHash: newHeadBlock.hash })
       : [];
   const newLogs = await getMatchedLogs(service, {
@@ -357,7 +363,8 @@ export const handleBlock = async (
 
   if (
     positiveBloomFilter === false &&
-    (service.logFilterSources.length > 0 || service.factorySources.length > 0)
+    (service.logFilterSources.length > 0 ||
+      service.factoryLogSources.length > 0)
   ) {
     service.common.logger.debug({
       service: "realtime",
@@ -524,9 +531,12 @@ export const handleBlock = async (
     await service.syncStore.insertRealtimeInterval({
       chainId: service.network.chainId,
       logFilters: service.logFilterSources.map((l) => l.criteria),
-      factories: service.factorySources.map((f) => f.criteria),
+      factoryLogFilters: service.factoryLogSources.map((f) => f.criteria),
       blockFilters: service.blockSources.map((b) => b.criteria),
       traceFilters: service.callTraceSources.map((f) => f.criteria),
+      factoryTraceFilters: service.factoryCallTraceSources.map(
+        (f) => f.criteria,
+      ),
       interval: {
         startBlock: BigInt(service.finalizedBlock.number + 1),
         endBlock: BigInt(pendingFinalizedBlock.number),
@@ -670,7 +680,7 @@ const getMatchedLogs = async (
       // Find and insert any new child contracts.
       const matchedFactoryLogs = filterLogs({
         logs,
-        logFilters: service.factorySources.map((fs) => ({
+        logFilters: service.factoryLogSources.map((fs) => ({
           address: fs.criteria.address,
           topics: [fs.criteria.eventSelector],
         })),
@@ -689,7 +699,7 @@ const getMatchedLogs = async (
     // NOTE: Also makes sense to hold factoryChildAddresses in memory rather than
     // a query each interval.
     const factoryLogFilters = await Promise.all(
-      service.factorySources.map(async (factory) => {
+      service.factoryLogSources.map(async (factory) => {
         const iterator = service.syncStore.getFactoryChildAddresses({
           chainId: service.network.chainId,
           factory: factory.criteria,
