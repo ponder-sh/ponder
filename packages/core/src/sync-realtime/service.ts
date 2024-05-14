@@ -343,7 +343,9 @@ export const handleBlock = async (
     positiveBloomFilter &&
     (service.logFilterSources.length > 0 ||
       service.factoryLogSources.length > 0);
-  const shouldRequestTraces = service.callTraceSources.length > 0;
+  const shouldRequestTraces =
+    service.callTraceSources.length > 0 ||
+    service.factoryCallTraceSources.length > 0;
 
   // Request logs
   const blockLogs = shouldRequestLogs
@@ -385,9 +387,10 @@ export const handleBlock = async (
   const blockCallTraces = blockTraces.filter(
     (trace) => trace.type === "call",
   ) as SyncCallTrace[];
-  const newCallTraces = filterCallTraces({
+  const newCallTraces = await getMatchedCallTraces(service, {
     callTraces: blockCallTraces,
-    callTraceFilters: service.callTraceSources.map((s) => s.criteria),
+    logs: blockLogs,
+    upToBlockNumber: BigInt(newHeadBlockNumber),
   });
 
   // Check that traces refer to the correct block
@@ -714,6 +717,73 @@ const getMatchedLogs = async (
       logFilters: [
         ...service.logFilterSources.map((l) => l.criteria),
         ...factoryLogFilters,
+      ],
+    });
+  }
+};
+
+const getMatchedCallTraces = async (
+  service: Service,
+  {
+    callTraces,
+    logs,
+    upToBlockNumber,
+  }: {
+    callTraces: SyncCallTrace[];
+    logs: SyncLog[];
+    upToBlockNumber: bigint;
+  },
+) => {
+  if (service.factoryCallTraceSources.length === 0) {
+    return filterCallTraces({
+      callTraces,
+      callTraceFilters: service.callTraceSources.map((s) => s.criteria),
+    });
+  } else {
+    // Find and insert any new child contracts.
+    const matchedFactoryLogs = filterLogs({
+      logs,
+      logFilters: service.factoryLogSources.map((fs) => ({
+        address: fs.criteria.address,
+        topics: [fs.criteria.eventSelector],
+      })),
+    });
+
+    await service.syncStore.insertFactoryChildAddressLogs({
+      chainId: service.network.chainId,
+      logs: matchedFactoryLogs,
+    });
+
+    // Find any logs matching log filters or child contract filters.
+    // NOTE: It might make sense to just insert all logs rather than introduce
+    // a potentially slow DB operation here. It's a tradeoff between sync
+    // latency and database growth.
+    // NOTE: Also makes sense to hold factoryChildAddresses in memory rather than
+    // a query each interval.
+    const factoryTraceFilters = await Promise.all(
+      service.factoryCallTraceSources.map(async (factory) => {
+        const iterator = service.syncStore.getFactoryChildAddresses({
+          chainId: service.network.chainId,
+          factory: factory.criteria,
+          fromBlock: BigInt(factory.startBlock),
+          toBlock: upToBlockNumber,
+        });
+        const childContractAddresses: Address[] = [];
+        for await (const batch of iterator) {
+          childContractAddresses.push(...batch);
+        }
+        return {
+          address: childContractAddresses,
+          fromAddress: factory.criteria.fromAddress,
+        };
+      }),
+    );
+
+    return filterCallTraces({
+      callTraces,
+      callTraceFilters: [
+        ...service.callTraceSources.map((s) => s.criteria),
+        ...factoryTraceFilters,
       ],
     });
   }
