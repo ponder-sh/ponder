@@ -1,6 +1,10 @@
 import path from "path";
 import type { Options } from "@/common/options.js";
-import type { CallTraceSource, LogSource } from "@/config/sources.js";
+import type {
+  CallTraceSource,
+  FactoryCallTraceSource,
+  LogSource,
+} from "@/config/sources.js";
 import {
   http,
   getEventSelector,
@@ -544,7 +548,51 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   ).toBe(false);
 });
 
-test.todo("buildConfigAndIndexingFunctions() includeCallTraces with factory");
+test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      a: {
+        includeCallTraces: true,
+        network: {
+          mainnet: {},
+          optimism: { includeCallTraces: false },
+        },
+        factory: {
+          address: address2,
+          event: eventFactory,
+          parameter: "child",
+        },
+        abi: [func0],
+      },
+    },
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a.func0()", fn: () => {} }],
+    options,
+  });
+
+  expect(sources).toHaveLength(1);
+
+  expect((sources[0] as FactoryCallTraceSource).id).toBe("callTrace_a_mainnet");
+  expect(
+    (sources[0] as FactoryCallTraceSource).criteria.fromAddress,
+  ).toBeUndefined();
+  expect((sources[0] as FactoryCallTraceSource).criteria.address).toMatchObject(
+    address2,
+  );
+  expect(
+    (sources[0] as FactoryCallTraceSource).criteria.functionSelectors,
+  ).toMatchObject([getFunctionSelector(func0)]);
+  expect(
+    (sources[0] as FactoryCallTraceSource).criteria.includeTransactionReceipts,
+  ).toBe(false);
+});
 
 test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
