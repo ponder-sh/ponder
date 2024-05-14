@@ -782,7 +782,7 @@ export class PostgresSyncStore implements SyncStore {
           await tx
             .insertInto("callTraces")
             .values(traces)
-            .onConflict((oc) => oc.doNothing())
+            .onConflict((oc) => oc.column("id").doNothing())
             .execute();
         }
 
@@ -1038,7 +1038,7 @@ export class PostgresSyncStore implements SyncStore {
               const { id: factoryId } = await tx
                 .insertInto("factoryTraceFilters")
                 .values(fragment)
-                .onConflict((oc) => oc.doUpdateSet(fragment))
+                .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
                 .returningAll()
                 .executeTakeFirstOrThrow();
 
@@ -1549,7 +1549,7 @@ export class PostgresSyncStore implements SyncStore {
         const { id: factoryId } = await tx
           .insertInto("factoryTraceFilters")
           .values(fragment)
-          .onConflict((oc) => oc.doUpdateSet(fragment))
+          .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
           .returningAll()
           .executeTakeFirstOrThrow();
 

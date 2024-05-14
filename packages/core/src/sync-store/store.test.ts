@@ -1548,17 +1548,252 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
   }
 });
 
-test.todo(
-  "insertFactoryTraceFilterInverval inserts block, transactions, receipts, and traces",
-);
+test("insertFactoryTraceFilterInverval inserts traces", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
 
-test.todo(
-  "insertFactoryTraceFilterIntervals inserts and merges child contract intervals",
-);
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block4,
+      interval: {
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
+      },
+    });
 
-test.todo(
-  "insertFactoryTraceFilterInterval updates checkpoints for existing traces",
-);
+    const traces = await syncStore.db
+      .selectFrom("callTraces")
+      .selectAll()
+      .execute();
+    expect(traces).toHaveLength(1);
+
+    await cleanup();
+  }
+});
+
+test("insertFactoryTraceFilterIntervals inserts and merges child contract intervals", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block2,
+      traces: [
+        {
+          ...rpcData.block2.traces[0],
+          traceAddress: [0, 0],
+          result: {
+            ...rpcData.block2.traces[0].result,
+          },
+        },
+        rpcData.block2.traces[1]!,
+      ],
+      interval: {
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
+      },
+    });
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block2,
+      traces: [
+        {
+          ...rpcData.block2.traces[0],
+          traceAddress: [1],
+          result: {
+            ...rpcData.block2.traces[0].result,
+          },
+        },
+      ],
+      interval: {
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
+      },
+    });
+
+    let traces = await syncStore.db
+      .selectFrom("callTraces")
+      .selectAll()
+      .orderBy("checkpoint")
+      .execute();
+
+    expect(traces).toHaveLength(3);
+    expect(traces[0].transactionHash).toBe(rpcData.block2.transactions[0].hash);
+    expect(traces[0].traceAddress).toBe(JSON.stringify([0, 0]));
+    expect(decodeCheckpoint(traces[0].checkpoint).eventIndex).toBe(0n);
+
+    expect(traces[1].transactionHash).toBe(rpcData.block2.transactions[0].hash);
+    expect(traces[1].traceAddress).toBe(JSON.stringify([1]));
+    expect(decodeCheckpoint(traces[1].checkpoint).eventIndex).toBe(1n);
+
+    expect(traces[2].transactionHash).toBe(rpcData.block2.transactions[1].hash);
+    expect(traces[2].traceAddress).toBe(JSON.stringify([0]));
+    expect(decodeCheckpoint(traces[2].checkpoint).eventIndex).toBe(0n);
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block2,
+      traces: [
+        {
+          ...rpcData.block2.traces[0],
+          traceAddress: [0, 2],
+          result: {
+            ...rpcData.block2.traces[0].result,
+          },
+        },
+      ],
+      interval: {
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
+      },
+    });
+
+    traces = await syncStore.db
+      .selectFrom("callTraces")
+      .selectAll()
+      .orderBy("checkpoint")
+      .execute();
+    expect(traces).toHaveLength(4);
+
+    expect(traces[0].transactionHash).toBe(rpcData.block2.transactions[0].hash);
+    expect(traces[0].traceAddress).toBe(JSON.stringify([0, 0]));
+    expect(decodeCheckpoint(traces[0].checkpoint).eventIndex).toBe(0n);
+
+    expect(traces[1].transactionHash).toBe(rpcData.block2.transactions[0].hash);
+    expect(traces[1].traceAddress).toBe(JSON.stringify([0, 2]));
+    expect(decodeCheckpoint(traces[1].checkpoint).eventIndex).toBe(1n);
+
+    expect(traces[2].transactionHash).toBe(rpcData.block2.transactions[0].hash);
+    expect(traces[2].traceAddress).toBe(JSON.stringify([1]));
+    expect(decodeCheckpoint(traces[2].checkpoint).eventIndex).toBe(2n);
+
+    expect(traces[3].transactionHash).toBe(rpcData.block2.transactions[1].hash);
+    expect(traces[3].traceAddress).toBe(JSON.stringify([0]));
+    expect(decodeCheckpoint(traces[3].checkpoint).eventIndex).toBe(0n);
+
+    await cleanup();
+  }
+});
+
+test("insertFactoryTraceFilterInterval updates checkpoints for existing traces", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block2,
+      interval: { startBlock: 0n, endBlock: 100n },
+    });
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block3,
+      interval: { startBlock: 200n, endBlock: 300n },
+    });
+
+    let traceFilterRanges = await syncStore.getFactoryTraceFilterIntervals({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+    });
+
+    expect(traceFilterRanges).toMatchObject([
+      [0, 100],
+      [200, 300],
+    ]);
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block4,
+      interval: { startBlock: 100n, endBlock: 200n },
+    });
+
+    traceFilterRanges = await syncStore.getFactoryTraceFilterIntervals({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+    });
+
+    expect(traceFilterRanges).toMatchObject([[0, 300]]);
+
+    await cleanup();
+  }
+});
 
 test("insertRealtimeBlock inserts data", async (context) => {
   const { sources } = context;
@@ -2049,7 +2284,36 @@ test("getEvents with trace filters", async (context) => {
   await cleanup();
 });
 
-test.todo("getEvents with factory trace filters");
+test("getEvents with factory trace filters", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block2,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block3,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block4,
+  });
+
+  const ag = syncStore.getEvents({
+    sources: [sources[2]],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(1);
+
+  await cleanup();
+});
 
 test("getEvents filters on log filter with multiple addresses", async (context) => {
   const { erc20, sources, factory } = context;

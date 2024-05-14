@@ -963,8 +963,8 @@ const migrations: Record<string, Migration> = {
         .createTable("factoryTraceFilterIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("factoryId", "text")
-        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
         .execute();
       await db.schema
         .createIndex("factoryTraceFilterIntervalsFactoryId")
