@@ -561,6 +561,8 @@ test("start() adds trace filter events to sync store", async (context) => {
   await cleanup();
 });
 
+test.todo("start() adds facotyr trace filter events to sync store");
+
 test("start() retries unexpected error in log filter task", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);

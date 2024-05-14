@@ -1548,6 +1548,18 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
   }
 });
 
+test.todo(
+  "insertFactoryTraceFilterInverval inserts block, transactions, receipts, and traces",
+);
+
+test.todo(
+  "insertFactoryTraceFilterIntervals inserts and merges child contract intervals",
+);
+
+test.todo(
+  "insertFactoryTraceFilterInterval updates checkpoints for existing traces",
+);
+
 test("insertRealtimeBlock inserts data", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -2036,6 +2048,8 @@ test("getEvents with trace filters", async (context) => {
 
   await cleanup();
 });
+
+test.todo("getEvents with factory trace filters");
 
 test("getEvents filters on log filter with multiple addresses", async (context) => {
   const { erc20, sources, factory } = context;

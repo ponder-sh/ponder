@@ -544,6 +544,8 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   ).toBe(false);
 });
 
+test.todo("buildConfigAndIndexingFunctions() includeCallTraces with factory");
+
 test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
     networks: {
