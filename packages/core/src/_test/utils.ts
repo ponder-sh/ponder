@@ -129,7 +129,7 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
         abi: factoryABI,
         network: "mainnet",
         address: addresses.factoryAddress,
-        includeFunctionCalls: true,
+        includeCallTraces: true,
       },
     },
     blocks: {
@@ -412,7 +412,7 @@ export const getRawRPCData = async (sources: EventSource[]) => {
 };
 
 /**
- * Mock function for `getLogEvents` that specifically returns the event data for the log and factory sources.
+ * Mock function for `getEvents` that specifically returns the event data for the log and factory sources.
  */
 export const getEventsLog = async (
   sources: EventSource[],
@@ -482,7 +482,7 @@ export const getEventsLog = async (
 };
 
 /**
- * Mock function for `getLogEvents` that specifically returns the event data for the block sources.
+ * Mock function for `getEvents` that specifically returns the event data for the block sources.
  */
 export const getEventsBlock = async (
   sources: EventSource[],
@@ -515,7 +515,7 @@ export const getEventsBlock = async (
 };
 
 /**
- * Mock function for `getLogEvents` that specifically returns the event data for the trace sources.
+ * Mock function for `getEvents` that specifically returns the event data for the trace sources.
  */
 export const getEventsTrace = async (
   sources: EventSource[],

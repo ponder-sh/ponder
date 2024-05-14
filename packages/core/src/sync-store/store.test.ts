@@ -1870,7 +1870,7 @@ test("getRpcRequestResult returns null if not found", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents with log filters", async (context) => {
+test("getEvents with log filters", async (context) => {
   const { erc20, sources, factory } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -1888,7 +1888,7 @@ test("getLogEvents with log filters", async (context) => {
     ...rpcData.block3,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: sources.filter((s) => sourceIsFactoryLog(s) || sourceIsLog(s)),
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -1916,7 +1916,7 @@ test("getLogEvents with log filters", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents with logs filters and receipts", async (context) => {
+test("getEvents with logs filters and receipts", async (context) => {
   const { erc20, sources, factory } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -1934,7 +1934,7 @@ test("getLogEvents with logs filters and receipts", async (context) => {
     ...rpcData.block3,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     // @ts-ignore
     sources: sources
       .filter((s) => sourceIsLog(s) || sourceIsFactoryLog(s))
@@ -1974,7 +1974,7 @@ test("getLogEvents with logs filters and receipts", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents with block filters", async (context) => {
+test("getEvents with block filters", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -1992,7 +1992,7 @@ test("getLogEvents with block filters", async (context) => {
     ...rpcData.block3,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[3]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -2006,7 +2006,7 @@ test("getLogEvents with block filters", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents with trace filters", async (context) => {
+test("getEvents with trace filters", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2024,7 +2024,7 @@ test("getLogEvents with trace filters", async (context) => {
     ...rpcData.block3,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[2]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -2037,7 +2037,7 @@ test("getLogEvents with trace filters", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents filters on log filter with multiple addresses", async (context) => {
+test("getEvents filters on log filter with multiple addresses", async (context) => {
   const { erc20, sources, factory } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2052,7 +2052,7 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
     ...rpcData.block2,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [
       {
         ...sources[0],
@@ -2083,7 +2083,7 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
   await cleanup();
 });
 
-test("getLogEvents filters on log filter with single topic", async (context) => {
+test("getEvents filters on log filter with single topic", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2102,7 +2102,7 @@ test("getLogEvents filters on log filter with single topic", async (context) => 
     getAbiItem({ abi: erc20ABI, name: "Transfer" }),
   );
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [
       {
         ...sources[0],
@@ -2132,7 +2132,7 @@ test("getLogEvents filters on log filter with single topic", async (context) => 
   await cleanup();
 });
 
-test("getLogEvents filters on log filter with multiple topics", async (context) => {
+test("getEvents filters on log filter with multiple topics", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2151,7 +2151,7 @@ test("getLogEvents filters on log filter with multiple topics", async (context) 
     getAbiItem({ abi: erc20ABI, name: "Transfer" }),
   );
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [
       {
         ...sources[0],
@@ -2185,7 +2185,7 @@ test("getLogEvents filters on log filter with multiple topics", async (context) 
   await cleanup();
 });
 
-test("getLogEvents filters on simple factory", async (context) => {
+test("getEvents filters on simple factory", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2204,7 +2204,7 @@ test("getLogEvents filters on simple factory", async (context) => {
     traces: [],
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[1]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -2219,7 +2219,7 @@ test("getLogEvents filters on simple factory", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents filters on startBlock", async (context) => {
+test("getEvents filters on startBlock", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2234,7 +2234,7 @@ test("getLogEvents filters on startBlock", async (context) => {
     ...rpcData.block2,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [
       { ...sources[0], startBlock: hexToNumber(rpcData.block3.block.number) },
     ],
@@ -2248,7 +2248,7 @@ test("getLogEvents filters on startBlock", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents filters on endBlock", async (context) => {
+test("getEvents filters on endBlock", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2263,7 +2263,7 @@ test("getLogEvents filters on endBlock", async (context) => {
     ...rpcData.block2,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [
       { ...sources[0], endBlock: hexToNumber(rpcData.block1.block.number) - 1 },
     ],
@@ -2277,7 +2277,7 @@ test("getLogEvents filters on endBlock", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents filters on fromCheckpoint (exclusive)", async (context) => {
+test("getEvents filters on fromCheckpoint (exclusive)", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2292,7 +2292,7 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async (context) => {
     ...rpcData.block2,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[0]],
     fromCheckpoint: {
       chainId: 1n,
@@ -2313,7 +2313,7 @@ test("getLogEvents filters on fromCheckpoint (exclusive)", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
+test("getEvents filters on toCheckpoint (inclusive)", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2328,7 +2328,7 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
     ...rpcData.block2,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[0]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: {
@@ -2352,7 +2352,7 @@ test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents filters on block filter criteria", async (context) => {
+test("getEvents filters on block filter criteria", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2370,7 +2370,7 @@ test("getLogEvents filters on block filter criteria", async (context) => {
     ...rpcData.block3,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [{ ...sources[3], endBlock: 3 }],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -2383,7 +2383,7 @@ test("getLogEvents filters on block filter criteria", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents filters on trace filter criteria", async (context) => {
+test("getEvents filters on trace filter criteria", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2401,7 +2401,7 @@ test("getLogEvents filters on trace filter criteria", async (context) => {
     ...rpcData.block3,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [
       {
         ...sources[2],
@@ -2425,7 +2425,7 @@ test("getLogEvents filters on trace filter criteria", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents multiple sources", async (context) => {
+test("getEvents multiple sources", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2443,7 +2443,7 @@ test("getLogEvents multiple sources", async (context) => {
     ...rpcData.block3,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources,
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -2456,7 +2456,7 @@ test("getLogEvents multiple sources", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents event filter on factory", async (context) => {
+test("getEvents event filter on factory", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2475,7 +2475,7 @@ test("getLogEvents event filter on factory", async (context) => {
     traces: [],
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [
       {
         ...sources[1],
@@ -2492,7 +2492,7 @@ test("getLogEvents event filter on factory", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents multichain", async (context) => {
+test("getEvents multichain", async (context) => {
   const { erc20, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2502,7 +2502,7 @@ test("getLogEvents multichain", async (context) => {
     ...rpcData.block1,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [
       sources[0],
       {
@@ -2532,7 +2532,7 @@ test("getLogEvents multichain", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents pagination", async (context) => {
+test("getEvents pagination", async (context) => {
   const { erc20, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2542,7 +2542,7 @@ test("getLogEvents pagination", async (context) => {
     ...rpcData.block1,
   });
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[0], sources[1]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -2582,11 +2582,11 @@ test("getLogEvents pagination", async (context) => {
   await cleanup();
 });
 
-test("getLogEvents empty", async (context) => {
+test("getEvents empty", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources,
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,

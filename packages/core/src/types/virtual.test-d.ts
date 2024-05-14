@@ -57,7 +57,7 @@ const config = createConfig({
       address: "0x",
       startBlock: 0,
       includeTransactionReceipts: false,
-      includeFunctionCalls: true,
+      includeCallTraces: true,
     },
     c2: {
       abi: [event1, event1Overloaded, func1, func1Overloaded],
@@ -66,7 +66,7 @@ const config = createConfig({
         mainnet: {
           startBlock: 1,
           includeTransactionReceipts: true,
-          includeFunctionCalls: true,
+          includeCallTraces: true,
         },
         optimism: {},
       },
@@ -176,7 +176,7 @@ test("FormatEventNames with functions", () => {
   type a = Virtual.FormatEventNames<
     // ^?
     {
-      contract: { abi: abi; network: ""; includeFunctionCalls: true };
+      contract: { abi: abi; network: ""; includeCallTraces: true };
     },
     {}
   >;

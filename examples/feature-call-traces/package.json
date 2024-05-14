@@ -1,5 +1,5 @@
 {
-  "name": "ponder-examples-feature-callTrace",
+  "name": "ponder-examples-feature-call-traces",
   "private": true,
   "type": "module",
   "scripts": {

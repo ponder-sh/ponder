@@ -98,7 +98,7 @@ type TransactionReceiptConfig = {
 };
 
 type FunctionCallConfig = {
-  includeFunctionCalls?: boolean;
+  includeCallTraces?: boolean;
 };
 
 type GetNetwork<

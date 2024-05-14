@@ -15,7 +15,7 @@ export default createConfig({
       abi: multicall3Abi,
       address: mainnet.contracts.multicall3.address,
       startBlock: 19_800_000,
-      includeFunctionCalls: true,
+      includeCallTraces: true,
       maxBlockRange: 25,
     },
   },

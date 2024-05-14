@@ -60,7 +60,7 @@ export namespace Virtual {
     | {
         [name in keyof contracts]: true extends ExtractOverridenProperty<
           contracts[name],
-          "includeFunctionCalls"
+          "includeCallTraces"
         >
           ? `${name & string}.${_FormatFunctionNames<contracts[name]>}`
           : never;

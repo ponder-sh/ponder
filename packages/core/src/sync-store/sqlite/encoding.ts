@@ -253,7 +253,7 @@ export function rpcToSqliteTrace(
     traceAddress: JSON.stringify(trace.traceAddress),
     transactionHash: trace.transactionHash,
     transactionPosition: trace.transactionPosition,
-    functionSelector: trace.action.input.slice(0, 10) as Hex,
+    functionSelector: trace.action.input.slice(0, 10).toLowerCase() as Hex,
   };
 }
 

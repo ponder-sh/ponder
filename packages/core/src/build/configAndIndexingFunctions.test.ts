@@ -504,7 +504,7 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
   );
 });
 
-test("buildConfigAndIndexingFunctions() includeFunctionCalls", async () => {
+test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -512,10 +512,10 @@ test("buildConfigAndIndexingFunctions() includeFunctionCalls", async () => {
     },
     contracts: {
       a: {
-        includeFunctionCalls: true,
+        includeCallTraces: true,
         network: {
           mainnet: {},
-          optimism: { includeFunctionCalls: false },
+          optimism: { includeCallTraces: false },
         },
         address: zeroAddress,
         abi: [func0],

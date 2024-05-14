@@ -3,7 +3,7 @@ import { type Block, type BlockTag, hexToNumber } from "viem";
 
 export type LightBlock = Pick<
   Block<number, boolean, Exclude<BlockTag, "pending">>,
-  "hash" | "parentHash" | "number" | "timestamp" | "stateRoot"
+  "hash" | "parentHash" | "number" | "timestamp"
 >;
 
 export const syncBlockToLightBlock = ({
@@ -11,11 +11,9 @@ export const syncBlockToLightBlock = ({
   parentHash,
   number,
   timestamp,
-  stateRoot,
 }: SyncBlock): LightBlock => ({
   hash,
   parentHash,
   number: hexToNumber(number),
   timestamp: hexToNumber(timestamp),
-  stateRoot,
 });

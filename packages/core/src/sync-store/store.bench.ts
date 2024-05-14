@@ -321,7 +321,7 @@ for (const c of LOG_FILTER_CASES) {
           totalBlocks,
         );
 
-        const ag = syncStore.getLogEvents({
+        const ag = syncStore.getEvents({
           sources: [
             {
               id: "benchFilter",
@@ -364,7 +364,7 @@ for (const c of LOG_FILTER_CASES) {
           totalBlocks,
         );
 
-        const ag = syncStore.getLogEvents({
+        const ag = syncStore.getEvents({
           sources: [
             {
               id: "benchFilter",
@@ -406,7 +406,7 @@ for (const c of LOG_FILTER_CASES) {
           endBlock,
         );
 
-        const ag = syncStore.getLogEvents({
+        const ag = syncStore.getEvents({
           sources: [
             {
               id: "benchFilter",
