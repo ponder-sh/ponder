@@ -336,12 +336,15 @@ export const handleBlock = async (
       logFilters: service.logFilterSources.map((s) => s.criteria),
     });
 
-  // Request logs
-  const blockLogs =
+  const shouldRequestLogs =
     positiveBloomFilter &&
-    (service.logFilterSources.length > 0 || service.factorySources.length > 0)
-      ? await _eth_getLogs(service, { blockHash: newHeadBlock.hash })
-      : [];
+    (service.logFilterSources.length > 0 || service.factorySources.length > 0);
+  const shouldRequestTraces = service.callTraceSources.length > 0;
+
+  // Request logs
+  const blockLogs = shouldRequestLogs
+    ? await _eth_getLogs(service, { blockHash: newHeadBlock.hash })
+    : [];
   const newLogs = await getMatchedLogs(service, {
     logs: blockLogs,
     insertChildAddressLogs: true,
@@ -349,7 +352,11 @@ export const handleBlock = async (
   });
 
   // Protect against RPCs returning empty logs. Known to happen near chain tip.
-  if (newHeadBlock.logsBloom !== zeroLogsBloom && blockLogs.length === 0) {
+  if (
+    shouldRequestLogs &&
+    newHeadBlock.logsBloom !== zeroLogsBloom &&
+    blockLogs.length === 0
+  ) {
     throw new Error(
       `Detected invalid '${service.network.name}' eth_getLogs response.`,
     );
@@ -366,12 +373,11 @@ export const handleBlock = async (
   }
 
   // Request traces
-  const blockTraces =
-    service.callTraceSources.length > 0
-      ? await _trace_block(service, {
-          blockNumber: newHeadBlockNumber,
-        })
-      : [];
+  const blockTraces = shouldRequestTraces
+    ? await _trace_block(service, {
+        blockNumber: newHeadBlockNumber,
+      })
+    : [];
   const blockCallTraces = blockTraces.filter(
     (trace) => trace.type === "call",
   ) as SyncCallTrace[];
@@ -391,7 +397,11 @@ export const handleBlock = async (
 
   // Protect against RPCs returning empty traces. Known to happen near chain tip.
   // Use the fact that any stateRoot change produces a trace.
-  if (newHeadBlock.transactions.length !== 0 && blockTraces.length === 0) {
+  if (
+    shouldRequestTraces &&
+    newHeadBlock.transactions.length !== 0 &&
+    blockTraces.length === 0
+  ) {
     throw new Error(
       `Detected invalid '${service.network.name}' trace_block response.`,
     );
