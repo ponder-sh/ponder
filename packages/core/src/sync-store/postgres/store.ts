@@ -2436,7 +2436,7 @@ export class PostgresSyncStore implements SyncStore {
 
     exprs.push(
       eb(
-        "callTraces.toAddress",
+        "callTraces.to",
         "in",
         eb
           .selectFrom("logs")

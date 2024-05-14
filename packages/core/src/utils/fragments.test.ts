@@ -1,4 +1,4 @@
-import { buildFactoryCriteria } from "@/config/factories.js";
+import { buildChildAddressCriteria } from "@/config/factories.js";
 import { parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 import {
@@ -131,11 +131,10 @@ test("buildLogFilterFragments includeTransactionReceipts", () => {
 });
 
 test("buildFactoryFragments builds id containing topic", () => {
-  const criteria = buildFactoryCriteria({
+  const criteria = buildChildAddressCriteria({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "deployer",
-    includeTransactionReceipts: false,
   });
 
   expect(
@@ -143,6 +142,7 @@ test("buildFactoryFragments builds id containing topic", () => {
       chainId: 1,
       topics: [null, null, null, null],
       ...criteria,
+      includeTransactionReceipts: false,
     })[0].id,
   ).toBe(
     "1_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_topic1_null_null_null_null_0",
@@ -150,11 +150,10 @@ test("buildFactoryFragments builds id containing topic", () => {
 });
 
 test("buildFactoryFragments builds id containing offset", () => {
-  const criteria = buildFactoryCriteria({
+  const criteria = buildChildAddressCriteria({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "llamaPolicy",
-    includeTransactionReceipts: false,
   });
 
   expect(
@@ -162,6 +161,7 @@ test("buildFactoryFragments builds id containing offset", () => {
       chainId: 115511,
       topics: [null, null, null, null],
       ...criteria,
+      includeTransactionReceipts: false,
     })[0].id,
   ).toBe(
     "115511_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null_0",

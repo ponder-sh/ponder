@@ -125,6 +125,7 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
           event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
           parameter: "pair",
         },
+        includeCallTraces: true,
         filter: {
           event: ["Swap"],
         },
@@ -162,6 +163,7 @@ export const getNetworkAndSources = async (
         fn: () => {},
       },
       { name: "Pair:Swap", fn: () => {} },
+      { name: "Pair.swap()", fn: () => {} },
       { name: "OddBlocks:block", fn: () => {} },
       { name: "Factory.createPair()", fn: () => {} },
     ],
@@ -586,8 +588,8 @@ export const getEventsBlock = async (
       block: formatBlock(e.block),
     }))
     .map(({ block }) => ({
-      sourceId: sources[3].id,
-      chainId: sources[3].chainId,
+      sourceId: sources[4].id,
+      chainId: sources[4].chainId,
 
       block: { ...block, miner: checksumAddress(block.miner) },
 
@@ -625,8 +627,8 @@ export const getEventsTrace = async (
       transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
     }))
     .map(({ trace, block, transaction, transactionReceipt }) => ({
-      sourceId: sources[2].id,
-      chainId: sources[2].chainId,
+      sourceId: sources[3].id,
+      chainId: sources[3].chainId,
       trace: {
         id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
         from: checksumAddress(trace.action.from),

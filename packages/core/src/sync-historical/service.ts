@@ -595,7 +595,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 {
                   network: this.network.name,
                   source: source.contractName,
-                  type: "callTrace",
+                  type: "trace",
                 },
                 0,
               );
@@ -661,7 +661,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               {
                 network: this.network.name,
                 source: `${source.contractName}_factory`,
-                type: "callTrace",
+                type: "trace",
               },
               targetFactoryChildAddressBlockCount,
             );
@@ -669,7 +669,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               {
                 network: this.network.name,
                 source: `${source.contractName}_factory`,
-                type: "callTrace",
+                type: "trace",
               },
               cachedFactoryChildAddressBlockCount,
             );
@@ -683,7 +683,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               target: [startBlock, endBlock],
               completed: completedFactoryTraceFilterIntervals,
             });
-            this.factoryLogFilterProgressTrackers[source.id] =
+            this.factoryTraceFilterProgressTrackers[source.id] =
               factoryTraceFilterProgressTracker;
 
             // Only add factory trace filter tasks for any intervals where the
@@ -1770,7 +1770,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           {
             network: this.network.name,
             source: factoryTraceFilter.contractName,
-            type: "callTrace",
+            type: "trace",
           },
           endBlock - startBlock + 1,
         );

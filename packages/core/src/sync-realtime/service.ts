@@ -332,7 +332,7 @@ export const handleBlock = async (
 
   // "eth_getLogs" calls can be skipped if a negative match is given from "logsBloom".
   const positiveBloomFilter =
-    service.logFilterSources.length > 0 ||
+    service.factoryLogSources.length > 0 ||
     newHeadBlock.logsBloom === zeroLogsBloom ||
     isMatchedLogInBloomFilter({
       bloom: newHeadBlock.logsBloom,
@@ -716,7 +716,7 @@ const getMatchedLogs = async (
       logs,
       logFilters: [
         ...service.logFilterSources.map((l) => l.criteria),
-        ...factoryLogFilters,
+        ...factoryLogFilters.filter((f) => f.address.length !== 0),
       ],
     });
   }
@@ -773,7 +773,7 @@ const getMatchedCallTraces = async (
           childContractAddresses.push(...batch);
         }
         return {
-          address: childContractAddresses,
+          toAddress: childContractAddresses,
           fromAddress: factory.criteria.fromAddress,
         };
       }),
@@ -783,7 +783,7 @@ const getMatchedCallTraces = async (
       callTraces,
       callTraceFilters: [
         ...service.callTraceSources.map((s) => s.criteria),
-        ...factoryTraceFilters,
+        ...factoryTraceFilters.filter((f) => f.toAddress.length !== 0),
       ],
     });
   }

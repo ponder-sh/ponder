@@ -1993,7 +1993,7 @@ test("getEvents with block filters", async (context) => {
   });
 
   const ag = syncStore.getEvents({
-    sources: [sources[3]],
+    sources: [sources[4]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -2025,7 +2025,7 @@ test("getEvents with trace filters", async (context) => {
   });
 
   const ag = syncStore.getEvents({
-    sources: [sources[2]],
+    sources: [sources[3]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -2371,7 +2371,7 @@ test("getEvents filters on block filter criteria", async (context) => {
   });
 
   const ag = syncStore.getEvents({
-    sources: [{ ...sources[3], endBlock: 3 }],
+    sources: [{ ...sources[4], endBlock: 3 }],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -2404,12 +2404,12 @@ test("getEvents filters on trace filter criteria", async (context) => {
   const ag = syncStore.getEvents({
     sources: [
       {
-        ...sources[2],
+        ...sources[3],
         criteria: {
           fromAddress: [ALICE.toLowerCase() as Address],
           toAddress: [context.factory.address],
           includeTransactionReceipts: false,
-          functionSelectors: sources[2].criteria.functionSelectors,
+          functionSelectors: sources[3].criteria.functionSelectors,
         },
         endBlock: 3,
       },
@@ -2451,7 +2451,7 @@ test("getEvents multiple sources", async (context) => {
   });
   const events = await drainAsyncGenerator(ag);
 
-  expect(events).toHaveLength(5);
+  expect(events).toHaveLength(6);
 
   await cleanup();
 });

@@ -961,7 +961,7 @@ const migrations: Record<string, Migration> = {
         .execute();
       await db.schema
         .createTable("factoryTraceFilterIntervals")
-        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("factoryId", "text")
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())

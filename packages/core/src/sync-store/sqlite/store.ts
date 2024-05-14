@@ -2476,7 +2476,7 @@ export class SqliteSyncStore implements SyncStore {
 
     exprs.push(
       eb(
-        "callTraces.toAddress",
+        "callTraces.to",
         "in",
         eb
           .selectFrom("logs")
