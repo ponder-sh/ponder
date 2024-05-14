@@ -781,7 +781,11 @@ export class SqliteSyncStore implements SyncStore {
             trace.checkpoint = checkpoint;
           }
 
-          await tx.insertInto("callTraces").values(traces).execute();
+          await tx
+            .insertInto("callTraces")
+            .values(traces)
+            .onConflict((oc) => oc.doNothing())
+            .execute();
         }
 
         await this._insertTraceFilterInterval({

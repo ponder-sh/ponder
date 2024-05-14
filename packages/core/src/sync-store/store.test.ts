@@ -1442,7 +1442,7 @@ test("insertTraceFilterIntervals handles address filtering", async (context) => 
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block2,
+      ...rpcData.block3,
       interval: {
         startBlock: 2n,
         endBlock: 2n,
@@ -1499,7 +1499,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block2,
+      ...rpcData.block3,
       interval: { startBlock: 200n, endBlock: 300n },
     });
 
@@ -1524,7 +1524,7 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
         includeTransactionReceipts: false,
         functionSelectors: [],
       },
-      ...rpcData.block2,
+      ...rpcData.block4,
       interval: { startBlock: 100n, endBlock: 200n },
     });
 
