@@ -8,12 +8,11 @@ import { getRawRPCData, testClient } from "@/_test/utils.js";
 import type { EventSource } from "@/config/sources.js";
 import {
   type SyncBlock,
-  type SyncCallTrace,
+  type SyncTrace,
   _eth_getBlockByNumber,
 } from "@/sync/index.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { hexToNumber } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { create, handleBlock, handleReorg, kill, start } from "./service.js";
 
@@ -34,29 +33,16 @@ const getRequestQueue = async ({
     request: (request: any) => {
       if (request.method === "trace_block") {
         const blockNumber = request.params[0];
-        let traces: SyncCallTrace[] =
+        const traces: SyncTrace[] =
           blockNumber === rpcData.block1.block.number
             ? rpcData.block1.traces
             : blockNumber === rpcData.block2.block.number
               ? rpcData.block2.traces
               : blockNumber === rpcData.block3.block.number
                 ? rpcData.block3.traces
-                : [];
-
-        if (request.params[0].fromBlock !== undefined) {
-          traces = traces.filter(
-            (t) =>
-              hexToNumber(t.blockNumber) >=
-              hexToNumber(request.params[0].fromBlock),
-          );
-        }
-        if (request.params[0].toBlock) {
-          traces = traces.filter(
-            (t) =>
-              hexToNumber(t.blockNumber) <=
-              hexToNumber(request.params[0].toBlock),
-          );
-        }
+                : blockNumber === rpcData.block4.block.number
+                  ? rpcData.block4.traces
+                  : rpcData.block5.traces;
 
         return Promise.resolve(traces);
       } else return requestQueue.request(request);
