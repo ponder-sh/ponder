@@ -561,7 +561,44 @@ test("start() adds trace filter events to sync store", async (context) => {
   await cleanup();
 });
 
-test.todo("start() adds facotyr trace filter events to sync store");
+test("start() adds factory trace filter events to sync store", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumbers = await getBlockNumbers();
+
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
+    sources: [sources[2]],
+  });
+  await service.setup(blockNumbers);
+  service.start();
+  await service.onIdle();
+
+  const ag = syncStore.getEvents({
+    sources: [sources[2]],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(1);
+
+  expect(events[0].log).toBeUndefined();
+  expect(events[0].transaction).toBeDefined();
+  expect(events[0].trace).toBeDefined();
+  expect(events[0].block.number).toBe(4n);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
 
 test("start() retries unexpected error in log filter task", async (context) => {
   const { common, networks, requestQueues, sources } = context;
