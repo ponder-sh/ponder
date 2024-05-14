@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.23
+
+### Patch Changes
+
+- [#880](https://github.com/ponder-sh/ponder/pull/880) [`10e25480e862b7ffc8ad184c85a773d85d375f64`](https://github.com/ponder-sh/ponder/commit/10e25480e862b7ffc8ad184c85a773d85d375f64) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved realtime detection for invalid "eth_getLogs" responses by comparing response length with a block's bloom filter.
+
 ## 0.4.22
 
 ### Patch Changes
