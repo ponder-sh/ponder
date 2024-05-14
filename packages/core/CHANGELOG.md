@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.24
+
+### Patch Changes
+
+- [`793483c4a4defd8653c8dc67176a95f2a0d7e4bc`](https://github.com/ponder-sh/ponder/commit/793483c4a4defd8653c8dc67176a95f2a0d7e4bc) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with the "has" condition in the "findMany" function and graphQL affecting "hex" and "bigint" list columns.
+
 ## 0.4.23
 
 ### Patch Changes
