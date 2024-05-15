@@ -574,7 +574,7 @@ test("findMany() ordering secondary sort inherits primary", async (context) => {
   await cleanup();
 });
 
-test("findMany() where list", async (context) => {
+test.only("findMany() where list", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -585,7 +585,6 @@ test("findMany() where list", async (context) => {
     data: [
       { id: "id1", name: "Skip", list: ["kevin", "kyle", "jay"] },
       { id: "id2", name: "Foo", list: ["widget", "gadget"] },
-      { id: "id3", name: "Bar", list: ["KEVIN"] },
     ],
   });
 

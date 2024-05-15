@@ -138,6 +138,11 @@ export const create = ({
       contractsByChainId[source.chainId] = {};
     }
 
+    // Note: multiple sources with the same contract (logs and traces)
+    // should only create one entry in the `contracts` object
+    if (contractsByChainId[source.chainId][source.contractName] !== undefined)
+      continue;
+
     contractsByChainId[source.chainId][source.contractName] = {
       abi: source.abi,
       address: address ? checksumAddress(address) : address,
