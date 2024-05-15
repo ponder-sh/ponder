@@ -619,7 +619,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         });
       } else if (isJSONColumn(column)) {
         // Handle json columns
-        builder = builder.addColumn(columnName, "jsonb", (col) => {
+        builder = builder.addColumn(columnName, "text", (col) => {
           if (isOptionalColumn(column) === false) col = col.notNull();
           return col;
         });
@@ -656,7 +656,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         builder = builder.addColumn(columnName, "text");
       } else if (isJSONColumn(column)) {
         // Handle json columns
-        builder = builder.addColumn(columnName, "jsonb");
+        builder = builder.addColumn(columnName, "text");
       } else {
         // Non-list base columns
         builder = builder.addColumn(

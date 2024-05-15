@@ -440,7 +440,7 @@ export type BuilderReferenceColumn<
   : base;
 
 export type BuilderJSONColumn<
-  type = unknown,
+  type = any,
   optional extends boolean = boolean,
   ///
   base extends JSONColumn<type, optional> = JSONColumn<type, optional>,
@@ -592,7 +592,7 @@ export const boolean = scalarColumn("boolean");
 export const hex = scalarColumn("hex");
 export const bigint = scalarColumn("bigint");
 
-export const json = <type = unknown>(): BuilderJSONColumn<type, false> => {
+export const json = <type = any>(): BuilderJSONColumn<type, false> => {
   const column = {
     " type": "json",
     " json": {} as type,

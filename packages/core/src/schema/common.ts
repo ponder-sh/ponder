@@ -25,7 +25,7 @@ export type ReferenceColumn<
   " reference": reference;
 };
 
-export type JSONColumn<type = unknown, optional extends boolean = boolean> = {
+export type JSONColumn<type = any, optional extends boolean = boolean> = {
   " type": "json";
   " json": type;
   " optional": optional;

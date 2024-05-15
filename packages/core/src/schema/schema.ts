@@ -253,7 +253,7 @@ type P = {
    * }));
    */
   boolean: () => BuilderScalarColumn<"boolean", false, false>;
-  json: <type = unknown>() => BuilderJSONColumn<type, false>;
+  json: <type = any>() => BuilderJSONColumn<type, false>;
   /**
    * One-to-one column type.`one` columns don't exist in the database. They are only present when querying data from the GraphQL API.
    *
