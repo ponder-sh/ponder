@@ -957,7 +957,7 @@ export class PostgresSyncStore implements SyncStore {
           // Delete existing traces with the same `transactionHash`. Then, calculate "callTraces.checkpoint"
           // based on the ordering of "callTraces.traceAddress" and add all traces to "callTraces" table.
           const traceByTransactionHash: {
-            [transacionHash: Hex]: SyncCallTrace[];
+            [transactionHash: Hex]: SyncCallTrace[];
           } = {};
           for (const trace of rpcTraces) {
             if (traceByTransactionHash[trace.transactionHash] === undefined) {

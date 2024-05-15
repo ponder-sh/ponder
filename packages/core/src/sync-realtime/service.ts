@@ -61,7 +61,7 @@ export type Service = {
 
   // derived static
   hasTransactionReceiptSource: boolean;
-  logFilterSources: LogSource[];
+  logSources: LogSource[];
   factoryLogSources: FactoryLogSource[];
   callTraceSources: CallTraceSource[];
   factoryCallTraceSources: FactoryCallTraceSource[];
@@ -109,7 +109,7 @@ export const create = ({
   onEvent: (event: RealtimeSyncEvent) => void;
   onFatalError: (error: Error) => void;
 }): Service => {
-  const logFilterSources = sources.filter(sourceIsLog);
+  const logSources = sources.filter(sourceIsLog);
   const factoryLogSources = sources.filter(sourceIsFactoryLog);
   const blockSources = sources.filter(sourceIsBlock);
   const callTraceSources = sources.filter(sourceIsCallTrace);
@@ -129,9 +129,9 @@ export const create = ({
     onEvent,
     onFatalError,
     hasTransactionReceiptSource:
-      logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
+      logSources.some((s) => s.criteria.includeTransactionReceipts) ||
       factoryLogSources.some((s) => s.criteria.includeTransactionReceipts),
-    logFilterSources,
+    logSources,
     factoryLogSources,
     callTraceSources,
     factoryCallTraceSources,
@@ -331,18 +331,13 @@ export const handleBlock = async (
   });
 
   // "eth_getLogs" calls can be skipped if a negative match is given from "logsBloom".
-  const positiveBloomFilter =
+  const shouldRequestLogs =
     service.factoryLogSources.length > 0 ||
     newHeadBlock.logsBloom === zeroLogsBloom ||
     isMatchedLogInBloomFilter({
       bloom: newHeadBlock.logsBloom,
-      logFilters: service.logFilterSources.map((s) => s.criteria),
+      logFilters: service.logSources.map((s) => s.criteria),
     });
-
-  const shouldRequestLogs =
-    positiveBloomFilter &&
-    (service.logFilterSources.length > 0 ||
-      service.factoryLogSources.length > 0);
   const shouldRequestTraces =
     service.callTraceSources.length > 0 ||
     service.factoryCallTraceSources.length > 0;
@@ -368,9 +363,8 @@ export const handleBlock = async (
   }
 
   if (
-    positiveBloomFilter === false &&
-    (service.logFilterSources.length > 0 ||
-      service.factoryLogSources.length > 0)
+    shouldRequestLogs &&
+    (service.logSources.length > 0 || service.factoryLogSources.length > 0)
   ) {
     service.common.logger.debug({
       service: "realtime",
@@ -529,7 +523,7 @@ export const handleBlock = async (
     // Ordering is important here because the database query can fail.
     await service.syncStore.insertRealtimeInterval({
       chainId: service.network.chainId,
-      logFilters: service.logFilterSources.map((l) => l.criteria),
+      logFilters: service.logSources.map((l) => l.criteria),
       factoryLogFilters: service.factoryLogSources.map((f) => f.criteria),
       blockFilters: service.blockSources.map((b) => b.criteria),
       traceFilters: service.callTraceSources.map((f) => f.criteria),
@@ -670,7 +664,7 @@ const getMatchedLogs = async (
   if (service.factoryLogSources.length === 0) {
     return filterLogs({
       logs,
-      logFilters: service.logFilterSources.map((s) => s.criteria),
+      logFilters: service.logSources.map((s) => s.criteria),
     });
   } else {
     // Find and insert any new child contracts.
@@ -715,7 +709,7 @@ const getMatchedLogs = async (
     return filterLogs({
       logs,
       logFilters: [
-        ...service.logFilterSources.map((l) => l.criteria),
+        ...service.logSources.map((l) => l.criteria),
         ...factoryLogFilters.filter((f) => f.address.length !== 0),
       ],
     });
