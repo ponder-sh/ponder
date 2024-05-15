@@ -37,6 +37,17 @@ test("buildWhereObject handles complex conditions with and/or correctly", () => 
   expect(buildWhereObject(where)).toEqual(expected);
 });
 
+test("buildWhereObject transforms has condition correctly", () => {
+  const where = {
+    list_has: "0x0",
+  };
+  const expected = {
+    list: { has: "0x0" },
+  };
+
+  expect(buildWhereObject(where)).toEqual(expected);
+});
+
 test.skip("buildWhereObject handles two conditions for the same field", () => {
   const where = { timestamp_gte: 1630608704, timestamp_lte: 1630605241 };
   const expected = { timestamp: { gte: 1630608704, lte: 1630605241 } };

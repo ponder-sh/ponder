@@ -110,6 +110,8 @@ export function encodeValue(
 
       if (column[" scalar"] === "bigint") {
         return JSON.stringify(value.map(String));
+      } else if (column[" scalar"] === "hex") {
+        return JSON.stringify(value.map((v) => (v as string).toLowerCase()));
       } else {
         return JSON.stringify(value);
       }
