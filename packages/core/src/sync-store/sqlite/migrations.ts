@@ -635,7 +635,7 @@ const migrations: Record<string, Migration> = {
         .execute();
       await db.schema
         .createTable("factories")
-        // `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${includeTransactionReceipts}`
+        // `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${topic0}_${topic1}_${topic2}_${topic3}_${includeTransactionReceipts}`
         .addColumn("id", "text", (col) => col.notNull().primaryKey())
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(42)", (col) => col.notNull())
@@ -943,6 +943,33 @@ const migrations: Record<string, Migration> = {
         .createIndex("callTracesToIndex")
         .on("callTraces")
         .column("to")
+        .execute();
+
+      await db.schema
+        .alterTable("factories")
+        .renameTo("factoryLogFilters")
+        .execute();
+
+      await db.schema
+        .createTable("factoryTraceFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${fromAddress}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
+        .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
+        .addColumn("fromAddress", "varchar(42)")
+        .execute();
+      await db.schema
+        .createTable("factoryTraceFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("factoryId", "text")
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("factoryTraceFilterIntervalsFactoryId")
+        .on("factoryTraceFilterIntervals")
+        .column("factoryId")
         .execute();
     },
   },

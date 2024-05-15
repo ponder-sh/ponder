@@ -4,9 +4,9 @@ import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
 import {
   type EventSource,
-  type FactorySource,
+  type FactoryLogSource,
   type LogSource,
-  sourceIsFactory,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { RawEvent } from "@/sync-store/store.js";
@@ -125,6 +125,7 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
           event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
           parameter: "pair",
         },
+        includeCallTraces: true,
         filter: {
           event: ["Swap"],
         },
@@ -162,6 +163,7 @@ export const getNetworkAndSources = async (
         fn: () => {},
       },
       { name: "Pair:Swap", fn: () => {} },
+      { name: "Pair.swap()", fn: () => {} },
       { name: "OddBlocks:block", fn: () => {} },
       { name: "Factory.createPair()", fn: () => {} },
     ],
@@ -195,8 +197,8 @@ export const getRawRPCData = async (sources: EventSource[]) => {
     await Promise.all(
       sources
         .filter(
-          (source): source is LogSource | FactorySource =>
-            sourceIsLog(source) || sourceIsFactory(source),
+          (source): source is LogSource | FactoryLogSource =>
+            sourceIsLog(source) || sourceIsFactoryLog(source),
         )
         .map((source) =>
           publicClient.request({
@@ -586,8 +588,8 @@ export const getEventsBlock = async (
       block: formatBlock(e.block),
     }))
     .map(({ block }) => ({
-      sourceId: sources[3].id,
-      chainId: sources[3].chainId,
+      sourceId: sources[4].id,
+      chainId: sources[4].chainId,
 
       block: { ...block, miner: checksumAddress(block.miner) },
 
@@ -625,8 +627,8 @@ export const getEventsTrace = async (
       transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
     }))
     .map(({ trace, block, transaction, transactionReceipt }) => ({
-      sourceId: sources[2].id,
-      chainId: sources[2].chainId,
+      sourceId: sources[3].id,
+      chainId: sources[3].chainId,
       trace: {
         id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
         from: checksumAddress(trace.action.from),

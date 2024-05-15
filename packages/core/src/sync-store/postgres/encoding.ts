@@ -283,7 +283,7 @@ type LogFilterIntervalsTable = {
   endBlock: bigint;
 };
 
-type FactoriesTable = {
+type FactoryLogFiltersTable = {
   id: string;
   chainId: number;
   address: Hex;
@@ -297,6 +297,36 @@ type FactoriesTable = {
 };
 
 type FactoryLogFilterIntervalsTable = {
+  id: Generated<number>;
+  factoryId: string;
+  startBlock: bigint;
+  endBlock: bigint;
+};
+
+type TraceFiltersTable = {
+  id: string;
+  chainId: number;
+  fromAddress: Address | null;
+  toAddress: Address | null;
+};
+
+type TraceFilterIntervalsTable = {
+  id: Generated<number>;
+  traceFilterId: string;
+  startBlock: bigint;
+  endBlock: bigint;
+};
+
+type FactoryTraceFiltersTable = {
+  id: string;
+  chainId: number;
+  address: Hex;
+  eventSelector: Hex;
+  childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
+  fromAddress: Address | null;
+};
+
+type FactoryTraceFilterIntervalsTable = {
   id: Generated<number>;
   factoryId: string;
   startBlock: bigint;
@@ -317,20 +347,6 @@ type BlockFilterIntervalsTable = {
   endBlock: bigint;
 };
 
-type TraceFiltersTable = {
-  id: string;
-  chainId: number;
-  fromAddress: Address | null;
-  toAddress: Address | null;
-};
-
-type TraceFilterIntervalsTable = {
-  id: Generated<number>;
-  traceFilterId: string;
-  startBlock: bigint;
-  endBlock: bigint;
-};
-
 export type SyncStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
@@ -341,10 +357,12 @@ export type SyncStoreTables = {
 
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;
-  factories: FactoriesTable;
+  factoryLogFilters: FactoryLogFiltersTable;
   factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
-  blockFilters: BlockFiltersTable;
-  blockFilterIntervals: BlockFilterIntervalsTable;
   traceFilters: TraceFiltersTable;
   traceFilterIntervals: TraceFilterIntervalsTable;
+  factoryTraceFilters: FactoryTraceFiltersTable;
+  factoryTraceFilterIntervals: FactoryTraceFilterIntervalsTable;
+  blockFilters: BlockFiltersTable;
+  blockFilterIntervals: BlockFilterIntervalsTable;
 };

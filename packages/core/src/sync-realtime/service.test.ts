@@ -443,8 +443,8 @@ test("handleBlock() ingests block and logs", async (context) => {
   expect(blocks).toHaveLength(4);
   expect(logs).toHaveLength(4);
   expect(transactions).toHaveLength(4);
-  expect(traces).toHaveLength(1);
-  expect(transactionReceipts).toHaveLength(1);
+  expect(traces).toHaveLength(2);
+  expect(transactionReceipts).toHaveLength(2);
 
   expect(transactions[0].to).toBe(erc20.address);
   expect(transactions[1].to).toBe(erc20.address);

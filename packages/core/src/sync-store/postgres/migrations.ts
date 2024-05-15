@@ -803,6 +803,33 @@ const migrations: Record<string, Migration> = {
         .on("callTraces")
         .column("to")
         .execute();
+
+      await db.schema
+        .alterTable("factories")
+        .renameTo("factoryLogFilters")
+        .execute();
+
+      await db.schema
+        .createTable("factoryTraceFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${fromAddress}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
+        .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
+        .addColumn("fromAddress", "varchar(42)")
+        .execute();
+      await db.schema
+        .createTable("factoryTraceFilterIntervals")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("factoryId", "text")
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("factoryTraceFilterIntervalsFactoryId")
+        .on("factoryTraceFilterIntervals")
+        .column("factoryId")
+        .execute();
     },
   },
 };

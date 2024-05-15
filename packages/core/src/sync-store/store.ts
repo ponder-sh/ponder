@@ -2,7 +2,8 @@ import type {
   BlockFilterCriteria,
   CallTraceFilterCriteria,
   EventSource,
-  FactoryCriteria,
+  FactoryCallTraceFilterCriteria,
+  FactoryLogFilterCriteria,
   LogFilterCriteria,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
@@ -85,7 +86,7 @@ export interface SyncStore {
    */
   getFactoryChildAddresses(options: {
     chainId: number;
-    factory: FactoryCriteria;
+    factory: FactoryLogFilterCriteria | FactoryCallTraceFilterCriteria;
     fromBlock: bigint;
     toBlock: bigint;
     pageSize?: number;
@@ -100,7 +101,7 @@ export interface SyncStore {
    */
   insertFactoryLogFilterInterval(options: {
     chainId: number;
-    factory: FactoryCriteria;
+    factory: FactoryLogFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
     transactionReceipts: RpcTransactionReceipt[];
@@ -115,7 +116,7 @@ export interface SyncStore {
    */
   getFactoryLogFilterIntervals(options: {
     chainId: number;
-    factory: FactoryCriteria;
+    factory: FactoryLogFilterCriteria;
   }): Promise<[number, number][]>;
 
   /**
@@ -175,6 +176,33 @@ export interface SyncStore {
   }): Promise<[number, number][]>;
 
   /**
+   * Insert a list of traces & associated transactions produced by all child
+   * contracts of the specified factory within a specific block. Also insert the log
+   * interval recording the eth_getLogs request that was made and returned this result.
+   *
+   * Note that `block.number` should always be equal to `interval.endBlock`.
+   */
+  insertFactoryTraceFilterInterval(options: {
+    chainId: number;
+    factory: FactoryCallTraceFilterCriteria;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    transactionReceipts: RpcTransactionReceipt[];
+    traces: SyncCallTrace[];
+    interval: { startBlock: bigint; endBlock: bigint };
+  }): Promise<void>;
+
+  /**
+   * Get all block intervals where traces (and associated blocks & transactions)
+   * produced by all child contracts of the specified factory contract have already
+   * been inserted.
+   */
+  getFactoryTraceFilterIntervals(options: {
+    chainId: number;
+    factory: FactoryCallTraceFilterCriteria;
+  }): Promise<[number, number][]>;
+
+  /**
    * Inserts a new realtime block and any logs/transactions that match the
    * registered sources. Does NOT insert intervals to mark this data as finalized,
    * see insertRealtimeInterval for that.
@@ -195,9 +223,10 @@ export interface SyncStore {
   insertRealtimeInterval(options: {
     chainId: number;
     logFilters: LogFilterCriteria[];
-    factories: FactoryCriteria[];
-    blockFilters: BlockFilterCriteria[];
+    factoryLogFilters: FactoryLogFilterCriteria[];
     traceFilters: CallTraceFilterCriteria[];
+    factoryTraceFilters: FactoryCallTraceFilterCriteria[];
+    blockFilters: BlockFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 

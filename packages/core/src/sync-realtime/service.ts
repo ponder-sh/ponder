@@ -4,11 +4,13 @@ import {
   type BlockSource,
   type CallTraceSource,
   type EventSource,
-  type FactorySource,
+  type FactoryCallTraceSource,
+  type FactoryLogSource,
   type LogSource,
   sourceIsBlock,
   sourceIsCallTrace,
-  sourceIsFactory,
+  sourceIsFactoryCallTrace,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -58,12 +60,12 @@ export type Service = {
   onFatalError: (error: Error) => void;
 
   // derived static
-  hasFactorySource: boolean;
   hasTransactionReceiptSource: boolean;
-  logFilterSources: LogSource[];
-  factorySources: FactorySource[];
-  blockSources: BlockSource[];
+  logSources: LogSource[];
+  factoryLogSources: FactoryLogSource[];
   callTraceSources: CallTraceSource[];
+  factoryCallTraceSources: FactoryCallTraceSource[];
+  blockSources: BlockSource[];
 };
 
 export type RealtimeSyncEvent =
@@ -107,10 +109,11 @@ export const create = ({
   onEvent: (event: RealtimeSyncEvent) => void;
   onFatalError: (error: Error) => void;
 }): Service => {
-  const logFilterSources = sources.filter(sourceIsLog);
-  const factorySources = sources.filter(sourceIsFactory);
+  const logSources = sources.filter(sourceIsLog);
+  const factoryLogSources = sources.filter(sourceIsFactoryLog);
   const blockSources = sources.filter(sourceIsBlock);
   const callTraceSources = sources.filter(sourceIsCallTrace);
+  const factoryCallTraceSources = sources.filter(sourceIsFactoryCallTrace);
 
   return {
     common,
@@ -125,14 +128,14 @@ export const create = ({
     consecutiveErrors: 0,
     onEvent,
     onFatalError,
-    hasFactorySource: sources.some(sourceIsFactory),
     hasTransactionReceiptSource:
-      logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
-      factorySources.some((s) => s.criteria.includeTransactionReceipts),
-    logFilterSources,
-    factorySources,
-    blockSources,
+      logSources.some((s) => s.criteria.includeTransactionReceipts) ||
+      factoryLogSources.some((s) => s.criteria.includeTransactionReceipts),
+    logSources,
+    factoryLogSources,
     callTraceSources,
+    factoryCallTraceSources,
+    blockSources,
   };
 };
 
@@ -328,18 +331,16 @@ export const handleBlock = async (
   });
 
   // "eth_getLogs" calls can be skipped if a negative match is given from "logsBloom".
-  const positiveBloomFilter =
-    service.hasFactorySource ||
+  const shouldRequestLogs =
+    service.factoryLogSources.length > 0 ||
     newHeadBlock.logsBloom === zeroLogsBloom ||
     isMatchedLogInBloomFilter({
       bloom: newHeadBlock.logsBloom,
-      logFilters: service.logFilterSources.map((s) => s.criteria),
+      logFilters: service.logSources.map((s) => s.criteria),
     });
-
-  const shouldRequestLogs =
-    positiveBloomFilter &&
-    (service.logFilterSources.length > 0 || service.factorySources.length > 0);
-  const shouldRequestTraces = service.callTraceSources.length > 0;
+  const shouldRequestTraces =
+    service.callTraceSources.length > 0 ||
+    service.factoryCallTraceSources.length > 0;
 
   // Request logs
   const blockLogs = shouldRequestLogs
@@ -347,7 +348,6 @@ export const handleBlock = async (
     : [];
   const newLogs = await getMatchedLogs(service, {
     logs: blockLogs,
-    insertChildAddressLogs: true,
     upToBlockNumber: BigInt(newHeadBlockNumber),
   });
 
@@ -363,8 +363,8 @@ export const handleBlock = async (
   }
 
   if (
-    positiveBloomFilter === false &&
-    (service.logFilterSources.length > 0 || service.factorySources.length > 0)
+    shouldRequestLogs &&
+    (service.logSources.length > 0 || service.factoryLogSources.length > 0)
   ) {
     service.common.logger.debug({
       service: "realtime",
@@ -381,9 +381,10 @@ export const handleBlock = async (
   const blockCallTraces = blockTraces.filter(
     (trace) => trace.type === "call",
   ) as SyncCallTrace[];
-  const newCallTraces = filterCallTraces({
+  const newCallTraces = await getMatchedCallTraces(service, {
     callTraces: blockCallTraces,
-    callTraceFilters: service.callTraceSources.map((s) => s.criteria),
+    logs: blockLogs,
+    upToBlockNumber: BigInt(newHeadBlockNumber),
   });
 
   // Check that traces refer to the correct block
@@ -522,10 +523,13 @@ export const handleBlock = async (
     // Ordering is important here because the database query can fail.
     await service.syncStore.insertRealtimeInterval({
       chainId: service.network.chainId,
-      logFilters: service.logFilterSources.map((l) => l.criteria),
-      factories: service.factorySources.map((f) => f.criteria),
+      logFilters: service.logSources.map((l) => l.criteria),
+      factoryLogFilters: service.factoryLogSources.map((f) => f.criteria),
       blockFilters: service.blockSources.map((b) => b.criteria),
       traceFilters: service.callTraceSources.map((f) => f.criteria),
+      factoryTraceFilters: service.factoryCallTraceSources.map(
+        (f) => f.criteria,
+      ),
       interval: {
         startBlock: BigInt(service.finalizedBlock.number + 1),
         endBlock: BigInt(pendingFinalizedBlock.number),
@@ -651,35 +655,31 @@ const getMatchedLogs = async (
   service: Service,
   {
     logs,
-    insertChildAddressLogs,
     upToBlockNumber,
   }: {
     logs: SyncLog[];
-    insertChildAddressLogs: boolean;
     upToBlockNumber: bigint;
   },
 ) => {
-  if (service.hasFactorySource === false) {
+  if (service.factoryLogSources.length === 0) {
     return filterLogs({
       logs,
-      logFilters: service.logFilterSources.map((s) => s.criteria),
+      logFilters: service.logSources.map((s) => s.criteria),
     });
   } else {
-    if (insertChildAddressLogs) {
-      // Find and insert any new child contracts.
-      const matchedFactoryLogs = filterLogs({
-        logs,
-        logFilters: service.factorySources.map((fs) => ({
-          address: fs.criteria.address,
-          topics: [fs.criteria.eventSelector],
-        })),
-      });
+    // Find and insert any new child contracts.
+    const matchedFactoryLogs = filterLogs({
+      logs,
+      logFilters: service.factoryLogSources.map((fs) => ({
+        address: fs.criteria.address,
+        topics: [fs.criteria.eventSelector],
+      })),
+    });
 
-      await service.syncStore.insertFactoryChildAddressLogs({
-        chainId: service.network.chainId,
-        logs: matchedFactoryLogs,
-      });
-    }
+    await service.syncStore.insertFactoryChildAddressLogs({
+      chainId: service.network.chainId,
+      logs: matchedFactoryLogs,
+    });
 
     // Find any logs matching log filters or child contract filters.
     // NOTE: It might make sense to just insert all logs rather than introduce
@@ -688,7 +688,7 @@ const getMatchedLogs = async (
     // NOTE: Also makes sense to hold factoryChildAddresses in memory rather than
     // a query each interval.
     const factoryLogFilters = await Promise.all(
-      service.factorySources.map(async (factory) => {
+      service.factoryLogSources.map(async (factory) => {
         const iterator = service.syncStore.getFactoryChildAddresses({
           chainId: service.network.chainId,
           factory: factory.criteria,
@@ -709,8 +709,75 @@ const getMatchedLogs = async (
     return filterLogs({
       logs,
       logFilters: [
-        ...service.logFilterSources.map((l) => l.criteria),
-        ...factoryLogFilters,
+        ...service.logSources.map((l) => l.criteria),
+        ...factoryLogFilters.filter((f) => f.address.length !== 0),
+      ],
+    });
+  }
+};
+
+const getMatchedCallTraces = async (
+  service: Service,
+  {
+    callTraces,
+    logs,
+    upToBlockNumber,
+  }: {
+    callTraces: SyncCallTrace[];
+    logs: SyncLog[];
+    upToBlockNumber: bigint;
+  },
+) => {
+  if (service.factoryCallTraceSources.length === 0) {
+    return filterCallTraces({
+      callTraces,
+      callTraceFilters: service.callTraceSources.map((s) => s.criteria),
+    });
+  } else {
+    // Find and insert any new child contracts.
+    const matchedFactoryLogs = filterLogs({
+      logs,
+      logFilters: service.factoryLogSources.map((fs) => ({
+        address: fs.criteria.address,
+        topics: [fs.criteria.eventSelector],
+      })),
+    });
+
+    await service.syncStore.insertFactoryChildAddressLogs({
+      chainId: service.network.chainId,
+      logs: matchedFactoryLogs,
+    });
+
+    // Find any logs matching log filters or child contract filters.
+    // NOTE: It might make sense to just insert all logs rather than introduce
+    // a potentially slow DB operation here. It's a tradeoff between sync
+    // latency and database growth.
+    // NOTE: Also makes sense to hold factoryChildAddresses in memory rather than
+    // a query each interval.
+    const factoryTraceFilters = await Promise.all(
+      service.factoryCallTraceSources.map(async (factory) => {
+        const iterator = service.syncStore.getFactoryChildAddresses({
+          chainId: service.network.chainId,
+          factory: factory.criteria,
+          fromBlock: BigInt(factory.startBlock),
+          toBlock: upToBlockNumber,
+        });
+        const childContractAddresses: Address[] = [];
+        for await (const batch of iterator) {
+          childContractAddresses.push(...batch);
+        }
+        return {
+          toAddress: childContractAddresses,
+          fromAddress: factory.criteria.fromAddress,
+        };
+      }),
+    );
+
+    return filterCallTraces({
+      callTraces,
+      callTraceFilters: [
+        ...service.callTraceSources.map((s) => s.criteria),
+        ...factoryTraceFilters.filter((f) => f.toAddress.length !== 0),
       ],
     });
   }

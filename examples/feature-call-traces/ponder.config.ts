@@ -16,7 +16,6 @@ export default createConfig({
       address: mainnet.contracts.multicall3.address,
       startBlock: 19_800_000,
       includeCallTraces: true,
-      maxBlockRange: 25,
     },
   },
 });

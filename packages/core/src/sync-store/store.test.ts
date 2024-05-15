@@ -9,9 +9,9 @@ import {
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
 import {
   type BlockFilterCriteria,
-  type FactoryCriteria,
+  type FactoryLogFilterCriteria,
   type LogFilterCriteria,
-  sourceIsFactory,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import {
@@ -49,8 +49,13 @@ test("setup creates tables", async (context) => {
 
   expect(tableNames).toContain("logFilters");
   expect(tableNames).toContain("logFilterIntervals");
-  expect(tableNames).toContain("factories");
+  expect(tableNames).toContain("factoryLogFilters");
   expect(tableNames).toContain("factoryLogFilterIntervals");
+
+  expect(tableNames).toContain("traceFilters");
+  expect(tableNames).toContain("traceFilterIntervals");
+  expect(tableNames).toContain("factoryTraceFilters");
+  expect(tableNames).toContain("factoryTraceFilterIntervals");
 
   expect(tableNames).toContain("rpcRequestResults");
   await cleanup();
@@ -574,7 +579,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
@@ -646,7 +651,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
     childAddressLocation: "offset32",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
@@ -701,7 +706,7 @@ test("getFactoryChildAddresses respects toBlock argument", async (context) => {
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
@@ -768,7 +773,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
@@ -883,7 +888,7 @@ test("getFactoryChildAddresses does not yield empty list", async (context) => {
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   const iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
@@ -913,7 +918,7 @@ test("insertFactoryLogFilterInterval inserts block, transactions, receipts and l
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
@@ -954,7 +959,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
@@ -1008,7 +1013,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
@@ -1034,7 +1039,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
         null,
         null,
       ],
-    } as FactoryCriteria,
+    } as FactoryLogFilterCriteria,
   });
 
   expect(intervals).toMatchObject([[0, 500]]);
@@ -1046,7 +1051,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
-  const factoryCriteria: FactoryCriteria = {
+  const factoryCriteria: FactoryLogFilterCriteria = {
     address: "0xfactory",
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
@@ -1074,7 +1079,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
     factory: {
       ...factoryCriteria,
       includeTransactionReceipts: true,
-    } as FactoryCriteria,
+    } as FactoryLogFilterCriteria,
   });
 
   expect(intervals).toMatchObject([]);
@@ -1101,7 +1106,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
     factory: {
       ...factoryCriteria,
       includeTransactionReceipts: false,
-    } as FactoryCriteria,
+    } as FactoryLogFilterCriteria,
   });
 
   expect(intervals).toMatchObject([[0, 500]]);
@@ -1543,6 +1548,253 @@ test("insertTraceFilterIntervals merges traces filters", async (context) => {
   }
 });
 
+test("insertFactoryTraceFilterInverval inserts traces", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block4,
+      interval: {
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
+      },
+    });
+
+    const traces = await syncStore.db
+      .selectFrom("callTraces")
+      .selectAll()
+      .execute();
+    expect(traces).toHaveLength(1);
+
+    await cleanup();
+  }
+});
+
+test("insertFactoryTraceFilterIntervals inserts and merges child contract intervals", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block2,
+      traces: [
+        {
+          ...rpcData.block2.traces[0],
+          traceAddress: [0, 0],
+          result: {
+            ...rpcData.block2.traces[0].result,
+          },
+        },
+        rpcData.block2.traces[1]!,
+      ],
+      interval: {
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
+      },
+    });
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block2,
+      traces: [
+        {
+          ...rpcData.block2.traces[0],
+          traceAddress: [1],
+          result: {
+            ...rpcData.block2.traces[0].result,
+          },
+        },
+      ],
+      interval: {
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
+      },
+    });
+
+    let traces = await syncStore.db
+      .selectFrom("callTraces")
+      .selectAll()
+      .orderBy("checkpoint")
+      .execute();
+
+    expect(traces).toHaveLength(3);
+    expect(traces[0].transactionHash).toBe(rpcData.block2.transactions[0].hash);
+    expect(traces[0].traceAddress).toBe(JSON.stringify([0, 0]));
+    expect(decodeCheckpoint(traces[0].checkpoint).eventIndex).toBe(0n);
+
+    expect(traces[1].transactionHash).toBe(rpcData.block2.transactions[0].hash);
+    expect(traces[1].traceAddress).toBe(JSON.stringify([1]));
+    expect(decodeCheckpoint(traces[1].checkpoint).eventIndex).toBe(1n);
+
+    expect(traces[2].transactionHash).toBe(rpcData.block2.transactions[1].hash);
+    expect(traces[2].traceAddress).toBe(JSON.stringify([0]));
+    expect(decodeCheckpoint(traces[2].checkpoint).eventIndex).toBe(0n);
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block2,
+      traces: [
+        {
+          ...rpcData.block2.traces[0],
+          traceAddress: [0, 2],
+          result: {
+            ...rpcData.block2.traces[0].result,
+          },
+        },
+      ],
+      interval: {
+        startBlock: hexToBigInt(rpcData.block2.block.number),
+        endBlock: hexToBigInt(rpcData.block2.block.number),
+      },
+    });
+
+    traces = await syncStore.db
+      .selectFrom("callTraces")
+      .selectAll()
+      .orderBy("checkpoint")
+      .execute();
+    expect(traces).toHaveLength(4);
+
+    expect(traces[0].transactionHash).toBe(rpcData.block2.transactions[0].hash);
+    expect(traces[0].traceAddress).toBe(JSON.stringify([0, 0]));
+    expect(decodeCheckpoint(traces[0].checkpoint).eventIndex).toBe(0n);
+
+    expect(traces[1].transactionHash).toBe(rpcData.block2.transactions[0].hash);
+    expect(traces[1].traceAddress).toBe(JSON.stringify([0, 2]));
+    expect(decodeCheckpoint(traces[1].checkpoint).eventIndex).toBe(1n);
+
+    expect(traces[2].transactionHash).toBe(rpcData.block2.transactions[0].hash);
+    expect(traces[2].traceAddress).toBe(JSON.stringify([1]));
+    expect(decodeCheckpoint(traces[2].checkpoint).eventIndex).toBe(2n);
+
+    expect(traces[3].transactionHash).toBe(rpcData.block2.transactions[1].hash);
+    expect(traces[3].traceAddress).toBe(JSON.stringify([0]));
+    expect(decodeCheckpoint(traces[3].checkpoint).eventIndex).toBe(0n);
+
+    await cleanup();
+  }
+});
+
+test("insertFactoryTraceFilterInterval updates checkpoints for existing traces", async (context) => {
+  {
+    const { sources } = context;
+    const { syncStore, cleanup } = await setupDatabaseServices(context);
+    const rpcData = await getRawRPCData(sources);
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block2,
+      interval: { startBlock: 0n, endBlock: 100n },
+    });
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block3,
+      interval: { startBlock: 200n, endBlock: 300n },
+    });
+
+    let traceFilterRanges = await syncStore.getFactoryTraceFilterIntervals({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+    });
+
+    expect(traceFilterRanges).toMatchObject([
+      [0, 100],
+      [200, 300],
+    ]);
+
+    await syncStore.insertFactoryTraceFilterInterval({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+      ...rpcData.block4,
+      interval: { startBlock: 100n, endBlock: 200n },
+    });
+
+    traceFilterRanges = await syncStore.getFactoryTraceFilterIntervals({
+      chainId: 1,
+      factory: {
+        address: "0xfactory",
+        eventSelector:
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        childAddressLocation: "topic1",
+        includeTransactionReceipts: false,
+        functionSelectors: [],
+      },
+    });
+
+    expect(traceFilterRanges).toMatchObject([[0, 300]]);
+
+    await cleanup();
+  }
+});
+
 test("insertRealtimeBlock inserts data", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -1630,7 +1882,7 @@ test("insertRealtimeInterval inserts intervals", async (context) => {
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   const factoryCriteriaTwo = {
     address: "0xparent",
@@ -1638,7 +1890,7 @@ test("insertRealtimeInterval inserts intervals", async (context) => {
     childAddressLocation: "offset64",
     topics: [],
     includeTransactionReceipts: false,
-  } satisfies FactoryCriteria;
+  } satisfies FactoryLogFilterCriteria;
 
   const blockFilterCriteria = {
     interval: 10,
@@ -1648,9 +1900,10 @@ test("insertRealtimeInterval inserts intervals", async (context) => {
   await syncStore.insertRealtimeInterval({
     chainId: 1,
     logFilters: [logFilterCriteria],
-    factories: [factoryCriteriaOne, factoryCriteriaTwo],
+    factoryLogFilters: [factoryCriteriaOne, factoryCriteriaTwo],
     blockFilters: [blockFilterCriteria],
     traceFilters: [],
+    factoryTraceFilters: [],
     interval: { startBlock: 500n, endBlock: 550n },
   });
 
@@ -1883,7 +2136,7 @@ test("getEvents with log filters", async (context) => {
   });
 
   const ag = syncStore.getEvents({
-    sources: sources.filter((s) => sourceIsFactory(s) || sourceIsLog(s)),
+    sources: sources.filter((s) => sourceIsFactoryLog(s) || sourceIsLog(s)),
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -1931,7 +2184,7 @@ test("getEvents with logs filters and receipts", async (context) => {
   const ag = syncStore.getEvents({
     // @ts-ignore
     sources: sources
-      .filter((s) => sourceIsLog(s) || sourceIsFactory(s))
+      .filter((s) => sourceIsLog(s) || sourceIsFactoryLog(s))
       .map((s) => ({
         ...s,
         criteria: { ...s.criteria, includeTransactionReceipts: true },
@@ -1987,7 +2240,7 @@ test("getEvents with block filters", async (context) => {
   });
 
   const ag = syncStore.getEvents({
-    sources: [sources[3]],
+    sources: [sources[4]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -2001,6 +2254,37 @@ test("getEvents with block filters", async (context) => {
 });
 
 test("getEvents with trace filters", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block2,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block3,
+  });
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block4,
+  });
+
+  const ag = syncStore.getEvents({
+    sources: [sources[3]],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(1);
+
+  await cleanup();
+});
+
+test("getEvents with factory trace filters", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
@@ -2365,7 +2649,7 @@ test("getEvents filters on block filter criteria", async (context) => {
   });
 
   const ag = syncStore.getEvents({
-    sources: [{ ...sources[3], endBlock: 3 }],
+    sources: [{ ...sources[4], endBlock: 3 }],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -2398,12 +2682,12 @@ test("getEvents filters on trace filter criteria", async (context) => {
   const ag = syncStore.getEvents({
     sources: [
       {
-        ...sources[2],
+        ...sources[3],
         criteria: {
           fromAddress: [ALICE.toLowerCase() as Address],
           toAddress: [context.factory.address],
           includeTransactionReceipts: false,
-          functionSelectors: sources[2].criteria.functionSelectors,
+          functionSelectors: sources[3].criteria.functionSelectors,
         },
         endBlock: 3,
       },
@@ -2445,7 +2729,7 @@ test("getEvents multiple sources", async (context) => {
   });
   const events = await drainAsyncGenerator(ag);
 
-  expect(events).toHaveLength(5);
+  expect(events).toHaveLength(6);
 
   await cleanup();
 });

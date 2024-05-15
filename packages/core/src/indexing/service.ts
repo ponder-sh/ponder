@@ -3,9 +3,9 @@ import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import {
   type EventSource,
-  type FactorySource,
+  type FactoryLogSource,
   type LogSource,
-  sourceIsFactory,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
@@ -124,13 +124,15 @@ export const create = ({
     if (source.type === "block") continue;
 
     const address =
-      source.type === "callTrace"
-        ? source.criteria.toAddress!.length === 1
-          ? source.criteria.toAddress![0]
-          : undefined
-        : typeof source.criteria.address === "string"
-          ? source.criteria.address
-          : undefined;
+      source.type === "factoryCallTrace" || source.type === "factoryLog"
+        ? undefined
+        : source.type === "callTrace"
+          ? source.criteria.toAddress!.length === 1
+            ? source.criteria.toAddress![0]
+            : undefined
+          : typeof source.criteria.address === "string"
+            ? source.criteria.address
+            : undefined;
 
     if (contractsByChainId[source.chainId] === undefined) {
       contractsByChainId[source.chainId] = {};
@@ -228,10 +230,10 @@ export const processSetupEvents = async (
     for (const network of networks) {
       const source = sources.find(
         (s) =>
-          (sourceIsLog(s) || sourceIsFactory(s)) &&
+          (sourceIsLog(s) || sourceIsFactoryLog(s)) &&
           s.contractName === contractName &&
           s.chainId === network.chainId,
-      )! as LogSource | FactorySource;
+      )! as LogSource | FactoryLogSource;
 
       if (indexingService.isKilled) return { status: "killed" };
       indexingService.eventCount[eventName][source.networkName]++;
