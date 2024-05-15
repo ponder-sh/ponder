@@ -122,12 +122,15 @@ export const create = ({
   // build contractsByChainId
   for (const source of sources) {
     if (source.type === "block") continue;
-    if (source.type === "callTrace") continue;
 
     const address =
-      typeof source.criteria.address === "string"
-        ? source.criteria.address
-        : undefined;
+      source.type === "callTrace"
+        ? source.criteria.toAddress!.length === 1
+          ? source.criteria.toAddress![0]
+          : undefined
+        : typeof source.criteria.address === "string"
+          ? source.criteria.address
+          : undefined;
 
     if (contractsByChainId[source.chainId] === undefined) {
       contractsByChainId[source.chainId] = {};
