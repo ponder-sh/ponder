@@ -698,8 +698,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
             const missingFactoryTraceFilterTaskChunks = getChunks({
               intervals: missingFactoryTraceFilterIntervals,
-              maxChunkSize:
-                source.maxBlockRange ?? this.network.defaultMaxBlockRange,
+              maxChunkSize: TRACE_FILTER_CHUNK_SIZE,
             });
 
             for (const [
@@ -1353,8 +1352,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           );
           const factoryTraceFilterChunks = getChunks({
             intervals: requiredIntervals,
-            maxChunkSize:
-              factory.maxBlockRange ?? this.network.defaultMaxBlockRange,
+            maxChunkSize: TRACE_FILTER_CHUNK_SIZE,
           });
 
           for (const [fromBlock, toBlock] of factoryTraceFilterChunks) {
