@@ -1349,6 +1349,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           chainId: traceFilter.chainId,
           block,
           transactions,
+          // trace intervals always include transaction receipts because
+          // the transactions receipts are already needed determine the
+          // persistence of a trace.
           transactionReceipts: transactionReceipts.filter((txr) =>
             transactionHashes.has(txr.transactionHash),
           ),
