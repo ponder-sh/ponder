@@ -1,6 +1,5 @@
 import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
-import { getBaseError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import {
   type EventSource,
@@ -515,7 +514,7 @@ const executeSetup = async (
     );
   } catch (error_) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = getBaseError(error_);
+    const error = error_ as Error & { meta?: string };
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
@@ -588,13 +587,13 @@ const executeLog = async (
     );
   } catch (error_) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = getBaseError(error_);
+    const error = error_ as Error & { meta?: string };
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
+    error.meta = `Event arguments:\n${prettyPrint(event.event.args)}`;
 
     addUserStackTrace(error, common.options);
 
@@ -733,13 +732,13 @@ const executeCallTrace = async (
     );
   } catch (error_) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = getBaseError(error_);
+    const error = error_ as Error & { meta?: string };
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    error.meta.push(`Function arguments:\n${prettyPrint(event.event.args)}`);
+    error.meta = `Function arguments:\n${prettyPrint(event.event.args)}`;
 
     addUserStackTrace(error, common.options);
 

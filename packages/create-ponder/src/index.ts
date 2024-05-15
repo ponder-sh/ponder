@@ -86,6 +86,11 @@ const templates = [
     description: "A Ponder app using a block filter",
   },
   {
+    id: "feature-call-traces",
+    title: "Feature - Call traces",
+    description: "A Ponder app using a call traces",
+  },
+  {
     id: "feature-multichain",
     title: "Feature - Multichain contract",
     description: "A Ponder app using multiple chains",
