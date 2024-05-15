@@ -1,6 +1,7 @@
 import {
   type BuilderEnumColumn,
   type BuilderIndex,
+  type BuilderJSONColumn,
   type BuilderManyColumn,
   type BuilderOneColumn,
   type BuilderScalarColumn,
@@ -11,6 +12,7 @@ import {
   hex,
   index,
   int,
+  json,
   many,
   one,
   string,
@@ -115,6 +117,7 @@ const P = {
   float,
   hex,
   boolean,
+  json,
   one,
   many,
   enum: _enum,
@@ -247,6 +250,7 @@ type P = {
    * }));
    */
   boolean: () => BuilderScalarColumn<"boolean", false, false>;
+  json: <type = unknown>() => BuilderJSONColumn<type, false>;
   /**
    * One-to-one column type.`one` columns don't exist in the database. They are only present when querying data from the GraphQL API.
    *

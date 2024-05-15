@@ -25,6 +25,12 @@ export type ReferenceColumn<
   " reference": reference;
 };
 
+export type JSONColumn<type = unknown, optional extends boolean = boolean> = {
+  " type": "json";
+  " json": type;
+  " optional": optional;
+};
+
 export type OneColumn<reference extends string = string> = {
   " type": "one";
   " reference": reference;
@@ -64,6 +70,7 @@ export type Index<
 export type Column =
   | ScalarColumn
   | ReferenceColumn
+  | JSONColumn
   | OneColumn
   | ManyColumn
   | EnumColumn;

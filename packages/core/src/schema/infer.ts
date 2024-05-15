@@ -8,6 +8,7 @@ import type {
   ExtractOptionalColumnNames,
   ExtractRequiredColumnNames,
   ExtractTableNames,
+  JSONColumn,
   ReferenceColumn,
   Scalar,
   ScalarColumn,
@@ -38,9 +39,11 @@ export type InferColumnType<
     : InferScalarType<column[" scalar"]>
   : column extends ReferenceColumn
     ? InferScalarType<column[" scalar"]>
-    : column extends EnumColumn
-      ? (schema[column[" enum"] & keyof schema] & Enum)[number]
-      : never;
+    : column extends JSONColumn
+      ? column[" json"]
+      : column extends EnumColumn
+        ? (schema[column[" enum"] & keyof schema] & Enum)[number]
+        : never;
 
 export type InferTableType<table, schema> = table extends {
   table: Table;
