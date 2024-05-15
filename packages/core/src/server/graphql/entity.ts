@@ -3,6 +3,7 @@ import {
   extractReferenceTable,
   getTables,
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
@@ -136,6 +137,12 @@ export const buildEntityTypes = ({
                 limit: { type: GraphQLInt },
               },
               resolve: resolver,
+            };
+          } else if (isJSONColumn(column)) {
+            fieldConfigMap[columnName] = {
+              type: isOptionalColumn(column)
+                ? GraphQLString
+                : new GraphQLNonNull(GraphQLString),
             };
           } else {
             const type = isEnumColumn(column)

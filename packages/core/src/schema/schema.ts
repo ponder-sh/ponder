@@ -27,6 +27,7 @@ import type {
   ExtractTableNames,
   IdColumn,
   Index,
+  JSONColumn,
   ManyColumn,
   OneColumn,
   ReferenceColumn,
@@ -60,27 +61,29 @@ type GetTable<
                 table[columnName][" optional"],
                 `${tableNames}.id`
               >
-            : table[columnName] extends OneColumn
-              ? OneColumn<Exclude<keyof table & string, columnName | "id">>
-              : table[columnName] extends ManyColumn
-                ? {} extends schema
-                  ? ManyColumn
-                  : table[columnName] extends ManyColumn<
-                        Exclude<tableNames, tableName>
-                      >
-                    ? ManyColumn<
-                        table[columnName][" referenceTable"],
-                        ExtractReferenceColumnNames<
-                          schema[table[columnName][" referenceTable"] &
-                            keyof schema],
-                          tableName
-                        > &
-                          string
-                      >
-                    : ManyColumn<Exclude<tableNames, tableName>>
-                : table[columnName] extends EnumColumn
-                  ? EnumColumn<enumNames>
-                  : Column;
+            : table[columnName] extends JSONColumn
+              ? JSONColumn
+              : table[columnName] extends OneColumn
+                ? OneColumn<Exclude<keyof table & string, columnName | "id">>
+                : table[columnName] extends ManyColumn
+                  ? {} extends schema
+                    ? ManyColumn
+                    : table[columnName] extends ManyColumn<
+                          Exclude<tableNames, tableName>
+                        >
+                      ? ManyColumn<
+                          table[columnName][" referenceTable"],
+                          ExtractReferenceColumnNames<
+                            schema[table[columnName][" referenceTable"] &
+                              keyof schema],
+                            tableName
+                          > &
+                            string
+                        >
+                      : ManyColumn<Exclude<tableNames, tableName>>
+                  : table[columnName] extends EnumColumn
+                    ? EnumColumn<enumNames>
+                    : Column;
       }
     : { id: IdColumn } & {
         [columnName: string]: Column;

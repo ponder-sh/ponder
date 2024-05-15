@@ -2,6 +2,7 @@ import { StoreError } from "@/common/errors.js";
 import type { Table } from "@/schema/common.js";
 import {
   isEnumColumn,
+  isJSONColumn,
   isManyColumn,
   isOneColumn,
   isReferenceColumn,
@@ -42,7 +43,8 @@ export function buildOrderByConditions({
           (columnName) =>
             isScalarColumn(table[columnName]) ||
             isReferenceColumn(table[columnName]) ||
-            isEnumColumn(table[columnName]),
+            isEnumColumn(table[columnName]) ||
+            isJSONColumn(table[column]),
         )
         .map((c) => `'${c}'`)
         .join(", ")}]`,
