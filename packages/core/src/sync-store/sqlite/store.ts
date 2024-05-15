@@ -1034,7 +1034,7 @@ export class SqliteSyncStore implements SyncStore {
     factory: FactoryCallTraceFilterCriteria;
   }) => {
     return this.db.wrap(
-      { method: "getFactoryLogFilterIntervals" },
+      { method: "getFactoryTraceFilterIntervals" },
       async () => {
         const fragments = buildFactoryTraceFragments({ ...factory, chainId });
 
@@ -1573,7 +1573,7 @@ export class SqliteSyncStore implements SyncStore {
         const { id: factoryId } = await tx
           .insertInto("factoryTraceFilters")
           .values(fragment)
-          .onConflict((oc) => oc.doUpdateSet(fragment))
+          .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
           .returningAll()
           .executeTakeFirstOrThrow();
 
