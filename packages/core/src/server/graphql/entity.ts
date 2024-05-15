@@ -23,6 +23,7 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
+import { GraphQLJSON } from "graphql-type-json";
 import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { buildWhereObject } from "./filter.js";
 import type { PluralResolver } from "./plural.js";
@@ -141,8 +142,8 @@ export const buildEntityTypes = ({
           } else if (isJSONColumn(column)) {
             fieldConfigMap[columnName] = {
               type: isOptionalColumn(column)
-                ? GraphQLString
-                : new GraphQLNonNull(GraphQLString),
+                ? GraphQLJSON
+                : new GraphQLNonNull(GraphQLJSON),
             };
           } else {
             const type = isEnumColumn(column)
