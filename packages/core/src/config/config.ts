@@ -98,6 +98,12 @@ type TransactionReceiptConfig = {
 };
 
 type FunctionCallConfig = {
+  /*
+   * Enable call trace indexing for this contract.
+   *
+   * - Docs: https://ponder.sh/docs/indexing/call-traces
+   */
+
   includeCallTraces?: boolean;
 };
 
