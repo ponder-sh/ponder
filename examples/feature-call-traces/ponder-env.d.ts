@@ -6,8 +6,8 @@
 declare module "@/generated" {
   import type { Virtual } from "@ponder/core";
 
-  type config = typeof import("./ponder.config.js").default;
-  type schema = typeof import("./ponder.schema.js").default;
+  type config = typeof import("./ponder.config.ts").default;
+  type schema = typeof import("./ponder.schema.ts").default;
 
   export const ponder: Virtual.Registry<config, schema>;
 
