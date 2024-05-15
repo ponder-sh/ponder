@@ -43,7 +43,7 @@ import {
 import { validateHistoricalBlockRange } from "./validateHistoricalBlockRange.js";
 
 const HISTORICAL_CHECKPOINT_EMIT_INTERVAL = 500;
-const TRACE_FILTER_CHUNK_SIZE = 20;
+const TRACE_FILTER_CHUNK_SIZE = 10;
 
 type HistoricalSyncEvents = {
   /**
