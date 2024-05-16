@@ -332,11 +332,21 @@ export const handleBlock = async (
 
   // "eth_getLogs" calls can be skipped if a negative match is given from "logsBloom".
   const shouldRequestLogs =
-    service.factoryLogSources.length > 0 ||
     newHeadBlock.logsBloom === zeroLogsBloom ||
     isMatchedLogInBloomFilter({
       bloom: newHeadBlock.logsBloom,
-      logFilters: service.logSources.map((s) => s.criteria),
+      logFilters: [
+        ...service.logSources.map((s) => s.criteria),
+        // child address logs
+        ...service.factoryLogSources.map((s) => ({
+          address: s.criteria.address,
+          topics: [s.criteria.eventSelector],
+        })),
+        // address is unknown
+        ...service.factoryLogSources.map((s) => ({
+          topics: s.criteria.topics,
+        })),
+      ],
     });
   const shouldRequestTraces =
     service.callTraceSources.length > 0 ||
