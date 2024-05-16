@@ -44,7 +44,7 @@ export function buildOrderByConditions({
             isScalarColumn(table[columnName]) ||
             isReferenceColumn(table[columnName]) ||
             isEnumColumn(table[columnName]) ||
-            isJSONColumn(table[column]),
+            isJSONColumn(table[columnName]),
         )
         .map((c) => `'${c}'`)
         .join(", ")}]`,
@@ -52,7 +52,13 @@ export function buildOrderByConditions({
   }
   if (isOneColumn(column) || isManyColumn(column)) {
     throw new StoreError(
-      `Invalid sort. Cannot filter on virtual column '${columnName}'.`,
+      `Invalid sort. Cannot sort on virtual column '${columnName}'.`,
+    );
+  }
+
+  if (isJSONColumn(column)) {
+    throw new StoreError(
+      `Invalid sort. Cannot sort on json column '${columnName}'.`,
     );
   }
 

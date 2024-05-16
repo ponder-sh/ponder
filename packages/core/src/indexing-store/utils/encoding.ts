@@ -1,4 +1,4 @@
-import { StoreError } from "@/common/errors.js";
+import { JSONSerializeError, StoreError } from "@/common/errors.js";
 import type {
   Column,
   EnumColumn,
@@ -24,7 +24,6 @@ import type {
   UserRecord,
 } from "@/types/schema.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
-import { deserialize, serialize } from "@/utils/serialize.js";
 import { bytesToHex, hexToBytes, isHex } from "viem";
 
 const scalarToTsType = {
@@ -98,7 +97,13 @@ export function encodeValue(
     }
     return value;
   } else if (isJSONColumn(column)) {
-    return serialize(value);
+    if (encoding === "postgres") return value as Object;
+
+    try {
+      return JSON.stringify(value);
+    } catch (_error) {
+      throw new JSONSerializeError((_error as Error).message);
+    }
   } else if (isScalarColumn(column) || isReferenceColumn(column)) {
     if (isOptionalColumn(column) && (value === undefined || value === null)) {
       return null;
@@ -216,7 +221,7 @@ function decodeValue(
     }
     return value as UserColumn;
   } else if (isJSONColumn(column)) {
-    return deserialize(value as string);
+    return encoding === "postgres" ? value : JSON.parse(value as string);
   } else if (isListColumn(column)) {
     return column[" scalar"] === "bigint"
       ? JSON.parse(value as string).map(BigInt)

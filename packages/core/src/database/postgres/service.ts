@@ -733,7 +733,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         });
       } else if (isJSONColumn(column)) {
         // Handle json columns
-        builder = builder.addColumn(columnName, "text", (col) => {
+        builder = builder.addColumn(columnName, "jsonb", (col) => {
           if (isOptionalColumn(column) === false) col = col.notNull();
           return col;
         });
@@ -770,7 +770,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         builder = builder.addColumn(columnName, "text");
       } else if (isJSONColumn(column)) {
         // Handle json columns
-        builder = builder.addColumn(columnName, "text");
+        builder = builder.addColumn(columnName, "jsonb");
       } else {
         // Non-list base columns
         builder = builder.addColumn(

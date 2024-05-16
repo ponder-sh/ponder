@@ -27,6 +27,6 @@ export type UserTable = {
   [columnName: string]: UserColumn;
 };
 
-export type DatabaseColumn = string | number | Buffer | bigint | null;
+export type DatabaseColumn = string | number | Buffer | bigint | object | null;
 
 export type DatabaseRecord = { [columnName: string]: DatabaseColumn };

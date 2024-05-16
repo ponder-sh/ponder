@@ -307,7 +307,7 @@ test("json", async (context) => {
     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
     id: "0",
     data: {
-      json: { kevin: 52n },
+      json: { kevin: 52 },
     },
   });
 
@@ -331,7 +331,7 @@ test("json", async (context) => {
   expect(result.data).toMatchObject({
     table: {
       id: "0",
-      json: { kevin: 52n },
+      json: { kevin: 52 },
     },
   });
 

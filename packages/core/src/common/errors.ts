@@ -70,3 +70,12 @@ export class RecordNotFoundError extends NonRetryableError {
     Object.setPrototypeOf(this, RecordNotFoundError.prototype);
   }
 }
+
+export class JSONSerializeError extends NonRetryableError {
+  override name = "JSONSerializeError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, JSONSerializeError.prototype);
+  }
+}

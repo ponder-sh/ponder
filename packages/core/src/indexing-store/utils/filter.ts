@@ -126,7 +126,7 @@ export function buildWhereConditions({
               isScalarColumn(table[columnName]) ||
               isReferenceColumn(table[columnName]) ||
               isEnumColumn(table[columnName]) ||
-              isJSONColumn(column),
+              isJSONColumn(table[columnName]),
           )
           .map((c) => `'${c}'`)
           .join(", ")}]`,
