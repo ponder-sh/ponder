@@ -186,7 +186,6 @@ export type ExtractNonVirtualColumnNames<
   ? table[columnNames & keyof table] extends
       | ReferenceColumn
       | ScalarColumn
-      | JSONColumn
       | EnumColumn
     ? columnNames
     : never
