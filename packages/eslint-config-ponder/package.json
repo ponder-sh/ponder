@@ -1,6 +1,6 @@
 {
   "name": "eslint-config-ponder",
-  "version": "0.4.24",
+  "version": "0.4.25",
   "description": "ESLint config for Ponder apps",
   "license": "MIT",
   "main": "./index.js",
