@@ -73,7 +73,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
         if (error instanceof NonRetryableError) {
           this.common.logger.warn({
             service: this.name,
-            msg: `Failed '${options.method}' database method with non-retryable error: ${firstError}`,
+            msg: `Failed '${options.method}' database method with non-retryable error: ${firstError.message}`,
           });
           throw error;
         }
@@ -83,7 +83,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
             service: this.name,
             msg: `Failed '${options.method}' database method after '${
               i + 1
-            }' attempts with error: ${firstError}`,
+            }' attempts with error: ${firstError.message}`,
           });
           throw firstError;
         }
