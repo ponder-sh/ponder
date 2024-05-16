@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.4.25
+
+### Patch Changes
+
+- [#867](https://github.com/ponder-sh/ponder/pull/867) [`e5498ad304a7bc54ccdd8b91327d431b15af388b`](https://github.com/ponder-sh/ponder/commit/e5498ad304a7bc54ccdd8b91327d431b15af388b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for call trace indexing. [See the docs for more details](https://ponder.sh/docs/indexing/call-traces).
+
 ## 0.4.24
 
 ## 0.4.23
