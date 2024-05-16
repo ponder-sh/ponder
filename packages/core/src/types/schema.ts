@@ -13,6 +13,7 @@ export type UserColumn =
   | Hex[]
   | bigint
   | bigint[]
+  | object
   | null
   | undefined;
 

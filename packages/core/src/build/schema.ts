@@ -4,6 +4,7 @@ import {
   getEnums,
   getTables,
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
@@ -41,6 +42,10 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
           `Validation failed: Table '${tableName}' does not have an 'id' column.`,
         );
 
+      if (isJSONColumn(table.id))
+        throw new Error(
+          `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'json', expected one of ['string', 'hex', 'bigint', 'int'].`,
+        );
       if (isEnumColumn(table.id))
         throw new Error(
           `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'enum', expected one of ['string', 'hex', 'bigint', 'int'].`,
