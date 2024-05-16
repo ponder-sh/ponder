@@ -3,11 +3,11 @@ import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
 
-const request = getRequest("https://ethereum.blockpi.network/v1/rpc/public");
-const maxBlockRange = 1024n;
+const request = getRequest(process.env.RPC_URL_CHAINSTACK_1!);
+const maxBlockRange = 110n;
 
 test(
-  "blockpi success",
+  "chainstack success",
   async () => {
     const logs = await request({
       method: "eth_getLogs",
@@ -20,13 +20,13 @@ test(
       ],
     });
 
-    expect(logs).toHaveLength(9);
+    expect(logs).toHaveLength(1);
   },
   { timeout: 15_000 },
 );
 
 test(
-  "blockpi block range",
+  "chainstack block range",
   async () => {
     const params: Params = [
       {
@@ -42,9 +42,7 @@ test(
     }).catch((error) => error);
 
     expect(error).toBeInstanceOf(InvalidParamsRpcError);
-    expect(JSON.stringify(error)).includes(
-      "eth_getLogs is limited to 1024 block range",
-    );
+    expect(JSON.stringify(error)).includes("Block range limit exceeded.");
 
     const retry = getLogsRetryHelper({
       params,
@@ -56,10 +54,10 @@ test(
       ranges: [
         {
           fromBlock: numberToHex(fromBlock),
-          toBlock: numberToHex(fromBlock + maxBlockRange),
+          toBlock: numberToHex(fromBlock + maxBlockRange - 10n),
         },
         {
-          fromBlock: numberToHex(fromBlock + maxBlockRange + 1n),
+          fromBlock: numberToHex(fromBlock + maxBlockRange - 10n + 1n),
           toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
         },
       ],
