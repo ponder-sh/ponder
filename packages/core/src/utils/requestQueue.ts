@@ -6,6 +6,7 @@ import {
   getLogsRetryHelper,
 } from "@ponder/utils";
 import {
+  BlockNotFoundError,
   type EIP1193Parameters,
   HttpRequestError,
   InternalRpcError,
@@ -184,6 +185,7 @@ function shouldRetry(error: Error) {
     if (error.code === InternalRpcError.code) return true;
     return false;
   }
+  if (error instanceof BlockNotFoundError) return true;
   if (error instanceof HttpRequestError && error.status) {
     // Forbidden
     if (error.status === 403) return true;
