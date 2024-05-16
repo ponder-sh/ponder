@@ -70,3 +70,12 @@ export class RecordNotFoundError extends NonRetryableError {
     Object.setPrototypeOf(this, RecordNotFoundError.prototype);
   }
 }
+
+export class ConstraintCheckError extends NonRetryableError {
+  override name = "ConstraintCheckError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, ConstraintCheckError.prototype);
+  }
+}

@@ -220,7 +220,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               } catch (err) {
                 const error = err as Error;
                 if (!error.message.includes("already exists")) throw error;
-                throw new Error(
+                throw new NonRetryableError(
                   `Unable to create table '${tableName}' in '${this.userNamespace}.db' because a table with that name already exists. Is there another application using the '${this.userNamespace}.db' database file?`,
                 );
               }

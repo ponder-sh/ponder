@@ -1,4 +1,5 @@
 import {
+  ConstraintCheckError,
   NotNullConstraintError,
   RecordNotFoundError,
   UniqueConstraintError,
@@ -26,6 +27,11 @@ export function parseStoreError(err: unknown, args: Record<string, unknown>) {
     error.message?.includes("violates not-null constraint")
   ) {
     error = new NotNullConstraintError(error.message);
+  } else if (
+    error.message?.includes("CHECK constraint failed") ||
+    error.message?.includes("violates check constraint")
+  ) {
+    error = new ConstraintCheckError(error.message);
   }
 
   error.meta.push(`Store method arguments:\n${prettyPrint(args)}`);

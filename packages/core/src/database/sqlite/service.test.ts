@@ -336,7 +336,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.kill();
   });
 
-  test("setup throws if there is a table name collision", async (context) => {
+  test.only("setup throws if there is a table name collision", async (context) => {
     if (context.databaseConfig.kind !== "sqlite") return;
     const database = new SqliteDatabaseService({
       common: context.common,
