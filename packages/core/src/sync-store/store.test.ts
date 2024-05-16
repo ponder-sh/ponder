@@ -1285,9 +1285,6 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
         {
           ...rpcData.block2.traces[0],
           traceAddress: [0, 0],
-          result: {
-            ...rpcData.block2.traces[0].result,
-          },
         },
         rpcData.block2.traces[1]!,
       ],
@@ -1309,9 +1306,6 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
         {
           ...rpcData.block2.traces[0],
           traceAddress: [1],
-          result: {
-            ...rpcData.block2.traces[0].result,
-          },
         },
       ],
       interval: {
@@ -1351,9 +1345,6 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
         {
           ...rpcData.block2.traces[0],
           traceAddress: [0, 2],
-          result: {
-            ...rpcData.block2.traces[0].result,
-          },
         },
       ],
       interval: {
@@ -1602,9 +1593,6 @@ test("insertFactoryTraceFilterIntervals inserts and merges child contract interv
         {
           ...rpcData.block2.traces[0],
           traceAddress: [0, 0],
-          result: {
-            ...rpcData.block2.traces[0].result,
-          },
         },
         rpcData.block2.traces[1]!,
       ],
@@ -1629,9 +1617,6 @@ test("insertFactoryTraceFilterIntervals inserts and merges child contract interv
         {
           ...rpcData.block2.traces[0],
           traceAddress: [1],
-          result: {
-            ...rpcData.block2.traces[0].result,
-          },
         },
       ],
       interval: {
@@ -1674,9 +1659,6 @@ test("insertFactoryTraceFilterIntervals inserts and merges child contract interv
         {
           ...rpcData.block2.traces[0],
           traceAddress: [0, 2],
-          result: {
-            ...rpcData.block2.traces[0].result,
-          },
         },
       ],
       interval: {

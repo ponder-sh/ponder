@@ -220,8 +220,8 @@ type CallTracesTable = {
   blockHash: Hex;
   blockNumber: BigIntText;
   error: string | null;
-  gasUsed: BigIntText;
-  output: Hex;
+  gasUsed: BigIntText | null;
+  output: Hex | null;
   subtraces: number;
   traceAddress: string;
   transactionHash: Hex;
@@ -247,8 +247,8 @@ export function rpcToSqliteTrace(
     blockHash: trace.blockHash,
     blockNumber: encodeAsText(trace.blockNumber),
     error: trace.error ?? null,
-    gasUsed: encodeAsText(trace.result.gasUsed),
-    output: trace.result.output,
+    gasUsed: trace.result ? encodeAsText(trace.result.gasUsed) : null,
+    output: trace.result ? trace.result.output : null,
     subtraces: trace.subtraces,
     traceAddress: JSON.stringify(trace.traceAddress),
     transactionHash: trace.transactionHash,
