@@ -446,6 +446,21 @@ export type BuilderJSONColumn<
   base extends JSONColumn<type, optional> = JSONColumn<type, optional>,
 > = optional extends false
   ? base & {
+      /**
+       * Mark the column as optional.
+       *
+       * - Docs: https://ponder.sh/docs/schema#optional
+       *
+       * @example
+       * import { createSchema } from "@ponder/core";
+       *
+       * export default createSchema((p) => ({
+       *   t: p.createTable({
+       *     id: p.string(),
+       *     o: p.json().optional(),
+       *   })
+       * }));
+       */
       optional: JSONOptional<base>;
     }
   : base;

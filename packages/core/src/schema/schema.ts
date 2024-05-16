@@ -253,6 +253,21 @@ type P = {
    * }));
    */
   boolean: () => BuilderScalarColumn<"boolean", false, false>;
+  /**
+   * Primitive `JSON` column type.
+   *
+   * - Docs: https://ponder.sh/docs/schema#primitives
+   *
+   * @example
+   * import { createSchema } from "@ponder/core";
+   *
+   * export default createSchema((p) => ({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     b: p.json(),
+   *   })
+   * }));
+   */
   json: <type = any>() => BuilderJSONColumn<type, false>;
   /**
    * One-to-one column type.`one` columns don't exist in the database. They are only present when querying data from the GraphQL API.
