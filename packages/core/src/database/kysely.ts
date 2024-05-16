@@ -1,10 +1,11 @@
 import type { Common } from "@/common/common.js";
 import { IgnorableError, NonRetryableError } from "@/common/errors.js";
 import { startClock } from "@/utils/timer.js";
+import { wait } from "@/utils/wait.js";
 import { Kysely, type KyselyConfig, type KyselyProps } from "kysely";
 
-const RETRY_COUNT = 3;
-const BASE_DURATION = 100;
+const RETRY_COUNT = 9;
+const BASE_DURATION = 125;
 
 export class HeadlessKysely<DB> extends Kysely<DB> {
   private common: Common;
@@ -25,11 +26,17 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
     this.isKilled = true;
   }
 
-  wrap = async <T>(options: { method: string }, fn: () => Promise<T>) => {
+  wrap = async <T>(
+    options: { method: string },
+    fn: () => Promise<T>,
+    // TypeScript can't infer that we always return or throw.
+    // @ts-ignore
+  ): Promise<T> => {
+    // First error thrown is often the most useful
     let firstError: any;
     let hasError = false;
 
-    for (let i = 0; i < RETRY_COUNT + 1; i++) {
+    for (let i = 0; i <= RETRY_COUNT; i++) {
       const endClock = startClock();
       try {
         const result = await fn();
@@ -38,8 +45,8 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
           endClock(),
         );
         return result;
-      } catch (e) {
-        const error = e as Error;
+      } catch (_error) {
+        const error = _error as Error;
 
         this.common.metrics.ponder_database_method_duration.observe(
           { service: this.name, method: options.method },
@@ -53,13 +60,9 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
         if (this.isKilled) {
           this.common.logger.trace({
             service: this.name,
-            msg: `Ignored error during '${options.method}' (service is killed)`,
+            msg: `Ignored error during '${options.method}' database method (service is killed)`,
           });
           throw new IgnorableError();
-        }
-
-        if (error instanceof NonRetryableError) {
-          throw error;
         }
 
         if (!hasError) {
@@ -67,19 +70,31 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
           firstError = error;
         }
 
-        if (i < RETRY_COUNT) {
-          const duration = BASE_DURATION * 2 ** i;
+        if (error instanceof NonRetryableError) {
           this.common.logger.warn({
             service: this.name,
-            msg: `Database error during '${options.method}', retrying after ${duration} milliseconds. Error: ${firstError.message}`,
+            msg: `Failed '${options.method}' database method with non-retryable error: ${firstError}`,
           });
-          await new Promise((_resolve) => {
-            setTimeout(_resolve, duration);
-          });
+          throw error;
         }
+
+        if (i === RETRY_COUNT) {
+          this.common.logger.warn({
+            service: this.name,
+            msg: `Failed '${options.method}' database method after '${
+              i + 1
+            }' attempts with error: ${firstError}`,
+          });
+          throw firstError;
+        }
+
+        const duration = BASE_DURATION * 2 ** i;
+        this.common.logger.debug({
+          service: this.name,
+          msg: `Failed '${options.method}' database method, retrying after ${duration} milliseconds. Error: ${error.message}`,
+        });
+        await wait(duration);
       }
     }
-
-    throw firstError;
   };
 }
