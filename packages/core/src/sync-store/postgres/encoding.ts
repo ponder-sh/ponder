@@ -221,8 +221,8 @@ type CallTracesTable = {
   blockHash: Hex;
   blockNumber: bigint;
   error: string | null;
-  gasUsed: bigint;
-  output: Hex;
+  gasUsed: bigint | null;
+  output: Hex | null;
   subtraces: number;
   traceAddress: string;
   transactionHash: Hex;
@@ -248,8 +248,8 @@ export function rpcToPostgresTrace(
     blockHash: trace.blockHash,
     blockNumber: hexToBigInt(trace.blockNumber),
     error: trace.error ?? null,
-    gasUsed: hexToBigInt(trace.result.gasUsed),
-    output: trace.result.output,
+    gasUsed: trace.result ? hexToBigInt(trace.result.gasUsed) : null,
+    output: trace.result ? trace.result.output : null,
     subtraces: trace.subtraces,
     traceAddress: JSON.stringify(trace.traceAddress),
     transactionHash: trace.transactionHash,

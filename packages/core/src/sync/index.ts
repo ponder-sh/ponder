@@ -67,7 +67,7 @@ export type SyncCallTrace = {
   result: {
     gasUsed: Hex;
     output: Hex;
-  };
+  } | null;
   subtraces: number;
   traceAddress: number[];
   transactionHash: Hex;
@@ -87,7 +87,7 @@ export type SyncCreateTrace = {
     address: Address;
     code: Hex;
     gasUsed: Hex;
-  };
+  } | null;
   subtraces: number;
   traceAddress: number[];
   transactionHash: Hex;
