@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.26
+
+### Patch Changes
+
+- [#890](https://github.com/ponder-sh/ponder/pull/890) [`3e4a6387d46b35cb73c123ad210ba28f09a0d883`](https://github.com/ponder-sh/ponder/commit/3e4a6387d46b35cb73c123ad210ba28f09a0d883) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug introduced in 0.4.25 where call traces with an 'out of gas' error could not be inserted into the database.
+
 ## 0.4.25
 
 ### Patch Changes
