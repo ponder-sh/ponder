@@ -4,12 +4,14 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { getEventsErc20, publicClient } from "@/_test/utils.js";
+import { getEventsLog, getRawRPCData, publicClient } from "@/_test/utils.js";
+import type { EventSource } from "@/config/sources.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
-import { numberToHex } from "viem";
+import { hexToNumber, numberToHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
@@ -22,6 +24,46 @@ const getBlockNumbers = () =>
     latestBlockNumber: Number(b) + 5,
     finalizedBlockNumber: Number(b),
   }));
+
+// Helper function used to spoof "trace_filter" requests
+// because they aren't supported by foundry.
+const getRequestQueue = async ({
+  sources,
+  requestQueue,
+}: { sources: EventSource[]; requestQueue: RequestQueue }) => {
+  const rpcData = await getRawRPCData(sources);
+
+  return {
+    ...requestQueue,
+    request: (request: any) => {
+      if (request.method === "trace_filter") {
+        let traces = [
+          ...rpcData.block2.traces,
+          ...rpcData.block3.traces,
+          ...rpcData.block4.traces,
+        ];
+
+        if (request.params[0].fromBlock !== undefined) {
+          traces = traces.filter(
+            (t) =>
+              hexToNumber(t.blockNumber) >=
+              hexToNumber(request.params[0].fromBlock),
+          );
+        }
+        if (request.params[0].toBlock) {
+          traces = traces.filter(
+            (t) =>
+              hexToNumber(t.blockNumber) <=
+              hexToNumber(request.params[0].toBlock),
+          );
+        }
+
+        return Promise.resolve(traces);
+      }
+      return requestQueue.request(request);
+    },
+  } as RequestQueue;
+};
 
 test("start() with log filter inserts log filter interval records", async (context) => {
   const { common, networks, requestQueues, sources } = context;
@@ -171,7 +213,7 @@ test("start() with block filter inserts block filter interval", async (context) 
     syncStore,
     network: networks[0],
     requestQueue: requestQueues[0],
-    sources: [sources[2]],
+    sources: [sources[4]],
   });
   await service.setup(blockNumbers);
 
@@ -181,8 +223,8 @@ test("start() with block filter inserts block filter interval", async (context) 
   await service.onIdle();
 
   const blockFilterIntervals = await syncStore.getBlockFilterIntervals({
-    chainId: sources[2].chainId,
-    blockFilter: sources[2].criteria,
+    chainId: sources[4].chainId,
+    blockFilter: sources[4].criteria,
   });
 
   expect(blockFilterIntervals).toMatchObject([
@@ -213,6 +255,7 @@ test("start() with block filter skips blocks already in database", async (contex
     logs: [],
     transactions: [],
     transactionReceipts: [],
+    traces: [],
   });
 
   const service = new HistoricalSyncService({
@@ -220,7 +263,7 @@ test("start() with block filter skips blocks already in database", async (contex
     syncStore,
     network: networks[0],
     requestQueue: requestQueues[0],
-    sources: [sources[2]],
+    sources: [sources[4]],
   });
   await service.setup(blockNumbers);
 
@@ -230,8 +273,8 @@ test("start() with block filter skips blocks already in database", async (contex
   await service.onIdle();
 
   const blockFilterIntervals = await syncStore.getBlockFilterIntervals({
-    chainId: sources[2].chainId,
-    blockFilter: sources[2].criteria,
+    chainId: sources[4].chainId,
+    blockFilter: sources[4].criteria,
   });
 
   expect(blockFilterIntervals).toMatchObject([
@@ -245,7 +288,7 @@ test("start() with block filter skips blocks already in database", async (contex
   await cleanup();
 });
 
-test("setup() with log filter and factory contract updates block metrics", async (context) => {
+test("setup() updates block metrics", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
@@ -254,7 +297,10 @@ test("setup() with log filter and factory contract updates block metrics", async
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
   });
   await service.setup(blockNumbers);
@@ -264,9 +310,23 @@ test("setup() with log filter and factory contract updates block metrics", async
   ).values;
   expect(cachedBlocksMetric).toEqual(
     expect.arrayContaining([
-      { labels: { network: "mainnet", source: "Erc20" }, value: 0 },
-      { labels: { network: "mainnet", source: "Pair_factory" }, value: 0 },
-      { labels: { network: "mainnet", source: "Pair" }, value: 0 },
+      {
+        labels: { network: "mainnet", source: "Erc20", type: "log" },
+        value: 0,
+      },
+      {
+        labels: { network: "mainnet", source: "Pair_factory", type: "log" },
+        value: 0,
+      },
+      { labels: { network: "mainnet", source: "Pair", type: "log" }, value: 0 },
+      {
+        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
+        value: 0,
+      },
+      {
+        labels: { network: "mainnet", source: "Factory", type: "trace" },
+        value: 0,
+      },
     ]),
   );
 
@@ -276,9 +336,20 @@ test("setup() with log filter and factory contract updates block metrics", async
   const value = blockNumbers.finalizedBlockNumber + 1;
   expect(totalBlocksMetric).toEqual(
     expect.arrayContaining([
-      { labels: { network: "mainnet", source: "Erc20" }, value },
-      { labels: { network: "mainnet", source: "Pair_factory" }, value },
-      { labels: { network: "mainnet", source: "Pair" }, value },
+      { labels: { network: "mainnet", source: "Erc20", type: "log" }, value },
+      {
+        labels: { network: "mainnet", source: "Pair_factory", type: "log" },
+        value,
+      },
+      { labels: { network: "mainnet", source: "Pair", type: "log" }, value },
+      {
+        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
+        value: value - 1,
+      },
+      {
+        labels: { network: "mainnet", source: "Factory", type: "trace" },
+        value,
+      },
     ]),
   );
 
@@ -287,7 +358,7 @@ test("setup() with log filter and factory contract updates block metrics", async
   await cleanup();
 });
 
-test("start() with log filter and factory contract updates completed blocks metrics", async (context) => {
+test("start() updates completed blocks metrics", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
@@ -296,7 +367,10 @@ test("start() with log filter and factory contract updates completed blocks metr
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
   });
   await service.setup(blockNumbers);
@@ -307,11 +381,25 @@ test("start() with log filter and factory contract updates completed blocks metr
     await common.metrics.ponder_historical_completed_blocks.get()
   ).values;
   const value = blockNumbers.finalizedBlockNumber + 1;
+
   expect(completedBlocksMetric).toEqual(
     expect.arrayContaining([
-      { labels: { network: "mainnet", source: "Pair_factory" }, value },
-      { labels: { network: "mainnet", source: "Erc20" }, value },
-      { labels: { network: "mainnet", source: "Pair" }, value },
+      {
+        labels: { network: "mainnet", source: "Pair_factory", type: "log" },
+        value,
+      },
+      { labels: { network: "mainnet", source: "Erc20", type: "log" }, value },
+      { labels: { network: "mainnet", source: "Pair", type: "log" }, value },
+      { labels: { network: "mainnet", source: "Pair", type: "trace" }, value },
+
+      {
+        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
+        value: value - 1,
+      },
+      {
+        labels: { network: "mainnet", source: "Factory", type: "trace" },
+        value,
+      },
     ]),
   );
 
@@ -336,7 +424,7 @@ test("start() adds log filter events to sync store", async (context) => {
   service.start();
   await service.onIdle();
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[0]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -346,15 +434,17 @@ test("start() adds log filter events to sync store", async (context) => {
 
   expect(events).toHaveLength(2);
 
-  const erc20Events = await getEventsErc20(sources);
+  const erc20Events = await getEventsLog(sources);
 
   expect({
     ...erc20Events[0],
     transactionReceipt: undefined,
+    trace: undefined,
   }).toMatchObject(events[0]);
   expect({
     ...erc20Events[1],
     transactionReceipt: undefined,
+    trace: undefined,
   }).toMatchObject(events[1]);
 
   service.kill();
@@ -372,13 +462,13 @@ test("start() adds factory events to sync store", async (context) => {
     syncStore,
     network: networks[0],
     requestQueue: requestQueues[0],
-    sources,
+    sources: [sources[1]],
   });
   await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
 
-  const ag = syncStore.getLogEvents({
+  const ag = syncStore.getEvents({
     sources: [sources[1]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
@@ -403,14 +493,14 @@ test("start() adds block filter events to sync store", async (context) => {
     syncStore,
     network: networks[0],
     requestQueue: requestQueues[0],
-    sources: [sources[2]],
+    sources: [sources[4]],
   });
   await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
 
-  const ag = syncStore.getLogEvents({
-    sources: [sources[2]],
+  const ag = syncStore.getEvents({
+    sources: [sources[4]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
     limit: 100,
@@ -426,6 +516,84 @@ test("start() adds block filter events to sync store", async (context) => {
   expect(events[1].log).toBeUndefined();
   expect(events[1].transaction).toBeUndefined();
   expect(events[1].block.number).toBe(3n);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
+test("start() adds trace filter events to sync store", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumbers = await getBlockNumbers();
+
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
+    sources: [sources[3]],
+  });
+  await service.setup(blockNumbers);
+  service.start();
+  await service.onIdle();
+
+  const ag = syncStore.getEvents({
+    sources: [sources[3]],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(1);
+
+  expect(events[0].log).toBeUndefined();
+  expect(events[0].transaction).toBeDefined();
+  expect(events[0].trace).toBeDefined();
+  expect(events[0].block.number).toBe(3n);
+
+  service.kill();
+  await service.onIdle();
+  await cleanup();
+});
+
+test("start() adds factory trace filter events to sync store", async (context) => {
+  const { common, networks, requestQueues, sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumbers = await getBlockNumbers();
+
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network: networks[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
+    sources: [sources[2]],
+  });
+  await service.setup(blockNumbers);
+  service.start();
+  await service.onIdle();
+
+  const ag = syncStore.getEvents({
+    sources: [sources[2]],
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
+  });
+  const events = await drainAsyncGenerator(ag);
+
+  expect(events).toHaveLength(1);
+
+  expect(events[0].log).toBeUndefined();
+  expect(events[0].transaction).toBeDefined();
+  expect(events[0].trace).toBeDefined();
+  expect(events[0].block.number).toBe(4n);
 
   service.kill();
   await service.onIdle();

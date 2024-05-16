@@ -1,6 +1,6 @@
 import type { Common } from "@/common/common.js";
-import type { Kysely } from "kysely";
-import { type Migration, type MigrationProvider, sql } from "kysely";
+import type { Kysely, Migration, MigrationProvider } from "kysely";
+import { sql } from "kysely";
 
 const migrations: Record<string, Migration> = {
   "2023_05_15_0_initial": {
@@ -674,23 +674,161 @@ const migrations: Record<string, Migration> = {
         .alterColumn("checkpoint", (col) => col.setNotNull())
         .execute();
 
-      // The blocks.number index supports getLogEvents and deleteRealtimeData
+      // The blocks.number index supports getEvents and deleteRealtimeData
       await db.schema
         .createIndex("blockNumberIndex")
         .on("blocks")
         .column("number")
         .execute();
-      // The blocks.chainId index supports getLogEvents and deleteRealtimeData
+      // The blocks.chainId index supports getEvents and deleteRealtimeData
       await db.schema
         .createIndex("blockChainIdIndex")
         .on("blocks")
         .column("chainId")
         .execute();
-      // The blocks.number index supports getLogEvents
+      // The blocks.checkpoint index supports getEvents
       await db.schema
         .createIndex("blockCheckpointIndex")
         .on("blocks")
         .column("checkpoint")
+        .execute();
+    },
+  },
+  "2024_05_07_0_trace_filters": {
+    async up(db: Kysely<any>) {
+      // TODO(kyle) drop foreign key constraint on "blockFilterIntervals.blockFilterId".
+
+      await db.schema
+        .createTable("traceFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${fromAddress}_${toAddress}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("fromAddress", "varchar(42)")
+        .addColumn("toAddress", "varchar(42)")
+        .execute();
+      await db.schema
+        .createTable("traceFilterIntervals")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("traceFilterId", "text", (col) => col.notNull())
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("traceFilterIntervalsTraceFilterId")
+        .on("traceFilterIntervals")
+        .column("traceFilterId")
+        .execute();
+
+      await db.schema
+        .createTable("callTraces")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("callType", "text", (col) => col.notNull())
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("gas", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("input", "text", (col) => col.notNull())
+        .addColumn("to", "varchar(42)", (col) => col.notNull())
+        .addColumn("value", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("error", "text")
+        .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("output", "text", (col) => col.notNull())
+        .addColumn("subtraces", "integer", (col) => col.notNull())
+        .addColumn("traceAddress", "text", (col) => col.notNull())
+        .addColumn("transactionHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("transactionPosition", "integer", (col) => col.notNull())
+        .addColumn("functionSelector", "varchar(10)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
+        .execute();
+
+      // The callTraces.blockNumber index supports getEvents and deleteRealtimeData
+      await db.schema
+        .createIndex("callTracesBlockNumberIndex")
+        .on("callTraces")
+        .column("blockNumber")
+        .execute();
+
+      // The callTraces.functionSelector index supports getEvents
+      await db.schema
+        .createIndex("callTracesFunctionSelectorIndex")
+        .on("callTraces")
+        .column("functionSelector")
+        .execute();
+
+      // The callTraces.error index supports getEvents
+      await db.schema
+        .createIndex("callTracesErrorIndex")
+        .on("callTraces")
+        .column("error")
+        .execute();
+
+      // The callTraces.blockHash index supports getEvents
+      await db.schema
+        .createIndex("callTracesBlockHashIndex")
+        .on("callTraces")
+        .column("blockHash")
+        .execute();
+
+      // The callTraces.transactionHash index supports getEvents
+      await db.schema
+        .createIndex("callTracesTransactionHashIndex")
+        .on("callTraces")
+        .column("transactionHash")
+        .execute();
+
+      // The callTraces.checkpoint index supports getEvents
+      await db.schema
+        .createIndex("callTracesCheckpointIndex")
+        .on("callTraces")
+        .column("checkpoint")
+        .execute();
+
+      // The callTraces.chainId index supports getEvents
+      await db.schema
+        .createIndex("callTracesChainIdIndex")
+        .on("callTraces")
+        .column("chainId")
+        .execute();
+
+      // The callTraces.from index supports getEvents
+      await db.schema
+        .createIndex("callTracesFromIndex")
+        .on("callTraces")
+        .column("from")
+        .execute();
+
+      // The callTraces.to index supports getEvents
+      await db.schema
+        .createIndex("callTracesToIndex")
+        .on("callTraces")
+        .column("to")
+        .execute();
+
+      await db.schema
+        .alterTable("factories")
+        .renameTo("factoryLogFilters")
+        .execute();
+
+      await db.schema
+        .createTable("factoryTraceFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${fromAddress}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
+        .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
+        .addColumn("fromAddress", "varchar(42)")
+        .execute();
+      await db.schema
+        .createTable("factoryTraceFilterIntervals")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("factoryId", "text")
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("factoryTraceFilterIntervalsFactoryId")
+        .on("factoryTraceFilterIntervals")
+        .column("factoryId")
         .execute();
     },
   },

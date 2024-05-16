@@ -1,12 +1,18 @@
 import type { RawEvent } from "@/sync-store/store.js";
 import type {
   Block,
+  CallTrace,
   Log,
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
 import { never } from "@/utils/never.js";
-import { decodeEventLog } from "viem";
+import {
+  type Hex,
+  decodeEventLog,
+  decodeFunctionData,
+  decodeFunctionResult,
+} from "viem";
 import type { Service } from "./service.js";
 
 export type SetupEvent = {
@@ -42,7 +48,23 @@ export type BlockEvent = {
   encodedCheckpoint: string;
 };
 
-export type Event = LogEvent | BlockEvent;
+export type CallTraceEvent = {
+  type: "callTrace";
+  chainId: number;
+  contractName: string;
+  functionName: string;
+  event: {
+    args: any;
+    result: any;
+    trace: CallTrace;
+    block: Block;
+    transaction: Transaction;
+    transactionReceipt?: TransactionReceipt;
+  };
+  encodedCheckpoint: string;
+};
+
+export type Event = LogEvent | BlockEvent | CallTraceEvent;
 
 export const decodeEvents = (
   { common, sourceById }: Pick<Service, "sourceById" | "common">,
@@ -67,8 +89,57 @@ export const decodeEvents = (
         break;
       }
 
+      case "callTrace":
+      case "factoryCallTrace": {
+        try {
+          const abi = source.abi;
+
+          const data = decodeFunctionData({
+            abi,
+            data: event.trace!.input,
+          });
+
+          const result = decodeFunctionResult({
+            abi,
+            data: event.trace!.output,
+            functionName: data.functionName,
+          });
+
+          const selector = event.trace!.input.slice(0, 10) as Hex;
+
+          if (source.abiFunctions.bySelector[selector] === undefined) {
+            throw new Error();
+          }
+
+          const functionName =
+            source.abiFunctions.bySelector[selector]!.safeName;
+
+          events.push({
+            type: "callTrace",
+            chainId: event.chainId,
+            contractName: source.contractName,
+            functionName,
+            event: {
+              args: data.args,
+              result,
+              trace: event.trace!,
+              block: event.block,
+              transaction: event.transaction!,
+              transactionReceipt: event.transactionReceipt,
+            },
+            encodedCheckpoint: event.encodedCheckpoint,
+          });
+        } catch (err) {
+          common.logger.debug({
+            service: "app",
+            msg: `Unable to decode trace, skipping it. id: ${event.trace?.id}, input: ${event.trace?.input}, output: ${event.trace?.output}`,
+          });
+        }
+        break;
+      }
+
       case "log":
-      case "factory": {
+      case "factoryLog": {
         try {
           const abi = source.abi;
 
@@ -78,8 +149,15 @@ export const decodeEvents = (
             topics: event.log!.topics,
           });
 
+          if (
+            event.log!.topics[0] === undefined ||
+            source.abiEvents.bySelector[event.log!.topics[0]] === undefined
+          ) {
+            throw new Error();
+          }
+
           const logEventName =
-            source.abiEvents.bySelector[event.log!.topics[0]!]!.safeName;
+            source.abiEvents.bySelector[event.log!.topics[0]]!.safeName;
 
           events.push({
             type: "log",
@@ -99,9 +177,7 @@ export const decodeEvents = (
           // TODO(kyle) Because we are strictly setting all `topics` now, this should be a bigger error.
           common.logger.debug({
             service: "app",
-            msg: `Unable to decode log, skipping it. id: ${
-              event.log!.id
-            }, data: ${event.log!.data}, topics: ${event.log!.topics}`,
+            msg: `Unable to decode log, skipping it. id: ${event.log?.id}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
           });
         }
         break;

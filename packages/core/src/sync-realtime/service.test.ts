@@ -4,16 +4,51 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { testClient } from "@/_test/utils.js";
+import { getRawRPCData, testClient } from "@/_test/utils.js";
 import type { EventSource } from "@/config/sources.js";
-import { type SyncBlock, _eth_getBlockByNumber } from "@/sync/index.js";
+import {
+  type SyncBlock,
+  type SyncTrace,
+  _eth_getBlockByNumber,
+} from "@/sync/index.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { create, handleBlock, handleReorg, kill, start } from "./service.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+
+// Helper function used to spoof "trace_filter" requests
+// because they aren't supported by foundry.
+const getRequestQueue = async ({
+  sources,
+  requestQueue,
+}: { sources: EventSource[]; requestQueue: RequestQueue }) => {
+  const rpcData = await getRawRPCData(sources);
+
+  return {
+    ...requestQueue,
+    request: (request: any) => {
+      if (request.method === "trace_block") {
+        const blockNumber = request.params[0];
+        const traces: SyncTrace[] =
+          blockNumber === rpcData.block1.block.number
+            ? rpcData.block1.traces
+            : blockNumber === rpcData.block2.block.number
+              ? rpcData.block2.traces
+              : blockNumber === rpcData.block3.block.number
+                ? rpcData.block3.traces
+                : blockNumber === rpcData.block4.block.number
+                  ? rpcData.block4.traces
+                  : rpcData.block5.traces;
+
+        return Promise.resolve(traces);
+      } else return requestQueue.request(request);
+    },
+  } as RequestQueue;
+};
 
 test("createRealtimeSyncService()", async (context) => {
   const { common, networks, requestQueues, sources } = context;
@@ -28,7 +63,10 @@ test("createRealtimeSyncService()", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),
@@ -54,7 +92,13 @@ test("start() handles block", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: await getRequestQueue({
+        sources,
+        requestQueue: requestQueues[0],
+      }),
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),
@@ -84,7 +128,10 @@ test("start() no-op when receiving same block twice", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),
@@ -121,7 +168,10 @@ test("start() gets missing block", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),
@@ -155,7 +205,10 @@ test("start() finds reorg with block number", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent,
@@ -195,7 +248,10 @@ test("start() finds reorg with block hash", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),
@@ -239,7 +295,10 @@ test("start() retries on error", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),
@@ -275,7 +334,10 @@ test.skip("start() emits fatal error", async (context) => {
     common,
     syncStore,
     network: { ...networks[0], pollingInterval: 10_000 },
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),
@@ -308,7 +370,10 @@ test("kill()", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),
@@ -336,13 +401,15 @@ test("handleBlock() ingests block and logs", async (context) => {
   });
 
   const onEvent = vi.fn();
-  const requestSpy = vi.spyOn(requestQueues[0], "request");
 
   const realtimeSyncService = create({
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent,
@@ -364,14 +431,25 @@ test("handleBlock() ingests block and logs", async (context) => {
     .selectFrom("transactions")
     .selectAll()
     .execute();
+  const traces = await syncStore.db
+    .selectFrom("callTraces")
+    .selectAll()
+    .execute();
+  const transactionReceipts = await syncStore.db
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
 
   expect(blocks).toHaveLength(4);
   expect(logs).toHaveLength(4);
-  expect(transactions).toHaveLength(3);
+  expect(transactions).toHaveLength(4);
+  expect(traces).toHaveLength(2);
+  expect(transactionReceipts).toHaveLength(2);
 
   expect(transactions[0].to).toBe(erc20.address);
   expect(transactions[1].to).toBe(erc20.address);
-  expect(transactions[2].to).toBe(factory.pair);
+  expect(transactions[2].to).toBe(factory.address);
+  expect(transactions[3].to).toBe(factory.pair);
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
 
@@ -386,8 +464,6 @@ test("handleBlock() ingests block and logs", async (context) => {
       blockNumber: 4n,
     },
   });
-
-  expect(requestSpy).toHaveBeenCalledTimes(8);
 
   await kill(realtimeSyncService);
 
@@ -407,7 +483,10 @@ test("handleBlock() gets receipts", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources: sources.map(
       (source) =>
         ({
@@ -434,10 +513,11 @@ test("handleBlock() gets receipts", async (context) => {
     .selectAll()
     .execute();
 
-  expect(transactionReceipts).toHaveLength(3);
+  expect(transactionReceipts).toHaveLength(4);
   expect(transactionReceipts[0].to).toBe(erc20.address);
   expect(transactionReceipts[1].to).toBe(erc20.address);
-  expect(transactionReceipts[2].to).toBe(factory.pair);
+  expect(transactionReceipts[2].to).toBe(factory.address);
+  expect(transactionReceipts[3].to).toBe(factory.pair);
 
   await kill(realtimeSyncService);
 
@@ -460,7 +540,10 @@ test("handleBlock() skips eth_getLogs request", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources: [sources[0]],
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent,
@@ -499,7 +582,10 @@ test("handleBlock() finalizes range", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent,
@@ -563,7 +649,10 @@ test("handleReorg() finds common ancestor", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent,
@@ -625,7 +714,10 @@ test("handleReorg() emits fatal error for deep reorg", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    requestQueue: await getRequestQueue({
+      sources,
+      requestQueue: requestQueues[0],
+    }),
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),

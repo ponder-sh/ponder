@@ -7,7 +7,7 @@ import { Callout } from "nextra/components";
 
 # Contracts & networks
 
-To add a new contract to your app, use the `contracts` field in `ponder.config.ts`. Ponder fetches raw blockchain data (event logs) for each contract you add, and passes that data to the indexing functions you write.
+To add a new contract to your app, use the `contracts` field in `ponder.config.ts`. For each contract you add, the sync engine will fetch raw blockchain data and pass that data to the indexing functions you write.
 
 This guide explains how each contract configuration field works, and suggests patterns for common use cases. See also the `ponder.config.ts` [API reference](/docs/api-reference/config) page.
 
@@ -40,7 +40,7 @@ export default createConfig({
 
 Each contract must have an ABI.
 
-Ponder uses ABIType to offer autocomplete and strict type checking. This means ABIs must be saved in `.ts` files and asserted as constant using `as const`. For more information, please reference the [ABIType documentation](https://abitype.dev/guide/getting-started#usage).
+The config uses ABIType to offer autocomplete and type checking. All ABIs should be saved in `.ts` files and include an `as const{:ts}` assertion. For more information, please reference the [ABIType documentation](https://abitype.dev/guide/getting-started#usage).
 
 <div className="code-columns">
 
@@ -412,7 +412,7 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 
 **Factory contract requirements & limitations**
 
-1. **Scaling**: The sync engine does not currently support factory contracts with more than 10,000 children. This includes Uniswap V2, V3, and many other permissionless pool-based DeFi protocols. Why not? The Ethereum JSON-RPC API does not scale well for factory contracts. There's only so much that Ponder's sync engine can do about this while remaining compatible with the JSON-RPC API. We're actively working to address scaling challenges via features like remote sync, shared caching, and concurrent indexing. Thanks for your patience.
+1. **Scaling**: The sync engine does not currently support factory contracts with more than 10,000 children. This includes Uniswap V2, V3, and many other permissionless pool-based DeFi protocols. Why not? The Ethereum JSON-RPC API does not scale well for factory contracts. There's only so much that the sync engine can do about this while remaining compatible with the JSON-RPC API. We're actively working to address scaling challenges via features like remote sync, shared caching, and concurrent indexing. Thanks for your patience.
 2. **Event signature requirements**: The factory contract must emit an event log announcing the creation of each new child contract that contains the new child contract address as a named parameter (with type `"address"`). The parameter can be either indexed or non-indexed. Here are a few factory event signatures with their eligibility explained:
 
 ```solidity
@@ -449,13 +449,6 @@ Tip: On Etherscan, there is a link to the current implementation contract on the
 ## Event filter
 
 The `filter` option filters for events by signature and indexed argument values. This makes it possible to index events emitted by _any contract on the network_ that match the specified signature and arguments.
-
-<Callout type="info">
-  If you're indexing a popular contract but only need an infrequent event (e.g.
-  `OwnershipTransferred`), you can use the `filter` option alongside `address`
-  or `factory` to sync only those event(s). By default, the sync engine fetches
-  all events emitted by the contracts you specify.
-</Callout>
 
 ### By event name or signature
 
@@ -547,16 +540,56 @@ ponder.on("ERC20:Transfer", async ({ event }) => {
 });
 ```
 
+## Call traces
+
+The `includeCallTraces{:ts}` option specifies whether to enable call trace indexing for a contract. By default, call traces are **disabled**.
+
+After enabling this option, each function in the contract ABI will become available as an indexing function event name. [Read more about call traces](/docs/indexing/call-traces).
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts" {11}
+import { createConfig } from "@ponder/core";
+import { BlitmapAbi } from "./abis/Blitmap";
+
+export default createConfig({
+  contracts: {
+    Blitmap: {
+      abi: BlitmapAbi,
+      network: "mainnet",
+      address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
+      startBlock: 12439123,
+      includeCallTraces: true,
+    },
+  },
+  // ...
+});
+```
+
+```ts filename="src/index.ts" {15}
+import { ponder } from "@/generated";
+
+ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
+  event.args;
+  //    ^? [tokenData: Hex, name: string]
+  event.trace.gasUsed;
+  //          ^? bigint
+});
+```
+
+</div>
+
+
 ## Block range
 
-The optional `startBlock` and `endBlock` options specify the block range to index. The default value for `startBlock` is `0{:ts}`, and the default value for `endBlock` is `undefined{:ts}`. When `endBlock` is `undefined{:ts}`, Ponder will index the contract in realtime.
+The optional `startBlock` and `endBlock` options specify the block range to index.
 
-If `endBlock` is defined, Ponder will not sync or index any events after that block. This option can be useful if you're only interested in a slice of historical data, or to enable faster feedback loops during development where it's not necessary to index the entire history.
+| Option       | Default          |
+| :----------- | :--------------- |
+| `startBlock` | `0{:ts}`         |
+| `endBlock`   | `undefined{:ts}` |
 
-<Callout type="info">
-  Yes, it's annoying to keep track of deployment block numbers. We're working on
-  ways to automatically detect them.
-</Callout>
+If `endBlock` is `undefined{:ts}`, the contract will be indexed in realtime. If `endBlock` is defined, no events will be indexed after that block. This option can be useful if you're only interested in a slice of historical data, or to enable faster feedback loops during development where it's not necessary to index the entire history.
 
 ```ts filename="ponder.config.ts" {15-16}
 import { createConfig } from "@ponder/core";

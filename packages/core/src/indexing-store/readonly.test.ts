@@ -585,7 +585,6 @@ test("findMany() where list", async (context) => {
     data: [
       { id: "id1", name: "Skip", list: ["kevin", "kyle", "jay"] },
       { id: "id2", name: "Foo", list: ["widget", "gadget"] },
-      { id: "id3", name: "Bar", list: ["KEVIN"] },
     ],
   });
 

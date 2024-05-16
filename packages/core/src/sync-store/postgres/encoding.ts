@@ -1,13 +1,19 @@
+import type { SyncCallTrace } from "@/sync/index.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import type { Generated, Insertable } from "kysely";
-import type { Address, Hash, Hex, RpcTransactionReceipt } from "viem";
+import {
+  type Address,
+  type Hash,
+  type Hex,
+  type RpcTransactionReceipt,
+  hexToBigInt,
+} from "viem";
 import {
   type RpcBlock,
   type RpcLog,
   type RpcTransaction,
   hexToNumber,
 } from "viem";
-
-import { toLowerCase } from "@/utils/lowercase.js";
 
 type BlocksTable = {
   baseFeePerGas: bigint | null;
@@ -204,6 +210,54 @@ export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   };
 }
 
+type CallTracesTable = {
+  id: string;
+  callType: string;
+  from: Address;
+  gas: bigint;
+  input: Hex;
+  to: Address;
+  value: bigint;
+  blockHash: Hex;
+  blockNumber: bigint;
+  error: string | null;
+  gasUsed: bigint;
+  output: Hex;
+  subtraces: number;
+  traceAddress: string;
+  transactionHash: Hex;
+  transactionPosition: number;
+  functionSelector: Hex;
+  chainId: number;
+  checkpoint: string;
+};
+
+export type InsertableCallTrace = Insertable<CallTracesTable>;
+
+export function rpcToPostgresTrace(
+  trace: SyncCallTrace,
+): Omit<InsertableCallTrace, "chainId" | "checkpoint"> {
+  return {
+    id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
+    callType: trace.action.callType,
+    from: toLowerCase(trace.action.from),
+    gas: hexToBigInt(trace.action.gas),
+    input: trace.action.input,
+    to: toLowerCase(trace.action.to),
+    value: hexToBigInt(trace.action.value),
+    blockHash: trace.blockHash,
+    blockNumber: hexToBigInt(trace.blockNumber),
+    error: trace.error ?? null,
+    gasUsed: hexToBigInt(trace.result.gasUsed),
+    output: trace.result.output,
+    subtraces: trace.subtraces,
+    traceAddress: JSON.stringify(trace.traceAddress),
+    transactionHash: trace.transactionHash,
+    transactionPosition: trace.transactionPosition,
+    functionSelector: trace.action.input.slice(0, 10).toLowerCase() as Hex,
+  };
+}
+
 type RpcRequestResultsTable = {
   blockNumber: bigint;
   chainId: number;
@@ -229,7 +283,7 @@ type LogFilterIntervalsTable = {
   endBlock: bigint;
 };
 
-type FactoriesTable = {
+type FactoryLogFiltersTable = {
   id: string;
   chainId: number;
   address: Hex;
@@ -243,6 +297,36 @@ type FactoriesTable = {
 };
 
 type FactoryLogFilterIntervalsTable = {
+  id: Generated<number>;
+  factoryId: string;
+  startBlock: bigint;
+  endBlock: bigint;
+};
+
+type TraceFiltersTable = {
+  id: string;
+  chainId: number;
+  fromAddress: Address | null;
+  toAddress: Address | null;
+};
+
+type TraceFilterIntervalsTable = {
+  id: Generated<number>;
+  traceFilterId: string;
+  startBlock: bigint;
+  endBlock: bigint;
+};
+
+type FactoryTraceFiltersTable = {
+  id: string;
+  chainId: number;
+  address: Hex;
+  eventSelector: Hex;
+  childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
+  fromAddress: Address | null;
+};
+
+type FactoryTraceFilterIntervalsTable = {
   id: Generated<number>;
   factoryId: string;
   startBlock: bigint;
@@ -268,12 +352,17 @@ export type SyncStoreTables = {
   transactions: TransactionsTable;
   transactionReceipts: TransactionReceiptsTable;
   logs: LogsTable;
+  callTraces: CallTracesTable;
   rpcRequestResults: RpcRequestResultsTable;
 
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;
-  factories: FactoriesTable;
+  factoryLogFilters: FactoryLogFiltersTable;
   factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
+  traceFilters: TraceFiltersTable;
+  traceFilterIntervals: TraceFilterIntervalsTable;
+  factoryTraceFilters: FactoryTraceFiltersTable;
+  factoryTraceFilterIntervals: FactoryTraceFilterIntervalsTable;
   blockFilters: BlockFiltersTable;
   blockFilterIntervals: BlockFilterIntervalsTable;
 };

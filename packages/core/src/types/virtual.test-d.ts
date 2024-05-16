@@ -1,8 +1,14 @@
 import { createConfig } from "@/config/config.js";
 import { createSchema, createTable } from "@/schema/schema.js";
-import { http, type Abi, type Hex, parseAbiItem } from "viem";
+import { http, type Abi, type Address, type Hex, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
-import type { Block, Log, Transaction, TransactionReceipt } from "./eth.js";
+import type {
+  Block,
+  CallTrace,
+  Log,
+  Transaction,
+  TransactionReceipt,
+} from "./eth.js";
 import type { DatabaseModel } from "./model.js";
 import type { Virtual } from "./virtual.js";
 
@@ -11,14 +17,27 @@ const event0 = parseAbiItem(
 );
 const event1 = parseAbiItem("event Event1()");
 const event1Overloaded = parseAbiItem("event Event1(bytes32)");
-const func = parseAbiItem("function func()");
+const func0 = parseAbiItem(
+  "function func0(address) external returns (uint256)",
+);
+const func1 = parseAbiItem("function func1()");
+const func1Overloaded = parseAbiItem("function func1(bytes32)");
 
 type Event0 = typeof event0;
 type Event1 = typeof event1;
 type Event1Overloaded = typeof event1Overloaded;
-type Func = typeof func;
+type Func0 = typeof func0;
+type Func1 = typeof func1;
+type Func1Overloaded = typeof func1Overloaded;
 
-type abi = readonly [Event0, Event1, Event1Overloaded, Func];
+type abi = readonly [
+  Event0,
+  Event1,
+  Event1Overloaded,
+  Func0,
+  Func1,
+  Func1Overloaded,
+];
 
 const config = createConfig({
   networks: {
@@ -33,19 +52,21 @@ const config = createConfig({
   },
   contracts: {
     c1: {
-      abi: [event0, func],
+      abi: [event0, func0],
       network: "mainnet",
       address: "0x",
       startBlock: 0,
       includeTransactionReceipts: false,
+      includeCallTraces: true,
     },
     c2: {
-      abi: [event1, event1Overloaded],
+      abi: [event1, event1Overloaded, func1, func1Overloaded],
       address: "0x69",
       network: {
         mainnet: {
           startBlock: 1,
           includeTransactionReceipts: true,
+          includeCallTraces: true,
         },
         optimism: {},
       },
@@ -151,6 +172,28 @@ test("FormatEventNames with weak abi", () => {
   assertType<"contract:setup">({} as any as a);
 });
 
+test("FormatEventNames with functions", () => {
+  type a = Virtual.FormatEventNames<
+    // ^?
+    {
+      contract: { abi: abi; network: ""; includeCallTraces: true };
+    },
+    {}
+  >;
+
+  type eventNames =
+    | "contract:setup"
+    | "contract:Event0"
+    | "contract:Event1()"
+    | "contract:Event1(bytes32)"
+    | "contract.func0()"
+    | "contract.func1()"
+    | "contract.func1(bytes32)";
+
+  assertType<a>({} as any as eventNames);
+  assertType<eventNames>({} as any as a);
+});
+
 test("FormatEventName with blocks", () => {
   type a = Virtual.FormatEventNames<
     // ^?
@@ -241,7 +284,7 @@ test("Context contracts", () => {
   >["contracts"]["c2"];
   //   ^?
 
-  type expectedAbi = [Event1, Event1Overloaded];
+  type expectedAbi = [Event1, Event1Overloaded, Func1, Func1Overloaded];
   type expectedStartBlock = 1 | undefined;
   type expectedEndBlock = undefined;
   type expectedAddress = "0x69";
@@ -333,7 +376,39 @@ test("Event with unnamed parameters", () => {
   assertType<expectedEvent>({} as any as a);
 });
 
-test("Event with Block", () => {
+test("Event with functions", () => {
+  type a = Virtual.Event<typeof config, "c1.func0()">;
+  //   ^?
+
+  type expectedEvent = {
+    args: readonly [Address];
+    result: bigint;
+    trace: CallTrace;
+    block: Block;
+    transaction: Transaction;
+  };
+
+  assertType<a>({} as any as expectedEvent);
+  assertType<expectedEvent>({} as any as a);
+});
+
+test("Event with functions and no inputs or outputs", () => {
+  type a = Virtual.Event<typeof config, "c2.func1()">;
+  //   ^?
+
+  type expectedEvent = {
+    args: never;
+    result: never;
+    trace: CallTrace;
+    block: Block;
+    transaction: Transaction;
+  };
+
+  assertType<a>({} as any as expectedEvent);
+  assertType<expectedEvent>({} as any as a);
+});
+
+test("Event with block", () => {
   type a = Virtual.Event<typeof config, "b1:block">;
   //   ^?
 
