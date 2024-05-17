@@ -1,19 +1,19 @@
 ---
-title: "Block events"
-description: "Learn how to add block event sources to a Ponder app"
+title: "Block intervals"
+description: "Learn how to index block intervals in a Ponder app"
 ---
 
 import { Callout } from "nextra/components";
 
-# Block events
+# Block intervals
 
-To run indexing functions on a schedule, add a **block event** source to your config. Block events are great for "cron" workloads, because they run at a consistent frequency regardless of contract activity or transactions.
+To run indexing functions on a schedule, use a **block interval**. Block intervals are great for "cron" workloads, because they run at a consistent frequency regardless of contract activity or transactions.
 
-This guide describes how to configure block event sources, and suggests patterns for common use cases. See also the `ponder.config.ts` [API reference](/docs/api-reference/config) page.
+This guide describes how to configure block intervals, and suggests patterns for common use cases. See also the `ponder.config.ts` [API reference](/docs/api-reference/config) page.
 
 ## Name
 
-Every block event source must have a name, provided as a key to the `blocks` object. The name must be unique across `blocks` and `contracts`.
+Every block interval must have a name, provided as a key to the `blocks` object. The name must be unique across `blocks` and `contracts`.
 
 ```ts filename="ponder.config.ts" {9}
 import { createConfig } from "@ponder/core";
@@ -67,7 +67,7 @@ ponder.on("ChainlinkOracleUpdate:block", async ({ event, context }) => {
 
 ## Interval
 
-The `interval` option specifies how often a block event should run. For example, a block event source with a start block of `100` and a interval of `10` will index blocks `100`, `110`, `120`, `130`, and so on.
+The `interval` option specifies how often the indexing function should run. For example, a block interval with a start block of `100` and a interval of `10` will index blocks `100`, `110`, `120`, `130`, and so on.
 
 ### Block time
 
@@ -140,9 +140,9 @@ export default createConfig({
 });
 ```
 
-Now, the indexing functions you write for `ChainlinkOracleUpdate:block` will process block events from both mainnet and Optimism.
+Now, the indexing functions you write for `ChainlinkOracleUpdate:block` will process blocks from both mainnet and Optimism.
 
-The `context.network` object contains information about which network the current event is from.
+The `context.network` object contains information about which network the current block is from.
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
