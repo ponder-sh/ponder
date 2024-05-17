@@ -307,6 +307,29 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               )} ago`,
             });
 
+            // Remove any indexes, will be recreated once the app
+            // becomes healthy.
+            await Promise.all(
+              Object.entries(getTables(schema)).flatMap(
+                ([tableName, table]) => {
+                  if (table.constraints === undefined) return [];
+
+                  return Object.keys(table.constraints).map(async (name) => {
+                    await tx.schema
+                      .withSchema(this.userNamespace)
+                      .dropIndex(`${tableName}_${name}`)
+                      .ifExists()
+                      .execute();
+
+                    this.common.logger.info({
+                      service: "database",
+                      msg: `Dropped index '${tableName}_${name}' in schema '${this.userNamespace}'`,
+                    });
+                  });
+                },
+              ),
+            );
+
             await tx
               .withSchema(this.internalNamespace)
               .updateTable("namespace_lock")
