@@ -52,16 +52,15 @@ export default createSchema((p) => ({
 
 Every column is a `string`, `hex`, `int`, `float`, `bigint`, `boolean`, or `json`. Each of these primitive types corresponds to a TypeScript type (used in indexing function code) and a JSON data type (returned by the GraphQL API).
 
-| name               | description                                    | TypeScript type | JSON data type |
-| :----------------- | :--------------------------------------------- | :-------------- | :------------- |
-| `p.string(){:ts}`  | A UTF‐8 character sequence                     | `string`        | `string`       |
-| `p.hex(){:ts}`     | A UTF‐8 character sequence with `0x` prefix    | `0x${string}`   | `string`       |
-| `p.int(){:ts}`     | A signed 32‐bit integer                        | `number`        | `number`       |
-| `p.float(){:ts}`   | A signed floating-point value                  | `number`        | `number`       |
-| `p.bigint(){:ts}`  | A large integer (holds `uint256` and `int256`) | `bigint`        | `string`       |
-| `p.boolean(){:ts}` | `true` or `false`                              | `boolean`       | `boolean`      |
-| `p.json(){:ts}`    | A custom `object`                              | `any`           | `any`          |
-
+| name               | description                                    | TypeScript type               | JSON data type |
+| :----------------- | :--------------------------------------------- | :---------------------------- | :------------- |
+| `p.string(){:ts}`  | A UTF‐8 character sequence                     | `string`                      | `string`       |
+| `p.hex(){:ts}`     | A UTF‐8 character sequence with `0x` prefix    | `0x${string}`                 | `string`       |
+| `p.int(){:ts}`     | A signed 32‐bit integer                        | `number`                      | `number`       |
+| `p.float(){:ts}`   | A signed floating-point value                  | `number`                      | `number`       |
+| `p.bigint(){:ts}`  | A large integer (holds `uint256` and `int256`) | `bigint`                      | `string`       |
+| `p.boolean(){:ts}` | `true` or `false`                              | `boolean`                     | `boolean`      |
+| `p.json(){:ts}`    | A JSON object                                  | [Custom](#json-type) or `any` | `object`       |
 
 Here's an example `Account` table that has a column of every type, and a function that inserts an `Account` record.
 
@@ -95,16 +94,28 @@ await Account.create({
     isAdmin: true,
     graffiti: "LGTM",
     json: {
-      middleName: "james"
-    }
+      middleName: "james",
+    },
   },
 });
 ```
 
-
 </div>
 
-`p.json(){:ts}` also accepts an optional generic type, which can be used to acheived end to end type safety.
+#### JSON type
+
+The `p.json(){:ts}` column accepts an optional type parameter which is used for any values of that column. This feature is only provided for type-level convenience. It does not validate data at runtime, does not change the database column type, and is not enforced by the GraphQL API.
+
+```ts filename="ponder.schema.ts" {6}
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Account: p.createTable({
+    id: p.hex(),
+    metadata: p.json<{ age: number; login?: string }>(),
+  }),
+}));
+```
 
 ### Enum
 
