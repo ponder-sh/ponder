@@ -24,6 +24,7 @@ const schema = createSchema((p) => ({
     bigAge: p.bigint().optional(),
     kind: p.enum("PetKind").optional(),
     rating: p.float().optional(),
+    json: p.json().optional(),
   }),
   Person: p.createTable({
     id: p.string(),
@@ -107,6 +108,33 @@ test("create() respects optional fields", async (context) => {
   });
 
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: null });
+
+  await cleanup();
+});
+
+test("create() throws on invalid json", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const error = await indexingStore
+    .create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+      id: "id1",
+      data: {
+        name: "Skip",
+        age: 12,
+        json: {
+          kevin: 52n,
+        },
+      },
+    })
+    .catch((_error) => _error);
+
+  expect(error.message?.includes("Do not know how to serialize a BigInt")).toBe(
+    true,
+  );
 
   await cleanup();
 });

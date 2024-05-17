@@ -3,6 +3,7 @@ import {
   extractReferenceTable,
   getTables,
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
@@ -22,6 +23,7 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
+import { GraphQLJSON } from "graphql-type-json";
 import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { buildWhereObject } from "./filter.js";
 import type { PluralResolver } from "./plural.js";
@@ -136,6 +138,12 @@ export const buildEntityTypes = ({
                 limit: { type: GraphQLInt },
               },
               resolve: resolver,
+            };
+          } else if (isJSONColumn(column)) {
+            fieldConfigMap[columnName] = {
+              type: isOptionalColumn(column)
+                ? GraphQLJSON
+                : new GraphQLNonNull(GraphQLJSON),
             };
           } else {
             const type = isEnumColumn(column)

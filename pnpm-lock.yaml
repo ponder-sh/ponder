@@ -608,6 +608,9 @@ importers:
       graphql:
         specifier: ^16.8.1
         version: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      graphql-type-json:
+        specifier: ^0.3.2
+        version: 0.3.2(graphql@16.8.1)
       graphql-yoga:
         specifier: ^5.3.0
         version: 5.3.0(graphql@16.8.1)
@@ -8194,6 +8197,14 @@ packages:
       graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
     transitivePeerDependencies:
       - encoding
+    dev: false
+
+  /graphql-type-json@0.3.2(graphql@16.8.1):
+    resolution: {integrity: sha512-J+vjof74oMlCWXSvt0DOf2APEdZOCdubEvGDUAlqH//VBYcOYsGgRW7Xzorr44LvkjiuvecWc8fChxuZZbChtg==}
+    peerDependencies:
+      graphql: '>=0.8.0'
+    dependencies:
+      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
     dev: false
 
   /graphql-yoga@5.3.0(graphql@16.8.1):

@@ -2,6 +2,7 @@ import type { Prettify } from "@/types/utils.js";
 import type {
   EnumColumn,
   Index,
+  JSONColumn,
   ReferenceColumn,
   Scalar,
   ScalarColumn,
@@ -267,6 +268,21 @@ const references =
     }
   };
 
+type JSONOptional<column extends BuilderJSONColumn> = () => BuilderJSONColumn<
+  column[" json"],
+  true
+>;
+
+const jsonOptional =
+  <column extends BuilderJSONColumn>(col: column): JSONOptional<column> =>
+  () => {
+    return {
+      " type": "json",
+      " json": {} as (typeof col)[" json"],
+      " optional": true,
+    };
+  };
+
 const scalarColumn =
   <scalar extends Scalar>(_scalar: scalar) =>
   (): Prettify<BuilderScalarColumn<scalar, false, false>> => {
@@ -423,6 +439,32 @@ export type BuilderReferenceColumn<
     }
   : base;
 
+export type BuilderJSONColumn<
+  type = any,
+  optional extends boolean = boolean,
+  ///
+  base extends JSONColumn<type, optional> = JSONColumn<type, optional>,
+> = optional extends false
+  ? base & {
+      /**
+       * Mark the column as optional.
+       *
+       * - Docs: https://ponder.sh/docs/schema#optional
+       *
+       * @example
+       * import { createSchema } from "@ponder/core";
+       *
+       * export default createSchema((p) => ({
+       *   t: p.createTable({
+       *     id: p.string(),
+       *     o: p.json().optional(),
+       *   })
+       * }));
+       */
+      optional: JSONOptional<base>;
+    }
+  : base;
+
 export type BuilderOneColumn<reference extends string = string> = {
   " type": "one";
   " reference": reference;
@@ -564,6 +606,19 @@ export const float = scalarColumn("float");
 export const boolean = scalarColumn("boolean");
 export const hex = scalarColumn("hex");
 export const bigint = scalarColumn("bigint");
+
+export const json = <type = any>(): BuilderJSONColumn<type, false> => {
+  const column = {
+    " type": "json",
+    " json": {} as type,
+    " optional": false,
+  } as const;
+
+  return {
+    ...column,
+    optional: jsonOptional(column),
+  };
+};
 
 export const one = <reference extends string>(
   ref: reference,
