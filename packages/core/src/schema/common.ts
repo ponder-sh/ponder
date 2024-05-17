@@ -25,6 +25,12 @@ export type ReferenceColumn<
   " reference": reference;
 };
 
+export type JSONColumn<type = any, optional extends boolean = boolean> = {
+  " type": "json";
+  " json": type;
+  " optional": optional;
+};
+
 export type OneColumn<reference extends string = string> = {
   " type": "one";
   " reference": reference;
@@ -64,6 +70,7 @@ export type Index<
 export type Column =
   | ScalarColumn
   | ReferenceColumn
+  | JSONColumn
   | OneColumn
   | ManyColumn
   | EnumColumn;
@@ -122,6 +129,7 @@ export type ExtractOptionalColumnNames<
   ? table[columnNames & keyof table] extends
       | ScalarColumn
       | ReferenceColumn
+      | JSONColumn
       | EnumColumn
     ? table[columnNames & keyof table][" optional"] extends true
       ? columnNames
@@ -142,6 +150,7 @@ export type ExtractRequiredColumnNames<
   ? table[columnNames & keyof table] extends
       | ScalarColumn
       | ReferenceColumn
+      | JSONColumn
       | EnumColumn
     ? table[columnNames & keyof table][" optional"] extends false
       ? columnNames

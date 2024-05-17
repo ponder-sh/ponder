@@ -24,6 +24,7 @@ const schema = createSchema((p) => ({
     list: p.string().list().optional(),
     kind: p.enum("PetKind").optional(),
     rating: p.float().optional(),
+    json: p.json().optional(),
   }),
   Person: p.createTable({
     id: p.string(),
@@ -59,6 +60,40 @@ test("findUnique() works with hex case sensitivity", async (context) => {
     id: "0x0A",
   });
   expect(instance).toMatchObject({ id: "0x0a", n: 1 });
+
+  await cleanup();
+});
+
+test("findUnique() deserializes json", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: {
+      name: "Skip",
+      age: 12,
+      json: {
+        kevin: 52,
+      },
+    },
+  });
+
+  const instance = await indexingStore.findUnique({
+    tableName: "Pet",
+    id: "id1",
+  });
+
+  expect(instance).toMatchObject({
+    name: "Skip",
+    age: 12,
+    json: {
+      kevin: 52,
+    },
+  });
 
   await cleanup();
 });

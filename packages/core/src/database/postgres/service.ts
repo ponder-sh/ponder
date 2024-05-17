@@ -7,6 +7,7 @@ import {
   getEnums,
   getTables,
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
@@ -730,6 +731,12 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           if (isOptionalColumn(column) === false) col = col.notNull();
           return col;
         });
+      } else if (isJSONColumn(column)) {
+        // Handle json columns
+        builder = builder.addColumn(columnName, "jsonb", (col) => {
+          if (isOptionalColumn(column) === false) col = col.notNull();
+          return col;
+        });
       } else {
         // Non-list base columns
         builder = builder.addColumn(
@@ -761,6 +768,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       } else if (isListColumn(column)) {
         // Handle scalar list columns
         builder = builder.addColumn(columnName, "text");
+      } else if (isJSONColumn(column)) {
+        // Handle json columns
+        builder = builder.addColumn(columnName, "jsonb");
       } else {
         // Non-list base columns
         builder = builder.addColumn(

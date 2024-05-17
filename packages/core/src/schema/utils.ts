@@ -3,6 +3,7 @@ import type {
   Constraints,
   Enum,
   EnumColumn,
+  JSONColumn,
   ManyColumn,
   OneColumn,
   ReferenceColumn,
@@ -23,6 +24,9 @@ export const isOneColumn = (column: Column): column is OneColumn =>
 export const isManyColumn = (column: Column): column is ManyColumn =>
   column[" type"] === "many";
 
+export const isJSONColumn = (column: Column): column is JSONColumn =>
+  column[" type"] === "json";
+
 export const isEnumColumn = (column: Column): column is EnumColumn =>
   column[" type"] === "enum";
 
@@ -32,7 +36,12 @@ export const isOptionalColumn = (column: Column): boolean => {
 };
 
 export const isListColumn = (column: Column): boolean => {
-  if (isManyColumn(column) || isOneColumn(column) || isReferenceColumn(column))
+  if (
+    isManyColumn(column) ||
+    isOneColumn(column) ||
+    isReferenceColumn(column) ||
+    isJSONColumn(column)
+  )
     return false;
   return column[" list"];
 };

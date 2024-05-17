@@ -1,5 +1,5 @@
 import { assertType, test } from "vitest";
-import { _enum, index, many, one, string } from "./columns.js";
+import { _enum, index, json, many, one, string } from "./columns.js";
 
 test("base", () => {
   const c = string();
@@ -115,6 +115,45 @@ test("optional + references", () => {
       " scalar": "string";
       " optional": true;
       " reference": "OtherTable.id";
+    },
+  );
+});
+
+test("json", () => {
+  const c = json();
+  //    ^?
+
+  assertType<Omit<typeof c, "optional">>(
+    {} as unknown as {
+      " type": "json";
+      " json": unknown;
+      " optional": false;
+    },
+  );
+});
+
+test("json w/ type", () => {
+  const c = json<{ a: number; b: string }>();
+  //    ^?
+
+  assertType<Omit<typeof c, "optional">>(
+    {} as unknown as {
+      " type": "json";
+      " json": { a: number; b: string };
+      " optional": false;
+    },
+  );
+});
+
+test("json optional", () => {
+  const c = json().optional();
+  //    ^?
+
+  assertType<Omit<typeof c, "optional">>(
+    {} as unknown as {
+      " type": "json";
+      " json": unknown;
+      " optional": true;
     },
   );
 });

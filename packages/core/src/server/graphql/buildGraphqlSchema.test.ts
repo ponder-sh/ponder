@@ -290,6 +290,54 @@ test("scalar optional list", async (context) => {
   await cleanup();
 });
 
+test("json", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      json: p.json(),
+    }),
+  }));
+
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    id: "0",
+    data: {
+      json: { kevin: 52 },
+    },
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const document = parse(`
+  query {
+    table(id: "0") {
+      id
+      json
+    }
+  }
+  `);
+
+  const result = await execute({
+    schema: graphqlSchema,
+    document,
+    contextValue: { store: indexingStore },
+  });
+
+  expect(result.data).toMatchObject({
+    table: {
+      id: "0",
+      json: { kevin: 52 },
+    },
+  });
+
+  await cleanup();
+});
+
 test("enum", async (context) => {
   const schema = createSchema((p) => ({
     enum: p.createEnum(["A", "B"]),
