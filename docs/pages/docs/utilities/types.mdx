@@ -1,43 +1,19 @@
 ---
-title: "Ponder with TypeScript"
-description: "An overview of TypeScript support for Ponder."
+title: "Utility types"
+description: "API reference for Ponder utility types."
 ---
 
-import { Callout } from 'nextra/components'
+import { Callout } from "nextra/components";
 
-# TypeScript
+# Utility types
 
-Ponder uses advanced TypeScript features to offer end-to-end type safety without code generation.
+The `"@/generated"{:ts}` module exports types that are useful for creating reusable helper functions.
 
-<Callout type="info">We **strongly** recommend that Ponder users take the time to set up a working TypeScript development environment. It will pay dividends in the long run.</Callout>
-
-## Requirements
-
-- TypeScript `>=5.0.4` and viem `>=1.16.0`
-- ABIs must be asserted `as const` following [ABIType guidelines](https://abitype.dev/guide/getting-started#usage).
-- The `ponder-env.d.ts` file must be included in your project.
-
-## `ponder-env.d.ts`
-
-This "magical" file is what makes Ponder's zero-codegen type system possible. The file contains a module declaration for `"@/generated"{:ts}` that exports types derived from `ponder.config.ts` and `ponder.schema.ts`.
-
-Occasionally, Ponder's dev server may make changes to `ponder-env.d.ts` after upgrading to a new version of `@ponder/core`. When this happens, please commit the changes into version control.
-
-## VSCode
-
-By default, VSCode's TypeScript language features use an internal version of TypeScript. Sometimes, this version does not meet Ponder's requirement of `>=5.0.4`.
-
-To change VSCode's TypeScript version, run `TypeScript: Select TypeScript version..."` from the command palette and select `Use Workspace Version` or [update VSCode's version](https://stackoverflow.com/questions/39668731/what-typescript-version-is-visual-studio-code-using-how-to-update-it).
-
-## Utility types
-
-The `"@/generated"{:ts}` module exports several utility types designed to make your life easier.
-
-### `EventNames`
+## EventNames
 
 A union of all event names that are available from the contracts defined in `ponder.config.ts`.
 
-```ts
+```ts filename="src/helpers.ts" {1}
 import { ponder, type EventNames } from "@/generated";
 
 function helper(eventName: EventNames) {
@@ -46,11 +22,11 @@ function helper(eventName: EventNames) {
 }
 ```
 
-### `Event`
+## Event
 
 A generic type that optionally accepts an event name and returns the `event` object type for that event.
 
-```ts
+```ts filename="src/helpers.ts" {1}
 import { ponder, type Event } from "@/generated";
 
 function helper(event: Event<"Weth:Deposit">) {
@@ -67,7 +43,7 @@ function helper(event: Event<"Weth:Deposit">) {
 
 If no event name is provided, `Event` is the union of all event types. This can be useful if all you need is the `block`, `transaction`, and `log` types which are the same for all events.
 
-```ts
+```ts filename="src/helpers.ts" {1}
 import { ponder, type Event } from "@/generated";
 
 function helper(event: Event) {
@@ -78,11 +54,11 @@ function helper(event: Event) {
 }
 ```
 
-### `Context`
+## Context
 
 A generic type that optionally accepts an event name and returns the `context` object type.
 
-```ts
+```ts filename="src/helpers.ts" {1}
 import { ponder, type Context } from "@/generated";
 
 function helper(context: Context<"Weth:Deposit">) {
@@ -98,11 +74,11 @@ function helper(context: Context<"Weth:Deposit">) {
 
 If no event name is provided, `Context` returns the union of all context types. This can be useful if all you need is the `db` or `contracts` types which are the same for all events.
 
-### `IndexingFunctionArgs`
+## IndexingFunctionArgs
 
 A generic type that optionally accepts an event name and returns the indexing function argument type.
 
-```ts
+```ts filename="src/helpers.ts" {1}
 import { ponder, type IndexingFunctionArgs } from "@/generated";
 
 function helper(args: IndexingFunctionArgs<"Weth:Deposit">) {
@@ -116,11 +92,11 @@ function helper(args: IndexingFunctionArgs<"Weth:Deposit">) {
 
 Like `Event` and `Context`, `IndexingFunctionArgs` returns the union of all indexing function argument types if no event name is provided.
 
-### `Schema`
+## Schema
 
 A generic type that requires a table name from `ponder.schema.ts` and returns the type of a record in that table.
 
-```ts
+```ts filename="src/helpers.ts" {1}
 import { ponder, type Schema } from "@/generated";
 
 function helper(account: Schema<"Account">) {

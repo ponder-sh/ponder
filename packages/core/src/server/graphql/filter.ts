@@ -2,6 +2,7 @@ import type { Schema } from "@/schema/common.js";
 import {
   getTables,
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
@@ -51,6 +52,7 @@ export const buildEntityFilterTypes = ({
           // Note: Only include non-virtual columns in plural fields
           if (isOneColumn(column)) return;
           if (isManyColumn(column)) return;
+          if (isJSONColumn(column)) return;
 
           const type = isEnumColumn(column)
             ? enumTypes[column[" enum"]]

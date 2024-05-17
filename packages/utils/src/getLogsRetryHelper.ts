@@ -261,6 +261,28 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
+  // chainstack
+  match = sError.match(/Block range limit exceeded./);
+  if (match !== null) {
+    const prevRange =
+      hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock);
+
+    // chainstack has different limits for free and paid plans.
+    const ranges =
+      prevRange < 10_000n
+        ? chunk({ params, range: 100n })
+        : chunk({ params, range: 10_000n });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
   // No match found
   return {
     shouldRetry: false,

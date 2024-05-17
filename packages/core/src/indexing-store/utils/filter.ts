@@ -2,6 +2,7 @@ import { StoreError } from "@/common/errors.js";
 import type { ScalarColumn, Table } from "@/schema/common.js";
 import {
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
@@ -124,7 +125,8 @@ export function buildWhereConditions({
             (columnName) =>
               isScalarColumn(table[columnName]) ||
               isReferenceColumn(table[columnName]) ||
-              isEnumColumn(table[columnName]),
+              isEnumColumn(table[columnName]) ||
+              isJSONColumn(table[columnName]),
           )
           .map((c) => `'${c}'`)
           .join(", ")}]`,
@@ -134,6 +136,12 @@ export function buildWhereConditions({
     if (isOneColumn(column) || isManyColumn(column)) {
       throw new StoreError(
         `Invalid filter. Cannot filter on virtual column '${columnName}'.`,
+      );
+    }
+
+    if (isJSONColumn(column)) {
+      throw new StoreError(
+        `Invalid filter. Cannot filter on json column '${columnName}'.`,
       );
     }
 
