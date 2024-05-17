@@ -71,7 +71,9 @@ export const cachedTransport = ({
 
           if (cachedResult?.result) return cachedResult.result;
           else {
-            const response = await requestQueue.request(body);
+            const response = await requestQueue.request(body, {
+              shouldRetryInvalidInput: false,
+            });
             await syncStore.insertRpcRequestResult({
               blockNumber: blockNumberBigInt,
               chainId: chain!.id,
@@ -81,7 +83,7 @@ export const cachedTransport = ({
             return response;
           }
         } else {
-          return requestQueue.request(body);
+          return requestQueue.request(body, { shouldRetryInvalidInput: false });
         }
       },
     });
