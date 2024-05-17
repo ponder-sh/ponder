@@ -1,5 +1,14 @@
 # @ponder/core
 
+## 0.4.27
+
+### Patch Changes
+
+- [#893](https://github.com/ponder-sh/ponder/pull/893) [`d0ec6b3022f8a3463bfdd41d100c178242c11d1c`](https://github.com/ponder-sh/ponder/commit/d0ec6b3022f8a3463bfdd41d100c178242c11d1c) Thanks [@kyscott18](https://github.com/kyscott18)! - Added a JSON column type with `p.json()`.
+
+- Updated dependencies [[`9d64a31a527914145c86b0c8e43b9d185e35a1e1`](https://github.com/ponder-sh/ponder/commit/9d64a31a527914145c86b0c8e43b9d185e35a1e1)]:
+  - @ponder/utils@0.1.5
+
 ## 0.4.26
 
 ### Patch Changes
