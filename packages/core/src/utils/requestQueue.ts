@@ -25,10 +25,6 @@ type RequestReturnType<
   method extends EIP1193Parameters<PublicRpcSchema>["method"],
 > = Extract<PublicRpcSchema[number], { Method: method }>["ReturnType"];
 
-type Options = {
-  shouldRetryInvalidInput: boolean;
-};
-
 export type RequestQueue = Omit<
   Queue<
     RequestReturnType<EIP1193Parameters<PublicRpcSchema>["method"]>,
@@ -38,7 +34,6 @@ export type RequestQueue = Omit<
 > & {
   request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
     parameters: TParameters,
-    options?: Partial<Options>,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
 };
 
@@ -55,10 +50,7 @@ export const createRequestQueue = ({
   network: Network;
   common: Common;
 }): RequestQueue => {
-  const fetchRequest = async (
-    request: EIP1193Parameters<PublicRpcSchema>,
-    options: Partial<Options>,
-  ) => {
+  const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
     for (let i = 0; i <= RETRY_COUNT; i++) {
       try {
         const stopClock = startClock();
@@ -100,20 +92,17 @@ export const createRequestQueue = ({
 
           const logs: RpcLog[] = [];
           for (const { fromBlock, toBlock } of getLogsErrorResponse.ranges) {
-            const _logs = await fetchRequest(
-              {
-                method: "eth_getLogs",
-                params: [
-                  {
-                    topics: request.params![0].topics,
-                    address: request.params![0].address,
-                    fromBlock,
-                    toBlock,
-                  },
-                ],
-              },
-              options,
-            );
+            const _logs = await fetchRequest({
+              method: "eth_getLogs",
+              params: [
+                {
+                  topics: request.params![0].topics,
+                  address: request.params![0].address,
+                  fromBlock,
+                  toBlock,
+                },
+              ],
+            });
 
             logs.push(...(_logs as RpcLog[]));
           }
@@ -121,7 +110,7 @@ export const createRequestQueue = ({
           return logs;
         }
 
-        if (shouldRetry(error, options) === false) {
+        if (shouldRetry(error) === false) {
           common.logger.warn({
             service: "sync",
             msg: `Failed '${request.method}' RPC request with non-retryable error: ${error.message}`,
@@ -153,7 +142,6 @@ export const createRequestQueue = ({
     unknown,
     {
       request: EIP1193Parameters<PublicRpcSchema>;
-      options?: Partial<Options>;
       stopClockLag: () => number;
     }
   > = createQueue({
@@ -161,21 +149,16 @@ export const createRequestQueue = ({
     concurrency: Math.ceil(network.maxRequestsPerSecond / 4),
     initialStart: true,
     browser: false,
-    worker: async ({
-      request,
-      options = { shouldRetryInvalidInput: true },
-      stopClockLag,
-    }: {
+    worker: async (task: {
       request: EIP1193Parameters<PublicRpcSchema>;
-      options?: Partial<Options>;
       stopClockLag: () => number;
     }) => {
       common.metrics.ponder_rpc_request_lag.observe(
-        { method: request.method, network: network.name },
-        stopClockLag(),
+        { method: task.request.method, network: network.name },
+        task.stopClockLag(),
       );
 
-      return await fetchRequest(request, options);
+      return await fetchRequest(task.request);
     },
   });
 
@@ -183,11 +166,10 @@ export const createRequestQueue = ({
     ...requestQueue,
     request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
       params: TParameters,
-      options?: Partial<Options>,
     ) => {
       const stopClockLag = startClock();
 
-      return requestQueue.add({ request: params, options, stopClockLag });
+      return requestQueue.add({ request: params, stopClockLag });
     },
   } as RequestQueue;
 };
@@ -195,14 +177,10 @@ export const createRequestQueue = ({
 /**
  * @link https://github.com/wevm/viem/blob/main/src/utils/buildRequest.ts#L192
  */
-function shouldRetry(error: Error, options: Partial<Options>) {
+function shouldRetry(error: Error) {
   if ("code" in error && typeof error.code === "number") {
     if (error.code === -1) return true; // Unknown error
-    if (
-      options.shouldRetryInvalidInput &&
-      error.code === InvalidInputRpcError.code
-    )
-      return true;
+    if (error.code === InvalidInputRpcError.code) return true;
     if (error.code === LimitExceededRpcError.code) return true;
     if (error.code === InternalRpcError.code) return true;
     return false;
