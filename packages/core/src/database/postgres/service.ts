@@ -307,6 +307,27 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               )} ago`,
             });
 
+            // Remove any indexes, will be recreated once the app
+            // becomes healthy.
+            for (const [tableName, table] of Object.entries(
+              getTables(schema),
+            )) {
+              if (table.constraints === undefined) continue;
+
+              for (const name of Object.keys(table.constraints)) {
+                await tx.schema
+                  .withSchema(this.userNamespace)
+                  .dropIndex(`${tableName}_${name}`)
+                  .ifExists()
+                  .execute();
+
+                this.common.logger.info({
+                  service: "database",
+                  msg: `Dropped index '${tableName}_${name}' in schema '${this.userNamespace}'`,
+                });
+              }
+            }
+
             await tx
               .withSchema(this.internalNamespace)
               .updateTable("namespace_lock")

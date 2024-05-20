@@ -241,7 +241,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
 
     const { checkpoint, namespaceInfo: namespaceInfoTwo } =
       await databaseTwo.setup({
-        schema: schema,
+        schema,
         buildId: "abc",
       });
 
@@ -609,6 +609,37 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
 
     await database.kill();
   });
+
+  test(
+    "setup with the same build ID and namespace drops indexes",
+    async (context) => {
+      if (context.databaseConfig.kind !== "sqlite") return;
+      const database = new SqliteDatabaseService({
+        common: context.common,
+        directory: context.databaseConfig.directory,
+      });
+
+      await database.setup({ schema, buildId: "abc" });
+
+      await database.createIndexes({ schema });
+
+      await database.kill();
+
+      const databaseTwo = new SqliteDatabaseService({
+        common: context.common,
+        directory: context.databaseConfig.directory,
+      });
+
+      await databaseTwo.setup({ schema, buildId: "abc" });
+
+      const indexes = await getIndexNames(databaseTwo.db, "Person", "public");
+
+      expect(indexes).toStrictEqual(["sqlite_autoindex_Person_1"]);
+
+      await databaseTwo.kill();
+    },
+    { timeout: 30_000 },
+  );
 });
 
 async function getTableNames(db: HeadlessKysely<any>, schemaName?: string) {

@@ -800,6 +800,35 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.kill();
   });
+
+  test("setup with the same build ID and namespace drops indexes", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+
+    await database.createIndexes({ schema });
+
+    await database.kill();
+
+    const databaseTwo = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    await databaseTwo.setup({ schema, buildId: "abc" });
+
+    const indexes = await getTableIndexes(databaseTwo.db, "Person", "_public");
+
+    expect(indexes).toStrictEqual([]);
+
+    await databaseTwo.kill();
+  });
 });
 
 async function getTableNames(db: HeadlessKysely<any>, schemaName: string) {
