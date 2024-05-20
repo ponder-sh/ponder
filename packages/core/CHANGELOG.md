@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.4.29
+
+### Patch Changes
+
+- [`48b4176f2aec79ef74a62e88eaf3bb4ecfcfcb2e`](https://github.com/ponder-sh/ponder/commit/48b4176f2aec79ef74a62e88eaf3bb4ecfcfcb2e) Thanks [@0xOlias](https://github.com/0xOlias)! - Bumped `better-sqlite3` from `9.1.1` to `10.0.0` which added prebuilt binaries for Node.js 22. This fixes a bug where builds on Railway (using Nixpacks `>=1.22.0`) failed while attempting to build `better-sqlite3` from source.
+
+- [`c596b4c45224e0e5de84e021096b09730c351dba`](https://github.com/ponder-sh/ponder/commit/c596b4c45224e0e5de84e021096b09730c351dba) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where `updateMany` store method calls were not batched properly. Now `updateMany` follows the same batch size limit as `createMany` (1000).
+
 ## 0.4.28
 
 ### Patch Changes
