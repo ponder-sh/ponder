@@ -1,4 +1,5 @@
 import {
+  CheckConstraintError,
   JSONSerializeError,
   NotNullConstraintError,
   RecordNotFoundError,
@@ -27,6 +28,11 @@ export function parseStoreError(err: unknown, args: Record<string, unknown>) {
     error.message?.includes("violates not-null constraint")
   ) {
     error = new NotNullConstraintError(error.message);
+  } else if (
+    error.message?.includes("CHECK constraint failed") ||
+    error.message?.includes("violates check constraint")
+  ) {
+    error = new CheckConstraintError(error.message);
   } else if (error.message?.includes("Do not know how to serialize a BigInt")) {
     error = new JSONSerializeError(error.message);
   }

@@ -242,7 +242,7 @@ export const start = (service: Service) => {
 
         service.common.logger.warn({
           service: "realtime",
-          msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error}`,
+          msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error.message}`,
         });
 
         const duration = ERROR_TIMEOUT[service.consecutiveErrors];
@@ -264,7 +264,7 @@ export const start = (service: Service) => {
         if (++service.consecutiveErrors === ERROR_TIMEOUT.length) {
           service.common.logger.error({
             service: "realtime",
-            msg: `Fatal error: Unable to process '${service.network.name}' block ${newHeadBlockNumber} after ${ERROR_TIMEOUT.length} attempts due to error:`,
+            msg: `Fatal error: Unable to process '${service.network.name}' block ${newHeadBlockNumber} after ${ERROR_TIMEOUT.length} attempts.`,
             error,
           });
 
@@ -288,7 +288,7 @@ export const start = (service: Service) => {
 
       service.common.logger.warn({
         service: "realtime",
-        msg: `Failed to fetch latest '${service.network.name}' block with error: ${error}`,
+        msg: `Failed to fetch latest '${service.network.name}' block with error: ${error.message}`,
       });
     }
   };

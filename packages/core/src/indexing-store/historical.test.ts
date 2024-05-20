@@ -3,7 +3,10 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { UniqueConstraintError } from "@/common/errors.js";
+import {
+  CheckConstraintError,
+  UniqueConstraintError,
+} from "@/common/errors.js";
 import { createSchema } from "@/schema/schema.js";
 import {
   type Checkpoint,
@@ -166,14 +169,16 @@ test("create() throws on invalid enum value", async (context) => {
     schema,
   });
 
-  await expect(() =>
-    indexingStore.create({
+  const error = await indexingStore
+    .create({
       tableName: "Pet",
       encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
       id: "id1",
       data: { name: "Skip", kind: "NOTACAT" },
-    }),
-  ).rejects.toThrow();
+    })
+    .catch((error) => error);
+
+  expect(error).toBeInstanceOf(CheckConstraintError);
 
   await cleanup();
 });

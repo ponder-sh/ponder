@@ -71,6 +71,15 @@ export class RecordNotFoundError extends NonRetryableError {
   }
 }
 
+export class CheckConstraintError extends NonRetryableError {
+  override name = "CheckConstraintError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, CheckConstraintError.prototype);
+  }
+}
+
 export class JSONSerializeError extends NonRetryableError {
   override name = "JSONSerializeError";
 
