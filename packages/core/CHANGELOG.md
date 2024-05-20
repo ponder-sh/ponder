@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.4.28
+
+### Patch Changes
+
+- [#892](https://github.com/ponder-sh/ponder/pull/892) [`0c6901f266635e9bd4e96dab00b3e2af892ec584`](https://github.com/ponder-sh/ponder/commit/0c6901f266635e9bd4e96dab00b3e2af892ec584) Thanks [@kyscott18](https://github.com/kyscott18)! - Increased RPC request & database query retry threshold from 4 attempts over 2 seconds to 10 attempts over 1 minute.
+
+- [#898](https://github.com/ponder-sh/ponder/pull/898) [`a2286b06292c20b0fc77aef5cd845cc27f3bad43`](https://github.com/ponder-sh/ponder/commit/a2286b06292c20b0fc77aef5cd845cc27f3bad43) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue causing apps using custom indexes to crash with the error: `Database error during 'createIndexes' ... [index] already exists`.
+
+- [#892](https://github.com/ponder-sh/ponder/pull/892) [`0c6901f266635e9bd4e96dab00b3e2af892ec584`](https://github.com/ponder-sh/ponder/commit/0c6901f266635e9bd4e96dab00b3e2af892ec584) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where certain RPC errors were incorrectly marked as non-retryable.
+
 ## 0.4.27
 
 ### Patch Changes
