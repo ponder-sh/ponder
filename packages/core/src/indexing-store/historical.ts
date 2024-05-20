@@ -1,7 +1,12 @@
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
-import type { DatabaseRecord, UserId, UserRecord } from "@/types/schema.js";
+import type {
+  DatabaseColumn,
+  DatabaseRecord,
+  UserId,
+  UserRecord,
+} from "@/types/schema.js";
 import { sql } from "kysely";
 import type { WhereInput, WriteStore } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
@@ -142,51 +147,73 @@ export const getHistoricalStore = ({
   }) => {
     const table = (schema[tableName] as { table: Table }).table;
 
-    return db.wrap({ method: `${tableName}.updateMany` }, async () => {
-      if (typeof data === "function") {
-        const rows = await db.transaction().execute(async (tx) => {
-          const latestRows = await tx
-            .withSchema(namespaceInfo.userNamespace)
-            .selectFrom(tableName)
-            .selectAll()
-            .where((eb) =>
-              buildWhereConditions({
-                eb,
-                where,
-                table,
-                encoding: kind,
-              }),
-            )
-            .execute();
+    if (typeof data === "function") {
+      const query = db
+        .withSchema(namespaceInfo.userNamespace)
+        .selectFrom(tableName)
+        .selectAll()
+        .where((eb) =>
+          buildWhereConditions({
+            eb,
+            where,
+            table,
+            encoding: kind,
+          }),
+        )
+        .orderBy("id", "asc");
 
-          const rows: { [x: string]: any }[] = [];
-          for (const latestRow of latestRows) {
-            const current = decodeRow(latestRow, table, kind);
-            const updateObject = data({ current });
-            // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
-            const updateRow = {
-              id: latestRow.id,
-              ...encodeRow(updateObject, table, kind),
-            };
+      const rows: UserRecord[] = [];
+      let cursor: DatabaseColumn = null;
 
-            const row = await tx
-              .withSchema(namespaceInfo.userNamespace)
-              .updateTable(tableName)
-              .set(updateRow)
-              .where("id", "=", latestRow.id)
-              .returningAll()
-              .executeTakeFirstOrThrow()
-              .catch((err) => {
-                throw parseStoreError(err, updateObject);
-              });
-            rows.push(row);
-          }
+      while (true) {
+        const _rows = await db.wrap(
+          { method: `${tableName}.updateMany` },
+          async () => {
+            const latestRows: DatabaseRecord[] = await query
+              .limit(MAX_BATCH_SIZE)
+              .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
+              .execute();
 
-          return rows;
-        });
+            const rows: DatabaseRecord[] = [];
 
-        return rows.map((row) => decodeRow(row, table, kind));
-      } else {
+            for (const latestRow of latestRows) {
+              const current = decodeRow(latestRow, table, kind);
+              const updateObject = data({ current });
+              // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
+              const updateRow = {
+                id: latestRow.id,
+                ...encodeRow(updateObject, table, kind),
+              };
+
+              const row = await db
+                .withSchema(namespaceInfo.userNamespace)
+                .updateTable(tableName)
+                .set(updateRow)
+                .where("id", "=", latestRow.id)
+                .returningAll()
+                .executeTakeFirstOrThrow()
+                .catch((err) => {
+                  throw parseStoreError(err, updateObject);
+                });
+              rows.push(row);
+            }
+
+            return rows.map((row) => decodeRow(row, table, kind));
+          },
+        );
+
+        rows.push(..._rows);
+
+        if (_rows.length === 0) {
+          break;
+        } else {
+          cursor = encodeValue(_rows[_rows.length - 1].id, table.id, kind);
+        }
+      }
+
+      return rows;
+    } else {
+      return db.wrap({ method: `${tableName}.updateMany` }, async () => {
         const updateRow = encodeRow(data, table, kind);
 
         const rows = await db
@@ -216,8 +243,8 @@ export const getHistoricalStore = ({
           });
 
         return rows.map((row) => decodeRow(row, table, kind));
-      }
-    });
+      });
+    }
   },
   upsert: async ({
     tableName,
