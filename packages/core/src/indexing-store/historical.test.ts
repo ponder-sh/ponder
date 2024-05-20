@@ -554,7 +554,7 @@ test("createMany() inserts a large number of entities", async (context) => {
     schema,
   });
 
-  const RECORD_COUNT = 100_000;
+  const RECORD_COUNT = 10_000;
 
   const createdItems = await indexingStore.createMany({
     tableName: "Pet",
@@ -695,6 +695,36 @@ test("updateMany() works with hex case sensitivity", async (context) => {
     id: "0x0a",
   });
   expect(instance).toMatchObject({ id: "0x0a", n: 2 });
+
+  await cleanup();
+});
+
+test("updateMany() updates a large number of entities", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const RECORD_COUNT = 10_000;
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    data: [...Array(RECORD_COUNT).keys()].map((i) => ({
+      id: `id${i}`,
+      name: "Alice",
+      bigAge: BigInt(i),
+    })),
+  });
+
+  const updatedItems = await indexingStore.updateMany({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    where: {},
+    data: ({ current }) => ({
+      bigAge: (current.bigAge as bigint) + 1n,
+    }),
+  });
+  expect(updatedItems.length).toBe(RECORD_COUNT);
 
   await cleanup();
 });

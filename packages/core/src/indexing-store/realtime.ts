@@ -1,7 +1,12 @@
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
-import type { DatabaseRecord, UserId, UserRecord } from "@/types/schema.js";
+import type {
+  DatabaseColumn,
+  DatabaseRecord,
+  UserId,
+  UserRecord,
+} from "@/types/schema.js";
 import type { WhereInput, WriteStore } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
@@ -173,7 +178,7 @@ export const getRealtimeStore = ({
       return result;
     });
   },
-  updateMany: ({
+  updateMany: async ({
     tableName,
     encodedCheckpoint,
     where,
@@ -188,64 +193,81 @@ export const getRealtimeStore = ({
   }) => {
     const table = (schema[tableName] as { table: Table }).table;
 
-    return db.wrap({ method: `${tableName}.updateMany` }, async () => {
-      const rows = await db.transaction().execute(async (tx) => {
-        const latestRows = await tx
-          .withSchema(namespaceInfo.userNamespace)
-          .selectFrom(tableName)
-          .selectAll()
-          .where((eb) =>
-            buildWhereConditions({
-              eb,
-              where,
-              table,
-              encoding: kind,
-            }),
-          )
-          .execute();
+    const rows: UserRecord[] = [];
+    let cursor: DatabaseColumn = null;
 
-        const rows: { [key: string]: any }[] = [];
-        for (const latestRow of latestRows) {
-          const updateObject =
-            typeof data === "function"
-              ? data({ current: decodeRow(latestRow, table, kind) })
-              : data;
-
-          // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
-          const updateRow = {
-            id: latestRow.id,
-            ...encodeRow(updateObject, table, kind),
-          };
-
-          const row = await tx
+    while (true) {
+      const _rows = await db.wrap({ method: `${tableName}.updateMany` }, () =>
+        db.transaction().execute(async (tx) => {
+          const latestRows: DatabaseRecord[] = await tx
             .withSchema(namespaceInfo.userNamespace)
-            .updateTable(tableName)
-            .set(updateRow)
-            .where("id", "=", latestRow.id)
-            .returningAll()
-            .executeTakeFirstOrThrow()
-            .catch((err) => {
-              throw parseStoreError(err, updateObject);
-            });
-
-          rows.push(row);
-
-          await tx
-            .withSchema(namespaceInfo.internalNamespace)
-            .insertInto(namespaceInfo.internalTableIds[tableName])
-            .values({
-              operation: 1,
-              checkpoint: encodedCheckpoint,
-              ...latestRow,
-            })
+            .selectFrom(tableName)
+            .selectAll()
+            .where((eb) =>
+              buildWhereConditions({
+                eb,
+                where,
+                table,
+                encoding: kind,
+              }),
+            )
+            .orderBy("id", "asc")
+            .limit(MAX_BATCH_SIZE)
+            .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
             .execute();
-        }
 
-        return rows;
-      });
+          const rows: DatabaseRecord[] = [];
 
-      return rows.map((row) => decodeRow(row, table, kind));
-    });
+          for (const latestRow of latestRows) {
+            const updateObject =
+              typeof data === "function"
+                ? data({ current: decodeRow(latestRow, table, kind) })
+                : data;
+
+            // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
+            const updateRow = {
+              id: latestRow.id,
+              ...encodeRow(updateObject, table, kind),
+            };
+
+            const row = await tx
+              .withSchema(namespaceInfo.userNamespace)
+              .updateTable(tableName)
+              .set(updateRow)
+              .where("id", "=", latestRow.id)
+              .returningAll()
+              .executeTakeFirstOrThrow()
+              .catch((err) => {
+                throw parseStoreError(err, updateObject);
+              });
+
+            rows.push(row);
+
+            await tx
+              .withSchema(namespaceInfo.internalNamespace)
+              .insertInto(namespaceInfo.internalTableIds[tableName])
+              .values({
+                operation: 1,
+                checkpoint: encodedCheckpoint,
+                ...latestRow,
+              })
+              .execute();
+          }
+
+          return rows.map((row) => decodeRow(row, table, kind));
+        }),
+      );
+
+      rows.push(..._rows);
+
+      if (_rows.length === 0) {
+        break;
+      } else {
+        cursor = encodeValue(_rows[_rows.length - 1].id, table.id, kind);
+      }
+    }
+
+    return rows;
   },
   upsert: ({
     tableName,
