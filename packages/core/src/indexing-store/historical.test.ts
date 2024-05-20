@@ -699,7 +699,7 @@ test("updateMany() works with hex case sensitivity", async (context) => {
   await cleanup();
 });
 
-test.only("updateMany() updates a large number of entities", async (context) => {
+test("updateMany() updates a large number of entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
