@@ -197,68 +197,65 @@ export const getRealtimeStore = ({
     let cursor: DatabaseColumn = null;
 
     while (true) {
-      const _rows = await db.wrap(
-        { method: `${tableName}.updateMany` },
-        async () => {
-          return await db.transaction().execute(async (tx) => {
-            const latestRows: DatabaseRecord[] = await tx
+      const _rows = await db.wrap({ method: `${tableName}.updateMany` }, () =>
+        db.transaction().execute(async (tx) => {
+          const latestRows: DatabaseRecord[] = await tx
+            .withSchema(namespaceInfo.userNamespace)
+            .selectFrom(tableName)
+            .selectAll()
+            .where((eb) =>
+              buildWhereConditions({
+                eb,
+                where,
+                table,
+                encoding: kind,
+              }),
+            )
+            .orderBy("id", "asc")
+            .limit(MAX_BATCH_SIZE)
+            .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
+            .execute();
+
+          const rows: DatabaseRecord[] = [];
+
+          for (const latestRow of latestRows) {
+            const updateObject =
+              typeof data === "function"
+                ? data({ current: decodeRow(latestRow, table, kind) })
+                : data;
+
+            // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
+            const updateRow = {
+              id: latestRow.id,
+              ...encodeRow(updateObject, table, kind),
+            };
+
+            const row = await tx
               .withSchema(namespaceInfo.userNamespace)
-              .selectFrom(tableName)
-              .selectAll()
-              .where((eb) =>
-                buildWhereConditions({
-                  eb,
-                  where,
-                  table,
-                  encoding: kind,
-                }),
-              )
-              .orderBy("id", "asc")
-              .limit(MAX_BATCH_SIZE)
-              .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
+              .updateTable(tableName)
+              .set(updateRow)
+              .where("id", "=", latestRow.id)
+              .returningAll()
+              .executeTakeFirstOrThrow()
+              .catch((err) => {
+                throw parseStoreError(err, updateObject);
+              });
+
+            rows.push(row);
+
+            await tx
+              .withSchema(namespaceInfo.internalNamespace)
+              .insertInto(namespaceInfo.internalTableIds[tableName])
+              .values({
+                operation: 1,
+                checkpoint: encodedCheckpoint,
+                ...latestRow,
+              })
               .execute();
+          }
 
-            const rows: DatabaseRecord[] = [];
-
-            for (const latestRow of latestRows) {
-              const updateObject =
-                typeof data === "function"
-                  ? data({ current: decodeRow(latestRow, table, kind) })
-                  : data;
-
-              // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
-              const updateRow = {
-                id: latestRow.id,
-                ...encodeRow(updateObject, table, kind),
-              };
-
-              const row = await tx
-                .withSchema(namespaceInfo.userNamespace)
-                .updateTable(tableName)
-                .set(updateRow)
-                .where("id", "=", latestRow.id)
-                .returningAll()
-                .executeTakeFirstOrThrow()
-                .catch((err) => {
-                  throw parseStoreError(err, updateObject);
-                });
-
-              rows.push(row);
-
-              await tx
-                .withSchema(namespaceInfo.internalNamespace)
-                .insertInto(namespaceInfo.internalTableIds[tableName])
-                .values({
-                  operation: 1,
-                  checkpoint: encodedCheckpoint,
-                  ...latestRow,
-                })
-                .execute();
-            }
-
-            return rows.map((row) => decodeRow(row, table, kind));
-          });
-        },
+          return rows.map((row) => decodeRow(row, table, kind));
+        }),
       );
 
       rows.push(..._rows);
