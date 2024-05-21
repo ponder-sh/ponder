@@ -38,6 +38,7 @@ import { range } from "@/utils/range.js";
 import {
   type ExpressionBuilder,
   type OperandExpression,
+  type QueryCreator,
   type SqlBool,
   type Transaction as KyselyTransaction,
   sql,
@@ -1652,8 +1653,296 @@ export class PostgresSyncStore implements SyncStore {
       );
 
     while (true) {
+      const maxCheckpoint = await this.db.wrap(
+        { method: "getMaxCheckpoint" },
+        async () => {
+          const getMaxCheckpoint = async (
+            table: "logs" | "blocks" | "callTraces",
+          ): Promise<string | null> => {
+            const result = await this.db
+              .with("checkpoints", (db) =>
+                db
+                  .selectFrom(table)
+                  .select(sql`${table}.checkpoint`.as("max_checkpoint"))
+                  .where(`${table}.checkpoint`, ">", cursor)
+                  .where(`${table}.checkpoint`, "<=", encodedToCheckpoint)
+                  .orderBy(`${table}.checkpoint`, "asc")
+                  .offset(limit)
+                  .limit(1),
+              )
+              .selectFrom("checkpoints")
+              .select(
+                sql`COALESCE(max_checkpoint::text, ${encodedToCheckpoint})`.as(
+                  "max_checkpoint",
+                ),
+              )
+              .execute();
+
+            return result[0]?.max_checkpoint?.toString() || null;
+          };
+
+          const maxLogCheckpoint = logSources.length
+            ? await getMaxCheckpoint("logs")
+            : null;
+          const maxBlockCheckpoint = blockSources.length
+            ? await getMaxCheckpoint("blocks")
+            : null;
+          const maxCallTraceCheckpoint = callTraceSources.length
+            ? await getMaxCheckpoint("callTraces")
+            : null;
+
+          const maxCheckpointValues = [
+            maxLogCheckpoint,
+            maxBlockCheckpoint,
+            maxCallTraceCheckpoint,
+          ].filter((cp): cp is string => cp !== null);
+
+          return maxCheckpointValues.length
+            ? maxCheckpointValues.reduce((a, b) => (a > b ? a : b))
+            : encodedToCheckpoint;
+        },
+      );
+
+      const constructLogQuery = (
+        db: QueryCreator<
+          SyncStoreTables & {
+            log_sources: {
+              source_id: any;
+            };
+          } & {
+            block_sources: {
+              source_id: any;
+            };
+          } & {
+            call_trace_sources: {
+              source_id: any;
+            };
+          }
+        >,
+        cursor: string,
+        maxCheckpoint: string,
+        limit: number,
+      ) => {
+        return db
+          .selectFrom("logs")
+          .innerJoin("log_sources", (join) => join.onTrue())
+          .where((eb) => {
+            const logFilterCmprs = sources
+              .filter(sourceIsLog)
+              .map((logFilter) => {
+                const exprs = this.buildLogFilterCmprs({
+                  eb,
+                  logFilter,
+                });
+                exprs.push(eb("source_id", "=", logFilter.id));
+                return eb.and(exprs);
+              });
+
+            const factoryCmprs = sources
+              .filter(sourceIsFactoryLog)
+              .map((factory) => {
+                const exprs = this.buildFactoryLogFilterCmprs({
+                  eb,
+                  factory,
+                });
+                exprs.push(eb("source_id", "=", factory.id));
+                return eb.and(exprs);
+              });
+
+            return eb.or([...logFilterCmprs, ...factoryCmprs]);
+          })
+          .select([
+            "source_id",
+            "checkpoint",
+            "blockHash",
+            "transactionHash",
+            "logs.id as log_id",
+            sql`null`.as("callTrace_id"),
+          ])
+          .where("checkpoint", ">", cursor)
+          .where("checkpoint", "<=", maxCheckpoint)
+          .limit(limit);
+      };
+
+      const constructBlockQuery = (
+        db: QueryCreator<
+          SyncStoreTables & {
+            log_sources: {
+              source_id: any;
+            };
+          } & {
+            block_sources: {
+              source_id: any;
+            };
+          } & {
+            call_trace_sources: {
+              source_id: any;
+            };
+          }
+        >,
+        cursor: string,
+        maxCheckpoint: string,
+        limit: number,
+      ) => {
+        return db
+          .selectFrom("blocks")
+          .innerJoin("block_sources", (join) => join.onTrue())
+          .where((eb) => {
+            const exprs = [];
+            for (const blockSource of blockSources) {
+              exprs.push(
+                eb.and([
+                  eb("chainId", "=", blockSource.chainId),
+                  eb("number", ">=", BigInt(blockSource.startBlock)),
+                  ...(blockSource.endBlock !== undefined
+                    ? [eb("number", "<=", BigInt(blockSource.endBlock))]
+                    : []),
+                  sql`(number - ${sql.val(
+                    blockSource.criteria.offset,
+                  )}) % ${sql.val(blockSource.criteria.interval)} = 0`,
+                  eb("source_id", "=", blockSource.id),
+                ]),
+              );
+            }
+            return eb.or(exprs);
+          })
+          .select([
+            "block_sources.source_id",
+            "checkpoint",
+            "hash as blockHash",
+            sql`null`.as("transactionHash"),
+            sql`null`.as("log_id"),
+            sql`null`.as("callTrace_id"),
+          ])
+          .where("checkpoint", ">", cursor)
+          .where("checkpoint", "<=", maxCheckpoint)
+          .limit(limit);
+      };
+
+      const constructTraceQuery = (
+        db: QueryCreator<
+          SyncStoreTables & {
+            log_sources: {
+              source_id: any;
+            };
+          } & {
+            block_sources: {
+              source_id: any;
+            };
+          } & {
+            call_trace_sources: {
+              source_id: any;
+            };
+          }
+        >,
+        cursor: string,
+        maxCheckpoint: string,
+        limit: number,
+      ) => {
+        return db
+          .selectFrom("callTraces")
+          .innerJoin("call_trace_sources", (join) => join.onTrue())
+          .where((eb) => {
+            const traceFilterCmprs = sources
+              .filter(sourceIsCallTrace)
+              .map((callTraceSource) => {
+                const exprs = this.buildTraceFilterCmprs({
+                  eb,
+                  callTraceSource,
+                });
+                exprs.push(eb("source_id", "=", callTraceSource.id));
+                return eb.and(exprs);
+              });
+            const factoryTraceFilterCmprs = sources
+              .filter(sourceIsFactoryCallTrace)
+              .map((factory) => {
+                const exprs = this.buildFactoryTraceFilterCmprs({
+                  eb,
+                  factory,
+                });
+                exprs.push(eb("source_id", "=", factory.id));
+                return eb.and(exprs);
+              });
+
+            return eb.or([...traceFilterCmprs, ...factoryTraceFilterCmprs]);
+          })
+          .select([
+            "source_id",
+            "checkpoint",
+            "blockHash",
+            "transactionHash",
+            sql`null`.as("log_id"),
+            "callTraces.id as callTrace_id",
+          ])
+          .where("checkpoint", ">", cursor)
+          .where("checkpoint", "<=", maxCheckpoint)
+          .limit(limit);
+      };
+
+      const buildInitialQuery = (
+        db: QueryCreator<
+          SyncStoreTables & {
+            log_sources: {
+              source_id: any;
+            };
+          } & {
+            block_sources: {
+              source_id: any;
+            };
+          } & {
+            call_trace_sources: {
+              source_id: any;
+            };
+          }
+        >,
+      ) => {
+        // Start with the first available source
+        let initialQuery = null;
+        if (logSources.length > 0) {
+          initialQuery = constructLogQuery(db, cursor, maxCheckpoint, limit);
+        } else if (blockSources.length > 0) {
+          initialQuery = constructBlockQuery(db, cursor, maxCheckpoint, limit);
+        } else if (callTraceSources.length > 0) {
+          initialQuery = constructTraceQuery(db, cursor, maxCheckpoint, limit);
+        }
+
+        // Union additional sources if they exist
+        if (initialQuery !== null) {
+          if (
+            logSources.length > 0 &&
+            initialQuery !== constructLogQuery(db, cursor, maxCheckpoint, limit)
+          ) {
+            initialQuery = initialQuery.unionAll(
+              // @ts-ignore
+              constructLogQuery(db, cursor, maxCheckpoint, limit),
+            );
+          }
+          if (
+            blockSources.length > 0 &&
+            initialQuery !==
+              constructBlockQuery(db, cursor, maxCheckpoint, limit)
+          ) {
+            initialQuery = initialQuery.unionAll(
+              // @ts-ignore
+              constructBlockQuery(db, cursor, maxCheckpoint, limit),
+            );
+          }
+          if (
+            callTraceSources.length > 0 &&
+            initialQuery !==
+              constructTraceQuery(db, cursor, maxCheckpoint, limit)
+          ) {
+            initialQuery = initialQuery.unionAll(
+              // @ts-ignore
+              constructTraceQuery(db, cursor, maxCheckpoint, limit),
+            );
+          }
+        }
+
+        return initialQuery;
+      };
+
       const events = await this.db.wrap({ method: "getEvents" }, async () => {
-        // Get full log objects, including the eventSelector clause.
         const requestedLogs = await this.db
           .with(
             "log_sources(source_id)",
@@ -1694,122 +1983,8 @@ export class PostgresSyncStore implements SyncStore {
                     )
               } )`,
           )
-          .with("events", (db) =>
-            db
-              .selectFrom("logs")
-              .innerJoin("log_sources", (join) => join.onTrue())
-              .where((eb) => {
-                const logFilterCmprs = sources
-                  .filter(sourceIsLog)
-                  .map((logFilter) => {
-                    const exprs = this.buildLogFilterCmprs({
-                      eb,
-                      logFilter,
-                    });
-                    exprs.push(eb("source_id", "=", logFilter.id));
-                    return eb.and(exprs);
-                  });
-
-                const factoryCmprs = sources
-                  .filter(sourceIsFactoryLog)
-                  .map((factory) => {
-                    const exprs = this.buildFactoryLogFilterCmprs({
-                      eb,
-                      factory,
-                    });
-                    exprs.push(eb("source_id", "=", factory.id));
-                    return eb.and(exprs);
-                  });
-
-                return eb.or([...logFilterCmprs, ...factoryCmprs]);
-              })
-              .select([
-                "source_id",
-                "checkpoint",
-                "blockHash",
-                "transactionHash",
-
-                "logs.id as log_id",
-                sql`null`.as("callTrace_id"),
-              ])
-              .unionAll(
-                // @ts-ignore
-                db
-                  .selectFrom("blocks")
-                  .innerJoin("block_sources", (join) => join.onTrue())
-                  .where((eb) => {
-                    const exprs = [];
-                    for (const blockSource of blockSources) {
-                      exprs.push(
-                        eb.and([
-                          eb("chainId", "=", blockSource.chainId),
-                          eb("number", ">=", BigInt(blockSource.startBlock)),
-                          ...(blockSource.endBlock !== undefined
-                            ? [eb("number", "<=", BigInt(blockSource.endBlock))]
-                            : []),
-                          sql`(number - ${sql.val(
-                            blockSource.criteria.offset,
-                          )}) % ${sql.val(blockSource.criteria.interval)} = 0`,
-                          eb("source_id", "=", blockSource.id),
-                        ]),
-                      );
-                    }
-                    return eb.or(exprs);
-                  })
-                  .select([
-                    "block_sources.source_id",
-                    "checkpoint",
-                    "hash as blockHash",
-                    sql`null`.as("transactionHash"),
-
-                    sql`null`.as("log_id"),
-                    sql`null`.as("callTrace_id"),
-                  ]),
-              )
-              .unionAll(
-                // @ts-ignore
-                db
-                  .selectFrom("callTraces")
-                  .innerJoin("call_trace_sources", (join) => join.onTrue())
-                  .where((eb) => {
-                    const traceFilterCmprs = sources
-                      .filter(sourceIsCallTrace)
-                      .map((callTraceSource) => {
-                        const exprs = this.buildTraceFilterCmprs({
-                          eb,
-                          callTraceSource,
-                        });
-                        exprs.push(eb("source_id", "=", callTraceSource.id));
-                        return eb.and(exprs);
-                      });
-                    const factoryTraceFilterCmprs = sources
-                      .filter(sourceIsFactoryCallTrace)
-                      .map((factory) => {
-                        const exprs = this.buildFactoryTraceFilterCmprs({
-                          eb,
-                          factory,
-                        });
-                        exprs.push(eb("source_id", "=", factory.id));
-                        return eb.and(exprs);
-                      });
-
-                    return eb.or([
-                      ...traceFilterCmprs,
-                      ...factoryTraceFilterCmprs,
-                    ]);
-                  })
-
-                  .select([
-                    "source_id",
-                    "checkpoint",
-                    "blockHash",
-                    "transactionHash",
-
-                    sql`null`.as("log_id"),
-                    "callTraces.id as callTrace_id",
-                  ]),
-              ),
-          )
+          // @ts-ignore
+          .with("events", (db) => buildInitialQuery(db))
           .selectFrom("events")
           .innerJoin("blocks", "blocks.hash", "events.blockHash")
           .select([
@@ -1930,10 +2105,6 @@ export class PostgresSyncStore implements SyncStore {
                 "transactionReceipts.type as txr_type",
               ]),
           )
-          .where("events.checkpoint", ">", cursor)
-          .where("events.checkpoint", "<=", encodedToCheckpoint)
-          .orderBy("events.checkpoint", "asc")
-          .limit(limit + 1)
           .execute();
 
         return requestedLogs.map((_row) => {
