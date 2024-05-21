@@ -9,7 +9,9 @@ import { Callout } from "nextra/components";
 
 The `"@/generated"{:ts}` module exports types that are useful for creating reusable helper functions.
 
-## EventNames
+## Indexing functions types
+
+### EventNames
 
 A union of all event names that are available from the contracts defined in `ponder.config.ts`.
 
@@ -22,7 +24,7 @@ function helper(eventName: EventNames) {
 }
 ```
 
-## Event
+### Event
 
 A generic type that optionally accepts an event name and returns the `event` object type for that event.
 
@@ -54,7 +56,7 @@ function helper(event: Event) {
 }
 ```
 
-## Context
+### Context
 
 A generic type that optionally accepts an event name and returns the `context` object type.
 
@@ -74,7 +76,7 @@ function helper(context: Context<"Weth:Deposit">) {
 
 If no event name is provided, `Context` returns the union of all context types. This can be useful if all you need is the `db` or `contracts` types which are the same for all events.
 
-## IndexingFunctionArgs
+### IndexingFunctionArgs
 
 A generic type that optionally accepts an event name and returns the indexing function argument type.
 
@@ -92,7 +94,7 @@ function helper(args: IndexingFunctionArgs<"Weth:Deposit">) {
 
 Like `Event` and `Context`, `IndexingFunctionArgs` returns the union of all indexing function argument types if no event name is provided.
 
-## Schema
+### Schema
 
 A generic type that requires a table name from `ponder.schema.ts` and returns the type of a record in that table.
 
@@ -108,4 +110,61 @@ function helper(account: Schema<"Account">) {
   //      createdAt: number;
   //    }
 }
+```
+
+## Config types
+
+### ContractConfig
+
+The type of a contract in `ponder.config.ts`.
+
+```ts filename="ponder.config.ts" {1}
+import type { ContractConfig } from "@/generated";
+import { Erc20Abi } from "./abis/Erc20Abi.ts";
+
+const Erc20 = {
+  network: "mainnet"
+  abi: Erc20Abi,
+  address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+} as const satisfies ContractConfig;
+```
+
+### NetworkConfig
+
+The type of a network in `ponder.config.ts`.
+
+```ts filename="ponder.config.ts" {1}
+import type { NetworkConfig } from "@/generated";
+
+const mainnet = {
+  chainId: 1,
+  transport: http(process.env.PONDER_RPC_URL_1),
+} as const satisfies NetworkConfig;
+```
+
+### BlockConfig
+
+The type of a block source in `ponder.config.ts`.
+
+```ts filename="ponder.config.ts" {1}
+import type { BlockConfig } from "@/generated";
+
+const ChainlinkPriceOracle = {
+  network: "mainnet",
+  startBlock: 19_750_000,
+  interval: 5,
+} as const satisfies BlockConfig;
+```
+
+### DatabaseConfig
+
+The type of the database config in `ponder.config.ts`.
+
+```ts filename="ponder.config.ts" {1}
+import type { DatabaseConfig } from "@/generated";
+
+const database = {
+  kind: "postgres",
+  schema: "production"
+} as const satisfies DatabaseConfig;
 ```
