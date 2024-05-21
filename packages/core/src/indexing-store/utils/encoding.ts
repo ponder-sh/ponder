@@ -1,7 +1,8 @@
-import { StoreError } from "@/common/errors.js";
+import { JSONSerializeError, StoreError } from "@/common/errors.js";
 import type {
   Column,
   EnumColumn,
+  JSONColumn,
   ReferenceColumn,
   Scalar,
   ScalarColumn,
@@ -9,6 +10,7 @@ import type {
 } from "@/schema/common.js";
 import {
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOptionalColumn,
@@ -54,7 +56,8 @@ export function encodeRow(
             (column) =>
               isScalarColumn(table[column]) ||
               isReferenceColumn(table[column]) ||
-              isEnumColumn(table[column]),
+              isEnumColumn(table[column]) ||
+              isJSONColumn(table[column]),
           )
           .join(", ")}]`,
       );
@@ -93,6 +96,14 @@ export function encodeValue(
       );
     }
     return value;
+  } else if (isJSONColumn(column)) {
+    if (encoding === "postgres") return value as Object;
+
+    try {
+      return JSON.stringify(value);
+    } catch (_error) {
+      throw new JSONSerializeError((_error as Error).message);
+    }
   } else if (isScalarColumn(column) || isReferenceColumn(column)) {
     if (isOptionalColumn(column) && (value === undefined || value === null)) {
       return null;
@@ -110,6 +121,8 @@ export function encodeValue(
 
       if (column[" scalar"] === "bigint") {
         return JSON.stringify(value.map(String));
+      } else if (column[" scalar"] === "hex") {
+        return JSON.stringify(value.map((v) => (v as string).toLowerCase()));
       } else {
         return JSON.stringify(value);
       }
@@ -186,7 +199,8 @@ export function decodeRow(
     if (
       isScalarColumn(column) ||
       isReferenceColumn(column) ||
-      isEnumColumn(column)
+      isEnumColumn(column) ||
+      isJSONColumn(column)
     ) {
       instance[columnName] = decodeValue(data[columnName], column, encoding);
     }
@@ -197,7 +211,7 @@ export function decodeRow(
 
 function decodeValue(
   value: DatabaseColumn,
-  column: ScalarColumn | ReferenceColumn | EnumColumn,
+  column: ScalarColumn | ReferenceColumn | EnumColumn | JSONColumn,
   encoding: "sqlite" | "postgres",
 ): UserColumn {
   if (value === null) return null;
@@ -206,6 +220,8 @@ function decodeValue(
       return JSON.parse(value as string);
     }
     return value as UserColumn;
+  } else if (isJSONColumn(column)) {
+    return encoding === "postgres" ? value : JSON.parse(value as string);
   } else if (isListColumn(column)) {
     return column[" scalar"] === "bigint"
       ? JSON.parse(value as string).map(BigInt)

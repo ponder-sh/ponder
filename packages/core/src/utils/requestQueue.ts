@@ -6,9 +6,11 @@ import {
   getLogsRetryHelper,
 } from "@ponder/utils";
 import {
+  BlockNotFoundError,
   type EIP1193Parameters,
   HttpRequestError,
   InternalRpcError,
+  InvalidInputRpcError,
   LimitExceededRpcError,
   type PublicRpcSchema,
   RpcError,
@@ -35,6 +37,9 @@ export type RequestQueue = Omit<
   ) => Promise<RequestReturnType<TParameters["method"]>>;
 };
 
+const RETRY_COUNT = 9;
+const BASE_DURATION = 125;
+
 /**
  * Creates a queue built to manage rpc requests.
  */
@@ -46,7 +51,7 @@ export const createRequestQueue = ({
   common: Common;
 }): RequestQueue => {
   const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i <= RETRY_COUNT; i++) {
       try {
         const stopClock = startClock();
         const response = await network.transport.request(request);
@@ -105,9 +110,30 @@ export const createRequestQueue = ({
           return logs;
         }
 
-        if (shouldRetry(error) === false || i === 3) throw error;
+        if (shouldRetry(error) === false) {
+          common.logger.warn({
+            service: "sync",
+            msg: `Failed '${request.method}' RPC request with non-retryable error: ${error.message}`,
+          });
+          throw error;
+        }
 
-        await wait(250 * 2 ** i);
+        if (i === RETRY_COUNT) {
+          common.logger.warn({
+            service: "sync",
+            msg: `Failed '${request.method}' RPC request after ${
+              i + 1
+            } attempts with error: ${error.message}`,
+          });
+          throw error;
+        }
+
+        const duration = BASE_DURATION * 2 ** i;
+        common.logger.debug({
+          service: "sync",
+          msg: `Failed '${request.method}' RPC request, retrying after ${duration} milliseconds. Error: ${error.message}`,
+        });
+        await wait(duration);
       }
     }
   };
@@ -154,10 +180,12 @@ export const createRequestQueue = ({
 function shouldRetry(error: Error) {
   if ("code" in error && typeof error.code === "number") {
     if (error.code === -1) return true; // Unknown error
+    if (error.code === InvalidInputRpcError.code) return true;
     if (error.code === LimitExceededRpcError.code) return true;
     if (error.code === InternalRpcError.code) return true;
     return false;
   }
+  if (error instanceof BlockNotFoundError) return true;
   if (error instanceof HttpRequestError && error.status) {
     // Forbidden
     if (error.status === 403) return true;

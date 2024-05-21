@@ -3,7 +3,10 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { UniqueConstraintError } from "@/common/errors.js";
+import {
+  CheckConstraintError,
+  UniqueConstraintError,
+} from "@/common/errors.js";
 import { createSchema } from "@/schema/schema.js";
 import {
   type Checkpoint,
@@ -148,14 +151,16 @@ test("create() throws on invalid enum value", async (context) => {
     indexing: "realtime",
   });
 
-  await expect(() =>
-    indexingStore.create({
+  const error = await indexingStore
+    .create({
       tableName: "Pet",
       encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
       id: "id1",
       data: { name: "Skip", kind: "NOTACAT" },
-    }),
-  ).rejects.toThrow();
+    })
+    .catch((error) => error);
+
+  expect(error).toBeInstanceOf(CheckConstraintError);
 
   await cleanup();
 });
@@ -722,6 +727,36 @@ test("updateMany() inserts into the log table", async (context) => {
     checkpoint: encodeCheckpoint(createCheckpoint(11)),
     operation: 1,
   });
+
+  await cleanup();
+});
+
+test("updateMany() updates a large number of entities", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const RECORD_COUNT = 10_000;
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    data: [...Array(RECORD_COUNT).keys()].map((i) => ({
+      id: `id${i}`,
+      name: "Alice",
+      bigAge: BigInt(i),
+    })),
+  });
+
+  const updatedItems = await indexingStore.updateMany({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    where: {},
+    data: ({ current }) => ({
+      bigAge: (current.bigAge as bigint) + 1n,
+    }),
+  });
+  expect(updatedItems.length).toBe(RECORD_COUNT);
 
   await cleanup();
 });

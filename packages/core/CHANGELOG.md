@@ -1,5 +1,56 @@
 # @ponder/core
 
+## 0.4.29
+
+### Patch Changes
+
+- [`48b4176f2aec79ef74a62e88eaf3bb4ecfcfcb2e`](https://github.com/ponder-sh/ponder/commit/48b4176f2aec79ef74a62e88eaf3bb4ecfcfcb2e) Thanks [@0xOlias](https://github.com/0xOlias)! - Bumped `better-sqlite3` from `9.1.1` to `10.0.0` which added prebuilt binaries for Node.js 22. This fixes a bug where builds on Railway (using Nixpacks `>=1.22.0`) failed while attempting to build `better-sqlite3` from source.
+
+- [`c596b4c45224e0e5de84e021096b09730c351dba`](https://github.com/ponder-sh/ponder/commit/c596b4c45224e0e5de84e021096b09730c351dba) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where `updateMany` store method calls were not batched properly. Now `updateMany` follows the same batch size limit as `createMany` (1000).
+
+## 0.4.28
+
+### Patch Changes
+
+- [#892](https://github.com/ponder-sh/ponder/pull/892) [`0c6901f266635e9bd4e96dab00b3e2af892ec584`](https://github.com/ponder-sh/ponder/commit/0c6901f266635e9bd4e96dab00b3e2af892ec584) Thanks [@kyscott18](https://github.com/kyscott18)! - Increased RPC request & database query retry threshold from 4 attempts over 2 seconds to 10 attempts over 1 minute.
+
+- [#898](https://github.com/ponder-sh/ponder/pull/898) [`a2286b06292c20b0fc77aef5cd845cc27f3bad43`](https://github.com/ponder-sh/ponder/commit/a2286b06292c20b0fc77aef5cd845cc27f3bad43) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue causing apps using custom indexes to crash with the error: `Database error during 'createIndexes' ... [index] already exists`.
+
+- [#892](https://github.com/ponder-sh/ponder/pull/892) [`0c6901f266635e9bd4e96dab00b3e2af892ec584`](https://github.com/ponder-sh/ponder/commit/0c6901f266635e9bd4e96dab00b3e2af892ec584) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where certain RPC errors were incorrectly marked as non-retryable.
+
+## 0.4.27
+
+### Patch Changes
+
+- [#893](https://github.com/ponder-sh/ponder/pull/893) [`d0ec6b3022f8a3463bfdd41d100c178242c11d1c`](https://github.com/ponder-sh/ponder/commit/d0ec6b3022f8a3463bfdd41d100c178242c11d1c) Thanks [@kyscott18](https://github.com/kyscott18)! - Added a JSON column type with `p.json()`.
+
+- Updated dependencies [[`9d64a31a527914145c86b0c8e43b9d185e35a1e1`](https://github.com/ponder-sh/ponder/commit/9d64a31a527914145c86b0c8e43b9d185e35a1e1)]:
+  - @ponder/utils@0.1.5
+
+## 0.4.26
+
+### Patch Changes
+
+- [#890](https://github.com/ponder-sh/ponder/pull/890) [`3e4a6387d46b35cb73c123ad210ba28f09a0d883`](https://github.com/ponder-sh/ponder/commit/3e4a6387d46b35cb73c123ad210ba28f09a0d883) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug introduced in 0.4.25 where call traces with an 'out of gas' error could not be inserted into the database.
+
+## 0.4.25
+
+### Patch Changes
+
+- [#867](https://github.com/ponder-sh/ponder/pull/867) [`e5498ad304a7bc54ccdd8b91327d431b15af388b`](https://github.com/ponder-sh/ponder/commit/e5498ad304a7bc54ccdd8b91327d431b15af388b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for call trace indexing. [See the docs for more details](https://ponder.sh/docs/indexing/call-traces).
+
+## 0.4.24
+
+### Patch Changes
+
+- [`793483c4a4defd8653c8dc67176a95f2a0d7e4bc`](https://github.com/ponder-sh/ponder/commit/793483c4a4defd8653c8dc67176a95f2a0d7e4bc) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with the "has" condition in the "findMany" function and graphQL affecting "hex" and "bigint" list columns.
+
+## 0.4.23
+
+### Patch Changes
+
+- [#880](https://github.com/ponder-sh/ponder/pull/880) [`10e25480e862b7ffc8ad184c85a773d85d375f64`](https://github.com/ponder-sh/ponder/commit/10e25480e862b7ffc8ad184c85a773d85d375f64) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved realtime detection for invalid "eth_getLogs" responses by comparing response length with a block's bloom filter.
+
 ## 0.4.22
 
 ### Patch Changes

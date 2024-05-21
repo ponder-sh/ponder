@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.1.5
+
+### Patch Changes
+
+- [#894](https://github.com/ponder-sh/ponder/pull/894) [`9d64a31a527914145c86b0c8e43b9d185e35a1e1`](https://github.com/ponder-sh/ponder/commit/9d64a31a527914145c86b0c8e43b9d185e35a1e1) Thanks [@kyscott18](https://github.com/kyscott18)! - Supported retrying chainstack eth_getLogs requests.
+
 ## 0.1.4
 
 ### Patch Changes

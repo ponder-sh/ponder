@@ -8,6 +8,7 @@ import {
   getEnums,
   getTables,
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
@@ -220,7 +221,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               } catch (err) {
                 const error = err as Error;
                 if (!error.message.includes("already exists")) throw error;
-                throw new Error(
+                throw new NonRetryableError(
                   `Unable to create table '${tableName}' in '${this.userNamespace}.db' because a table with that name already exists. Is there another application using the '${this.userNamespace}.db' database file?`,
                 );
               }
@@ -278,6 +279,27 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 Date.now() - previousLockRow.heartbeat_at,
               )} ago`,
             });
+
+            // Remove any indexes, will be recreated once the app
+            // becomes healthy.
+            for (const [tableName, table] of Object.entries(
+              getTables(schema),
+            )) {
+              if (table.constraints === undefined) continue;
+
+              for (const name of Object.keys(table.constraints)) {
+                await tx.schema
+                  .withSchema(this.userNamespace)
+                  .dropIndex(`${tableName}_${name}`)
+                  .ifExists()
+                  .execute();
+
+                this.common.logger.info({
+                  service: "database",
+                  msg: `Dropped index '${tableName}_${name}' in schema '${this.userNamespace}'`,
+                });
+              }
+            }
 
             await tx
               .withSchema(this.internalNamespace)
@@ -616,6 +638,12 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           if (isOptionalColumn(column) === false) col = col.notNull();
           return col;
         });
+      } else if (isJSONColumn(column)) {
+        // Handle json columns
+        builder = builder.addColumn(columnName, "jsonb", (col) => {
+          if (isOptionalColumn(column) === false) col = col.notNull();
+          return col;
+        });
       } else {
         // Non-list base columns
         builder = builder.addColumn(
@@ -647,6 +675,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       } else if (isListColumn(column)) {
         // Handle scalar list columns
         builder = builder.addColumn(columnName, "text");
+      } else if (isJSONColumn(column)) {
+        // Handle json columns
+        builder = builder.addColumn(columnName, "jsonb");
       } else {
         // Non-list base columns
         builder = builder.addColumn(

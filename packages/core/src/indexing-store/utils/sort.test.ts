@@ -12,6 +12,7 @@ const schema = createSchema((p) => ({
     kind: p.enum("PetKind").optional(),
     personId: p.bigint().references("Person.id"),
     person: p.one("personId"),
+    json: p.json().optional(),
   }),
   Person: p.createTable({
     id: p.bigint(),
@@ -65,7 +66,7 @@ test("buildOrderByConditions throws for unknown column", () => {
       table: schema.Pet.table,
     }),
   ).toThrow(
-    "Invalid sort. Column does not exist. Got 'someFakeColumn', expected one of ['id', 'names', 'age', 'bigAge', 'kind', 'personId']",
+    "Invalid sort. Column does not exist. Got 'someFakeColumn', expected one of ['id', 'names', 'age', 'bigAge', 'kind', 'personId', 'json']",
   );
 });
 
@@ -75,7 +76,16 @@ test("buildOrderByConditions throws for virtual column", () => {
       orderBy: { person: "desc" },
       table: schema.Pet.table,
     }),
-  ).toThrow("Invalid sort. Cannot filter on virtual column 'person'");
+  ).toThrow("Invalid sort. Cannot sort on virtual column 'person'");
+});
+
+test("buildOrderByConditions throws for json column", () => {
+  expect(() =>
+    buildOrderByConditions({
+      orderBy: { json: "desc" },
+      table: schema.Pet.table,
+    }),
+  ).toThrow("Invalid sort. Cannot sort on json column 'json'");
 });
 
 test("buildOrderByConditions throws for invalid order direction", () => {

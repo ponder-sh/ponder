@@ -1,6 +1,7 @@
 import {
   type BuilderEnumColumn,
   type BuilderIndex,
+  type BuilderJSONColumn,
   type BuilderManyColumn,
   type BuilderOneColumn,
   type BuilderScalarColumn,
@@ -11,6 +12,7 @@ import {
   hex,
   index,
   int,
+  json,
   many,
   one,
   string,
@@ -25,6 +27,7 @@ import type {
   ExtractTableNames,
   IdColumn,
   Index,
+  JSONColumn,
   ManyColumn,
   OneColumn,
   ReferenceColumn,
@@ -58,27 +61,29 @@ type GetTable<
                 table[columnName][" optional"],
                 `${tableNames}.id`
               >
-            : table[columnName] extends OneColumn
-              ? OneColumn<Exclude<keyof table & string, columnName | "id">>
-              : table[columnName] extends ManyColumn
-                ? {} extends schema
-                  ? ManyColumn
-                  : table[columnName] extends ManyColumn<
-                        Exclude<tableNames, tableName>
-                      >
-                    ? ManyColumn<
-                        table[columnName][" referenceTable"],
-                        ExtractReferenceColumnNames<
-                          schema[table[columnName][" referenceTable"] &
-                            keyof schema],
-                          tableName
-                        > &
-                          string
-                      >
-                    : ManyColumn<Exclude<tableNames, tableName>>
-                : table[columnName] extends EnumColumn
-                  ? EnumColumn<enumNames>
-                  : Column;
+            : table[columnName] extends JSONColumn
+              ? JSONColumn
+              : table[columnName] extends OneColumn
+                ? OneColumn<Exclude<keyof table & string, columnName | "id">>
+                : table[columnName] extends ManyColumn
+                  ? {} extends schema
+                    ? ManyColumn
+                    : table[columnName] extends ManyColumn<
+                          Exclude<tableNames, tableName>
+                        >
+                      ? ManyColumn<
+                          table[columnName][" referenceTable"],
+                          ExtractReferenceColumnNames<
+                            schema[table[columnName][" referenceTable"] &
+                              keyof schema],
+                            tableName
+                          > &
+                            string
+                        >
+                      : ManyColumn<Exclude<tableNames, tableName>>
+                  : table[columnName] extends EnumColumn
+                    ? EnumColumn<enumNames>
+                    : Column;
       }
     : { id: IdColumn } & {
         [columnName: string]: Column;
@@ -115,6 +120,7 @@ const P = {
   float,
   hex,
   boolean,
+  json,
   one,
   many,
   enum: _enum,
@@ -248,6 +254,22 @@ type P = {
    */
   boolean: () => BuilderScalarColumn<"boolean", false, false>;
   /**
+   * Primitive `JSON` column type.
+   *
+   * - Docs: https://ponder.sh/docs/schema#primitives
+   *
+   * @example
+   * import { createSchema } from "@ponder/core";
+   *
+   * export default createSchema((p) => ({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     b: p.json(),
+   *   })
+   * }));
+   */
+  json: <type = any>() => BuilderJSONColumn<type, false>;
+  /**
    * One-to-one column type.`one` columns don't exist in the database. They are only present when querying data from the GraphQL API.
    *
    * - Docs: https://ponder.sh/docs/schema#one-to-one
@@ -317,7 +339,9 @@ type P = {
   /**
    * Create a table index.
    *
-   * - Docs: TODO(kyle)
+   * - Docs: https://ponder.sh/docs/schema#indexes
+   *
+   * @param columns Column or columns to include in the index.
    *
    * @example
    * export default createSchema((p) => ({

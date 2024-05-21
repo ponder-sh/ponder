@@ -76,6 +76,27 @@
   }
 }
 
+/* NEXTRA SIDEBAR */
+.nextra-menu-desktop {
+  gap: 2px;
+}
+.nextra-menu-desktop li a {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.nextra-menu-desktop ul {
+  gap: 2px;
+}
+/* this targets the separator bars (not currently used) */
+/* .nextra-menu-desktop ._my-4 {
+  margin-top: 11px;
+  margin-bottom: 0px;
+} */
+.nextra-menu-desktop ._mt-5 {
+  margin-top: 10px;
+  margin-bottom: 2px;
+}
+
 /* LINK OVERRIDES */
 ._underline {
   text-decoration-line: none;

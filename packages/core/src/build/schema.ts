@@ -4,6 +4,7 @@ import {
   getEnums,
   getTables,
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
@@ -41,6 +42,10 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
           `Validation failed: Table '${tableName}' does not have an 'id' column.`,
         );
 
+      if (isJSONColumn(table.id))
+        throw new Error(
+          `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'json', expected one of ['string', 'hex', 'bigint', 'int'].`,
+        );
       if (isEnumColumn(table.id))
         throw new Error(
           `Validation failed: Invalid type for ID column '${tableName}.id'. Got 'enum', expected one of ['string', 'hex', 'bigint', 'int'].`,
@@ -254,6 +259,11 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
                 ).join(", ")}].`,
               );
 
+            if (isJSONColumn(table[c]))
+              throw new Error(
+                `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'json', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
+              );
+
             if (isOneColumn(table[c]))
               throw new Error(
                 `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'one', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
@@ -285,6 +295,11 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
                 )
                 .map(([columnName]) => columnName)
                 .join(", ")}].`,
+            );
+
+          if (isJSONColumn(table[column]))
+            throw new Error(
+              `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'json', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
             );
 
           if (isOneColumn(table[column]))

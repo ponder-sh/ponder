@@ -34,7 +34,7 @@ test("filterLogs handles one logFilter, one address", async (context) => {
 
   const filteredLogs = filterLogs({
     logs,
-    logFilters: [{ address: context.erc20.address }],
+    logFilters: [{ address: context.erc20.address, topics: [] }],
   });
 
   expect(filteredLogs).toHaveLength(2);
@@ -50,6 +50,7 @@ test("filterLogs handles one logFilter, two addresses", async (context) => {
     logFilters: [
       {
         address: [context.erc20.address, context.factory.address],
+        topics: [],
       },
     ],
   });
@@ -65,7 +66,7 @@ test("filterLogs handles empty array of addresses", async () => {
 
   const filteredLogs = filterLogs({
     logs,
-    logFilters: [{ address: [] }],
+    logFilters: [{ address: [], topics: [] }],
   });
 
   expect(filteredLogs).toStrictEqual(logs);
@@ -78,8 +79,8 @@ test("filterLogs handles two logFilters, one address each", async (context) => {
   const filteredLogs = filterLogs({
     logs,
     logFilters: [
-      { address: context.erc20.address },
-      { address: context.factory.address },
+      { address: context.erc20.address, topics: [] },
+      { address: context.factory.address, topics: [] },
     ],
   });
 

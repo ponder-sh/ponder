@@ -4,13 +4,22 @@ import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
 import {
   type EventSource,
-  type FactorySource,
+  type FactoryLogSource,
   type LogSource,
-  sourceIsFactory,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { RawEvent } from "@/sync-store/store.js";
-import { encodeCheckpoint } from "@/utils/checkpoint.js";
+import type {
+  SyncBlock,
+  SyncCallTrace,
+  SyncCreateTrace,
+} from "@/sync/index.js";
+import {
+  encodeCheckpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   type BlockTag,
@@ -21,7 +30,12 @@ import {
   type RpcLog,
   type RpcTransaction,
   type RpcTransactionReceipt,
+  encodeFunctionData,
+  encodeFunctionResult,
   formatTransactionReceipt,
+  hexToBigInt,
+  hexToNumber,
+  parseEther,
 } from "viem";
 import {
   http,
@@ -37,7 +51,7 @@ import {
   toHex,
 } from "viem";
 import { mainnet } from "viem/chains";
-import { ALICE } from "./constants.js";
+import { ALICE, BOB } from "./constants.js";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
 import type { deploy } from "./simulate.js";
 
@@ -111,9 +125,16 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
           event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
           parameter: "pair",
         },
+        includeCallTraces: true,
         filter: {
           event: ["Swap"],
         },
+      },
+      Factory: {
+        abi: factoryABI,
+        network: "mainnet",
+        address: addresses.factoryAddress,
+        includeCallTraces: true,
       },
     },
     blocks: {
@@ -142,7 +163,9 @@ export const getNetworkAndSources = async (
         fn: () => {},
       },
       { name: "Pair:Swap", fn: () => {} },
+      { name: "Pair.swap()", fn: () => {} },
       { name: "OddBlocks:block", fn: () => {} },
+      { name: "Factory.createPair()", fn: () => {} },
     ],
     options: common.options,
   });
@@ -153,14 +176,20 @@ export const getNetworkAndSources = async (
     common,
   });
 
-  return { networks: [mainnet], sources, requestQueues: [requestQueue] };
+  return {
+    networks: [mainnet],
+    sources,
+    requestQueues: [requestQueue],
+  };
 };
 
 /**
- * Returns the logs, block, and transaction data for the blocks with events (1, 2, 3).
- * Block 1 has two erc20 transfer events.
- * Block 2 has a pair creation event.
- * Block 3 has a swap event from the newly created pair.
+ * Returns the logs, block, traces, and transaction data for blocks 1, 2, 3, 4, 5.
+ * Block 2 has two contract creations.
+ * Block 2 has two erc20 transfer events.
+ * Block 3 has a pair creation event.
+ * Block 4 has a swap event from the newly created pair.
+ * Block 5 is empty.
  */
 export const getRawRPCData = async (sources: EventSource[]) => {
   const latestBlock = await publicClient.getBlockNumber();
@@ -168,8 +197,8 @@ export const getRawRPCData = async (sources: EventSource[]) => {
     await Promise.all(
       sources
         .filter(
-          (source): source is LogSource | FactorySource =>
-            sourceIsLog(source) || sourceIsFactory(source),
+          (source): source is LogSource | FactoryLogSource =>
+            sourceIsLog(source) || sourceIsFactoryLog(source),
         )
         .map((source) =>
           publicClient.request({
@@ -206,11 +235,12 @@ export const getRawRPCData = async (sources: EventSource[]) => {
     if (log.transactionHash) txHashes.add(log.transactionHash);
   }
   const blocks = await Promise.all(
-    [...blockNumbers].map((bn) =>
-      publicClient.request({
-        method: "eth_getBlockByNumber",
-        params: [bn, true],
-      }),
+    [1, 2, 3, 4, 5].map(
+      (bn) =>
+        publicClient.request({
+          method: "eth_getBlockByNumber",
+          params: [toHex(bn), true],
+        }) as Promise<SyncBlock>,
     ),
   );
   const transactionReceipts = await Promise.all(
@@ -224,71 +254,279 @@ export const getRawRPCData = async (sources: EventSource[]) => {
 
   return {
     block1: {
-      logs: [logs[0]!, logs[1]!],
-      block: blocks[0]!,
-      transactions: blocks[0]!.transactions,
-      transactionReceipts: transactionReceipts.filter(
-        (tr) => tr?.blockNumber === blocks[0]?.number,
-      ),
+      logs: [],
+      block: blocks[0],
+      transactions: [],
+      transactionReceipts: [],
+      traces: [
+        {
+          action: {
+            from: ALICE,
+            gas: "0x0",
+            init: "0x0",
+            value: "0x0",
+          },
+          blockHash: blocks[0]!.hash,
+          blockNumber: blocks[0]!.number,
+          result: {
+            address: "0x0",
+            code: "0x0",
+            gasUsed: "0x0",
+          },
+          subtraces: 0,
+          traceAddress: [0],
+          transactionHash: blocks[0]!.transactions[0].hash,
+          transactionPosition: hexToNumber(
+            blocks[0]!.transactions[0].transactionIndex,
+          ),
+          type: "create",
+        },
+        {
+          action: {
+            from: ALICE,
+            gas: "0x0",
+            init: "0x0",
+            value: "0x0",
+          },
+          blockHash: blocks[0]!.hash,
+          blockNumber: blocks[0]!.number,
+          result: {
+            address: "0x0",
+            code: "0x0",
+            gasUsed: "0x0",
+          },
+          subtraces: 0,
+          traceAddress: [0],
+          transactionHash: blocks[0]!.transactions[1].hash,
+          transactionPosition: hexToNumber(
+            blocks[0]!.transactions[1].transactionIndex,
+          ),
+          type: "create",
+        },
+      ],
     },
     block2: {
-      logs: [logs[2]],
-      block: blocks[1],
+      logs: [logs[0]!, logs[1]!],
+      block: blocks[1]!,
       transactions: blocks[1]!.transactions,
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[1]?.number,
       ),
+      traces: [
+        {
+          action: {
+            callType: "call",
+            from: ALICE,
+            gas: "0x0",
+            input: encodeFunctionData({
+              abi: erc20ABI,
+              functionName: "mint",
+              args: [ALICE, parseEther("1")],
+            }),
+            to: logs[0]!.address,
+            value: "0x0",
+          },
+          blockHash: blocks[1]!.hash,
+          blockNumber: blocks[1]!.number,
+          result: {
+            gasUsed: "0x0",
+            output: encodeFunctionResult({
+              abi: erc20ABI,
+              functionName: "mint",
+            }),
+          },
+          subtraces: 0,
+          traceAddress: [0],
+          transactionHash: blocks[1]!.transactions[0].hash,
+          transactionPosition: hexToNumber(
+            blocks[1]!.transactions[0].transactionIndex,
+          ),
+          type: "call",
+        },
+        {
+          action: {
+            callType: "call",
+            from: ALICE,
+            gas: "0x0",
+            input: encodeFunctionData({
+              abi: erc20ABI,
+              functionName: "mint",
+              args: [BOB, parseEther("1")],
+            }),
+            to: logs[1]!.address,
+            value: "0x0",
+          },
+          blockHash: blocks[1]!.hash,
+          blockNumber: blocks[1]!.number,
+          result: {
+            gasUsed: "0x0",
+            output: encodeFunctionResult({
+              abi: erc20ABI,
+              functionName: "mint",
+            }),
+          },
+          subtraces: 0,
+          traceAddress: [0],
+          transactionHash: blocks[1]!.transactions[1].hash,
+          transactionPosition: hexToNumber(
+            blocks[1]!.transactions[1].transactionIndex,
+          ),
+          type: "call",
+        },
+      ],
     },
     block3: {
-      logs: [logs[3]],
+      logs: [logs[2]],
       block: blocks[2],
       transactions: blocks[2]!.transactions,
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[2]?.number,
       ),
+      traces: [
+        {
+          action: {
+            callType: "call",
+            from: ALICE,
+            gas: "0x0",
+            input: encodeFunctionData({
+              abi: factoryABI,
+              functionName: "createPair",
+            }),
+            to: logs[2]!.address,
+            value: "0x0",
+          },
+          blockHash: blocks[2]!.hash,
+          blockNumber: blocks[2]!.number,
+          result: {
+            gasUsed: "0x0",
+            output: encodeFunctionResult({
+              abi: factoryABI,
+              functionName: "createPair",
+              result: logs[3].address,
+            }),
+          },
+          subtraces: 0,
+          traceAddress: [0],
+          transactionHash: blocks[2]!.transactions[0].hash,
+          transactionPosition: hexToNumber(
+            blocks[2]!.transactions[0].transactionIndex,
+          ),
+          type: "call",
+        },
+      ],
     },
-  } as {
+    block4: {
+      logs: [logs[3]],
+      block: blocks[3],
+      transactions: blocks[3]!.transactions,
+      transactionReceipts: transactionReceipts.filter(
+        (tr) => tr?.blockNumber === blocks[3]?.number,
+      ),
+      traces: [
+        {
+          action: {
+            callType: "call",
+            from: ALICE,
+            gas: "0x0",
+            input: encodeFunctionData({
+              abi: pairABI,
+              functionName: "swap",
+              args: [1n, 2n, ALICE],
+            }),
+            to: logs[3]!.address,
+            value: "0x0",
+          },
+          blockHash: blocks[3]!.hash,
+          blockNumber: blocks[3]!.number,
+          result: {
+            gasUsed: "0x0",
+            output: encodeFunctionResult({
+              abi: pairABI,
+              functionName: "swap",
+            }),
+          },
+          subtraces: 0,
+          traceAddress: [0],
+          transactionHash: blocks[3]!.transactions[0].hash,
+          transactionPosition: hexToNumber(
+            blocks[3]!.transactions[0].transactionIndex,
+          ),
+          type: "call",
+        },
+      ],
+    },
+    block5: {
+      logs: [],
+      block: blocks[4]!,
+      transactions: [],
+      transactionReceipts: [],
+      traces: [],
+    },
+  } as unknown as {
     block1: {
+      logs: [];
+      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
+      transactions: [];
+      transactionReceipts: [];
+      traces: [SyncCreateTrace, SyncCreateTrace];
+    };
+    block2: {
       logs: [RpcLog, RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction, RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt, RpcTransactionReceipt];
-    };
-    block2: {
-      logs: [RpcLog];
-      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
-      transactions: [RpcTransaction];
-      transactionReceipts: [RpcTransactionReceipt];
+      traces: [SyncCallTrace, SyncCallTrace];
     };
     block3: {
       logs: [RpcLog];
       block: RpcBlock<Exclude<BlockTag, "pending">, true>;
       transactions: [RpcTransaction];
       transactionReceipts: [RpcTransactionReceipt];
+      traces: [SyncCallTrace];
+    };
+    block4: {
+      logs: [RpcLog];
+      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
+      transactions: [RpcTransaction];
+      transactionReceipts: [RpcTransactionReceipt];
+      traces: [SyncCallTrace];
+    };
+    block5: {
+      logs: [];
+      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
+      transactions: [];
+      transactionReceipts: [];
+      traces: [];
     };
   };
 };
 
 /**
- * Mock function for `getLogEvents` that specifically returns the event data for the erc20 source.
+ * Mock function for `getEvents` that specifically returns the event data for the log and factory sources.
  */
-export const getEventsErc20 = async (
+export const getEventsLog = async (
   sources: EventSource[],
 ): Promise<RawEvent[]> => {
   const rpcData = await getRawRPCData(sources);
 
   return [
     {
-      log: rpcData.block1.logs[0],
-      block: rpcData.block1.block,
-      transaction: rpcData.block1.transactions[0]!,
-      transactionReceipt: rpcData.block1.transactionReceipts[0]!,
+      log: rpcData.block2.logs[0],
+      block: rpcData.block2.block,
+      transaction: rpcData.block2.transactions[0]!,
+      transactionReceipt: rpcData.block2.transactionReceipts[0]!,
     },
     {
-      log: rpcData.block1.logs[1],
-      block: rpcData.block1.block,
-      transaction: rpcData.block1.transactions[1]!,
-      transactionReceipt: rpcData.block1.transactionReceipts[1]!,
+      log: rpcData.block2.logs[1],
+      block: rpcData.block2.block,
+      transaction: rpcData.block2.transactions[1]!,
+      transactionReceipt: rpcData.block2.transactionReceipts[1]!,
+    },
+    {
+      log: rpcData.block4.logs[0],
+      block: rpcData.block4.block,
+      transaction: rpcData.block4.transactions[0]!,
+      transactionReceipt: rpcData.block4.transactionReceipts[0]!,
     },
   ]
     .map((e) => ({
@@ -297,8 +535,8 @@ export const getEventsErc20 = async (
       transaction: formatTransaction(e.transaction),
       transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
     }))
-    .map(({ log, block, transaction, transactionReceipt }) => ({
-      sourceId: sources[0].id,
+    .map(({ log, block, transaction, transactionReceipt }, i) => ({
+      sourceId: i === 0 || i === 1 ? sources[0].id : sources[1].id,
       chainId: sources[0].chainId,
       log: {
         ...log,
@@ -329,6 +567,109 @@ export const getEventsErc20 = async (
         transactionIndex: BigInt(transaction.transactionIndex!),
         eventType: 5,
         eventIndex: BigInt(log.logIndex!),
+      }),
+    })) as RawEvent[];
+};
+
+/**
+ * Mock function for `getEvents` that specifically returns the event data for the block sources.
+ */
+export const getEventsBlock = async (
+  sources: EventSource[],
+): Promise<RawEvent[]> => {
+  const rpcData = await getRawRPCData(sources);
+
+  return [
+    {
+      block: rpcData.block3.block,
+    },
+  ]
+    .map((e) => ({
+      block: formatBlock(e.block),
+    }))
+    .map(({ block }) => ({
+      sourceId: sources[4].id,
+      chainId: sources[4].chainId,
+
+      block: { ...block, miner: checksumAddress(block.miner) },
+
+      encodedCheckpoint: encodeCheckpoint({
+        blockTimestamp: Number(block.timestamp),
+        chainId: BigInt(sources[0].chainId),
+        blockNumber: block.number!,
+        transactionIndex: maxCheckpoint.transactionIndex,
+        eventType: 5,
+        eventIndex: zeroCheckpoint.eventIndex,
+      }),
+    })) as RawEvent[];
+};
+
+/**
+ * Mock function for `getEvents` that specifically returns the event data for the trace sources.
+ */
+export const getEventsTrace = async (
+  sources: EventSource[],
+): Promise<RawEvent[]> => {
+  const rpcData = await getRawRPCData(sources);
+
+  return [
+    {
+      trace: rpcData.block3.traces[0],
+      block: rpcData.block3.block,
+      transaction: rpcData.block3.transactions[0]!,
+      transactionReceipt: rpcData.block3.transactionReceipts[0]!,
+    },
+  ]
+    .map((e) => ({
+      trace: e.trace,
+      block: formatBlock(e.block),
+      transaction: formatTransaction(e.transaction),
+      transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
+    }))
+    .map(({ trace, block, transaction, transactionReceipt }) => ({
+      sourceId: sources[3].id,
+      chainId: sources[3].chainId,
+      trace: {
+        id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
+        from: checksumAddress(trace.action.from),
+        to: checksumAddress(trace.action.to),
+        gas: hexToBigInt(trace.action.gas),
+        value: hexToBigInt(trace.action.value),
+        input: trace.action.input,
+        output: trace.result!.output,
+        gasUsed: hexToBigInt(trace.result!.gasUsed),
+        subtraces: trace.subtraces,
+        traceAddress: trace.traceAddress,
+        blockHash: trace.blockHash,
+        blockNumber: hexToBigInt(trace.blockNumber),
+        transactionHash: trace.transactionHash,
+        transactionIndex: trace.transactionPosition,
+        callType: trace.action.callType,
+      },
+      block: { ...block, miner: checksumAddress(block.miner) },
+      transaction: {
+        ...transaction,
+        from: checksumAddress(transaction.from),
+        to: transaction.to ? checksumAddress(transaction.to) : transaction.to,
+      },
+      transactionReceipt: {
+        ...transactionReceipt,
+        from: checksumAddress(transactionReceipt.from),
+        to: transactionReceipt.to
+          ? checksumAddress(transactionReceipt.to)
+          : transactionReceipt.to,
+        logs: transactionReceipt.logs.map((l) => ({
+          ...l,
+          id: `${l.blockHash}-${toHex(l.logIndex!)}`,
+        })),
+      },
+      encodedCheckpoint: encodeCheckpoint({
+        blockTimestamp: Number(block.timestamp),
+        chainId: BigInt(sources[0].chainId),
+        blockNumber: block.number!,
+        transactionIndex: BigInt(transaction.transactionIndex!),
+        eventType: 7,
+        eventIndex: 0n,
       }),
     })) as RawEvent[];
 };

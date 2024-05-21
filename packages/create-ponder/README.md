@@ -26,7 +26,7 @@ Join [Ponder's telegram chat](https://t.me/ponder_sh) for support, feedback, and
 ✅ &nbsp;Index events from multiple chains in the same app<br/>
 ✅ &nbsp;Reconciles chain reorganization<br/>
 ✅ &nbsp;Factory contracts<br/>
-🏗️ &nbsp;Process transactions calls (in addition to logs)<br/>
+✅ &nbsp;Process transactions calls (in addition to logs)<br/>
 🏗️ &nbsp;Run effects (e.g. send an API request) in indexing code<br/>
 
 ## Quickstart

@@ -1,0 +1,92 @@
+---
+title: "Call traces"
+description: "Learn how to index call traces in a Ponder app"
+---
+
+import { Callout, Steps } from "nextra/components";
+
+# Call traces
+
+As of `0.4.26`, Ponder supports call trace indexing. Call traces are similar to logs, but they represent a _function call_ instead of an event log.
+
+<Callout type="warning">
+  Call traces are slower, more expensive, and less widely supported than logs.
+  For new chains, you might struggle to find an RPC provider that supports the
+  `trace_filter` and `trace_block` methods.
+</Callout>
+
+## Register an indexing function
+
+Call trace indexing is **disabled** by default. To enable it for a contract, set the `includeCallTraces{:ts}` option to `true{:ts}`.
+
+After enabling this option, each function in the contract ABI will become available as an indexing function event name using the `"ContractName.functionName()"{:ts}` scheme.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts" {11}
+import { createConfig } from "@ponder/core";
+import { BlitmapAbi } from "./abis/Blitmap";
+
+export default createConfig({
+  contracts: {
+    Blitmap: {
+      abi: BlitmapAbi,
+      network: "mainnet",
+      address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
+      startBlock: 12439123,
+      includeCallTraces: true,
+    },
+  },
+  // ...
+});
+```
+
+```ts filename="src/index.ts" {15}
+import { ponder } from "@/generated";
+
+ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
+  event.args;
+  //    ^? [tokenData: Hex, name: string]
+  event.trace.gasUsed;
+  //          ^? bigint
+});
+```
+
+</div>
+
+
+## What is a call trace?
+
+Let's define call traces from three different perspectives:
+
+- **Ponder**: A call trace is similar to a log, but it represents a function call instead of an event log. You can register an indexing function that will run whenever a specific function on one of your contracts gets called.
+- **Solidity**: A call trace records a function call. For example, whenever someone calls the `transfer(address to, uint256 amount){:solidity}` function of an ERC20 token contract, it produces a call trace.
+- **EVM**: A call trace records the execution of the [`CALL`, `STATICCALL`, `DELEGATECALL`, or `CALLCODE`](https://www.evm.codes/#f1) opcode within a transaction.
+
+### Top-level vs. internal calls
+
+A call trace can be a **top-level call** or an **internal call**. A top-level call is from an externally-owned account, and an internal call is from another contract.
+
+To determine if a specific call trace is a top-level call, use `event.trace.traceAddress.length === 0{:ts}`. Top-level calls also always have `event.trace.to === event.transaction.to{:ts}`, but this can also be true for internal calls.
+
+```ts filename="src/index.ts" {2}
+ponder.on("ERC20.transfer()", async ({ event }) => {
+  const isTopLevelCall = event.trace.traceAddress.length === 0;
+  // ...
+});
+```
+
+### `eth_call` and `view` functions
+
+The `eth_call` RPC method **does not** produce a call trace. These calls do not occur during the execution of a transaction, so they are not recorded as call traces.
+
+However, calls made to `view` or `pure` functions **do** produce call traces if they are made during the execution of a transaction. These call traces are rarely useful for indexing, but they do happen.
+
+## RPC methods
+
+|            | RPC methods                                    |
+| :--------- | :--------------------------------------------- |
+| Historical | `trace_filter` and `eth_getTransactionReceipt` |
+| Realtime   | `trace_block` and `eth_getTransactionReceipt`  |
+
+The sync engine fetches call traces using the `trace_filter` and `trace_block` RPC methods, and uses `eth_getTransactionReceipt` to confirm that a specific call trace did not occur within a reverted transaction.

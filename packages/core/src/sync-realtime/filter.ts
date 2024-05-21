@@ -1,49 +1,41 @@
-import type { SyncLog } from "@/sync/index.js";
+import type {
+  CallTraceFilterCriteria,
+  LogFilterCriteria,
+} from "@/config/sources.js";
+import type { SyncCallTrace, SyncLog } from "@/sync/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { type Address, type Hex, type LogTopic } from "viem";
 
 export function filterLogs({
   logs,
   logFilters,
 }: {
   logs: SyncLog[];
-  logFilters: {
-    address?: Address | Address[];
-    topics?: LogTopic[];
-  }[];
+  logFilters: Pick<LogFilterCriteria, "address" | "topics">[];
 }) {
-  return logs.filter((log) => {
-    for (const { address, topics } of logFilters) {
-      if (isLogMatchedByFilter({ log, address, topics })) return true;
-    }
-    return false;
-  });
+  return logs.filter((log) =>
+    logFilters.some((logFilter) => isLogMatchedByFilter({ log, logFilter })),
+  );
 }
 
 export function isLogMatchedByFilter({
   log,
-  address,
-  topics,
+  logFilter,
 }: {
-  log: {
-    address: Address;
-    topics: Hex[];
-  };
-  address?: Address | Address[];
-  topics?: LogTopic[];
+  log: Pick<SyncLog, "address" | "topics">;
+  logFilter: Pick<LogFilterCriteria, "address" | "topics">;
 }) {
   const logAddress = toLowerCase(log.address);
 
-  if (address !== undefined && address.length > 0) {
-    if (Array.isArray(address)) {
-      if (!address.includes(logAddress)) return false;
+  if (logFilter.address !== undefined && logFilter.address.length > 0) {
+    if (Array.isArray(logFilter.address)) {
+      if (!logFilter.address.includes(logAddress)) return false;
     } else {
-      if (logAddress !== address) return false;
+      if (logAddress !== logFilter.address) return false;
     }
   }
 
-  if (topics) {
-    for (const [index, topic] of topics.entries()) {
+  if (logFilter.topics) {
+    for (const [index, topic] of logFilter.topics.entries()) {
       if (topic === null || topic === undefined) continue;
 
       if (log.topics[index] === null || log.topics[index] === undefined)
@@ -55,6 +47,50 @@ export function isLogMatchedByFilter({
         if (toLowerCase(log.topics[index]) !== topic) return false;
       }
     }
+  }
+
+  return true;
+}
+
+export function filterCallTraces({
+  callTraces,
+  callTraceFilters,
+}: {
+  callTraces: SyncCallTrace[];
+  callTraceFilters: Pick<
+    CallTraceFilterCriteria,
+    "fromAddress" | "toAddress"
+  >[];
+}) {
+  return callTraces.filter((callTrace) =>
+    callTraceFilters.some((callTraceFilter) =>
+      isCallTraceMatchedByFilter({ callTrace, callTraceFilter }),
+    ),
+  );
+}
+
+export function isCallTraceMatchedByFilter({
+  callTrace,
+  callTraceFilter,
+}: {
+  callTrace: Pick<SyncCallTrace, "action">;
+  callTraceFilter: Pick<CallTraceFilterCriteria, "fromAddress" | "toAddress">;
+}) {
+  const fromAddress = toLowerCase(callTrace.action.from);
+  const toAddress = toLowerCase(callTrace.action.to);
+
+  if (
+    callTraceFilter.fromAddress !== undefined &&
+    callTraceFilter.fromAddress.length > 0
+  ) {
+    if (!callTraceFilter.fromAddress.includes(fromAddress)) return false;
+  }
+
+  if (
+    callTraceFilter.toAddress !== undefined &&
+    callTraceFilter.toAddress.length > 0
+  ) {
+    if (!callTraceFilter.toAddress.includes(toAddress)) return false;
   }
 
   return true;

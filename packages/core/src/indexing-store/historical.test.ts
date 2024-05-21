@@ -3,7 +3,10 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { UniqueConstraintError } from "@/common/errors.js";
+import {
+  CheckConstraintError,
+  UniqueConstraintError,
+} from "@/common/errors.js";
 import { createSchema } from "@/schema/schema.js";
 import {
   type Checkpoint,
@@ -24,6 +27,7 @@ const schema = createSchema((p) => ({
     bigAge: p.bigint().optional(),
     kind: p.enum("PetKind").optional(),
     rating: p.float().optional(),
+    json: p.json().optional(),
   }),
   Person: p.createTable({
     id: p.string(),
@@ -111,6 +115,33 @@ test("create() respects optional fields", async (context) => {
   await cleanup();
 });
 
+test("create() throws on invalid json", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const error = await indexingStore
+    .create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+      id: "id1",
+      data: {
+        name: "Skip",
+        age: 12,
+        json: {
+          kevin: 52n,
+        },
+      },
+    })
+    .catch((_error) => _error);
+
+  expect(error.message?.includes("Do not know how to serialize a BigInt")).toBe(
+    true,
+  );
+
+  await cleanup();
+});
+
 test("create() accepts enums", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
@@ -138,14 +169,16 @@ test("create() throws on invalid enum value", async (context) => {
     schema,
   });
 
-  await expect(() =>
-    indexingStore.create({
+  const error = await indexingStore
+    .create({
       tableName: "Pet",
       encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
       id: "id1",
       data: { name: "Skip", kind: "NOTACAT" },
-    }),
-  ).rejects.toThrow();
+    })
+    .catch((error) => error);
+
+  expect(error).toBeInstanceOf(CheckConstraintError);
 
   await cleanup();
 });
@@ -521,7 +554,7 @@ test("createMany() inserts a large number of entities", async (context) => {
     schema,
   });
 
-  const RECORD_COUNT = 100_000;
+  const RECORD_COUNT = 10_000;
 
   const createdItems = await indexingStore.createMany({
     tableName: "Pet",
@@ -662,6 +695,36 @@ test("updateMany() works with hex case sensitivity", async (context) => {
     id: "0x0a",
   });
   expect(instance).toMatchObject({ id: "0x0a", n: 2 });
+
+  await cleanup();
+});
+
+test("updateMany() updates a large number of entities", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const RECORD_COUNT = 10_000;
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    data: [...Array(RECORD_COUNT).keys()].map((i) => ({
+      id: `id${i}`,
+      name: "Alice",
+      bigAge: BigInt(i),
+    })),
+  });
+
+  const updatedItems = await indexingStore.updateMany({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    where: {},
+    data: ({ current }) => ({
+      bigAge: (current.bigAge as bigint) + 1n,
+    }),
+  });
+  expect(updatedItems.length).toBe(RECORD_COUNT);
 
   await cleanup();
 });

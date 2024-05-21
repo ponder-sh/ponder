@@ -7,7 +7,7 @@ const request = getRequest("https://ethereum.blockpi.network/v1/rpc/public");
 const maxBlockRange = 1024n;
 
 test(
-  "blast success",
+  "blockpi success",
   async () => {
     const logs = await request({
       method: "eth_getLogs",
@@ -26,7 +26,7 @@ test(
 );
 
 test(
-  "blast block range",
+  "blockpi block range",
   async () => {
     const params: Params = [
       {

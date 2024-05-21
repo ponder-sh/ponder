@@ -1,4 +1,10 @@
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type {
+  CallTraceFilterCriteria,
+  ChildAddressCriteria,
+  FactoryCallTraceFilterCriteria,
+  FactoryLogFilterCriteria,
+  LogFilterCriteria,
+} from "@/config/sources.js";
 import type { Address, Hex } from "viem";
 
 /**
@@ -15,7 +21,7 @@ export function buildLogFilterFragments({
 }: LogFilterCriteria & {
   chainId: number;
 }) {
-  return buildFragments({
+  return buildLogFragments({
     address,
     topics,
     includeTransactionReceipts,
@@ -33,17 +39,17 @@ export function buildLogFilterFragments({
  * @param factory Factory to be decomposed into fragments.
  * @returns A list of factory fragments.
  */
-export function buildFactoryFragments({
+export function buildFactoryLogFragments({
   address,
+  eventSelector,
+  childAddressLocation,
   topics,
   includeTransactionReceipts,
-  childAddressLocation,
-  eventSelector,
   chainId,
-}: FactoryCriteria & {
+}: FactoryLogFilterCriteria & {
   chainId: number;
 }) {
-  const fragments = buildFragments({
+  const fragments = buildLogFragments({
     address,
     topics,
     includeTransactionReceipts,
@@ -56,21 +62,17 @@ export function buildFactoryFragments({
       }`,
   });
 
-  return fragments as ((typeof fragments)[number] &
-    Pick<
-      FactoryCriteria,
-      "eventSelector" | "childAddressLocation" | "address"
-    >)[];
+  return fragments as ((typeof fragments)[number] & ChildAddressCriteria)[];
 }
 
-function buildFragments({
+function buildLogFragments({
   address,
   topics,
   chainId,
   idCallback,
   includeTransactionReceipts,
   ...rest
-}: (LogFilterCriteria | FactoryCriteria) & {
+}: (LogFilterCriteria | FactoryLogFilterCriteria) & {
   idCallback: (
     address: Address | null,
     topic0: ReturnType<typeof parseTopics>["topic0"],
@@ -130,4 +132,65 @@ function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
     topic2: Hex | Hex[] | null;
     topic3: Hex | Hex[] | null;
   };
+}
+
+export function buildTraceFragments({
+  fromAddress,
+  toAddress,
+  chainId,
+}: CallTraceFilterCriteria & {
+  chainId: number;
+}) {
+  const fragments: {
+    id: string;
+    chainId: number;
+    fromAddress: Hex | null;
+    toAddress: Hex | null;
+  }[] = [];
+
+  for (const _fromAddress of Array.isArray(fromAddress)
+    ? fromAddress
+    : [null]) {
+    for (const _toAddress of Array.isArray(toAddress) ? toAddress : [null]) {
+      fragments.push({
+        id: `${chainId}_${_fromAddress}_${_toAddress}`,
+        chainId,
+        fromAddress: _fromAddress,
+        toAddress: _toAddress,
+      });
+    }
+  }
+
+  return fragments;
+}
+
+export function buildFactoryTraceFragments({
+  address,
+  eventSelector,
+  childAddressLocation,
+  fromAddress,
+  chainId,
+}: FactoryCallTraceFilterCriteria & {
+  chainId: number;
+}) {
+  const fragments: ({
+    id: string;
+    chainId: number;
+    fromAddress: Hex | null;
+  } & ChildAddressCriteria)[] = [];
+
+  for (const _fromAddress of Array.isArray(fromAddress)
+    ? fromAddress
+    : [null]) {
+    fragments.push({
+      id: `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${_fromAddress}`,
+      chainId,
+      address,
+      eventSelector,
+      childAddressLocation,
+      fromAddress: _fromAddress,
+    });
+  }
+
+  return fragments;
 }

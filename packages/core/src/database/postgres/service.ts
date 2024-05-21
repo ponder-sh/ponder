@@ -7,6 +7,7 @@ import {
   getEnums,
   getTables,
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
@@ -305,6 +306,27 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 Date.now() - previousLockRow.heartbeat_at,
               )} ago`,
             });
+
+            // Remove any indexes, will be recreated once the app
+            // becomes healthy.
+            for (const [tableName, table] of Object.entries(
+              getTables(schema),
+            )) {
+              if (table.constraints === undefined) continue;
+
+              for (const name of Object.keys(table.constraints)) {
+                await tx.schema
+                  .withSchema(this.userNamespace)
+                  .dropIndex(`${tableName}_${name}`)
+                  .ifExists()
+                  .execute();
+
+                this.common.logger.info({
+                  service: "database",
+                  msg: `Dropped index '${tableName}_${name}' in schema '${this.userNamespace}'`,
+                });
+              }
+            }
 
             await tx
               .withSchema(this.internalNamespace)
@@ -730,6 +752,12 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           if (isOptionalColumn(column) === false) col = col.notNull();
           return col;
         });
+      } else if (isJSONColumn(column)) {
+        // Handle json columns
+        builder = builder.addColumn(columnName, "jsonb", (col) => {
+          if (isOptionalColumn(column) === false) col = col.notNull();
+          return col;
+        });
       } else {
         // Non-list base columns
         builder = builder.addColumn(
@@ -761,6 +789,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       } else if (isListColumn(column)) {
         // Handle scalar list columns
         builder = builder.addColumn(columnName, "text");
+      } else if (isJSONColumn(column)) {
+        // Handle json columns
+        builder = builder.addColumn(columnName, "jsonb");
       } else {
         // Non-list base columns
         builder = builder.addColumn(

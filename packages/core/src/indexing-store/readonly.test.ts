@@ -21,8 +21,10 @@ const schema = createSchema((p) => ({
     name: p.string(),
     age: p.int().optional(),
     bigAge: p.bigint().optional(),
+    list: p.string().list().optional(),
     kind: p.enum("PetKind").optional(),
     rating: p.float().optional(),
+    json: p.json().optional(),
   }),
   Person: p.createTable({
     id: p.string(),
@@ -58,6 +60,40 @@ test("findUnique() works with hex case sensitivity", async (context) => {
     id: "0x0A",
   });
   expect(instance).toMatchObject({ id: "0x0a", n: 1 });
+
+  await cleanup();
+});
+
+test("findUnique() deserializes json", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: {
+      name: "Skip",
+      age: 12,
+      json: {
+        kevin: 52,
+      },
+    },
+  });
+
+  const instance = await indexingStore.findUnique({
+    tableName: "Pet",
+    id: "id1",
+  });
+
+  expect(instance).toMatchObject({
+    name: "Skip",
+    age: 12,
+    json: {
+      kevin: 52,
+    },
+  });
 
   await cleanup();
 });
@@ -568,6 +604,75 @@ test("findMany() ordering secondary sort inherits primary", async (context) => {
     { id: "id4", name: "Zarbar", bigAge: 10n }, // secondary sort by ID is ascending
     { id: "id1", name: "Skip", bigAge: 105n },
     { id: "id3", name: "Bar", bigAge: 190n },
+  ]);
+
+  await cleanup();
+});
+
+test("findMany() where list", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    data: [
+      { id: "id1", name: "Skip", list: ["kevin", "kyle", "jay"] },
+      { id: "id2", name: "Foo", list: ["widget", "gadget"] },
+    ],
+  });
+
+  const resultOne = await indexingStore.findMany({
+    tableName: "Pet",
+    where: { list: { has: "kevin" } },
+  });
+
+  expect(resultOne.items).toMatchObject([
+    { id: "id1", name: "Skip", list: ["kevin", "kyle", "jay"] },
+  ]);
+
+  await cleanup();
+});
+
+test("findMany() where hex list", async (context) => {
+  const hexSchema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.hex(),
+      list: p.hex().list(),
+    }),
+  }));
+
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema: hexSchema,
+  });
+
+  await indexingStore.createMany({
+    tableName: "table",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    data: [
+      { id: "0x00", list: ["0x0A", "0x0B"] },
+      { id: "0x01", list: ["0x0a", "0x0b", "0x0c"] },
+    ],
+  });
+
+  const resultOne = await indexingStore.findMany({
+    tableName: "table",
+    where: { list: { has: "0x0a" } },
+  });
+
+  expect(resultOne.items).toMatchObject([
+    { id: "0x00", list: ["0x0a", "0x0b"] },
+    { id: "0x01", list: ["0x0a", "0x0b", "0x0c"] },
+  ]);
+
+  const resultTwo = await indexingStore.findMany({
+    tableName: "table",
+    where: { list: { has: "0x0c" } },
+  });
+
+  expect(resultTwo.items).toMatchObject([
+    { id: "0x01", list: ["0x0a", "0x0b", "0x0c"] },
   ]);
 
   await cleanup();

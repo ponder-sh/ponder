@@ -12,40 +12,34 @@ The [create-ponder CLI tool](/docs/getting-started/new-project) is the best way 
 ## System requirements
 
 - MacOS, Linux, or Windows
-- [Node.js 18 or 20](https://nodejs.org/en)
+- [Node.js](https://nodejs.org/en) >=18 (support for Bun is [in progress](https://github.com/ponder-sh/ponder/issues/442))
 - [pnpm](https://pnpm.io/installation) (recommended), [yarn](https://yarnpkg.com/getting-started/install), or npm
-
-## FAQ
 
 ### Windows
 
 As of `0.4.7`, Ponder supports Windows via PowerShell, command prompt (cmd.exe), or Windows Subsystem for Linux (WSL). If you encounter a Windows-specific problem, please [open an issue](https://github.com/ponder-sh/ponder/issues).
 
-### `better-sqlite3` installation error
+## TypeScript
 
-Ponder's SQLite driver package (`better-sqlite3`) uses a native binary that must be compiled for your device's specific platform and Node version. Most of the time, the installer finds and downloads a prebuilt binary that's compatible with your device.
+Ponder uses advanced TypeScript features to offer end-to-end type safety without code generation.
 
-If no prebuilt binary is found, the installer attempts to build `better-sqlite3` from source ([#1043](https://github.com/WiseLibs/better-sqlite3/issues/1043)) which often fails. If this happens, you might need to install `node-gyp` globally using your package manager:
+<Callout type="info">We **strongly** recommend taking the time to set up a working TypeScript development environment. It will pay dividends in the long run.</Callout>
 
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
-pnpm install -g node-gyp
-```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-yarn add -g node-gyp
-```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-npm install -g node-gyp
-```
-</Tabs.Tab>
-</Tabs>
+### Requirements
 
-Once you've installed `node-gyp`, try running `create-ponder` again.
+- TypeScript `>=5.0.4` and viem `>=1.16.0`
+- ABIs must be asserted `as const` following [ABIType guidelines](https://abitype.dev/guide/getting-started#usage).
+- The `ponder-env.d.ts` file must be included in your project.
 
+### `ponder-env.d.ts`
+
+This "magical" file is what makes Ponder's zero-codegen type system possible. The file contains a module declaration for `"@/generated"{:ts}` that exports types derived from `ponder.config.ts` and `ponder.schema.ts`.
+
+Occasionally, Ponder's dev server may make changes to `ponder-env.d.ts` after upgrading to a new version of `@ponder/core`. When this happens, please commit the changes into version control.
+
+### VSCode
+
+By default, VSCode's TypeScript language features use an internal version of TypeScript. Sometimes, this version does not meet Ponder's requirement of `>=5.0.4`.
+
+To change VSCode's TypeScript version, run `TypeScript: Select TypeScript version..."` from the command palette and select `Use Workspace Version` or [update VSCode's version](https://stackoverflow.com/questions/39668731/what-typescript-version-is-visual-studio-code-using-how-to-update-it).
 

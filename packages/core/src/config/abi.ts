@@ -1,5 +1,10 @@
 import { getDuplicateElements } from "@/utils/duplicates.js";
-import { type Abi, type AbiEvent, formatAbiItem } from "abitype";
+import {
+  type Abi,
+  type AbiEvent,
+  type AbiFunction,
+  formatAbiItem,
+} from "abitype";
 import {
   type GetEventArgs,
   type Hex,
@@ -7,6 +12,7 @@ import {
   encodeEventTopics,
   getAbiItem,
   getEventSelector,
+  getFunctionSelector,
   parseAbiItem,
 } from "viem";
 import type { Config } from "./config.js";
@@ -33,9 +39,26 @@ type AbiEventMeta = {
   item: AbiEvent;
 };
 
+type AbiFunctionMeta = {
+  // Function name (if no overloads) or full function signature (if name is overloaded).
+  // This is the function name used when registering indexing functions using `ponder.on("ContractName.FunctionName", ...)`
+  safeName: string;
+  // Full function signature, e.g. `function transfer(address to,uint256 amount)`
+  signature: string;
+  // Keccak256 hash of the function signature.
+  selector: Hex;
+  // ABI item used for decoding input and output data.
+  item: AbiFunction;
+};
+
 export type AbiEvents = {
   bySafeName: { [key: string]: AbiEventMeta | undefined };
   bySelector: { [key: Hex]: AbiEventMeta | undefined };
+};
+
+export type AbiFunctions = {
+  bySafeName: { [key: string]: AbiFunctionMeta | undefined };
+  bySelector: { [key: Hex]: AbiFunctionMeta | undefined };
 };
 
 export const buildAbiEvents = ({ abi }: { abi: Abi }) => {
@@ -96,4 +119,32 @@ const findAbiEvent = (abi: Abi, eventName: string): AbiEvent => {
   } else {
     return getAbiItem({ abi, name: eventName }) as AbiEvent;
   }
+};
+
+export const buildAbiFunctions = ({ abi }: { abi: Abi }) => {
+  const abiFunctions = abi.filter(
+    (item): item is AbiFunction => item.type === "function",
+  );
+
+  const overloadedFunctionNames = getDuplicateElements(
+    abiFunctions.map((item) => item.name),
+  );
+
+  return abiFunctions.reduce<AbiFunctions>(
+    (acc, item) => {
+      const signature = formatAbiItem(item);
+      const safeName = overloadedFunctionNames.has(item.name)
+        ? signature.split("function ")[1]
+        : `${item.name}()`;
+      const selector = getFunctionSelector(item);
+
+      const abiEventMeta = { safeName, signature, selector, item };
+
+      acc.bySafeName[safeName] = abiEventMeta;
+      acc.bySelector[selector] = abiEventMeta;
+
+      return acc;
+    },
+    { bySafeName: {}, bySelector: {} },
+  );
 };

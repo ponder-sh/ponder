@@ -1,7 +1,8 @@
 import { StoreError } from "@/common/errors.js";
-import type { EnumColumn, ScalarColumn, Table } from "@/schema/common.js";
+import type { ScalarColumn, Table } from "@/schema/common.js";
 import {
   isEnumColumn,
+  isJSONColumn,
   isListColumn,
   isManyColumn,
   isOneColumn,
@@ -124,7 +125,8 @@ export function buildWhereConditions({
             (columnName) =>
               isScalarColumn(table[columnName]) ||
               isReferenceColumn(table[columnName]) ||
-              isEnumColumn(table[columnName]),
+              isEnumColumn(table[columnName]) ||
+              isJSONColumn(table[columnName]),
           )
           .map((c) => `'${c}'`)
           .join(", ")}]`,
@@ -134,6 +136,12 @@ export function buildWhereConditions({
     if (isOneColumn(column) || isManyColumn(column)) {
       throw new StoreError(
         `Invalid filter. Cannot filter on virtual column '${columnName}'.`,
+      );
+    }
+
+    if (isJSONColumn(column)) {
+      throw new StoreError(
+        `Invalid filter. Cannot filter on json column '${columnName}'.`,
       );
     }
 
@@ -160,15 +168,23 @@ export function buildWhereConditions({
 
       // Handle special case for list column types `has` and `notHas`.
       // We need to use the singular encoding function for the arguments.
-      const encode =
-        isListColumn(column) && (condition === "has" || condition === "notHas")
-          ? (v: any) =>
-              encodeValue(
-                v,
-                { ...column, " list": false } as ScalarColumn | EnumColumn,
-                encoding,
-              )
-          : (v: any) => encodeValue(v, column, encoding);
+      const encode = (v: any) => {
+        const isListCondition =
+          isListColumn(column) &&
+          (condition === "has" || condition === "notHas");
+
+        if (isListCondition) {
+          // Must encode the value the same way that it is encoded as a list in
+          // `encodeValue`.
+          if ((column as ScalarColumn)[" scalar"] === "bigint") {
+            return String(v as bigint);
+          } else if ((column as ScalarColumn)[" scalar"] === "hex") {
+            return (v as string).toLowerCase();
+          }
+          return v;
+        }
+        return encodeValue(v, column, encoding);
+      };
 
       const [comparator, encodedValue] = filterEncodingFn(value, encode);
       exprs.push(eb.eb(columnName, comparator, encodedValue));

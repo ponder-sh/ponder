@@ -2,6 +2,7 @@ import type { Hex } from "viem";
 import { assertType, test } from "vitest";
 import type {
   EnumColumn,
+  JSONColumn,
   ManyColumn,
   OneColumn,
   ReferenceColumn,
@@ -70,6 +71,16 @@ test("infer column list", () => {
   //   ^?
 
   assertType<inferred>({} as unknown as string[]);
+});
+
+test("infer json", () => {
+  type inferred = InferColumnType<
+    // ^?
+    JSONColumn<{ a: number; b: string }, false>,
+    unknown
+  >;
+
+  assertType<inferred>({} as unknown as { a: number; b: string });
 });
 
 test("infer enum", () => {

@@ -2,37 +2,37 @@ import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import {
   type BlockSource,
+  type CallTraceSource,
   type EventSource,
-  type FactorySource,
+  type FactoryCallTraceSource,
+  type FactoryLogSource,
   type LogSource,
   sourceIsBlock,
-  sourceIsFactory,
+  sourceIsCallTrace,
+  sourceIsFactoryCallTrace,
+  sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import {
   type SyncBlock,
+  type SyncCallTrace,
   type SyncLog,
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
+  _trace_block,
 } from "@/sync/index.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
-import { type Address, type Hex, hexToNumber } from "viem";
+import { type Address, type Hash, hexToNumber } from "viem";
 import { isMatchedLogInBloomFilter, zeroLogsBloom } from "./bloom.js";
-import { filterLogs } from "./filter.js";
-import {
-  type LightBlock,
-  type LightLog,
-  sortLogs,
-  syncBlockToLightBlock,
-  syncLogToLightLog,
-} from "./format.js";
+import { filterCallTraces, filterLogs } from "./filter.js";
+import { type LightBlock, syncBlockToLightBlock } from "./format.js";
 
 export type Service = {
   // static
@@ -51,7 +51,7 @@ export type Service = {
    * all blocks are linked to each other,
    * `parentHash` => `hash`.
    */
-  localChain: LocalBlockchainState[];
+  localChain: LightBlock[];
   queue: Queue<void, SyncBlock> | undefined;
   consecutiveErrors: number;
 
@@ -60,12 +60,11 @@ export type Service = {
   onFatalError: (error: Error) => void;
 
   // derived static
-  /** List of all possible event selectors based on the provided `sources`. */
-  eventSelectors: Hex[];
-  hasFactorySource: boolean;
   hasTransactionReceiptSource: boolean;
-  logFilterSources: LogSource[];
-  factorySources: FactorySource[];
+  logSources: LogSource[];
+  factoryLogSources: FactoryLogSource[];
+  callTraceSources: CallTraceSource[];
+  factoryCallTraceSources: FactoryCallTraceSource[];
   blockSources: BlockSource[];
 };
 
@@ -85,11 +84,6 @@ export type RealtimeSyncEvent =
       chainId: number;
       checkpoint: Checkpoint;
     };
-
-type LocalBlockchainState = {
-  block: LightBlock;
-  logs: LightLog[];
-};
 
 const ERROR_TIMEOUT = [
   1, 2, 5, 10, 30, 60, 60, 60, 60, 60, 60, 60, 60, 60,
@@ -115,27 +109,11 @@ export const create = ({
   onEvent: (event: RealtimeSyncEvent) => void;
   onFatalError: (error: Error) => void;
 }): Service => {
-  // get event selectors from sources
-  const eventSelectors = sources.flatMap((source) => {
-    if (!sourceIsFactory(source) && !sourceIsLog(source)) return [];
-
-    const topics: Hex[] = [];
-
-    if (sourceIsFactory(source)) {
-      topics.push(source.criteria.eventSelector);
-    }
-
-    const topic0 = source.criteria.topics?.[0];
-    if (topic0 !== undefined && topic0 !== null) {
-      if (Array.isArray(topic0)) topics.push(...topic0);
-      else topics.push(topic0);
-    }
-    return topics;
-  });
-
-  const logFilterSources = sources.filter(sourceIsLog);
-  const factorySources = sources.filter(sourceIsFactory);
+  const logSources = sources.filter(sourceIsLog);
+  const factoryLogSources = sources.filter(sourceIsFactoryLog);
   const blockSources = sources.filter(sourceIsBlock);
+  const callTraceSources = sources.filter(sourceIsCallTrace);
+  const factoryCallTraceSources = sources.filter(sourceIsFactoryCallTrace);
 
   return {
     common,
@@ -150,13 +128,13 @@ export const create = ({
     consecutiveErrors: 0,
     onEvent,
     onFatalError,
-    eventSelectors,
-    hasFactorySource: sources.some(sourceIsFactory),
     hasTransactionReceiptSource:
-      logFilterSources.some((s) => s.criteria.includeTransactionReceipts) ||
-      factorySources.some((s) => s.criteria.includeTransactionReceipts),
-    logFilterSources,
-    factorySources,
+      logSources.some((s) => s.criteria.includeTransactionReceipts) ||
+      factoryLogSources.some((s) => s.criteria.includeTransactionReceipts),
+    logSources,
+    factoryLogSources,
+    callTraceSources,
+    factoryCallTraceSources,
     blockSources,
   };
 };
@@ -264,7 +242,7 @@ export const start = (service: Service) => {
 
         service.common.logger.warn({
           service: "realtime",
-          msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error}`,
+          msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error.message}`,
         });
 
         const duration = ERROR_TIMEOUT[service.consecutiveErrors];
@@ -286,7 +264,7 @@ export const start = (service: Service) => {
         if (++service.consecutiveErrors === ERROR_TIMEOUT.length) {
           service.common.logger.error({
             service: "realtime",
-            msg: `Fatal error: Unable to process '${service.network.name}' block ${newHeadBlockNumber} after ${ERROR_TIMEOUT.length} attempts due to error:`,
+            msg: `Fatal error: Unable to process '${service.network.name}' block ${newHeadBlockNumber} after ${ERROR_TIMEOUT.length} attempts.`,
             error,
           });
 
@@ -310,7 +288,7 @@ export const start = (service: Service) => {
 
       service.common.logger.warn({
         service: "realtime",
-        msg: `Failed to fetch latest '${service.network.name}' block with error: ${error}`,
+        msg: `Failed to fetch latest '${service.network.name}' block with error: ${error.message}`,
       });
     }
   };
@@ -334,8 +312,7 @@ export const kill = async (service: Service) => {
  * 1) Determine if a reorg occurred.
  * 2) Insert new event data into the store.
  * 3) Determine if a new range of events has become finalized,
- *    if so validate the local chain before removing the
- *    finalized data.
+ *    if so insert interval to store and remove the finalized data.
  *
  * @param newHeadBlock Block to be injested. Must be exactly
  * 1 block ahead of the local chain.
@@ -353,82 +330,153 @@ export const handleBlock = async (
     msg: `Started syncing '${service.network.name}' block ${newHeadBlockNumber}`,
   });
 
-  let newLogs: SyncLog[] = [];
-
   // "eth_getLogs" calls can be skipped if a negative match is given from "logsBloom".
-  const mustRequestGetLogs =
-    service.hasFactorySource ||
+  const shouldRequestLogs =
+    service.factoryLogSources.length > 0 ||
     newHeadBlock.logsBloom === zeroLogsBloom ||
     isMatchedLogInBloomFilter({
       bloom: newHeadBlock.logsBloom,
-      logFilters: service.logFilterSources.map((s) => s.criteria),
+      logFilters: service.logSources.map((s) => s.criteria),
     });
+  const shouldRequestTraces =
+    service.callTraceSources.length > 0 ||
+    service.factoryCallTraceSources.length > 0;
 
-  if (mustRequestGetLogs) {
-    const logs = await _eth_getLogs(service, {
-      topics: [service.eventSelectors],
-      blockHash: newHeadBlock.hash,
-    });
+  // Request logs
+  const blockLogs = shouldRequestLogs
+    ? await _eth_getLogs(service, { blockHash: newHeadBlock.hash })
+    : [];
+  const newLogs = await getMatchedLogs(service, {
+    logs: blockLogs,
+    upToBlockNumber: BigInt(newHeadBlockNumber),
+  });
 
-    newLogs = await getMatchedLogs(service, {
-      logs,
-      insertChildAddressLogs: true,
-      upToBlockNumber: BigInt(newHeadBlockNumber),
-    });
-  } else {
+  // Protect against RPCs returning empty logs. Known to happen near chain tip.
+  if (
+    shouldRequestLogs &&
+    newHeadBlock.logsBloom !== zeroLogsBloom &&
+    blockLogs.length === 0
+  ) {
+    throw new Error(
+      `Detected invalid '${service.network.name}' eth_getLogs response.`,
+    );
+  }
+
+  if (
+    shouldRequestLogs &&
+    (service.logSources.length > 0 || service.factoryLogSources.length > 0)
+  ) {
     service.common.logger.debug({
       service: "realtime",
       msg: `Skipped fetching logs for '${service.network.name}' block ${newHeadBlockNumber} due to bloom filter result`,
     });
   }
 
-  // Add pending event data to sync store and local event data. Ordering is
-  // important because the sync store operation may throw an error, causing a retry.
+  // Request traces
+  const blockTraces = shouldRequestTraces
+    ? await _trace_block(service, {
+        blockNumber: newHeadBlockNumber,
+      })
+    : [];
+  const blockCallTraces = blockTraces.filter(
+    (trace) => trace.type === "call",
+  ) as SyncCallTrace[];
+  const newCallTraces = await getMatchedCallTraces(service, {
+    callTraces: blockCallTraces,
+    logs: blockLogs,
+    upToBlockNumber: BigInt(newHeadBlockNumber),
+  });
 
-  const transactionHashes = new Set(newLogs.map((l) => l.transactionHash));
+  // Check that traces refer to the correct block
+  for (const callTrace of newCallTraces) {
+    if (callTrace.blockHash !== newHeadBlock.hash) {
+      throw new Error(
+        `Received call trace with block hash '${callTrace.blockHash}' that does not match current head block '${newHeadBlock.hash}'`,
+      );
+    }
+  }
+
+  // Protect against RPCs returning empty traces. Known to happen near chain tip.
+  // Use the fact that any stateRoot change produces a trace.
+  if (
+    shouldRequestTraces &&
+    newHeadBlock.transactions.length !== 0 &&
+    blockTraces.length === 0
+  ) {
+    throw new Error(
+      `Detected invalid '${service.network.name}' trace_block response.`,
+    );
+  }
+
+  const transactionHashes = new Set<Hash>();
+  for (const log of newLogs) {
+    transactionHashes.add(log.transactionHash);
+  }
+  for (const callTrace of newCallTraces) {
+    transactionHashes.add(callTrace.transactionHash);
+  }
+
   const transactions = newHeadBlock.transactions.filter((t) =>
     transactionHashes.has(t.hash),
   );
 
-  const newTransactionReceipts = service.hasTransactionReceiptSource
-    ? await Promise.all(
-        transactions.map(({ hash }) =>
-          _eth_getTransactionReceipt(service, { hash }),
-        ),
-      )
-    : [];
+  const newTransactionReceipts =
+    service.hasTransactionReceiptSource || newCallTraces.length > 0
+      ? await Promise.all(
+          transactions.map(({ hash }) =>
+            _eth_getTransactionReceipt(service, { hash }),
+          ),
+        )
+      : [];
 
-  const isBlockFilterMatched = service.blockSources.some(
+  // Filter out reverted call traces
+  const revertedTransactions = new Set<Hash>();
+  for (const receipt of newTransactionReceipts) {
+    if (receipt.status === "0x0") {
+      revertedTransactions.add(receipt.transactionHash);
+    }
+  }
+
+  const newPersistentCallTraces = newCallTraces.filter(
+    (trace) => revertedTransactions.has(trace.transactionHash) === false,
+  );
+
+  // Add pending event data to sync store and local event data. Ordering is
+  // important because the sync store operation may throw an error, causing a retry.
+
+  const hasLogEvent = newLogs.length > 0;
+  const hasCallTraceEvent = newPersistentCallTraces.length > 0;
+  const hasBlockEvent = service.blockSources.some(
     (blockSource) =>
       (newHeadBlockNumber - blockSource.criteria.offset) %
         blockSource.criteria.interval ===
       0,
   );
 
-  if (newLogs.length > 0) {
+  if (hasLogEvent || hasCallTraceEvent || hasBlockEvent) {
     await service.syncStore.insertRealtimeBlock({
       chainId: service.network.chainId,
       block: newHeadBlock,
       transactions,
       transactionReceipts: newTransactionReceipts,
       logs: newLogs,
+      traces: newPersistentCallTraces,
     });
+  }
 
+  if (hasLogEvent || hasCallTraceEvent) {
     const logCountText =
       newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
+    const traceCountText =
+      newCallTraces.length === 1
+        ? "1 call trace"
+        : `${newCallTraces.length} call traces`;
+    const text = [logCountText, traceCountText].join(" and ");
     service.common.logger.info({
       service: "realtime",
-      msg: `Synced ${logCountText} from '${service.network.name}' block ${newHeadBlockNumber}`,
+      msg: `Synced ${text} from '${service.network.name}' block ${newHeadBlockNumber}`,
     });
-  } else if (isBlockFilterMatched) {
-    await service.syncStore.insertRealtimeBlock({
-      chainId: service.network.chainId,
-      block: newHeadBlock,
-      transactions: [],
-      transactionReceipts: [],
-      logs: [],
-    });
-
+  } else if (hasBlockEvent) {
     service.common.logger.info({
       service: "realtime",
       msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,
@@ -446,10 +494,7 @@ export const handleBlock = async (
     } satisfies Checkpoint,
   });
 
-  service.localChain.push({
-    block: syncBlockToLightBlock(newHeadBlock),
-    logs: newLogs.map(syncLogToLightLog),
-  });
+  service.localChain.push(syncBlockToLightBlock(newHeadBlock));
 
   service.common.metrics.ponder_realtime_latest_block_number.set(
     { network: service.network.name },
@@ -469,56 +514,22 @@ export const handleBlock = async (
     service.finalizedBlock.number + 2 * service.network.finalityBlockCount;
   if (blockMovesFinality) {
     const pendingFinalizedBlock = service.localChain.find(
-      ({ block }) =>
+      (block) =>
         block.number ===
         newHeadBlockNumber - service.network.finalityBlockCount,
-    )!.block;
-
-    // Validate the local chain by re-requesting logs and checking for inconsistencies
-    // between the local and recently fetched data. This is neccessary because
-    // degraded rpc providers have trouble indexing logs near the tip of the chain.
-    try {
-      const hasInvalidLogs = await validateLocalBlockchainState(
-        service,
-        pendingFinalizedBlock,
-      );
-
-      if (hasInvalidLogs) {
-        service.common.logger.debug({
-          service: "realtime",
-          msg: `Detected inconsistency between local and remote '${
-            service.network.name
-          }' chain from block ${service.finalizedBlock.number + 1} to ${
-            pendingFinalizedBlock.number
-          }`,
-        });
-      } else {
-        service.common.logger.debug({
-          service: "realtime",
-          msg: `Validated local '${service.network.name}' chain from block ${
-            service.finalizedBlock.number + 1
-          } to ${pendingFinalizedBlock.number}`,
-        });
-      }
-    } catch (error_) {
-      const error = error_ as Error;
-      service.common.logger.debug({
-        service: "realtime",
-        msg: `Failed to validate local '${
-          service.network.name
-        }' chain from block ${service.finalizedBlock.number + 1} to ${
-          pendingFinalizedBlock.number
-        } with error: ${error}`,
-      });
-    }
+    )!;
 
     // Insert cache intervals into the store and update the local chain.
     // Ordering is important here because the database query can fail.
     await service.syncStore.insertRealtimeInterval({
       chainId: service.network.chainId,
-      logFilters: service.logFilterSources.map((l) => l.criteria),
-      factories: service.factorySources.map((f) => f.criteria),
+      logFilters: service.logSources.map((l) => l.criteria),
+      factoryLogFilters: service.factoryLogSources.map((f) => f.criteria),
       blockFilters: service.blockSources.map((b) => b.criteria),
+      traceFilters: service.callTraceSources.map((f) => f.criteria),
+      factoryTraceFilters: service.factoryCallTraceSources.map(
+        (f) => f.criteria,
+      ),
       interval: {
         startBlock: BigInt(service.finalizedBlock.number + 1),
         endBlock: BigInt(pendingFinalizedBlock.number),
@@ -535,7 +546,7 @@ export const handleBlock = async (
     });
 
     service.localChain = service.localChain.filter(
-      ({ block }) => block.number > pendingFinalizedBlock.number,
+      (block) => block.number > pendingFinalizedBlock.number,
     );
 
     service.finalizedBlock = pendingFinalizedBlock;
@@ -578,7 +589,7 @@ export const handleReorg = async (
 
   // Prune the local chain of blocks that have been reorged out
   const newLocalChain = service.localChain.filter(
-    ({ block }) => block.number < forkedBlockNumber,
+    (block) => block.number < forkedBlockNumber,
   );
 
   // Block we are attempting to fit into the local chain.
@@ -644,35 +655,31 @@ const getMatchedLogs = async (
   service: Service,
   {
     logs,
-    insertChildAddressLogs,
     upToBlockNumber,
   }: {
     logs: SyncLog[];
-    insertChildAddressLogs: boolean;
     upToBlockNumber: bigint;
   },
 ) => {
-  if (service.hasFactorySource === false) {
+  if (service.factoryLogSources.length === 0) {
     return filterLogs({
       logs,
-      logFilters: service.logFilterSources.map((s) => s.criteria),
+      logFilters: service.logSources.map((s) => s.criteria),
     });
   } else {
-    if (insertChildAddressLogs) {
-      // Find and insert any new child contracts.
-      const matchedFactoryLogs = filterLogs({
-        logs,
-        logFilters: service.factorySources.map((fs) => ({
-          address: fs.criteria.address,
-          topics: [fs.criteria.eventSelector],
-        })),
-      });
+    // Find and insert any new child contracts.
+    const matchedFactoryLogs = filterLogs({
+      logs,
+      logFilters: service.factoryLogSources.map((fs) => ({
+        address: fs.criteria.address,
+        topics: [fs.criteria.eventSelector],
+      })),
+    });
 
-      await service.syncStore.insertFactoryChildAddressLogs({
-        chainId: service.network.chainId,
-        logs: matchedFactoryLogs,
-      });
-    }
+    await service.syncStore.insertFactoryChildAddressLogs({
+      chainId: service.network.chainId,
+      logs: matchedFactoryLogs,
+    });
 
     // Find any logs matching log filters or child contract filters.
     // NOTE: It might make sense to just insert all logs rather than introduce
@@ -681,7 +688,7 @@ const getMatchedLogs = async (
     // NOTE: Also makes sense to hold factoryChildAddresses in memory rather than
     // a query each interval.
     const factoryLogFilters = await Promise.all(
-      service.factorySources.map(async (factory) => {
+      service.factoryLogSources.map(async (factory) => {
         const iterator = service.syncStore.getFactoryChildAddresses({
           chainId: service.network.chainId,
           factory: factory.criteria,
@@ -702,48 +709,78 @@ const getMatchedLogs = async (
     return filterLogs({
       logs,
       logFilters: [
-        ...service.logFilterSources.map((l) => l.criteria),
-        ...factoryLogFilters,
+        ...service.logSources.map((l) => l.criteria),
+        ...factoryLogFilters.filter((f) => f.address.length !== 0),
       ],
     });
   }
 };
 
-export const validateLocalBlockchainState = async (
+const getMatchedCallTraces = async (
   service: Service,
-  pendingFinalizedBlock: LightBlock,
-) => {
-  const logs = await _eth_getLogs(service, {
-    fromBlock: service.finalizedBlock.number + 1,
-    toBlock: pendingFinalizedBlock.number,
-  }).then(sortLogs);
-
-  const remoteLogs = await getMatchedLogs(service, {
+  {
+    callTraces,
     logs,
-    insertChildAddressLogs: false,
-    upToBlockNumber: BigInt(pendingFinalizedBlock.number),
-  });
+    upToBlockNumber,
+  }: {
+    callTraces: SyncCallTrace[];
+    logs: SyncLog[];
+    upToBlockNumber: bigint;
+  },
+) => {
+  if (service.factoryCallTraceSources.length === 0) {
+    return filterCallTraces({
+      callTraces,
+      callTraceFilters: service.callTraceSources.map((s) => s.criteria),
+    });
+  } else {
+    // Find and insert any new child contracts.
+    const matchedFactoryLogs = filterLogs({
+      logs,
+      logFilters: service.factoryLogSources.map((fs) => ({
+        address: fs.criteria.address,
+        topics: [fs.criteria.eventSelector],
+      })),
+    });
 
-  const localLogs = sortLogs(
-    service.localChain
-      .filter(({ block }) => block.number <= pendingFinalizedBlock.number)
-      .flatMap(({ logs }) => logs),
-  );
+    await service.syncStore.insertFactoryChildAddressLogs({
+      chainId: service.network.chainId,
+      logs: matchedFactoryLogs,
+    });
 
-  for (let i = 0; i < localLogs.length && i < remoteLogs.length; i++) {
-    if (
-      remoteLogs[i].blockHash !== localLogs[i].blockHash ||
-      remoteLogs[i].logIndex !== localLogs[i].logIndex
-    ) {
-      return true;
-    }
+    // Find any logs matching log filters or child contract filters.
+    // NOTE: It might make sense to just insert all logs rather than introduce
+    // a potentially slow DB operation here. It's a tradeoff between sync
+    // latency and database growth.
+    // NOTE: Also makes sense to hold factoryChildAddresses in memory rather than
+    // a query each interval.
+    const factoryTraceFilters = await Promise.all(
+      service.factoryCallTraceSources.map(async (factory) => {
+        const iterator = service.syncStore.getFactoryChildAddresses({
+          chainId: service.network.chainId,
+          factory: factory.criteria,
+          fromBlock: BigInt(factory.startBlock),
+          toBlock: upToBlockNumber,
+        });
+        const childContractAddresses: Address[] = [];
+        for await (const batch of iterator) {
+          childContractAddresses.push(...batch);
+        }
+        return {
+          toAddress: childContractAddresses,
+          fromAddress: factory.criteria.fromAddress,
+        };
+      }),
+    );
+
+    return filterCallTraces({
+      callTraces,
+      callTraceFilters: [
+        ...service.callTraceSources.map((s) => s.criteria),
+        ...factoryTraceFilters.filter((f) => f.toAddress.length !== 0),
+      ],
+    });
   }
-
-  if (localLogs.length !== remoteLogs.length) {
-    return true;
-  }
-
-  return false;
 };
 
 const getLatestLocalBlock = ({
@@ -752,5 +789,5 @@ const getLatestLocalBlock = ({
 }: Pick<Service, "localChain" | "finalizedBlock">) => {
   if (localChain.length === 0) {
     return finalizedBlock;
-  } else return localChain[localChain.length - 1].block;
+  } else return localChain[localChain.length - 1];
 };
