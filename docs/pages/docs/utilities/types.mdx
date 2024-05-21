@@ -124,6 +124,7 @@ The type of a contract in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
 import type { ContractConfig } from "@/generated";
+import { createConfig } from "@ponder/core";
 import { Erc20Abi } from "./abis/Erc20Abi.ts";
 
 const Erc20 = {
@@ -146,6 +147,7 @@ The type of a network in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
 import type { NetworkConfig } from "@/generated";
+import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
 const mainnet = {
@@ -167,6 +169,7 @@ The type of a block source in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
 import type { BlockConfig } from "@/generated";
+import { createConfig } from "@ponder/core";
 
 const ChainlinkPriceOracle = {
   network: "mainnet",
@@ -188,6 +191,7 @@ The type of a database in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
 import type { DatabaseConfig } from "@/generated";
+import { createConfig } from "@ponder/core";
 
 const database = {
   kind: "postgres",
