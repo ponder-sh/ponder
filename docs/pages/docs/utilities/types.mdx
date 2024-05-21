@@ -7,9 +7,11 @@ import { Callout } from "nextra/components";
 
 # Utility types
 
-The `"@/generated"{:ts}` module exports types that are useful for creating reusable helper functions.
+To enable code reuse and maintain type safety for advanced use cases, Ponder offers several utility types.
 
 ## Indexing functions types
+
+The `"@/generated"{:ts}` module exports utility types that are useful for creating reusable helper functions in your indexing files. Like the `ponder` object, these types are aware of the values you specify in your `ponder.config.ts` and `ponder.schema.ts` files.
 
 ### EventNames
 
@@ -114,9 +116,11 @@ function helper(account: Schema<"Account">) {
 
 ## Config types
 
+The `@ponder/core` package exports a utility type for each option passed to `createConfig(){:ts}`.
+
 ### ContractConfig
 
-The type of a contract in `createConfig()`.
+The type of a contract in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
 import type { ContractConfig } from "@/generated";
@@ -138,7 +142,7 @@ export default createConfig({
 
 ### NetworkConfig
 
-The type of a network in `createConfig()`.
+The type of a network in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
 import type { NetworkConfig } from "@/generated";
@@ -159,7 +163,7 @@ export default createConfig({
 
 ### BlockConfig
 
-The type of a block source in `createConfig()`.
+The type of a block source in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
 import type { BlockConfig } from "@/generated";
@@ -180,7 +184,7 @@ export default createConfig({
 
 ### DatabaseConfig
 
-The type of a database in `createConfig()`.
+The type of a database in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
 import type { DatabaseConfig } from "@/generated";
