@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Adding extra type exports
+Exported config helper types: `ContractConfig`, `NetworkConfig`, `BlockConfig`, `DatabaseConfig`, and `OptionsConfig`.
