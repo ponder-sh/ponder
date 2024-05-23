@@ -7,18 +7,21 @@ import {
 } from "viem";
 
 /**
- * @description Creates a rate limited transport that throttles request throughput.
+ * @description Creates a dynamically rate limited transport that throttles request throughput.
  */
 export const dynamicRateLimit = (
   _transport: Transport,
   {
     initialRequestsPerSecond = 20,
     browser = true,
-  }: { initialRequestsPerSecond?: number; browser?: boolean },
+  }: { initialRequestsPerSecond?: number; browser?: boolean } = {
+    initialRequestsPerSecond: 20,
+    browser: true,
+  },
 ): Transport => {
   let requestsPerSecond = initialRequestsPerSecond;
   let requests = 0;
-  let timestamp = 0;
+  let timestamp = Math.floor(Date.now() / 1_000);
   let rangeHas429 = false;
 
   return ({ chain, retryCount, timeout }) => {
@@ -29,7 +32,7 @@ export const dynamicRateLimit = (
 
     const queue = createQueue({
       frequency: requestsPerSecond,
-      concurrency: Math.ceil(requestsPerSecond / 4),
+      // concurrency: Math.ceil(requestsPerSecond / 4),
       initialStart: true,
       browser,
       worker: async (body: {
@@ -40,13 +43,13 @@ export const dynamicRateLimit = (
 
         if (Math.floor(_timestamp / 1_000) !== timestamp) {
           if (rangeHas429) {
-            // Note: do not want requests per second < 1
-            requestsPerSecond = Math.ceil(requests * 0.75);
-          } else {
-            requestsPerSecond *= Math.max(
-              requestsPerSecond,
-              Math.ceil(requests * 1.05),
+            requestsPerSecond = Math.ceil(
+              Math.min(requests, requestsPerSecond) * 0.75,
             );
+          } else {
+            if (requests >= requestsPerSecond) {
+              requestsPerSecond = Math.ceil(requestsPerSecond * 1.05);
+            }
           }
 
           queue.setParameters({
