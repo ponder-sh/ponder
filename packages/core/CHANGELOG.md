@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.30
+
+### Patch Changes
+
+- [#873](https://github.com/ponder-sh/ponder/pull/873) [`3335dc2d3c2fd48d6279feed8cb24489c69ba3e5`](https://github.com/ponder-sh/ponder/commit/3335dc2d3c2fd48d6279feed8cb24489c69ba3e5) Thanks [@sinasab](https://github.com/sinasab)! - Exported config helper types: `ContractConfig`, `NetworkConfig`, `BlockConfig`, and `DatabaseConfig`.
+
 ## 0.4.29
 
 ### Patch Changes
