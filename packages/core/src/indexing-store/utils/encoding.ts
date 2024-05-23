@@ -1,4 +1,4 @@
-import { JSONSerializeError, StoreError } from "@/common/errors.js";
+import { BigIntSerializationError, StoreError } from "@/common/errors.js";
 import type {
   Column,
   EnumColumn,
@@ -102,7 +102,11 @@ export function encodeValue(
     try {
       return JSON.stringify(value);
     } catch (_error) {
-      throw new JSONSerializeError((_error as Error).message);
+      const error = new BigIntSerializationError((_error as TypeError).message);
+      error.meta.push(
+        "Hint:\n  The JSON column type does not support BigInt values.\n  Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/...",
+      );
+      throw error;
     }
   } else if (isScalarColumn(column) || isReferenceColumn(column)) {
     if (isOptionalColumn(column) && (value === undefined || value === null)) {
