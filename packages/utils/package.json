@@ -27,6 +27,26 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.cjs"
+    },
+    "./retry-helper": {
+      "types": "./dist/getLogsRetryHelper.d.ts",
+      "import": "./dist/getLogsRetryHelper.js",
+      "default": "./dist/getLogsRetryHelper.cjs"
+    },
+    "./merge-abis": {
+      "types": "./dist/mergeAbis.d.ts",
+      "import": "./dist/mergeAbis.js",
+      "default": "./dist/mergeAbis.cjs"
+    },
+    "./rate-limit": {
+      "types": "./dist/rateLimit.d.ts",
+      "import": "./dist/rateLimit.js",
+      "default": "./dist/rateLimit.cjs"
+    },
+    "./load-balance": {
+      "types": "./dist/loadBalance.d.ts",
+      "import": "./dist/loadBalance.js",
+      "default": "./dist/loadBalance.cjs"
     }
   },
   "scripts": {
