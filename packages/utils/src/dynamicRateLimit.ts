@@ -19,16 +19,13 @@ export const dynamicRateLimit = (
     browser: true,
   },
 ): Transport => {
+  let timestamp = Math.floor(Date.now() / 1_000);
   let requestsPerSecond = initialRequestsPerSecond;
   let requests = 0;
-  let timestamp = Math.floor(Date.now() / 1_000);
   let rangeHas429 = false;
 
   return ({ chain, retryCount, timeout }) => {
-    const transport =
-      chain === undefined
-        ? _transport({ retryCount: 0, timeout })
-        : _transport({ chain, retryCount: 0, timeout });
+    const transport = _transport({ retryCount: 0, timeout, chain });
 
     const queue = createQueue({
       frequency: requestsPerSecond,
