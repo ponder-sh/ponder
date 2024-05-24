@@ -1,0 +1,69 @@
+---
+title: "JSON Utilities"
+description: "API reference for JSON utility functions."
+---
+
+import { Callout } from "nextra/components";
+
+# JSON utilities
+
+## Replace BigInts
+
+The `replaceBigInts(){:ts}` utility function takes a scalar, array, or object and replaces all `bigint` values accorinding to the specified replacer callback. It works at runtime and at the type-level.
+
+### Usage in Ponder
+
+`p.json(){:ts}` entries must not contain `bigint`, because it is not serialize. Use `replaceBigInts(){:ts}` before inserting into the database.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts" {1,14}
+import { createSchema } from "@ponder/core";
+import type { ReplaceBigInts } from "@ponder/utils";
+import type { TransactionReceipt, Hex } from "viem";
+
+export default createSchema((p) => ({
+  UserOperation: p.createTable({
+    id: p.string(),
+    receipt: p.json<ReplaceBigInts<TransactionReceipt, Hex>>(),
+    // ...
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+import { replaceBigInts } from "@ponder/utils";
+import { toHex } from "viem";
+
+ponder.on("EntryPoint:UserOp", async ({ event, context }) => {
+  const { UserOperation } = context.db;
+
+  await UserOperation.create({
+    id: event.log.id,
+    data: {
+      receipt: replaceBigInts(event.transactionReceipt, toHex),
+    },
+  });
+});
+```
+
+</div>
+
+There are three common types to replace `bigint` with. 
+
+| Encoding            | Type                  | Replacer function              |
+| :------------------ | :-------------------- | :----------------------------- |
+| **Hex**             | `0x{string}`          | `numberToHex`                  |
+| **String**          | `string`              | `String`                       |
+| **Lossless string** | `#Bigint.{string}`    | (x) => `#Bigint.${String(x)}`  |
+
+### Parameters
+
+#### object
+
+#### replacer
+
+### Type-level
+
+The type `ReplaceBigInts` is also exported.
