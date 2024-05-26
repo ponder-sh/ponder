@@ -688,7 +688,7 @@ test("many", async (context) => {
   await cleanup();
 });
 
-test.only("many w/ filter", async (context) => {
+test("many w/ filter", async (context) => {
   const schema = createSchema((p) => ({
     table: p.createTable({
       id: p.string(),
