@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.31
+
+### Patch Changes
+
+- [#912](https://github.com/ponder-sh/ponder/pull/912) [`dff08b880c348bf99396a86d282b8eb25d366fe7`](https://github.com/ponder-sh/ponder/commit/dff08b880c348bf99396a86d282b8eb25d366fe7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with the GraphQL schema where many-to-one fields were using the wrong filter type.
+
 ## 0.4.30
 
 ### Patch Changes
