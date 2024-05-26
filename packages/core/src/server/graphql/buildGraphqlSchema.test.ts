@@ -688,6 +688,87 @@ test("many", async (context) => {
   await cleanup();
 });
 
+test("many w/ filter", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      col: p.string(),
+      ref: p.string().references("many.id"),
+    }),
+    many: p.createTable({
+      id: p.string(),
+      manyCol: p.many("table.ref"),
+    }),
+  }));
+
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    id: "0",
+    data: {
+      col: "kevin",
+      ref: "0",
+    },
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    id: "1",
+    data: {
+      col: "kyle",
+      ref: "0",
+    },
+  });
+
+  await indexingStore.create({
+    tableName: "many",
+    encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    id: "0",
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const document = parse(`
+  query {
+    many(id: "0") {
+      manyCol (where: {col: "kevin"}) { 
+        items {
+          id
+        }
+      }
+    }
+  }
+  `);
+
+  const result = await execute({
+    schema: graphqlSchema,
+    document,
+    contextValue: {
+      store: indexingStore,
+      getLoader: buildLoaderCache({ store: indexingStore }),
+    },
+  });
+
+  expect(result.data).toMatchObject({
+    many: {
+      manyCol: {
+        items: [
+          {
+            id: "0",
+          },
+        ],
+      },
+    },
+  });
+
+  await cleanup();
+});
+
 test("bigint id", async (context) => {
   const schema = createSchema((p) => ({
     table: p.createTable({
