@@ -130,7 +130,7 @@ export const buildEntityTypes = ({
             fieldConfigMap[columnName] = {
               type: entityPageTypes[column[" referenceTable"]],
               args: {
-                where: { type: entityFilterTypes[tableName] },
+                where: { type: entityFilterTypes[column[" referenceTable"]] },
                 orderBy: { type: GraphQLString },
                 orderDirection: { type: GraphQLString },
                 before: { type: GraphQLString },
