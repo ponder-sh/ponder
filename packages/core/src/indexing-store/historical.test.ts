@@ -4,6 +4,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import {
+  BigIntSerializationError,
   CheckConstraintError,
   UniqueConstraintError,
 } from "@/common/errors.js";
@@ -134,6 +135,8 @@ test("create() throws on invalid json", async (context) => {
       },
     })
     .catch((_error) => _error);
+
+  expect(error).instanceOf(BigIntSerializationError);
 
   expect(error.message?.includes("Do not know how to serialize a BigInt")).toBe(
     true,
