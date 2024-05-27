@@ -13,7 +13,7 @@ The `replaceBigInts(){:ts}` utility function takes a scalar, array, or object an
 
 ### Usage in Ponder
 
-`p.json(){:ts}` entries must not contain `bigint`, because it is not serialize. Use `replaceBigInts(){:ts}` before inserting into the database.
+`p.json(){:ts}` entries must not contain any `bigint` values, because they are not serialize. Therefore, `replaceBigInts(){:ts}` should be used before inserting json columns into the database.
 
 <div className="code-columns">
 
@@ -52,17 +52,21 @@ ponder.on("EntryPoint:UserOp", async ({ event, context }) => {
 
 There are three common types to replace `bigint` with. 
 
-| Encoding            | Type                  | Replacer function              |
-| :------------------ | :-------------------- | :----------------------------- |
-| **Hex**             | `0x{string}`          | `numberToHex`                  |
-| **String**          | `string`              | `String`                       |
-| **Lossless string** | `#Bigint.{string}`    | (x) => `#Bigint.${String(x)}`  |
+| Encoding            | Type                  | Replacer function                                                |
+| :------------------ | :-------------------- | :--------------------------------------------------------------- |
+| **Hex**             | `0x{string}`          | [`numberToHex`](https://viem.sh/docs/utilities/toHex#numbertohex)|
+| **String**          | `string`              | `String`                                                         |
+| **Lossless string** | `#Bigint.{string}`    | ``` (x) => `#Bigint.${String(x)}` ```                            |
 
 ### Parameters
 
 #### object
 
+The value to perform bigint replacement on.
+
 #### replacer
+
+Function applied to all bigint values.
 
 ### Type-level
 
