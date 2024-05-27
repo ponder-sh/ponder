@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import type { Config, OptionsConfig } from "@/config/config.js";
@@ -10,6 +10,7 @@ import type { Schema } from "@/schema/common.js";
 import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
+import type { Hono } from "hono";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -26,6 +27,8 @@ import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 const BUILD_ID_VERSION = "1";
+// TODO(kyle) use option for server
+const SERVER_FILE = "_server.ts";
 
 export type Service = {
   // static
@@ -51,6 +54,8 @@ export type Build = {
   graphqlSchema: GraphQLSchema;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
+  // Server
+  app?: Hono;
 };
 
 export type BuildResult =
@@ -64,6 +69,7 @@ type RawBuild = {
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   };
+  server: { app?: Hono };
 };
 
 export const create = async ({
@@ -153,11 +159,12 @@ export const start = async (
 ): Promise<BuildResult> => {
   const { common } = buildService;
 
-  const [configResult, schemaResult, indexingFunctionsResult] =
+  const [configResult, schemaResult, indexingFunctionsResult, serverResult] =
     await Promise.all([
       executeConfig(buildService),
       executeSchema(buildService),
       executeIndexingFunctions(buildService),
+      executeServer(buildService),
     ]);
 
   if (configResult.status === "error") {
@@ -169,11 +176,15 @@ export const start = async (
   if (indexingFunctionsResult.status === "error") {
     return { status: "error", error: indexingFunctionsResult.error };
   }
+  if (serverResult.status === "error") {
+    return { status: "error", error: serverResult.error };
+  }
 
   const rawBuild: RawBuild = {
     config: configResult,
     schema: schemaResult,
     indexingFunctions: indexingFunctionsResult,
+    server: serverResult,
   };
 
   const buildResult = await validateAndBuild(buildService, rawBuild);
@@ -228,6 +239,9 @@ export const start = async (
       const hasIndexingFunctionUpdate = invalidated.some((file) =>
         buildService.srcRegex.test(file),
       );
+      const hasServerUpdate = invalidated.includes(
+        SERVER_FILE.replace(/\\/g, "/"),
+      );
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
       // Note: We could probably do a better job filtering out files in `isFileIgnored`.
@@ -267,6 +281,15 @@ export const start = async (
           return;
         }
         rawBuild.indexingFunctions = result;
+      }
+
+      if (hasServerUpdate) {
+        const result = await executeServer(buildService);
+        if (result.status === "error") {
+          onBuild({ status: "error", error: result.error });
+          return;
+        }
+        rawBuild.server = result;
       }
 
       const buildResult = await validateAndBuild(buildService, rawBuild);
@@ -391,7 +414,7 @@ const executeIndexingFunctions = async (
   const hash = createHash("sha256");
   for (const file of files) {
     try {
-      const contents = readFileSync(file, "utf-8");
+      const contents = fs.readFileSync(file, "utf-8");
       hash.update(contents);
     } catch (e) {
       buildService.common.logger.warn({
@@ -404,6 +427,47 @@ const executeIndexingFunctions = async (
   const contentHash = hash.digest("hex");
 
   return { status: "success", indexingFunctions, contentHash };
+};
+
+const executeServer = async (
+  buildService: Service,
+): Promise<
+  | {
+      status: "success";
+      app?: Hono;
+    }
+  | { status: "error"; error: Error }
+> => {
+  const doesServerExist = fs.existsSync(
+    path.join(buildService.common.options.srcDir, SERVER_FILE),
+  );
+
+  if (doesServerExist === false) {
+    return { status: "success" };
+  }
+
+  const executeResult = await executeFile(buildService, {
+    file: path.join(buildService.common.options.srcDir, SERVER_FILE),
+  });
+
+  if (executeResult.status === "error") {
+    buildService.common.logger.error({
+      service: "build",
+      msg: `Error while executing '${path.relative(
+        buildService.common.options.rootDir,
+        SERVER_FILE,
+      )}':`,
+      error: executeResult.error,
+    });
+
+    return executeResult;
+  }
+
+  const app = executeResult.exports.default as Hono;
+
+  // TODO: check export default instanceof Hono
+
+  return { status: "success", app };
 };
 
 const validateAndBuild = async (
@@ -476,6 +540,7 @@ const validateAndBuild = async (
       graphqlSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
+      app: rawBuild.server.app,
     },
   };
 };

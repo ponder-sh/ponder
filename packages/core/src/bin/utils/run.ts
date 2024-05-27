@@ -101,7 +101,12 @@ export async function run({
     db: database.readonlyDb,
   });
 
-  const server = await createServer({ common, graphqlSchema, readonlyStore });
+  const server = await createServer({
+    app: build.app,
+    common,
+    graphqlSchema,
+    readonlyStore,
+  });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.

@@ -1,22 +1,14 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
-import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
-import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
-import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
-import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { serve } from "@hono/node-server";
-import { GraphQLError, GraphQLSchema } from "graphql";
-import { createYoga } from "graphql-yoga";
+import { GraphQLSchema } from "graphql";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import {
-  type GetLoader,
-  buildLoaderCache,
-} from "./graphql/buildLoaderCache.js";
+import { type GetLoader } from "./graphql/buildLoaderCache.js";
 
 type Server = {
   hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;
@@ -26,15 +18,15 @@ type Server = {
 };
 
 export async function createServer({
-  graphqlSchema,
-  readonlyStore,
+  app,
   common,
 }: {
+  app?: Hono;
   graphqlSchema: GraphQLSchema;
   readonlyStore: ReadonlyStore;
   common: Common;
 }): Promise<Server> {
-  const hono = new Hono<{
+  const ponderApp = new Hono<{
     Variables: { store: ReadonlyStore; getLoader: GetLoader };
   }>();
 
@@ -78,38 +70,38 @@ export async function createServer({
     }
   });
 
-  const createGraphqlYoga = (path: string) =>
-    createYoga({
-      schema: graphqlSchema,
-      context: () => {
-        const getLoader = buildLoaderCache({ store: readonlyStore });
-        return { store: readonlyStore, getLoader };
-      },
-      graphqlEndpoint: path,
-      maskedErrors: process.env.NODE_ENV === "production",
-      logging: false,
-      graphiql: false,
-      parserAndValidationCache: false,
-      plugins: [
-        maxTokensPlugin({ n: common.options.graphqlMaxOperationTokens }),
-        maxDepthPlugin({
-          n: common.options.graphqlMaxOperationDepth,
-          ignoreIntrospection: false,
-        }),
-        maxAliasesPlugin({
-          n: common.options.graphqlMaxOperationAliases,
-          allowList: [],
-        }),
-      ],
-    });
+  // const createGraphqlYoga = (path: string) =>
+  //   createYoga({
+  //     schema: graphqlSchema,
+  //     context: () => {
+  //       const getLoader = buildLoaderCache({ store: readonlyStore });
+  //       return { store: readonlyStore, getLoader };
+  //     },
+  //     graphqlEndpoint: path,
+  //     maskedErrors: process.env.NODE_ENV === "production",
+  //     logging: false,
+  //     graphiql: false,
+  //     parserAndValidationCache: false,
+  //     plugins: [
+  //       maxTokensPlugin({ n: common.options.graphqlMaxOperationTokens }),
+  //       maxDepthPlugin({
+  //         n: common.options.graphqlMaxOperationDepth,
+  //         ignoreIntrospection: false,
+  //       }),
+  //       maxAliasesPlugin({
+  //         n: common.options.graphqlMaxOperationAliases,
+  //         allowList: [],
+  //       }),
+  //     ],
+  //   });
 
-  const rootYoga = createGraphqlYoga("/");
-  const rootGraphiql = graphiQLHtml("/");
+  // const rootYoga = createGraphqlYoga("/");
+  // const rootGraphiql = graphiQLHtml("/");
 
-  const prodYoga = createGraphqlYoga("/graphql");
-  const prodGraphiql = graphiQLHtml("/graphql");
+  // const prodYoga = createGraphqlYoga("/graphql");
+  // const prodGraphiql = graphiQLHtml("/graphql");
 
-  hono
+  ponderApp
     .use(cors())
     .use(metricsMiddleware)
     .get("/metrics", async (c) => {
@@ -138,23 +130,24 @@ export async function createServer({
 
       return c.text("Historical indexing is not complete.", 503);
     })
-    // Renders GraphiQL
-    .get("/graphql", (c) => c.html(prodGraphiql))
-    // Serves GraphQL POST requests following healthcheck rules
-    .post("/graphql", (c) => {
-      if (isHealthy === false) {
-        return c.json(
-          { errors: [new GraphQLError("Historical indexing is not complete")] },
-          503,
-        );
-      }
+    .get("/ready", async (c) => c.text("", 200));
+  // Renders GraphiQL
+  // .get("/graphql", (c) => c.html(prodGraphiql))
+  // // Serves GraphQL POST requests following healthcheck rules
+  // .post("/graphql", (c) => {
+  //   if (isHealthy === false) {
+  //     return c.json(
+  //       { errors: [new GraphQLError("Historical indexing is not complete")] },
+  //       503,
+  //     );
+  //   }
 
-      return prodYoga.handle(c.req.raw);
-    })
-    // Renders GraphiQL
-    .get("/", (c) => c.html(rootGraphiql))
-    // Serves GraphQL POST requests regardless of health status, e.g. "dev UI"
-    .post("/", (c) => rootYoga.handle(c.req.raw));
+  //   return prodYoga.handle(c.req.raw);
+  // })
+  // // Renders GraphiQL
+  // .get("/", (c) => c.html(rootGraphiql))
+  // // Serves GraphQL POST requests regardless of health status, e.g. "dev UI"
+  // .post("/", (c) => rootYoga.handle(c.req.raw));
 
   const createServerWithNextAvailablePort: typeof http.createServer = (
     ...args: any
@@ -189,6 +182,12 @@ export async function createServer({
 
     return httpServer;
   };
+
+  const hono = new Hono<{
+    Variables: { store: ReadonlyStore; getLoader: GetLoader };
+  }>()
+    .route("/_ponder", ponderApp)
+    .route("/", app);
 
   const httpServer = await new Promise<http.Server>((resolve, reject) => {
     const timeout = setTimeout(() => {
