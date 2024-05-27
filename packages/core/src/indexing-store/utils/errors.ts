@@ -36,7 +36,7 @@ export function parseStoreError(err: unknown, args: Record<string, unknown>) {
   } else if (error.message?.includes("Do not know how to serialize a BigInt")) {
     error = new BigIntSerializationError(error.message);
     error.meta.push(
-      "Hint:\n  The JSON column type does not support BigInt values.\n  Use the replaceBigInts helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/...",
+      "Hint:\n  The JSON column type does not support BigInt values.\n  Use the replaceBigInts helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
     );
   }
 
