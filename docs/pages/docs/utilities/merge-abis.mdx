@@ -1,19 +1,26 @@
 ---
-title: "ABI Utilities"
-description: "API reference for ABI utility functions."
+title: "mergeAbis"
+description: "API reference for the mergeAbis utility function."
 ---
 
 import { Callout } from "nextra/components";
 
-# ABI utilities
+# mergeAbis
 
-## Merge ABIs
+Combines many ABIs into one. Removes duplicate items if necessary.
 
-The `mergeAbis` utility function combines multiple ABIs into one, removing duplicates if necessary. It works at runtime and at the type-level.
+## Usage
 
-### Usage in Ponder
+```ts filename="index.ts" {1,4}
+import { mergeAbis } from "@ponder/utils";
+import { erc20Abi, erc4626Abi } from "viem";
 
-Use `mergeAbis` to maintain type safety when combining multiple ABIs for a single contract. This is especially useful for proxy contracts that have had several different implementation ABIs.
+const tokenAbi = mergeAbis([erc20Abi, erc4626Abi]);
+```
+
+## Usage in Ponder
+
+Use `mergeAbis` to preserve type safety when combining multiple ABIs for a single contract. This is especially useful for proxy contracts that have had several different implementation ABIs.
 
 For convenience, `@ponder/core` re-exports `mergeAbis` from `@ponder/utils`.
 
@@ -40,10 +47,16 @@ export default createConfig({
 });
 ```
 
-### Parameters
+## Parameters
 
-#### ABIs
+### ABIs
 
-Type: `Abi[]` (required)
+- Type: `Abi[]{:ts}` (required)
 
 A list of ABIs to merge.
+
+## Returns
+
+- Type: `Abi{:ts}`
+
+A new ABI including all items from the input list, with duplicates removed.
