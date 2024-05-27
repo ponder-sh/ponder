@@ -80,11 +80,11 @@ export class CheckConstraintError extends NonRetryableError {
   }
 }
 
-export class JSONSerializeError extends NonRetryableError {
-  override name = "JSONSerializeError";
+export class BigIntSerializationError extends NonRetryableError {
+  override name = "BigIntSerializationError";
 
   constructor(message?: string | undefined) {
     super(message);
-    Object.setPrototypeOf(this, JSONSerializeError.prototype);
+    Object.setPrototypeOf(this, BigIntSerializationError.prototype);
   }
 }

@@ -20,7 +20,6 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
-import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
@@ -602,8 +601,6 @@ const executeLog = async (
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    error.meta = `Event arguments:\n${prettyPrint(event.event.args)}`;
-
     addUserStackTrace(error, common.options);
 
     common.logger.error({
@@ -746,8 +743,6 @@ const executeCallTrace = async (
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
-
-    error.meta = `Function arguments:\n${prettyPrint(event.event.args)}`;
 
     addUserStackTrace(error, common.options);
 

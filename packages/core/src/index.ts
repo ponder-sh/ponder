@@ -4,9 +4,11 @@ export type { Block, Log, Transaction } from "@/types/eth.js";
 export type { Virtual } from "@/types/virtual.js";
 export {
   type MergeAbis,
+  type ReplaceBigInts,
   mergeAbis,
   loadBalance,
   rateLimit,
+  replaceBigInts,
 } from "@ponder/utils";
 
 import type { Config } from "@/config/config.js";
