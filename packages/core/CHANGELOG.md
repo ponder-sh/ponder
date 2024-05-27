@@ -1,5 +1,17 @@
 # @ponder/core
 
+## 0.4.31
+
+### Patch Changes
+
+- [#912](https://github.com/ponder-sh/ponder/pull/912) [`dff08b880c348bf99396a86d282b8eb25d366fe7`](https://github.com/ponder-sh/ponder/commit/dff08b880c348bf99396a86d282b8eb25d366fe7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with the GraphQL schema where many-to-one fields were using the wrong filter type.
+
+## 0.4.30
+
+### Patch Changes
+
+- [#873](https://github.com/ponder-sh/ponder/pull/873) [`3335dc2d3c2fd48d6279feed8cb24489c69ba3e5`](https://github.com/ponder-sh/ponder/commit/3335dc2d3c2fd48d6279feed8cb24489c69ba3e5) Thanks [@sinasab](https://github.com/sinasab)! - Exported config helper types: `ContractConfig`, `NetworkConfig`, `BlockConfig`, and `DatabaseConfig`.
+
 ## 0.4.29
 
 ### Patch Changes
