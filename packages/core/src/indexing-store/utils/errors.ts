@@ -40,7 +40,12 @@ export function parseStoreError(err: unknown, args: Record<string, unknown>) {
     );
   }
 
-  error.meta.push(`\nStore method arguments:\n${prettyPrint(args)}`);
+  // Adds a newline in the error message
+  if (error.meta.length !== 0) {
+    error.meta.push("");
+  }
+
+  error.meta.push(`Store method arguments:\n${prettyPrint(args)}`);
 
   return error;
 }
