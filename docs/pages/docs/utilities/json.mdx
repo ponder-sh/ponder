@@ -17,7 +17,7 @@ The `replaceBigInts(){:ts}` utility function takes a scalar, array, or object an
 
 <div className="code-columns">
 
-```ts filename="ponder.schema.ts" {1,14}
+```ts filename="ponder.schema.ts" {2,8}
 import { createSchema } from "@ponder/core";
 import type { ReplaceBigInts } from "@ponder/utils";
 import type { TransactionReceipt, Hex } from "viem";
@@ -31,7 +31,7 @@ export default createSchema((p) => ({
 }));
 ```
 
-```ts filename="src/index.ts"
+```ts filename="src/index.ts" {2,11}
 import { ponder } from "@/generated";
 import { replaceBigInts } from "@ponder/utils";
 import { toHex } from "viem";
@@ -52,11 +52,11 @@ ponder.on("EntryPoint:UserOp", async ({ event, context }) => {
 
 There are three common types to replace `bigint` with. 
 
-| Encoding            | Type                  | Replacer function                                                |
-| :------------------ | :-------------------- | :--------------------------------------------------------------- |
-| **Hex**             | `0x{string}`          | [`numberToHex`](https://viem.sh/docs/utilities/toHex#numbertohex)|
-| **String**          | `string`              | `String`                                                         |
-| **Lossless string** | `#Bigint.{string}`    | ``` (x) => `#Bigint.${String(x)}` ```                            |
+| Encoding            | Type                            | Replacer function                                                |
+| :------------------ | :------------------------------ | :--------------------------------------------------------------- |
+| **Hex**             | ``` `0x${string}` {:ts}```      | [`numberToHex`](https://viem.sh/docs/utilities/toHex#numbertohex)|
+| **String**          | `string`                        | `String`                                                         |
+| **Lossless string** | ``` `#Bigint.${string}` {:ts}```| ``` (x) => `#Bigint.${String(x)}` {:ts}```                       |
 
 ### Parameters
 
