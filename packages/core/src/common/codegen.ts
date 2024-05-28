@@ -11,11 +11,14 @@ export const ponderEnv = `// This file enables type checking and editor autocomp
 
 declare module "@/generated" {
   import type { Virtual } from "@ponder/core";
+  import type { Hono } from "hono";
 
   type config = typeof import("./ponder.config.ts").default;
   type schema = typeof import("./ponder.schema.ts").default;
 
   export const ponder: Virtual.Registry<config, schema>;
+
+  export const hono: Hono;
 
   export type EventNames = Virtual.EventNames<config>;
   export type Event<name extends EventNames = EventNames> = Virtual.Event<

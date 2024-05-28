@@ -8,7 +8,7 @@ export const ponderRegex =
   /^import\s+\{[^}]*\bponder\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
 
 export const serverRegex =
-  /^import\s+\{[^}]*\bGraphQLServer\b[^}]*\}\s+from\s+["']@ponder\/core["'];?.*$/gm;
+  /^import\s+\{[^}]*\bhono\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
 
 export const ponderShim = `export let ponder = {
   fns: [],
@@ -18,11 +18,13 @@ export const ponderShim = `export let ponder = {
 };
 `;
 
-export const serverShim = `import schema from "../ponder.schema.js";
-  import { GraphQLServer as _GraphQLServer } from "@ponder/core";
-  function GraphQLServer() {
-    return _GraphQLServer({ schema });
-  }
+export const serverShim = `import { Hono } from "hono";
+import { createGraphQLMiddleware } from "@ponder/core";
+import schema from "../ponder.schema.js";
+export let hono = new Hono();
+function graphQLMiddleware() {
+  return createGraphQLMiddleware({ schema });
+}
 `;
 
 export function replaceStateless(code: string, regex: RegExp, shim: string) {

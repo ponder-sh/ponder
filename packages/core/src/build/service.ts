@@ -463,9 +463,9 @@ const executeServer = async (
     return executeResult;
   }
 
-  const app = executeResult.exports.default as Hono;
+  const app = executeResult.exports.hono as Hono;
 
-  // TODO: check export default instanceof Hono
+  // TODO: check export instanceof Hono
 
   return { status: "success", app };
 };
