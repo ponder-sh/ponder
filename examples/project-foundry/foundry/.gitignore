@@ -1,0 +1,17 @@
+# Compiler files
+cache/
+out/
+
+# Codegen files
+generated.ts
+
+# dependencies
+/node_modules
+
+# Ignores development broadcast logs
+!/broadcast
+/broadcast/*/31337/
+/broadcast/**/dry-run/
+
+# Dotenv file
+.env
