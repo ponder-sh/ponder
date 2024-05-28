@@ -40,8 +40,9 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   if (buildResult.status === "error") {
     logger.error({
       service: "process",
-      msg: "Failed schema build with error:",
-      error: buildResult.error,
+      msg: "Failed schema build",
+      errorName: buildResult.error.name,
+      errorMessage: buildResult.error.message,
     });
     await shutdown({ reason: "Failed schema build", code: 1 });
     return;

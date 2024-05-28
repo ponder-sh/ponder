@@ -486,7 +486,8 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             msg: `Failed to update heartbeat timestamp, retrying in ${formatEta(
               this.common.options.databaseHeartbeatInterval,
             )}`,
-            error,
+            errorName: error.name,
+            errorMessage: error.message,
           });
         }
       }, this.common.options.databaseHeartbeatInterval);

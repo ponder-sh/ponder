@@ -3,7 +3,10 @@ import type { Options } from "@/common/options.js";
 import { codeFrameColumns } from "@babel/code-frame";
 import { type StackFrame, parse as parseStackTrace } from "stacktrace-parser";
 
-export const addUserStackTrace = (error: Error, options: Options) => {
+export const getStackTrace = (
+  error: Error,
+  options: Options,
+): string | undefined => {
   if (!error.stack) return;
 
   const stackTrace = parseStackTrace(error.stack);
@@ -61,5 +64,5 @@ export const addUserStackTrace = (error: Error, options: Options) => {
     codeFrame,
   ].join("\n");
 
-  error.stack = formattedStackTrace;
+  return formattedStackTrace;
 };

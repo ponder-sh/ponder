@@ -35,7 +35,7 @@ import {
   buildCachedActions,
   buildDb,
 } from "./ponderActions.js";
-import { addUserStackTrace } from "./trace.js";
+import { getStackTrace } from "./stackTrace.js";
 
 export type Context = {
   network: { chainId: number; name: string };
@@ -528,14 +528,16 @@ const executeSetup = async (
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    addUserStackTrace(error, common.options);
+    const errorStackTrace = getStackTrace(error, common.options);
 
     common.metrics.ponder_indexing_has_error.set(1);
 
     common.logger.error({
       service: "indexing",
       msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
-      error,
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: errorStackTrace,
     });
 
     return { status: "error", error: error };
@@ -601,12 +603,14 @@ const executeLog = async (
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    addUserStackTrace(error, common.options);
+    const errorStackTrace = getStackTrace(error, common.options);
 
     common.logger.error({
       service: "indexing",
       msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
-      error,
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: errorStackTrace,
     });
 
     common.metrics.ponder_indexing_has_error.set(1);
@@ -671,12 +675,14 @@ const executeBlock = async (
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    addUserStackTrace(error, common.options);
+    const errorStackTrace = getStackTrace(error, common.options);
 
     common.logger.error({
       service: "indexing",
       msg: `Error while processing ${eventName} event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
-      error,
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: errorStackTrace,
     });
 
     common.metrics.ponder_indexing_has_error.set(1);
@@ -744,12 +750,14 @@ const executeCallTrace = async (
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    addUserStackTrace(error, common.options);
+    const errorStackTrace = getStackTrace(error, common.options);
 
     common.logger.error({
       service: "indexing",
       msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
-      error,
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: errorStackTrace,
     });
 
     common.metrics.ponder_indexing_has_error.set(1);
