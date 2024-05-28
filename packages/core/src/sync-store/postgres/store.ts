@@ -1700,8 +1700,7 @@ export class PostgresSyncStore implements SyncStore {
               .where("logs.checkpoint", ">", cursor)
               .where("logs.checkpoint", "<=", encodedToCheckpoint)
               .orderBy("logs.checkpoint", "asc")
-              .offset(limit + 1)
-              .limit(1)
+              .limit(limit)
               .select("logs.checkpoint"),
           )
           .with("block_checkpoints", (db) =>
@@ -1710,8 +1709,7 @@ export class PostgresSyncStore implements SyncStore {
               .where("blocks.checkpoint", ">", cursor)
               .where("blocks.checkpoint", "<=", encodedToCheckpoint)
               .orderBy("blocks.checkpoint", "asc")
-              .offset(limit + 1)
-              .limit(1)
+              .limit(limit)
               .select("blocks.checkpoint"),
           )
           .with("call_trace_checkpoints", (db) =>
@@ -1720,8 +1718,7 @@ export class PostgresSyncStore implements SyncStore {
               .where("callTraces.checkpoint", ">", cursor)
               .where("callTraces.checkpoint", "<=", encodedToCheckpoint)
               .orderBy("callTraces.checkpoint", "asc")
-              .offset(limit + 1)
-              .limit(1)
+              .limit(limit)
               .select("callTraces.checkpoint"),
           )
           .with("max_checkpoint", (db) =>
