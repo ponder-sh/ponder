@@ -28,7 +28,7 @@ import { parseViteNodeError } from "./stacktrace.js";
 
 const BUILD_ID_VERSION = "1";
 // TODO(kyle) use option for server
-const SERVER_FILE = "_server.ts";
+export const SERVER_FILE = "_server.ts";
 
 export type Service = {
   // static
@@ -116,7 +116,7 @@ export const create = async ({
     publicDir: false,
     customLogger: viteLogger,
     server: { hmr: false },
-    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
+    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder(common)],
   });
 
   // This is Vite boilerplate (initializes the Rollup container).
