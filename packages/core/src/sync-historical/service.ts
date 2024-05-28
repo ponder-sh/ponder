@@ -211,10 +211,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         switch (source.type) {
           case "log": {
             if (!isHistoricalSyncRequired) {
-              this.logFilterProgressTrackers[source.id] = new ProgressTracker({
-                target: [startBlock, finalizedBlockNumber],
-                completed: [[startBlock, finalizedBlockNumber]],
-              });
               this.common.metrics.ponder_historical_total_blocks.set(
                 {
                   network: this.network.name,
@@ -304,16 +300,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           case "factoryLog": {
             if (!isHistoricalSyncRequired) {
-              this.factoryChildAddressProgressTrackers[source.id] =
-                new ProgressTracker({
-                  target: [startBlock, finalizedBlockNumber],
-                  completed: [[startBlock, finalizedBlockNumber]],
-                });
-              this.factoryLogFilterProgressTrackers[source.id] =
-                new ProgressTracker({
-                  target: [startBlock, finalizedBlockNumber],
-                  completed: [[startBlock, finalizedBlockNumber]],
-                });
               this.common.metrics.ponder_historical_total_blocks.set(
                 {
                   network: this.network.name,
@@ -487,12 +473,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           case "callTrace": {
             if (!isHistoricalSyncRequired) {
-              this.traceFilterProgressTrackers[source.id] = new ProgressTracker(
-                {
-                  target: [startBlock, finalizedBlockNumber],
-                  completed: [[startBlock, finalizedBlockNumber]],
-                },
-              );
               this.common.metrics.ponder_historical_total_blocks.set(
                 {
                   network: this.network.name,
@@ -581,16 +561,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           case "factoryCallTrace": {
             if (!isHistoricalSyncRequired) {
-              this.factoryChildAddressProgressTrackers[source.id] =
-                new ProgressTracker({
-                  target: [startBlock, finalizedBlockNumber],
-                  completed: [[startBlock, finalizedBlockNumber]],
-                });
-              this.factoryTraceFilterProgressTrackers[source.id] =
-                new ProgressTracker({
-                  target: [startBlock, finalizedBlockNumber],
-                  completed: [[startBlock, finalizedBlockNumber]],
-                });
               this.common.metrics.ponder_historical_total_blocks.set(
                 {
                   network: this.network.name,
@@ -764,12 +734,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           case "block": {
             if (!isHistoricalSyncRequired) {
-              this.blockFilterProgressTrackers[source.id] = new ProgressTracker(
-                {
-                  target: [startBlock, finalizedBlockNumber],
-                  completed: [[startBlock, finalizedBlockNumber]],
-                },
-              );
               this.common.metrics.ponder_historical_total_blocks.set(
                 {
                   network: this.network.name,
