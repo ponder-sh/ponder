@@ -98,18 +98,6 @@ export const create = async ({
 
         networkService.realtime.checkpoint = realtimeSyncEvent.checkpoint;
 
-        // Check if the new blockNumber is greater than the end block of all
-        // sources for the network. Potentially kill the realtime sync and remove the
-        // network from checkpoint calculations.
-        if (
-          networkService.realtime.endBlock !== undefined &&
-          networkService.realtime.checkpoint.blockNumber >
-            networkService.realtime.endBlock
-        ) {
-          networkService.realtime.realtimeSync.kill();
-          networkService.realtime = undefined;
-        }
-
         // `realtime` can be undefined if no contracts for that network require a realtime
         // service. Those networks can be left out of the checkpoint calculation.
         const newCheckpoint = checkpointMin(
@@ -140,9 +128,13 @@ export const create = async ({
       }
 
       case "reorg": {
-        syncService.networkServices.find(
+        const networkService = syncService.networkServices.find(
           (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
-        )!.realtime!.checkpoint = realtimeSyncEvent.safeCheckpoint;
+        )!;
+
+        if (networkService.realtime === undefined) return;
+
+        networkService.realtime!.checkpoint = realtimeSyncEvent.safeCheckpoint;
 
         if (
           isCheckpointGreaterThan(
@@ -159,9 +151,26 @@ export const create = async ({
       }
 
       case "finalize": {
-        syncService.networkServices.find(
+        const networkService = syncService.networkServices.find(
           (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
-        )!.realtime!.finalizedCheckpoint = realtimeSyncEvent.checkpoint;
+        )!;
+
+        if (networkService.realtime === undefined) return;
+
+        networkService.realtime!.finalizedCheckpoint =
+          realtimeSyncEvent.checkpoint;
+
+        // Check if the finalized blockNumber is greater than the end block of all
+        // sources for the network. Potentially kill the realtime sync and remove the
+        // network from checkpoint calculations.
+        if (
+          networkService.realtime.endBlock !== undefined &&
+          realtimeSyncEvent.checkpoint.blockNumber >
+            networkService.realtime.endBlock
+        ) {
+          networkService.realtime.realtimeSync.kill();
+          networkService.realtime = undefined;
+        }
 
         const newFinalizedCheckpoint = checkpointMin(
           ...syncService.networkServices
@@ -282,7 +291,7 @@ export const create = async ({
             endBlock: networkSources.every(
               (source) => source.endBlock !== undefined,
             )
-              ? Math.min(...networkSources.map((source) => source.endBlock!))
+              ? Math.max(...networkSources.map((source) => source.endBlock!))
               : undefined,
           },
           historical: {
