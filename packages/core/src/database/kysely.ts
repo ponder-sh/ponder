@@ -76,6 +76,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
             msg: `Failed '${options.method}' database method `,
             errorName: error.name,
             errorMessage: error.message,
+            errorHints: error.meta.length > 0 ? error.meta : undefined,
           });
           throw error;
         }

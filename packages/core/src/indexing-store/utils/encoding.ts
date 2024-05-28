@@ -104,7 +104,7 @@ export function encodeValue(
     } catch (_error) {
       const error = new BigIntSerializationError((_error as TypeError).message);
       error.meta.push(
-        "Hint:\n  The JSON column type does not support BigInt values.\n  Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
+        "The JSON column type does not support BigInt values.\n  Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
       );
       throw error;
     }
