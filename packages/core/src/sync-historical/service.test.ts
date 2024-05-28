@@ -21,7 +21,6 @@ beforeEach(setupIsolatedDatabase);
 
 const getBlockNumbers = () =>
   publicClient.getBlockNumber().then((b) => ({
-    latestBlockNumber: Number(b) + 5,
     finalizedBlockNumber: Number(b),
   }));
 

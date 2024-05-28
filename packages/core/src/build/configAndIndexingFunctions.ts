@@ -342,6 +342,10 @@ export async function buildConfigAndIndexingFunctions({
         ? undefined
         : endBlockMaybeNan;
 
+      if (endBlock !== undefined && endBlock < startBlock) {
+        throw new Error(`Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`)
+      }
+
       // Single network case.
       if (typeof contract.network === "string") {
         return {
@@ -381,6 +385,10 @@ export async function buildConfigAndIndexingFunctions({
           const endBlock = Number.isNaN(endBlockMaybeNan)
             ? undefined
             : endBlockMaybeNan;
+
+            if (endBlock !== undefined && endBlock < startBlock) {
+              throw new Error(`Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`)
+            }
 
           return {
             contractName,
@@ -703,6 +711,12 @@ export async function buildConfigAndIndexingFunctions({
         ? undefined
         : endBlockMaybeNan;
 
+      if (endBlock !== undefined && endBlock < startBlock) {
+        throw new Error(
+          `Validation failed: Start block for block source '${sourceName}' is after end block (${startBlock} > ${endBlock}).`,
+        );
+      }
+
       const intervalMaybeNan = blockSourceConfig.interval;
       const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
 
@@ -767,6 +781,12 @@ export async function buildConfigAndIndexingFunctions({
           const endBlock = Number.isNaN(endBlockMaybeNan)
             ? undefined
             : endBlockMaybeNan;
+
+          if (endBlock !== undefined && endBlock < startBlock) {
+            throw new Error(
+              `Validation failed: Start block for block source '${sourceName}' is after end block (${startBlock} > ${endBlock}).`,
+            );
+          }
 
           const intervalMaybeNan =
             overrides.interval ?? blockSourceConfig.interval;

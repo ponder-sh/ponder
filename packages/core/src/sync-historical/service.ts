@@ -40,7 +40,7 @@ import {
   numberToHex,
   toHex,
 } from "viem";
-import { validateHistoricalBlockRange } from "./validateHistoricalBlockRange.js";
+import { getHistoricalBlockRange } from "./getHistoricalBlockRange.js";
 
 const HISTORICAL_CHECKPOINT_EMIT_INTERVAL = 500;
 const TRACE_FILTER_CHUNK_SIZE = 10;
@@ -188,10 +188,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }
 
   async setup({
-    latestBlockNumber,
     finalizedBlockNumber,
   }: {
-    latestBlockNumber: number;
     finalizedBlockNumber: number;
   }) {
     // Initialize state variables. Required when restarting the service.
@@ -201,11 +199,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     await Promise.all(
       this.sources.map(async (source) => {
         const { isHistoricalSyncRequired, startBlock, endBlock } =
-          validateHistoricalBlockRange({
+          getHistoricalBlockRange({
             startBlock: source.startBlock,
             endBlock: source.endBlock,
             finalizedBlockNumber,
-            latestBlockNumber,
           });
 
         switch (source.type) {

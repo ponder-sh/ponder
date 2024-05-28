@@ -94,6 +94,8 @@ export const create = async ({
           (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
         )!;
 
+        // "realtime" property may be undefined when `kill()` has been
+        // invoked but hasn't completed.
         if (networkService.realtime === undefined) return;
 
         networkService.realtime.checkpoint = realtimeSyncEvent.checkpoint;
@@ -132,6 +134,8 @@ export const create = async ({
           (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
         )!;
 
+        // "realtime" property may be undefined when `kill()` has been
+        // invoked but hasn't completed.
         if (networkService.realtime === undefined) return;
 
         networkService.realtime!.checkpoint = realtimeSyncEvent.safeCheckpoint;
@@ -155,6 +159,8 @@ export const create = async ({
           (ns) => ns.network.chainId === realtimeSyncEvent.chainId,
         )!;
 
+        // "realtime" property may be undefined when `kill()` has been
+        // invoked but hasn't completed.
         if (networkService.realtime === undefined) return;
 
         networkService.realtime!.finalizedCheckpoint =
@@ -226,6 +232,19 @@ export const create = async ({
         });
       }
 
+      for (const source of networkSources) {
+        if (source.startBlock > hexToNumber(latestBlock.number)) {
+          common.logger.warn({
+            service: "sync",
+            msg: `Start block ${
+              source.startBlock
+            } is greater than the latest block ${hexToNumber(
+              latestBlock.number,
+            )} for '${network.name}'.`,
+          });
+        }
+      }
+
       const historicalSync = new HistoricalSyncService({
         common,
         syncStore,
@@ -235,7 +254,6 @@ export const create = async ({
       });
 
       await historicalSync.setup({
-        latestBlockNumber: hexToNumber(latestBlock.number),
         finalizedBlockNumber: hexToNumber(finalizedBlock.number),
       });
 
