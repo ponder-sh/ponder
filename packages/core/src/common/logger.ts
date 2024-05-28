@@ -89,19 +89,21 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
 
 const format = (log: Log) => {
   const time = timeFormatter.format(new Date(log.time));
-  const message = log.msg ?? log.errorMessage;
 
-  const levelObject =
-    levels[(log.level as keyof typeof levels) ?? 30] ?? levels[30];
+  const levelObject = levels[log.level ?? 30];
+
+  if (log.errorMessage) console.log(log.errorMessage);
+  if (log.errorHints) console.log(`Hints:\n ${log.errorHints.join("\n")}`);
+  if (log.errorStack) console.log(log.errorStack);
 
   if (pc.isColorSupported) {
     const level = levelObject.colorLabel;
     const service = log.service ? pc.cyan(log.service.padEnd(10, " ")) : "";
-    const messageText = pc.reset(message);
+    const messageText = pc.reset(log.msg);
     return `${pc.gray(time)} ${level} ${service} ${messageText}`;
   } else {
     const level = levelObject.label;
     const service = log.service ? log.service.padEnd(10, " ") : "";
-    return `${time} ${level} ${service} ${message}`;
+    return `${time} ${level} ${service} ${log.msg}`;
   }
 };
