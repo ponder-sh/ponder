@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import { type GetLoader } from "./graphql/buildLoaderCache.js";
+import { type GetLoader } from "../graphql/buildLoaderCache.js";
 
 type Server = {
   hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;

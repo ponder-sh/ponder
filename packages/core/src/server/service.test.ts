@@ -8,7 +8,7 @@ import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import type { GraphQLSchema } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
-import { buildGraphqlSchema } from "./graphql/buildGraphqlSchema.js";
+import { buildGraphqlSchema } from "../graphql/buildGraphqlSchema.js";
 import { createServer } from "./service.js";
 
 beforeEach(setupCommon);
