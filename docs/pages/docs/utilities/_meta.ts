@@ -1,5 +1,6 @@
 export default {
   transports: "Transports",
-  abi: "ABI",
-  types: "Types",
+  types: "Utility types",
+  "merge-abis": "mergeAbis",
+  "replace-bigints": "replaceBigInts",
 };

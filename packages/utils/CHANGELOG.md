@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.1.6
+
+### Patch Changes
+
+- [`4ef2d6212e59b4c4ba0723e78a1c204db3d94542`](https://github.com/ponder-sh/ponder/commit/4ef2d6212e59b4c4ba0723e78a1c204db3d94542) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `replaceBigInts` utility function to `@ponder/utils` (re-exported from `@ponder/core`). [Read more](https://ponder.sh/docs/utilities/replace-bigints).
+
 ## 0.1.5
 
 ### Patch Changes

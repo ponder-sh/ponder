@@ -1,6 +1,6 @@
 import {
+  BigIntSerializationError,
   CheckConstraintError,
-  JSONSerializeError,
   NotNullConstraintError,
   RecordNotFoundError,
   UniqueConstraintError,
@@ -34,7 +34,15 @@ export function parseStoreError(err: unknown, args: Record<string, unknown>) {
   ) {
     error = new CheckConstraintError(error.message);
   } else if (error.message?.includes("Do not know how to serialize a BigInt")) {
-    error = new JSONSerializeError(error.message);
+    error = new BigIntSerializationError(error.message);
+    error.meta.push(
+      "Hint:\n  The JSON column type does not support BigInt values.\n  Use the replaceBigInts helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
+    );
+  }
+
+  // Adds a newline in the error message
+  if (error.meta.length !== 0) {
+    error.meta.push("");
   }
 
   error.meta.push(`Store method arguments:\n${prettyPrint(args)}`);
