@@ -174,6 +174,10 @@ export const create = async ({
           realtimeSyncEvent.checkpoint.blockNumber >
             networkService.realtime.endBlock
         ) {
+          common.logger.info({
+            service: "sync",
+            msg: `Synced final end block for '${networkService.network.name}' (${networkService.realtime.endBlock}), killing realtime sync service`,
+          });
           networkService.realtime.realtimeSync.kill();
           networkService.realtime = undefined;
         }
