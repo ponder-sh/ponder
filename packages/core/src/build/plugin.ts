@@ -8,7 +8,7 @@ export const ponderRegex =
   /^import\s+\{[^}]*\bponder\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
 
 export const serverRegex =
-  /^import\s+\{[^}]*\bGraphQLServer\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
+  /^import\s+\{[^}]*\bGraphQLServer\b[^}]*\}\s+from\s+["']@ponder\/core["'];?.*$/gm;
 
 export const ponderShim = `export let ponder = {
   fns: [],
@@ -19,10 +19,9 @@ export const ponderShim = `export let ponder = {
 `;
 
 export const serverShim = `import schema from "../ponder.schema.js";
-  import { graphqlServer } from "@hono/graphql-server";
-  import { buildGraphqlSchema } from "@ponder/core";
-  async function GraphQLServer() {
-    return graphqlServer({ schema: buildGraphqlSchema(schema) });
+  import { GraphQLServer as _GraphQLServer } from "@ponder/core";
+  function GraphQLServer() {
+    return _GraphQLServer({ schema });
   }
 `;
 

@@ -70,37 +70,6 @@ export async function createServer({
     }
   });
 
-  // const createGraphqlYoga = (path: string) =>
-  //   createYoga({
-  //     schema: graphqlSchema,
-  //     context: () => {
-  //       const getLoader = buildLoaderCache({ store: readonlyStore });
-  //       return { store: readonlyStore, getLoader };
-  //     },
-  //     graphqlEndpoint: path,
-  //     maskedErrors: process.env.NODE_ENV === "production",
-  //     logging: false,
-  //     graphiql: false,
-  //     parserAndValidationCache: false,
-  //     plugins: [
-  //       maxTokensPlugin({ n: common.options.graphqlMaxOperationTokens }),
-  //       maxDepthPlugin({
-  //         n: common.options.graphqlMaxOperationDepth,
-  //         ignoreIntrospection: false,
-  //       }),
-  //       maxAliasesPlugin({
-  //         n: common.options.graphqlMaxOperationAliases,
-  //         allowList: [],
-  //       }),
-  //     ],
-  //   });
-
-  // const rootYoga = createGraphqlYoga("/");
-  // const rootGraphiql = graphiQLHtml("/");
-
-  // const prodYoga = createGraphqlYoga("/graphql");
-  // const prodGraphiql = graphiQLHtml("/graphql");
-
   ponderApp
     .use(cors())
     .use(metricsMiddleware)
@@ -131,23 +100,6 @@ export async function createServer({
       return c.text("Historical indexing is not complete.", 503);
     })
     .get("/ready", async (c) => c.text("", 200));
-  // Renders GraphiQL
-  // .get("/graphql", (c) => c.html(prodGraphiql))
-  // // Serves GraphQL POST requests following healthcheck rules
-  // .post("/graphql", (c) => {
-  //   if (isHealthy === false) {
-  //     return c.json(
-  //       { errors: [new GraphQLError("Historical indexing is not complete")] },
-  //       503,
-  //     );
-  //   }
-
-  //   return prodYoga.handle(c.req.raw);
-  // })
-  // // Renders GraphiQL
-  // .get("/", (c) => c.html(rootGraphiql))
-  // // Serves GraphQL POST requests regardless of health status, e.g. "dev UI"
-  // .post("/", (c) => rootYoga.handle(c.req.raw));
 
   const createServerWithNextAvailablePort: typeof http.createServer = (
     ...args: any
