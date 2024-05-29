@@ -1,21 +1,22 @@
 import { createConfig } from "@ponder/core";
-import { http } from "viem";
-import { erc20ABI } from "./abis/erc20ABI";
+import { http, getAddress } from "viem";
+import CounterDeployment from "../foundry/broadcast/Counter.s.sol/31337/run-latest.json";
+import { counterABI } from "./codegen";
+
+const address = getAddress(CounterDeployment.transactions[0]!.contractAddress);
 
 export default createConfig({
   networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
+    anvil: {
+      chainId: 31_337,
+      transport: http("http://localhost:8545"),
     },
   },
   contracts: {
-    ERC20: {
-      network: "mainnet",
-      abi: erc20ABI,
-      address: "0x32353A6C91143bfd6C7d363B546e62a9A2489A20",
-      startBlock: 13142655,
-      endBlock: 13150000,
+    Counter: {
+      network: "anvil",
+      abi: counterABI,
+      address,
     },
   },
 });
