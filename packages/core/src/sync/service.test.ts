@@ -365,3 +365,41 @@ test("onRealtimeSyncEvent finalize", async (context) => {
   await kill(syncService);
   await cleanup();
 });
+
+test("onRealtimeSyncEvent unfinalized end block", async (context) => {
+  const { common } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+
+  const syncService = await create({
+    common,
+    syncStore,
+    networks,
+    sources: [sources[0], { ...sources[1], endBlock: 4 }],
+    onRealtimeEvent: vi.fn(),
+    onFatalError: vi.fn(),
+    initialCheckpoint: zeroCheckpoint,
+  });
+
+  const killSpy = vi.spyOn(
+    syncService.networkServices[1].realtime!.realtimeSync,
+    "kill",
+  );
+
+  syncService.networkServices[0].realtime!.realtimeSync.onEvent({
+    type: "finalize",
+    chainId: networks[0].chainId,
+    checkpoint: createCheckpoint({ blockNumber: 5n }),
+  });
+
+  syncService.networkServices[1].realtime!.realtimeSync.onEvent({
+    type: "finalize",
+    chainId: networks[1].chainId,
+    checkpoint: createCheckpoint({ blockNumber: 5n }),
+  });
+
+  expect(killSpy).toHaveBeenCalledOnce();
+
+  await kill(syncService);
+  await cleanup();
+});

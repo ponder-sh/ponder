@@ -305,6 +305,12 @@ export const kill = async (service: Service) => {
   service.isKilled = true;
   service.queue?.pause();
   service.queue?.clear();
+
+  service.common.logger.debug({
+    service: "realtime",
+    msg: `Killed '${service.network.name}' realtime sync`,
+  });
+
   await service.queue?.onIdle();
 };
 
