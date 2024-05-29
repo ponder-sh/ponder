@@ -199,12 +199,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       this.sources.map(async (source) => {
         const startBlock = source.startBlock;
         const endBlock = source.endBlock ?? finalizedBlockNumber;
-        const isHistoricalSyncRequired =
-          source.startBlock <= finalizedBlockNumber;
 
-        switch (source.type) {
-          case "log": {
-            if (!isHistoricalSyncRequired) {
+        if (source.startBlock > finalizedBlockNumber) {
+          switch (source.type) {
+            case "log":
+            case "factoryLog": {
               this.common.metrics.ponder_historical_total_blocks.set(
                 {
                   network: this.network.name,
@@ -217,9 +216,51 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 service: "historical",
                 msg: `Skipped syncing '${this.network.name}' logs for '${source.contractName}' because the start block is not finalized`,
               });
-              return;
+              break;
             }
 
+            case "callTrace":
+            case "factoryCallTrace": {
+              this.common.metrics.ponder_historical_total_blocks.set(
+                {
+                  network: this.network.name,
+                  source: source.contractName,
+                  type: "trace",
+                },
+                0,
+              );
+              this.common.logger.warn({
+                service: "historical",
+                msg: `Skipped syncing '${this.network.name}' call traces for '${source.contractName}' because the start block is not finalized`,
+              });
+              break;
+            }
+
+            case "block": {
+              this.common.metrics.ponder_historical_total_blocks.set(
+                {
+                  network: this.network.name,
+                  source: source.sourceName,
+                  type: "block",
+                },
+                0,
+              );
+              this.common.logger.warn({
+                service: "historical",
+                msg: `Skipped syncing '${this.network.name}' blocks for '${source.sourceName}' because the start block is not finalized`,
+              });
+              break;
+            }
+
+            default:
+              never(source);
+          }
+
+          return;
+        }
+
+        switch (source.type) {
+          case "log": {
             const completedLogFilterIntervals =
               await this.syncStore.getLogFilterIntervals({
                 chainId: source.chainId,
@@ -293,22 +334,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           break;
 
           case "factoryLog": {
-            if (!isHistoricalSyncRequired) {
-              this.common.metrics.ponder_historical_total_blocks.set(
-                {
-                  network: this.network.name,
-                  source: source.contractName,
-                  type: "log",
-                },
-                0,
-              );
-              this.common.logger.warn({
-                service: "historical",
-                msg: `Skipped syncing '${this.network.name}' logs for '${source.contractName}' because the start block is not finalized`,
-              });
-              return;
-            }
-
             // Note that factory child address progress is stored using
             // log intervals for the factory log.
             const completedFactoryChildAddressIntervals =
@@ -466,22 +491,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           break;
 
           case "callTrace": {
-            if (!isHistoricalSyncRequired) {
-              this.common.metrics.ponder_historical_total_blocks.set(
-                {
-                  network: this.network.name,
-                  source: source.contractName,
-                  type: "trace",
-                },
-                0,
-              );
-              this.common.logger.warn({
-                service: "historical",
-                msg: `Skipped syncing '${this.network.name}' call traces for '${source.contractName}' because the start block is not finalized`,
-              });
-              return;
-            }
-
             const completedTraceFilterIntervals =
               await this.syncStore.getTraceFilterIntervals({
                 chainId: source.chainId,
@@ -554,22 +563,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           break;
 
           case "factoryCallTrace": {
-            if (!isHistoricalSyncRequired) {
-              this.common.metrics.ponder_historical_total_blocks.set(
-                {
-                  network: this.network.name,
-                  source: source.contractName,
-                  type: "trace",
-                },
-                0,
-              );
-              this.common.logger.warn({
-                service: "historical",
-                msg: `Skipped syncing '${this.network.name}' call traces for '${source.contractName}' because the start block is not finalized`,
-              });
-              return;
-            }
-
             // Note that factory child address progress is stored using
             // log intervals for the factory log.
             const completedFactoryChildAddressIntervals =
@@ -727,22 +720,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           break;
 
           case "block": {
-            if (!isHistoricalSyncRequired) {
-              this.common.metrics.ponder_historical_total_blocks.set(
-                {
-                  network: this.network.name,
-                  source: source.sourceName,
-                  type: "block",
-                },
-                0,
-              );
-              this.common.logger.warn({
-                service: "historical",
-                msg: `Skipped syncing '${this.network.name}' blocks for '${source.sourceName}' because the start block is not finalized`,
-              });
-              return;
-            }
-
             const completedBlockFilterIntervals =
               await this.syncStore.getBlockFilterIntervals({
                 chainId: source.chainId,
