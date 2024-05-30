@@ -39,6 +39,7 @@ const ponder = new Command("ponder")
     "-vv, --trace",
     "Enable trace-level logs, e.g. db queries, indexing checkpoints",
   )
+  .option("--log-level <LEVEL>", "", String)
   .version(packageJson.version, "-V, --version", "Show the version number")
   .configureHelp({ showGlobalOptions: true })
   .allowExcessArguments(false)
@@ -53,6 +54,13 @@ const devCommand = new Command("dev")
   .description("Start the development server with hot reloading")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .option(
+    "--log-format <FORMAT>",
+    "Output format for the logs",
+    String,
+    "pretty",
+  )
+  .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
       ...command.optsWithGlobals(),
@@ -65,6 +73,13 @@ const startCommand = new Command("start")
   .description("Start the production server")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .option(
+    "--log-format <FORMAT>",
+    "Output format for the logs",
+    String,
+    "structured",
+  )
+  .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
       ...command.optsWithGlobals(),
@@ -77,6 +92,13 @@ const serveCommand = new Command("serve")
   .description("Start the production HTTP server without the indexer")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .option(
+    "--log-format <FORMAT>",
+    "Output format for the logs",
+    String,
+    "structured",
+  )
+  .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
       ...command.optsWithGlobals(),
@@ -87,6 +109,13 @@ const serveCommand = new Command("serve")
 
 const codegenCommand = new Command("codegen")
   .description("Generate the schema.graphql file, then exit")
+  .option(
+    "--log-format <FORMAT>",
+    "Output format for the logs",
+    String,
+    "pretty",
+  )
+  .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
       ...command.optsWithGlobals(),

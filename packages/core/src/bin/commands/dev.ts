@@ -14,7 +14,10 @@ import { setupShutdown } from "../utils/shutdown.js";
 export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
-  const logger = createLogger({ level: options.logLevel });
+  const logger = createLogger({
+    level: options.logLevel,
+    mode: options.logFormat,
+  });
 
   const [major, minor, _patch] = process.versions.node.split(".").map(Number);
   if (major < 18 || (major === 18 && minor < 14)) {
