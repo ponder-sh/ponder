@@ -20,12 +20,14 @@ type Log = {
 export function createLogger({
   level,
   mode = "pretty",
-}: { level: LogLevel; mode?: LogMode }) {
+  command,
+}: { level: LogLevel; mode?: LogMode; command?: "dev" | "start" }) {
   const stream: DestinationStream = {
     write(logString: string) {
       if (mode === "structured") {
         // Note: this should not be used in dev mode
-        process.stdout.write(logString);
+        if (command === "dev") console.log(logString.trimEnd());
+        else process.stdout.write(logString);
         return;
       }
 
