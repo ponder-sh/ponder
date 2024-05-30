@@ -35,7 +35,7 @@ pg.Client.prototype.query = function query(
       {},
     );
 
-    error.meta = [];
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
     if (error.detail) error.meta.push(`Detail:\n  ${error.detail}`);
     error.meta.push(`Statement:\n  ${statement}`);
     error.meta.push(`Parameters:\n${prettyPrint(params)}`);
