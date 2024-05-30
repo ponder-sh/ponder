@@ -20,7 +20,7 @@ type Log = {
 export function createLogger({
   level,
   mode = "pretty",
-}: { level: LogLevel; mode?: LogMode; command?: "dev" | "start" }) {
+}: { level: LogLevel; mode?: LogMode }) {
   const stream: DestinationStream = {
     write(logString: string) {
       if (mode === "json") {

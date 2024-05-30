@@ -42,12 +42,11 @@ const ponder = new Command("ponder")
   .option(
     "--log-level <LEVEL>",
     'Minimum log level ("error", "warn", "info", "debug", or "trace")',
-    String,
+    "info",
   )
   .option(
     "--log-format <FORMAT>",
     'The log format ("pretty" or "json")',
-    String,
     "pretty",
   )
   .version(packageJson.version, "-V, --version", "Show the version number")
