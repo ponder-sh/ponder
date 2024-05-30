@@ -24,6 +24,7 @@ export function createLogger({
   const stream: DestinationStream = {
     write(logString: string) {
       if (mode === "structured") {
+        // Note: this should not be used in dev mode
         process.stdout.write(logString);
         return;
       }
@@ -31,16 +32,20 @@ export function createLogger({
       const log = JSON.parse(logString) as Log;
       const prettyLog = format(log);
       console.log(prettyLog);
-      if (log.error) {
-        console.log(JSON.stringify(log.error, null, 2));
-      }
     },
   };
 
   const logger = pino(
     {
       level,
-      serializers: { error: pino.stdSerializers.errWithCause },
+      serializers: {
+        error: pino.stdSerializers.wrapErrorSerializer((error) => {
+          error.meta = error.meta !== undefined ? error.meta.join("\n\n") : "";
+          //@ts-ignore
+          error.type = undefined;
+          return error;
+        }),
+      },
       // Removes "pid" and "hostname" properties from the log.
       base: undefined,
     },
@@ -87,21 +92,33 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
 
 const format = (log: Log) => {
   const time = timeFormatter.format(new Date(log.time));
-
   const levelObject = levels[log.level ?? 30];
 
-  // if (log.errorMessage) console.log(log.errorMessage);
-  // if (log.errorHints) console.log(`Hints:\n ${log.errorHints.join("\n")}`);
-  // if (log.errorStack) console.log(log.errorStack);
-
+  let prettyLog;
   if (pc.isColorSupported) {
     const level = levelObject.colorLabel;
     const service = log.service ? pc.cyan(log.service.padEnd(10, " ")) : "";
     const messageText = pc.reset(log.msg);
-    return `${pc.gray(time)} ${level} ${service} ${messageText}`;
+
+    prettyLog = [`${pc.gray(time)} ${level} ${service} ${messageText}`];
   } else {
     const level = levelObject.label;
     const service = log.service ? log.service.padEnd(10, " ") : "";
-    return `${time} ${level} ${service} ${log.msg}`;
+
+    prettyLog = [`${time} ${level} ${service} ${log.msg}`];
   }
+
+  if (log.error) {
+    if (log.error.stack) {
+      prettyLog.push(log.error.stack);
+    } else {
+      prettyLog.push(`${log.error.name}: ${log.error.message}`);
+    }
+
+    if ("meta" in log.error) {
+      prettyLog.push("Hints:");
+      prettyLog.push(`  ${log.error.meta}`);
+    }
+  }
+  return prettyLog.join("\n");
 };

@@ -114,7 +114,6 @@ export const createRequestQueue = ({
           common.logger.warn({
             service: "sync",
             msg: `Failed '${request.method}' RPC request`,
-            error,
           });
           throw error;
         }

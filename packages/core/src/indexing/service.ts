@@ -611,7 +611,7 @@ const executeLog = async (
 
     common.metrics.ponder_indexing_has_error.set(1);
 
-    return { status: "error", error: error };
+    return { status: "error", error };
   }
 
   return { status: "success" };

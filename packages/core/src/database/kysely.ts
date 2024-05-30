@@ -74,7 +74,6 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
           this.common.logger.warn({
             service: this.name,
             msg: `Failed '${options.method}' database method `,
-            error,
           });
           throw error;
         }
