@@ -190,8 +190,7 @@ export function createTelemetry({
         logger.trace({
           service: "telemetry",
           msg: `Failed to send '${event.name}' event after ${endClock()}ms`,
-          errorName: error.name,
-          errorMessage: error.message,
+          error,
         });
       }
     },

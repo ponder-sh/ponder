@@ -301,8 +301,7 @@ const executeConfig = async (
     buildService.common.logger.error({
       service: "build",
       msg: "Error while executing 'ponder.config.ts':",
-      errorName: executeResult.error.name,
-      errorMessage: executeResult.error.message,
+      error: executeResult.error,
     });
 
     return executeResult;
@@ -331,7 +330,7 @@ const executeSchema = async (
     buildService.common.logger.error({
       service: "build",
       msg: "Error while executing 'ponder.schema.ts':",
-      errorName: executeResult.error.name,
+      error: executeResult.error,
     });
 
     return executeResult;
@@ -378,7 +377,7 @@ const executeIndexingFunctions = async (
           buildService.common.options.rootDir,
           executeResult.file,
         )}':`,
-        errorMessage: executeResult.error.message,
+        error: executeResult.error,
       });
 
       return executeResult;
@@ -419,8 +418,7 @@ const validateAndBuild = async (
     common.logger.error({
       service: "build",
       msg: "Error while building schema:",
-      errorName: buildSchemaResult.error.name,
-      errorMessage: buildSchemaResult.error.message,
+      error: buildSchemaResult.error,
     });
 
     return buildSchemaResult;
@@ -443,8 +441,7 @@ const validateAndBuild = async (
     common.logger.error({
       service: "build",
       msg: "Failed build",
-      errorName: buildConfigAndIndexingFunctionsResult.error.name,
-      errorMessage: buildConfigAndIndexingFunctionsResult.error.message,
+      error: buildConfigAndIndexingFunctionsResult.error,
     });
 
     return buildConfigAndIndexingFunctionsResult;

@@ -14,11 +14,7 @@ type Log = {
   service: string;
   msg: string;
 
-  // Error
-  errorName?: string;
-  errorMessage?: string;
-  errorStack?: string;
-  errorHints?: string[];
+  error?: Error;
 };
 
 export function createLogger({
@@ -28,14 +24,16 @@ export function createLogger({
   const stream: DestinationStream = {
     write(logString: string) {
       if (mode === "structured") {
-        // Remove trailing newline character. Note that this is bad for performance.
-        console.log(logString.trimEnd());
+        process.stdout.write(logString);
         return;
       }
 
       const log = JSON.parse(logString) as Log;
       const prettyLog = format(log);
       console.log(prettyLog);
+      if (log.error) {
+        console.log(JSON.stringify(log.error, null, 2));
+      }
     },
   };
 
@@ -92,9 +90,9 @@ const format = (log: Log) => {
 
   const levelObject = levels[log.level ?? 30];
 
-  if (log.errorMessage) console.log(log.errorMessage);
-  if (log.errorHints) console.log(`Hints:\n ${log.errorHints.join("\n")}`);
-  if (log.errorStack) console.log(log.errorStack);
+  // if (log.errorMessage) console.log(log.errorMessage);
+  // if (log.errorHints) console.log(`Hints:\n ${log.errorHints.join("\n")}`);
+  // if (log.errorStack) console.log(log.errorStack);
 
   if (pc.isColorSupported) {
     const level = levelObject.colorLabel;

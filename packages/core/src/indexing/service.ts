@@ -30,12 +30,12 @@ import type {
   LogEvent,
   SetupEvent,
 } from "../sync/events.js";
+import { addStackTrace } from "./addStackTrace.js";
 import {
   type ReadOnlyClient,
   buildCachedActions,
   buildDb,
 } from "./ponderActions.js";
-import { getStackTrace } from "./stackTrace.js";
 
 export type Context = {
   network: { chainId: number; name: string };
@@ -520,24 +520,22 @@ const executeSetup = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = _error as Error;
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    const errorStackTrace = getStackTrace(error, common.options);
+    addStackTrace(error, common.options);
 
     common.metrics.ponder_indexing_has_error.set(1);
 
     common.logger.error({
       service: "indexing",
       msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
-      errorName: error.name,
-      errorMessage: error.message,
-      errorStack: errorStackTrace,
+      error,
     });
 
     return { status: "error", error: error };
@@ -595,22 +593,20 @@ const executeLog = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = _error as Error;
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    const errorStackTrace = getStackTrace(error, common.options);
+    addStackTrace(error, common.options);
 
     common.logger.error({
       service: "indexing",
       msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
-      errorName: error.name,
-      errorMessage: error.message,
-      errorStack: errorStackTrace,
+      error,
     });
 
     common.metrics.ponder_indexing_has_error.set(1);
@@ -667,22 +663,19 @@ const executeBlock = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
-
+    const error = _error as Error;
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    const errorStackTrace = getStackTrace(error, common.options);
+    addStackTrace(error, common.options);
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing ${eventName} event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
-      errorName: error.name,
-      errorMessage: error.message,
-      errorStack: errorStackTrace,
+      msg: `Error while processing ${eventName} event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}`,
+      error,
     });
 
     common.metrics.ponder_indexing_has_error.set(1);
@@ -742,22 +735,20 @@ const executeCallTrace = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = _error as Error;
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    const errorStackTrace = getStackTrace(error, common.options);
+    addStackTrace(error, common.options);
 
     common.logger.error({
       service: "indexing",
       msg: `Error while processing '${eventName}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
-      errorName: error.name,
-      errorMessage: error.message,
-      errorStack: errorStackTrace,
+      error,
     });
 
     common.metrics.ponder_indexing_has_error.set(1);

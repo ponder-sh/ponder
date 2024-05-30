@@ -78,8 +78,7 @@ export function setupShutdown({
     common.logger.error({
       service: "process",
       msg: "Caught uncaughtException event",
-      errorName: error.name,
-      errorMessage: error.message,
+      error,
     });
     shutdown({ reason: "Received uncaughtException", code: 1 });
   });
@@ -88,8 +87,7 @@ export function setupShutdown({
     common.logger.error({
       service: "process",
       msg: "Caught unhandledRejection event",
-      errorName: error.name,
-      errorMessage: error.message,
+      error,
     });
     shutdown({ reason: "Received unhandledRejection", code: 1 });
   });

@@ -74,9 +74,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
           this.common.logger.warn({
             service: this.name,
             msg: `Failed '${options.method}' database method `,
-            errorName: error.name,
-            errorMessage: error.message,
-            errorHints: error.meta.length > 0 ? error.meta : undefined,
+            error,
           });
           throw error;
         }
@@ -87,8 +85,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
             msg: `Failed '${options.method}' database method after '${
               i + 1
             }' attempts`,
-            errorName: error.name,
-            errorMessage: error.message,
+            error,
           });
           throw firstError;
         }
@@ -97,8 +94,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
         this.common.logger.debug({
           service: this.name,
           msg: `Failed '${options.method}' database method, retrying after ${duration} milliseconds`,
-          errorName: error.name,
-          errorMessage: error.message,
+          error,
         });
         await wait(duration);
       }

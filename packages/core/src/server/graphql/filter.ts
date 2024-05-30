@@ -1,3 +1,4 @@
+import { BuildError } from "@/common/errors.js";
 import type { Schema } from "@/schema/common.js";
 import {
   getTables,
@@ -146,7 +147,7 @@ export function buildWhereObject(where: Record<string, any>) {
     // Handle the `and` and `or` operators.
     if (whereKey === "AND" || whereKey === "OR") {
       if (!Array.isArray(rawValue)) {
-        throw new Error(
+        throw new BuildError(
           `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
         );
       }
@@ -163,7 +164,7 @@ export function buildWhereObject(where: Record<string, any>) {
 
     const storeCondition = graphqlFilterToStoreCondition[condition];
     if (!storeCondition) {
-      throw new Error(
+      throw new BuildError(
         `Invalid query: Unknown where condition: ${fieldName}_${condition}`,
       );
     }

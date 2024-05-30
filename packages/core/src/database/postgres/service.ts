@@ -514,8 +514,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             msg: `Failed to update heartbeat timestamp, retrying in ${formatEta(
               this.common.options.databaseHeartbeatInterval,
             )}`,
-            errorName: error.name,
-            errorMessage: error.message,
+            error,
           });
         }
       }, this.common.options.databaseHeartbeatInterval);

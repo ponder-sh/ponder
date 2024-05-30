@@ -114,8 +114,7 @@ export const createRequestQueue = ({
           common.logger.warn({
             service: "sync",
             msg: `Failed '${request.method}' RPC request`,
-            errorName: error.name,
-            errorMessage: error.message,
+            error,
           });
           throw error;
         }
@@ -126,8 +125,7 @@ export const createRequestQueue = ({
             msg: `Failed '${request.method}' RPC request after ${
               i + 1
             } attempts`,
-            errorName: error.name,
-            errorMessage: error.message,
+            error,
           });
           throw error;
         }
@@ -136,8 +134,7 @@ export const createRequestQueue = ({
         common.logger.debug({
           service: "sync",
           msg: `Failed '${request.method}' RPC request, retrying after ${duration} milliseconds`,
-          errorName: error.name,
-          errorMessage: error.message,
+          error,
         });
         await wait(duration);
       }
