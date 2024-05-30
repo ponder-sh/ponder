@@ -26,7 +26,7 @@ export type Options = {
   telemetryConfigDir: string | undefined;
 
   logLevel: LevelWithSilent;
-  logFormat: "structured" | "pretty";
+  logFormat: "json" | "pretty";
 
   databaseHeartbeatInterval: number;
   databaseHeartbeatTimeout: number;

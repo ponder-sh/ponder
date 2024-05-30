@@ -17,7 +17,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const logger = createLogger({
     level: options.logLevel,
     mode: options.logFormat,
-    command: "dev",
   });
 
   const [major, minor, _patch] = process.versions.node.split(".").map(Number);

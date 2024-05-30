@@ -21,7 +21,7 @@ export function parseStoreError(err: unknown, args: Record<string, unknown>) {
   ) {
     error = new UniqueConstraintError(error.message);
     error.meta.push(
-      "Did you forget to await the promise returned by a store method?\n  Did you mean to do an upsert?",
+      "Hints:\n  Did you forget to await the promise returned by a store method?\n  Did you mean to do an upsert?",
     );
   } else if (
     error.message?.includes("NOT NULL constraint failed") ||
@@ -36,7 +36,7 @@ export function parseStoreError(err: unknown, args: Record<string, unknown>) {
   } else if (error.message?.includes("Do not know how to serialize a BigInt")) {
     error = new BigIntSerializationError(error.message);
     error.meta.push(
-      "The JSON column type does not support BigInt values. Use the replaceBigInts helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
+      "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
     );
   }
 

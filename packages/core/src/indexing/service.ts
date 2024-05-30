@@ -20,6 +20,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
+import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
@@ -595,13 +596,16 @@ const executeLog = async (
     );
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = _error as Error;
+    const error = _error as Error & { meta?: string[] };
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
     addStackTrace(error, common.options);
+
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
 
     common.logger.error({
       service: "indexing",
@@ -665,12 +669,21 @@ const executeBlock = async (
     );
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = _error as Error;
+    const error = _error as Error & { meta?: string[] };
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
     addStackTrace(error, common.options);
+
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(
+      `Block:\n${prettyPrint({
+        hash: event.event.block.hash,
+        number: event.event.block.number,
+        timestamp: event.event.block.timestamp,
+      })}`,
+    );
 
     common.logger.error({
       service: "indexing",
@@ -737,13 +750,16 @@ const executeCallTrace = async (
     );
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = _error as Error;
+    const error = _error as Error & { meta?: string[] };
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
     addStackTrace(error, common.options);
+
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(`Call trace arguments:\n${prettyPrint(event.event.args)}`);
 
     common.logger.error({
       service: "indexing",

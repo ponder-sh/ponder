@@ -2,7 +2,7 @@ import type { Prettify } from "@/types/utils.js";
 import pc from "picocolors";
 import { type DestinationStream, type LevelWithSilent, pino } from "pino";
 
-export type LogMode = "pretty" | "structured";
+export type LogMode = "pretty" | "json";
 export type LogLevel = Prettify<LevelWithSilent>;
 export type Logger = ReturnType<typeof createLogger>;
 
@@ -20,14 +20,11 @@ type Log = {
 export function createLogger({
   level,
   mode = "pretty",
-  command,
 }: { level: LogLevel; mode?: LogMode; command?: "dev" | "start" }) {
   const stream: DestinationStream = {
     write(logString: string) {
-      if (mode === "structured") {
-        // Note: this should not be used in dev mode
-        if (command === "dev") console.log(logString.trimEnd());
-        else process.stdout.write(logString);
+      if (mode === "json") {
+        console.log(logString.trimEnd());
         return;
       }
 
@@ -42,7 +39,9 @@ export function createLogger({
       level,
       serializers: {
         error: pino.stdSerializers.wrapErrorSerializer((error) => {
-          error.meta = error.meta !== undefined ? error.meta.join("\n\n") : "";
+          error.meta = Array.isArray(error.meta)
+            ? error.meta.join("\n")
+            : error.meta;
           //@ts-ignore
           error.type = undefined;
           return error;
@@ -96,7 +95,7 @@ const format = (log: Log) => {
   const time = timeFormatter.format(new Date(log.time));
   const levelObject = levels[log.level ?? 30];
 
-  let prettyLog;
+  let prettyLog: string[];
   if (pc.isColorSupported) {
     const level = levelObject.colorLabel;
     const service = log.service ? pc.cyan(log.service.padEnd(10, " ")) : "";
@@ -118,8 +117,7 @@ const format = (log: Log) => {
     }
 
     if ("meta" in log.error) {
-      prettyLog.push("Hints:");
-      prettyLog.push(`  ${log.error.meta}`);
+      prettyLog.push(log.error.meta as string);
     }
   }
   return prettyLog.join("\n");

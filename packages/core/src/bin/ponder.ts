@@ -33,13 +33,17 @@ const ponder = new Command("ponder")
   )
   .option(
     "-v, --debug",
-    "Enable debug-level logs, e.g. realtime blocks, internal events",
+    "Enable debug logs, e.g. realtime blocks, internal events",
   )
   .option(
     "-vv, --trace",
-    "Enable trace-level logs, e.g. db queries, indexing checkpoints",
+    "Enable trace logs, e.g. db queries, indexing checkpoints",
   )
-  .option("--log-level <LEVEL>", "", String)
+  .option(
+    "--log-level <LEVEL>",
+    'Minimum log level ("error", "warn", "info", "debug", or "trace")',
+    String,
+  )
   .version(packageJson.version, "-V, --version", "Show the version number")
   .configureHelp({ showGlobalOptions: true })
   .allowExcessArguments(false)
@@ -56,7 +60,7 @@ const devCommand = new Command("dev")
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
   .option(
     "--log-format <FORMAT>",
-    "Output format for the logs",
+    'The log format ("pretty" or "json")',
     String,
     "pretty",
   )
@@ -75,9 +79,9 @@ const startCommand = new Command("start")
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
   .option(
     "--log-format <FORMAT>",
-    "Output format for the logs",
+    'The log format ("pretty" or "json")',
     String,
-    "structured",
+    "json",
   )
   .showHelpAfterError()
   .action(async (_, command) => {
@@ -94,9 +98,9 @@ const serveCommand = new Command("serve")
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
   .option(
     "--log-format <FORMAT>",
-    "Output format for the logs",
+    'The log format ("pretty" or "json")',
     String,
-    "structured",
+    "json",
   )
   .showHelpAfterError()
   .action(async (_, command) => {
@@ -111,9 +115,9 @@ const codegenCommand = new Command("codegen")
   .description("Generate the schema.graphql file, then exit")
   .option(
     "--log-format <FORMAT>",
-    "Output format for the logs",
+    'The log format ("pretty" or "json")',
     String,
-    "pretty",
+    "json",
   )
   .showHelpAfterError()
   .action(async (_, command) => {

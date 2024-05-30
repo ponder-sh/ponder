@@ -104,7 +104,7 @@ export function encodeValue(
     } catch (_error) {
       const error = new BigIntSerializationError((_error as TypeError).message);
       error.meta.push(
-        "The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
+        "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
       );
       throw error;
     }
@@ -231,7 +231,7 @@ function decodeValue(
       ? JSON.parse(value as string).map(BigInt)
       : JSON.parse(value as string);
   } else if (column[" scalar"] === "boolean") {
-    return value === 1 ? true : false;
+    return value === 1;
   } else if (column[" scalar"] === "hex") {
     return bytesToHex(value as Buffer);
   } else if (column[" scalar"] === "bigint" && encoding === "sqlite") {

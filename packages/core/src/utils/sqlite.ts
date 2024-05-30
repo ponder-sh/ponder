@@ -12,14 +12,13 @@ function improveSqliteErrors(database: BetterSqlite3.Database) {
       statement = originalPrepare.apply(database, [source]);
     } catch (error_) {
       // This block is reachable if the database is closed, and possibly in other cases.
-      const error = error_ as Error & { detail?: string; meta?: string };
+      const error = error_ as Error & { detail?: string; meta?: string[] };
       error.name = "SqliteError";
       Error.captureStackTrace(error);
 
-      const metaMessages = [];
-      if (error.detail) metaMessages.push(`Detail:\n  ${error.detail}`);
-      metaMessages.push(`Statement:\n  ${source}`);
-      error.meta = metaMessages.join("\n");
+      error.meta = Array.isArray(error.meta) ? error.meta : [];
+      if (error.detail) error.meta.push(`Detail:\n  ${error.detail}`);
+      error.meta.push(`Statement:\n  ${statement}`);
 
       throw error;
     }
@@ -30,7 +29,7 @@ function improveSqliteErrors(database: BetterSqlite3.Database) {
         try {
           return fn.apply(statement, args);
         } catch (error_) {
-          const error = error_ as Error & { detail?: string; meta?: string };
+          const error = error_ as Error & { detail?: string; meta?: string[] };
           error.name = "SqliteError";
 
           let parameters = (args[0] ?? []) as string[];
@@ -46,12 +45,10 @@ function improveSqliteErrors(database: BetterSqlite3.Database) {
             {},
           );
 
-          const metaMessages = [];
-          if (error.detail) metaMessages.push(`Detail:\n  ${error.detail}`);
-          metaMessages.push(`Statement:\n  ${source}`);
-          metaMessages.push(`Parameters:\n${prettyPrint(params)}`);
-
-          error.meta = metaMessages.join("\n");
+          error.meta = Array.isArray(error.meta) ? error.meta : [];
+          if (error.detail) error.meta.push(`Detail:\n  ${error.detail}`);
+          error.meta.push(`Statement:\n  ${source}`);
+          error.meta.push(`Parameters:\n${prettyPrint(params)}`);
 
           throw error;
         }
