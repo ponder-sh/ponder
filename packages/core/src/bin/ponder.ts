@@ -44,6 +44,12 @@ const ponder = new Command("ponder")
     'Minimum log level ("error", "warn", "info", "debug", or "trace")',
     String,
   )
+  .option(
+    "--log-format <FORMAT>",
+    'The log format ("pretty" or "json")',
+    String,
+    "pretty",
+  )
   .version(packageJson.version, "-V, --version", "Show the version number")
   .configureHelp({ showGlobalOptions: true })
   .allowExcessArguments(false)
@@ -58,12 +64,6 @@ const devCommand = new Command("dev")
   .description("Start the development server with hot reloading")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
-  .option(
-    "--log-format <FORMAT>",
-    'The log format ("pretty" or "json")',
-    String,
-    "pretty",
-  )
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
@@ -77,12 +77,6 @@ const startCommand = new Command("start")
   .description("Start the production server")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
-  .option(
-    "--log-format <FORMAT>",
-    'The log format ("pretty" or "json")',
-    String,
-    "json",
-  )
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
@@ -96,12 +90,6 @@ const serveCommand = new Command("serve")
   .description("Start the production HTTP server without the indexer")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
-  .option(
-    "--log-format <FORMAT>",
-    'The log format ("pretty" or "json")',
-    String,
-    "json",
-  )
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
@@ -113,12 +101,6 @@ const serveCommand = new Command("serve")
 
 const codegenCommand = new Command("codegen")
   .description("Generate the schema.graphql file, then exit")
-  .option(
-    "--log-format <FORMAT>",
-    'The log format ("pretty" or "json")',
-    String,
-    "json",
-  )
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
