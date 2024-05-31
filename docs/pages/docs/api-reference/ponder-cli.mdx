@@ -10,19 +10,23 @@ import { Callout } from "nextra/components";
 The Ponder CLI (provided by the `@ponder/core` package) is the entrypoint for your Ponder project.
 
 ```bash
-Usage:
-  $ ponder <command> [OPTIONS]
-
-Commands:
-  dev      Start the app in development mode
-  start    Start the app in production mode
-  serve    Start the web server (experimental)
-  codegen  Generate the schema.graphql file, then exit
+Usage: ponder <command> [OPTIONS]
 
 Options:
-  --root [PATH]    Path to the project root directory (default: working directory)
-  --config [PATH]  Path to the project config file (default: ponder.config.ts)
-  -h, --help       Display this message 
+  --root <PATH>          Path to the project root directory (default: working directory)
+  --config <PATH>        Path to the project config file (default: "ponder.config.ts")
+  -v, --debug            Enable debug logs, e.g. realtime blocks, internal events
+  -vv, --trace           Enable trace logs, e.g. db queries, indexing checkpoints
+  --log-level <LEVEL>    Minimum log level ("error", "warn", "info", "debug", or "trace") (default: "info")
+  --log-format <FORMAT>  The log format ("pretty" or "json") (default: "pretty")
+  -V, --version          Show the version number
+  -h, --help             Show this help message
+
+Commands:
+  dev [options]          Start the development server with hot reloading
+  start [options]        Start the production server
+  serve [options]        Start the production HTTP server without the indexer
+  codegen                Generate the schema.graphql file, then exit
 ```
 
 ## dev
@@ -33,14 +37,14 @@ Start the app in development mode.
 - An auto-updating terminal UI displays useful information.
 
 ```bash
-Usage:
-  $ ponder dev
+Usage: ponder dev [options]
+
+Start the development server with hot reloading
 
 Options:
-  -p, --port [PORT]          Port number for the the web server (default: 42069) 
-  -H, --hostname [HOSTNAME]  Hostname for the web server (default: 0.0.0.0) 
-  -v, --debug                Enable debug logging (realtime blocks, internal events) 
-  -vv, --trace               Enable trace logging (db query logs, indexing checkpoints) 
+  -p, --port <PORT>          Port for the web server (default: 42069)
+  -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0")
+  -h, --help                 display help for command
 ```
 
 ## start
@@ -51,14 +55,14 @@ Start the app in production mode.
 - The terminal UI is disabled.
 
 ```bash
-Usage:
-  $ ponder start
+Usage: ponder start [options]
+
+Start the production server
 
 Options:
-  -p, --port [PORT]          Port number for the the web server (default: 42069)
-  -H, --hostname [HOSTNAME]  Hostname for the web server (default: 0.0.0.0)
-  -v, --debug                Enable debug logging (realtime blocks, internal events) 
-  -vv, --trace               Enable trace logging (db query logs, indexing checkpoints) 
+  -p, --port <PORT>          Port for the web server (default: 42069)
+  -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0")
+  -h, --help                 display help for command
 ```
 
 ## serve
@@ -71,14 +75,14 @@ Start the app in server-only mode. This option can be used to horizontally scale
 - The GraphQL API server runs as normal, serving data from the connected database.
 
 ```bash
-Usage:
-  $ ponder serve
+Usage: ponder serve [options]
+
+Start the production HTTP server without the indexer
 
 Options:
-  -p, --port [PORT]          Port number for the the web server (default: 42069) 
-  -H, --hostname [HOSTNAME]  Hostname for the web server (default: 0.0.0.0) 
-  -v, --debug                Enable debug logging (realtime blocks, internal events) 
-  -vv, --trace               Enable trace logging (db query logs, indexing checkpoints) 
+  -p, --port <PORT>          Port for the web server (default: 42069)
+  -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0")
+  -h, --help                 display help for command
 ```
 
 ## codegen
@@ -90,12 +94,10 @@ Options:
 Generate the `schema.graphql` file.
 
 ```bash
-Usage:
-  $ ponder codegen
+Usage: ponder codegen [options]
+
+Generate the schema.graphql file, then exit
 
 Options:
-  -p, --port [PORT]          Port number for the the web server (default: 42069) 
-  -H, --hostname [HOSTNAME]  Hostname for the web server (default: 0.0.0.0) 
-  -v, --debug                Enable debug logging (realtime blocks, internal events) 
-  -vv, --trace               Enable trace logging (db query logs, indexing checkpoints) 
+  -h, --help  display help for command
 ```
