@@ -25,13 +25,6 @@ type Server = {
   kill: () => Promise<void>;
 };
 
-setInterval(() => {
-  const before = process.memoryUsage().heapUsed / 1024 / 1024;
-  global.gc?.();
-  const after = process.memoryUsage().heapUsed / 1024 / 1024;
-  console.log({ before: before.toFixed(2), after: after.toFixed(2) });
-}, 1_000);
-
 export async function createServer({
   graphqlSchema,
   readonlyStore,
