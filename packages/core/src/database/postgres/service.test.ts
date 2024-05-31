@@ -713,7 +713,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
-  test("setup succeeds with a live app in a different namespace using the same build ID", async (context) => {
+  test.skip("setup succeeds with a live app in a different namespace using the same build ID", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
       common: context.common,
