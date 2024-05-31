@@ -424,6 +424,151 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
+  test("setup with the same build ID and different namespace reverts to and returns finality checkpoint", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    const { namespaceInfo } = await database.setup({ schema, buildId: "abc" });
+
+    const realtimeIndexingStore = getRealtimeStore({
+      kind: context.databaseConfig.kind,
+      schema,
+      db: database.indexingDb,
+      namespaceInfo,
+    });
+
+    // Simulate progress being made by updating the checkpoints.
+    // TODO: Actually use the indexing store.
+    const newCheckpoint = {
+      ...zeroCheckpoint,
+      blockNumber: 10n,
+    };
+
+    await database.db
+      .withSchema(namespaceInfo.internalNamespace)
+      .updateTable("namespace_lock")
+      .set({ finalized_checkpoint: encodeCheckpoint(newCheckpoint) })
+      .where("namespace", "=", "public")
+      .execute();
+
+    await realtimeIndexingStore.create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockNumber: 9n,
+      }),
+      id: "id1",
+      data: { name: "Skip" },
+    });
+    await realtimeIndexingStore.create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockNumber: 11n,
+      }),
+      id: "id2",
+      data: { name: "Kevin" },
+    });
+    await realtimeIndexingStore.create({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockNumber: 12n,
+      }),
+      id: "id3",
+      data: { name: "Foo" },
+    });
+
+    await database.kill();
+
+    const databaseTwo = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: `_${context.databaseConfig.schema}`,
+    });
+
+    const { checkpoint, namespaceInfo: namespaceInfoTwo } =
+      await databaseTwo.setup({
+        schema: schema,
+        buildId: "abc",
+      });
+
+    const readonlyIndexingStore = getReadonlyStore({
+      kind: context.databaseConfig.kind,
+      schema,
+      db: databaseTwo.indexingDb,
+      namespaceInfo: namespaceInfoTwo,
+    });
+
+    expect(checkpoint).toMatchObject(newCheckpoint);
+
+    const { items: pets } = await readonlyIndexingStore.findMany({
+      tableName: "Pet",
+    });
+
+    expect(pets.length).toBe(1);
+    expect(pets[0].name).toBe("Skip");
+
+    await databaseTwo.kill();
+  });
+
+  test("setup succeeds with a prior app with same buildId in different namespace", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+    });
+
+    const { checkpoint } = await database.setup({ schema, buildId: "abc" });
+    expect(checkpoint).toMatchObject(zeroCheckpoint);
+
+    await database.kill();
+
+    const databaseTwo = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: `_${context.databaseConfig.schema}`,
+    });
+
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "abc", "Pet"]),
+      hash(["public", "abc", "Person"]),
+    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
+      "Pet",
+      "Person",
+    ]);
+
+    await databaseTwo.setup({
+      schema: schemaTwo,
+      buildId: "def",
+    });
+
+    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
+      "kysely_migration",
+      "kysely_migration_lock",
+      "namespace_lock",
+      hash(["public", "abc", "Pet"]),
+      hash(["public", "abc", "Person"]),
+      hash(["_public", "def", "Dog"]),
+      hash(["_public", "def", "Apple"]),
+    ]);
+    expect(await getTableNames(databaseTwo.db, "_public")).toStrictEqual([
+      "Dog",
+      "Apple",
+    ]);
+
+    await databaseTwo.kill();
+  });
+
   test("heartbeat updates the heartbeat_at value", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const options = {

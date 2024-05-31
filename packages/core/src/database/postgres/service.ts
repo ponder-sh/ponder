@@ -199,11 +199,18 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     return this.db.wrap({ method: "setup" }, async () => {
       const attemptSetup = async () => {
         return await this.db.transaction().execute(async (tx) => {
-          const previousLockRow = await tx
+          const namespaceLockRow = await tx
             .withSchema(this.internalNamespace)
             .selectFrom("namespace_lock")
             .selectAll()
             .where("namespace", "=", this.userNamespace)
+            .executeTakeFirst();
+
+          const buildIdLockRow = await tx
+            .withSchema(this.internalNamespace)
+            .selectFrom("namespace_lock")
+            .selectAll()
+            .where("build_id", "=", buildId)
             .executeTakeFirst();
 
           const newLockRow = {
@@ -262,8 +269,176 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             }
           };
 
-          // If no lock row is found for this namespace, we can acquire the lock.
-          if (previousLockRow === undefined) {
+          // If no lock rows are found, we can acquire the lock.
+          if (namespaceLockRow === undefined && buildIdLockRow === undefined) {
+            await tx
+              .withSchema(this.internalNamespace)
+              .insertInto("namespace_lock")
+              .values(newLockRow)
+              .execute();
+            this.common.logger.debug({
+              service: "database",
+              msg: `Acquired lock on new schema '${this.userNamespace}'`,
+            });
+
+            await createTables();
+
+            return { status: "success", checkpoint: zeroCheckpoint } as const;
+          }
+
+          if (namespaceLockRow === undefined) {
+            // buildIdLockRow is defined
+
+            // If the lock row is held and has not expired, we cannot proceed.
+            const expiresAt =
+              buildIdLockRow!.heartbeat_at +
+              this.common.options.databaseHeartbeatTimeout;
+
+            if (buildIdLockRow!.is_locked === 1 && Date.now() <= expiresAt) {
+              const expiresInMs = expiresAt - Date.now();
+              return { status: "locked", expiresInMs } as const;
+            }
+
+            // If the lock row has a non-zero finalized checkpoint,
+            // we can revert unfinalized rows and continue where it left off.
+            // Note that the userNamespace is not the same, so we must switch
+            // the current app to use the namespace of the app that last had the lock.
+            if (
+              this.common.options.command === "start" &&
+              buildIdLockRow!.finalized_checkpoint !==
+                encodeCheckpoint(zeroCheckpoint)
+            ) {
+              this.common.logger.info({
+                service: "database",
+                msg: `Detected cache hit for build '${
+                  this.buildId
+                }' in schema '${
+                  buildIdLockRow!.namespace
+                }' last active ${formatEta(
+                  Date.now() - buildIdLockRow!.heartbeat_at,
+                )} ago`,
+              });
+
+              // Update user namespace to the namespace of the previous lock holder.
+              this.userNamespace = buildIdLockRow!.namespace;
+              namespaceInfo.userNamespace = buildIdLockRow!.namespace;
+              namespaceInfo.internalTableIds = Object.keys(
+                getTables(schema),
+              ).reduce((acc, tableName) => {
+                acc[tableName] = hash([
+                  this.userNamespace,
+                  this.buildId,
+                  tableName,
+                ]);
+                return acc;
+              }, {} as { [tableName: string]: string });
+
+              // Remove any indexes, will be recreated once the app
+              // becomes healthy.
+              for (const [tableName, table] of Object.entries(
+                getTables(schema),
+              )) {
+                if (table.constraints === undefined) continue;
+
+                for (const name of Object.keys(table.constraints)) {
+                  await tx.schema
+                    .withSchema(this.userNamespace)
+                    .dropIndex(`${tableName}_${name}`)
+                    .ifExists()
+                    .execute();
+
+                  this.common.logger.info({
+                    service: "database",
+                    msg: `Dropped index '${tableName}_${name}' in schema '${this.userNamespace}'`,
+                  });
+                }
+              }
+
+              await tx
+                .withSchema(this.internalNamespace)
+                .updateTable("namespace_lock")
+                .set({ is_locked: 1, heartbeat_at: Date.now() })
+                .where("build_id", "=", buildId)
+                .execute();
+              this.common.logger.debug({
+                service: "database",
+                msg: `Acquired lock on schema '${this.userNamespace}'`,
+              });
+
+              const finalizedCheckpoint = decodeCheckpoint(
+                buildIdLockRow!.finalized_checkpoint,
+              );
+
+              this.common.logger.info({
+                service: "database",
+                msg: `Reverting operations prior to finalized checkpoint (timestamp=${finalizedCheckpoint.blockTimestamp} chainId=${finalizedCheckpoint.chainId} block=${finalizedCheckpoint.blockNumber})`,
+              });
+
+              // Revert unfinalized data from the existing tables.
+              const tx_ = tx as KyselyTransaction<any>;
+              for (const [tableName, tableId] of Object.entries(
+                namespaceInfo.internalTableIds,
+              )) {
+                const rows = await tx_
+                  .withSchema(namespaceInfo.internalNamespace)
+                  .deleteFrom(tableId)
+                  .returningAll()
+                  .where(
+                    "checkpoint",
+                    ">",
+                    buildIdLockRow!.finalized_checkpoint,
+                  )
+                  .execute();
+
+                const reversed = rows.sort(
+                  (a, b) => b.operation_id - a.operation_id,
+                );
+
+                for (const log of reversed) {
+                  if (log.operation === 0) {
+                    // Create
+                    await tx_
+                      .withSchema(namespaceInfo.userNamespace)
+                      .deleteFrom(tableName)
+                      .where("id", "=", log.id)
+                      .execute();
+                  } else if (log.operation === 1) {
+                    // Update
+                    log.operation_id = undefined;
+                    log.checkpoint = undefined;
+                    log.operation = undefined;
+                    await tx_
+                      .withSchema(namespaceInfo.userNamespace)
+                      .updateTable(tableName)
+                      .set(log)
+                      .where("id", "=", log.id)
+                      .execute();
+                  } else {
+                    // Delete
+                    log.operation_id = undefined;
+                    log.checkpoint = undefined;
+                    log.operation = undefined;
+                    await tx_
+                      .withSchema(namespaceInfo.userNamespace)
+                      .insertInto(tableName)
+                      .values(log)
+                      .execute();
+                  }
+                }
+
+                this.common.logger.info({
+                  service: "database",
+                  msg: `Reverted ${rows.length} unfinalized operations from existing '${tableName}' table`,
+                });
+              }
+
+              return {
+                status: "success",
+                checkpoint: finalizedCheckpoint,
+              } as const;
+            }
+
+            // Otherwise, create new tables.
             await tx
               .withSchema(this.internalNamespace)
               .insertInto("namespace_lock")
@@ -281,10 +456,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
           // If the lock row is held and has not expired, we cannot proceed.
           const expiresAt =
-            previousLockRow.heartbeat_at +
+            namespaceLockRow.heartbeat_at +
             this.common.options.databaseHeartbeatTimeout;
 
-          if (previousLockRow.is_locked === 1 && Date.now() <= expiresAt) {
+          if (namespaceLockRow.is_locked === 1 && Date.now() <= expiresAt) {
             const expiresInMs = expiresAt - Date.now();
             return { status: "locked", expiresInMs } as const;
           }
@@ -294,8 +469,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           // rows and continue where it left off.
           if (
             this.common.options.command === "start" &&
-            previousLockRow.build_id === this.buildId &&
-            previousLockRow.finalized_checkpoint !==
+            namespaceLockRow.build_id === this.buildId &&
+            namespaceLockRow.finalized_checkpoint !==
               encodeCheckpoint(zeroCheckpoint)
           ) {
             this.common.logger.info({
@@ -303,7 +478,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               msg: `Detected cache hit for build '${this.buildId}' in schema '${
                 this.userNamespace
               }' last active ${formatEta(
-                Date.now() - previousLockRow.heartbeat_at,
+                Date.now() - namespaceLockRow.heartbeat_at,
               )} ago`,
             });
 
@@ -332,6 +507,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               .withSchema(this.internalNamespace)
               .updateTable("namespace_lock")
               .set({ is_locked: 1, heartbeat_at: Date.now() })
+              .where("namespace", "=", this.userNamespace)
               .execute();
             this.common.logger.debug({
               service: "database",
@@ -339,7 +515,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             });
 
             const finalizedCheckpoint = decodeCheckpoint(
-              previousLockRow.finalized_checkpoint,
+              namespaceLockRow.finalized_checkpoint,
             );
 
             this.common.logger.info({
@@ -356,7 +532,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 .withSchema(namespaceInfo.internalNamespace)
                 .deleteFrom(tableId)
                 .returningAll()
-                .where("checkpoint", ">", previousLockRow.finalized_checkpoint)
+                .where("checkpoint", ">", namespaceLockRow.finalized_checkpoint)
                 .execute();
 
               const reversed = rows.sort(
@@ -409,10 +585,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
           // Otherwise, the lock row has a different build ID or a zero finalized checkpoint,
           // so we need to drop the previous app's tables and create new ones.
-          const previousBuildId = previousLockRow.build_id;
+          const previousBuildId = namespaceLockRow.build_id;
           // Note: `previousSchema` should only be used to get table names or enum names because
           // the types of `Table` and `Enum` have changed between versions.
-          const previousSchema = previousLockRow.schema as unknown as {
+          const previousSchema = namespaceLockRow.schema as unknown as {
             tables: { [tableName: string]: Table };
             enums: { [enumName: string]: Enum };
           };
