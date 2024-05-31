@@ -34,6 +34,7 @@ import {
   buildTraceFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
+import { never } from "@/utils/never.js";
 import { range } from "@/utils/range.js";
 import {
   type ExpressionBuilder,
@@ -2486,6 +2487,212 @@ export class PostgresSyncStore implements SyncStore {
 
     return exprs;
   };
+
+  async pruneByChain({ chainId }: { chainId: number }) {
+    await this.db.wrap({ method: "pruneByChain" }, () =>
+      this.db.transaction().execute(async (tx) => {
+        // blocks
+        const blockFilterIds = await tx
+          .deleteFrom("blockFilters")
+          .where("chainId", "=", chainId)
+          .returning("id")
+          .execute();
+
+        await tx
+          .deleteFrom("blockFilterIntervals")
+          .where(
+            "blockFilterId",
+            "in",
+            blockFilterIds.map(({ id }) => id),
+          )
+          .execute();
+
+        await tx.deleteFrom("blocks").where("chainId", "=", chainId).execute();
+
+        // logs
+        const logFilterIds = await tx
+          .deleteFrom("logFilters")
+          .where("chainId", "=", chainId)
+          .returning("id")
+          .execute();
+        await tx
+          .deleteFrom("logFilterIntervals")
+          .where(
+            "logFilterId",
+            "in",
+            logFilterIds.map(({ id }) => id),
+          )
+          .execute();
+
+        const factoryLogFilterIds = await tx
+          .deleteFrom("factoryLogFilters")
+          .where("chainId", "=", chainId)
+          .returning("id")
+          .execute();
+        await tx
+          .deleteFrom("factoryLogFilterIntervals")
+          .where(
+            "factoryId",
+            "in",
+            factoryLogFilterIds.map(({ id }) => id),
+          )
+          .execute();
+
+        await tx.deleteFrom("logs").where("chainId", "=", chainId).execute();
+
+        // traces
+        const traceFilterIds = await tx
+          .deleteFrom("traceFilters")
+          .where("chainId", "=", chainId)
+          .returning("id")
+          .execute();
+        await tx
+          .deleteFrom("traceFilterIntervals")
+          .where(
+            "traceFilterId",
+            "in",
+            traceFilterIds.map(({ id }) => id),
+          )
+          .execute();
+
+        const factoryTraceFilterIds = await tx
+          .deleteFrom("factoryTraceFilters")
+          .where("chainId", "=", chainId)
+          .returning("id")
+          .execute();
+        await tx
+          .deleteFrom("factoryTraceFilterIntervals")
+          .where(
+            "factoryId",
+            "in",
+            factoryTraceFilterIds.map(({ id }) => id),
+          )
+          .execute();
+
+        await tx
+          .deleteFrom("callTraces")
+          .where("chainId", "=", chainId)
+          .execute();
+
+        // transactions
+        await tx
+          .deleteFrom("transactions")
+          .where("chainId", "=", chainId)
+          .execute();
+        await tx
+          .deleteFrom("transactionReceipts")
+          .where("chainId", "=", chainId)
+          .execute();
+
+        // rpc requests
+        await tx
+          .deleteFrom("rpcRequestResults")
+          .where("chainId", "=", chainId)
+          .execute();
+      }),
+    );
+  }
+
+  async pruneBySource({ source }: { source: EventSource }) {
+    switch (source.type) {
+      case "log": {
+        await this.db.wrap({ method: "pruneByChain" }, () =>
+          this.db.transaction().execute(async (tx) => {
+            const fragments = buildLogFilterFragments({
+              ...source.criteria,
+              chainId: source.chainId,
+            });
+
+            await tx
+              .with(
+                "logFilterFragments(fragmentId, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3, fragmentIncludeTransactionReceipts)",
+                () =>
+                  sql`( values ${sql.join(
+                    fragments.map(
+                      (f) =>
+                        sql`( ${sql.val(f.id)}, ${sql.val(
+                          f.address,
+                        )}, ${sql.val(f.topic0)}, ${sql.val(
+                          f.topic1,
+                        )}, ${sql.val(f.topic2)}, ${sql.val(
+                          f.topic3,
+                        )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                    ),
+                  )} )`,
+              )
+              .with("deleteLogFilterFragments", (qb) =>
+                qb
+                  .selectFrom("logFilterIntervals")
+                  .innerJoin("logFilters", "logFilterId", "logFilters.id")
+                  // .innerJoin("logFilterFragments", (join) => {
+                  //   let baseJoin = join.on((eb) =>
+                  //     eb.or([
+                  //       eb("address", "is", null),
+                  //       eb("fragmentAddress", "=", sql.ref("address")),
+                  //     ]),
+                  //   );
+                  //   baseJoin = baseJoin.on((eb) =>
+                  //     eb(
+                  //       "fragmentIncludeTransactionReceipts",
+                  //       "<=",
+                  //       sql.ref("includeTransactionReceipts"),
+                  //     ),
+                  //   );
+                  //   for (const idx_ of range(0, 4)) {
+                  //     baseJoin = baseJoin.on((eb) => {
+                  //       const idx = idx_ as 0 | 1 | 2 | 3;
+                  //       return eb.or([
+                  //         eb(`topic${idx}`, "is", null),
+                  //         eb(
+                  //           `fragmentTopic${idx}`,
+                  //           "=",
+                  //           sql.ref(`topic${idx}`),
+                  //         ),
+                  //       ]);
+                  //     });
+                  //   }
+
+                  //   return baseJoin;
+                  // })
+                  .select("logFilterId")
+                  .where("chainId", "=", source.chainId)
+                  .where("startBlock", "<", BigInt(source.startBlock)),
+              )
+              .deleteFrom("logFilterIntervals")
+              .returningAll()
+              .where(
+                "logFilterId",
+                "in",
+                sql`SELECT "logFilterId" FROM ${sql.table(
+                  "deleteLogFilterFragments",
+                )}`,
+              )
+              .execute();
+          }),
+        );
+        break;
+      }
+
+      case "factoryLog": {
+        break;
+      }
+
+      case "callTrace": {
+        break;
+      }
+
+      case "factoryCallTrace": {
+        break;
+      }
+
+      case "block": {
+        break;
+      }
+
+      default:
+        never(source);
+    }
+  }
 }
 
 function buildFactoryChildAddressSelectExpression({

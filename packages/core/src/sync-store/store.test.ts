@@ -2895,3 +2895,201 @@ test("getLastEventCheckpoint empty", async (context) => {
 
   await cleanup();
 });
+
+test("pruneByChainId", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 2n,
+      endBlock: 2n,
+    },
+  });
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 2n,
+      endBlock: 2n,
+    },
+  });
+
+  await syncStore.pruneByChain({ chainId: 2 });
+
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+  expect(blocks).toHaveLength(1);
+
+  const transactions = await syncStore.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+  expect(transactions).toHaveLength(2);
+
+  const transactionReceipts = await syncStore.db
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
+  expect(transactionReceipts).toHaveLength(2);
+
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
+  expect(logs).toHaveLength(2);
+
+  const logFilters = await syncStore.db
+    .selectFrom("logFilters")
+    .selectAll()
+    .execute();
+  expect(logFilters).toHaveLength(1);
+
+  await cleanup();
+});
+
+test("pruneBySource deletes log filter", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneBySource({ source: sources[0] });
+
+  const logFilterIntervals = await syncStore.db
+    .selectFrom("logFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(logFilterIntervals).toHaveLength(1);
+  await cleanup();
+});
+
+test("pruneBySource updates log filter", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneBySource({ source: sources[0] });
+
+  const logFilterIntervals = await syncStore.db
+    .selectFrom("logFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(logFilterIntervals).toHaveLength(2);
+  expect(Number(logFilterIntervals[0].endBlock)).toBe(0);
+
+  await cleanup();
+});
+
+test("pruneBySource deletes factory log filter", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneBySource({ source: sources[1] });
+
+  const factoryLogFilterIntervals = await syncStore.db
+    .selectFrom("factoryLogFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(factoryLogFilterIntervals).toHaveLength(1);
+  await cleanup();
+});
+
+test("pruneBySource updates factory log filter", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneBySource({ source: sources[1] });
+
+  const factoryLogFilterIntervals = await syncStore.db
+    .selectFrom("factoryLogFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(factoryLogFilterIntervals).toHaveLength(2);
+  expect(Number(factoryLogFilterIntervals[0].endBlock)).toBe(0);
+
+  await cleanup();
+});

@@ -273,4 +273,10 @@ export interface SyncStore {
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
   }): Promise<Checkpoint | undefined>;
+
+  /** PRUNING */
+
+  pruneByChain(arg: { chainId: number }): Promise<void>;
+
+  pruneBySource(arg: { source: EventSource }): Promise<void>;
 }
