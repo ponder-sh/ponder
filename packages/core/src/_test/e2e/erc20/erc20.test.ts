@@ -25,14 +25,20 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
+const cliOptions = {
+  root: rootDir,
+  config: "ponder.config.ts",
+  logLevel: "error",
+  logFormat: "pretty",
+};
+
 test("erc20", async (context) => {
   const port = await getFreePort();
 
   const cleanup = await start({
     cliOptions: {
+      ...cliOptions,
       command: "start",
-      root: rootDir,
-      config: "ponder.config.ts",
       port,
     },
   });
@@ -107,9 +113,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const cleanupStart = await start({
       cliOptions: {
+        ...cliOptions,
         command: "start",
-        root: "./src/_test/e2e/erc20",
-        config: "ponder.config.ts",
         port: startPort,
       },
     });
@@ -127,9 +132,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const cleanupServe = await serve({
       cliOptions: {
+        ...cliOptions,
         command: "serve",
-        root: "./src/_test/e2e/erc20",
-        config: "ponder.config.ts",
         port: servePort,
       },
     });

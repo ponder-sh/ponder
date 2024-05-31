@@ -1,3 +1,4 @@
+import { BuildError } from "@/common/errors.js";
 import type { Schema } from "@/schema/common.js";
 import {
   extractReferenceTable,
@@ -339,8 +340,9 @@ export function safeBuildSchema({ schema }: { schema: Schema }) {
       schema: result.schema,
       logs: result.logs,
     } as const;
-  } catch (error_) {
-    const error = error_ as Error;
-    return { status: "error", error } as const;
+  } catch (_error) {
+    const buildError = new BuildError((_error as Error).message);
+    buildError.stack = undefined;
+    return { status: "error", error: buildError } as const;
   }
 }

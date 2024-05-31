@@ -113,7 +113,7 @@ export const createRequestQueue = ({
         if (shouldRetry(error) === false) {
           common.logger.warn({
             service: "sync",
-            msg: `Failed '${request.method}' RPC request with non-retryable error: ${error.message}`,
+            msg: `Failed '${request.method}' RPC request`,
           });
           throw error;
         }
@@ -123,7 +123,8 @@ export const createRequestQueue = ({
             service: "sync",
             msg: `Failed '${request.method}' RPC request after ${
               i + 1
-            } attempts with error: ${error.message}`,
+            } attempts`,
+            error,
           });
           throw error;
         }
@@ -131,7 +132,8 @@ export const createRequestQueue = ({
         const duration = BASE_DURATION * 2 ** i;
         common.logger.debug({
           service: "sync",
-          msg: `Failed '${request.method}' RPC request, retrying after ${duration} milliseconds. Error: ${error.message}`,
+          msg: `Failed '${request.method}' RPC request, retrying after ${duration} milliseconds`,
+          error,
         });
         await wait(duration);
       }

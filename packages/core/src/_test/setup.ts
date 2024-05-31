@@ -56,11 +56,15 @@ declare module "vitest" {
 }
 
 export function setupCommon(context: TestContext) {
-  const options = {
-    ...buildOptions({ cliOptions: { command: "start", config: "", root: "" } }),
-    telemetryDisabled: true,
-  };
-  const logger = createLogger({ level: "silent" });
+  const cliOptions = {
+    command: "start",
+    config: "",
+    root: "",
+    logLevel: "silent",
+    logFormat: "pretty",
+  } as const;
+  const options = { ...buildOptions({ cliOptions }), telemetryDisabled: true };
+  const logger = createLogger({ level: cliOptions.logLevel });
   const metrics = new MetricsService();
   const telemetry = createTelemetry({ options, logger });
   context.common = { options, logger, metrics, telemetry };

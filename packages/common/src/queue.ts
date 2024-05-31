@@ -48,19 +48,19 @@ const validateParameters = ({
   "frequency" | "concurrency"
 >) => {
   if (concurrency === undefined && frequency === undefined) {
-    throw Error(
+    throw new Error(
       "Invalid queue configuration, must specify either 'concurrency' or 'frequency'.",
     );
   }
 
   if (concurrency !== undefined && concurrency <= 0) {
-    throw Error(
+    throw new Error(
       `Invalid value for queue 'concurrency' option. Got ${concurrency}, expected a number greater than zero.`,
     );
   }
 
   if (frequency !== undefined && frequency <= 0) {
-    throw Error(
+    throw new Error(
       `Invalid value for queue 'frequency' option. Got ${frequency}, expected a number greater than zero.`,
     );
   }

@@ -17,7 +17,7 @@ pg.Client.prototype.query = function query(
   try {
     return originalClientQuery.apply(this, args);
   } catch (error_) {
-    const error = error_ as Error & { detail?: string; meta?: string };
+    const error = error_ as Error & { detail?: string; meta?: string[] };
     const [statement, parameters_] = args ?? ["empty", []];
 
     error.name = "PostgresError";
@@ -35,12 +35,10 @@ pg.Client.prototype.query = function query(
       {},
     );
 
-    const metaMessages = [];
-    if (error.detail) metaMessages.push(`Detail:\n  ${error.detail}`);
-    metaMessages.push(`Statement:\n  ${statement}`);
-    metaMessages.push(`Parameters:\n${prettyPrint(params)}`);
-
-    error.meta = metaMessages.join("\n");
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    if (error.detail) error.meta.push(`Detail:\n  ${error.detail}`);
+    error.meta.push(`Statement:\n  ${statement}`);
+    error.meta.push(`Parameters:\n${prettyPrint(params)}`);
 
     throw error;
   }

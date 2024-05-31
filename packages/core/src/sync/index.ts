@@ -12,6 +12,7 @@ import {
   type Log,
   type LogTopic,
   type RpcBlock,
+  type RpcTransaction,
   type RpcTransactionReceipt,
   TransactionReceiptNotFoundError,
   numberToHex,
@@ -46,6 +47,7 @@ export type BaseSyncService = {
 
 export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
 export type SyncLog = Log<Hex, Hex, false>;
+export type SyncTransaction = RpcTransaction;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
 export type SyncTrace =
   | SyncCallTrace

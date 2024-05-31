@@ -33,11 +33,21 @@ const ponder = new Command("ponder")
   )
   .option(
     "-v, --debug",
-    "Enable debug-level logs, e.g. realtime blocks, internal events",
+    "Enable debug logs, e.g. realtime blocks, internal events",
   )
   .option(
     "-vv, --trace",
-    "Enable trace-level logs, e.g. db queries, indexing checkpoints",
+    "Enable trace logs, e.g. db queries, indexing checkpoints",
+  )
+  .option(
+    "--log-level <LEVEL>",
+    'Minimum log level ("error", "warn", "info", "debug", or "trace")',
+    "info",
+  )
+  .option(
+    "--log-format <FORMAT>",
+    'The log format ("pretty" or "json")',
+    "pretty",
   )
   .version(packageJson.version, "-V, --version", "Show the version number")
   .configureHelp({ showGlobalOptions: true })
@@ -53,6 +63,7 @@ const devCommand = new Command("dev")
   .description("Start the development server with hot reloading")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
       ...command.optsWithGlobals(),
@@ -65,6 +76,7 @@ const startCommand = new Command("start")
   .description("Start the production server")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
       ...command.optsWithGlobals(),
@@ -77,6 +89,7 @@ const serveCommand = new Command("serve")
   .description("Start the production HTTP server without the indexer")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
       ...command.optsWithGlobals(),
@@ -87,6 +100,7 @@ const serveCommand = new Command("serve")
 
 const codegenCommand = new Command("codegen")
   .description("Generate the schema.graphql file, then exit")
+  .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
       ...command.optsWithGlobals(),
