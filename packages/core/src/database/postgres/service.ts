@@ -287,8 +287,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           }
 
           if (namespaceLockRow === undefined) {
-            // buildIdLockRow is defined
-
             // If the lock row is held and has not expired, we cannot proceed.
             const expiresAt =
               buildIdLockRow!.heartbeat_at +
