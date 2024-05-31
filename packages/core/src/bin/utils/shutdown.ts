@@ -77,7 +77,7 @@ export function setupShutdown({
     if (error instanceof IgnorableError) return;
     common.logger.error({
       service: "process",
-      msg: "Caught uncaughtException event with error:",
+      msg: "Caught uncaughtException event",
       error,
     });
     shutdown({ reason: "Received uncaughtException", code: 1 });
@@ -86,7 +86,7 @@ export function setupShutdown({
     if (error instanceof IgnorableError) return;
     common.logger.error({
       service: "process",
-      msg: "Caught unhandledRejection event with error:",
+      msg: "Caught unhandledRejection event",
       error,
     });
     shutdown({ reason: "Received unhandledRejection", code: 1 });

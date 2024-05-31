@@ -22,14 +22,20 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
+const cliOptions = {
+  root: "./src/_test/e2e/factory",
+  config: "ponder.config.ts",
+  logLevel: "error",
+  logFormat: "pretty",
+};
+
 test("factory", async (context) => {
   const port = await getFreePort();
 
   const cleanup = await start({
     cliOptions: {
+      ...cliOptions,
       command: "start",
-      root: "./src/_test/e2e/factory",
-      config: "ponder.config.ts",
       port,
     },
   });

@@ -11,7 +11,9 @@ import type {
 } from "@/config/sources.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import {
+  type SyncBlock,
   type SyncCallTrace,
+  type SyncLog,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
@@ -32,14 +34,7 @@ import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { debounce, dedupe } from "@ponder/common";
 import Emittery from "emittery";
-import {
-  type Hash,
-  type RpcBlock,
-  type RpcLog,
-  hexToNumber,
-  numberToHex,
-  toHex,
-} from "viem";
+import { type Hash, hexToNumber, numberToHex, toHex } from "viem";
 
 const HISTORICAL_CHECKPOINT_EMIT_INTERVAL = 500;
 const TRACE_FILTER_CHUNK_SIZE = 10;
@@ -102,7 +97,7 @@ type BlockFilterTask = {
 type BlockTask = {
   kind: "BLOCK";
   blockNumber: number;
-  callbacks: ((block: HistoricalBlock) => Promise<void>)[];
+  callbacks: ((block: SyncBlock) => Promise<void>)[];
 };
 
 type HistoricalSyncTask =
@@ -113,8 +108,6 @@ type HistoricalSyncTask =
   | FactoryTraceFilterTask
   | BlockFilterTask
   | BlockTask;
-
-type HistoricalBlock = RpcBlock<"finalized", true>;
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private common: Common;
@@ -147,7 +140,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    */
   private blockCallbacks: Record<
     number,
-    ((block: HistoricalBlock) => Promise<void>)[]
+    ((block: SyncBlock) => Promise<void>)[]
   > = {};
 
   /**
@@ -923,7 +916,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           case "FACTORY_CHILD_ADDRESS": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Failed to sync '${this.network.name}' child address logs for '${task.factory.contractName}' from block ${task.fromBlock} to ${task.toBlock} with error: ${error.message}`,
+              msg: `Failed to sync '${this.network.name}' child address logs for '${task.factory.contractName}' from block ${task.fromBlock} to ${task.toBlock}`,
+              error,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
             queue.addTask({ ...task }, { priority });
@@ -932,7 +926,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           case "LOG_FILTER": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Failed to sync '${this.network.name}' logs for '${task.logFilter.contractName}' from block ${task.fromBlock} to ${task.toBlock} with error: ${error.message}`,
+              msg: `Failed to sync '${this.network.name}' logs for '${task.logFilter.contractName}' from block ${task.fromBlock} to ${task.toBlock}`,
+              error,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
             queue.addTask({ ...task }, { priority });
@@ -941,7 +936,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           case "FACTORY_LOG_FILTER": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Failed to sync '${this.network.name}' logs for '${task.factoryLogFilter.contractName}' from block ${task.fromBlock} to ${task.toBlock} with error: ${error.message}`,
+              msg: `Failed to sync '${this.network.name}' logs for '${task.factoryLogFilter.contractName}' from block ${task.fromBlock} to ${task.toBlock}`,
+              error,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
             queue.addTask({ ...task }, { priority });
@@ -950,7 +946,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           case "TRACE_FILTER": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Failed to sync '${this.network.name}' call traces for '${task.traceFilter.contractName}' from block ${task.fromBlock} to ${task.toBlock} with error: ${error.message}`,
+              msg: `Failed to sync '${this.network.name}' call traces for '${task.traceFilter.contractName}' from block ${task.fromBlock} to ${task.toBlock}`,
+              error,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
             queue.addTask({ ...task }, { priority });
@@ -960,7 +957,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           case "FACTORY_TRACE_FILTER": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Failed to sync '${this.network.name}' call traces for '${task.factoryTraceFilter.contractName}' from block ${task.fromBlock} to ${task.toBlock} with error: ${error.message}`,
+              msg: `Failed to sync '${this.network.name}' call traces for '${task.factoryTraceFilter.contractName}' from block ${task.fromBlock} to ${task.toBlock}`,
+              error,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
             queue.addTask({ ...task }, { priority });
@@ -969,7 +967,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           case "BLOCK_FILTER": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Failed to sync '${this.network.name}' blocks for '${task.blockFilter.sourceName}' from block ${task.fromBlock} to ${task.toBlock} with error: ${error.message}`,
+              msg: `Failed to sync '${this.network.name}' blocks for '${task.blockFilter.sourceName}' from block ${task.fromBlock} to ${task.toBlock}`,
+              error,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;
             queue.addTask({ ...task }, { priority });
@@ -978,7 +977,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           case "BLOCK": {
             this.common.logger.warn({
               service: "historical",
-              msg: `Failed to sync '${this.network.name}' block ${task.blockNumber} with error: ${error.message}`,
+              msg: `Failed to sync '${this.network.name}' block ${task.blockNumber}`,
+              error,
             });
             const priority = Number.MAX_SAFE_INTEGER - task.blockNumber;
             queue.addTask({ ...task }, { priority });
@@ -1097,7 +1097,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       toBlock: BigInt(toBlock),
     });
 
-    const logs: RpcLog[] = [];
+    const logs: SyncLog[] = [];
     for await (const childContractAddressBatch of iterator) {
       const _logs = await _eth_getLogs(
         { requestQueue: this.requestQueue },
@@ -1772,9 +1772,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }: {
     fromBlock: number;
     toBlock: number;
-    logs: RpcLog[];
+    logs: SyncLog[];
   }) => {
-    const logsByBlockNumber: Record<number, RpcLog[] | undefined> = {};
+    const logsByBlockNumber: Record<number, SyncLog[] | undefined> = {};
     const txHashesByBlockNumber: Record<number, Set<Hash> | undefined> = {};
 
     logs.forEach((log) => {
@@ -1798,7 +1798,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const requiredIntervals: {
       startBlock: number;
       endBlock: number;
-      logs: RpcLog[];
+      logs: SyncLog[];
       transactionHashes: Set<Hash>;
     }[] = [];
 

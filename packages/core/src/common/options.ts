@@ -26,6 +26,7 @@ export type Options = {
   telemetryConfigDir: string | undefined;
 
   logLevel: LevelWithSilent;
+  logFormat: "json" | "pretty";
 
   databaseHeartbeatInterval: number;
   databaseHeartbeatTimeout: number;
@@ -40,7 +41,9 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
   }
 
   let logLevel: LevelWithSilent;
-  if (cliOptions.trace === true) {
+  if (cliOptions.logLevel) {
+    logLevel = cliOptions.logLevel as LevelWithSilent;
+  } else if (cliOptions.trace === true) {
     logLevel = "trace";
   } else if (cliOptions.debug === true) {
     logLevel = "debug";
@@ -90,6 +93,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     telemetryConfigDir: undefined,
 
     logLevel,
+    logFormat: cliOptions.logFormat! as Options["logFormat"],
 
     databaseHeartbeatInterval: 10 * 1000,
     databaseHeartbeatTimeout: 25 * 1000,

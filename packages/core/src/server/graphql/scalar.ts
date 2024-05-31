@@ -1,3 +1,4 @@
+import { BuildError } from "@/common/errors.js";
 import type { Scalar } from "@/schema/common.js";
 import {
   GraphQLBoolean,
@@ -15,7 +16,7 @@ const GraphQLBigInt = new GraphQLScalarType({
     if (value.kind === "StringValue") {
       return BigInt(value.value);
     } else {
-      throw new Error(
+      throw new BuildError(
         `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
       );
     }
