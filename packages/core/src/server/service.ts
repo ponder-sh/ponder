@@ -117,7 +117,7 @@ export async function createServer({
         const metrics = await common.metrics.getMetrics();
         return c.text(metrics);
       } catch (error) {
-        return c.json(error, 500);
+        return c.json(error as Error, 500);
       }
     })
     .get("/health", async (c) => {
