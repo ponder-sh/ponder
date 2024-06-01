@@ -260,6 +260,10 @@ export const getHistoricalStore = ({
           },
         ),
       );
+
+      for (const tableName of Object.keys(getTables(schema))) {
+        storeCache[tableName] = {};
+      }
     },
   };
 };
