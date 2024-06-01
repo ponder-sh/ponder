@@ -189,6 +189,13 @@ export async function run({
     },
   });
 
+  const historicalStore = getHistoricalStore({
+    kind: database.kind,
+    schema,
+    namespaceInfo,
+    db: database.indexingDb,
+  });
+
   let indexingStore: IndexingStore = {
     ...getReadonlyStore({
       kind: database.kind,
@@ -196,12 +203,7 @@ export async function run({
       namespaceInfo,
       db: database.indexingDb,
     }),
-    ...getHistoricalStore({
-      kind: database.kind,
-      schema,
-      namespaceInfo,
-      db: database.indexingDb,
-    }),
+    ...historicalStore,
   };
 
   const indexingService = createIndexingService({
@@ -261,6 +263,8 @@ export async function run({
         }
       }
     }
+
+    await historicalStore.flush();
 
     // Become healthy
     common.logger.info({
