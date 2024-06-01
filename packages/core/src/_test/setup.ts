@@ -170,6 +170,7 @@ export async function setupDatabaseServices(
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
+            logger: context.common.logger,
           })
         : getRealtimeStore({
             kind: "sqlite",
@@ -222,6 +223,7 @@ export async function setupDatabaseServices(
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
+            logger: context.common.logger,
           })
         : getRealtimeStore({
             kind: "postgres",

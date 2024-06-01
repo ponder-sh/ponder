@@ -194,6 +194,7 @@ export async function run({
     schema,
     namespaceInfo,
     db: database.indexingDb,
+    logger: common.logger,
   });
 
   let indexingStore: IndexingStore = {

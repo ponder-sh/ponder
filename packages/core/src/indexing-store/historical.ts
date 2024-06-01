@@ -1,20 +1,20 @@
+import { NonRetryableError } from "@/common/errors.js";
+import type { Logger } from "@/common/logger.js";
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import { getTables } from "@/schema/utils.js";
-import type {
-  DatabaseColumn,
-  DatabaseRecord,
-  UserId,
-  UserRecord,
-} from "@/types/schema.js";
-import { sql } from "kysely";
-import type { WhereInput, WriteStore } from "./store.js";
+import type { DatabaseRecord, UserId, UserRecord } from "@/types/schema.js";
+import { getReadonlyStore } from "./readonly.js";
+import type { HistoricalStore, OrderByInput, WhereInput } from "./store.js";
 import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
-import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
+// @ts-expect-error
+const DEFAULT_LIMIT = 50 as const;
+// @ts-expect-error
+const MAX_LIMIT = 1_000 as const;
 
 type Insert = {
   type: "insert";
@@ -30,19 +30,47 @@ export const getHistoricalStore = ({
   schema,
   namespaceInfo,
   db,
+  logger,
 }: {
   kind: "sqlite" | "postgres";
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
-}): WriteStore<"historical"> => {
+  logger: Logger;
+}): HistoricalStore => {
   const storeCache: StoreCache = {};
+  const isCacheFull = true;
+
+  const readonlyStore = getReadonlyStore({ kind, schema, namespaceInfo, db });
 
   for (const tableName of Object.keys(getTables(schema))) {
     storeCache[tableName] = {};
   }
 
   return {
+    findUnique: async ({
+      tableName,
+      id,
+    }: {
+      tableName: string;
+      id: UserId;
+    }) => {
+      if (isCacheFull) {
+        return storeCache[tableName][id as string | number]?.record ?? null;
+      } else {
+        return readonlyStore.findUnique({ tableName, id });
+      }
+    },
+    findMany: async (_: {
+      tableName: string;
+      where?: WhereInput<any>;
+      orderBy?: OrderByInput<any>;
+      before?: string | null;
+      after?: string | null;
+      limit?: number;
+    }) => {
+      throw new NonRetryableError("Not implemented");
+    },
     create: async ({
       tableName,
       id,
@@ -128,117 +156,14 @@ export const getHistoricalStore = ({
 
       return newRecord;
     },
-    updateMany: async ({
-      tableName,
-      where,
-      data = {},
-    }: {
+    updateMany: async (_: {
       tableName: string;
       where: WhereInput<any>;
       data?:
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const table = (schema[tableName] as { table: Table }).table;
-
-      if (typeof data === "function") {
-        const query = db
-          .withSchema(namespaceInfo.userNamespace)
-          .selectFrom(tableName)
-          .selectAll()
-          .where((eb) =>
-            buildWhereConditions({
-              eb,
-              where,
-              table,
-              encoding: kind,
-            }),
-          )
-          .orderBy("id", "asc");
-
-        const rows: UserRecord[] = [];
-        let cursor: DatabaseColumn = null;
-
-        while (true) {
-          const _rows = await db.wrap(
-            { method: `${tableName}.updateMany` },
-            async () => {
-              const latestRows: DatabaseRecord[] = await query
-                .limit(MAX_BATCH_SIZE)
-                .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
-                .execute();
-
-              const rows: DatabaseRecord[] = [];
-
-              for (const latestRow of latestRows) {
-                const current = decodeRow(latestRow, table, kind);
-                const updateObject = data({ current });
-                // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
-                const updateRow = {
-                  id: latestRow.id,
-                  ...encodeRow(updateObject, table, kind),
-                };
-
-                const row = await db
-                  .withSchema(namespaceInfo.userNamespace)
-                  .updateTable(tableName)
-                  .set(updateRow)
-                  .where("id", "=", latestRow.id)
-                  .returningAll()
-                  .executeTakeFirstOrThrow()
-                  .catch((err) => {
-                    throw parseStoreError(err, updateObject);
-                  });
-                rows.push(row);
-              }
-
-              return rows.map((row) => decodeRow(row, table, kind));
-            },
-          );
-
-          rows.push(..._rows);
-
-          if (_rows.length === 0) {
-            break;
-          } else {
-            cursor = encodeValue(_rows[_rows.length - 1].id, table.id, kind);
-          }
-        }
-
-        return rows;
-      } else {
-        return db.wrap({ method: `${tableName}.updateMany` }, async () => {
-          const updateRow = encodeRow(data, table, kind);
-
-          const rows = await db
-            .with("latestRows(id)", (db) =>
-              db
-                .withSchema(namespaceInfo.userNamespace)
-                .selectFrom(tableName)
-                .select("id")
-                .where((eb) =>
-                  buildWhereConditions({
-                    eb,
-                    where,
-                    table,
-                    encoding: kind,
-                  }),
-                ),
-            )
-            .withSchema(namespaceInfo.userNamespace)
-            .updateTable(tableName)
-            .set(updateRow)
-            .from("latestRows")
-            .where(`${tableName}.id`, "=", sql.ref("latestRows.id"))
-            .returningAll()
-            .execute()
-            .catch((err) => {
-              throw parseStoreError(err, data);
-            });
-
-          return rows.map((row) => decodeRow(row, table, kind));
-        });
-      }
+      throw new NonRetryableError("Not implemented");
     },
     upsert: async ({
       tableName,
@@ -281,82 +206,6 @@ export const getHistoricalStore = ({
 
         return newRecord;
       }
-
-      // const table = (schema[tableName] as { table: Table }).table;
-
-      // return db.wrap({ method: `${tableName}.upsert` }, async () => {
-      //   const encodedId = encodeValue(id, table.id, kind);
-      //   const createRow = encodeRow({ id, ...create }, table, kind);
-
-      //   if (typeof update === "function") {
-      //     const latestRow = await db
-      //       .withSchema(namespaceInfo.userNamespace)
-      //       .selectFrom(tableName)
-      //       .selectAll()
-      //       .where("id", "=", encodedId)
-      //       .executeTakeFirst();
-
-      //     if (latestRow === undefined) {
-      //       const row = await db
-      //         .withSchema(namespaceInfo.userNamespace)
-      //         .insertInto(tableName)
-      //         .values(createRow)
-      //         .returningAll()
-      //         .executeTakeFirstOrThrow()
-      //         .catch((err) => {
-      //           const prettyObject: any = { id };
-      //           for (const [key, value] of Object.entries(create))
-      //             prettyObject[`create.${key}`] = value;
-      //           prettyObject.update = "(function)";
-      //           throw parseStoreError(err, prettyObject);
-      //         });
-
-      //       return decodeRow(row, table, kind);
-      //     }
-
-      //     const current = decodeRow(latestRow, table, kind);
-      //     const updateObject = update({ current });
-      //     const updateRow = encodeRow({ id, ...updateObject }, table, kind);
-
-      //     const row = await db
-      //       .withSchema(namespaceInfo.userNamespace)
-      //       .updateTable(tableName)
-      //       .set(updateRow)
-      //       .where("id", "=", encodedId)
-      //       .returningAll()
-      //       .executeTakeFirstOrThrow()
-      //       .catch((err) => {
-      //         const prettyObject: any = { id };
-      //         for (const [key, value] of Object.entries(create))
-      //           prettyObject[`create.${key}`] = value;
-      //         for (const [key, value] of Object.entries(updateObject))
-      //           prettyObject[`update.${key}`] = value;
-      //         throw parseStoreError(err, prettyObject);
-      //       });
-
-      //     return decodeRow(row, table, kind);
-      //   } else {
-      //     const updateRow = encodeRow({ id, ...update }, table, kind);
-
-      //     const row = await db
-      //       .withSchema(namespaceInfo.userNamespace)
-      //       .insertInto(tableName)
-      //       .values(createRow)
-      //       .onConflict((oc) => oc.column("id").doUpdateSet(updateRow))
-      //       .returningAll()
-      //       .executeTakeFirstOrThrow()
-      //       .catch((err) => {
-      //         const prettyObject: any = { id };
-      //         for (const [key, value] of Object.entries(create))
-      //           prettyObject[`create.${key}`] = value;
-      //         for (const [key, value] of Object.entries(update))
-      //           prettyObject[`update.${key}`] = value;
-      //         throw parseStoreError(err, prettyObject);
-      //       });
-
-      //     return decodeRow(row, table, kind);
-      //   }
-      // });
     },
     delete: async ({
       tableName,
@@ -392,6 +241,11 @@ export const getHistoricalStore = ({
             const rows = Object.values(tableStoreCache).map(
               ({ record }) => record,
             );
+
+            logger.debug({
+              service: "indexing",
+              msg: `Flushing ${rows.length} '${tableName}' database records from cache`,
+            });
 
             for (let i = 0, len = rows.length; i < len; i += MAX_BATCH_SIZE) {
               await db.wrap({ method: `${tableName}.flush` }, async () => {

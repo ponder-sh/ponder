@@ -90,11 +90,12 @@ export type WriteStore<
       id: UserId;
     } & checkpointProp,
   ): Promise<boolean>;
-} & (env extends "realtime"
-  ? {}
-  : {
-      flush(): Promise<void>;
-    });
+};
+
+export type RealtimeStore = ReadonlyStore & WriteStore<"realtime">;
+
+export type HistoricalStore = ReadonlyStore &
+  WriteStore<"historical"> & { flush: () => Promise<void> };
 
 export type IndexingStore<
   env extends "historical" | "realtime" = "historical" | "realtime",
