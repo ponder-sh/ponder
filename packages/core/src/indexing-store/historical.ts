@@ -5,9 +5,9 @@ import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import { getTables } from "@/schema/utils.js";
 import type { DatabaseRecord, UserId, UserRecord } from "@/types/schema.js";
-import { getReadonlyStore } from "./readonly.js";
+// import { getReadonlyStore } from "./readonly.js";
 import type { HistoricalStore, OrderByInput, WhereInput } from "./store.js";
-import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
+import { decodeRow, encodeRow } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
@@ -25,6 +25,11 @@ type StoreCache = {
   [tableName: string]: { [id: Exclude<UserId, bigint>]: Insert };
 };
 
+const encodeCacheId = (id: UserId): string | number => {
+  if (typeof id === "bigint") return `#Bigint.${id}`;
+  return id;
+};
+
 export const getHistoricalStore = ({
   kind,
   schema,
@@ -39,9 +44,9 @@ export const getHistoricalStore = ({
   logger: Logger;
 }): HistoricalStore => {
   const storeCache: StoreCache = {};
-  const isCacheFull = true;
+  // const isCacheFull = true;
 
-  const readonlyStore = getReadonlyStore({ kind, schema, namespaceInfo, db });
+  // const readonlyStore = getReadonlyStore({ kind, schema, namespaceInfo, db });
 
   for (const tableName of Object.keys(getTables(schema))) {
     storeCache[tableName] = {};
@@ -55,11 +60,7 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      if (isCacheFull) {
-        return storeCache[tableName][id as string | number]?.record ?? null;
-      } else {
-        return readonlyStore.findUnique({ tableName, id });
-      }
+      return storeCache[tableName][encodeCacheId(id)]?.record ?? null;
     },
     findMany: async (_: {
       tableName: string;
@@ -181,7 +182,7 @@ export const getHistoricalStore = ({
       const oldRecord = storeCache[tableName][id as number | string]?.record;
 
       if (oldRecord === undefined) {
-        // TODO: check for missing columns
+        // Note: should the record be checked to see if all columns are present?
 
         const record: UserRecord = { id, ...create };
 
@@ -214,23 +215,13 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      const table = (schema[tableName] as { table: Table }).table;
+      const record = storeCache[tableName][encodeCacheId(id)]?.record;
 
-      return db.wrap({ method: `${tableName}.delete` }, async () => {
-        const encodedId = encodeValue(id, table.id, kind);
-
-        const deletedRow = await db
-          .withSchema(namespaceInfo.userNamespace)
-          .deleteFrom(tableName)
-          .where("id", "=", encodedId)
-          .returning(["id"])
-          .executeTakeFirst()
-          .catch((err) => {
-            throw parseStoreError(err, { id });
-          });
-
-        return !!deletedRow;
-      });
+      if (record === undefined) return false;
+      else {
+        delete storeCache[tableName][encodeCacheId(id)];
+        return true;
+      }
     },
     flush: async () => {
       await Promise.all(
