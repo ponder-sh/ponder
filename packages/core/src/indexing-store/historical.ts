@@ -14,16 +14,17 @@ import type { HistoricalStore, OrderByInput, WhereInput } from "./store.js";
 import { encodeRow } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 
-const MAX_BATCH_SIZE = 1_000 as const;
+const MAX_BATCH_SIZE = 1_000;
 // @ts-expect-error
-const DEFAULT_LIMIT = 50 as const;
+const MAX_CACHE_SIZE = 50_000;
 // @ts-expect-error
-const MAX_LIMIT = 1_000 as const;
+const DEFAULT_LIMIT = 50;
 // @ts-expect-error
-const MAX_CACHE = 50_000;
+const MAX_LIMIT = 1_000;
 
 type Insert = {
   type: "insert";
+  opIndex: number;
   record: UserRecord;
 };
 
@@ -53,14 +54,55 @@ export const getHistoricalStore = ({
   logger: Logger;
 }): HistoricalStore => {
   const storeCache: StoreCache = {};
+
   /** True if the cache contains the complete state of the store. */
-  const isCacheFull = true;
+  let isCacheFull = true;
+  let cacheSize = 0;
+  let totalCacheOps = 0;
 
   const readonlyStore = getReadonlyStore({ kind, schema, namespaceInfo, db });
 
   for (const tableName of Object.keys(getTables(schema))) {
     storeCache[tableName] = {};
   }
+
+  const flush = async (fullFlush = true) => {
+    await Promise.all(
+      Object.entries(storeCache).map(async ([tableName, tableStoreCache]) => {
+        const table = (schema[tableName] as { table: Table }).table;
+
+        const rows = Object.values(tableStoreCache).map(({ record }) => record);
+
+        logger.debug({
+          service: "indexing",
+          msg: `Flushing ${rows.length} '${tableName}' database records from cache`,
+        });
+
+        for (let i = 0, len = rows.length; i < len; i += MAX_BATCH_SIZE) {
+          await db.wrap({ method: `${tableName}.flush` }, async () => {
+            const _rows = rows
+              .slice(i, i + MAX_BATCH_SIZE)
+              .map((d) => encodeRow(d, table, kind));
+
+            await db
+              .withSchema(namespaceInfo.userNamespace)
+              .insertInto(tableName)
+              .values(_rows)
+              .execute()
+              .catch((err) => {
+                throw parseStoreError(err, _rows.length > 0 ? _rows[0] : {});
+              });
+          });
+        }
+      }),
+    );
+
+    for (const tableName of Object.keys(getTables(schema))) {
+      storeCache[tableName] = {};
+    }
+    cacheSize = 0;
+    isCacheFull = false;
+  };
 
   return {
     findUnique: async ({
@@ -95,10 +137,12 @@ export const getHistoricalStore = ({
       id: UserId;
       data?: Omit<UserRecord, "id">;
     }) => {
-      // Note: this is where not-null constraints would be checked.
-      // It may be safe to wait until flush to throw the error.
+      // if (cacheSize + 1 > MAX_CACHE_SIZE) await flush(false);
 
       if (storeCache[tableName][encodeCacheId(id)] !== undefined) {
+        // Note: this is where not-null constraints would be checked.
+        // It may be safe to wait until flush to throw the error.
+
         throw new UniqueConstraintError();
       }
 
@@ -107,8 +151,11 @@ export const getHistoricalStore = ({
 
       storeCache[tableName][encodeCacheId(id)] = {
         type: "insert",
+        opIndex: totalCacheOps++,
         record,
       };
+
+      cacheSize++;
 
       return record;
     },
@@ -119,6 +166,8 @@ export const getHistoricalStore = ({
       tableName: string;
       data: UserRecord[];
     }) => {
+      // TODO(kyle) what if data size is more than the max cache rows
+
       for (const record of data) {
         // Note: this is where not-null constraints would be checked.
         // It may be safe to wait until flush to throw the error.
@@ -129,9 +178,12 @@ export const getHistoricalStore = ({
 
         storeCache[tableName][encodeCacheId(record.id)] = {
           type: "insert",
+          opIndex: totalCacheOps++,
           record,
         };
       }
+
+      cacheSize += data.length;
 
       return data;
     },
@@ -159,7 +211,9 @@ export const getHistoricalStore = ({
         ...update,
       };
 
-      storeCache[tableName][encodeCacheId(id)].record = record;
+      const cacheEntry = storeCache[tableName][encodeCacheId(id)];
+      cacheEntry.record = record;
+      cacheEntry.opIndex = totalCacheOps++;
 
       return record;
     },
@@ -196,8 +250,11 @@ export const getHistoricalStore = ({
 
         storeCache[tableName][encodeCacheId(id)] = {
           type: "insert",
+          opIndex: totalCacheOps++,
           record,
         };
+
+        cacheSize++;
 
         return record;
       } else {
@@ -209,7 +266,9 @@ export const getHistoricalStore = ({
           ..._update,
         };
 
-        storeCache[tableName][encodeCacheId(id)].record = record;
+        const cacheEntry = storeCache[tableName][encodeCacheId(id)];
+        cacheEntry.record = record;
+        cacheEntry.opIndex = totalCacheOps++;
 
         return record;
       }
@@ -226,50 +285,12 @@ export const getHistoricalStore = ({
       if (record === undefined) return false;
       else {
         delete storeCache[tableName][encodeCacheId(id)];
+
+        cacheSize--;
+
         return true;
       }
     },
-    flush: async () => {
-      await Promise.all(
-        Object.entries(storeCache).map(
-          async ([tableName, tableStoreCache]) => {
-            const table = (schema[tableName] as { table: Table }).table;
-
-            const rows = Object.values(tableStoreCache).map(
-              ({ record }) => record,
-            );
-
-            logger.debug({
-              service: "indexing",
-              msg: `Flushing ${rows.length} '${tableName}' database records from cache`,
-            });
-
-            for (let i = 0, len = rows.length; i < len; i += MAX_BATCH_SIZE) {
-              await db.wrap({ method: `${tableName}.flush` }, async () => {
-                const _rows = rows
-                  .slice(i, i + MAX_BATCH_SIZE)
-                  .map((d) => encodeRow(d, table, kind));
-
-                await db
-                  .withSchema(namespaceInfo.userNamespace)
-                  .insertInto(tableName)
-                  .values(_rows)
-                  .execute()
-                  .catch((err) => {
-                    throw parseStoreError(
-                      err,
-                      _rows.length > 0 ? _rows[0] : {},
-                    );
-                  });
-              });
-            }
-          },
-        ),
-      );
-
-      for (const tableName of Object.keys(getTables(schema))) {
-        storeCache[tableName] = {};
-      }
-    },
+    flush,
   };
 };
