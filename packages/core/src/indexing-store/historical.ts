@@ -28,11 +28,23 @@ type Insert = {
   record: UserRecord;
 };
 
-// type Update = any;
-// type Delete = any;
+type Update = {
+  type: "update";
+  opIndex: number;
+  record: UserRecord;
+};
+
+type Delete = {
+  type: "delete";
+  opIndex: number;
+};
 
 type StoreCache = {
-  [tableName: string]: { [id: Exclude<UserId, bigint>]: Insert };
+  [tableName: string]: {
+    insert: { [id: string | number]: Insert };
+    update: { [id: string | number]: Update };
+    delete: { [id: string | number]: Delete };
+  };
 };
 
 const encodeCacheId = (id: UserId): string | number => {
@@ -63,7 +75,11 @@ export const getHistoricalStore = ({
   const readonlyStore = getReadonlyStore({ kind, schema, namespaceInfo, db });
 
   for (const tableName of Object.keys(getTables(schema))) {
-    storeCache[tableName] = {};
+    storeCache[tableName] = {
+      insert: {},
+      update: {},
+      delete: {},
+    };
   }
 
   const flush = async (fullFlush = true) => {
@@ -76,9 +92,11 @@ export const getHistoricalStore = ({
         let rows: UserRecord[];
 
         if (fullFlush) {
-          rows = Object.values(tableStoreCache).map(({ record }) => record);
+          rows = Object.values(tableStoreCache.insert).map(
+            ({ record }) => record,
+          );
         } else {
-          rows = Object.values(tableStoreCache)
+          rows = Object.values(tableStoreCache.insert)
             .filter(({ opIndex }) => opIndex < flushIndex)
             .map(({ record }) => record);
         }
@@ -111,14 +129,20 @@ export const getHistoricalStore = ({
 
     if (fullFlush) {
       for (const tableName of Object.keys(getTables(schema))) {
-        storeCache[tableName] = {};
+        storeCache[tableName] = {
+          insert: {},
+          update: {},
+          delete: {},
+        };
       }
       cacheSize = 0;
     } else {
       for (const [tableName, tableStoreCache] of Object.entries(storeCache)) {
-        for (const [id, { opIndex }] of Object.entries(tableStoreCache)) {
+        for (const [id, { opIndex }] of Object.entries(
+          tableStoreCache.insert,
+        )) {
           if (opIndex < flushIndex) {
-            delete storeCache[tableName][id];
+            delete storeCache[tableName].insert[id];
             cacheSize--;
           }
         }
@@ -136,7 +160,9 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      const cacheRecord = storeCache[tableName][encodeCacheId(id)]?.record;
+      const cacheRecord =
+        storeCache[tableName].insert[encodeCacheId(id)]?.record ??
+        storeCache[tableName].update[encodeCacheId(id)]?.record;
 
       if (cacheRecord !== undefined) return cacheRecord;
       if (isCacheFull) return null;
@@ -163,17 +189,22 @@ export const getHistoricalStore = ({
     }) => {
       if (cacheSize + 1 > MAX_CACHE_SIZE) await flush(false);
 
-      if (storeCache[tableName][encodeCacheId(id)] !== undefined) {
-        // Note: this is where not-null constraints would be checked.
-        // It may be safe to wait until flush to throw the error.
+      const encodedId = encodeCacheId(id);
 
+      if (
+        storeCache[tableName].insert[encodedId] !== undefined ||
+        storeCache[tableName].update[encodedId] !== undefined
+      ) {
         throw new UniqueConstraintError();
       }
 
       const record = data as UserRecord;
       record.id = id;
 
-      storeCache[tableName][encodeCacheId(id)] = {
+      // Note: this is where not-null constraints would be checked.
+      // It may be safe to wait until flush to throw the error.
+
+      storeCache[tableName].insert[encodedId] = {
         type: "insert",
         opIndex: totalCacheOps++,
         record,
@@ -193,14 +224,19 @@ export const getHistoricalStore = ({
       // TODO(kyle) what if data size is more than the max cache rows
 
       for (const record of data) {
-        // Note: this is where not-null constraints would be checked.
-        // It may be safe to wait until flush to throw the error.
+        const encodedId = encodeCacheId(record.id);
 
-        if (storeCache[tableName][encodeCacheId(record.id)] !== undefined) {
+        if (
+          storeCache[tableName].insert[encodedId] !== undefined ||
+          storeCache[tableName].update[encodedId] !== undefined
+        ) {
           throw new UniqueConstraintError();
         }
 
-        storeCache[tableName][encodeCacheId(record.id)] = {
+        // Note: this is where not-null constraints would be checked.
+        // It may be safe to wait until flush to throw the error.
+
+        storeCache[tableName].insert[encodeCacheId(record.id)] = {
           type: "insert",
           opIndex: totalCacheOps++,
           record,
@@ -222,20 +258,44 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const current = storeCache[tableName][encodeCacheId(id)]?.record;
+      const encodedId = encodeCacheId(id);
 
-      if (current === undefined) {
+      let cacheEntry: Insert | Update;
+
+      const insertEntry = storeCache[tableName].insert[encodedId];
+      const updateEntry = storeCache[tableName].update[encodedId];
+
+      if (updateEntry !== undefined) {
+        cacheEntry = updateEntry;
+      } else if (insertEntry !== undefined) {
+        cacheEntry = insertEntry;
+      } else if (isCacheFull) {
         throw new RecordNotFoundError();
+      } else {
+        const record = await readonlyStore.findUnique({ tableName, id });
+
+        if (record === null) throw new RecordNotFoundError();
+
+        // Note: a "spoof" cache entry is created
+        cacheEntry = {
+          type: "update",
+          opIndex: 0,
+          record,
+        };
+
+        storeCache[tableName].update[encodedId] = cacheEntry;
       }
 
-      const update = typeof data === "function" ? data({ current }) : data;
+      const update =
+        typeof data === "function"
+          ? data({ current: cacheEntry.record })
+          : data;
 
       const record: UserRecord = {
-        ...current,
+        ...cacheEntry.record,
         ...update,
       };
 
-      const cacheEntry = storeCache[tableName][encodeCacheId(id)];
       cacheEntry.record = record;
       cacheEntry.opIndex = totalCacheOps++;
 
@@ -263,16 +323,39 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const current = storeCache[tableName][encodeCacheId(id)]?.record;
+      const encodedId = encodeCacheId(id);
 
-      if (current === undefined) {
-        // Note: this is where not-null constraints would be checked.
-        // It may be safe to wait until flush to throw the error.
+      let cacheEntry: Insert | Update | undefined;
 
+      const insertEntry = storeCache[tableName].insert[encodedId];
+      const updateEntry = storeCache[tableName].update[encodedId];
+
+      if (updateEntry !== undefined) {
+        cacheEntry = updateEntry;
+      } else if (insertEntry !== undefined) {
+        cacheEntry = insertEntry;
+      } else if (isCacheFull === false) {
+        const record = await readonlyStore.findUnique({ tableName, id });
+
+        if (record !== null) {
+          // Note: a "spoof" cache entry is created
+          cacheEntry = {
+            type: "update",
+            opIndex: 0,
+            record,
+          };
+          storeCache[tableName].update[encodedId] = cacheEntry;
+        }
+      }
+
+      if (cacheEntry === undefined) {
         const record = create as UserRecord;
         record.id = id;
 
-        storeCache[tableName][encodeCacheId(id)] = {
+        // Note: this is where not-null constraints would be checked.
+        // It may be safe to wait until flush to throw the error.
+
+        storeCache[tableName].insert[encodedId] = {
           type: "insert",
           opIndex: totalCacheOps++,
           record,
@@ -283,14 +366,15 @@ export const getHistoricalStore = ({
         return record;
       } else {
         const _update =
-          typeof update === "function" ? update({ current }) : update;
+          typeof update === "function"
+            ? update({ current: cacheEntry.record })
+            : update;
 
         const record: UserRecord = {
-          ...current,
+          ...cacheEntry.record,
           ..._update,
         };
 
-        const cacheEntry = storeCache[tableName][encodeCacheId(id)];
         cacheEntry.record = record;
         cacheEntry.opIndex = totalCacheOps++;
 
@@ -304,11 +388,12 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      const record = storeCache[tableName][encodeCacheId(id)]?.record;
+      // TODO(kyle) check update and delete cache
+      const record = storeCache[tableName].insert[encodeCacheId(id)]?.record;
 
       if (record === undefined) return false;
       else {
-        delete storeCache[tableName][encodeCacheId(id)];
+        delete storeCache[tableName].insert[encodeCacheId(id)];
 
         cacheSize--;
 
