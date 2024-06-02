@@ -15,8 +15,8 @@ import { encodeRow } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 
 const MAX_BATCH_SIZE = 1_000;
-// @ts-expect-error
 const MAX_CACHE_SIZE = 50_000;
+const CACHE_FLUSH = 0.1;
 // @ts-expect-error
 const DEFAULT_LIMIT = 50;
 // @ts-expect-error
@@ -67,11 +67,23 @@ export const getHistoricalStore = ({
   }
 
   const flush = async (fullFlush = true) => {
+    const flushIndex = totalCacheOps - cacheSize * (1 - CACHE_FLUSH);
+
     await Promise.all(
       Object.entries(storeCache).map(async ([tableName, tableStoreCache]) => {
         const table = (schema[tableName] as { table: Table }).table;
 
-        const rows = Object.values(tableStoreCache).map(({ record }) => record);
+        let rows: UserRecord[];
+
+        if (fullFlush) {
+          rows = Object.values(tableStoreCache).map(({ record }) => record);
+        } else {
+          rows = Object.values(tableStoreCache)
+            .filter(({ opIndex }) => opIndex < flushIndex)
+            .map(({ record }) => record);
+        }
+
+        if (rows.length === 0) return;
 
         logger.debug({
           service: "indexing",
@@ -97,10 +109,22 @@ export const getHistoricalStore = ({
       }),
     );
 
-    for (const tableName of Object.keys(getTables(schema))) {
-      storeCache[tableName] = {};
+    if (fullFlush) {
+      for (const tableName of Object.keys(getTables(schema))) {
+        storeCache[tableName] = {};
+      }
+      cacheSize = 0;
+    } else {
+      for (const [tableName, tableStoreCache] of Object.entries(storeCache)) {
+        for (const [id, { opIndex }] of Object.entries(tableStoreCache)) {
+          if (opIndex < flushIndex) {
+            delete storeCache[tableName][id];
+            cacheSize--;
+          }
+        }
+      }
     }
-    cacheSize = 0;
+
     isCacheFull = false;
   };
 
@@ -137,7 +161,7 @@ export const getHistoricalStore = ({
       id: UserId;
       data?: Omit<UserRecord, "id">;
     }) => {
-      // if (cacheSize + 1 > MAX_CACHE_SIZE) await flush(false);
+      if (cacheSize + 1 > MAX_CACHE_SIZE) await flush(false);
 
       if (storeCache[tableName][encodeCacheId(id)] !== undefined) {
         // Note: this is where not-null constraints would be checked.
