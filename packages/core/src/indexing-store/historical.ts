@@ -1,13 +1,17 @@
-import { NonRetryableError } from "@/common/errors.js";
+import {
+  NonRetryableError,
+  RecordNotFoundError,
+  UniqueConstraintError,
+} from "@/common/errors.js";
 import type { Logger } from "@/common/logger.js";
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import { getTables } from "@/schema/utils.js";
-import type { DatabaseRecord, UserId, UserRecord } from "@/types/schema.js";
-// import { getReadonlyStore } from "./readonly.js";
+import type { UserId, UserRecord } from "@/types/schema.js";
+import { getReadonlyStore } from "./readonly.js";
 import type { HistoricalStore, OrderByInput, WhereInput } from "./store.js";
-import { decodeRow, encodeRow } from "./utils/encoding.js";
+import { encodeRow } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
@@ -15,11 +19,16 @@ const MAX_BATCH_SIZE = 1_000 as const;
 const DEFAULT_LIMIT = 50 as const;
 // @ts-expect-error
 const MAX_LIMIT = 1_000 as const;
+// @ts-expect-error
+const MAX_CACHE = 50_000;
 
 type Insert = {
   type: "insert";
   record: UserRecord;
 };
+
+// type Update = any;
+// type Delete = any;
 
 type StoreCache = {
   [tableName: string]: { [id: Exclude<UserId, bigint>]: Insert };
@@ -44,9 +53,10 @@ export const getHistoricalStore = ({
   logger: Logger;
 }): HistoricalStore => {
   const storeCache: StoreCache = {};
-  // const isCacheFull = true;
+  /** True if the cache contains the complete state of the store. */
+  const isCacheFull = true;
 
-  // const readonlyStore = getReadonlyStore({ kind, schema, namespaceInfo, db });
+  const readonlyStore = getReadonlyStore({ kind, schema, namespaceInfo, db });
 
   for (const tableName of Object.keys(getTables(schema))) {
     storeCache[tableName] = {};
@@ -60,7 +70,11 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      return storeCache[tableName][encodeCacheId(id)]?.record ?? null;
+      const cacheRecord = storeCache[tableName][encodeCacheId(id)]?.record;
+
+      if (cacheRecord !== undefined) return cacheRecord;
+      if (isCacheFull) return null;
+      return readonlyStore.findUnique({ tableName, id });
     },
     findMany: async (_: {
       tableName: string;
@@ -81,14 +95,17 @@ export const getHistoricalStore = ({
       id: UserId;
       data?: Omit<UserRecord, "id">;
     }) => {
-      // TODO: check for missing columns
+      // Note: this is where not-null constraints would be checked.
+      // It may be safe to wait until flush to throw the error.
 
-      if (storeCache[tableName][id as number | string] !== undefined) {
-        // TODO: throw error
+      if (storeCache[tableName][encodeCacheId(id)] !== undefined) {
+        throw new UniqueConstraintError();
       }
-      const record: UserRecord = { id, ...data };
 
-      storeCache[tableName][id as number | string] = {
+      const record = data as UserRecord;
+      record.id = id;
+
+      storeCache[tableName][encodeCacheId(id)] = {
         type: "insert",
         record,
       };
@@ -102,31 +119,21 @@ export const getHistoricalStore = ({
       tableName: string;
       data: UserRecord[];
     }) => {
-      const table = (schema[tableName] as { table: Table }).table;
+      for (const record of data) {
+        // Note: this is where not-null constraints would be checked.
+        // It may be safe to wait until flush to throw the error.
 
-      const rows: DatabaseRecord[] = [];
+        if (storeCache[tableName][encodeCacheId(record.id)] !== undefined) {
+          throw new UniqueConstraintError();
+        }
 
-      for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
-        await db.wrap({ method: `${tableName}.createMany` }, async () => {
-          const createRows = data
-            .slice(i, i + MAX_BATCH_SIZE)
-            .map((d) => encodeRow(d, table, kind));
-
-          const _rows = await db
-            .withSchema(namespaceInfo.userNamespace)
-            .insertInto(tableName)
-            .values(createRows)
-            .returningAll()
-            .execute()
-            .catch((err) => {
-              throw parseStoreError(err, data.length > 0 ? data[0] : {});
-            });
-
-          rows.push(..._rows);
-        });
+        storeCache[tableName][encodeCacheId(record.id)] = {
+          type: "insert",
+          record,
+        };
       }
 
-      return rows.map((row) => decodeRow(row, table, kind));
+      return data;
     },
     update: async ({
       tableName,
@@ -139,23 +146,22 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const oldRecord = storeCache[tableName][id as number | string]?.record;
+      const current = storeCache[tableName][encodeCacheId(id)]?.record;
 
-      if (oldRecord === undefined) {
-        // TODO: throw error
+      if (current === undefined) {
+        throw new RecordNotFoundError();
       }
 
-      const update =
-        typeof data === "function" ? data({ current: oldRecord }) : data;
+      const update = typeof data === "function" ? data({ current }) : data;
 
-      const newRecord: UserRecord = {
-        ...oldRecord,
+      const record: UserRecord = {
+        ...current,
         ...update,
       };
 
-      storeCache[tableName][id as number | string].record = newRecord;
+      storeCache[tableName][encodeCacheId(id)].record = record;
 
-      return newRecord;
+      return record;
     },
     updateMany: async (_: {
       tableName: string;
@@ -179,14 +185,16 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const oldRecord = storeCache[tableName][id as number | string]?.record;
+      const current = storeCache[tableName][encodeCacheId(id)]?.record;
 
-      if (oldRecord === undefined) {
-        // Note: should the record be checked to see if all columns are present?
+      if (current === undefined) {
+        // Note: this is where not-null constraints would be checked.
+        // It may be safe to wait until flush to throw the error.
 
-        const record: UserRecord = { id, ...create };
+        const record = create as UserRecord;
+        record.id = id;
 
-        storeCache[tableName][id as number | string] = {
+        storeCache[tableName][encodeCacheId(id)] = {
           type: "insert",
           record,
         };
@@ -194,18 +202,16 @@ export const getHistoricalStore = ({
         return record;
       } else {
         const _update =
-          typeof update === "function"
-            ? update({ current: oldRecord })
-            : update;
+          typeof update === "function" ? update({ current }) : update;
 
-        const newRecord: UserRecord = {
-          ...oldRecord,
+        const record: UserRecord = {
+          ...current,
           ..._update,
         };
 
-        storeCache[tableName][id as number | string].record = newRecord;
+        storeCache[tableName][encodeCacheId(id)].record = record;
 
-        return newRecord;
+        return record;
       }
     },
     delete: async ({
