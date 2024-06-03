@@ -276,7 +276,5 @@ export interface SyncStore {
 
   /** PRUNING */
 
-  pruneByChain(arg: { chainId: number }): Promise<void>;
-
   pruneBySource(arg: { source: EventSource }): Promise<void>;
 }

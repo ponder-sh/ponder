@@ -355,6 +355,26 @@ export const create = async ({
     });
   }
 
+  // Invalidate sync cache for devnet sources
+  for (const networkService of networkServices) {
+    if (networkService.network.isDevnet) {
+      common.logger.warn({
+        service: "sync",
+        msg: `Deleting cache records for '${
+          networkService.network.name
+        }' sources: [${networkService.sources
+          .map((s) => (s.type === "block" ? s.sourceName : s.contractName))
+          .join(", ")}]`,
+      });
+
+      await Promise.all(
+        networkService.sources.map((source) =>
+          syncStore.pruneBySource({ source }),
+        ),
+      );
+    }
+  }
+
   const syncService: Service = {
     common,
     syncStore,
