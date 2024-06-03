@@ -1,7 +1,7 @@
 import { createConfig } from "@ponder/core";
 import { http, getAddress, hexToNumber } from "viem";
 import { Hex } from "viem";
-import { counterABI } from "../abis/Counter";
+import { counterABI } from "../abis/CounterAbi";
 import CounterDeploy from "../contracts/broadcast/Deploy.s.sol/31337/run-latest.json";
 
 const address = getAddress(CounterDeploy.transactions[0]!.contractAddress);
