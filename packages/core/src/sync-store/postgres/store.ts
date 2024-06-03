@@ -2491,7 +2491,7 @@ export class PostgresSyncStore implements SyncStore {
   async pruneBySource({ source }: { source: EventSource }) {
     switch (source.type) {
       case "log": {
-        await this.db.wrap({ method: "pruneByChain" }, () =>
+        await this.db.wrap({ method: "pruneBySource" }, () =>
           this.db.transaction().execute(async (tx) => {
             const fragments = buildLogFilterFragments({
               ...source.criteria,
@@ -2515,52 +2515,120 @@ export class PostgresSyncStore implements SyncStore {
                     ),
                   )} )`,
               )
-              .with("deleteLogFilterFragments", (qb) =>
+              .with("deleteLogFilter(logFilterId)", (qb) =>
                 qb
                   .selectFrom("logFilterIntervals")
                   .innerJoin("logFilters", "logFilterId", "logFilters.id")
-                  // .innerJoin("logFilterFragments", (join) => {
-                  //   let baseJoin = join.on((eb) =>
-                  //     eb.or([
-                  //       eb("address", "is", null),
-                  //       eb("fragmentAddress", "=", sql.ref("address")),
-                  //     ]),
-                  //   );
-                  //   baseJoin = baseJoin.on((eb) =>
-                  //     eb(
-                  //       "fragmentIncludeTransactionReceipts",
-                  //       "<=",
-                  //       sql.ref("includeTransactionReceipts"),
-                  //     ),
-                  //   );
-                  //   for (const idx_ of range(0, 4)) {
-                  //     baseJoin = baseJoin.on((eb) => {
-                  //       const idx = idx_ as 0 | 1 | 2 | 3;
-                  //       return eb.or([
-                  //         eb(`topic${idx}`, "is", null),
-                  //         eb(
-                  //           `fragmentTopic${idx}`,
-                  //           "=",
-                  //           sql.ref(`topic${idx}`),
-                  //         ),
-                  //       ]);
-                  //     });
-                  //   }
+                  .innerJoin("logFilterFragments", (join) => {
+                    let baseJoin = join.on((eb) =>
+                      eb.or([
+                        eb("address", "is", null),
+                        eb("fragmentAddress", "=", sql.ref("address")),
+                      ]),
+                    );
+                    baseJoin = baseJoin.on((eb) =>
+                      eb(
+                        "fragmentIncludeTransactionReceipts",
+                        "<=",
+                        sql.ref("includeTransactionReceipts"),
+                      ),
+                    );
+                    for (const idx_ of range(0, 4)) {
+                      baseJoin = baseJoin.on((eb) => {
+                        const idx = idx_ as 0 | 1 | 2 | 3;
+                        return eb.or([
+                          eb(`topic${idx}`, "is", null),
+                          eb(
+                            `fragmentTopic${idx}`,
+                            "=",
+                            sql.ref(`topic${idx}`),
+                          ),
+                        ]);
+                      });
+                    }
 
-                  //   return baseJoin;
-                  // })
+                    return baseJoin;
+                  })
                   .select("logFilterId")
                   .where("chainId", "=", source.chainId)
-                  .where("startBlock", "<", BigInt(source.startBlock)),
+                  .where("startBlock", ">", BigInt(source.startBlock)),
               )
               .deleteFrom("logFilterIntervals")
-              .returningAll()
               .where(
                 "logFilterId",
                 "in",
-                sql`SELECT "logFilterId" FROM ${sql.table(
-                  "deleteLogFilterFragments",
-                )}`,
+                sql`(SELECT "logFilterId" FROM ${sql.table(
+                  "deleteLogFilter",
+                )})`,
+              )
+              .execute();
+
+            await tx
+              .with(
+                "logFilterFragments(fragmentId, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3, fragmentIncludeTransactionReceipts)",
+                () =>
+                  sql`( values ${sql.join(
+                    fragments.map(
+                      (f) =>
+                        sql`( ${sql.val(f.id)}, ${sql.val(
+                          f.address,
+                        )}, ${sql.val(f.topic0)}, ${sql.val(
+                          f.topic1,
+                        )}, ${sql.val(f.topic2)}, ${sql.val(
+                          f.topic3,
+                        )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                    ),
+                  )} )`,
+              )
+              .with("updateLogFilter(logFilterId)", (qb) =>
+                qb
+                  .selectFrom("logFilterIntervals")
+                  .innerJoin("logFilters", "logFilterId", "logFilters.id")
+                  .innerJoin("logFilterFragments", (join) => {
+                    let baseJoin = join.on((eb) =>
+                      eb.or([
+                        eb("address", "is", null),
+                        eb("fragmentAddress", "=", sql.ref("address")),
+                      ]),
+                    );
+                    baseJoin = baseJoin.on((eb) =>
+                      eb(
+                        "fragmentIncludeTransactionReceipts",
+                        "<=",
+                        sql.ref("includeTransactionReceipts"),
+                      ),
+                    );
+                    for (const idx_ of range(0, 4)) {
+                      baseJoin = baseJoin.on((eb) => {
+                        const idx = idx_ as 0 | 1 | 2 | 3;
+                        return eb.or([
+                          eb(`topic${idx}`, "is", null),
+                          eb(
+                            `fragmentTopic${idx}`,
+                            "=",
+                            sql.ref(`topic${idx}`),
+                          ),
+                        ]);
+                      });
+                    }
+
+                    return baseJoin;
+                  })
+                  .select("logFilterId")
+                  .where("chainId", "=", source.chainId)
+                  .where("startBlock", "<=", BigInt(source.startBlock))
+                  .where("endBlock", ">", BigInt(source.startBlock)),
+              )
+              .updateTable("logFilterIntervals")
+              .set({
+                endBlock: BigInt(source.startBlock),
+              })
+              .where(
+                "logFilterId",
+                "in",
+                sql`(SELECT "logFilterId" FROM ${sql.table(
+                  "updateLogFilter",
+                )})`,
               )
               .execute();
           }),
@@ -2569,18 +2637,483 @@ export class PostgresSyncStore implements SyncStore {
       }
 
       case "factoryLog": {
+        await this.db.wrap({ method: "pruneBySource" }, () =>
+          this.db.transaction().execute(async (tx) => {
+            const fragments = buildFactoryLogFragments({
+              ...source.criteria,
+              chainId: source.chainId,
+            });
+
+            await tx
+              .with(
+                "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3, fragmentIncludeTransactionReceipts)",
+                () =>
+                  sql`( values ${sql.join(
+                    fragments.map(
+                      (f) =>
+                        sql`( ${sql.val(f.id)}, ${sql.val(
+                          f.address,
+                        )}, ${sql.val(f.eventSelector)}, ${sql.val(
+                          f.childAddressLocation,
+                        )}, ${sql.val(f.topic0)}, ${sql.val(
+                          f.topic1,
+                        )}, ${sql.val(f.topic2)}, ${sql.val(
+                          f.topic3,
+                        )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                    ),
+                  )} )`,
+              )
+              .with("deleteFactoryLogFilter(factoryId)", (qb) =>
+                qb
+                  .selectFrom("factoryLogFilterIntervals")
+                  .innerJoin(
+                    "factoryLogFilters",
+                    "factoryId",
+                    "factoryLogFilters.id",
+                  )
+                  .innerJoin("factoryFilterFragments", (join) => {
+                    let baseJoin = join.on((eb) =>
+                      eb.and([
+                        eb("fragmentAddress", "=", sql.ref("address")),
+                        eb(
+                          "fragmentEventSelector",
+                          "=",
+                          sql.ref("eventSelector"),
+                        ),
+                        eb(
+                          "fragmentChildAddressLocation",
+                          "=",
+                          sql.ref("childAddressLocation"),
+                        ),
+                      ]),
+                    );
+                    baseJoin = baseJoin.on((eb) =>
+                      eb(
+                        "fragmentIncludeTransactionReceipts",
+                        "<=",
+                        sql.ref("includeTransactionReceipts"),
+                      ),
+                    );
+                    for (const idx_ of range(0, 4)) {
+                      baseJoin = baseJoin.on((eb) => {
+                        const idx = idx_ as 0 | 1 | 2 | 3;
+                        return eb.or([
+                          eb(`topic${idx}`, "is", null),
+                          eb(
+                            `fragmentTopic${idx}`,
+                            "=",
+                            sql.ref(`topic${idx}`),
+                          ),
+                        ]);
+                      });
+                    }
+
+                    return baseJoin;
+                  })
+                  .select("factoryId")
+                  .where("chainId", "=", source.chainId)
+                  .where("startBlock", ">", BigInt(source.startBlock)),
+              )
+              .deleteFrom("factoryLogFilterIntervals")
+              .where(
+                "factoryId",
+                "in",
+                sql`(SELECT "factoryId" FROM ${sql.table(
+                  "deleteFactoryLogFilter",
+                )})`,
+              )
+              .execute();
+
+            await tx
+              .with(
+                "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3, fragmentIncludeTransactionReceipts)",
+                () =>
+                  sql`( values ${sql.join(
+                    fragments.map(
+                      (f) =>
+                        sql`( ${sql.val(f.id)}, ${sql.val(
+                          f.address,
+                        )}, ${sql.val(f.eventSelector)}, ${sql.val(
+                          f.childAddressLocation,
+                        )}, ${sql.val(f.topic0)}, ${sql.val(
+                          f.topic1,
+                        )}, ${sql.val(f.topic2)}, ${sql.val(
+                          f.topic3,
+                        )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                    ),
+                  )} )`,
+              )
+              .with("updateFactoryLogFilter(factoryId)", (qb) =>
+                qb
+                  .selectFrom("factoryLogFilterIntervals")
+                  .innerJoin(
+                    "factoryLogFilters",
+                    "factoryId",
+                    "factoryLogFilters.id",
+                  )
+                  .innerJoin("factoryFilterFragments", (join) => {
+                    let baseJoin = join.on((eb) =>
+                      eb.and([
+                        eb("fragmentAddress", "=", sql.ref("address")),
+                        eb(
+                          "fragmentEventSelector",
+                          "=",
+                          sql.ref("eventSelector"),
+                        ),
+                        eb(
+                          "fragmentChildAddressLocation",
+                          "=",
+                          sql.ref("childAddressLocation"),
+                        ),
+                      ]),
+                    );
+                    baseJoin = baseJoin.on((eb) =>
+                      eb(
+                        "fragmentIncludeTransactionReceipts",
+                        "<=",
+                        sql.ref("includeTransactionReceipts"),
+                      ),
+                    );
+                    for (const idx_ of range(0, 4)) {
+                      baseJoin = baseJoin.on((eb) => {
+                        const idx = idx_ as 0 | 1 | 2 | 3;
+                        return eb.or([
+                          eb(`topic${idx}`, "is", null),
+                          eb(
+                            `fragmentTopic${idx}`,
+                            "=",
+                            sql.ref(`topic${idx}`),
+                          ),
+                        ]);
+                      });
+                    }
+
+                    return baseJoin;
+                  })
+                  .select("factoryId")
+                  .where("chainId", "=", source.chainId)
+                  .where("startBlock", "<=", BigInt(source.startBlock))
+                  .where("endBlock", ">", BigInt(source.startBlock)),
+              )
+              .updateTable("factoryLogFilterIntervals")
+              .set({
+                endBlock: BigInt(source.startBlock),
+              })
+              .where(
+                "factoryId",
+                "in",
+                sql`(SELECT "factoryId" FROM ${sql.table(
+                  "updateFactoryLogFilter",
+                )})`,
+              )
+              .execute();
+          }),
+        );
         break;
       }
 
       case "callTrace": {
+        await this.db.wrap({ method: "pruneBySource" }, () =>
+          this.db.transaction().execute(async (tx) => {
+            const fragments = buildTraceFragments({
+              ...source.criteria,
+              chainId: source.chainId,
+            });
+
+            await tx
+              .with(
+                "traceFilterFragments(fragmentId, fragmentFromAddress, fragmentToAddress)",
+                () =>
+                  sql`( values ${sql.join(
+                    fragments.map(
+                      (f) =>
+                        sql`( ${sql.val(f.id)}, ${sql.val(
+                          f.fromAddress,
+                        )}, ${sql.val(f.toAddress)} )`,
+                    ),
+                  )} )`,
+              )
+              .with("deleteTraceFilter(traceFilterId)", (qb) =>
+                qb
+                  .selectFrom("traceFilterIntervals")
+                  .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
+                  .innerJoin("traceFilterFragments", (join) => {
+                    return join.on((eb) =>
+                      eb.and([
+                        eb.or([
+                          eb("fromAddress", "is", null),
+                          eb(
+                            "fragmentFromAddress",
+                            "=",
+                            sql.ref("fromAddress"),
+                          ),
+                        ]),
+                        eb.or([
+                          eb("toAddress", "is", null),
+                          eb("fragmentToAddress", "=", sql.ref("toAddress")),
+                        ]),
+                      ]),
+                    );
+                  })
+                  .select("traceFilterId")
+                  .where("chainId", "=", source.chainId)
+                  .where("startBlock", ">", BigInt(source.startBlock)),
+              )
+              .deleteFrom("traceFilterIntervals")
+              .where(
+                "traceFilterId",
+                "in",
+                sql`(SELECT "traceFilterId" FROM ${sql.table(
+                  "deleteTraceFilter",
+                )})`,
+              )
+              .execute();
+
+            await tx
+              .with(
+                "traceFilterFragments(fragmentId, fragmentFromAddress, fragmentToAddress)",
+                () =>
+                  sql`( values ${sql.join(
+                    fragments.map(
+                      (f) =>
+                        sql`( ${sql.val(f.id)}, ${sql.val(
+                          f.fromAddress,
+                        )}, ${sql.val(f.toAddress)} )`,
+                    ),
+                  )} )`,
+              )
+              .with("updateTraceFilter(traceFilterId)", (qb) =>
+                qb
+                  .selectFrom("traceFilterIntervals")
+                  .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
+                  .innerJoin("traceFilterFragments", (join) => {
+                    return join.on((eb) =>
+                      eb.and([
+                        eb.or([
+                          eb("fromAddress", "is", null),
+                          eb(
+                            "fragmentFromAddress",
+                            "=",
+                            sql.ref("fromAddress"),
+                          ),
+                        ]),
+                        eb.or([
+                          eb("toAddress", "is", null),
+                          eb("fragmentToAddress", "=", sql.ref("toAddress")),
+                        ]),
+                      ]),
+                    );
+                  })
+                  .select("traceFilterId")
+                  .where("chainId", "=", source.chainId)
+                  .where("startBlock", "<=", BigInt(source.startBlock))
+                  .where("endBlock", ">", BigInt(source.startBlock)),
+              )
+              .updateTable("traceFilterIntervals")
+              .set({
+                endBlock: BigInt(source.startBlock),
+              })
+              .where(
+                "traceFilterId",
+                "in",
+                sql`(SELECT "traceFilterId" FROM ${sql.table(
+                  "updateTraceFilter",
+                )})`,
+              )
+              .execute();
+          }),
+        );
         break;
       }
 
       case "factoryCallTrace": {
+        await this.db.wrap({ method: "pruneBySource" }, () =>
+          this.db.transaction().execute(async (tx) => {
+            const fragments = buildFactoryTraceFragments({
+              ...source.criteria,
+              chainId: source.chainId,
+            });
+
+            await tx
+              .with(
+                "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentFromAddress)",
+                () =>
+                  sql`( values ${sql.join(
+                    fragments.map(
+                      (f) =>
+                        sql`( ${sql.val(f.id)}, ${sql.val(
+                          f.address,
+                        )}, ${sql.val(f.eventSelector)}, ${sql.val(
+                          f.childAddressLocation,
+                        )}, ${sql.val(f.fromAddress)} )`,
+                    ),
+                  )} )`,
+              )
+              .with("deleteFactoryTraceFilter(factoryId)", (qb) =>
+                qb
+                  .selectFrom("factoryTraceFilterIntervals")
+                  .innerJoin(
+                    "factoryTraceFilters",
+                    "factoryId",
+                    "factoryTraceFilters.id",
+                  )
+                  .innerJoin("factoryFilterFragments", (join) =>
+                    join.on((eb) =>
+                      eb.and([
+                        eb("fragmentAddress", "=", sql.ref("address")),
+                        eb(
+                          "fragmentEventSelector",
+                          "=",
+                          sql.ref("eventSelector"),
+                        ),
+                        eb(
+                          "fragmentChildAddressLocation",
+                          "=",
+                          sql.ref("childAddressLocation"),
+                        ),
+                        eb.or([
+                          eb("fromAddress", "is", null),
+                          eb(
+                            "fragmentFromAddress",
+                            "=",
+                            sql.ref("fromAddress"),
+                          ),
+                        ]),
+                      ]),
+                    ),
+                  )
+                  .select("factoryId")
+                  .where("chainId", "=", source.chainId)
+                  .where("startBlock", ">", BigInt(source.startBlock)),
+              )
+              .deleteFrom("factoryTraceFilterIntervals")
+              .where(
+                "factoryId",
+                "in",
+                sql`(SELECT "factoryId" FROM ${sql.table(
+                  "deleteFactoryTraceFilter",
+                )})`,
+              )
+              .execute();
+
+            await tx
+              .with(
+                "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentFromAddress)",
+                () =>
+                  sql`( values ${sql.join(
+                    fragments.map(
+                      (f) =>
+                        sql`( ${sql.val(f.id)}, ${sql.val(
+                          f.address,
+                        )}, ${sql.val(f.eventSelector)}, ${sql.val(
+                          f.childAddressLocation,
+                        )}, ${sql.val(f.fromAddress)} )`,
+                    ),
+                  )} )`,
+              )
+              .with("updateFactoryTraceFilter(factoryId)", (qb) =>
+                qb
+                  .selectFrom("factoryTraceFilterIntervals")
+                  .innerJoin(
+                    "factoryTraceFilters",
+                    "factoryId",
+                    "factoryTraceFilters.id",
+                  )
+                  .innerJoin("factoryFilterFragments", (join) =>
+                    join.on((eb) =>
+                      eb.and([
+                        eb("fragmentAddress", "=", sql.ref("address")),
+                        eb(
+                          "fragmentEventSelector",
+                          "=",
+                          sql.ref("eventSelector"),
+                        ),
+                        eb(
+                          "fragmentChildAddressLocation",
+                          "=",
+                          sql.ref("childAddressLocation"),
+                        ),
+                        eb.or([
+                          eb("fromAddress", "is", null),
+                          eb(
+                            "fragmentFromAddress",
+                            "=",
+                            sql.ref("fromAddress"),
+                          ),
+                        ]),
+                      ]),
+                    ),
+                  )
+                  .select("factoryId")
+                  .where("chainId", "=", source.chainId)
+                  .where("startBlock", "<=", BigInt(source.startBlock))
+                  .where("endBlock", ">", BigInt(source.startBlock)),
+              )
+              .updateTable("factoryTraceFilterIntervals")
+              .set({
+                endBlock: BigInt(source.startBlock),
+              })
+              .where(
+                "factoryId",
+                "in",
+                sql`(SELECT "factoryId" FROM ${sql.table(
+                  "updateFactoryTraceFilter",
+                )})`,
+              )
+              .execute();
+          }),
+        );
         break;
       }
 
       case "block": {
+        await this.db.wrap({ method: "pruneBySource" }, () =>
+          this.db.transaction().execute(async (tx) => {
+            const fragmentId = `${source.chainId}_${source.criteria.interval}_${source.criteria.offset}`;
+
+            await tx
+              .with("deleteBlockFilter(blockFilterId)", (qb) =>
+                qb
+                  .selectFrom("blockFilterIntervals")
+                  .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
+                  .select("blockFilterId")
+                  .where("blockFilterId", "=", fragmentId)
+                  .where("startBlock", ">", BigInt(source.startBlock)),
+              )
+              .deleteFrom("blockFilterIntervals")
+              .where(
+                "blockFilterId",
+                "in",
+                sql`(SELECT "blockFilterId" FROM ${sql.table(
+                  "deleteBlockFilter",
+                )})`,
+              )
+              .execute();
+
+            await tx
+              .with("updateBlockFilter(blockFilterId)", (qb) =>
+                qb
+                  .selectFrom("blockFilterIntervals")
+                  .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
+                  .select("blockFilterId")
+                  .where("blockFilterId", "=", fragmentId)
+                  .where("startBlock", "<=", BigInt(source.startBlock))
+                  .where("endBlock", ">", BigInt(source.startBlock)),
+              )
+              .updateTable("blockFilterIntervals")
+              .set({
+                endBlock: BigInt(source.startBlock),
+              })
+              .where(
+                "blockFilterId",
+                "in",
+                sql`(SELECT "blockFilterId" FROM ${sql.table(
+                  "updateBlockFilter",
+                )})`,
+              )
+              .execute();
+          }),
+        );
         break;
       }
 
