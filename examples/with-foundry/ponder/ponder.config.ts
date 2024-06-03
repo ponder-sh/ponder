@@ -1,7 +1,11 @@
 import { createConfig } from "@ponder/core";
-import { http } from "viem";
-
+import { http, getAddress, hexToNumber } from "viem";
+import { Hex } from "viem";
 import { counterABI } from "../abis/Counter";
+import CounterDeploy from "../contracts/broadcast/Deploy.s.sol/31337/run-latest.json";
+
+const address = getAddress(CounterDeploy.transactions[0]!.contractAddress);
+const startBlock = hexToNumber(CounterDeploy.receipts[0]!.blockNumber as Hex);
 
 export default createConfig({
   networks: {
@@ -14,8 +18,8 @@ export default createConfig({
     Counter: {
       network: "anvil",
       abi: counterABI,
-      address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-      startBlock: 0,
+      address,
+      startBlock,
     },
   },
 });

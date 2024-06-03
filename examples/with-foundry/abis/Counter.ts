@@ -4,19 +4,6 @@
 
 export const counterABI = [
   {
-    type: "event",
-    anonymous: false,
-    inputs: [
-      {
-        name: "value",
-        internalType: "uint256",
-        type: "uint256",
-        indexed: false,
-      },
-    ],
-    name: "Incremented",
-  },
-  {
     stateMutability: "nonpayable",
     type: "function",
     inputs: [],
@@ -30,13 +17,6 @@ export const counterABI = [
     name: "number",
     outputs: [{ name: "", internalType: "uint256", type: "uint256" }],
   },
-] as const;
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// CounterEvents
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const counterEventsABI = [
   {
     type: "event",
     anonymous: false,
@@ -320,46 +300,6 @@ export const iMulticall3ABI = [
 
 export const mockErc20ABI = [
   {
-    type: "event",
-    anonymous: false,
-    inputs: [
-      {
-        name: "owner",
-        internalType: "address",
-        type: "address",
-        indexed: true,
-      },
-      {
-        name: "spender",
-        internalType: "address",
-        type: "address",
-        indexed: true,
-      },
-      {
-        name: "amount",
-        internalType: "uint256",
-        type: "uint256",
-        indexed: false,
-      },
-    ],
-    name: "Approval",
-  },
-  {
-    type: "event",
-    anonymous: false,
-    inputs: [
-      { name: "from", internalType: "address", type: "address", indexed: true },
-      { name: "to", internalType: "address", type: "address", indexed: true },
-      {
-        name: "amount",
-        internalType: "uint256",
-        type: "uint256",
-        indexed: false,
-      },
-    ],
-    name: "Transfer",
-  },
-  {
     stateMutability: "view",
     type: "function",
     inputs: [],
@@ -475,13 +415,6 @@ export const mockErc20ABI = [
     name: "transferFrom",
     outputs: [{ name: "", internalType: "bool", type: "bool" }],
   },
-] as const;
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// MockERC721
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const mockErc721ABI = [
   {
     type: "event",
     anonymous: false,
@@ -498,7 +431,12 @@ export const mockErc721ABI = [
         type: "address",
         indexed: true,
       },
-      { name: "id", internalType: "uint256", type: "uint256", indexed: true },
+      {
+        name: "amount",
+        internalType: "uint256",
+        type: "uint256",
+        indexed: false,
+      },
     ],
     name: "Approval",
   },
@@ -506,32 +444,24 @@ export const mockErc721ABI = [
     type: "event",
     anonymous: false,
     inputs: [
-      {
-        name: "owner",
-        internalType: "address",
-        type: "address",
-        indexed: true,
-      },
-      {
-        name: "operator",
-        internalType: "address",
-        type: "address",
-        indexed: true,
-      },
-      { name: "approved", internalType: "bool", type: "bool", indexed: false },
-    ],
-    name: "ApprovalForAll",
-  },
-  {
-    type: "event",
-    anonymous: false,
-    inputs: [
       { name: "from", internalType: "address", type: "address", indexed: true },
       { name: "to", internalType: "address", type: "address", indexed: true },
-      { name: "id", internalType: "uint256", type: "uint256", indexed: true },
+      {
+        name: "amount",
+        internalType: "uint256",
+        type: "uint256",
+        indexed: false,
+      },
     ],
     name: "Transfer",
   },
+] as const;
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// MockERC721
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const mockErc721ABI = [
   {
     stateMutability: "nonpayable",
     type: "function",
@@ -654,5 +584,55 @@ export const mockErc721ABI = [
     ],
     name: "transferFrom",
     outputs: [],
+  },
+  {
+    type: "event",
+    anonymous: false,
+    inputs: [
+      {
+        name: "owner",
+        internalType: "address",
+        type: "address",
+        indexed: true,
+      },
+      {
+        name: "spender",
+        internalType: "address",
+        type: "address",
+        indexed: true,
+      },
+      { name: "id", internalType: "uint256", type: "uint256", indexed: true },
+    ],
+    name: "Approval",
+  },
+  {
+    type: "event",
+    anonymous: false,
+    inputs: [
+      {
+        name: "owner",
+        internalType: "address",
+        type: "address",
+        indexed: true,
+      },
+      {
+        name: "operator",
+        internalType: "address",
+        type: "address",
+        indexed: true,
+      },
+      { name: "approved", internalType: "bool", type: "bool", indexed: false },
+    ],
+    name: "ApprovalForAll",
+  },
+  {
+    type: "event",
+    anonymous: false,
+    inputs: [
+      { name: "from", internalType: "address", type: "address", indexed: true },
+      { name: "to", internalType: "address", type: "address", indexed: true },
+      { name: "id", internalType: "uint256", type: "uint256", indexed: true },
+    ],
+    name: "Transfer",
   },
 ] as const;
