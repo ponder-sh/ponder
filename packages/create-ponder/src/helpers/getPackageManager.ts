@@ -22,5 +22,5 @@ export const getPackageManager = ({
     if (userAgent.includes("yarn")) return "yarn";
   }
 
-  throw Error(pico.red("Undetectable package manager"));
+  throw new Error(pico.red("Undetectable package manager"));
 };

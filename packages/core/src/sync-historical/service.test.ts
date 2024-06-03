@@ -6,6 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { getEventsLog, getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { EventSource } from "@/config/sources.js";
+import type { SyncBlock } from "@/sync/index.js";
 import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -250,7 +251,7 @@ test("start() with block filter skips blocks already in database", async (contex
 
   await syncStore.insertRealtimeBlock({
     chainId: 1,
-    block: block!,
+    block: block! as SyncBlock,
     logs: [],
     transactions: [],
     transactionReceipts: [],

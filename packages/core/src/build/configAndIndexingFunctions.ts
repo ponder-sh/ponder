@@ -1,4 +1,5 @@
 import path from "node:path";
+import { BuildError } from "@/common/errors.js";
 import type { Options } from "@/common/options.js";
 import {
   buildAbiEvents,
@@ -722,7 +723,7 @@ export async function buildConfigAndIndexingFunctions({
       const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
 
       if (!Number.isInteger(interval) || interval === 0) {
-        throw Error(
+        throw new Error(
           `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
         );
       }
@@ -796,7 +797,7 @@ export async function buildConfigAndIndexingFunctions({
             : intervalMaybeNan;
 
           if (!Number.isInteger(interval) || interval === 0) {
-            throw Error(
+            throw new Error(
               `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
             );
           }
@@ -889,9 +890,10 @@ export async function safeBuildConfigAndIndexingFunctions({
       optionsConfig: result.optionsConfig,
       logs: result.logs,
     } as const;
-  } catch (error_) {
-    const error = error_ as Error;
-    return { status: "error", error } as const;
+  } catch (_error) {
+    const buildError = new BuildError((_error as Error).message);
+    buildError.stack = undefined;
+    return { status: "error", error: buildError } as const;
   }
 }
 

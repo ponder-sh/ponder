@@ -16,7 +16,13 @@ import {
   sourceIsLog,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { SyncCallTrace, SyncLog } from "@/sync/index.js";
+import type {
+  SyncBlock,
+  SyncCallTrace,
+  SyncLog,
+  SyncTransaction,
+  SyncTransactionReceipt,
+} from "@/sync/index.js";
 import type { CallTrace, Log } from "@/types/eth.js";
 import type { NonNull } from "@/types/utils.js";
 import {
@@ -46,10 +52,6 @@ import {
 } from "kysely";
 import {
   type Hex,
-  type RpcBlock,
-  type RpcLog,
-  type RpcTransaction,
-  type RpcTransactionReceipt,
   type TransactionReceipt,
   checksumAddress,
   hexToBigInt,
@@ -87,10 +89,10 @@ export class SqliteSyncStore implements SyncStore {
   }: {
     chainId: number;
     logFilter: LogFilterCriteria;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
-    logs: RpcLog[];
+    block: SyncBlock;
+    transactions: SyncTransaction[];
+    transactionReceipts: SyncTransactionReceipt[];
+    logs: SyncLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     return this.db.wrap({ method: "insertLogFilterInterval" }, async () => {
@@ -281,7 +283,7 @@ export class SqliteSyncStore implements SyncStore {
     logs: rpcLogs,
   }: {
     chainId: number;
-    logs: RpcLog[];
+    logs: SyncLog[];
   }) => {
     return this.db.wrap(
       { method: "insertFactoryChildAddressLogs" },
@@ -362,10 +364,10 @@ export class SqliteSyncStore implements SyncStore {
   }: {
     chainId: number;
     factory: FactoryLogFilterCriteria;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
-    logs: RpcLog[];
+    block: SyncBlock;
+    transactions: SyncTransaction[];
+    transactionReceipts: SyncTransactionReceipt[];
+    logs: SyncLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     return this.db.wrap(
@@ -571,7 +573,7 @@ export class SqliteSyncStore implements SyncStore {
   }: {
     chainId: number;
     blockFilter: BlockFilterCriteria;
-    block?: RpcBlock;
+    block?: SyncBlock;
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void> => {
     return this.db.wrap({ method: "insertBlockFilterInterval" }, async () => {
@@ -696,9 +698,9 @@ export class SqliteSyncStore implements SyncStore {
   }: {
     chainId: number;
     traceFilter: CallTraceFilterCriteria;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
+    block: SyncBlock;
+    transactions: SyncTransaction[];
+    transactionReceipts: SyncTransactionReceipt[];
     traces: SyncCallTrace[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
@@ -915,9 +917,9 @@ export class SqliteSyncStore implements SyncStore {
   }: {
     chainId: number;
     factory: FactoryCallTraceFilterCriteria;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
+    block: SyncBlock;
+    transactions: SyncTransaction[];
+    transactionReceipts: SyncTransactionReceipt[];
     traces: SyncCallTrace[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
@@ -1151,10 +1153,10 @@ export class SqliteSyncStore implements SyncStore {
     traces: rpcTraces,
   }: {
     chainId: number;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
-    logs: RpcLog[];
+    block: SyncBlock;
+    transactions: SyncTransaction[];
+    transactionReceipts: SyncTransactionReceipt[];
+    logs: SyncLog[];
     traces: SyncCallTrace[];
   }) => {
     return this.db.wrap({ method: "insertRealtimeBlock" }, async () => {
@@ -1261,34 +1263,21 @@ export class SqliteSyncStore implements SyncStore {
   };
 
   private createLogCheckpoint = (
-    rpcLog: RpcLog,
-    block: RpcBlock,
+    log: SyncLog,
+    block: SyncBlock,
     chainId: number,
   ) => {
-    if (block.number === null) {
-      throw new Error("Number is missing from RPC block");
-    }
-    if (rpcLog.transactionIndex === null) {
-      throw new Error("Transaction index is missing from RPC log");
-    }
-    if (rpcLog.logIndex === null) {
-      throw new Error("Log index is missing from RPC log");
-    }
     return encodeCheckpoint({
       blockTimestamp: Number(BigInt(block.timestamp)),
       chainId: BigInt(chainId),
       blockNumber: hexToBigInt(block.number),
-      transactionIndex: hexToBigInt(rpcLog.transactionIndex),
+      transactionIndex: hexToBigInt(log.transactionIndex),
       eventType: EVENT_TYPES.logs,
-      eventIndex: hexToBigInt(rpcLog.logIndex),
+      eventIndex: hexToBigInt(log.logIndex),
     });
   };
 
-  private createBlockCheckpoint = (block: RpcBlock, chainId: number) => {
-    if (block.number === null) {
-      throw new Error("Number is missing from RPC block");
-    }
-
+  private createBlockCheckpoint = (block: SyncBlock, chainId: number) => {
     return encodeCheckpoint({
       blockTimestamp: hexToNumber(block.timestamp),
       chainId: BigInt(chainId),
@@ -1729,6 +1718,58 @@ export class SqliteSyncStore implements SyncStore {
                     )
               } )`,
           )
+          .with("log_checkpoints", (db) =>
+            db
+              .selectFrom("logs")
+              .where("logs.checkpoint", ">", cursor)
+              .where("logs.checkpoint", "<=", encodedToCheckpoint)
+              .orderBy("logs.checkpoint", "asc")
+              .offset(limit)
+              .limit(1)
+              .select("logs.checkpoint"),
+          )
+          .with("block_checkpoints", (db) =>
+            db
+              .selectFrom("blocks")
+              .where("blocks.checkpoint", ">", cursor)
+              .where("blocks.checkpoint", "<=", encodedToCheckpoint)
+              .orderBy("blocks.checkpoint", "asc")
+              .offset(limit)
+              .limit(1)
+              .select("blocks.checkpoint"),
+          )
+          .with("call_trace_checkpoints", (db) =>
+            db
+              .selectFrom("callTraces")
+              .where("callTraces.checkpoint", ">", cursor)
+              .where("callTraces.checkpoint", "<=", encodedToCheckpoint)
+              .orderBy("callTraces.checkpoint", "asc")
+              .offset(limit)
+              .limit(1)
+              .select("callTraces.checkpoint"),
+          )
+          .with("max_checkpoint", (db) =>
+            db
+              .selectFrom(
+                db
+                  .selectFrom("log_checkpoints")
+                  .select("checkpoint")
+                  .unionAll(
+                    db.selectFrom("block_checkpoints").select("checkpoint"),
+                  )
+                  .unionAll(
+                    db
+                      .selectFrom("call_trace_checkpoints")
+                      .select("checkpoint"),
+                  )
+                  .as("all_checkpoints"),
+              )
+              .select(
+                sql`coalesce(max(checkpoint), ${encodedToCheckpoint})`.as(
+                  "max_checkpoint",
+                ),
+              ),
+          )
           .with("events", (db) =>
             db
               .selectFrom("logs")
@@ -1971,7 +2012,13 @@ export class SqliteSyncStore implements SyncStore {
               ]),
           )
           .where("events.checkpoint", ">", cursor)
-          .where("events.checkpoint", "<=", encodedToCheckpoint)
+          .where(
+            "events.checkpoint",
+            "<=",
+            // Use the theoretical max checkpoint across all source types
+            // For details, read https://github.com/ponder-sh/ponder/pull/907/files
+            sql`( select max_checkpoint from max_checkpoint )`,
+          )
           .orderBy("events.checkpoint", "asc")
           .limit(limit + 1)
           .execute();

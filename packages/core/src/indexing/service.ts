@@ -20,6 +20,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
+import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
@@ -30,12 +31,12 @@ import type {
   LogEvent,
   SetupEvent,
 } from "../sync/events.js";
+import { addStackTrace } from "./addStackTrace.js";
 import {
   type ReadOnlyClient,
   buildCachedActions,
   buildDb,
 } from "./ponderActions.js";
-import { addUserStackTrace } from "./trace.js";
 
 export type Context = {
   network: { chainId: number; name: string };
@@ -520,15 +521,15 @@ const executeSetup = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = _error as Error;
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    addUserStackTrace(error, common.options);
+    addStackTrace(error, common.options);
 
     common.metrics.ponder_indexing_has_error.set(1);
 
@@ -593,15 +594,18 @@ const executeLog = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = _error as Error & { meta?: string[] };
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    addUserStackTrace(error, common.options);
+    addStackTrace(error, common.options);
+
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
 
     common.logger.error({
       service: "indexing",
@@ -611,7 +615,7 @@ const executeLog = async (
 
     common.metrics.ponder_indexing_has_error.set(1);
 
-    return { status: "error", error: error };
+    return { status: "error", error };
   }
 
   return { status: "success" };
@@ -663,19 +667,27 @@ const executeBlock = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
-
+    const error = _error as Error & { meta?: string[] };
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    addUserStackTrace(error, common.options);
+    addStackTrace(error, common.options);
+
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(
+      `Block:\n${prettyPrint({
+        hash: event.event.block.hash,
+        number: event.event.block.number,
+        timestamp: event.event.block.timestamp,
+      })}`,
+    );
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing ${eventName} event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+      msg: `Error while processing ${eventName} event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}`,
       error,
     });
 
@@ -736,15 +748,18 @@ const executeCallTrace = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = _error as Error & { meta?: string[] };
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    addUserStackTrace(error, common.options);
+    addStackTrace(error, common.options);
+
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(`Call trace arguments:\n${prettyPrint(event.event.args)}`);
 
     common.logger.error({
       service: "indexing",

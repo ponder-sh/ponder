@@ -440,7 +440,7 @@ const validateAndBuild = async (
   if (buildConfigAndIndexingFunctionsResult.status === "error") {
     common.logger.error({
       service: "build",
-      msg: "Failed build with error:",
+      msg: "Failed build",
       error: buildConfigAndIndexingFunctionsResult.error,
     });
 

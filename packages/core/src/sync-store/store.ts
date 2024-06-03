@@ -7,7 +7,13 @@ import type {
   LogFilterCriteria,
 } from "@/config/sources.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { SyncCallTrace } from "@/sync/index.js";
+import type {
+  SyncBlock,
+  SyncCallTrace,
+  SyncLog,
+  SyncTransaction,
+  SyncTransactionReceipt,
+} from "@/sync/index.js";
 import type {
   Block,
   CallTrace,
@@ -16,13 +22,7 @@ import type {
   TransactionReceipt,
 } from "@/types/eth.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import type {
-  Address,
-  RpcBlock,
-  RpcLog,
-  RpcTransaction,
-  RpcTransactionReceipt,
-} from "viem";
+import type { Address } from "viem";
 
 export type RawEvent = {
   chainId: number;
@@ -49,10 +49,10 @@ export interface SyncStore {
   insertLogFilterInterval(options: {
     chainId: number;
     logFilter: LogFilterCriteria;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
-    logs: RpcLog[];
+    block: SyncBlock;
+    transactions: SyncTransaction[];
+    transactionReceipts: SyncTransactionReceipt[];
+    logs: SyncLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 
@@ -75,7 +75,7 @@ export interface SyncStore {
    */
   insertFactoryChildAddressLogs(options: {
     chainId: number;
-    logs: RpcLog[];
+    logs: SyncLog[];
   }): Promise<void>;
 
   /**
@@ -102,10 +102,10 @@ export interface SyncStore {
   insertFactoryLogFilterInterval(options: {
     chainId: number;
     factory: FactoryLogFilterCriteria;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
-    logs: RpcLog[];
+    block: SyncBlock;
+    transactions: SyncTransaction[];
+    transactionReceipts: SyncTransactionReceipt[];
+    logs: SyncLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 
@@ -128,7 +128,7 @@ export interface SyncStore {
   insertBlockFilterInterval(options: {
     chainId: number;
     blockFilter: BlockFilterCriteria;
-    block?: RpcBlock;
+    block?: SyncBlock;
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 
@@ -159,9 +159,9 @@ export interface SyncStore {
   insertTraceFilterInterval(options: {
     chainId: number;
     traceFilter: CallTraceFilterCriteria;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
+    block: SyncBlock;
+    transactions: SyncTransaction[];
+    transactionReceipts: SyncTransactionReceipt[];
     traces: SyncCallTrace[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
@@ -185,9 +185,9 @@ export interface SyncStore {
   insertFactoryTraceFilterInterval(options: {
     chainId: number;
     factory: FactoryCallTraceFilterCriteria;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
+    block: SyncBlock;
+    transactions: SyncTransaction[];
+    transactionReceipts: SyncTransactionReceipt[];
     traces: SyncCallTrace[];
     interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
@@ -209,10 +209,10 @@ export interface SyncStore {
    */
   insertRealtimeBlock(options: {
     chainId: number;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    transactionReceipts: RpcTransactionReceipt[];
-    logs: RpcLog[];
+    block: SyncBlock;
+    transactions: SyncTransaction[];
+    transactionReceipts: SyncTransactionReceipt[];
+    logs: SyncLog[];
     traces: SyncCallTrace[];
   }): Promise<void>;
 

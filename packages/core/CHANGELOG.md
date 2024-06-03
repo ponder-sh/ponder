@@ -1,5 +1,17 @@
 # @ponder/core
 
+## 0.4.33
+
+### Patch Changes
+
+- [`e29efbb4c51181e723ca25ba35c2dd7263738f77`](https://github.com/ponder-sh/ponder/commit/e29efbb4c51181e723ca25ba35c2dd7263738f77) Thanks [@0xOlias](https://github.com/0xOlias)! - Added new CLI options `--log-level` and `--log-format`. Added support for structured logs using newline delimited JSON. [Read more](https://ponder.sh/docs/advanced/logging).
+
+- [#922](https://github.com/ponder-sh/ponder/pull/922) [`ec5472749ee195a7f6ec8753d622ecf575656983`](https://github.com/ponder-sh/ponder/commit/ec5472749ee195a7f6ec8753d622ecf575656983) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated `hono` and `@hono/node-server` to fix a memory leak in the server.
+
+- [#917](https://github.com/ponder-sh/ponder/pull/917) [`1e423a1c4f5eb303711842cc6389f9e13cfeecde`](https://github.com/ponder-sh/ponder/commit/1e423a1c4f5eb303711842cc6389f9e13cfeecde) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for `startBlock` or `endBlock` to be greater than the finalized or latest block.
+
+- [#907](https://github.com/ponder-sh/ponder/pull/907) [`c9886d9dd86bea13b85fe0335a96c8ca24a30fd9`](https://github.com/ponder-sh/ponder/commit/c9886d9dd86bea13b85fe0335a96c8ca24a30fd9) Thanks [@erensanlier](https://github.com/erensanlier)! - Improved the performance an important internal SQL query (`getEvents`) for large apps. An app with ~5M rows in the `ponder_sync.logs` table saw a ~20x reduction in execution time for this query. Smaller apps will see a more modest improvement.
+
 ## 0.4.32
 
 ### Patch Changes

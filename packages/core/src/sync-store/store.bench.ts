@@ -7,15 +7,15 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import type { EventSource, LogFilterCriteria } from "@/config/sources.js";
+import type {
+  SyncBlock,
+  SyncLog,
+  SyncTransaction,
+  SyncTransactionReceipt,
+} from "@/sync/index.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { range } from "@/utils/range.js";
-import {
-  type RpcBlock,
-  type RpcLog,
-  type RpcTransaction,
-  type RpcTransactionReceipt,
-} from "viem";
 import { type TestContext, bench } from "vitest";
 import type { SyncStore } from "./store.js";
 
@@ -56,22 +56,22 @@ const generateBlock = (
 ): {
   chainId: number;
   logFilter: LogFilterCriteria;
-  block: RpcBlock;
-  transactions: RpcTransaction[];
-  transactionReceipts: RpcTransactionReceipt[];
-  logs: RpcLog[];
+  block: SyncBlock;
+  transactions: SyncTransaction[];
+  transactionReceipts: SyncTransactionReceipt[];
+  logs: SyncLog[];
   interval: { startBlock: bigint; endBlock: bigint };
 } => {
   const blockNumber = opts.block;
   const blockHash = randomBlob(256);
 
-  const transactions = [] as RpcTransaction[];
-  const logs = [] as RpcLog[];
+  const transactions = [] as SyncTransaction[];
+  const logs = [] as SyncLog[];
 
   for (let txIdx = 0; txIdx < opts.txPerBlock; txIdx++) {
     const transactionHash = randomBlob(256);
     for (let logIdx = 0; logIdx < opts.logsPerTx; logIdx++) {
-      const log: RpcLog = {
+      const log: SyncLog = {
         address: opts.addr,
         blockHash,
         blockNumber: `0x${blockNumber.toString(16)}`,
@@ -104,7 +104,7 @@ const generateBlock = (
     });
   }
 
-  const block: RpcBlock = {
+  const block: SyncBlock = {
     baseFeePerGas: randomNum(),
     difficulty: randomNum(),
     extraData: randomNum(),
