@@ -9,6 +9,7 @@ import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import { getTables } from "@/schema/utils.js";
 import type { UserId, UserRecord } from "@/types/schema.js";
+import { sql } from "kysely";
 import { getReadonlyStore } from "./readonly.js";
 import type { HistoricalStore, OrderByInput, WhereInput } from "./store.js";
 import { encodeRow, encodeValue } from "./utils/encoding.js";
@@ -90,38 +91,84 @@ export const getHistoricalStore = ({
       Object.entries(storeCache).map(async ([tableName, tableStoreCache]) => {
         const table = (schema[tableName] as { table: Table }).table;
 
-        let rows: UserRecord[];
+        let insertRows: UserRecord[];
+        let updateRows: UserRecord[];
 
         if (fullFlush) {
-          rows = Object.values(tableStoreCache.insert).map(
+          insertRows = Object.values(tableStoreCache.insert).map(
+            ({ record }) => record,
+          );
+          updateRows = Object.values(tableStoreCache.update).map(
             ({ record }) => record,
           );
         } else {
-          rows = Object.values(tableStoreCache.insert)
+          insertRows = Object.values(tableStoreCache.insert)
+            .filter(({ opIndex }) => opIndex < flushIndex)
+            .map(({ record }) => record);
+
+          updateRows = Object.values(tableStoreCache.update)
             .filter(({ opIndex }) => opIndex < flushIndex)
             .map(({ record }) => record);
         }
 
-        if (rows.length === 0) return;
+        if (insertRows.length + updateRows.length === 0) return;
 
         logger.debug({
           service: "indexing",
-          msg: `Flushing ${rows.length} '${tableName}' database records from cache`,
+          msg: `Flushing ${
+            insertRows.length + updateRows.length
+          } '${tableName}' database records from cache`,
         });
 
-        for (let i = 0, len = rows.length; i < len; i += MAX_BATCH_SIZE) {
+        // insert
+        for (let i = 0, len = insertRows.length; i < len; i += MAX_BATCH_SIZE) {
           await db.wrap({ method: `${tableName}.flush` }, async () => {
-            const _rows = rows
+            const _insertRows = insertRows
               .slice(i, i + MAX_BATCH_SIZE)
               .map((d) => encodeRow(d, table, kind));
 
             await db
               .withSchema(namespaceInfo.userNamespace)
               .insertInto(tableName)
-              .values(_rows)
+              .values(_insertRows)
               .execute()
               .catch((err) => {
-                throw parseStoreError(err, _rows.length > 0 ? _rows[0] : {});
+                throw parseStoreError(
+                  err,
+                  _insertRows.length > 0 ? _insertRows[0] : {},
+                );
+              });
+          });
+        }
+
+        // update
+        for (let i = 0, len = updateRows.length; i < len; i += MAX_BATCH_SIZE) {
+          await db.wrap({ method: `${tableName}.flush` }, async () => {
+            const _updateRows = updateRows
+              .slice(i, i + MAX_BATCH_SIZE)
+              .map((d) => encodeRow(d, table, kind));
+
+            await db
+              .withSchema(namespaceInfo.userNamespace)
+              .with(
+                "updates(id)",
+                () =>
+                  sql`( values (${sql.join(
+                    _updateRows.map((row) =>
+                      sql.join(Object.values(encodeRow(row, table, kind))),
+                    ),
+                  )}) )`,
+              )
+              .updateTable(tableName)
+              .set(_updateRows)
+              .from("updates")
+              .where(sql.ref(`${tableName}.id`), "=", "updates.id")
+              .execute()
+              .catch((err) => {
+                throw parseStoreError(
+                  err,
+                  _updateRows.length > 0 ? _updateRows[0] : {},
+                );
               });
           });
         }
@@ -141,6 +188,15 @@ export const getHistoricalStore = ({
       for (const [tableName, tableStoreCache] of Object.entries(storeCache)) {
         for (const [id, { opIndex }] of Object.entries(
           tableStoreCache.insert,
+        )) {
+          if (opIndex < flushIndex) {
+            delete storeCache[tableName].insert[id];
+            cacheSize--;
+          }
+        }
+
+        for (const [id, { opIndex }] of Object.entries(
+          tableStoreCache.update,
         )) {
           if (opIndex < flushIndex) {
             delete storeCache[tableName].insert[id];
@@ -190,8 +246,6 @@ export const getHistoricalStore = ({
       id: UserId;
       data?: Omit<UserRecord, "id">;
     }) => {
-      if (cacheSize + 1 > MAX_CACHE_SIZE) await flush(false);
-
       const encodedId = encodeCacheId(id);
 
       if (
@@ -214,6 +268,8 @@ export const getHistoricalStore = ({
       };
 
       cacheSize++;
+
+      if (cacheSize > MAX_CACHE_SIZE) await flush(false);
 
       return record;
     },
@@ -247,6 +303,8 @@ export const getHistoricalStore = ({
       }
 
       cacheSize += data.length;
+
+      if (cacheSize > MAX_CACHE_SIZE) await flush(false);
 
       return data;
     },
@@ -352,6 +410,8 @@ export const getHistoricalStore = ({
       }
 
       if (cacheEntry === undefined) {
+        // insert/create branch
+
         const record = create as UserRecord;
         record.id = id;
 
@@ -366,8 +426,12 @@ export const getHistoricalStore = ({
 
         cacheSize++;
 
+        if (cacheSize > MAX_CACHE_SIZE) await flush(false);
+
         return record;
       } else {
+        // update branch
+
         const _update =
           typeof update === "function"
             ? update({ current: cacheEntry.record })
