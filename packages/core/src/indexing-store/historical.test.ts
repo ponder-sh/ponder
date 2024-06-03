@@ -6,6 +6,7 @@ import {
 import {
   BigIntSerializationError,
   CheckConstraintError,
+  RecordNotFoundError,
   UniqueConstraintError,
 } from "@/common/errors.js";
 import { createSchema } from "@/schema/schema.js";
@@ -15,6 +16,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { beforeEach, expect, test } from "vitest";
+import type { HistoricalStore } from "./store.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -47,9 +49,47 @@ function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index };
 }
 
-test.todo("findUnique() w/ cache miss");
+test("findUnique() w/ cache miss", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
 
-test.todo("findMany() flushes cache");
+  await indexingStore.create({
+    tableName: "Pet",
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  await (indexingStore as HistoricalStore).flush();
+
+  const instance = await indexingStore.findUnique({
+    tableName: "Pet",
+    id: "id1",
+  });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await cleanup();
+});
+
+test("findMany()", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const instance = await indexingStore.findMany({
+    tableName: "Pet",
+  });
+  expect(instance.items).toHaveLength(1);
+  expect(instance.items[0]).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await cleanup();
+});
 
 test("create() inserts a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
@@ -58,7 +98,6 @@ test("create() inserts a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -72,14 +111,13 @@ test("create() inserts a record", async (context) => {
   await cleanup();
 });
 
-test("create() throws on unique constraint violation", async (context) => {
+test("create() throws UniqueConstraintError", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip" },
   });
@@ -87,7 +125,7 @@ test("create() throws on unique constraint violation", async (context) => {
   const error = await indexingStore
     .create({
       tableName: "Pet",
-      encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+
       id: "id1",
       data: { name: "Skip", age: 13 },
     })
@@ -105,7 +143,6 @@ test.skip("create() respects optional fields", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", kind: "CAT" },
   });
@@ -128,7 +165,7 @@ test.skip("create() throws on invalid json", async (context) => {
   const error = await indexingStore
     .create({
       tableName: "Pet",
-      encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+
       id: "id1",
       data: {
         name: "Skip",
@@ -156,7 +193,6 @@ test("create() accepts enums", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", kind: "CAT" },
   });
@@ -179,7 +215,7 @@ test.skip("create() throws on invalid enum value", async (context) => {
   const error = await indexingStore
     .create({
       tableName: "Pet",
-      encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+
       id: "id1",
       data: { name: "Skip", kind: "NOTACAT" },
     })
@@ -197,7 +233,6 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
@@ -219,7 +254,6 @@ test("create() accepts float fields as float and returns as float", async (conte
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", rating: 1.0 },
   });
@@ -241,7 +275,6 @@ test("update() updates a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
@@ -275,7 +308,6 @@ test("update() updates a record using an update function", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
@@ -314,7 +346,6 @@ test("update() with an empty update object returns the original record", async (
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -338,7 +369,6 @@ test("update() with an update function that returns an empty object returns the 
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -358,21 +388,19 @@ test("update() with an update function that returns an empty object returns the 
   await cleanup();
 });
 
-test.skip("update() works with hex case sensitivity", async (context) => {
+test("update() works with hex case sensitivity", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema: hexSchema,
   });
 
   await indexingStore.create({
     tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0x0a",
     data: { n: 1 },
   });
 
   await indexingStore.update({
     tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0x0A",
     data: { n: 2 },
   });
@@ -386,9 +414,48 @@ test.skip("update() works with hex case sensitivity", async (context) => {
   await cleanup();
 });
 
-test.todo("update() RecordNotFoundError");
+test("update() throws RecordNotFoundError", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+  const error = await indexingStore
+    .update({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
+      id: "id1",
+      data: { name: "Peanut Butter" },
+    })
+    .catch((err) => err);
 
-test.todo("update() w/ cache miss");
+  expect(error).instanceOf(RecordNotFoundError);
+
+  await cleanup();
+});
+
+test("update() w/ cache miss", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    id: "id1",
+    data: { name: "Skip", bigAge: 100n },
+  });
+
+  await (indexingStore as HistoricalStore).flush();
+
+  const updatedInstance = await indexingStore.update({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
+    id: "id1",
+    data: { name: "Peanut Butter" },
+  });
+
+  expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
+
+  await cleanup();
+});
 
 test("upsert() inserts a new record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
@@ -397,7 +464,6 @@ test("upsert() inserts a new record", async (context) => {
 
   await indexingStore.upsert({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     create: { name: "Skip", age: 12 },
   });
@@ -418,7 +484,6 @@ test("upsert() updates a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -452,7 +517,6 @@ test("upsert() with an empty update object returns the original record", async (
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -477,7 +541,6 @@ test("upsert() with an update function that returns an empty object returns the 
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -505,7 +568,6 @@ test("upsert() updates a record using an update function", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -541,14 +603,12 @@ test.skip("upsert() works with hex case sensitivity", async (context) => {
 
   await indexingStore.create({
     tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0x0a",
     data: { n: 1 },
   });
 
   await indexingStore.upsert({
     tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0xA",
     create: { n: 0 },
     update: { n: 2 },
@@ -563,7 +623,31 @@ test.skip("upsert() works with hex case sensitivity", async (context) => {
   await cleanup();
 });
 
-test.todo("upsert() w/ cache miss");
+test("upsert() w/ cache miss", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "Pet",
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  await (indexingStore as HistoricalStore).flush();
+
+  const updatedInstance = await indexingStore.upsert({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
+    id: "id1",
+    create: { name: "Skip", age: 24 },
+    update: { name: "Jelly" },
+  });
+
+  expect(updatedInstance).toMatchObject({ id: "id1", name: "Jelly", age: 12 });
+
+  await cleanup();
+});
 
 test("delete() removes a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
@@ -572,7 +656,6 @@ test("delete() removes a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -597,14 +680,40 @@ test("delete() removes a record", async (context) => {
   await cleanup();
 });
 
-test.skip("createMany() inserts multiple entities", async (context) => {
+test("delete() works with hex case sensitivity", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema: hexSchema,
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    id: "0xa",
+    data: { n: 1 },
+  });
+
+  await indexingStore.delete({
+    tableName: "table",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(25)),
+    id: "0xA",
+  });
+
+  const deletedInstance = await indexingStore.findUnique({
+    tableName: "table",
+    id: "0xa",
+  });
+
+  expect(deletedInstance).toBe(null);
+
+  await cleanup();
+});
+
+test("createMany() inserts multiple entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
 
   const createdItems = await indexingStore.createMany({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -619,7 +728,7 @@ test.skip("createMany() inserts multiple entities", async (context) => {
   await cleanup();
 });
 
-test.skip("createMany() inserts a large number of entities", async (context) => {
+test("createMany() inserts a large number of entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -628,7 +737,6 @@ test.skip("createMany() inserts a large number of entities", async (context) => 
 
   const createdItems = await indexingStore.createMany({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [...Array(RECORD_COUNT).keys()].map((i) => ({
       id: `id${i}`,
       name: "Alice",
@@ -651,14 +759,13 @@ test.skip("createMany() inserts a large number of entities", async (context) => 
   await cleanup();
 });
 
-test.skip("updateMany() updates multiple entities", async (context) => {
+test("updateMany() updates multiple entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
 
   await indexingStore.createMany({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -682,14 +789,13 @@ test.skip("updateMany() updates multiple entities", async (context) => {
   await cleanup();
 });
 
-test.skip("updateMany() updates using a function", async (context) => {
+test("updateMany() updates using a function", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
 
   await indexingStore.createMany({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -713,21 +819,19 @@ test.skip("updateMany() updates using a function", async (context) => {
   await cleanup();
 });
 
-test.skip("updateMany() works with hex case sensitivity", async (context) => {
+test("updateMany() works with hex case sensitivity", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema: hexSchema,
   });
 
   await indexingStore.create({
     tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     id: "0x0a",
     data: { n: 1 },
   });
 
   await indexingStore.updateMany({
     tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     where: { n: { gt: 0 } },
     data: { n: 2 },
   });
@@ -741,7 +845,7 @@ test.skip("updateMany() works with hex case sensitivity", async (context) => {
   await cleanup();
 });
 
-test.skip("updateMany() updates a large number of entities", async (context) => {
+test("updateMany() updates a large number of entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -750,7 +854,6 @@ test.skip("updateMany() updates a large number of entities", async (context) => 
 
   await indexingStore.createMany({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     data: [...Array(RECORD_COUNT).keys()].map((i) => ({
       id: `id${i}`,
       name: "Alice",
@@ -760,7 +863,6 @@ test.skip("updateMany() updates a large number of entities", async (context) => 
 
   const updatedItems = await indexingStore.updateMany({
     tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
     where: {},
     data: ({ current }) => ({
       bigAge: (current.bigAge as bigint) + 1n,
@@ -771,36 +873,111 @@ test.skip("updateMany() updates a large number of entities", async (context) => 
   await cleanup();
 });
 
-test.skip("delete() works with hex case sensitivity", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema: hexSchema,
-  });
+test("flush() insert", async (context) => {
+  const { indexingStore, cleanup, database, namespaceInfo } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
 
   await indexingStore.create({
-    tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
-    id: "0xa",
-    data: { n: 1 },
+    tableName: "Pet",
+    id: "id1",
+    data: { name: "Skip", age: 12 },
   });
 
-  await indexingStore.delete({
-    tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(25)),
-    id: "0xA",
-  });
+  await (indexingStore as HistoricalStore).flush();
 
-  const deletedInstance = await indexingStore.findUnique({
-    tableName: "table",
-    id: "0xa",
-  });
+  const rows = await database.indexingDb
+    .withSchema(namespaceInfo.userNamespace)
+    .selectFrom("Pet")
+    .selectAll()
+    .execute();
 
-  expect(deletedInstance).toBe(null);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    id: "id1",
+    name: "Skip",
+    age: 12,
+  });
 
   await cleanup();
 });
 
-test.todo("flush() insert");
+test("flush() update", async (context) => {
+  const { indexingStore, cleanup, database, namespaceInfo } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
 
-test.todo("flush() update");
+  await indexingStore.create({
+    tableName: "Pet",
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
 
-test.todo("flush() partial");
+  await (indexingStore as HistoricalStore).flush();
+
+  await indexingStore.update({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
+    id: "id1",
+    data: { name: "Peanut Butter" },
+  });
+
+  await (indexingStore as HistoricalStore).flush();
+
+  const rows = await database.indexingDb
+    .withSchema(namespaceInfo.userNamespace)
+    .selectFrom("Pet")
+    .selectAll()
+    .execute();
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    id: "id1",
+    name: "Peanut Butter",
+    age: 12,
+  });
+
+  await cleanup();
+});
+
+test("flush() partial", async (context) => {
+  const { indexingStore, cleanup, database, namespaceInfo } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
+
+  await indexingStore.createMany({
+    tableName: "Pet",
+    data: [
+      { id: "id0", name: "Skip" },
+      { id: "id1", name: "Skip" },
+      { id: "id2", name: "Foo" },
+      { id: "id3", name: "Bar" },
+      { id: "id4", name: "Skip" },
+      { id: "id5", name: "Foo" },
+      { id: "id6", name: "Bar" },
+      { id: "id7", name: "Skip" },
+      { id: "id8", name: "Foo" },
+      { id: "id9", name: "Bar" },
+    ],
+  });
+
+  // @ts-ignore
+  await indexingStore.flush(false);
+
+  const rows = await database.indexingDb
+    .withSchema(namespaceInfo.userNamespace)
+    .selectFrom("Pet")
+    .selectAll()
+    .execute();
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    id: "id0",
+    name: "Skip",
+  });
+
+  await cleanup();
+});

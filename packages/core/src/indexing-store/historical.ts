@@ -1,27 +1,26 @@
-import {
-  NonRetryableError,
-  RecordNotFoundError,
-  UniqueConstraintError,
-} from "@/common/errors.js";
+import { RecordNotFoundError, UniqueConstraintError } from "@/common/errors.js";
 import type { Logger } from "@/common/logger.js";
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import { getTables } from "@/schema/utils.js";
-import type { UserId, UserRecord } from "@/types/schema.js";
+import type {
+  DatabaseColumn,
+  DatabaseRecord,
+  UserId,
+  UserRecord,
+} from "@/types/schema.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import { sql } from "kysely";
 import { getReadonlyStore } from "./readonly.js";
 import type { HistoricalStore, OrderByInput, WhereInput } from "./store.js";
-import { encodeRow, encodeValue } from "./utils/encoding.js";
+import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
+import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000;
 const MAX_CACHE_SIZE = 50_000;
 const CACHE_FLUSH = 0.1;
-// @ts-expect-error
-const DEFAULT_LIMIT = 50;
-// @ts-expect-error
-const MAX_LIMIT = 1_000;
 
 type Insert = {
   type: "insert";
@@ -41,12 +40,6 @@ type StoreCache = {
     insert: { [id: string | number]: Insert };
     update: { [id: string | number]: Update };
   };
-};
-
-// TODO(kyle) hex should be lowercased
-const encodeCacheId = (id: UserId): string | number => {
-  if (typeof id === "bigint") return `#Bigint.${id}`;
-  return id;
 };
 
 export const getHistoricalStore = ({
@@ -77,6 +70,27 @@ export const getHistoricalStore = ({
       update: {},
     };
   }
+
+  const isIdColumnHex = Object.entries(getTables(schema)).reduce<{
+    [tableName: string]: boolean;
+  }>(
+    (
+      acc,
+      [
+        tableName, { table },
+      ],
+    ) => {
+      acc[tableName] = table.id[" scalar"] === "hex";
+      return acc;
+    },
+    {},
+  );
+
+  const encodeCacheId = (id: UserId, tableName: string): string | number => {
+    if (isIdColumnHex[tableName]) return toLowerCase(id as string);
+    if (typeof id === "bigint") return `#Bigint.${id}`;
+    return id;
+  };
 
   const flush = async (fullFlush = true) => {
     const flushIndex = totalCacheOps - cacheSize * (1 - CACHE_FLUSH);
@@ -144,19 +158,18 @@ export const getHistoricalStore = ({
 
             await db
               .withSchema(namespaceInfo.userNamespace)
-              .with(
-                "updates(id)",
-                () =>
-                  sql`( values (${sql.join(
-                    _updateRows.map((row) =>
-                      sql.join(Object.values(encodeRow(row, table, kind))),
-                    ),
-                  )}) )`,
+              .insertInto(tableName)
+              .values(_updateRows)
+              .onConflict((oc) =>
+                oc.column("id").doUpdateSet((eb) =>
+                  Object.keys(table).reduce<any>((acc, colName) => {
+                    if (colName !== "id") {
+                      acc[colName] = eb.ref(`excluded.${colName}`);
+                    }
+                    return acc;
+                  }, {}),
+                ),
               )
-              .updateTable(tableName)
-              .set(_updateRows)
-              .from("updates")
-              .where(sql.ref(`${tableName}.id`), "=", "updates.id")
               .execute()
               .catch((err) => {
                 throw parseStoreError(
@@ -210,9 +223,11 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
+      const encodedId = encodeCacheId(id, tableName);
+
       const cacheRecord =
-        storeCache[tableName].insert[encodeCacheId(id)]?.record ??
-        storeCache[tableName].update[encodeCacheId(id)]?.record;
+        storeCache[tableName].insert[encodedId]?.record ??
+        storeCache[tableName].update[encodedId]?.record;
 
       if (cacheRecord !== undefined) return cacheRecord;
       if (isCacheFull) return null;
@@ -220,7 +235,7 @@ export const getHistoricalStore = ({
       // TODO(kyle) load result into cache
       return readonlyStore.findUnique({ tableName, id });
     },
-    findMany: async (_: {
+    findMany: async (arg: {
       tableName: string;
       where?: WhereInput<any>;
       orderBy?: OrderByInput<any>;
@@ -228,7 +243,9 @@ export const getHistoricalStore = ({
       after?: string | null;
       limit?: number;
     }) => {
-      throw new NonRetryableError("Not implemented");
+      await flush(true);
+
+      return readonlyStore.findMany(arg);
     },
     create: async ({
       tableName,
@@ -239,7 +256,7 @@ export const getHistoricalStore = ({
       id: UserId;
       data?: Omit<UserRecord, "id">;
     }) => {
-      const encodedId = encodeCacheId(id);
+      const encodedId = encodeCacheId(id, tableName);
 
       if (
         storeCache[tableName].insert[encodedId] !== undefined ||
@@ -276,7 +293,7 @@ export const getHistoricalStore = ({
       // TODO(kyle) what if data size is more than the max cache rows
 
       for (const record of data) {
-        const encodedId = encodeCacheId(record.id);
+        const encodedId = encodeCacheId(record.id, tableName);
 
         if (
           storeCache[tableName].insert[encodedId] !== undefined ||
@@ -288,7 +305,7 @@ export const getHistoricalStore = ({
         // Note: this is where not-null constraints would be checked.
         // It may be safe to wait until flush to throw the error.
 
-        storeCache[tableName].insert[encodeCacheId(record.id)] = {
+        storeCache[tableName].insert[encodedId] = {
           type: "insert",
           opIndex: totalCacheOps++,
           record,
@@ -312,7 +329,7 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const encodedId = encodeCacheId(id);
+      const encodedId = encodeCacheId(id, tableName);
 
       let cacheEntry: Insert | Update;
 
@@ -355,14 +372,118 @@ export const getHistoricalStore = ({
 
       return record;
     },
-    updateMany: async (_: {
+    updateMany: async ({
+      tableName,
+      where,
+      data = {},
+    }: {
       tableName: string;
       where: WhereInput<any>;
       data?:
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      throw new NonRetryableError("Not implemented");
+      await flush(true);
+      const table = (schema[tableName] as { table: Table }).table;
+
+      if (typeof data === "function") {
+        const query = db
+          .withSchema(namespaceInfo.userNamespace)
+          .selectFrom(tableName)
+          .selectAll()
+          .where((eb) =>
+            buildWhereConditions({
+              eb,
+              where,
+              table,
+              encoding: kind,
+            }),
+          )
+          .orderBy("id", "asc");
+
+        const rows: UserRecord[] = [];
+        let cursor: DatabaseColumn = null;
+
+        while (true) {
+          const _rows = await db.wrap(
+            { method: `${tableName}.updateMany` },
+            async () => {
+              const latestRows: DatabaseRecord[] = await query
+                .limit(MAX_BATCH_SIZE)
+                .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
+                .execute();
+
+              const rows: DatabaseRecord[] = [];
+
+              for (const latestRow of latestRows) {
+                const current = decodeRow(latestRow, table, kind);
+                const updateObject = data({ current });
+                // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
+                const updateRow = {
+                  id: latestRow.id,
+                  ...encodeRow(updateObject, table, kind),
+                };
+
+                const row = await db
+                  .withSchema(namespaceInfo.userNamespace)
+                  .updateTable(tableName)
+                  .set(updateRow)
+                  .where("id", "=", latestRow.id)
+                  .returningAll()
+                  .executeTakeFirstOrThrow()
+                  .catch((err) => {
+                    throw parseStoreError(err, updateObject);
+                  });
+                rows.push(row);
+              }
+
+              return rows.map((row) => decodeRow(row, table, kind));
+            },
+          );
+
+          rows.push(..._rows);
+
+          if (_rows.length === 0) {
+            break;
+          } else {
+            cursor = encodeValue(_rows[_rows.length - 1].id, table.id, kind);
+          }
+        }
+
+        return rows;
+      } else {
+        return db.wrap({ method: `${tableName}.updateMany` }, async () => {
+          const updateRow = encodeRow(data, table, kind);
+
+          const rows = await db
+            .with("latestRows(id)", (db) =>
+              db
+                .withSchema(namespaceInfo.userNamespace)
+                .selectFrom(tableName)
+                .select("id")
+                .where((eb) =>
+                  buildWhereConditions({
+                    eb,
+                    where,
+                    table,
+                    encoding: kind,
+                  }),
+                ),
+            )
+            .withSchema(namespaceInfo.userNamespace)
+            .updateTable(tableName)
+            .set(updateRow)
+            .from("latestRows")
+            .where(`${tableName}.id`, "=", sql.ref("latestRows.id"))
+            .returningAll()
+            .execute()
+            .catch((err) => {
+              throw parseStoreError(err, data);
+            });
+
+          return rows.map((row) => decodeRow(row, table, kind));
+        });
+      }
     },
     upsert: async ({
       tableName,
@@ -377,7 +498,7 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const encodedId = encodeCacheId(id);
+      const encodedId = encodeCacheId(id, tableName);
 
       let cacheEntry: Insert | Update | undefined;
 
@@ -448,7 +569,7 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      const encodedId = encodeCacheId(id);
+      const encodedId = encodeCacheId(id, tableName);
 
       const insertEntry = storeCache[tableName].insert[encodedId];
       const updateEntry = storeCache[tableName].update[encodedId];
