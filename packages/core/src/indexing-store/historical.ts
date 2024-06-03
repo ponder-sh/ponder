@@ -35,20 +35,15 @@ type Update = {
   record: UserRecord;
 };
 
-// type Delete = {
-//   type: "delete";
-//   opIndex: number;
-// };
-
 // TODO(kyle) should this be { [id : string | number]: Insert | Update | Delete }
 type StoreCache = {
   [tableName: string]: {
     insert: { [id: string | number]: Insert };
     update: { [id: string | number]: Update };
-    // delete: { [id: string | number]: Delete };
   };
 };
 
+// TODO(kyle) hex should be lowercased
 const encodeCacheId = (id: UserId): string | number => {
   if (typeof id === "bigint") return `#Bigint.${id}`;
   return id;
@@ -80,7 +75,6 @@ export const getHistoricalStore = ({
     storeCache[tableName] = {
       insert: {},
       update: {},
-      // delete: {},
     };
   }
 
@@ -180,7 +174,6 @@ export const getHistoricalStore = ({
         storeCache[tableName] = {
           insert: {},
           update: {},
-          // delete: {},
         };
       }
       cacheSize = 0;

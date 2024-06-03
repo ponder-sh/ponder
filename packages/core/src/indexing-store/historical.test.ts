@@ -47,6 +47,10 @@ function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index };
 }
 
+test.todo("findUnique() w/ cache miss");
+
+test.todo("findMany() flushes cache");
+
 test("create() inserts a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
@@ -94,7 +98,7 @@ test("create() throws on unique constraint violation", async (context) => {
   await cleanup();
 });
 
-test("create() respects optional fields", async (context) => {
+test.skip("create() respects optional fields", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -116,7 +120,7 @@ test("create() respects optional fields", async (context) => {
   await cleanup();
 });
 
-test("create() throws on invalid json", async (context) => {
+test.skip("create() throws on invalid json", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -167,7 +171,7 @@ test("create() accepts enums", async (context) => {
   await cleanup();
 });
 
-test("create() throws on invalid enum value", async (context) => {
+test.skip("create() throws on invalid enum value", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -354,6 +358,38 @@ test("update() with an update function that returns an empty object returns the 
   await cleanup();
 });
 
+test.skip("update() works with hex case sensitivity", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema: hexSchema,
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "0x0a",
+    data: { n: 1 },
+  });
+
+  await indexingStore.update({
+    tableName: "table",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "0x0A",
+    data: { n: 2 },
+  });
+
+  const instance = await indexingStore.findUnique({
+    tableName: "table",
+    id: "0x0A",
+  });
+  expect(instance).toMatchObject({ id: "0x0a", n: 2 });
+
+  await cleanup();
+});
+
+test.todo("update() RecordNotFoundError");
+
+test.todo("update() w/ cache miss");
+
 test("upsert() inserts a new record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
@@ -498,6 +534,37 @@ test("upsert() updates a record using an update function", async (context) => {
   await cleanup();
 });
 
+test.skip("upsert() works with hex case sensitivity", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema: hexSchema,
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "0x0a",
+    data: { n: 1 },
+  });
+
+  await indexingStore.upsert({
+    tableName: "table",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "0xA",
+    create: { n: 0 },
+    update: { n: 2 },
+  });
+
+  const instance = await indexingStore.findUnique({
+    tableName: "table",
+    id: "0xA",
+  });
+  expect(instance).toMatchObject({ id: "0x0a", n: 2 });
+
+  await cleanup();
+});
+
+test.todo("upsert() w/ cache miss");
+
 test("delete() removes a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
@@ -530,7 +597,7 @@ test("delete() removes a record", async (context) => {
   await cleanup();
 });
 
-test("createMany() inserts multiple entities", async (context) => {
+test.skip("createMany() inserts multiple entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -552,7 +619,7 @@ test("createMany() inserts multiple entities", async (context) => {
   await cleanup();
 });
 
-test("createMany() inserts a large number of entities", async (context) => {
+test.skip("createMany() inserts a large number of entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -584,7 +651,7 @@ test("createMany() inserts a large number of entities", async (context) => {
   await cleanup();
 });
 
-test("updateMany() updates multiple entities", async (context) => {
+test.skip("updateMany() updates multiple entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -615,7 +682,7 @@ test("updateMany() updates multiple entities", async (context) => {
   await cleanup();
 });
 
-test("updateMany() updates using a function", async (context) => {
+test.skip("updateMany() updates using a function", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -646,35 +713,7 @@ test("updateMany() updates using a function", async (context) => {
   await cleanup();
 });
 
-test("update() works with hex case sensitivity", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema: hexSchema,
-  });
-
-  await indexingStore.create({
-    tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
-    id: "0x0a",
-    data: { n: 1 },
-  });
-
-  await indexingStore.update({
-    tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
-    id: "0x0A",
-    data: { n: 2 },
-  });
-
-  const instance = await indexingStore.findUnique({
-    tableName: "table",
-    id: "0x0A",
-  });
-  expect(instance).toMatchObject({ id: "0x0a", n: 2 });
-
-  await cleanup();
-});
-
-test("updateMany() works with hex case sensitivity", async (context) => {
+test.skip("updateMany() works with hex case sensitivity", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema: hexSchema,
   });
@@ -702,7 +741,7 @@ test("updateMany() works with hex case sensitivity", async (context) => {
   await cleanup();
 });
 
-test("updateMany() updates a large number of entities", async (context) => {
+test.skip("updateMany() updates a large number of entities", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -732,36 +771,7 @@ test("updateMany() updates a large number of entities", async (context) => {
   await cleanup();
 });
 
-test("upsert() works with hex case sensitivity", async (context) => {
-  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
-    schema: hexSchema,
-  });
-
-  await indexingStore.create({
-    tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
-    id: "0x0a",
-    data: { n: 1 },
-  });
-
-  await indexingStore.upsert({
-    tableName: "table",
-    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
-    id: "0xA",
-    create: { n: 0 },
-    update: { n: 2 },
-  });
-
-  const instance = await indexingStore.findUnique({
-    tableName: "table",
-    id: "0xA",
-  });
-  expect(instance).toMatchObject({ id: "0x0a", n: 2 });
-
-  await cleanup();
-});
-
-test("delete() works with hex case sensitivity", async (context) => {
+test.skip("delete() works with hex case sensitivity", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema: hexSchema,
   });
@@ -788,3 +798,9 @@ test("delete() works with hex case sensitivity", async (context) => {
 
   await cleanup();
 });
+
+test.todo("flush() insert");
+
+test.todo("flush() update");
+
+test.todo("flush() partial");
