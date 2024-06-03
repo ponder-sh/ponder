@@ -13,13 +13,13 @@ anvil --block-time 1
 Compile contracts:
 
 ```shell
-cd foundry && forge build
+forge build
 ```
 
 Run script to deploy contracts and generate some events:
 
 ```shell
-cd foundry && forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 ```
 
 Generate abis:
