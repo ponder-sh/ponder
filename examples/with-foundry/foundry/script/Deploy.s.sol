@@ -7,9 +7,17 @@ import {Counter} from "../src/Counter.sol";
 contract CounterScript is Script {
     function setUp() public {}
 
-    function run() public returns (address) {
+    function run() external {
         vm.broadcast();
         Counter counter = new Counter();
-        return address(counter);
+
+        vm.broadcast();
+        counter.increment();
+
+        vm.broadcast();
+        counter.increment();
+
+        vm.broadcast();
+        counter.increment();
     }
 }

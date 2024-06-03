@@ -2,59 +2,38 @@
 
 This example repo mimics a monorepo with ponder and a foundry dapp. It's intended to be used as a template for new ponder projects that want to integrate both.
 
-## Guide
-
-Follow the [Ponder docs](https://ponder.sh) to learn more on how to use Ponder with Foundry.
-
-Ensure you have Ponder installed as well as `foundry`. You will also need to install the example packages with:
-
-```shell
-pnpm install && cd ponder && pnpm install
-```
-
-And then install the foundry packages in the `/contracts`:
-
-```shell
-# In the `/contracts` directory
-forge install
-```
-
 ## Usage
 
-There are some handy scripts in `package.json` to help you get started with this example. Open two terminal windows and run the following commands in each which starts an anvil server and ponder service respectively:
+Start an anvil local node:
 
 ```shell
-pnpm run start:anvil
+anvil --block-time 1
 ```
+
+Compile contracts:
 
 ```shell
-pnpm run dev:ponder
+cd foundry && forge build
 ```
 
-Next, you'll want to open a third terminal window and deploy the contracts:
+Run script to deploy contracts and generate some events:
 
 ```shell
-pnpm run deploy
+cd foundry && forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 ```
 
-After the contracts are deployed, you can run the following command to generate a single event:
+Generate abis:
 
 ```shell
-pnpm run generate:event
+pnpm wagmi generate
 ```
 
-## Developing
-
-If you'd like to develop the contracts further, make changes as required in `contracts/` and run the following command to recompile the contracts:
+Start ponder app:
 
 ```shell
-pnpmn run generate:abi
+pnpm ponder dev
 ```
 
-This uses `wagmi-cli` to generate the ABI typescript files. Before deploying, you'll need to restart anvil and redeploy the contracts. After that, you can reload the ponder service using a dev only route:
+## More
 
-```shell
-curl -X POST http://localhost:42069/admin/reload?chainId=31337
-```
-
-This assumes you're using the default port and chainId. Replace the port and chainId if you're using different values.
+Follow the [Ponder docs](https://ponder.sh/docs/advanced/foundry) to learn more on how to use Ponder with Foundry.
