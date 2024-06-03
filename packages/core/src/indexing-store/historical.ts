@@ -11,7 +11,7 @@ import { getTables } from "@/schema/utils.js";
 import type { UserId, UserRecord } from "@/types/schema.js";
 import { getReadonlyStore } from "./readonly.js";
 import type { HistoricalStore, OrderByInput, WhereInput } from "./store.js";
-import { encodeRow } from "./utils/encoding.js";
+import { encodeRow, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 
 const MAX_BATCH_SIZE = 1_000;
@@ -34,16 +34,17 @@ type Update = {
   record: UserRecord;
 };
 
-type Delete = {
-  type: "delete";
-  opIndex: number;
-};
+// type Delete = {
+//   type: "delete";
+//   opIndex: number;
+// };
 
+// TODO(kyle) should this be { [id : string | number]: Insert | Update | Delete }
 type StoreCache = {
   [tableName: string]: {
     insert: { [id: string | number]: Insert };
     update: { [id: string | number]: Update };
-    delete: { [id: string | number]: Delete };
+    // delete: { [id: string | number]: Delete };
   };
 };
 
@@ -78,7 +79,7 @@ export const getHistoricalStore = ({
     storeCache[tableName] = {
       insert: {},
       update: {},
-      delete: {},
+      // delete: {},
     };
   }
 
@@ -132,7 +133,7 @@ export const getHistoricalStore = ({
         storeCache[tableName] = {
           insert: {},
           update: {},
-          delete: {},
+          // delete: {},
         };
       }
       cacheSize = 0;
@@ -166,6 +167,8 @@ export const getHistoricalStore = ({
 
       if (cacheRecord !== undefined) return cacheRecord;
       if (isCacheFull) return null;
+
+      // TODO(kyle) load result into cache
       return readonlyStore.findUnique({ tableName, id });
     },
     findMany: async (_: {
@@ -388,16 +391,37 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      // TODO(kyle) check update and delete cache
-      const record = storeCache[tableName].insert[encodeCacheId(id)]?.record;
+      const encodedId = encodeCacheId(id);
 
-      if (record === undefined) return false;
-      else {
-        delete storeCache[tableName].insert[encodeCacheId(id)];
+      const insertEntry = storeCache[tableName].insert[encodedId];
+      const updateEntry = storeCache[tableName].update[encodedId];
+
+      if (insertEntry !== undefined) {
+        delete storeCache[tableName].insert[encodedId];
 
         cacheSize--;
 
         return true;
+      } else if (isCacheFull) {
+        return false;
+      } else {
+        const table = (schema[tableName] as { table: Table }).table;
+
+        if (updateEntry !== undefined) {
+          delete storeCache[tableName].update[encodedId];
+        }
+
+        const deletedRow = await db
+          .withSchema(namespaceInfo.userNamespace)
+          .deleteFrom(tableName)
+          .where("id", "=", encodeValue(id, table.id, kind))
+          .returning(["id"])
+          .executeTakeFirst()
+          .catch((err) => {
+            throw parseStoreError(err, { id });
+          });
+
+        return !!deletedRow;
       }
     },
     flush,
