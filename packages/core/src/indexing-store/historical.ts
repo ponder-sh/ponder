@@ -3,7 +3,13 @@ import type { Logger } from "@/common/logger.js";
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
-import { getTables } from "@/schema/utils.js";
+import {
+  getTables,
+  isEnumColumn,
+  isJSONColumn,
+  isReferenceColumn,
+  isScalarColumn,
+} from "@/schema/utils.js";
 import type {
   DatabaseColumn,
   DatabaseRecord,
@@ -19,7 +25,7 @@ import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000;
-const MAX_CACHE_SIZE = 50_000;
+const MAX_CACHE_SIZE = 15_000;
 const CACHE_FLUSH = 0.1;
 
 type Insert = {
@@ -162,12 +168,22 @@ export const getHistoricalStore = ({
               .values(_updateRows)
               .onConflict((oc) =>
                 oc.column("id").doUpdateSet((eb) =>
-                  Object.keys(table).reduce<any>((acc, colName) => {
-                    if (colName !== "id") {
-                      acc[colName] = eb.ref(`excluded.${colName}`);
-                    }
-                    return acc;
-                  }, {}),
+                  Object.entries(table).reduce<any>(
+                    (acc, [colName, column]) => {
+                      if (colName !== "id") {
+                        if (
+                          isScalarColumn(column) ||
+                          isReferenceColumn(column) ||
+                          isEnumColumn(column) ||
+                          isJSONColumn(column)
+                        ) {
+                          acc[colName] = eb.ref(`excluded.${colName}`);
+                        }
+                      }
+                      return acc;
+                    },
+                    {},
+                  ),
                 ),
               )
               .execute()
