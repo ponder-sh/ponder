@@ -4,30 +4,30 @@
 
 export const counterABI = [
   {
-    stateMutability: 'nonpayable',
-    type: 'function',
+    stateMutability: "nonpayable",
+    type: "function",
     inputs: [],
-    name: 'increment',
+    name: "increment",
     outputs: [],
   },
   {
-    stateMutability: 'view',
-    type: 'function',
+    stateMutability: "view",
+    type: "function",
     inputs: [],
-    name: 'number',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: "number",
+    outputs: [{ name: "", internalType: "uint256", type: "uint256" }],
   },
   {
-    type: 'event',
+    type: "event",
     anonymous: false,
     inputs: [
       {
-        name: 'value',
-        internalType: 'uint256',
-        type: 'uint256',
+        name: "value",
+        internalType: "uint256",
+        type: "uint256",
         indexed: false,
       },
     ],
-    name: 'Incremented',
+    name: "Incremented",
   },
-] as const
+] as const;
