@@ -358,20 +358,19 @@ export const create = async ({
   // Invalidate sync cache for devnet sources
   for (const networkService of networkServices) {
     if (networkService.network.isDevnet) {
+      const minStartBlock = Math.min(
+        ...networkService.sources.map((source) => source.startBlock),
+      );
+
       common.logger.warn({
         service: "sync",
-        msg: `Deleting cache records for '${
-          networkService.network.name
-        }' sources: [${networkService.sources
-          .map((s) => (s.type === "block" ? s.sourceName : s.contractName))
-          .join(", ")}]`,
+        msg: `Deleting cache records for '${networkService.network.name}' from block ${minStartBlock}`,
       });
 
-      await Promise.all(
-        networkService.sources.map((source) =>
-          syncStore.pruneBySource({ source }),
-        ),
-      );
+      await syncStore.pruneByChainId({
+        chainId: networkService.network.chainId,
+        block: minStartBlock,
+      });
     }
   }
 
