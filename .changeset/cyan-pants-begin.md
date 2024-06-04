@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Fixed regression that would cause events to be missed.
+Fixed a regression introduced in `0.4.33` that could cause events to be skipped.
