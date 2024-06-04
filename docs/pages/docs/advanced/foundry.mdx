@@ -11,8 +11,6 @@ This guide describes how to integrate Ponder and Foundry during local developmen
 
 Foundry projects follow various development workflows (test-driven, deploy to a fresh chain, deploy to a fork, etc). Rather than a one-size-fits-all integration, this page offers patterns that you can adapt to your workflow.
 
-The Foundry [example project](https://github.com/ponder-sh/ponder/tree/main/examples/with-foundry) includes a simple implementation of each pattern described in this guide.
-
 ## Configure the `anvil` network
 
 ### Disable caching
@@ -74,7 +72,9 @@ export default defineConfig({
 
 ## Import broadcast files
 
-When you run a Foundry script with [broadcast](https://book.getfoundry.sh/tutorials/solidity-scripting?highlight=deploy#deploying-locally) enabled, Foundry writes transaction inputs and receipts to a JSON file in the `broadcast` directory. You can import these files directly into `ponder.config.ts` to automate address management and enable hot reloading.
+Foundry scripts write transaction inputs and receipts to JSON files in the `broadcast` directory. You can import these files directly into `ponder.config.ts` to automate address management and enable hot reloading.
+
+<Callout type="info">Remember to enable [broadcast](https://book.getfoundry.sh/tutorials/solidity-scripting?highlight=deploy#deploying-locally) so that `forge script` submits transactions to Anvil.</Callout>
 
 ### Automate address management
 
