@@ -242,8 +242,6 @@ test("start() finds reorg with block hash", async (context) => {
     params: ["0x0", false],
   });
 
-  const onFatalError = vi.fn();
-
   const realtimeSyncService = create({
     common,
     syncStore,
@@ -255,7 +253,7 @@ test("start() finds reorg with block hash", async (context) => {
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),
-    onFatalError,
+    onFatalError: vi.fn(),
   });
 
   const queue = await start(realtimeSyncService);
@@ -273,7 +271,7 @@ test("start() finds reorg with block hash", async (context) => {
   );
   await queue.onIdle();
 
-  expect(onFatalError).toHaveBeenCalled();
+  expect(realtimeSyncService.localChain).toHaveLength(0);
 
   await kill(realtimeSyncService);
 
@@ -699,7 +697,7 @@ test("handleReorg() finds common ancestor", async (context) => {
   await cleanup();
 });
 
-test("handleReorg() emits fatal error for deep reorg", async (context) => {
+test("handleReorg() throws error for deep reorg", async (context) => {
   const { common, networks, requestQueues, sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
@@ -707,8 +705,6 @@ test("handleReorg() emits fatal error for deep reorg", async (context) => {
     method: "eth_getBlockByNumber",
     params: ["0x0", false],
   });
-
-  const onFatalError = vi.fn();
 
   const realtimeSyncService = create({
     common,
@@ -721,7 +717,7 @@ test("handleReorg() emits fatal error for deep reorg", async (context) => {
     sources,
     finalizedBlock: finalizedBlock as SyncBlock,
     onEvent: vi.fn(),
-    onFatalError,
+    onFatalError: vi.fn(),
   });
 
   for (let i = 1; i <= 3; i++) {
@@ -738,17 +734,17 @@ test("handleReorg() emits fatal error for deep reorg", async (context) => {
     realtimeSyncService.localChain[i].hash = "0x0";
   }
 
-  await handleReorg(
+  const error = await handleReorg(
     realtimeSyncService,
     await _eth_getBlockByNumber(
       { requestQueue: requestQueues[0] },
       { blockNumber: 4 },
     ),
-  );
+  ).catch((err) => err);
 
   expect(realtimeSyncService.localChain).toHaveLength(0);
 
-  expect(onFatalError).toHaveBeenCalled();
+  expect(error).toBeDefined();
 
   await kill(realtimeSyncService);
 
