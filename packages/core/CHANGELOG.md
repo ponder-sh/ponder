@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.34
+
+### Patch Changes
+
+- [#925](https://github.com/ponder-sh/ponder/pull/925) [`2a95909da55c816a9ea77f23170b1370f11ee555`](https://github.com/ponder-sh/ponder/commit/2a95909da55c816a9ea77f23170b1370f11ee555) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `0.4.33` that could cause events to be skipped.
+
 ## 0.4.33
 
 ### Patch Changes
