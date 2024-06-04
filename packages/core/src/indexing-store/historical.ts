@@ -17,6 +17,7 @@ import type {
   UserRecord,
 } from "@/types/schema.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { createQueue } from "@ponder/common";
 import { sql } from "kysely";
 import { getReadonlyStore } from "./readonly.js";
 import type { HistoricalStore, OrderByInput, WhereInput } from "./store.js";
@@ -25,8 +26,8 @@ import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000;
-const MAX_CACHE_SIZE = 15_000;
-const CACHE_FLUSH = 0.1;
+const MAX_CACHE_SIZE = 35_000;
+const CACHE_FLUSH = 0.25;
 
 type Insert = {
   type: "insert";
@@ -98,138 +99,154 @@ export const getHistoricalStore = ({
     return id;
   };
 
-  const flush = async (fullFlush = true) => {
-    const flushIndex = totalCacheOps - cacheSize * (1 - CACHE_FLUSH);
+  // TODO(kyle) flush needs a mutex
+  const flush = createQueue<void, boolean>({
+    concurrency: 1,
+    initialStart: true,
+    browser: false,
+    worker: async (fullFlush) => {
+      const flushIndex = totalCacheOps - cacheSize * (1 - CACHE_FLUSH);
 
-    await Promise.all(
-      Object.entries(storeCache).map(async ([tableName, tableStoreCache]) => {
-        const table = (schema[tableName] as { table: Table }).table;
+      await Promise.all(
+        Object.entries(storeCache).map(
+          async ([tableName, tableStoreCache]) => {
+            const table = (schema[tableName] as { table: Table }).table;
 
-        let insertRows: UserRecord[];
-        let updateRows: UserRecord[];
+            let insertRows: UserRecord[];
+            let updateRows: UserRecord[];
 
-        if (fullFlush) {
-          insertRows = Object.values(tableStoreCache.insert).map(
-            ({ record }) => record,
-          );
-          updateRows = Object.values(tableStoreCache.update).map(
-            ({ record }) => record,
-          );
-        } else {
-          insertRows = Object.values(tableStoreCache.insert)
-            .filter(({ opIndex }) => opIndex < flushIndex)
-            .map(({ record }) => record);
+            if (fullFlush) {
+              insertRows = Object.values(tableStoreCache.insert).map(
+                ({ record }) => record,
+              );
+              updateRows = Object.values(tableStoreCache.update).map(
+                ({ record }) => record,
+              );
+            } else {
+              insertRows = Object.values(tableStoreCache.insert)
+                .filter(({ opIndex }) => opIndex < flushIndex)
+                .map(({ record }) => record);
 
-          updateRows = Object.values(tableStoreCache.update)
-            .filter(({ opIndex }) => opIndex < flushIndex)
-            .map(({ record }) => record);
-        }
+              updateRows = Object.values(tableStoreCache.update)
+                .filter(({ opIndex }) => opIndex < flushIndex)
+                .map(({ record }) => record);
+            }
 
-        if (insertRows.length + updateRows.length === 0) return;
+            if (insertRows.length + updateRows.length === 0) return;
 
-        logger.debug({
-          service: "indexing",
-          msg: `Flushing ${
-            insertRows.length + updateRows.length
-          } '${tableName}' database records from cache`,
-        });
+            logger.debug({
+              service: "indexing",
+              msg: `Flushing ${
+                insertRows.length + updateRows.length
+              } '${tableName}' database records from cache`,
+            });
 
-        // insert
-        for (let i = 0, len = insertRows.length; i < len; i += MAX_BATCH_SIZE) {
-          await db.wrap({ method: `${tableName}.flush` }, async () => {
-            const _insertRows = insertRows
-              .slice(i, i + MAX_BATCH_SIZE)
-              .map((d) => encodeRow(d, table, kind));
+            // insert
+            for (
+              let i = 0, len = insertRows.length;
+              i < len;
+              i += MAX_BATCH_SIZE
+            ) {
+              await db.wrap({ method: `${tableName}.flush` }, async () => {
+                const _insertRows = insertRows
+                  .slice(i, i + MAX_BATCH_SIZE)
+                  .map((d) => encodeRow(d, table, kind));
 
-            await db
-              .withSchema(namespaceInfo.userNamespace)
-              .insertInto(tableName)
-              .values(_insertRows)
-              .execute()
-              .catch((err) => {
-                throw parseStoreError(
-                  err,
-                  _insertRows.length > 0 ? _insertRows[0] : {},
-                );
+                await db
+                  .withSchema(namespaceInfo.userNamespace)
+                  .insertInto(tableName)
+                  .values(_insertRows)
+                  .execute()
+                  .catch((err) => {
+                    throw parseStoreError(
+                      err,
+                      _insertRows.length > 0 ? _insertRows[0] : {},
+                    );
+                  });
               });
-          });
-        }
+            }
 
-        // update
-        for (let i = 0, len = updateRows.length; i < len; i += MAX_BATCH_SIZE) {
-          await db.wrap({ method: `${tableName}.flush` }, async () => {
-            const _updateRows = updateRows
-              .slice(i, i + MAX_BATCH_SIZE)
-              .map((d) => encodeRow(d, table, kind));
+            // update
+            for (
+              let i = 0, len = updateRows.length;
+              i < len;
+              i += MAX_BATCH_SIZE
+            ) {
+              await db.wrap({ method: `${tableName}.flush` }, async () => {
+                const _updateRows = updateRows
+                  .slice(i, i + MAX_BATCH_SIZE)
+                  .map((d) => encodeRow(d, table, kind));
 
-            await db
-              .withSchema(namespaceInfo.userNamespace)
-              .insertInto(tableName)
-              .values(_updateRows)
-              .onConflict((oc) =>
-                oc.column("id").doUpdateSet((eb) =>
-                  Object.entries(table).reduce<any>(
-                    (acc, [colName, column]) => {
-                      if (colName !== "id") {
-                        if (
-                          isScalarColumn(column) ||
-                          isReferenceColumn(column) ||
-                          isEnumColumn(column) ||
-                          isJSONColumn(column)
-                        ) {
-                          acc[colName] = eb.ref(`excluded.${colName}`);
-                        }
-                      }
-                      return acc;
-                    },
-                    {},
-                  ),
-                ),
-              )
-              .execute()
-              .catch((err) => {
-                throw parseStoreError(
-                  err,
-                  _updateRows.length > 0 ? _updateRows[0] : {},
-                );
+                await db
+                  .withSchema(namespaceInfo.userNamespace)
+                  .insertInto(tableName)
+                  .values(_updateRows)
+                  .onConflict((oc) =>
+                    oc.column("id").doUpdateSet((eb) =>
+                      Object.entries(table).reduce<any>(
+                        (acc, [colName, column]) => {
+                          if (colName !== "id") {
+                            if (
+                              isScalarColumn(column) ||
+                              isReferenceColumn(column) ||
+                              isEnumColumn(column) ||
+                              isJSONColumn(column)
+                            ) {
+                              acc[colName] = eb.ref(`excluded.${colName}`);
+                            }
+                          }
+                          return acc;
+                        },
+                        {},
+                      ),
+                    ),
+                  )
+                  .execute()
+                  .catch((err) => {
+                    throw parseStoreError(
+                      err,
+                      _updateRows.length > 0 ? _updateRows[0] : {},
+                    );
+                  });
               });
-          });
-        }
-      }),
-    );
+            }
+          },
+        ),
+      );
 
-    if (fullFlush) {
-      for (const tableName of Object.keys(getTables(schema))) {
-        storeCache[tableName] = {
-          insert: {},
-          update: {},
-        };
-      }
-      cacheSize = 0;
-    } else {
-      for (const [tableName, tableStoreCache] of Object.entries(storeCache)) {
-        for (const [id, { opIndex }] of Object.entries(
-          tableStoreCache.insert,
-        )) {
-          if (opIndex < flushIndex) {
-            delete storeCache[tableName].insert[id];
-            cacheSize--;
+      if (fullFlush) {
+        for (const tableName of Object.keys(getTables(schema))) {
+          storeCache[tableName] = {
+            insert: {},
+            update: {},
+          };
+        }
+        cacheSize = 0;
+      } else {
+        for (const [tableName, tableStoreCache] of Object.entries(storeCache)) {
+          for (const [id, { opIndex }] of Object.entries(
+            tableStoreCache.insert,
+          )) {
+            if (opIndex < flushIndex) {
+              delete storeCache[tableName].insert[id];
+              cacheSize--;
+            }
+          }
+
+          for (const [id, { opIndex }] of Object.entries(
+            tableStoreCache.update,
+          )) {
+            if (opIndex < flushIndex) {
+              delete storeCache[tableName].insert[id];
+              cacheSize--;
+            }
           }
         }
-
-        for (const [id, { opIndex }] of Object.entries(
-          tableStoreCache.update,
-        )) {
-          if (opIndex < flushIndex) {
-            delete storeCache[tableName].insert[id];
-            cacheSize--;
-          }
-        }
       }
-    }
 
-    isCacheFull = false;
-  };
+      isCacheFull = false;
+    },
+  });
 
   return {
     findUnique: async ({
@@ -259,7 +276,7 @@ export const getHistoricalStore = ({
       after?: string | null;
       limit?: number;
     }) => {
-      await flush(true);
+      await flush.add(true);
 
       return readonlyStore.findMany(arg);
     },
@@ -295,7 +312,7 @@ export const getHistoricalStore = ({
 
       cacheSize++;
 
-      if (cacheSize > MAX_CACHE_SIZE) await flush(false);
+      if (cacheSize > MAX_CACHE_SIZE) await flush.add(false);
 
       return record;
     },
@@ -330,7 +347,7 @@ export const getHistoricalStore = ({
 
       cacheSize += data.length;
 
-      if (cacheSize > MAX_CACHE_SIZE) await flush(false);
+      if (cacheSize > MAX_CACHE_SIZE) await flush.add(false);
 
       return data;
     },
@@ -399,7 +416,7 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      await flush(true);
+      await flush.add(true);
       const table = (schema[tableName] as { table: Table }).table;
 
       if (typeof data === "function") {
@@ -556,7 +573,7 @@ export const getHistoricalStore = ({
 
         cacheSize++;
 
-        if (cacheSize > MAX_CACHE_SIZE) await flush(false);
+        if (cacheSize > MAX_CACHE_SIZE) await flush.add(false);
 
         return record;
       } else {
@@ -618,6 +635,6 @@ export const getHistoricalStore = ({
         return !!deletedRow;
       }
     },
-    flush,
+    flush: () => flush.add(true),
   };
 };
