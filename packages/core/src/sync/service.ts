@@ -357,7 +357,7 @@ export const create = async ({
 
   // Invalidate sync cache for devnet sources
   for (const networkService of networkServices) {
-    if (networkService.network.isDevnet) {
+    if (networkService.network.disableCache) {
       const minStartBlock = Math.min(
         ...networkService.sources.map((source) => source.startBlock),
       );

@@ -11,7 +11,7 @@ export type Network = {
   maxHistoricalTaskConcurrency: number;
   defaultMaxBlockRange: number;
   finalityBlockCount: number;
-  isDevnet: boolean;
+  disableCache: boolean;
 };
 
 export function getDefaultMaxBlockRange({

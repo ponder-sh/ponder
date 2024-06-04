@@ -12,7 +12,7 @@ export default createConfig({
     anvil: {
       chainId: 31337,
       transport: http("http://127.0.0.1:8545"),
-      isDevnet: true,
+      disableCache: true,
     },
   },
   contracts: {
