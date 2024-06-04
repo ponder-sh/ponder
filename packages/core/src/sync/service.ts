@@ -355,6 +355,25 @@ export const create = async ({
     });
   }
 
+  // Invalidate sync cache for devnet sources
+  for (const networkService of networkServices) {
+    if (networkService.network.disableCache) {
+      const minStartBlock = Math.min(
+        ...networkService.sources.map((source) => source.startBlock),
+      );
+
+      common.logger.warn({
+        service: "sync",
+        msg: `Deleting cache records for '${networkService.network.name}' from block ${minStartBlock}`,
+      });
+
+      await syncStore.pruneByChainId({
+        chainId: networkService.network.chainId,
+        block: minStartBlock,
+      });
+    }
+  }
+
   const syncService: Service = {
     common,
     syncStore,

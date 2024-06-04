@@ -2895,3 +2895,347 @@ test("getLastEventCheckpoint empty", async (context) => {
 
   await cleanup();
 });
+
+test("pruneByChainId deletes filters", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertTraceFilterInterval({
+    traceFilter: sources[3].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertTraceFilterInterval({
+    traceFilter: sources[3].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryTraceFilterInterval({
+    factory: sources[2].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryTraceFilterInterval({
+    factory: sources[2].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneByChainId({ chainId: 1, block: 0 });
+
+  const logFilterIntervals = await syncStore.db
+    .selectFrom("logFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(logFilterIntervals).toHaveLength(1);
+
+  const factoryLogFilterIntervals = await syncStore.db
+    .selectFrom("factoryLogFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(factoryLogFilterIntervals).toHaveLength(1);
+
+  const traceFilterIntervals = await syncStore.db
+    .selectFrom("traceFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(traceFilterIntervals).toHaveLength(1);
+
+  const factoryTraceFilterIntervals = await syncStore.db
+    .selectFrom("factoryTraceFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(factoryTraceFilterIntervals).toHaveLength(1);
+
+  await cleanup();
+});
+
+test("pruneByChainId updates filters", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertTraceFilterInterval({
+    traceFilter: sources[3].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertTraceFilterInterval({
+    traceFilter: sources[3].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryTraceFilterInterval({
+    factory: sources[2].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryTraceFilterInterval({
+    factory: sources[2].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneByChainId({ chainId: 1, block: 1 });
+
+  const logFilterIntervals = await syncStore.db
+    .selectFrom("logFilterIntervals")
+    .selectAll()
+    .orderBy("endBlock", "asc")
+    .execute();
+  expect(logFilterIntervals).toHaveLength(2);
+  expect(Number(logFilterIntervals[0].endBlock)).toBe(1);
+
+  const factoryLogFilterIntervals = await syncStore.db
+    .selectFrom("factoryLogFilterIntervals")
+    .selectAll()
+    .orderBy("endBlock", "asc")
+    .execute();
+  expect(factoryLogFilterIntervals).toHaveLength(2);
+  expect(Number(factoryLogFilterIntervals[0].endBlock)).toBe(1);
+
+  const traceFilterIntervals = await syncStore.db
+    .selectFrom("traceFilterIntervals")
+    .selectAll()
+    .orderBy("endBlock", "asc")
+    .execute();
+  expect(traceFilterIntervals).toHaveLength(2);
+  expect(Number(traceFilterIntervals[0].endBlock)).toBe(1);
+
+  const factoryTraceFilterIntervals = await syncStore.db
+    .selectFrom("factoryTraceFilterIntervals")
+    .selectAll()
+    .orderBy("endBlock", "asc")
+    .execute();
+  expect(factoryTraceFilterIntervals).toHaveLength(2);
+  expect(Number(factoryTraceFilterIntervals[0].endBlock)).toBe(1);
+
+  await cleanup();
+});
+
+test("pruneByChainId deletes block filters", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    blockFilter: sources[4].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 2n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertBlockFilterInterval({
+    blockFilter: sources[4].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 2n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneByChainId({ chainId: 1, block: 1 });
+
+  const blockFilterIntervals = await syncStore.db
+    .selectFrom("blockFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(blockFilterIntervals).toHaveLength(1);
+
+  await cleanup();
+});
+
+test("pruneByChainId updates block filters", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    blockFilter: sources[4].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertBlockFilterInterval({
+    blockFilter: sources[4].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneByChainId({ chainId: 1, block: 1 });
+
+  const blockFilterIntervals = await syncStore.db
+    .selectFrom("blockFilterIntervals")
+    .selectAll()
+    .orderBy("endBlock", "asc")
+    .execute();
+  expect(blockFilterIntervals).toHaveLength(2);
+  expect(Number(blockFilterIntervals[0].endBlock)).toBe(1);
+
+  await cleanup();
+});
+
+test("pruneByChainId deletes blocks, logs, traces, transactions", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({ chainId: 1, ...rpcData.block2 });
+  await syncStore.insertRealtimeBlock({ chainId: 1, ...rpcData.block3 });
+
+  await syncStore.pruneByChainId({ chainId: 1, block: 3 });
+
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+  const callTraces = await syncStore.db
+    .selectFrom("callTraces")
+    .selectAll()
+    .execute();
+  const transactions = await syncStore.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+  const transactionReceipts = await syncStore.db
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
+
+  expect(logs).toHaveLength(2);
+  expect(blocks).toHaveLength(1);
+  expect(callTraces).toHaveLength(2);
+  expect(transactions).toHaveLength(2);
+  expect(transactionReceipts).toHaveLength(2);
+
+  await cleanup();
+});

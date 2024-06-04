@@ -2517,6 +2517,268 @@ export class SqliteSyncStore implements SyncStore {
 
     return exprs;
   };
+
+  async pruneByChainId({ chainId, block }: { chainId: number; block: number }) {
+    await this.db.wrap({ method: "pruneByChainId" }, () =>
+      this.db.transaction().execute(async (tx) => {
+        await tx
+          .with("deleteLogFilter(logFilterId)", (qb) =>
+            qb
+              .selectFrom("logFilterIntervals")
+              .innerJoin("logFilters", "logFilterId", "logFilters.id")
+              .select("logFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", ">=", encodeAsText(block)),
+          )
+          .deleteFrom("logFilterIntervals")
+          .where(
+            "logFilterId",
+            "in",
+            sql`(SELECT "logFilterId" FROM ${sql.table("deleteLogFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("updateLogFilter(logFilterId)", (qb) =>
+            qb
+              .selectFrom("logFilterIntervals")
+              .innerJoin("logFilters", "logFilterId", "logFilters.id")
+              .select("logFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", "<", encodeAsText(block))
+              .where("endBlock", ">", encodeAsText(block)),
+          )
+          .updateTable("logFilterIntervals")
+          .set({
+            endBlock: encodeAsText(block),
+          })
+          .where(
+            "logFilterId",
+            "in",
+            sql`(SELECT "logFilterId" FROM ${sql.table("updateLogFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("deleteFactoryLogFilter(factoryId)", (qb) =>
+            qb
+              .selectFrom("factoryLogFilterIntervals")
+              .innerJoin(
+                "factoryLogFilters",
+                "factoryId",
+                "factoryLogFilters.id",
+              )
+
+              .select("factoryId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", ">=", encodeAsText(block)),
+          )
+          .deleteFrom("factoryLogFilterIntervals")
+          .where(
+            "factoryId",
+            "in",
+            sql`(SELECT "factoryId" FROM ${sql.table(
+              "deleteFactoryLogFilter",
+            )})`,
+          )
+          .execute();
+
+        await tx
+          .with("updateFactoryLogFilter(factoryId)", (qb) =>
+            qb
+              .selectFrom("factoryLogFilterIntervals")
+              .innerJoin(
+                "factoryLogFilters",
+                "factoryId",
+                "factoryLogFilters.id",
+              )
+
+              .select("factoryId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", "<", encodeAsText(block))
+              .where("endBlock", ">", encodeAsText(block)),
+          )
+          .updateTable("factoryLogFilterIntervals")
+          .set({
+            endBlock: encodeAsText(block),
+          })
+          .where(
+            "factoryId",
+            "in",
+            sql`(SELECT "factoryId" FROM ${sql.table(
+              "updateFactoryLogFilter",
+            )})`,
+          )
+          .execute();
+
+        await tx
+          .with("deleteTraceFilter(traceFilterId)", (qb) =>
+            qb
+              .selectFrom("traceFilterIntervals")
+              .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
+              .select("traceFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", ">=", encodeAsText(block)),
+          )
+          .deleteFrom("traceFilterIntervals")
+          .where(
+            "traceFilterId",
+            "in",
+            sql`(SELECT "traceFilterId" FROM ${sql.table(
+              "deleteTraceFilter",
+            )})`,
+          )
+          .execute();
+
+        await tx
+          .with("updateTraceFilter(traceFilterId)", (qb) =>
+            qb
+              .selectFrom("traceFilterIntervals")
+              .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
+              .select("traceFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", "<", encodeAsText(block))
+              .where("endBlock", ">", encodeAsText(block)),
+          )
+          .updateTable("traceFilterIntervals")
+          .set({
+            endBlock: encodeAsText(block),
+          })
+          .where(
+            "traceFilterId",
+            "in",
+            sql`(SELECT "traceFilterId" FROM ${sql.table(
+              "updateTraceFilter",
+            )})`,
+          )
+          .execute();
+
+        await tx
+          .with("deleteFactoryTraceFilter(factoryId)", (qb) =>
+            qb
+              .selectFrom("factoryTraceFilterIntervals")
+              .innerJoin(
+                "factoryTraceFilters",
+                "factoryId",
+                "factoryTraceFilters.id",
+              )
+              .select("factoryId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", ">=", encodeAsText(block)),
+          )
+          .deleteFrom("factoryTraceFilterIntervals")
+          .where(
+            "factoryId",
+            "in",
+            sql`(SELECT "factoryId" FROM ${sql.table(
+              "deleteFactoryTraceFilter",
+            )})`,
+          )
+          .execute();
+
+        await tx
+          .with("updateFactoryTraceFilter(factoryId)", (qb) =>
+            qb
+              .selectFrom("factoryTraceFilterIntervals")
+              .innerJoin(
+                "factoryTraceFilters",
+                "factoryId",
+                "factoryTraceFilters.id",
+              )
+
+              .select("factoryId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", "<", encodeAsText(block))
+              .where("endBlock", ">", encodeAsText(block)),
+          )
+          .updateTable("factoryTraceFilterIntervals")
+          .set({
+            endBlock: encodeAsText(block),
+          })
+          .where(
+            "factoryId",
+            "in",
+            sql`(SELECT "factoryId" FROM ${sql.table(
+              "updateFactoryTraceFilter",
+            )})`,
+          )
+          .execute();
+
+        await tx
+          .with("deleteBlockFilter(blockFilterId)", (qb) =>
+            qb
+              .selectFrom("blockFilterIntervals")
+              .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
+              .select("blockFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", ">=", encodeAsText(block)),
+          )
+          .deleteFrom("blockFilterIntervals")
+          .where(
+            "blockFilterId",
+            "in",
+            sql`(SELECT "blockFilterId" FROM ${sql.table(
+              "deleteBlockFilter",
+            )})`,
+          )
+          .execute();
+
+        await tx
+          .with("updateBlockFilter(blockFilterId)", (qb) =>
+            qb
+              .selectFrom("blockFilterIntervals")
+              .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
+              .select("blockFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", "<", encodeAsText(block))
+              .where("endBlock", ">", encodeAsText(block)),
+          )
+          .updateTable("blockFilterIntervals")
+          .set({
+            endBlock: encodeAsText(block),
+          })
+          .where(
+            "blockFilterId",
+            "in",
+            sql`(SELECT "blockFilterId" FROM ${sql.table(
+              "updateBlockFilter",
+            )})`,
+          )
+          .execute();
+
+        await tx
+          .deleteFrom("logs")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", encodeAsText(block))
+          .execute();
+        await tx
+          .deleteFrom("blocks")
+          .where("chainId", "=", chainId)
+          .where("number", ">=", encodeAsText(block))
+          .execute();
+        await tx
+          .deleteFrom("rpcRequestResults")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", encodeAsText(block))
+          .execute();
+        await tx
+          .deleteFrom("callTraces")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", encodeAsText(block))
+          .execute();
+        await tx
+          .deleteFrom("transactions")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", encodeAsText(block))
+          .execute();
+        await tx
+          .deleteFrom("transactionReceipts")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", encodeAsText(block))
+          .execute();
+      }),
+    );
+  }
 }
 
 function buildFactoryChildAddressSelectExpression({
