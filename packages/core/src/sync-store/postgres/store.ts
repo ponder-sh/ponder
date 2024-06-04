@@ -1678,58 +1678,6 @@ export class PostgresSyncStore implements SyncStore {
                     )
               } )`,
           )
-          .with("log_checkpoints", (db) =>
-            db
-              .selectFrom("logs")
-              .where("logs.checkpoint", ">", cursor)
-              .where("logs.checkpoint", "<=", encodedToCheckpoint)
-              .orderBy("logs.checkpoint", "asc")
-              .offset(limit)
-              .limit(1)
-              .select("logs.checkpoint"),
-          )
-          .with("block_checkpoints", (db) =>
-            db
-              .selectFrom("blocks")
-              .where("blocks.checkpoint", ">", cursor)
-              .where("blocks.checkpoint", "<=", encodedToCheckpoint)
-              .orderBy("blocks.checkpoint", "asc")
-              .offset(limit)
-              .limit(1)
-              .select("blocks.checkpoint"),
-          )
-          .with("call_trace_checkpoints", (db) =>
-            db
-              .selectFrom("callTraces")
-              .where("callTraces.checkpoint", ">", cursor)
-              .where("callTraces.checkpoint", "<=", encodedToCheckpoint)
-              .orderBy("callTraces.checkpoint", "asc")
-              .offset(limit)
-              .limit(1)
-              .select("callTraces.checkpoint"),
-          )
-          .with("max_checkpoint", (db) =>
-            db
-              .selectFrom(
-                db
-                  .selectFrom("log_checkpoints")
-                  .select("checkpoint")
-                  .unionAll(
-                    db.selectFrom("block_checkpoints").select("checkpoint"),
-                  )
-                  .unionAll(
-                    db
-                      .selectFrom("call_trace_checkpoints")
-                      .select("checkpoint"),
-                  )
-                  .as("all_checkpoints"),
-              )
-              .select(
-                sql`coalesce(max(checkpoint), ${encodedToCheckpoint})`.as(
-                  "max_checkpoint",
-                ),
-              ),
-          )
           .with("events", (db) =>
             db
               .selectFrom("logs")
@@ -1967,13 +1915,7 @@ export class PostgresSyncStore implements SyncStore {
               ]),
           )
           .where("events.checkpoint", ">", cursor)
-          .where(
-            "events.checkpoint",
-            "<=",
-            // Use the theoretical max checkpoint across all source types
-            // For details, read https://github.com/ponder-sh/ponder/pull/907/files
-            sql`( select max_checkpoint from max_checkpoint )`,
-          )
+          .where("events.checkpoint", "<=", encodedToCheckpoint)
           .orderBy("events.checkpoint", "asc")
           .limit(limit + 1)
           .execute();
