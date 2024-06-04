@@ -1708,7 +1708,7 @@ export class PostgresSyncStore implements SyncStore {
               .limit(1)
               .select("callTraces.checkpoint"),
           )
-          .with("max_checkpoint", (db) =>
+          .with("max_checkpoint(checkpoint)", (db) =>
             db
               .selectFrom(
                 db
@@ -1726,7 +1726,7 @@ export class PostgresSyncStore implements SyncStore {
               )
               .select(
                 sql`coalesce(max(checkpoint), ${encodedToCheckpoint})`.as(
-                  "max_checkpoint",
+                  "checkpoint",
                 ),
               ),
           )
@@ -1972,7 +1972,7 @@ export class PostgresSyncStore implements SyncStore {
             "<=",
             // Use the theoretical max checkpoint across all source types
             // For details, read https://github.com/ponder-sh/ponder/pull/907/files
-            sql`( select max_checkpoint from max_checkpoint )`,
+            "max_checkpoint.checkpoint",
           )
           .orderBy("events.checkpoint", "asc")
           .limit(limit + 1)
