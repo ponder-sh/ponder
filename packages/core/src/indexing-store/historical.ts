@@ -298,8 +298,7 @@ export const getHistoricalStore = ({
         throw new UniqueConstraintError();
       }
 
-      const record = data as UserRecord;
-      record.id = id;
+      const record = { ...data, id };
 
       // Note: this is where not-null constraints would be checked.
       // It may be safe to wait until flush to throw the error.
@@ -559,8 +558,7 @@ export const getHistoricalStore = ({
       if (cacheEntry === undefined) {
         // insert/create branch
 
-        const record = create as UserRecord;
-        record.id = id;
+        const record = { ...create, id };
 
         // Note: this is where not-null constraints would be checked.
         // It may be safe to wait until flush to throw the error.
