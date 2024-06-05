@@ -26,26 +26,18 @@ import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000;
-const MAX_CACHE_SIZE = 35_000;
 const CACHE_FLUSH = 0.25;
 
-type Insert = {
-  type: "insert";
+type Entry = {
   opIndex: number;
+  bytes: number;
   record: UserRecord;
 };
 
-type Update = {
-  type: "update";
-  opIndex: number;
-  record: UserRecord;
-};
-
-// TODO(kyle) should this be { [id : string | number]: Insert | Update | Delete }
 type StoreCache = {
   [tableName: string]: {
-    insert: { [id: string | number]: Insert };
-    update: { [id: string | number]: Update };
+    insert: { [id: string | number]: Entry };
+    update: { [id: string | number]: Entry };
   };
 };
 
@@ -66,8 +58,10 @@ export const getHistoricalStore = ({
 
   /** True if the cache contains the complete state of the store. */
   let isCacheFull = true;
-  let cacheSize = 0;
   let totalCacheOps = 0;
+  let cacheSize = 0;
+  let cacheSizeBytes = 0;
+  const maxSizeBytes = process.memoryUsage().heapTotal / 3;
 
   const readonlyStore = getReadonlyStore({ kind, schema, namespaceInfo, db });
 
@@ -78,20 +72,16 @@ export const getHistoricalStore = ({
     };
   }
 
+  const getRecordSize = (tableName: string, record: UserRecord) => {
+    return 100;
+  };
+
   const isIdColumnHex = Object.entries(getTables(schema)).reduce<{
     [tableName: string]: boolean;
-  }>(
-    (
-      acc,
-      [
-        tableName, { table },
-      ],
-    ) => {
-      acc[tableName] = table.id[" scalar"] === "hex";
-      return acc;
-    },
-    {},
-  );
+  }>((acc, [tableName, { table }]) => {
+    acc[tableName] = table.id[" scalar"] === "hex";
+    return acc;
+  }, {});
 
   const encodeCacheId = (id: UserId, tableName: string): string | number => {
     if (isIdColumnHex[tableName]) return toLowerCase(id as string);
@@ -99,12 +89,15 @@ export const getHistoricalStore = ({
     return id;
   };
 
-  // TODO(kyle) flush needs a mutex
-  const flush = createQueue<void, boolean>({
+  const shouldFlush = () => {
+    return cacheSizeBytes > maxSizeBytes;
+  };
+
+  const flush = createQueue<void, boolean | void>({
     concurrency: 1,
     initialStart: true,
     browser: false,
-    worker: async (fullFlush) => {
+    worker: async (fullFlush = true) => {
       const flushIndex = totalCacheOps - cacheSize * (1 - CACHE_FLUSH);
 
       await Promise.all(
@@ -222,14 +215,18 @@ export const getHistoricalStore = ({
           };
         }
         cacheSize = 0;
+        cacheSizeBytes = 0;
       } else {
         for (const [tableName, tableStoreCache] of Object.entries(storeCache)) {
           for (const [id, { opIndex }] of Object.entries(
             tableStoreCache.insert,
           )) {
             if (opIndex < flushIndex) {
+              const bytes = storeCache[tableName].insert[id].bytes;
               delete storeCache[tableName].insert[id];
+
               cacheSize--;
+              cacheSizeBytes -= bytes;
             }
           }
 
@@ -237,8 +234,11 @@ export const getHistoricalStore = ({
             tableStoreCache.update,
           )) {
             if (opIndex < flushIndex) {
+              const bytes = storeCache[tableName].insert[id].bytes;
               delete storeCache[tableName].insert[id];
+
               cacheSize--;
+              cacheSizeBytes -= bytes;
             }
           }
         }
@@ -246,7 +246,7 @@ export const getHistoricalStore = ({
 
       isCacheFull = false;
     },
-  });
+  }).add;
 
   return {
     findUnique: async ({
@@ -276,7 +276,7 @@ export const getHistoricalStore = ({
       after?: string | null;
       limit?: number;
     }) => {
-      await flush.add(true);
+      await flush(true);
 
       return readonlyStore.findMany(arg);
     },
@@ -303,15 +303,18 @@ export const getHistoricalStore = ({
       // Note: this is where not-null constraints would be checked.
       // It may be safe to wait until flush to throw the error.
 
+      const bytes = getRecordSize(tableName, record);
+
       storeCache[tableName].insert[encodedId] = {
-        type: "insert",
         opIndex: totalCacheOps++,
+        bytes,
         record,
       };
 
+      cacheSizeBytes += bytes;
       cacheSize++;
 
-      if (cacheSize > MAX_CACHE_SIZE) await flush.add(false);
+      if (shouldFlush()) await flush(false);
 
       return record;
     },
@@ -322,8 +325,6 @@ export const getHistoricalStore = ({
       tableName: string;
       data: UserRecord[];
     }) => {
-      // TODO(kyle) what if data size is more than the max cache rows
-
       for (const record of data) {
         const encodedId = encodeCacheId(record.id, tableName);
 
@@ -337,16 +338,20 @@ export const getHistoricalStore = ({
         // Note: this is where not-null constraints would be checked.
         // It may be safe to wait until flush to throw the error.
 
+        const bytes = getRecordSize(tableName, record);
+
         storeCache[tableName].insert[encodedId] = {
-          type: "insert",
           opIndex: totalCacheOps++,
+          bytes,
           record,
         };
+
+        cacheSizeBytes += bytes;
       }
 
       cacheSize += data.length;
 
-      if (cacheSize > MAX_CACHE_SIZE) await flush.add(false);
+      if (shouldFlush()) await flush(false);
 
       return data;
     },
@@ -363,7 +368,7 @@ export const getHistoricalStore = ({
     }) => {
       const encodedId = encodeCacheId(id, tableName);
 
-      let cacheEntry: Insert | Update;
+      let cacheEntry: Entry;
 
       const insertEntry = storeCache[tableName].insert[encodedId];
       const updateEntry = storeCache[tableName].update[encodedId];
@@ -381,8 +386,8 @@ export const getHistoricalStore = ({
 
         // Note: a "spoof" cache entry is created
         cacheEntry = {
-          type: "update",
           opIndex: 0,
+          bytes: 0,
           record,
         };
 
@@ -399,8 +404,11 @@ export const getHistoricalStore = ({
         ...update,
       };
 
+      const bytes = getRecordSize(tableName, record);
+
       cacheEntry.record = record;
       cacheEntry.opIndex = totalCacheOps++;
+      cacheEntry.bytes = bytes;
 
       return record;
     },
@@ -415,7 +423,7 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      await flush.add(true);
+      await flush(true);
       const table = (schema[tableName] as { table: Table }).table;
 
       if (typeof data === "function") {
@@ -532,7 +540,7 @@ export const getHistoricalStore = ({
     }) => {
       const encodedId = encodeCacheId(id, tableName);
 
-      let cacheEntry: Insert | Update | undefined;
+      let cacheEntry: Entry | undefined;
 
       const insertEntry = storeCache[tableName].insert[encodedId];
       const updateEntry = storeCache[tableName].update[encodedId];
@@ -547,8 +555,8 @@ export const getHistoricalStore = ({
         if (record !== null) {
           // Note: a "spoof" cache entry is created
           cacheEntry = {
-            type: "update",
             opIndex: 0,
+            bytes: 0,
             record,
           };
           storeCache[tableName].update[encodedId] = cacheEntry;
@@ -563,15 +571,18 @@ export const getHistoricalStore = ({
         // Note: this is where not-null constraints would be checked.
         // It may be safe to wait until flush to throw the error.
 
+        const bytes = getRecordSize(tableName, record);
+
         storeCache[tableName].insert[encodedId] = {
-          type: "insert",
           opIndex: totalCacheOps++,
+          bytes,
           record,
         };
 
         cacheSize++;
+        cacheSizeBytes += bytes;
 
-        if (cacheSize > MAX_CACHE_SIZE) await flush.add(false);
+        if (shouldFlush()) await flush(false);
 
         return record;
       } else {
@@ -587,8 +598,11 @@ export const getHistoricalStore = ({
           ..._update,
         };
 
+        const bytes = getRecordSize(tableName, record);
+
         cacheEntry.record = record;
         cacheEntry.opIndex = totalCacheOps++;
+        cacheEntry.bytes = bytes;
 
         return record;
       }
@@ -606,9 +620,11 @@ export const getHistoricalStore = ({
       const updateEntry = storeCache[tableName].update[encodedId];
 
       if (insertEntry !== undefined) {
+        const bytes = insertEntry.bytes;
         delete storeCache[tableName].insert[encodedId];
 
         cacheSize--;
+        cacheSizeBytes -= bytes;
 
         return true;
       } else if (isCacheFull) {
@@ -617,7 +633,11 @@ export const getHistoricalStore = ({
         const table = (schema[tableName] as { table: Table }).table;
 
         if (updateEntry !== undefined) {
+          const bytes = updateEntry.bytes;
           delete storeCache[tableName].update[encodedId];
+
+          cacheSize--;
+          cacheSizeBytes -= bytes;
         }
 
         const deletedRow = await db
@@ -633,6 +653,6 @@ export const getHistoricalStore = ({
         return !!deletedRow;
       }
     },
-    flush: () => flush.add(true),
+    flush,
   };
 };
