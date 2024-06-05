@@ -88,9 +88,19 @@ export const getHistoricalStore = ({
       } else if (typeof col === "bigint") {
         // p.bigint
         size += 48;
+      } else if (Array.isArray(col)) {
+        // p.list
+        for (const e of col) {
+          size += getRecordSize(e);
+        }
+      } else if (col === null || col === undefined) {
+        size += 8;
+      } else {
+        // p.json
+        for (const e of Object.values(col)) {
+          size += getRecordSize(e);
+        }
       }
-
-      // TODO(kyle) p.json, p.list,
     }
     return size;
   };
