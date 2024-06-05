@@ -26,7 +26,7 @@ import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000;
-const CACHE_FLUSH = 0.25;
+const CACHE_FLUSH = 0.35;
 
 type Entry = {
   opIndex: number;
@@ -56,12 +56,12 @@ export const getHistoricalStore = ({
 }): HistoricalStore => {
   const storeCache: StoreCache = {};
 
+  const maxSizeBytes = process.memoryUsage().heapTotal / 3;
   /** True if the cache contains the complete state of the store. */
   let isCacheFull = true;
   let totalCacheOps = 0;
   let cacheSize = 0;
   let cacheSizeBytes = 0;
-  const maxSizeBytes = process.memoryUsage().heapTotal / 3;
 
   const readonlyStore = getReadonlyStore({ kind, schema, namespaceInfo, db });
 
@@ -72,8 +72,27 @@ export const getHistoricalStore = ({
     };
   }
 
-  const getRecordSize = (tableName: string, record: UserRecord) => {
-    return 100;
+  const getRecordSize = (record: UserRecord) => {
+    // size of metadata
+    let size = 16;
+    for (const col of Object.values(record)) {
+      if (typeof col === "number") {
+        // p.float, p.int
+        size += 8;
+      } else if (typeof col === "string") {
+        // p.hex, p.string, p.enum
+        size += 2 * col.length;
+      } else if (typeof col === "boolean") {
+        // p.boolean
+        size += 4;
+      } else if (typeof col === "bigint") {
+        // p.bigint
+        size += 48;
+      }
+
+      // TODO(kyle) p.json, p.list,
+    }
+    return size;
   };
 
   const isIdColumnHex = Object.entries(getTables(schema)).reduce<{
@@ -303,7 +322,7 @@ export const getHistoricalStore = ({
       // Note: this is where not-null constraints would be checked.
       // It may be safe to wait until flush to throw the error.
 
-      const bytes = getRecordSize(tableName, record);
+      const bytes = getRecordSize(record);
 
       storeCache[tableName].insert[encodedId] = {
         opIndex: totalCacheOps++,
@@ -338,7 +357,7 @@ export const getHistoricalStore = ({
         // Note: this is where not-null constraints would be checked.
         // It may be safe to wait until flush to throw the error.
 
-        const bytes = getRecordSize(tableName, record);
+        const bytes = getRecordSize(record);
 
         storeCache[tableName].insert[encodedId] = {
           opIndex: totalCacheOps++,
@@ -404,7 +423,7 @@ export const getHistoricalStore = ({
         ...update,
       };
 
-      const bytes = getRecordSize(tableName, record);
+      const bytes = getRecordSize(record);
 
       cacheEntry.record = record;
       cacheEntry.opIndex = totalCacheOps++;
@@ -571,7 +590,7 @@ export const getHistoricalStore = ({
         // Note: this is where not-null constraints would be checked.
         // It may be safe to wait until flush to throw the error.
 
-        const bytes = getRecordSize(tableName, record);
+        const bytes = getRecordSize(record);
 
         storeCache[tableName].insert[encodedId] = {
           opIndex: totalCacheOps++,
@@ -598,7 +617,7 @@ export const getHistoricalStore = ({
           ..._update,
         };
 
-        const bytes = getRecordSize(tableName, record);
+        const bytes = getRecordSize(record);
 
         cacheEntry.record = record;
         cacheEntry.opIndex = totalCacheOps++;
