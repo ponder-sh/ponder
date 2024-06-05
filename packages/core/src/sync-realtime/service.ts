@@ -655,9 +655,10 @@ export const handleReorg = async (
   const msg = `Encountered unrecoverable '${service.network.name}' reorg beyond finalized block ${service.finalizedBlock.number}`;
 
   service.common.logger.warn({ service: "realtime", msg });
-  service.onFatalError(new Error(msg));
 
   service.localChain = [];
+
+  throw new Error(msg);
 };
 
 const getMatchedLogs = async (

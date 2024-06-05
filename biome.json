@@ -15,7 +15,8 @@
       "**/.ponder",
       "docs/",
       "benchmarks/apps/subgraph-*",
-      "pnpm-lock.yaml"
+      "pnpm-lock.yaml",
+      "**/*.sol"
     ]
   },
   "formatter": {

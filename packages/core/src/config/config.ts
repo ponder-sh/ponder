@@ -66,6 +66,8 @@ export type NetworkConfig<network> = {
   maxRequestsPerSecond?: number;
   /** (Deprecated) Maximum concurrency of tasks during the historical sync. Default: `20`. */
   maxHistoricalTaskConcurrency?: number;
+  /** Disable RPC request caching. Default: `false`. */
+  disableCache?: boolean;
 };
 
 export type BlockFilterConfig = {

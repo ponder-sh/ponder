@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.4.35
+
+### Patch Changes
+
+- [`b77a43fb7fbad4e2710d31537ce21a29c1f6aafe`](https://github.com/ponder-sh/ponder/commit/b77a43fb7fbad4e2710d31537ce21a29c1f6aafe) Thanks [@0xOlias](https://github.com/0xOlias)! - Improves support for indexing local nodes by adding a `disableCache` network option. [Read more](https://ponder.sh/docs/advanced/foundry).
+
+- [#927](https://github.com/ponder-sh/ponder/pull/927) [`3be6365c4c71dd0ac8275d485eb0317a656672b7`](https://github.com/ponder-sh/ponder/commit/3be6365c4c71dd0ac8275d485eb0317a656672b7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issues that would cause unexpected blocks to immediately cause a fatal error with a deep reorg.
+
 ## 0.4.34
 
 ### Patch Changes

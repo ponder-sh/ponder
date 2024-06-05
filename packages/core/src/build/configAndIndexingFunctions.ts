@@ -267,6 +267,7 @@ export async function buildConfigAndIndexingFunctions({
         finalityBlockCount: getFinalityBlockCount({ chainId }),
         maxHistoricalTaskConcurrency:
           network.maxHistoricalTaskConcurrency ?? 20,
+        disableCache: network.disableCache ?? false,
       } satisfies Network;
     }),
   );
