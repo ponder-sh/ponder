@@ -1,1 +1,1 @@
-forge-std/=lib/forge-std/src/
+forge-std/=node_modules/forge-std/src/

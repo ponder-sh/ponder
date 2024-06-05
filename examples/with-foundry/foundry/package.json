@@ -1,0 +1,8 @@
+{
+  "name": "ponder-examples-with-foundry-foundry",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "forge-std": "github:foundry-rs/forge-std"
+  }
+}
