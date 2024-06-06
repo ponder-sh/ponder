@@ -28,7 +28,7 @@ import type { NonNull } from "@/types/utils.js";
 import {
   type Checkpoint,
   EVENT_TYPES,
-  checkpointMin,
+  checkpointMax,
   decodeCheckpoint,
   encodeCheckpoint,
   isCheckpointGreaterThanOrEqualTo,
@@ -1667,21 +1667,27 @@ export class PostgresSyncStore implements SyncStore {
         ]);
 
       const _logCheckpoint =
-        logSources.length === 0 || logCheckpoint === undefined
-          ? toCheckpoint
-          : decodeCheckpoint(logCheckpoint.checkpoint!);
+        logSources.length === 0
+          ? zeroCheckpoint
+          : logCheckpoint === undefined
+            ? toCheckpoint
+            : decodeCheckpoint(logCheckpoint.checkpoint!);
 
       const _blockCheckpoint =
-        blockSources.length === 0 || blockCheckpoint === undefined
-          ? toCheckpoint
-          : decodeCheckpoint(blockCheckpoint.checkpoint!);
+        blockSources.length === 0
+          ? zeroCheckpoint
+          : blockCheckpoint === undefined
+            ? toCheckpoint
+            : decodeCheckpoint(blockCheckpoint.checkpoint!);
 
       const _traceCheckpoint =
-        callTraceSources.length === 0 || traceCheckpoint === undefined
-          ? toCheckpoint
-          : decodeCheckpoint(traceCheckpoint.checkpoint!);
+        callTraceSources.length === 0
+          ? zeroCheckpoint
+          : traceCheckpoint === undefined
+            ? toCheckpoint
+            : decodeCheckpoint(traceCheckpoint.checkpoint!);
 
-      const maxCheckpoint = checkpointMin(
+      const maxCheckpoint = checkpointMax(
         _logCheckpoint,
         _blockCheckpoint,
         _traceCheckpoint,
@@ -1968,6 +1974,7 @@ export class PostgresSyncStore implements SyncStore {
           .where("events.checkpoint", ">", cursor)
           .where("events.checkpoint", "<=", encodeCheckpoint(maxCheckpoint))
           .orderBy("events.checkpoint", "asc")
+          .limit(limit)
           .execute();
 
         return requestedLogs.map((_row) => {
