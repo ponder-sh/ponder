@@ -263,8 +263,8 @@ export const getHistoricalStore = ({
             tableStoreCache.update,
           )) {
             if (opIndex < flushIndex) {
-              const bytes = storeCache[tableName].insert[id].bytes;
-              delete storeCache[tableName].insert[id];
+              const bytes = storeCache[tableName].update[id].bytes;
+              delete storeCache[tableName].update[id];
 
               cacheSize--;
               cacheSizeBytes -= bytes;
