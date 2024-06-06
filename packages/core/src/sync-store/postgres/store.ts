@@ -28,10 +28,8 @@ import type { NonNull } from "@/types/utils.js";
 import {
   type Checkpoint,
   EVENT_TYPES,
-  checkpointMax,
   decodeCheckpoint,
   encodeCheckpoint,
-  isCheckpointGreaterThanOrEqualTo,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -1638,61 +1636,6 @@ export class PostgresSyncStore implements SyncStore {
       );
 
     while (true) {
-      const [logCheckpoint, blockCheckpoint, traceCheckpoint] =
-        await Promise.all([
-          this.db
-            .selectFrom("logs")
-            .where("checkpoint", ">", cursor)
-            .where("checkpoint", "<=", encodedToCheckpoint)
-            .orderBy("checkpoint", "asc")
-            .offset(limit)
-            .select("checkpoint")
-            .executeTakeFirst(),
-          this.db
-            .selectFrom("blocks")
-            .where("checkpoint", ">", cursor)
-            .where("checkpoint", "<=", encodedToCheckpoint)
-            .orderBy("checkpoint", "asc")
-            .offset(limit)
-            .select("checkpoint")
-            .executeTakeFirst(),
-          this.db
-            .selectFrom("callTraces")
-            .where("checkpoint", ">", cursor)
-            .where("checkpoint", "<=", encodedToCheckpoint)
-            .orderBy("checkpoint", "asc")
-            .offset(limit)
-            .select("checkpoint")
-            .executeTakeFirst(),
-        ]);
-
-      const _logCheckpoint =
-        logSources.length === 0
-          ? zeroCheckpoint
-          : logCheckpoint === undefined
-            ? toCheckpoint
-            : decodeCheckpoint(logCheckpoint.checkpoint!);
-
-      const _blockCheckpoint =
-        blockSources.length === 0
-          ? zeroCheckpoint
-          : blockCheckpoint === undefined
-            ? toCheckpoint
-            : decodeCheckpoint(blockCheckpoint.checkpoint!);
-
-      const _traceCheckpoint =
-        callTraceSources.length === 0
-          ? zeroCheckpoint
-          : traceCheckpoint === undefined
-            ? toCheckpoint
-            : decodeCheckpoint(traceCheckpoint.checkpoint!);
-
-      const maxCheckpoint = checkpointMax(
-        _logCheckpoint,
-        _blockCheckpoint,
-        _traceCheckpoint,
-      );
-
       const events = await this.db.wrap({ method: "getEvents" }, async () => {
         // Get full log objects, including the eventSelector clause.
         const requestedLogs = await this.db
@@ -1972,9 +1915,9 @@ export class PostgresSyncStore implements SyncStore {
               ]),
           )
           .where("events.checkpoint", ">", cursor)
-          .where("events.checkpoint", "<=", encodeCheckpoint(maxCheckpoint))
+          .where("events.checkpoint", "<=", encodedToCheckpoint)
           .orderBy("events.checkpoint", "asc")
-          .limit(limit)
+          .limit(limit + 1)
           .execute();
 
         return requestedLogs.map((_row) => {
@@ -2156,13 +2099,16 @@ export class PostgresSyncStore implements SyncStore {
         });
       });
 
-      if (isCheckpointGreaterThanOrEqualTo(maxCheckpoint, toCheckpoint)) {
+      const hasNextPage = events.length === limit + 1;
+
+      if (!hasNextPage) {
         yield events;
         break;
-      } else if (events.length !== 0) {
+      } else {
+        events.pop();
+        cursor = events[events.length - 1].encodedCheckpoint;
         yield events;
       }
-      cursor = encodeCheckpoint(maxCheckpoint);
     }
   }
 
