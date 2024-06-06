@@ -232,7 +232,12 @@ const App = (ui: UiState) => {
               title: "Duration (avg)",
               key: "averageDuration",
               align: "right",
-              format: (v) => (v > 0 ? `${v.toFixed(2)}ms` : "-"),
+              format: (v) =>
+                v > 0
+                  ? v < 1
+                    ? `${(v * 1_000).toFixed(2)}μs`
+                    : `${v.toFixed(2)}ms`
+                  : "-",
             },
           ]}
         />
