@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.36
+
+### Patch Changes
+
+- [#931](https://github.com/ponder-sh/ponder/pull/931) [`3bf69809b25c7d3e50be6eaf2f8d3564c7bb8f14`](https://github.com/ponder-sh/ponder/commit/3bf69809b25c7d3e50be6eaf2f8d3564c7bb8f14) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed bug with cache intervals occasionally causing statement timeouts for large apps.
+
 ## 0.4.35
 
 ### Patch Changes
