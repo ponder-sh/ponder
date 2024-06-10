@@ -1,3 +1,4 @@
+import type { Common } from "@/common/common.js";
 import type {
   BlockFilterCriteria,
   CallTraceFilterCriteria,
@@ -38,6 +39,7 @@ export type RawEvent = {
 export interface SyncStore {
   kind: "sqlite" | "postgres";
   db: HeadlessKysely<any>;
+  common: Common;
 
   /**
    * Insert a list of logs & associated transactions matching a given log filter

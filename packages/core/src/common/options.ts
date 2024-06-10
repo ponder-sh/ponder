@@ -30,6 +30,8 @@ export type Options = {
 
   databaseHeartbeatInterval: number;
   databaseHeartbeatTimeout: number;
+
+  syncMaxIntervals: number;
 };
 
 export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
@@ -97,5 +99,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     databaseHeartbeatInterval: 10 * 1000,
     databaseHeartbeatTimeout: 25 * 1000,
+
+    syncMaxIntervals: 50_000,
   } satisfies Options;
 };

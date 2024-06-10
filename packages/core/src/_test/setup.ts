@@ -155,7 +155,10 @@ export async function setupDatabaseServices(
 
     await database.migrateSyncStore();
 
-    const syncStore = new SqliteSyncStore({ db: database.syncDb });
+    const syncStore = new SqliteSyncStore({
+      db: database.syncDb,
+      common: context.common,
+    });
 
     const indexingStore = {
       ...getReadonlyStore({
@@ -207,7 +210,10 @@ export async function setupDatabaseServices(
 
     await database.migrateSyncStore();
 
-    const syncStore = new PostgresSyncStore({ db: database.syncDb });
+    const syncStore = new PostgresSyncStore({
+      db: database.syncDb,
+      common: context.common,
+    });
 
     const indexingStore = {
       ...getReadonlyStore({
