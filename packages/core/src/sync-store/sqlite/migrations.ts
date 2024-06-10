@@ -973,6 +973,101 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_06_10_0_filter_intervals": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createIndex("logFiltersChainIdIndex")
+        .on("logFilters")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("logFiltersAddressIndex")
+        .on("logFilters")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("logFiltersTopic0Index")
+        .on("logFilters")
+        .column("topic0")
+        .execute();
+
+      await db.schema
+        .createIndex("factoryLogFilterChainIdIndex")
+        .on("factoryLogFilters")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("factoryLogFilterAddressIndex")
+        .on("factoryLogFilters")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("factoryLogFilterEventSelectorIndex")
+        .on("factoryLogFilters")
+        .column("eventSelector")
+        .execute();
+      await db.schema
+        .createIndex("factoryLogFilterTopic0Index")
+        .on("factoryLogFilters")
+        .column("topic0")
+        .execute();
+
+      await db.schema
+        .createIndex("traceFilterChainIdIndex")
+        .on("traceFilters")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("traceFilterFromAddressIndex")
+        .on("traceFilters")
+        .column("fromAddress")
+        .execute();
+      await db.schema
+        .createIndex("traceFilterToAddressIndex")
+        .on("traceFilters")
+        .column("toAddress")
+        .execute();
+
+      await db.schema
+        .createIndex("factoryTraceFilterChainIdIndex")
+        .on("factoryTraceFilters")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("factoryTraceFilterAddressIndex")
+        .on("factoryTraceFilters")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("factoryTraceFilterEventSelectorIndex")
+        .on("factoryTraceFilters")
+        .column("eventSelector")
+        .execute();
+      await db.schema
+        .createIndex("factoryTraceFilterFromAddressIndex")
+        .on("factoryTraceFilters")
+        .column("fromAddress")
+        .execute();
+
+      await db.schema
+        .createIndex("blockFilterChainIdIndex")
+        .on("blockFilters")
+        .column("chainId")
+        .execute();
+
+      await db.schema
+        .createIndex("blockFilterIntervalIndex")
+        .on("blockFilters")
+        .column("interval")
+        .execute();
+
+      await db.schema
+        .createIndex("blockFilterOffsetIndex")
+        .on("blockFilters")
+        .column("offset")
+        .execute();
+    },
+  },
 };
 
 async function hasCheckpointCol(db: Kysely<any>) {
