@@ -182,6 +182,7 @@ export class SqliteSyncStore implements SyncStore {
               .returningAll()
               .executeTakeFirstOrThrow();
 
+            // This is a trick to add a LIMIT to a DELETE statement
             const existingIntervals = await tx
               .deleteFrom("logFilterIntervals")
               .where(
@@ -218,14 +219,14 @@ export class SqliteSyncStore implements SyncStore {
                 .execute();
             }
 
-            if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
-
-            if (mergedIntervalRows.length === 0) {
+            if (mergedIntervalRows.length === MAX_MERGE_INTERVALS) {
               // This occurs when there are too many non-mergeable ranges with the same logFilterId. Should be almost impossible.
               throw new NonRetryableError(
-                `'logFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation. Wiping your database is recommended.`,
+                `'logFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
               );
             }
+
+            if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
           }
         });
       }
@@ -478,6 +479,7 @@ export class SqliteSyncStore implements SyncStore {
                 .returningAll()
                 .executeTakeFirstOrThrow();
 
+              // This is a trick to add a LIMIT to a DELETE statement
               const existingIntervals = await tx
                 .deleteFrom("factoryLogFilterIntervals")
                 .where(
@@ -514,14 +516,14 @@ export class SqliteSyncStore implements SyncStore {
                   .execute();
               }
 
-              if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
-
-              if (mergedIntervalRows.length === 0) {
+              if (mergedIntervalRows.length === MAX_MERGE_INTERVALS) {
                 // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
                 throw new NonRetryableError(
-                  `'factoryLogFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation. Wiping your database is recommended.`,
+                  `'factoryLogFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
                 );
               }
+
+              if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
             }
           });
         }
@@ -860,6 +862,7 @@ export class SqliteSyncStore implements SyncStore {
               .returningAll()
               .executeTakeFirstOrThrow();
 
+            // This is a trick to add a LIMIT to a DELETE statement
             const existingIntervals = await tx
               .deleteFrom("traceFilterIntervals")
               .where(
@@ -896,14 +899,14 @@ export class SqliteSyncStore implements SyncStore {
                 .execute();
             }
 
-            if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
-
-            if (mergedIntervalRows.length === 0) {
+            if (mergedIntervalRows.length === MAX_MERGE_INTERVALS) {
               // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
               throw new NonRetryableError(
-                `'traceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation. Wiping your database is recommended.`,
+                `'traceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
               );
             }
+
+            if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
           }
         });
       }
@@ -1102,6 +1105,7 @@ export class SqliteSyncStore implements SyncStore {
                 .returningAll()
                 .executeTakeFirstOrThrow();
 
+              // This is a trick to add a LIMIT to a DELETE statement
               const existingIntervals = await tx
                 .deleteFrom("factoryTraceFilterIntervals")
                 .where(
@@ -1138,14 +1142,14 @@ export class SqliteSyncStore implements SyncStore {
                   .execute();
               }
 
-              if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
-
-              if (mergedIntervalRows.length === 0) {
+              if (mergedIntervalRows.length === MAX_MERGE_INTERVALS) {
                 // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
                 throw new NonRetryableError(
-                  `'factoryTraceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation. Wiping your database is recommended.`,
+                  `'factoryTraceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
                 );
               }
+
+              if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
             }
           });
         }
