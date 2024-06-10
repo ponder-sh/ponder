@@ -78,7 +78,7 @@ export async function run({
       .setup({ schema, buildId })
       .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
 
-    syncStore = new SqliteSyncStore({ db: database.syncDb });
+    syncStore = new SqliteSyncStore({ db: database.syncDb, common });
   } else {
     const { poolConfig, schema: userNamespace, publishSchema } = databaseConfig;
     database = new PostgresDatabaseService({
@@ -91,7 +91,7 @@ export async function run({
       .setup({ schema, buildId })
       .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
 
-    syncStore = new PostgresSyncStore({ db: database.syncDb });
+    syncStore = new PostgresSyncStore({ db: database.syncDb, common });
   }
 
   const readonlyStore = getReadonlyStore({

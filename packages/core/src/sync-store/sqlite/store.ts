@@ -1,3 +1,4 @@
+import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import {
   type BlockFilterCriteria,
@@ -70,14 +71,17 @@ import {
   rpcToSqliteTransaction,
 } from "./encoding.js";
 
-const MAX_MERGE_INTERVALS = 50_000;
-
 export class SqliteSyncStore implements SyncStore {
   kind = "sqlite" as const;
   db: HeadlessKysely<SyncStoreTables>;
+  common: Common;
 
-  constructor({ db }: { db: HeadlessKysely<SyncStoreTables> }) {
+  constructor({
+    db,
+    common,
+  }: { db: HeadlessKysely<SyncStoreTables>; common: Common }) {
     this.db = db;
+    this.common = common;
   }
 
   insertLogFilterInterval = async ({
@@ -192,7 +196,7 @@ export class SqliteSyncStore implements SyncStore {
                   .selectFrom("logFilterIntervals")
                   .where("logFilterId", "=", logFilterId)
                   .select("id")
-                  .limit(MAX_MERGE_INTERVALS),
+                  .limit(this.common.options.syncMaxIntervals),
               )
               .returning(["startBlock", "endBlock"])
               .execute();
@@ -219,14 +223,19 @@ export class SqliteSyncStore implements SyncStore {
                 .execute();
             }
 
-            if (mergedIntervalRows.length === MAX_MERGE_INTERVALS) {
+            if (
+              mergedIntervalRows.length === this.common.options.syncMaxIntervals
+            ) {
               // This occurs when there are too many non-mergeable ranges with the same logFilterId. Should be almost impossible.
               throw new NonRetryableError(
                 `'logFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
               );
             }
 
-            if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
+            if (
+              existingIntervals.length !== this.common.options.syncMaxIntervals
+            )
+              break;
           }
         });
       }
@@ -489,7 +498,7 @@ export class SqliteSyncStore implements SyncStore {
                     .selectFrom("factoryLogFilterIntervals")
                     .where("factoryId", "=", factoryId)
                     .select("id")
-                    .limit(MAX_MERGE_INTERVALS),
+                    .limit(this.common.options.syncMaxIntervals),
                 )
                 .returning(["startBlock", "endBlock"])
                 .execute();
@@ -516,14 +525,21 @@ export class SqliteSyncStore implements SyncStore {
                   .execute();
               }
 
-              if (mergedIntervalRows.length === MAX_MERGE_INTERVALS) {
+              if (
+                mergedIntervalRows.length ===
+                this.common.options.syncMaxIntervals
+              ) {
                 // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
                 throw new NonRetryableError(
                   `'factoryLogFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
                 );
               }
 
-              if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
+              if (
+                existingIntervals.length !==
+                this.common.options.syncMaxIntervals
+              )
+                break;
             }
           });
         }
@@ -872,7 +888,7 @@ export class SqliteSyncStore implements SyncStore {
                   .selectFrom("traceFilterIntervals")
                   .where("traceFilterId", "=", traceFilterId)
                   .select("id")
-                  .limit(MAX_MERGE_INTERVALS),
+                  .limit(this.common.options.syncMaxIntervals),
               )
               .returning(["startBlock", "endBlock"])
               .execute();
@@ -899,14 +915,19 @@ export class SqliteSyncStore implements SyncStore {
                 .execute();
             }
 
-            if (mergedIntervalRows.length === MAX_MERGE_INTERVALS) {
+            if (
+              mergedIntervalRows.length === this.common.options.syncMaxIntervals
+            ) {
               // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
               throw new NonRetryableError(
                 `'traceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
               );
             }
 
-            if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
+            if (
+              existingIntervals.length !== this.common.options.syncMaxIntervals
+            )
+              break;
           }
         });
       }
@@ -1115,7 +1136,7 @@ export class SqliteSyncStore implements SyncStore {
                     .selectFrom("factoryTraceFilterIntervals")
                     .where("factoryId", "=", factoryId)
                     .select("id")
-                    .limit(MAX_MERGE_INTERVALS),
+                    .limit(this.common.options.syncMaxIntervals),
                 )
                 .returning(["startBlock", "endBlock"])
                 .execute();
@@ -1142,14 +1163,21 @@ export class SqliteSyncStore implements SyncStore {
                   .execute();
               }
 
-              if (mergedIntervalRows.length === MAX_MERGE_INTERVALS) {
+              if (
+                mergedIntervalRows.length ===
+                this.common.options.syncMaxIntervals
+              ) {
                 // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
                 throw new NonRetryableError(
                   `'factoryTraceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
                 );
               }
 
-              if (existingIntervals.length !== MAX_MERGE_INTERVALS) break;
+              if (
+                existingIntervals.length !==
+                this.common.options.syncMaxIntervals
+              )
+                break;
             }
           });
         }
