@@ -1,5 +1,5 @@
+import type { Common } from "@/common/common.js";
 import { RecordNotFoundError, UniqueConstraintError } from "@/common/errors.js";
-import type { Logger } from "@/common/logger.js";
 import { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
@@ -46,17 +46,22 @@ export const getHistoricalStore = ({
   schema,
   namespaceInfo,
   db,
-  logger,
+  common,
 }: {
   kind: "sqlite" | "postgres";
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
-  logger: Logger;
+  common: Common;
 }): HistoricalStore => {
   const storeCache: StoreCache = {};
+  const maxSizeBytes = common.options.indexingCacheBytes;
 
-  const maxSizeBytes = process.memoryUsage().heapTotal / 3;
+  common.logger.debug({
+    service: "indexing",
+    msg: `Using a ${Math.round(maxSizeBytes / (1024 * 1024))} mB cache.`,
+  });
+
   /** True if the cache contains the complete state of the store. */
   let isCacheFull = true;
   let totalCacheOps = 0;
@@ -156,7 +161,7 @@ export const getHistoricalStore = ({
 
             if (insertRows.length + updateRows.length === 0) return;
 
-            logger.debug({
+            common.logger.debug({
               service: "indexing",
               msg: `Flushing ${
                 insertRows.length + updateRows.length
