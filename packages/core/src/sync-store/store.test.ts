@@ -7,6 +7,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
+import { NonRetryableError } from "@/common/errors.js";
 import {
   type BlockFilterCriteria,
   type FactoryLogFilterCriteria,
@@ -21,6 +22,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
+import { range } from "@/utils/range.js";
 import {
   type Address,
   type Hex,
@@ -437,46 +439,49 @@ test("getLogFilterIntervals merges overlapping intervals that both match a filte
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {
-      topics: [["0xc", "0xd"], null, null, null],
-      includeTransactionReceipts: false,
-    },
-    ...rpcData.block2,
-    interval: { startBlock: 0n, endBlock: 50n },
-  });
-
-  // Broad criteria only includes broad intervals.
-  let logFilterIntervals = await syncStore.getLogFilterIntervals({
-    chainId: 1,
-    logFilter: {
-      address: "0xaddress",
-      topics: [["0xc"], null, null, null],
-      includeTransactionReceipts: false,
-    },
-  });
-  expect(logFilterIntervals).toMatchObject([[0, 50]]);
-
-  await syncStore.insertLogFilterInterval({
-    chainId: 1,
-    logFilter: {
-      address: "0xaddress",
-      topics: [["0xc"], null, null, null],
+      address: ["0xa", "0xb"],
+      topics: [["0xc", "0xd"], null, "0xe", null],
       includeTransactionReceipts: false,
     },
     ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
-  logFilterIntervals = await syncStore.getLogFilterIntervals({
+  // This is a narrower inclusion criteria on `address` and `topic0`. Full range is available.
+  let logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: {
-      address: "0xaddress",
-      topics: [["0xc"], null, null, null],
+      address: ["0xa"],
+      topics: [["0xc"], null, "0xe", null],
       includeTransactionReceipts: false,
     },
   });
 
-  expect(logFilterIntervals).toMatchObject([[0, 100]]);
+  expect(logFilterRanges).toMatchObject([[0, 100]]);
 
+  // This is a broader inclusion criteria on `address`. No ranges available.
+  logFilterRanges = await syncStore.getLogFilterIntervals({
+    chainId: 1,
+    logFilter: {
+      address: undefined,
+      topics: [["0xc"], null, "0xe", null],
+      includeTransactionReceipts: false,
+    },
+  });
+
+  expect(logFilterRanges).toMatchObject([]);
+
+  // This is a narrower inclusion criteria on `topic1`. Full range available.
+  logFilterRanges = await syncStore.getLogFilterIntervals({
+    chainId: 1,
+    logFilter: {
+      address: ["0xa"],
+      topics: [["0xc"], "0xd", "0xe", null],
+      includeTransactionReceipts: false,
+    },
+  });
+
+  expect(logFilterRanges).toMatchObject([[0, 100]]);
   await cleanup();
 });
 
@@ -548,6 +553,72 @@ test("getLogFilterIntervals handles includeTransactionReceipts", async (context)
   });
 
   expect(logFilterRanges).toMatchObject([[0, 100]]);
+
+  await cleanup();
+});
+
+test("getLogFilterIntervals handles size over MAX", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  context.common.options = { ...context.common.options, syncMaxIntervals: 20 };
+
+  for (const i in range(0, 25)) {
+    await syncStore.insertLogFilterInterval({
+      chainId: 1,
+      logFilter: {
+        topics: [null, null, null, null],
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block2,
+      interval: { startBlock: BigInt(i), endBlock: BigInt(i) },
+    });
+  }
+
+  const logFilterRanges = await syncStore.getLogFilterIntervals({
+    chainId: 1,
+    logFilter: {
+      topics: [null, null, null, null],
+      includeTransactionReceipts: false,
+    },
+  });
+
+  expect(logFilterRanges).toMatchObject([[0, 24]]);
+
+  await cleanup();
+});
+
+test("getLogFilterIntervals throws non-retryable error after no merges", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  context.common.options = { ...context.common.options, syncMaxIntervals: 20 };
+
+  for (let i = 0; i < 50; i += 2) {
+    await syncStore.insertLogFilterInterval({
+      chainId: 1,
+      logFilter: {
+        topics: [null, null, null, null],
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block2,
+      interval: { startBlock: BigInt(i), endBlock: BigInt(i) },
+    });
+  }
+
+  const error = await syncStore
+    .getLogFilterIntervals({
+      chainId: 1,
+      logFilter: {
+        topics: [null, null, null, null],
+        includeTransactionReceipts: false,
+      },
+    })
+    .catch((err) => err);
+
+  expect(error).toBeInstanceOf(NonRetryableError);
 
   await cleanup();
 });

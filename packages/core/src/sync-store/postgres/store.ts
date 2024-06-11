@@ -1,3 +1,5 @@
+import type { Common } from "@/common/common.js";
+import { NonRetryableError } from "@/common/errors.js";
 import {
   type BlockFilterCriteria,
   type CallTraceFilterCriteria,
@@ -63,9 +65,14 @@ import {
 export class PostgresSyncStore implements SyncStore {
   kind = "postgres" as const;
   db: HeadlessKysely<SyncStoreTables>;
+  common: Common;
 
-  constructor({ db }: { db: HeadlessKysely<SyncStoreTables> }) {
+  constructor({
+    db,
+    common,
+  }: { db: HeadlessKysely<SyncStoreTables>; common: Common }) {
     this.db = db;
+    this.common = common;
   }
 
   insertLogFilterInterval = async ({
@@ -161,9 +168,9 @@ export class PostgresSyncStore implements SyncStore {
       const fragments = buildLogFilterFragments({ ...logFilter, chainId });
 
       // First, attempt to merge overlapping and adjacent intervals.
-      await Promise.all(
-        fragments.map(async (fragment) => {
-          return await this.db.transaction().execute(async (tx) => {
+      for (const fragment of fragments) {
+        await this.db.transaction().execute(async (tx) => {
+          while (true) {
             const { id: logFilterId } = await tx
               .insertInto("logFilters")
               .values(fragment)
@@ -171,14 +178,23 @@ export class PostgresSyncStore implements SyncStore {
               .returningAll()
               .executeTakeFirstOrThrow();
 
-            const existingIntervalRows = await tx
+            // This is a trick to add a LIMIT to a DELETE statement
+            const existingIntervals = await tx
               .deleteFrom("logFilterIntervals")
-              .where("logFilterId", "=", logFilterId)
-              .returningAll()
+              .where(
+                "id",
+                "in",
+                tx
+                  .selectFrom("logFilterIntervals")
+                  .where("logFilterId", "=", logFilterId)
+                  .select("id")
+                  .limit(this.common.options.syncMaxIntervals),
+              )
+              .returning(["startBlock", "endBlock"])
               .execute();
 
             const mergedIntervals = intervalUnion(
-              existingIntervalRows.map((i) => [
+              existingIntervals.map((i) => [
                 Number(i.startBlock),
                 Number(i.endBlock),
               ]),
@@ -198,9 +214,23 @@ export class PostgresSyncStore implements SyncStore {
                 .values(mergedIntervalRows)
                 .execute();
             }
-          });
-        }),
-      );
+
+            if (
+              mergedIntervalRows.length === this.common.options.syncMaxIntervals
+            ) {
+              // This occurs when there are too many non-mergeable ranges with the same logFilterId. Should be almost impossible.
+              throw new NonRetryableError(
+                `'logFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
+              );
+            }
+
+            if (
+              existingIntervals.length !== this.common.options.syncMaxIntervals
+            )
+              break;
+          }
+        });
+      }
 
       const intervals = await this.db
         .with(
@@ -438,9 +468,9 @@ export class PostgresSyncStore implements SyncStore {
       async () => {
         const fragments = buildFactoryLogFragments({ ...factory, chainId });
 
-        await Promise.all(
-          fragments.map(async (fragment) => {
-            await this.db.transaction().execute(async (tx) => {
+        for (const fragment of fragments) {
+          await this.db.transaction().execute(async (tx) => {
+            while (true) {
               const { id: factoryId } = await tx
                 .insertInto("factoryLogFilters")
                 .values(fragment)
@@ -448,10 +478,19 @@ export class PostgresSyncStore implements SyncStore {
                 .returningAll()
                 .executeTakeFirstOrThrow();
 
+              // This is a trick to add a LIMIT to a DELETE statement
               const existingIntervals = await tx
                 .deleteFrom("factoryLogFilterIntervals")
-                .where("factoryId", "=", factoryId)
-                .returningAll()
+                .where(
+                  "id",
+                  "in",
+                  tx
+                    .selectFrom("factoryLogFilterIntervals")
+                    .where("factoryId", "=", factoryId)
+                    .select("id")
+                    .limit(this.common.options.syncMaxIntervals),
+                )
+                .returning(["startBlock", "endBlock"])
                 .execute();
 
               const mergedIntervals = intervalUnion(
@@ -475,9 +514,25 @@ export class PostgresSyncStore implements SyncStore {
                   .values(mergedIntervalRows)
                   .execute();
               }
-            });
-          }),
-        );
+
+              if (
+                mergedIntervalRows.length ===
+                this.common.options.syncMaxIntervals
+              ) {
+                // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
+                throw new NonRetryableError(
+                  `'factoryLogFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
+                );
+              }
+
+              if (
+                existingIntervals.length !==
+                this.common.options.syncMaxIntervals
+              )
+                break;
+            }
+          });
+        }
 
         const intervals = await this.db
           .with(
@@ -804,9 +859,9 @@ export class PostgresSyncStore implements SyncStore {
       const fragments = buildTraceFragments({ ...traceFilter, chainId });
 
       // First, attempt to merge overlapping and adjacent intervals.
-      await Promise.all(
-        fragments.map(async (fragment) => {
-          return await this.db.transaction().execute(async (tx) => {
+      for (const fragment of fragments) {
+        await this.db.transaction().execute(async (tx) => {
+          while (true) {
             const { id: traceFilterId } = await tx
               .insertInto("traceFilters")
               .values(fragment)
@@ -814,14 +869,23 @@ export class PostgresSyncStore implements SyncStore {
               .returningAll()
               .executeTakeFirstOrThrow();
 
-            const existingIntervalRows = await tx
+            // This is a trick to add a LIMIT to a DELETE statement This is a trick to add a LIMIT to a DELETE statement
+            const existingIntervals = await tx
               .deleteFrom("traceFilterIntervals")
-              .where("traceFilterId", "=", traceFilterId)
-              .returningAll()
+              .where(
+                "id",
+                "in",
+                tx
+                  .selectFrom("traceFilterIntervals")
+                  .where("traceFilterId", "=", traceFilterId)
+                  .select("id")
+                  .limit(this.common.options.syncMaxIntervals),
+              )
+              .returning(["startBlock", "endBlock"])
               .execute();
 
             const mergedIntervals = intervalUnion(
-              existingIntervalRows.map((i) => [
+              existingIntervals.map((i) => [
                 Number(i.startBlock),
                 Number(i.endBlock),
               ]),
@@ -841,9 +905,23 @@ export class PostgresSyncStore implements SyncStore {
                 .values(mergedIntervalRows)
                 .execute();
             }
-          });
-        }),
-      );
+
+            if (
+              mergedIntervalRows.length === this.common.options.syncMaxIntervals
+            ) {
+              // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
+              throw new NonRetryableError(
+                `'traceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
+              );
+            }
+
+            if (
+              existingIntervals.length !== this.common.options.syncMaxIntervals
+            )
+              break;
+          }
+        });
+      }
 
       const intervals = await this.db
         .with(
@@ -1029,9 +1107,9 @@ export class PostgresSyncStore implements SyncStore {
       async () => {
         const fragments = buildFactoryTraceFragments({ ...factory, chainId });
 
-        await Promise.all(
-          fragments.map(async (fragment) => {
-            return await this.db.transaction().execute(async (tx) => {
+        for (const fragment of fragments) {
+          await this.db.transaction().execute(async (tx) => {
+            while (true) {
               const { id: factoryId } = await tx
                 .insertInto("factoryTraceFilters")
                 .values(fragment)
@@ -1039,10 +1117,19 @@ export class PostgresSyncStore implements SyncStore {
                 .returningAll()
                 .executeTakeFirstOrThrow();
 
+              // This is a trick to add a LIMIT to a DELETE statement
               const existingIntervals = await tx
                 .deleteFrom("factoryTraceFilterIntervals")
-                .where("factoryId", "=", factoryId)
-                .returningAll()
+                .where(
+                  "id",
+                  "in",
+                  tx
+                    .selectFrom("factoryTraceFilterIntervals")
+                    .where("factoryId", "=", factoryId)
+                    .select("id")
+                    .limit(this.common.options.syncMaxIntervals),
+                )
+                .returning(["startBlock", "endBlock"])
                 .execute();
 
               const mergedIntervals = intervalUnion(
@@ -1066,9 +1153,25 @@ export class PostgresSyncStore implements SyncStore {
                   .values(mergedIntervalRows)
                   .execute();
               }
-            });
-          }),
-        );
+
+              if (
+                mergedIntervalRows.length ===
+                this.common.options.syncMaxIntervals
+              ) {
+                // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
+                throw new NonRetryableError(
+                  `'factoryTraceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
+                );
+              }
+
+              if (
+                existingIntervals.length !==
+                this.common.options.syncMaxIntervals
+              )
+                break;
+            }
+          });
+        }
 
         const intervals = await this.db
           .with(
