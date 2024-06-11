@@ -445,11 +445,16 @@ export const getHistoricalStore = ({
       } else if (insertEntry !== undefined) {
         cacheEntry = insertEntry;
       } else if (isCacheFull) {
-        throw new RecordNotFoundError();
+        throw new RecordNotFoundError(
+          "No existing record was found with the specified ID",
+        );
       } else {
         const record = await readonlyStore.findUnique({ tableName, id });
 
-        if (record === null) throw new RecordNotFoundError();
+        if (record === null)
+          throw new RecordNotFoundError(
+            "No existing record was found with the specified ID",
+          );
 
         // Note: a "spoof" cache entry is created
         cacheEntry = {
