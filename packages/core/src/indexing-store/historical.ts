@@ -135,8 +135,6 @@ export const getHistoricalStore = ({
         }).toLowerCase();
       }
     }
-
-    return getRecordSize(record);
   };
 
   const shouldFlush = () => cacheSizeBytes > maxSizeBytes;
