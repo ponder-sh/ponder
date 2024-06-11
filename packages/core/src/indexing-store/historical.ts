@@ -405,7 +405,8 @@ export const getHistoricalStore = ({
       if (
         storeCache[tableName].insert[encodedId] !== undefined ||
         storeCache[tableName].update[encodedId] !== undefined ||
-        storeCache[tableName].find[encodedId] !== undefined
+        (storeCache[tableName].find[encodedId] !== undefined &&
+          storeCache[tableName].find[encodedId].record !== undefined)
       ) {
         throw new UniqueConstraintError(
           `Unique constraint failed for '${tableName}.id'.`,
@@ -446,7 +447,8 @@ export const getHistoricalStore = ({
         if (
           storeCache[tableName].insert[encodedId] !== undefined ||
           storeCache[tableName].update[encodedId] !== undefined ||
-          storeCache[tableName].find[encodedId] !== undefined
+          (storeCache[tableName].find[encodedId] !== undefined &&
+            storeCache[tableName].find[encodedId].record !== undefined)
         ) {
           throw new UniqueConstraintError(
             `Unique constraint failed for '${tableName}.id'.`,
