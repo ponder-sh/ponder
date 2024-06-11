@@ -44,7 +44,7 @@ export const getReadonlyStore = ({
       const encodedId = encodeField({
         value: id,
         column: table.id,
-        encoding: encoding,
+        encoding,
       });
 
       const row = await db
@@ -84,7 +84,7 @@ export const getReadonlyStore = ({
 
       if (where) {
         query = query.where((eb) =>
-          buildWhereConditions({ eb, where, table, encoding: encoding }),
+          buildWhereConditions({ eb, where, table, encoding }),
         );
       }
 

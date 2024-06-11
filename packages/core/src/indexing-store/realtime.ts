@@ -228,7 +228,7 @@ export const getRealtimeStore = ({
                 eb,
                 where,
                 table,
-                encoding: encoding,
+                encoding,
               }),
             )
             .orderBy("id", "asc")
