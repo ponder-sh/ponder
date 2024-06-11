@@ -221,7 +221,13 @@ function validateField({
         );
       } else if (skipValidate === false) {
         if (getEnums(schema)[column[" enum"]].includes(value) === false) {
-          throw new CheckConstraintError();
+          throw new CheckConstraintError(
+            `Unable to encode ${value} as a '${
+              column[" enum"]
+            }' enum. Got '${value}' but expected one of [${getEnums(schema)[
+              column[" enum"]
+            ].join(", ")}].`,
+          );
         }
       }
 
@@ -249,7 +255,17 @@ function validateField({
     case "scalar": {
       if (value === undefined || value === null) {
         if (isOptionalColumn(column)) break;
-        throw new NotNullConstraintError();
+        const error = new NotNullConstraintError(
+          `Unable to encode ${value} as a ${
+            column[" scalar"]
+          }. Got '${typeof value}' but expected type '${
+            scalarToTsType[column[" scalar"]]
+          }'.`,
+        );
+        error.meta.push(
+          "Hint:\n  Use the .optional() modifier to allow for null or undefined values.",
+        );
+        throw error;
       }
 
       if (isListColumn(column)) {

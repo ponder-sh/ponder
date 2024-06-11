@@ -360,7 +360,7 @@ export const getHistoricalStore = ({
         storeCache[tableName].update[encodedId] !== undefined
       ) {
         throw new UniqueConstraintError(
-          `UNIQUE constraint failed: ${tableName}.id`,
+          `Unique constraint failed for '${tableName}.id'.`,
         );
       }
 
@@ -400,7 +400,7 @@ export const getHistoricalStore = ({
           storeCache[tableName].update[encodedId] !== undefined
         ) {
           throw new UniqueConstraintError(
-            `UNIQUE constraint failed: ${tableName}.id`,
+            `Unique constraint failed for '${tableName}.id'.`,
           );
         }
 
