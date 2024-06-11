@@ -159,21 +159,21 @@ export async function setupDatabaseServices(
 
     const indexingStore = {
       ...getReadonlyStore({
-        kind: "sqlite",
+        encoding: "sqlite",
         schema: config.schema,
         namespaceInfo: result.namespaceInfo,
         db: database.indexingDb,
       }),
       ...(config.indexing === "historical"
         ? getHistoricalStore({
-            kind: "sqlite",
+            encoding: "sqlite",
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
             common: context.common,
           })
         : getRealtimeStore({
-            kind: "sqlite",
+            encoding: "sqlite",
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
@@ -181,7 +181,7 @@ export async function setupDatabaseServices(
     };
 
     const readonlyStore = getReadonlyStore({
-      kind: "sqlite",
+      encoding: "sqlite",
       schema: config.schema,
       namespaceInfo: result.namespaceInfo,
       db: database.readonlyDb,
@@ -212,21 +212,21 @@ export async function setupDatabaseServices(
 
     const indexingStore = {
       ...getReadonlyStore({
-        kind: "postgres",
+        encoding: "postgres",
         schema: config.schema,
         namespaceInfo: result.namespaceInfo,
         db: database.indexingDb,
       }),
       ...(config.indexing === "historical"
         ? getHistoricalStore({
-            kind: "postgres",
+            encoding: "postgres",
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
             common: context.common,
           })
         : getRealtimeStore({
-            kind: "postgres",
+            encoding: "postgres",
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
@@ -234,7 +234,7 @@ export async function setupDatabaseServices(
     };
 
     const readonlyStore = getReadonlyStore({
-      kind: "postgres",
+      encoding: "postgres",
       schema: config.schema,
       namespaceInfo: result.namespaceInfo,
       db: database.readonlyDb,

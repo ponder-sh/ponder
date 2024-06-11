@@ -8,19 +8,19 @@ import type {
   UserRecord,
 } from "@/types/schema.js";
 import type { WhereInput, WriteStore } from "./store.js";
-import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
+import { decodeRecord, encodeField, encodeRecord } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
 export const getRealtimeStore = ({
-  kind,
+  encoding,
   schema,
   namespaceInfo,
   db,
 }: {
-  kind: "sqlite" | "postgres";
+  encoding: "sqlite" | "postgres";
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
@@ -39,7 +39,13 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.create` }, async () => {
-      const createRow = encodeRow({ id, ...data }, table, kind);
+      const createRow = encodeRecord({
+        record: { id, ...data },
+        table,
+        encoding,
+        schema,
+        skipValidate: false,
+      });
 
       return await db.transaction().execute(async (tx) => {
         const row = await tx
@@ -62,7 +68,7 @@ export const getRealtimeStore = ({
           })
           .execute();
 
-        return decodeRow(row, table, kind);
+        return decodeRecord({ record: row, table, encoding });
       });
     });
   },
@@ -81,9 +87,15 @@ export const getRealtimeStore = ({
       const rows: DatabaseRecord[] = [];
       await db.transaction().execute(async (tx) => {
         for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
-          const createRows = data
-            .slice(i, i + MAX_BATCH_SIZE)
-            .map((d) => encodeRow(d, table, kind));
+          const createRows = data.slice(i, i + MAX_BATCH_SIZE).map((d) =>
+            encodeRecord({
+              record: d,
+              table,
+              encoding,
+              schema,
+              skipValidate: false,
+            }),
+          );
 
           const _rows = await tx
             .withSchema(namespaceInfo.userNamespace)
@@ -111,7 +123,7 @@ export const getRealtimeStore = ({
         }
       });
 
-      return rows.map((row) => decodeRow(row, table, kind));
+      return rows.map((row) => decodeRecord({ record: row, table, encoding }));
     });
   },
   update: ({
@@ -130,7 +142,7 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.update` }, async () => {
-      const encodedId = encodeValue(id, table.id, kind);
+      const encodedId = encodeField({ value: id, column: table.id, encoding });
 
       const row = await db.transaction().execute(async (tx) => {
         const latestRow = await tx
@@ -145,9 +157,17 @@ export const getRealtimeStore = ({
 
         const updateObject =
           typeof data === "function"
-            ? data({ current: decodeRow(latestRow, table, kind) })
+            ? data({
+                current: decodeRecord({ record: latestRow, table, encoding }),
+              })
             : data;
-        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
+        const updateRow = encodeRecord({
+          record: { id, ...updateObject },
+          table,
+          encoding,
+          schema,
+          skipValidate: false,
+        });
 
         const updateResult = await tx
           .withSchema(namespaceInfo.userNamespace)
@@ -173,7 +193,7 @@ export const getRealtimeStore = ({
         return updateResult;
       });
 
-      const result = decodeRow(row, table, kind);
+      const result = decodeRecord({ record: row, table, encoding });
 
       return result;
     });
@@ -208,7 +228,7 @@ export const getRealtimeStore = ({
                 eb,
                 where,
                 table,
-                encoding: kind,
+                encoding: encoding,
               }),
             )
             .orderBy("id", "asc")
@@ -221,13 +241,25 @@ export const getRealtimeStore = ({
           for (const latestRow of latestRows) {
             const updateObject =
               typeof data === "function"
-                ? data({ current: decodeRow(latestRow, table, kind) })
+                ? data({
+                    current: decodeRecord({
+                      record: latestRow,
+                      table,
+                      encoding,
+                    }),
+                  })
                 : data;
 
             // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
             const updateRow = {
               id: latestRow.id,
-              ...encodeRow(updateObject, table, kind),
+              ...encodeRecord({
+                record: updateObject,
+                table,
+                encoding,
+                schema,
+                skipValidate: false,
+              }),
             };
 
             const row = await tx
@@ -254,7 +286,9 @@ export const getRealtimeStore = ({
               .execute();
           }
 
-          return rows.map((row) => decodeRow(row, table, kind));
+          return rows.map((row) =>
+            decodeRecord({ record: row, table, encoding }),
+          );
         }),
       );
 
@@ -263,7 +297,11 @@ export const getRealtimeStore = ({
       if (_rows.length === 0) {
         break;
       } else {
-        cursor = encodeValue(_rows[_rows.length - 1].id, table.id, kind);
+        cursor = encodeField({
+          value: _rows[_rows.length - 1].id,
+          column: table.id,
+          encoding,
+        });
       }
     }
 
@@ -287,8 +325,14 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.upsert` }, async () => {
-      const encodedId = encodeValue(id, table.id, kind);
-      const createRow = encodeRow({ id, ...create }, table, kind);
+      const encodedId = encodeField({ value: id, column: table.id, encoding });
+      const createRow = encodeRecord({
+        record: { id, ...create },
+        table,
+        encoding,
+        schema,
+        skipValidate: false,
+      });
 
       const row = await db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
@@ -335,9 +379,17 @@ export const getRealtimeStore = ({
 
         const updateObject =
           typeof update === "function"
-            ? update({ current: decodeRow(latestRow, table, kind) })
+            ? update({
+                current: decodeRecord({ record: latestRow, table, encoding }),
+              })
             : update;
-        const updateRow = encodeRow({ id, ...updateObject }, table, kind);
+        const updateRow = encodeRecord({
+          record: { id, ...updateObject },
+          table,
+          encoding,
+          schema,
+          skipValidate: false,
+        });
 
         const row = await tx
           .withSchema(namespaceInfo.userNamespace)
@@ -368,7 +420,7 @@ export const getRealtimeStore = ({
         return row;
       });
 
-      return decodeRow(row, table, kind);
+      return decodeRecord({ record: row, table, encoding });
     });
   },
   delete: ({
@@ -383,7 +435,7 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.delete` }, async () => {
-      const encodedId = encodeValue(id, table.id, kind);
+      const encodedId = encodeField({ value: id, column: table.id, encoding });
 
       const isDeleted = await db.transaction().execute(async (tx) => {
         const row = await tx

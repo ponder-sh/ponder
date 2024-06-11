@@ -14,7 +14,7 @@ import type {
   ExpressionBuilder,
   ExpressionWrapper,
 } from "kysely";
-import { encodeValue } from "./encoding.js";
+import { encodeField } from "./encoding.js";
 
 const filterValidityMap = {
   boolean: {
@@ -183,7 +183,7 @@ export function buildWhereConditions({
           }
           return v;
         }
-        return encodeValue(v, column, encoding);
+        return encodeField({ value: v, column, encoding });
       };
 
       const [comparator, encodedValue] = filterEncodingFn(value, encode);

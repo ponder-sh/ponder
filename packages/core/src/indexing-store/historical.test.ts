@@ -136,7 +136,7 @@ test("create() throws UniqueConstraintError", async (context) => {
   await cleanup();
 });
 
-test.skip("create() respects optional fields", async (context) => {
+test("create() respects optional fields", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -157,7 +157,7 @@ test.skip("create() respects optional fields", async (context) => {
   await cleanup();
 });
 
-test.skip("create() throws on invalid json", async (context) => {
+test("create() throws on invalid json", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -207,7 +207,7 @@ test("create() accepts enums", async (context) => {
   await cleanup();
 });
 
-test.skip("create() throws on invalid enum value", async (context) => {
+test("create() throws on invalid enum value", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
@@ -264,6 +264,22 @@ test("create() accepts float fields as float and returns as float", async (conte
   });
 
   expect(instance).toMatchObject({ id: "id1", name: "Skip", rating: 1.0 });
+
+  await cleanup();
+});
+
+test("create() works with hex case sensitivity", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema: hexSchema,
+  });
+
+  const instance = await indexingStore.create({
+    tableName: "table",
+    id: "0xa",
+    data: { n: 1 },
+  });
+
+  expect(instance).toMatchObject({ id: "0x0a", n: 1 });
 
   await cleanup();
 });
@@ -596,7 +612,7 @@ test("upsert() updates a record using an update function", async (context) => {
   await cleanup();
 });
 
-test.skip("upsert() works with hex case sensitivity", async (context) => {
+test("upsert() works with hex case sensitivity", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema: hexSchema,
   });
@@ -973,7 +989,7 @@ test("flush() partial", async (context) => {
     .selectAll()
     .execute();
 
-  expect(rows).toHaveLength(1);
+  expect(rows).toHaveLength(4);
   expect(rows[0]).toMatchObject({
     id: "id0",
     name: "Skip",

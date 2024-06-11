@@ -7,6 +7,7 @@ import {
   getTables,
   isEnumColumn,
   isJSONColumn,
+  isOptionalColumn,
   isReferenceColumn,
   isScalarColumn,
 } from "@/schema/utils.js";
@@ -16,12 +17,17 @@ import type {
   UserId,
   UserRecord,
 } from "@/types/schema.js";
-import { toLowerCase } from "@/utils/lowercase.js";
 import { createQueue } from "@ponder/common";
 import { sql } from "kysely";
+import { type Hex, padHex } from "viem";
 import { getReadonlyStore } from "./readonly.js";
 import type { HistoricalStore, OrderByInput, WhereInput } from "./store.js";
-import { decodeRow, encodeRow, encodeValue } from "./utils/encoding.js";
+import {
+  decodeRecord,
+  encodeField,
+  encodeRecord,
+  validateRecord,
+} from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
@@ -42,20 +48,27 @@ type StoreCache = {
 };
 
 export const getHistoricalStore = ({
-  kind,
+  encoding,
   schema,
   namespaceInfo,
   db,
   common,
 }: {
-  kind: "sqlite" | "postgres";
+  encoding: "sqlite" | "postgres";
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
   common: Common;
 }): HistoricalStore => {
-  const storeCache: StoreCache = {};
   const maxSizeBytes = common.options.indexingCacheBytes;
+  const storeCache: StoreCache = {};
+  const tables = getTables(schema);
+  const readonlyStore = getReadonlyStore({
+    encoding,
+    schema,
+    namespaceInfo,
+    db,
+  });
 
   common.logger.debug({
     service: "indexing",
@@ -64,13 +77,12 @@ export const getHistoricalStore = ({
 
   /** True if the cache contains the complete state of the store. */
   let isCacheFull = true;
-  let totalCacheOps = 0;
+
   let cacheSize = 0;
   let cacheSizeBytes = 0;
+  let totalCacheOps = 0;
 
-  const readonlyStore = getReadonlyStore({ kind, schema, namespaceInfo, db });
-
-  for (const tableName of Object.keys(getTables(schema))) {
+  for (const tableName of Object.keys(tables)) {
     storeCache[tableName] = {
       insert: {},
       update: {},
@@ -110,22 +122,49 @@ export const getHistoricalStore = ({
     return size;
   };
 
-  const isIdColumnHex = Object.entries(getTables(schema)).reduce<{
+  const isIdColumnHex = Object.entries(tables).reduce<{
     [tableName: string]: boolean;
   }>((acc, [tableName, { table }]) => {
     acc[tableName] = table.id[" scalar"] === "hex";
     return acc;
   }, {});
 
-  const encodeCacheId = (id: UserId, tableName: string): string | number => {
-    if (isIdColumnHex[tableName]) return toLowerCase(id as string);
+  const getCacheId = (id: UserId, tableName: string): string | number => {
+    if (isIdColumnHex[tableName])
+      return padHex(id as Hex, {
+        size: Math.ceil(((id as Hex).length - 2) / 2),
+        dir: "left",
+      }).toLowerCase();
     if (typeof id === "bigint") return `#Bigint.${id}`;
     return id;
   };
 
-  const shouldFlush = () => {
-    return cacheSizeBytes > maxSizeBytes;
+  /**
+   * Note: record is validated before passed to this function
+   */
+  const sanitizeRecord = (record: UserRecord, tableName: string) => {
+    for (const [columnName, column] of Object.entries(
+      tables[tableName].table,
+    )) {
+      // optional columns are null
+      if (isOptionalColumn(column) && record[columnName] === undefined) {
+        record[columnName] = null;
+      }
+      // hex is lowercase byte encoded
+      if (
+        (isScalarColumn(column) || isReferenceColumn(column)) &&
+        column[" scalar"] === "hex" &&
+        typeof record[columnName] === "string"
+      ) {
+        record[columnName] = padHex(record[columnName] as Hex, {
+          size: Math.ceil(((record[columnName] as Hex).length - 2) / 2),
+          dir: "left",
+        }).toLowerCase();
+      }
+    }
   };
+
+  const shouldFlush = () => cacheSizeBytes > maxSizeBytes;
 
   const flush = createQueue<void, boolean | void>({
     concurrency: 1,
@@ -177,7 +216,16 @@ export const getHistoricalStore = ({
               await db.wrap({ method: `${tableName}.flush` }, async () => {
                 const _insertRows = insertRows
                   .slice(i, i + MAX_BATCH_SIZE)
-                  .map((d) => encodeRow(d, table, kind));
+                  // skip validation because its already occurred
+                  .map((record) =>
+                    encodeRecord({
+                      record,
+                      table,
+                      schema,
+                      encoding,
+                      skipValidate: true,
+                    }),
+                  );
 
                 await db
                   .withSchema(namespaceInfo.userNamespace)
@@ -202,7 +250,16 @@ export const getHistoricalStore = ({
               await db.wrap({ method: `${tableName}.flush` }, async () => {
                 const _updateRows = updateRows
                   .slice(i, i + MAX_BATCH_SIZE)
-                  .map((d) => encodeRow(d, table, kind));
+                  // skip validation because its already occurred
+                  .map((record) =>
+                    encodeRecord({
+                      record,
+                      table,
+                      schema,
+                      encoding,
+                      skipValidate: true,
+                    }),
+                  );
 
                 await db
                   .withSchema(namespaceInfo.userNamespace)
@@ -242,7 +299,7 @@ export const getHistoricalStore = ({
       );
 
       if (fullFlush) {
-        for (const tableName of Object.keys(getTables(schema))) {
+        for (const tableName of Object.keys(tables)) {
           storeCache[tableName] = {
             insert: {},
             update: {},
@@ -290,7 +347,7 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      const encodedId = encodeCacheId(id, tableName);
+      const encodedId = getCacheId(id, tableName);
 
       const cacheRecord =
         storeCache[tableName].insert[encodedId]?.record ??
@@ -323,7 +380,7 @@ export const getHistoricalStore = ({
       id: UserId;
       data?: Omit<UserRecord, "id">;
     }) => {
-      const encodedId = encodeCacheId(id, tableName);
+      const encodedId = getCacheId(id, tableName);
 
       if (
         storeCache[tableName].insert[encodedId] !== undefined ||
@@ -334,8 +391,14 @@ export const getHistoricalStore = ({
 
       const record = { ...data, id };
 
-      // Note: this is where not-null constraints would be checked.
-      // It may be safe to wait until flush to throw the error.
+      validateRecord({
+        record,
+        table: tables[tableName].table,
+        schema,
+        skipValidate: false,
+      });
+
+      sanitizeRecord(record, tableName);
 
       const bytes = getRecordSize(record);
 
@@ -360,7 +423,7 @@ export const getHistoricalStore = ({
       data: UserRecord[];
     }) => {
       for (const record of data) {
-        const encodedId = encodeCacheId(record.id, tableName);
+        const encodedId = getCacheId(record.id, tableName);
 
         if (
           storeCache[tableName].insert[encodedId] !== undefined ||
@@ -369,8 +432,13 @@ export const getHistoricalStore = ({
           throw new UniqueConstraintError();
         }
 
-        // Note: this is where not-null constraints would be checked.
-        // It may be safe to wait until flush to throw the error.
+        validateRecord({
+          record,
+          table: tables[tableName].table,
+          schema,
+          skipValidate: false,
+        });
+        sanitizeRecord(record, tableName);
 
         const bytes = getRecordSize(record);
 
@@ -400,7 +468,7 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const encodedId = encodeCacheId(id, tableName);
+      const encodedId = getCacheId(id, tableName);
 
       let cacheEntry: Entry;
 
@@ -438,6 +506,15 @@ export const getHistoricalStore = ({
         ...update,
       };
 
+      validateRecord({
+        record,
+        table: tables[tableName].table,
+        schema,
+        skipValidate: false,
+      });
+
+      sanitizeRecord(record, tableName);
+
       const bytes = getRecordSize(record);
 
       cacheEntry.record = record;
@@ -470,7 +547,7 @@ export const getHistoricalStore = ({
               eb,
               where,
               table,
-              encoding: kind,
+              encoding,
             }),
           )
           .orderBy("id", "asc");
@@ -490,12 +567,22 @@ export const getHistoricalStore = ({
               const rows: DatabaseRecord[] = [];
 
               for (const latestRow of latestRows) {
-                const current = decodeRow(latestRow, table, kind);
+                const current = decodeRecord({
+                  record: latestRow,
+                  table,
+                  encoding,
+                });
                 const updateObject = data({ current });
                 // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
                 const updateRow = {
                   id: latestRow.id,
-                  ...encodeRow(updateObject, table, kind),
+                  ...encodeRecord({
+                    record: updateObject,
+                    table,
+                    schema,
+                    encoding,
+                    skipValidate: false,
+                  }),
                 };
 
                 const row = await db
@@ -511,7 +598,9 @@ export const getHistoricalStore = ({
                 rows.push(row);
               }
 
-              return rows.map((row) => decodeRow(row, table, kind));
+              return rows.map((row) =>
+                decodeRecord({ record: row, table, encoding }),
+              );
             },
           );
 
@@ -520,14 +609,24 @@ export const getHistoricalStore = ({
           if (_rows.length === 0) {
             break;
           } else {
-            cursor = encodeValue(_rows[_rows.length - 1].id, table.id, kind);
+            cursor = encodeField({
+              value: _rows[_rows.length - 1].id,
+              column: table.id,
+              encoding,
+            });
           }
         }
 
         return rows;
       } else {
         return db.wrap({ method: `${tableName}.updateMany` }, async () => {
-          const updateRow = encodeRow(data, table, kind);
+          const updateRow = encodeRecord({
+            record: data,
+            table,
+            schema,
+            encoding,
+            skipValidate: false,
+          });
 
           const rows = await db
             .with("latestRows(id)", (db) =>
@@ -540,7 +639,7 @@ export const getHistoricalStore = ({
                     eb,
                     where,
                     table,
-                    encoding: kind,
+                    encoding,
                   }),
                 ),
             )
@@ -555,7 +654,9 @@ export const getHistoricalStore = ({
               throw parseStoreError(err, data);
             });
 
-          return rows.map((row) => decodeRow(row, table, kind));
+          return rows.map((row) =>
+            decodeRecord({ record: row, table, encoding }),
+          );
         });
       }
     },
@@ -572,7 +673,7 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const encodedId = encodeCacheId(id, tableName);
+      const encodedId = getCacheId(id, tableName);
 
       let cacheEntry: Entry | undefined;
 
@@ -602,8 +703,14 @@ export const getHistoricalStore = ({
 
         const record = { ...create, id };
 
-        // Note: this is where not-null constraints would be checked.
-        // It may be safe to wait until flush to throw the error.
+        validateRecord({
+          record,
+          table: tables[tableName].table,
+          schema,
+          skipValidate: false,
+        });
+
+        sanitizeRecord(record, tableName);
 
         const bytes = getRecordSize(record);
 
@@ -632,6 +739,15 @@ export const getHistoricalStore = ({
           ..._update,
         };
 
+        validateRecord({
+          record,
+          table: tables[tableName].table,
+          schema,
+          skipValidate: false,
+        });
+
+        sanitizeRecord(record, tableName);
+
         const bytes = getRecordSize(record);
 
         cacheEntry.record = record;
@@ -648,7 +764,7 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      const encodedId = encodeCacheId(id, tableName);
+      const encodedId = getCacheId(id, tableName);
 
       const insertEntry = storeCache[tableName].insert[encodedId];
       const updateEntry = storeCache[tableName].update[encodedId];
@@ -677,7 +793,11 @@ export const getHistoricalStore = ({
         const deletedRow = await db
           .withSchema(namespaceInfo.userNamespace)
           .deleteFrom(tableName)
-          .where("id", "=", encodeValue(id, table.id, kind))
+          .where(
+            "id",
+            "=",
+            encodeField({ value: id, column: table.id, encoding }),
+          )
           .returning(["id"])
           .executeTakeFirst()
           .catch((err) => {

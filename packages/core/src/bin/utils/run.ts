@@ -95,7 +95,7 @@ export async function run({
   }
 
   const readonlyStore = getReadonlyStore({
-    kind: database.kind,
+    encoding: database.kind,
     schema,
     namespaceInfo,
     db: database.readonlyDb,
@@ -190,7 +190,7 @@ export async function run({
   });
 
   const historicalStore = getHistoricalStore({
-    kind: database.kind,
+    encoding: database.kind,
     schema,
     namespaceInfo,
     db: database.indexingDb,
@@ -199,7 +199,7 @@ export async function run({
 
   let indexingStore: IndexingStore = {
     ...getReadonlyStore({
-      kind: database.kind,
+      encoding: database.kind,
       schema,
       namespaceInfo,
       db: database.indexingDb,
@@ -288,13 +288,13 @@ export async function run({
 
     indexingStore = {
       ...getReadonlyStore({
-        kind: database.kind,
+        encoding: database.kind,
         schema,
         namespaceInfo,
         db: database.indexingDb,
       }),
       ...getRealtimeStore({
-        kind: database.kind,
+        encoding: database.kind,
         schema,
         namespaceInfo,
         db: database.indexingDb,
