@@ -44,7 +44,7 @@ export const getRealtimeStore = ({
         table,
         encoding,
         schema,
-        skipValidate: false,
+        skipValidation: false,
       });
 
       return await db.transaction().execute(async (tx) => {
@@ -93,7 +93,7 @@ export const getRealtimeStore = ({
               table,
               encoding,
               schema,
-              skipValidate: false,
+              skipValidation: false,
             }),
           );
 
@@ -166,7 +166,7 @@ export const getRealtimeStore = ({
           table,
           encoding,
           schema,
-          skipValidate: false,
+          skipValidation: false,
         });
 
         const updateResult = await tx
@@ -258,7 +258,7 @@ export const getRealtimeStore = ({
                 table,
                 encoding,
                 schema,
-                skipValidate: false,
+                skipValidation: false,
               }),
             };
 
@@ -331,7 +331,7 @@ export const getRealtimeStore = ({
         table,
         encoding,
         schema,
-        skipValidate: false,
+        skipValidation: false,
       });
 
       const row = await db.transaction().execute(async (tx) => {
@@ -388,7 +388,7 @@ export const getRealtimeStore = ({
           table,
           encoding,
           schema,
-          skipValidate: false,
+          skipValidation: false,
         });
 
         const row = await tx

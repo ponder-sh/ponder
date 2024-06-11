@@ -52,21 +52,17 @@ export function encodeRecord({
   table,
   schema,
   encoding,
-  skipValidate,
+  skipValidation,
 }: {
   record: Partial<UserRecord>;
   table: Table;
   schema: Schema;
   encoding: "sqlite" | "postgres";
-  skipValidate: boolean;
+  skipValidation: boolean;
 }): DatabaseRecord {
   const instance: DatabaseRecord = {};
 
-  // Note: the `skipValidate` argument to the function is true
-  // because the record will be immediately entered into db, which
-  // does its own validation.
-  if (skipValidate === false)
-    validateRecord({ record, table, schema, skipValidate: true });
+  if (skipValidation === false) validateRecord({ record, table, schema });
 
   // user data is considered to be valid at this point
   for (const [columnName, value] of Object.entries(record)) {
@@ -163,12 +159,10 @@ export function validateRecord({
   record,
   table,
   schema,
-  skipValidate,
 }: {
   record: Partial<UserRecord>;
   table: Table;
   schema: Schema;
-  skipValidate: boolean;
 }): void {
   for (const [columnName, value] of Object.entries(record)) {
     const column = table[columnName];
@@ -188,7 +182,7 @@ export function validateRecord({
       );
     }
 
-    validateField({ value, column, schema, skipValidate });
+    validateField({ value, column, schema });
   }
 }
 
@@ -196,12 +190,10 @@ function validateField({
   value,
   column,
   schema,
-  skipValidate,
 }: {
   value: UserColumn;
   column: Column;
   schema: Schema;
-  skipValidate: boolean;
 }): void {
   switch (column[" type"]) {
     case "enum": {
@@ -219,7 +211,7 @@ function validateField({
         throw new StoreError(
           `Unable to encode ${value} as an enum. Got type '${typeof value}' but expected type 'string'.`,
         );
-      } else if (skipValidate === false) {
+      } else {
         if (getEnums(schema)[column[" enum"]].includes(value) === false) {
           throw new CheckConstraintError(
             `Unable to encode ${value} as a '${
@@ -235,19 +227,18 @@ function validateField({
     }
 
     case "json": {
-      if (skipValidate === false) {
-        try {
-          JSON.stringify(value);
-        } catch (_error) {
-          const error = new BigIntSerializationError(
-            (_error as TypeError).message,
-          );
-          error.meta.push(
-            "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
-          );
-          throw error;
-        }
+      try {
+        JSON.stringify(value);
+      } catch (_error) {
+        const error = new BigIntSerializationError(
+          (_error as TypeError).message,
+        );
+        error.meta.push(
+          "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
+        );
+        throw error;
       }
+
       break;
     }
 

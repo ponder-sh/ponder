@@ -14,6 +14,7 @@ import {
 import type {
   DatabaseColumn,
   DatabaseRecord,
+  UserColumn,
   UserId,
   UserRecord,
 } from "@/types/schema.js";
@@ -35,16 +36,35 @@ const MAX_BATCH_SIZE = 1_000;
 const CACHE_FLUSH = 0.35;
 
 type Entry<record = UserRecord> = {
+  /** LRU counter */
   opIndex: number;
+  /** Estimated number of bytes this entry uses. */
   bytes: number;
   record: record;
 };
 
+type Key = string | number;
+
+/**
+ * An in-memory representation of the indexing store. An entry in
+ * the cache only exists in one of the "insert", "update", or "find"
+ * properties at a time. Every entry isnormalized, validated, and
+ * guaranteed to not share any references with user-land.
+ *
+ * @param insert Cache entries that need to be created in the database.
+ * @param update Cache entries that need to be updated in the database.
+ * @param find Cache entries that mirror the database. Can be `undefined`,
+ * meaning the entry doesn't exist in the cache.
+ *
+ * Note: The operations are separated into multiple properties rather
+ * than have a "type" property on each entry because it uses less bytes per
+ * entry
+ */
 type StoreCache = {
   [tableName: string]: {
-    insert: { [id: string | number]: Entry };
-    update: { [id: string | number]: Entry };
-    find: { [id: string | number]: Entry<UserRecord | undefined> };
+    insert: { [key: Key]: Entry };
+    update: { [key: Key]: Entry };
+    find: { [key: Key]: Entry<UserRecord | undefined> };
   };
 };
 
@@ -54,14 +74,14 @@ export const getHistoricalStore = ({
   namespaceInfo,
   db,
   common,
-  isCacheFull: _isCacheFull,
+  isCacheExhaustive: _isCacheExhaustive,
 }: {
   encoding: "sqlite" | "postgres";
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
   common: Common;
-  isCacheFull: boolean;
+  isCacheExhaustive: boolean;
 }): HistoricalStore => {
   const maxSizeBytes = common.options.indexingCacheBytes;
   const storeCache: StoreCache = {};
@@ -79,7 +99,7 @@ export const getHistoricalStore = ({
   });
 
   /** True if the cache contains the complete state of the store. */
-  let isCacheFull = _isCacheFull;
+  let isCacheExhaustive = _isCacheExhaustive;
 
   /** Number of rows in cache. */
   let cacheSize = 0;
@@ -96,21 +116,28 @@ export const getHistoricalStore = ({
     };
   }
 
-  const getCacheId = (id: UserId, tableName: string): string | number => {
+  /**
+   * Hex values must be normalized to mirror the `UInt8Array`
+   * encoding. i.e. "0xa", "0xA", "0x0a", "0x0A" are all equivalent.
+   */
+  const normalizeHex = (hex: Hex) =>
+    padHex(hex, {
+      size: Math.ceil((hex.length - 2) / 2),
+      dir: "left",
+    }).toLowerCase();
+
+  const getCacheKey = (id: UserId, tableName: string): Key => {
     if (tables[tableName].table.id[" scalar"] === "hex")
-      return padHex(id as Hex, {
-        size: Math.ceil(((id as Hex).length - 2) / 2),
-        dir: "left",
-      }).toLowerCase();
+      return normalizeHex(id as Hex);
     if (typeof id === "bigint") return `#Bigint.${id}`;
     return id;
   };
 
   /**
-   * Validates and transforms a record to be equivalent to a record
-   * written and read from the db.
+   * Normalizes a record. In simpler terms, the shape of the record
+   * will match what it would be if it was encoded and decoded.
    */
-  const sanitizeRecord = (record: UserRecord, tableName: string) => {
+  const normalizeRecord = (record: UserRecord, tableName: string) => {
     for (const [columnName, column] of Object.entries(
       tables[tableName].table,
     )) {
@@ -124,19 +151,9 @@ export const getHistoricalStore = ({
         column[" scalar"] === "hex" &&
         typeof record[columnName] === "string"
       ) {
-        record[columnName] = padHex(record[columnName] as Hex, {
-          size: Math.ceil(((record[columnName] as Hex).length - 2) / 2),
-          dir: "left",
-        }).toLowerCase();
+        record[columnName] = normalizeHex(record[columnName] as Hex);
       }
     }
-
-    validateRecord({
-      record,
-      table: tables[tableName].table,
-      schema,
-      skipValidate: false,
-    });
   };
 
   const shouldFlush = () => cacheSizeBytes > maxSizeBytes;
@@ -191,14 +208,14 @@ export const getHistoricalStore = ({
               await db.wrap({ method: `${tableName}.flush` }, async () => {
                 const _insertRows = insertRows
                   .slice(i, i + MAX_BATCH_SIZE)
-                  // skip validation because its already occurred
+                  // skip validation because its already occurred in the store method
                   .map((record) =>
                     encodeRecord({
                       record,
                       table,
                       schema,
                       encoding,
-                      skipValidate: true,
+                      skipValidation: true,
                     }),
                   );
 
@@ -225,14 +242,14 @@ export const getHistoricalStore = ({
               await db.wrap({ method: `${tableName}.flush` }, async () => {
                 const _updateRows = updateRows
                   .slice(i, i + MAX_BATCH_SIZE)
-                  // skip validation because its already occurred
+                  // skip validation because its already occurred in the store method
                   .map((record) =>
                     encodeRecord({
                       record,
                       table,
                       schema,
                       encoding,
-                      skipValidate: true,
+                      skipValidation: true,
                     }),
                   );
 
@@ -323,7 +340,7 @@ export const getHistoricalStore = ({
         }
       }
 
-      isCacheFull = false;
+      isCacheExhaustive = false;
     },
   }).add;
 
@@ -335,20 +352,20 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      const encodedId = getCacheId(id, tableName);
+      const cacheKey = getCacheKey(id, tableName);
 
       const cacheEntry =
-        storeCache[tableName].insert[encodedId] ??
-        storeCache[tableName].update[encodedId] ??
-        storeCache[tableName].find[encodedId];
+        storeCache[tableName].insert[cacheKey] ??
+        storeCache[tableName].update[cacheKey] ??
+        storeCache[tableName].find[cacheKey];
 
       if (cacheEntry !== undefined) {
         cacheEntry.opIndex = totalCacheOps++;
         return structuredClone(cacheEntry.record);
       }
 
-      if (isCacheFull) {
-        storeCache[tableName].find[encodedId] = {
+      if (isCacheExhaustive) {
+        storeCache[tableName].find[cacheKey] = {
           opIndex: totalCacheOps++,
           bytes: 24,
           record: undefined,
@@ -362,15 +379,15 @@ export const getHistoricalStore = ({
       const record = await readonlyStore.findUnique({ tableName, id });
 
       if (record === null) {
-        storeCache[tableName].find[encodedId] = {
+        storeCache[tableName].find[cacheKey] = {
           opIndex: totalCacheOps++,
           bytes: 24,
           record: undefined,
         };
       } else {
-        storeCache[tableName].find[encodedId] = {
+        storeCache[tableName].find[cacheKey] = {
           opIndex: totalCacheOps++,
-          bytes: getRecordSize(record),
+          bytes: getBytesSize(record),
           record,
         };
       }
@@ -400,13 +417,12 @@ export const getHistoricalStore = ({
       id: UserId;
       data?: Omit<UserRecord, "id">;
     }) => {
-      const encodedId = getCacheId(id, tableName);
+      const cacheKey = getCacheKey(id, tableName);
 
       if (
-        storeCache[tableName].insert[encodedId] !== undefined ||
-        storeCache[tableName].update[encodedId] !== undefined ||
-        (storeCache[tableName].find[encodedId] !== undefined &&
-          storeCache[tableName].find[encodedId].record !== undefined)
+        storeCache[tableName].insert[cacheKey] !== undefined ||
+        storeCache[tableName].update[cacheKey] !== undefined ||
+        storeCache[tableName].find[cacheKey]?.record !== undefined
       ) {
         throw new UniqueConstraintError(
           `Unique constraint failed for '${tableName}.id'.`,
@@ -417,11 +433,17 @@ export const getHistoricalStore = ({
       const record = structuredClone(data) as UserRecord;
       record.id = id;
 
-      sanitizeRecord(record, tableName);
+      normalizeRecord(record, tableName);
 
-      const bytes = getRecordSize(record);
+      validateRecord({
+        record,
+        table: tables[tableName].table,
+        schema,
+      });
 
-      storeCache[tableName].insert[encodedId] = {
+      const bytes = getBytesSize(record);
+
+      storeCache[tableName].insert[cacheKey] = {
         opIndex: totalCacheOps++,
         bytes,
         record,
@@ -442,13 +464,12 @@ export const getHistoricalStore = ({
       data: UserRecord[];
     }) => {
       for (const _record of data) {
-        const encodedId = getCacheId(_record.id, tableName);
+        const cacheKey = getCacheKey(_record.id, tableName);
 
         if (
-          storeCache[tableName].insert[encodedId] !== undefined ||
-          storeCache[tableName].update[encodedId] !== undefined ||
-          (storeCache[tableName].find[encodedId] !== undefined &&
-            storeCache[tableName].find[encodedId].record !== undefined)
+          storeCache[tableName].insert[cacheKey] !== undefined ||
+          storeCache[tableName].update[cacheKey] !== undefined ||
+          storeCache[tableName].find[cacheKey]?.record !== undefined
         ) {
           throw new UniqueConstraintError(
             `Unique constraint failed for '${tableName}.id'.`,
@@ -458,11 +479,17 @@ export const getHistoricalStore = ({
         // copy user-land record
         const record = structuredClone(_record);
 
-        sanitizeRecord(record, tableName);
+        normalizeRecord(record, tableName);
 
-        const bytes = getRecordSize(record);
+        validateRecord({
+          record,
+          table: tables[tableName].table,
+          schema,
+        });
 
-        storeCache[tableName].insert[encodedId] = {
+        const bytes = getBytesSize(record);
+
+        storeCache[tableName].insert[cacheKey] = {
           opIndex: totalCacheOps++,
           bytes,
           record,
@@ -488,17 +515,17 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const encodedId = getCacheId(id, tableName);
+      const cacheKey = getCacheKey(id, tableName);
 
       let cacheEntry: Entry<UserRecord>;
 
-      const insertEntry = storeCache[tableName].insert[encodedId];
-      const updateEntry = storeCache[tableName].update[encodedId];
-      const findEntry = storeCache[tableName].find[encodedId];
+      const insertEntry = storeCache[tableName].insert[cacheKey];
+      const updateEntry = storeCache[tableName].update[cacheKey];
+      const findEntry = storeCache[tableName].find[cacheKey];
 
       if (insertEntry !== undefined) {
         cacheEntry = insertEntry;
-      } else if (isCacheFull) {
+      } else if (isCacheExhaustive) {
         throw new RecordNotFoundError(
           "No existing record was found with the specified ID",
         );
@@ -512,17 +539,18 @@ export const getHistoricalStore = ({
         }
 
         // move cache entry to "update"
-        storeCache[tableName].update[encodedId] = findEntry as Entry;
-        delete storeCache[tableName].find[encodedId];
+        storeCache[tableName].update[cacheKey] = findEntry as Entry;
+        delete storeCache[tableName].find[cacheKey];
 
         cacheEntry = findEntry as Entry;
       } else {
         const record = await readonlyStore.findUnique({ tableName, id });
 
-        if (record === null)
+        if (record === null) {
           throw new RecordNotFoundError(
             "No existing record was found with the specified ID",
           );
+        }
 
         // Note: a "spoof" cache entry is created
         cacheEntry = {
@@ -531,7 +559,7 @@ export const getHistoricalStore = ({
           record,
         };
 
-        storeCache[tableName].update[encodedId] = cacheEntry;
+        storeCache[tableName].update[cacheKey] = cacheEntry;
       }
 
       const update =
@@ -545,9 +573,15 @@ export const getHistoricalStore = ({
         record[key] = value;
       }
 
-      sanitizeRecord(record, tableName);
+      normalizeRecord(record, tableName);
 
-      const bytes = getRecordSize(record);
+      validateRecord({
+        record,
+        table: tables[tableName].table,
+        schema,
+      });
+
+      const bytes = getBytesSize(record);
 
       cacheEntry.record = record;
       cacheEntry.opIndex = totalCacheOps++;
@@ -613,7 +647,7 @@ export const getHistoricalStore = ({
                     table,
                     schema,
                     encoding,
-                    skipValidate: false,
+                    skipValidation: false,
                   }),
                 };
 
@@ -657,7 +691,7 @@ export const getHistoricalStore = ({
             table,
             schema,
             encoding,
-            skipValidate: false,
+            skipValidation: false,
           });
 
           const rows = await db
@@ -705,13 +739,13 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      const encodedId = getCacheId(id, tableName);
+      const cacheKey = getCacheKey(id, tableName);
 
       let cacheEntry: Entry | undefined;
 
-      const insertEntry = storeCache[tableName].insert[encodedId];
-      const updateEntry = storeCache[tableName].update[encodedId];
-      const findEntry = storeCache[tableName].find[encodedId];
+      const insertEntry = storeCache[tableName].insert[cacheKey];
+      const updateEntry = storeCache[tableName].update[cacheKey];
+      const findEntry = storeCache[tableName].find[cacheKey];
 
       if (insertEntry !== undefined) {
         cacheEntry = insertEntry;
@@ -720,19 +754,19 @@ export const getHistoricalStore = ({
       } else if (findEntry !== undefined) {
         if (findEntry.record !== undefined) {
           // move cache entry to "update"
-          storeCache[tableName].update[encodedId] = findEntry as Entry;
-          delete storeCache[tableName].find[encodedId];
+          storeCache[tableName].update[cacheKey] = findEntry as Entry;
+          delete storeCache[tableName].find[cacheKey];
 
           cacheEntry = findEntry as Entry;
         } else {
           // cache entry will be moved to "insert"
           const bytes = findEntry.bytes;
-          delete storeCache[tableName].find[encodedId];
+          delete storeCache[tableName].find[cacheKey];
 
           cacheSize--;
           cacheSizeBytes -= bytes;
         }
-      } else if (isCacheFull === false) {
+      } else if (isCacheExhaustive === false) {
         const record = await readonlyStore.findUnique({ tableName, id });
 
         if (record !== null) {
@@ -742,7 +776,7 @@ export const getHistoricalStore = ({
             bytes: 0,
             record,
           };
-          storeCache[tableName].update[encodedId] = cacheEntry;
+          storeCache[tableName].update[cacheKey] = cacheEntry;
         }
         // Note: an "insert" cache entry will be created if the record is null,
         // so don't need to create it here.
@@ -755,11 +789,17 @@ export const getHistoricalStore = ({
         const record = structuredClone(create) as UserRecord;
         record.id = id;
 
-        sanitizeRecord(record, tableName);
+        normalizeRecord(record, tableName);
 
-        const bytes = getRecordSize(record);
+        validateRecord({
+          record,
+          table: tables[tableName].table,
+          schema,
+        });
 
-        storeCache[tableName].insert[encodedId] = {
+        const bytes = getBytesSize(record);
+
+        storeCache[tableName].insert[cacheKey] = {
           opIndex: totalCacheOps++,
           bytes,
           record,
@@ -785,9 +825,15 @@ export const getHistoricalStore = ({
           record[key] = value;
         }
 
-        sanitizeRecord(record, tableName);
+        normalizeRecord(record, tableName);
 
-        const bytes = getRecordSize(record);
+        validateRecord({
+          record,
+          table: tables[tableName].table,
+          schema,
+        });
+
+        const bytes = getBytesSize(record);
 
         cacheEntry.record = record;
         cacheEntry.opIndex = totalCacheOps++;
@@ -803,21 +849,21 @@ export const getHistoricalStore = ({
       tableName: string;
       id: UserId;
     }) => {
-      const encodedId = getCacheId(id, tableName);
+      const cacheKey = getCacheKey(id, tableName);
 
-      const insertEntry = storeCache[tableName].insert[encodedId];
-      const updateEntry = storeCache[tableName].update[encodedId];
-      const findEntry = storeCache[tableName].find[encodedId];
+      const insertEntry = storeCache[tableName].insert[cacheKey];
+      const updateEntry = storeCache[tableName].update[cacheKey];
+      const findEntry = storeCache[tableName].find[cacheKey];
 
       if (insertEntry !== undefined) {
         const bytes = insertEntry.bytes;
-        delete storeCache[tableName].insert[encodedId];
+        delete storeCache[tableName].insert[cacheKey];
 
         cacheSize--;
         cacheSizeBytes -= bytes;
 
         return true;
-      } else if (isCacheFull) {
+      } else if (isCacheExhaustive) {
         return false;
       } else if (findEntry !== undefined) {
         if (findEntry.record === undefined) {
@@ -825,13 +871,13 @@ export const getHistoricalStore = ({
         }
 
         const bytes = findEntry.bytes;
-        delete storeCache[tableName].find[encodedId];
+        delete storeCache[tableName].find[cacheKey];
 
         cacheSize--;
         cacheSizeBytes -= bytes;
       } else if (updateEntry !== undefined) {
         const bytes = updateEntry.bytes;
-        delete storeCache[tableName].update[encodedId];
+        delete storeCache[tableName].update[cacheKey];
 
         cacheSize--;
         cacheSizeBytes -= bytes;
@@ -859,35 +905,33 @@ export const getHistoricalStore = ({
   };
 };
 
-const getRecordSize = (record: UserRecord) => {
+const getBytesSize = (value: UserRecord | UserColumn) => {
   // size of metadata
   let size = 16;
-  for (const col of Object.values(record)) {
-    if (typeof col === "number") {
-      // p.float, p.int
-      size += 8;
-    } else if (typeof col === "string") {
-      // p.hex, p.string, p.enum
-      size += 2 * col.length;
-    } else if (typeof col === "boolean") {
-      // p.boolean
-      size += 4;
-    } else if (typeof col === "bigint") {
-      // p.bigint
-      size += 48;
-    } else if (Array.isArray(col)) {
-      // p.list
-      for (const e of col) {
-        size += getRecordSize(e);
-      }
-    } else if (col === null || col === undefined) {
-      size += 8;
-    } else {
-      // p.json
-      for (const e of Object.values(col)) {
-        size += getRecordSize(e);
-      }
+
+  if (typeof value === "number") {
+    // p.float, p.int
+    size += 8;
+  } else if (typeof value === "string") {
+    // p.hex, p.string, p.enum
+    size += 2 * value.length;
+  } else if (typeof value === "boolean") {
+    // p.boolean
+    size += 4;
+  } else if (typeof value === "bigint") {
+    // p.bigint
+    size += 48;
+  } else if (value === null || value === undefined) {
+    size += 8;
+  } else if (Array.isArray(value)) {
+    for (const e of value) {
+      size += getBytesSize(e);
+    }
+  } else {
+    for (const col of Object.values(value)) {
+      size += getBytesSize(col);
     }
   }
+
   return size;
 };
