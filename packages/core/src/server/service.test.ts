@@ -161,6 +161,9 @@ test("graphql", async (context) => {
     },
   });
 
+  // @ts-ignore
+  await indexingStore.flush(true);
+
   const graphqlSchema = buildGraphqlSchema(schema);
 
   const server = await createServer({
