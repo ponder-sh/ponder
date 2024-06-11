@@ -404,7 +404,8 @@ export const getHistoricalStore = ({
 
       if (
         storeCache[tableName].insert[encodedId] !== undefined ||
-        storeCache[tableName].update[encodedId] !== undefined
+        storeCache[tableName].update[encodedId] !== undefined ||
+        storeCache[tableName].find[encodedId] !== undefined
       ) {
         throw new UniqueConstraintError(
           `Unique constraint failed for '${tableName}.id'.`,
@@ -444,7 +445,8 @@ export const getHistoricalStore = ({
 
         if (
           storeCache[tableName].insert[encodedId] !== undefined ||
-          storeCache[tableName].update[encodedId] !== undefined
+          storeCache[tableName].update[encodedId] !== undefined ||
+          storeCache[tableName].find[encodedId] !== undefined
         ) {
           throw new UniqueConstraintError(
             `Unique constraint failed for '${tableName}.id'.`,
@@ -721,7 +723,7 @@ export const getHistoricalStore = ({
 
           cacheEntry = findEntry as Entry;
         } else {
-          // cache entry will be moved to "create"
+          // cache entry will be moved to "insert"
           const bytes = findEntry.bytes;
           delete storeCache[tableName].find[encodedId];
 
@@ -740,6 +742,8 @@ export const getHistoricalStore = ({
           };
           storeCache[tableName].update[encodedId] = cacheEntry;
         }
+        // Note: an "insert" cache entry will be created if the record is null,
+        // so don't need to create it here.
       }
 
       if (cacheEntry === undefined) {
@@ -818,7 +822,7 @@ export const getHistoricalStore = ({
           return false;
         }
 
-        const bytes = updateEntry.bytes;
+        const bytes = findEntry.bytes;
         delete storeCache[tableName].find[encodedId];
 
         cacheSize--;
