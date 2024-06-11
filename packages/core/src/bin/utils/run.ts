@@ -195,6 +195,7 @@ export async function run({
     namespaceInfo,
     db: database.indexingDb,
     common,
+    isCacheFull: isCheckpointEqual(zeroCheckpoint, initialCheckpoint),
   });
 
   let indexingStore: IndexingStore = {

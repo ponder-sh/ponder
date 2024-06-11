@@ -53,12 +53,14 @@ export const getHistoricalStore = ({
   namespaceInfo,
   db,
   common,
+  isCacheFull: _isCacheFull,
 }: {
   encoding: "sqlite" | "postgres";
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
   common: Common;
+  isCacheFull: boolean;
 }): HistoricalStore => {
   const maxSizeBytes = common.options.indexingCacheBytes;
   const storeCache: StoreCache = {};
@@ -76,7 +78,7 @@ export const getHistoricalStore = ({
   });
 
   /** True if the cache contains the complete state of the store. */
-  let isCacheFull = true;
+  let isCacheFull = _isCacheFull;
 
   let cacheSize = 0;
   let cacheSizeBytes = 0;
@@ -438,6 +440,7 @@ export const getHistoricalStore = ({
           schema,
           skipValidate: false,
         });
+
         sanitizeRecord(record, tableName);
 
         const bytes = getRecordSize(record);

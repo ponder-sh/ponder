@@ -171,6 +171,7 @@ export async function setupDatabaseServices(
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
             common: context.common,
+            isCacheFull: true,
           })
         : getRealtimeStore({
             encoding: "sqlite",
@@ -224,6 +225,7 @@ export async function setupDatabaseServices(
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
             common: context.common,
+            isCacheFull: true,
           })
         : getRealtimeStore({
             encoding: "postgres",
