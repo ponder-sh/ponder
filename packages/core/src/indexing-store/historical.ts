@@ -347,11 +347,12 @@ export const getHistoricalStore = ({
   return {
     findUnique: async ({
       tableName,
-      id,
+      id: _id,
     }: {
       tableName: string;
       id: UserId;
     }) => {
+      const id = structuredClone(_id);
       const cacheKey = getCacheKey(id, tableName);
 
       const cacheEntry =
@@ -410,13 +411,14 @@ export const getHistoricalStore = ({
     },
     create: async ({
       tableName,
-      id,
+      id: _id,
       data = {},
     }: {
       tableName: string;
       id: UserId;
       data?: Omit<UserRecord, "id">;
     }) => {
+      const id = structuredClone(_id);
       const cacheKey = getCacheKey(id, tableName);
 
       if (
@@ -502,11 +504,15 @@ export const getHistoricalStore = ({
 
       if (shouldFlush()) await flush(false);
 
-      return structuredClone(data);
+      const returnData = structuredClone(data);
+      for (const row of data) {
+        normalizeRecord(row, tableName);
+      }
+      return returnData;
     },
     update: async ({
       tableName,
-      id,
+      id: _id,
       data = {},
     }: {
       tableName: string;
@@ -515,6 +521,7 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
+      const id = structuredClone(_id);
       const cacheKey = getCacheKey(id, tableName);
 
       let cacheEntry: Entry<UserRecord>;
@@ -728,7 +735,7 @@ export const getHistoricalStore = ({
     },
     upsert: async ({
       tableName,
-      id,
+      id: _id,
       create = {},
       update = {},
     }: {
@@ -739,6 +746,7 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
+      const id = structuredClone(_id);
       const cacheKey = getCacheKey(id, tableName);
 
       let cacheEntry: Entry | undefined;
@@ -844,11 +852,12 @@ export const getHistoricalStore = ({
     },
     delete: async ({
       tableName,
-      id,
+      id: _id,
     }: {
       tableName: string;
       id: UserId;
     }) => {
+      const id = structuredClone(_id);
       const cacheKey = getCacheKey(id, tableName);
 
       const insertEntry = storeCache[tableName].insert[cacheKey];
