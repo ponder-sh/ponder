@@ -34,16 +34,17 @@ import { buildWhereConditions } from "./utils/filter.js";
 const MAX_BATCH_SIZE = 1_000;
 const CACHE_FLUSH = 0.35;
 
-type Entry = {
+type Entry<record = UserRecord> = {
   opIndex: number;
   bytes: number;
-  record: UserRecord;
+  record: record;
 };
 
 type StoreCache = {
   [tableName: string]: {
     insert: { [id: string | number]: Entry };
     update: { [id: string | number]: Entry };
+    find: { [id: string | number]: Entry<UserRecord | undefined> };
   };
 };
 
@@ -91,6 +92,7 @@ export const getHistoricalStore = ({
     storeCache[tableName] = {
       insert: {},
       update: {},
+      find: {},
     };
   }
 
@@ -109,13 +111,6 @@ export const getHistoricalStore = ({
    * written and read from the db.
    */
   const sanitizeRecord = (record: UserRecord, tableName: string) => {
-    validateRecord({
-      record,
-      table: tables[tableName].table,
-      schema,
-      skipValidate: false,
-    });
-
     for (const [columnName, column] of Object.entries(
       tables[tableName].table,
     )) {
@@ -135,6 +130,13 @@ export const getHistoricalStore = ({
         }).toLowerCase();
       }
     }
+
+    validateRecord({
+      record,
+      table: tables[tableName].table,
+      schema,
+      skipValidate: false,
+    });
   };
 
   const shouldFlush = () => cacheSizeBytes > maxSizeBytes;
@@ -276,6 +278,7 @@ export const getHistoricalStore = ({
           storeCache[tableName] = {
             insert: {},
             update: {},
+            find: {},
           };
         }
         cacheSize = 0;
@@ -305,6 +308,18 @@ export const getHistoricalStore = ({
               cacheSizeBytes -= bytes;
             }
           }
+
+          for (const [id, { opIndex }] of Object.entries(
+            tableStoreCache.find,
+          )) {
+            if (opIndex < flushIndex) {
+              const bytes = storeCache[tableName].find[id].bytes;
+              delete storeCache[tableName].find[id];
+
+              cacheSize--;
+              cacheSizeBytes -= bytes;
+            }
+          }
         }
       }
 
@@ -322,15 +337,47 @@ export const getHistoricalStore = ({
     }) => {
       const encodedId = getCacheId(id, tableName);
 
-      const cacheRecord =
-        storeCache[tableName].insert[encodedId]?.record ??
-        storeCache[tableName].update[encodedId]?.record;
+      const cacheEntry =
+        storeCache[tableName].insert[encodedId] ??
+        storeCache[tableName].update[encodedId] ??
+        storeCache[tableName].find[encodedId];
 
-      if (cacheRecord !== undefined) return structuredClone(cacheRecord);
-      if (isCacheFull) return null;
+      if (cacheEntry !== undefined) {
+        cacheEntry.opIndex = totalCacheOps++;
+        return structuredClone(cacheEntry.record);
+      }
 
-      // TODO(kyle) load result into cache
-      return readonlyStore.findUnique({ tableName, id });
+      if (isCacheFull) {
+        storeCache[tableName].find[encodedId] = {
+          opIndex: totalCacheOps++,
+          bytes: 24,
+          record: undefined,
+        };
+
+        cacheSize++;
+
+        return null;
+      }
+
+      const record = await readonlyStore.findUnique({ tableName, id });
+
+      if (record === null) {
+        storeCache[tableName].find[encodedId] = {
+          opIndex: totalCacheOps++,
+          bytes: 24,
+          record: undefined,
+        };
+      } else {
+        storeCache[tableName].find[encodedId] = {
+          opIndex: totalCacheOps++,
+          bytes: getRecordSize(record),
+          record,
+        };
+      }
+
+      cacheSize++;
+
+      return structuredClone(record);
     },
     findMany: async (arg: {
       tableName: string;
@@ -439,19 +486,32 @@ export const getHistoricalStore = ({
     }) => {
       const encodedId = getCacheId(id, tableName);
 
-      let cacheEntry: Entry;
+      let cacheEntry: Entry<UserRecord>;
 
       const insertEntry = storeCache[tableName].insert[encodedId];
       const updateEntry = storeCache[tableName].update[encodedId];
+      const findEntry = storeCache[tableName].find[encodedId];
 
-      if (updateEntry !== undefined) {
-        cacheEntry = updateEntry;
-      } else if (insertEntry !== undefined) {
+      if (insertEntry !== undefined) {
         cacheEntry = insertEntry;
       } else if (isCacheFull) {
         throw new RecordNotFoundError(
           "No existing record was found with the specified ID",
         );
+      } else if (updateEntry !== undefined) {
+        cacheEntry = updateEntry;
+      } else if (findEntry !== undefined) {
+        if (findEntry.record === undefined) {
+          throw new RecordNotFoundError(
+            "No existing record was found with the specified ID",
+          );
+        }
+
+        // move cache entry to "update"
+        storeCache[tableName].update[encodedId] = findEntry as Entry;
+        delete storeCache[tableName].find[encodedId];
+
+        cacheEntry = findEntry as Entry;
       } else {
         const record = await readonlyStore.findUnique({ tableName, id });
 
@@ -647,11 +707,27 @@ export const getHistoricalStore = ({
 
       const insertEntry = storeCache[tableName].insert[encodedId];
       const updateEntry = storeCache[tableName].update[encodedId];
+      const findEntry = storeCache[tableName].find[encodedId];
 
-      if (updateEntry !== undefined) {
-        cacheEntry = updateEntry;
-      } else if (insertEntry !== undefined) {
+      if (insertEntry !== undefined) {
         cacheEntry = insertEntry;
+      } else if (updateEntry !== undefined) {
+        cacheEntry = updateEntry;
+      } else if (findEntry !== undefined) {
+        if (findEntry.record !== undefined) {
+          // move cache entry to "update"
+          storeCache[tableName].update[encodedId] = findEntry as Entry;
+          delete storeCache[tableName].find[encodedId];
+
+          cacheEntry = findEntry as Entry;
+        } else {
+          // cache entry will be moved to "create"
+          const bytes = findEntry.bytes;
+          delete storeCache[tableName].find[encodedId];
+
+          cacheSize--;
+          cacheSizeBytes -= bytes;
+        }
       } else if (isCacheFull === false) {
         const record = await readonlyStore.findUnique({ tableName, id });
 
@@ -725,6 +801,7 @@ export const getHistoricalStore = ({
 
       const insertEntry = storeCache[tableName].insert[encodedId];
       const updateEntry = storeCache[tableName].update[encodedId];
+      const findEntry = storeCache[tableName].find[encodedId];
 
       if (insertEntry !== undefined) {
         const bytes = insertEntry.bytes;
@@ -736,33 +813,41 @@ export const getHistoricalStore = ({
         return true;
       } else if (isCacheFull) {
         return false;
-      } else {
-        const table = (schema[tableName] as { table: Table }).table;
-
-        if (updateEntry !== undefined) {
-          const bytes = updateEntry.bytes;
-          delete storeCache[tableName].update[encodedId];
-
-          cacheSize--;
-          cacheSizeBytes -= bytes;
+      } else if (findEntry !== undefined) {
+        if (findEntry.record === undefined) {
+          return false;
         }
 
-        const deletedRow = await db
-          .withSchema(namespaceInfo.userNamespace)
-          .deleteFrom(tableName)
-          .where(
-            "id",
-            "=",
-            encodeField({ value: id, column: table.id, encoding }),
-          )
-          .returning(["id"])
-          .executeTakeFirst()
-          .catch((err) => {
-            throw parseStoreError(err, { id });
-          });
+        const bytes = updateEntry.bytes;
+        delete storeCache[tableName].find[encodedId];
 
-        return !!deletedRow;
+        cacheSize--;
+        cacheSizeBytes -= bytes;
+      } else if (updateEntry !== undefined) {
+        const bytes = updateEntry.bytes;
+        delete storeCache[tableName].update[encodedId];
+
+        cacheSize--;
+        cacheSizeBytes -= bytes;
       }
+
+      const table = (schema[tableName] as { table: Table }).table;
+
+      const deletedRow = await db
+        .withSchema(namespaceInfo.userNamespace)
+        .deleteFrom(tableName)
+        .where(
+          "id",
+          "=",
+          encodeField({ value: id, column: table.id, encoding }),
+        )
+        .returning(["id"])
+        .executeTakeFirst()
+        .catch((err) => {
+          throw parseStoreError(err, { id });
+        });
+
+      return !!deletedRow;
     },
     flush,
   };
