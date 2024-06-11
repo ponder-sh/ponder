@@ -359,7 +359,9 @@ export const getHistoricalStore = ({
         storeCache[tableName].insert[encodedId] !== undefined ||
         storeCache[tableName].update[encodedId] !== undefined
       ) {
-        throw new UniqueConstraintError();
+        throw new UniqueConstraintError(
+          `UNIQUE constraint failed: ${tableName}.id`,
+        );
       }
 
       // copy user-land record
@@ -397,7 +399,9 @@ export const getHistoricalStore = ({
           storeCache[tableName].insert[encodedId] !== undefined ||
           storeCache[tableName].update[encodedId] !== undefined
         ) {
-          throw new UniqueConstraintError();
+          throw new UniqueConstraintError(
+            `UNIQUE constraint failed: ${tableName}.id`,
+          );
         }
 
         // copy user-land record
