@@ -399,9 +399,6 @@ export const processEvents = async (
       indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
         eventTimestamp,
       );
-
-      // Note(kyle) this is only needed for sqlite
-      await new Promise(setImmediate);
     }
   }
 
