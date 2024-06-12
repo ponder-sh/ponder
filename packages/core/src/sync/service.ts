@@ -13,6 +13,7 @@ import {
   type Checkpoint,
   checkpointMax,
   checkpointMin,
+  isCheckpointEqual,
   isCheckpointGreaterThan,
   maxCheckpoint,
   zeroCheckpoint,
@@ -32,6 +33,8 @@ export type Service = {
 
   // state
   checkpoint: Checkpoint;
+  startCheckpoint: Checkpoint;
+  endCheckpoint: Checkpoint | undefined;
   finalizedCheckpoint: Checkpoint;
   isKilled: boolean;
 
@@ -428,16 +431,23 @@ export const create = async ({
     }
   }
 
+  const startCheckpoint = checkpointMin(
+    ...networkServices.map((ns) => ns.startCheckpoint),
+  );
+
   const syncService: Service = {
     common,
     syncStore,
     sources,
     networkServices,
     isKilled: false,
-    // TODO(kyle)
-    checkpoint: checkpointMin(
-      ...networkServices.map((ns) => ns.startCheckpoint),
-    ),
+    startCheckpoint,
+    endCheckpoint: networkServices.every((ns) => ns.endCheckpoint !== undefined)
+      ? checkpointMax(...networkServices.map((ns) => ns.endCheckpoint!))
+      : undefined,
+    checkpoint: isCheckpointEqual(initialCheckpoint, zeroCheckpoint)
+      ? startCheckpoint
+      : initialCheckpoint,
     finalizedCheckpoint: checkpointMin(
       ...networkServices.map((ns) => ns.initialFinalizedCheckpoint),
     ),
@@ -471,14 +481,6 @@ export const getHistoricalCheckpoint = async function* (
     );
 
     if (isComplete) {
-      const endCheckpoint = syncService.networkServices.every(
-        (ns) => ns.endCheckpoint !== undefined,
-      )
-        ? checkpointMax(
-            ...syncService.networkServices.map((ns) => ns.endCheckpoint!),
-          )
-        : undefined;
-
       const finalityCheckpoint = checkpointMin(
         ...syncService.networkServices.map(
           ({ initialFinalizedCheckpoint }) => initialFinalizedCheckpoint,
@@ -492,7 +494,7 @@ export const getHistoricalCheckpoint = async function* (
 
       yield {
         fromCheckpoint: syncService.checkpoint,
-        toCheckpoint: endCheckpoint ?? finalityCheckpoint,
+        toCheckpoint: syncService.endCheckpoint ?? finalityCheckpoint,
       };
 
       syncService.checkpoint = finalityCheckpoint;

@@ -2928,43 +2928,6 @@ test("getEvents empty", async (context) => {
   await cleanup();
 });
 
-test("getLastEventCheckpoint", async (context) => {
-  const { sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const rpcData = await getRawRPCData(sources);
-
-  await syncStore.insertRealtimeBlock({
-    chainId: 1,
-    ...rpcData.block2,
-  });
-
-  const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
-    sources,
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-  });
-
-  expect(lastEventCheckpoint?.blockNumber).toBe(2n);
-  expect(lastEventCheckpoint?.transactionIndex).toBe(1n);
-  expect(lastEventCheckpoint?.eventIndex).toBe(1n);
-
-  await cleanup();
-});
-
-test("getLastEventCheckpoint empty", async (context) => {
-  const { sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-
-  const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
-    sources,
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-  });
-  expect(lastEventCheckpoint).toBe(undefined);
-
-  await cleanup();
-});
-
 test("pruneByChainId deletes filters", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
