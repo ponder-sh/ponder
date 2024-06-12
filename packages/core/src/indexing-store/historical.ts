@@ -162,11 +162,11 @@ export const getHistoricalStore = ({
 
   const shouldFlush = () => cacheSizeBytes > maxSizeBytes;
 
-  const flush = createQueue<void, boolean | void>({
+  const flush = createQueue<void, { isFullFlush: boolean }>({
     concurrency: 1,
     initialStart: true,
     browser: false,
-    worker: async (fullFlush = true) => {
+    worker: async ({ isFullFlush }: { isFullFlush: boolean }) => {
       const flushIndex = totalCacheOps - cacheSize * (1 - CACHE_FLUSH);
 
       await Promise.all(
@@ -179,7 +179,7 @@ export const getHistoricalStore = ({
 
             const cacheEntries = Object.values(tableStoreCache);
 
-            if (fullFlush) {
+            if (isFullFlush) {
               insertRecords = cacheEntries
                 .filter(({ type }) => type === "insert")
                 .map(({ record }) => record!);
@@ -302,7 +302,7 @@ export const getHistoricalStore = ({
         ),
       );
 
-      if (fullFlush) {
+      if (isFullFlush) {
         for (const tableName of Object.keys(tables)) {
           storeCache[tableName] = {};
         }
@@ -361,7 +361,7 @@ export const getHistoricalStore = ({
       cacheSizeBytes += bytes;
       cacheSize++;
 
-      if (shouldFlush()) await flush(false);
+      if (shouldFlush()) await flush({ isFullFlush: false });
 
       return structuredClone(record);
     },
@@ -373,7 +373,7 @@ export const getHistoricalStore = ({
       after?: string | null;
       limit?: number;
     }) => {
-      await flush(true);
+      await flush({ isFullFlush: true });
 
       return readonlyStore.findMany(arg);
     },
@@ -416,7 +416,7 @@ export const getHistoricalStore = ({
       cacheSizeBytes += bytes;
       cacheSize++;
 
-      if (shouldFlush()) await flush(false);
+      if (shouldFlush()) await flush({ isFullFlush: false });
 
       return structuredClone(record);
     },
@@ -458,7 +458,7 @@ export const getHistoricalStore = ({
 
       cacheSize += data.length;
 
-      if (shouldFlush()) await flush(false);
+      if (shouldFlush()) await flush({ isFullFlush: false });
 
       const returnData = structuredClone(data);
       for (const record of data) {
@@ -544,7 +544,7 @@ export const getHistoricalStore = ({
         | Partial<Omit<UserRecord, "id">>
         | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
     }) => {
-      await flush(true);
+      await flush({ isFullFlush: true });
       const table = (schema[tableName] as { table: Table }).table;
 
       if (typeof data === "function") {
@@ -749,7 +749,7 @@ export const getHistoricalStore = ({
         cacheSize++;
         cacheSizeBytes += bytes;
 
-        if (shouldFlush()) await flush(false);
+        if (shouldFlush()) await flush({ isFullFlush: false });
 
         return structuredClone(record);
       }

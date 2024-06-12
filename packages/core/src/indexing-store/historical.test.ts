@@ -71,7 +71,7 @@ test("findUnique() w/ cache miss", async (context) => {
     data: { name: "Skip", age: 12 },
   });
 
-  await (indexingStore as HistoricalStore).flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const instance = await indexingStore.findUnique({
     tableName: "Pet",
@@ -465,7 +465,7 @@ test("update() w/ cache miss", async (context) => {
     data: { name: "Skip", bigAge: 100n },
   });
 
-  await (indexingStore as HistoricalStore).flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const updatedInstance = await indexingStore.update({
     tableName: "Pet",
@@ -490,7 +490,7 @@ test("update() w/ find cache", async (context) => {
     data: { name: "Skip", bigAge: 100n },
   });
 
-  await (indexingStore as HistoricalStore).flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   await indexingStore.findUnique({ tableName: "Pet", id: "id1" });
 
@@ -509,8 +509,7 @@ test("update() w/ find cache", async (context) => {
 
   expect(findInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
 
-  // @ts-ignore
-  await indexingStore.flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const rows = await database.indexingDb
     .withSchema(namespaceInfo.userNamespace)
@@ -700,7 +699,7 @@ test("upsert() w/ cache miss", async (context) => {
     data: { name: "Skip", age: 12 },
   });
 
-  await (indexingStore as HistoricalStore).flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const updatedInstance = await indexingStore.upsert({
     tableName: "Pet",
@@ -722,8 +721,7 @@ test("upsert() w/ find cache", async (context) => {
 
   // add pet.id1 to find cache
 
-  // @ts-ignore
-  await indexingStore.flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   await indexingStore.findUnique({
     tableName: "Pet",
@@ -748,8 +746,7 @@ test("upsert() w/ find cache", async (context) => {
 
   // add pet.id1 to find cache, remove from create cache
 
-  // @ts-ignore
-  await indexingStore.flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   await indexingStore.findUnique({
     tableName: "Pet",
@@ -772,8 +769,7 @@ test("upsert() w/ find cache", async (context) => {
 
   expect(findInstance).toMatchObject({ id: "id1", name: "Kevin" });
 
-  // @ts-ignore
-  await indexingStore.flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const rows = await database.indexingDb
     .withSchema(namespaceInfo.userNamespace)
@@ -832,7 +828,7 @@ test("delete() w/ find cache", async (context) => {
     data: { name: "Skip", age: 12 },
   });
 
-  await (indexingStore as HistoricalStore).flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   await indexingStore.findUnique({ tableName: "Pet", id: "id1" });
 
@@ -849,8 +845,7 @@ test("delete() w/ find cache", async (context) => {
   });
   expect(deletedInstance).toBe(null);
 
-  // @ts-ignore
-  await indexingStore.flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const rows = await database.indexingDb
     .withSchema(namespaceInfo.userNamespace)
@@ -1065,7 +1060,7 @@ test("flush() insert", async (context) => {
     data: { name: "Skip", age: 12 },
   });
 
-  await (indexingStore as HistoricalStore).flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const rows = await database.indexingDb
     .withSchema(namespaceInfo.userNamespace)
@@ -1095,7 +1090,7 @@ test("flush() update", async (context) => {
     data: { name: "Skip", age: 12 },
   });
 
-  await (indexingStore as HistoricalStore).flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   await indexingStore.update({
     tableName: "Pet",
@@ -1103,7 +1098,7 @@ test("flush() update", async (context) => {
     data: { name: "Peanut Butter" },
   });
 
-  await (indexingStore as HistoricalStore).flush();
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const rows = await database.indexingDb
     .withSchema(namespaceInfo.userNamespace)
@@ -1143,8 +1138,7 @@ test("flush() partial", async (context) => {
     ],
   });
 
-  // @ts-ignore
-  await indexingStore.flush(false);
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: false });
 
   const rows = await database.indexingDb
     .withSchema(namespaceInfo.userNamespace)

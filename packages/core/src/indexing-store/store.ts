@@ -95,7 +95,9 @@ export type WriteStore<
 export type RealtimeStore = ReadonlyStore & WriteStore<"realtime">;
 
 export type HistoricalStore = ReadonlyStore &
-  WriteStore<"historical"> & { flush: () => Promise<void> };
+  WriteStore<"historical"> & {
+    flush: (arg: { isFullFlush: boolean }) => Promise<void>;
+  };
 
 export type IndexingStore<
   env extends "historical" | "realtime" = "historical" | "realtime",

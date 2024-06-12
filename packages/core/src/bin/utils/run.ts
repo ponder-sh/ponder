@@ -266,7 +266,7 @@ export async function run({
       }
     }
 
-    await historicalStore.flush();
+    await historicalStore.flush({ isFullFlush: true });
 
     // Become healthy
     common.logger.info({
