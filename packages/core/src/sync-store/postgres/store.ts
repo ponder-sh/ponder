@@ -1744,8 +1744,10 @@ export class PostgresSyncStore implements SyncStore {
     while (true) {
       const estimatedToCursor = encodeCheckpoint({
         ...zeroCheckpoint,
-        blockTimestamp:
+        blockTimestamp: Math.min(
           decodeCheckpoint(fromCursor).blockTimestamp + this.seconds,
+          9999999999,
+        ),
       });
       toCursor =
         estimatedToCursor > maxToCursor ? maxToCursor : estimatedToCursor;
@@ -2213,11 +2215,10 @@ export class PostgresSyncStore implements SyncStore {
         });
       });
 
-      yield events;
-      if (toCursor === maxToCursor) break;
-
+      // set fromCursor + seconds
       if (events.length === 0) {
         this.seconds = Math.round(this.seconds * 2);
+        fromCursor = toCursor;
       } else if (events.length === this.common.options.syncEventsQuerySize) {
         this.seconds = Math.round(this.seconds / 2);
         fromCursor = events[events.length - 1].encodedCheckpoint;
@@ -2231,6 +2232,16 @@ export class PostgresSyncStore implements SyncStore {
           ),
         );
         fromCursor = toCursor;
+      }
+
+      if (events.length > 0) yield events;
+
+      // exit condition
+      if (
+        events.length !== this.common.options.syncEventsQuerySize &&
+        toCursor === maxToCursor
+      ) {
+        break;
       }
     }
   }
