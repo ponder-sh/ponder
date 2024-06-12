@@ -51,8 +51,10 @@ type UpdateEntry = {
   record: UserRecord;
 };
 
-/** Cache entries that mirror the database. Can be `null`,
- * meaning the entry doesn't exist in the cache */
+/**
+ * Cache entries that mirror the database. Can be `null`,
+ * meaning the entry doesn't exist in the cache.
+ */
 type FindEntry = {
   type: "find";
   opIndex: number;
