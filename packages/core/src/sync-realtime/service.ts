@@ -372,7 +372,7 @@ export const handleBlock = async (
   }
 
   if (
-    shouldRequestLogs &&
+    shouldRequestLogs === false &&
     (service.logSources.length > 0 || service.factoryLogSources.length > 0)
   ) {
     service.common.logger.debug({
