@@ -35,6 +35,7 @@ export type Options = {
   indexingCacheBytes: number;
 
   syncMaxIntervals: number;
+  syncEventsQuerySize: number;
 };
 
 export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
@@ -106,5 +107,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     indexingCacheBytes: os.freemem() / 3,
 
     syncMaxIntervals: 50_000,
+    syncEventsQuerySize: 10_000,
   } satisfies Options;
 };

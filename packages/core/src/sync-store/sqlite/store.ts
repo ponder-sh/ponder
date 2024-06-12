@@ -76,12 +76,16 @@ export class SqliteSyncStore implements SyncStore {
   db: HeadlessKysely<SyncStoreTables>;
   common: Common;
 
+  private seconds: number;
+
   constructor({
     db,
     common,
   }: { db: HeadlessKysely<SyncStoreTables>; common: Common }) {
     this.db = db;
     this.common = common;
+
+    this.seconds = common.options.syncEventsQuerySize * 2;
   }
 
   insertLogFilterInterval = async ({
@@ -1737,15 +1741,14 @@ export class SqliteSyncStore implements SyncStore {
     sources,
     fromCheckpoint,
     toCheckpoint,
-    limit,
   }: {
     sources: EventSource[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
-    limit: number;
   }) {
-    let cursor = encodeCheckpoint(fromCheckpoint);
-    const encodedToCheckpoint = encodeCheckpoint(toCheckpoint);
+    let fromCursor = encodeCheckpoint(fromCheckpoint);
+    let toCursor = encodeCheckpoint(toCheckpoint);
+    const maxToCursor = toCursor;
 
     const sourcesById = sources.reduce<{
       [sourceId: string]: (typeof sources)[number];
@@ -1776,6 +1779,16 @@ export class SqliteSyncStore implements SyncStore {
       );
 
     while (true) {
+      const estimatedToCursor = encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockTimestamp: Math.min(
+          decodeCheckpoint(fromCursor).blockTimestamp + this.seconds,
+          9999999999,
+        ),
+      });
+      toCursor =
+        estimatedToCursor > maxToCursor ? maxToCursor : estimatedToCursor;
+
       const events = await this.db.wrap({ method: "getEvents" }, async () => {
         // Query a batch of logs.
         const requestedLogs = await this.db
@@ -2059,10 +2072,10 @@ export class SqliteSyncStore implements SyncStore {
                 "transactionReceipts.type as txr_type",
               ]),
           )
-          .where("events.checkpoint", ">", cursor)
-          .where("events.checkpoint", "<=", encodedToCheckpoint)
+          .where("events.checkpoint", ">", fromCursor)
+          .where("events.checkpoint", "<=", toCursor)
           .orderBy("events.checkpoint", "asc")
-          .limit(limit + 1)
+          .limit(this.common.options.syncEventsQuerySize)
           .execute();
 
         return requestedLogs.map((_row) => {
@@ -2258,110 +2271,35 @@ export class SqliteSyncStore implements SyncStore {
         });
       });
 
-      const hasNextPage = events.length === limit + 1;
-
-      if (!hasNextPage) {
-        yield events;
-        break;
+      // set fromCursor + seconds
+      if (events.length === 0) {
+        this.seconds = Math.round(this.seconds * 2);
+        fromCursor = toCursor;
+      } else if (events.length === this.common.options.syncEventsQuerySize) {
+        this.seconds = Math.round(this.seconds / 2);
+        fromCursor = events[events.length - 1].encodedCheckpoint;
       } else {
-        events.pop();
-        cursor = events[events.length - 1].encodedCheckpoint;
-        yield events;
+        this.seconds = Math.round(
+          Math.min(
+            (this.seconds / events.length) *
+              this.common.options.syncEventsQuerySize *
+              0.9,
+            this.seconds * 2,
+          ),
+        );
+        fromCursor = toCursor;
+      }
+
+      if (events.length > 0) yield events;
+
+      // exit condition
+      if (
+        events.length !== this.common.options.syncEventsQuerySize &&
+        toCursor === maxToCursor
+      ) {
+        break;
       }
     }
-  }
-
-  async getLastEventCheckpoint({
-    sources,
-    fromCheckpoint,
-    toCheckpoint,
-  }: {
-    sources: EventSource[];
-    fromCheckpoint: Checkpoint;
-    toCheckpoint: Checkpoint;
-  }): Promise<Checkpoint | undefined> {
-    return this.db.wrap({ method: "getLastEventCheckpoint" }, async () => {
-      const checkpoint = await this.db
-        .selectFrom("logs")
-        .where((eb) => {
-          const logFilterCmprs = sources
-            .filter(sourceIsLog)
-            .map((logFilter) => {
-              const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-              return eb.and(exprs);
-            });
-
-          const factoryLogFilterCmprs = sources
-            .filter(sourceIsFactoryLog)
-            .map((factory) => {
-              const exprs = this.buildFactoryLogFilterCmprs({ eb, factory });
-              return eb.and(exprs);
-            });
-
-          return eb.or([...logFilterCmprs, ...factoryLogFilterCmprs]);
-        })
-        .select("checkpoint")
-        .unionAll(
-          this.db
-            .selectFrom("blocks")
-            .where((eb) => {
-              const exprs = [];
-              const blockFilters = sources.filter(sourceIsBlock);
-              for (const blockFilter of blockFilters) {
-                exprs.push(
-                  eb.and([
-                    eb("chainId", "=", blockFilter.chainId),
-                    eb("number", ">=", encodeAsText(blockFilter.startBlock)),
-                    ...(blockFilter.endBlock !== undefined
-                      ? [eb("number", "<=", encodeAsText(blockFilter.endBlock))]
-                      : []),
-                    sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.interval} = 0`,
-                  ]),
-                );
-              }
-              return eb.or(exprs);
-            })
-            .select("checkpoint"),
-        )
-        .unionAll(
-          this.db
-            .selectFrom("callTraces")
-            .where((eb) => {
-              const traceFilterCmprs = sources
-                .filter(sourceIsCallTrace)
-                .map((callTraceSource) => {
-                  const exprs = this.buildTraceFilterCmprs({
-                    eb,
-                    callTraceSource,
-                  });
-                  return eb.and(exprs);
-                });
-
-              const factoryCallTraceCmprs = sources
-                .filter(sourceIsFactoryCallTrace)
-                .map((factory) => {
-                  const exprs = this.buildFactoryTraceFilterCmprs({
-                    eb,
-                    factory,
-                  });
-                  return eb.and(exprs);
-                });
-
-              return eb.or([...traceFilterCmprs, ...factoryCallTraceCmprs]);
-            })
-            .select("checkpoint"),
-        )
-        .where("checkpoint", ">", encodeCheckpoint(fromCheckpoint))
-        .where("checkpoint", "<=", encodeCheckpoint(toCheckpoint))
-        .orderBy("checkpoint", "desc")
-        .executeTakeFirst();
-
-      return checkpoint
-        ? checkpoint.checkpoint
-          ? decodeCheckpoint(checkpoint.checkpoint)
-          : undefined
-        : undefined;
-    });
   }
 
   private buildLogFilterCmprs = ({

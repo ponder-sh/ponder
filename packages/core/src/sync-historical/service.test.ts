@@ -428,7 +428,6 @@ test("start() adds log filter events to sync store", async (context) => {
     sources: [sources[0]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
-    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -472,7 +471,6 @@ test("start() adds factory events to sync store", async (context) => {
     sources: [sources[1]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
-    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -503,7 +501,6 @@ test("start() adds block filter events to sync store", async (context) => {
     sources: [sources[4]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
-    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -545,7 +542,6 @@ test("start() adds trace filter events to sync store", async (context) => {
     sources: [sources[3]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
-    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -584,7 +580,6 @@ test("start() adds factory trace filter events to sync store", async (context) =
     sources: [sources[2]],
     fromCheckpoint: zeroCheckpoint,
     toCheckpoint: maxCheckpoint,
-    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
