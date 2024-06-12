@@ -94,18 +94,16 @@ export async function run({
     syncStore = new PostgresSyncStore({ db: database.syncDb });
   }
 
-  const readonlyStore = getReadonlyStore({
-    kind: database.kind,
-    schema,
-    namespaceInfo,
-    db: database.readonlyDb,
-  });
+  // const readonlyStore = getReadonlyStore({
+  //   kind: database.kind,
+  //   schema,
+  //   namespaceInfo,
+  //   db: database.readonlyDb,
+  // });
 
   const server = await createServer({
     app: build.app,
     common,
-    graphqlSchema,
-    readonlyStore,
   });
 
   // This can be a long-running operation, so it's best to do it after

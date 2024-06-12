@@ -104,7 +104,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     db: database.readonlyDb,
   });
 
-  const server = await createServer({ graphqlSchema, common, readonlyStore });
+  const server = await createServer({ common });
   server.setHealthy();
 
   cleanupReloadable = async () => {

@@ -1,30 +1,19 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
-import type { ReadonlyStore } from "@/indexing-store/store.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
-import { GraphQLSchema } from "graphql";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-
-type Server = {
-  hono: Hono;
-  port: number;
-  setHealthy: () => void;
-  kill: () => Promise<void>;
-};
 
 export async function createServer({
   app,
   common,
 }: {
   app?: Hono;
-  graphqlSchema: GraphQLSchema;
-  readonlyStore: ReadonlyStore;
   common: Common;
-}): Promise<Server> {
+}) {
   // Create hono app
 
   const startTime = Date.now();
