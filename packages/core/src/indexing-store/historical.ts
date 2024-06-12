@@ -35,37 +35,42 @@ import { buildWhereConditions } from "./utils/filter.js";
 const MAX_BATCH_SIZE = 1_000;
 const CACHE_FLUSH = 0.35;
 
-type Entry<record = UserRecord> = {
-  /** LRU counter */
+/** Cache entries that need to be created in the database. */
+type InsertEntry = {
+  type: "insert";
   opIndex: number;
-  /** Estimated number of bytes this entry uses. */
   bytes: number;
-  record: record;
+  record: UserRecord;
 };
+
+/** Cache entries that need to be updated in the database. */
+type UpdateEntry = {
+  type: "update";
+  opIndex: number;
+  bytes: number;
+  record: UserRecord;
+};
+
+/** Cache entries that mirror the database. Can be `null`,
+ * meaning the entry doesn't exist in the cache */
+type FindEntry = {
+  type: "find";
+  opIndex: number;
+  bytes: number;
+  record: UserRecord | null;
+};
+
+type Entry = InsertEntry | UpdateEntry | FindEntry;
 
 type Key = string | number;
 
 /**
- * An in-memory representation of the indexing store. An entry in
- * the cache only exists in one of the "insert", "update", or "find"
- * properties at a time. Every entry isnormalized, validated, and
- * guaranteed to not share any references with user-land.
- *
- * @param insert Cache entries that need to be created in the database.
- * @param update Cache entries that need to be updated in the database.
- * @param find Cache entries that mirror the database. Can be `undefined`,
- * meaning the entry doesn't exist in the cache.
- *
- * Note: The operations are separated into multiple properties rather
- * than have a "type" property on each entry because it uses less bytes per
- * entry
+ * An in-memory representation of the indexing store. Every entry is
+ * normalized, validated, and guaranteed to not share any references
+ * with user-land.
  */
 type StoreCache = {
-  [tableName: string]: {
-    insert: { [key: Key]: Entry };
-    update: { [key: Key]: Entry };
-    find: { [key: Key]: Entry<UserRecord | undefined> };
-  };
+  [tableName: string]: { [key: Key]: Entry };
 };
 
 export const getHistoricalStore = ({
@@ -109,11 +114,7 @@ export const getHistoricalStore = ({
   let totalCacheOps = 0;
 
   for (const tableName of Object.keys(tables)) {
-    storeCache[tableName] = {
-      insert: {},
-      update: {},
-      find: {},
-    };
+    storeCache[tableName] = {};
   }
 
   /**
@@ -174,20 +175,26 @@ export const getHistoricalStore = ({
             let updateRows: UserRecord[];
 
             if (fullFlush) {
-              insertRows = Object.values(tableStoreCache.insert).map(
-                ({ record }) => record,
-              );
-              updateRows = Object.values(tableStoreCache.update).map(
-                ({ record }) => record,
-              );
+              insertRows = Object.values(tableStoreCache)
+                .filter(({ type }) => type === "insert")
+                .map(({ record }) => record!);
+              updateRows = Object.values(tableStoreCache)
+                .filter(({ type }) => type === "update")
+                .map(({ record }) => record!);
             } else {
-              insertRows = Object.values(tableStoreCache.insert)
-                .filter(({ opIndex }) => opIndex < flushIndex)
-                .map(({ record }) => record);
+              insertRows = Object.values(tableStoreCache)
+                .filter(
+                  ({ type, opIndex }) =>
+                    type === "insert" && opIndex < flushIndex,
+                )
+                .map(({ record }) => record!);
 
-              updateRows = Object.values(tableStoreCache.update)
-                .filter(({ opIndex }) => opIndex < flushIndex)
-                .map(({ record }) => record);
+              updateRows = Object.values(tableStoreCache)
+                .filter(
+                  ({ type, opIndex }) =>
+                    type === "update" && opIndex < flushIndex,
+                )
+                .map(({ record }) => record!);
             }
 
             if (insertRows.length + updateRows.length === 0) return;
@@ -292,46 +299,16 @@ export const getHistoricalStore = ({
 
       if (fullFlush) {
         for (const tableName of Object.keys(tables)) {
-          storeCache[tableName] = {
-            insert: {},
-            update: {},
-            find: {},
-          };
+          storeCache[tableName] = {};
         }
         cacheSize = 0;
         cacheSizeBytes = 0;
       } else {
         for (const [tableName, tableStoreCache] of Object.entries(storeCache)) {
-          for (const [id, { opIndex }] of Object.entries(
-            tableStoreCache.insert,
-          )) {
+          for (const [key, { opIndex }] of Object.entries(tableStoreCache)) {
             if (opIndex < flushIndex) {
-              const bytes = storeCache[tableName].insert[id].bytes;
-              delete storeCache[tableName].insert[id];
-
-              cacheSize--;
-              cacheSizeBytes -= bytes;
-            }
-          }
-
-          for (const [id, { opIndex }] of Object.entries(
-            tableStoreCache.update,
-          )) {
-            if (opIndex < flushIndex) {
-              const bytes = storeCache[tableName].update[id].bytes;
-              delete storeCache[tableName].update[id];
-
-              cacheSize--;
-              cacheSizeBytes -= bytes;
-            }
-          }
-
-          for (const [id, { opIndex }] of Object.entries(
-            tableStoreCache.find,
-          )) {
-            if (opIndex < flushIndex) {
-              const bytes = storeCache[tableName].find[id].bytes;
-              delete storeCache[tableName].find[id];
+              const bytes = storeCache[tableName][key].bytes;
+              delete storeCache[tableName][key];
 
               cacheSize--;
               cacheSizeBytes -= bytes;
@@ -355,43 +332,24 @@ export const getHistoricalStore = ({
       const id = structuredClone(_id);
       const cacheKey = getCacheKey(id, tableName);
 
-      const cacheEntry =
-        storeCache[tableName].insert[cacheKey] ??
-        storeCache[tableName].update[cacheKey] ??
-        storeCache[tableName].find[cacheKey];
-
+      const cacheEntry = storeCache[tableName][cacheKey];
       if (cacheEntry !== undefined) {
         cacheEntry.opIndex = totalCacheOps++;
         return structuredClone(cacheEntry.record);
       }
 
-      if (isCacheExhaustive) {
-        storeCache[tableName].find[cacheKey] = {
-          opIndex: totalCacheOps++,
-          bytes: 24,
-          record: undefined,
-        };
+      // At this point if cache is exhaustive, findUnique will always return null
+      const record = isCacheExhaustive
+        ? null
+        : await readonlyStore.findUnique({ tableName, id });
 
-        cacheSize++;
-
-        return null;
-      }
-
-      const record = await readonlyStore.findUnique({ tableName, id });
-
-      if (record === null) {
-        storeCache[tableName].find[cacheKey] = {
-          opIndex: totalCacheOps++,
-          bytes: 24,
-          record: undefined,
-        };
-      } else {
-        storeCache[tableName].find[cacheKey] = {
-          opIndex: totalCacheOps++,
-          bytes: getBytesSize(record),
-          record,
-        };
-      }
+      // add "find" entry to cache
+      storeCache[tableName][cacheKey] = {
+        type: "find",
+        opIndex: totalCacheOps++,
+        bytes: 24,
+        record,
+      };
 
       cacheSize++;
 
@@ -421,11 +379,8 @@ export const getHistoricalStore = ({
       const id = structuredClone(_id);
       const cacheKey = getCacheKey(id, tableName);
 
-      if (
-        storeCache[tableName].insert[cacheKey] !== undefined ||
-        storeCache[tableName].update[cacheKey] !== undefined ||
-        storeCache[tableName].find[cacheKey]?.record !== undefined
-      ) {
+      // Check cache truthiness, will be false if record is null.
+      if (storeCache[tableName][cacheKey]?.record) {
         throw new UniqueConstraintError(
           `Unique constraint failed for '${tableName}.id'.`,
         );
@@ -445,7 +400,8 @@ export const getHistoricalStore = ({
 
       const bytes = getBytesSize(record);
 
-      storeCache[tableName].insert[cacheKey] = {
+      storeCache[tableName][cacheKey] = {
+        type: "insert",
         opIndex: totalCacheOps++,
         bytes,
         record,
@@ -468,11 +424,8 @@ export const getHistoricalStore = ({
       for (const _record of data) {
         const cacheKey = getCacheKey(_record.id, tableName);
 
-        if (
-          storeCache[tableName].insert[cacheKey] !== undefined ||
-          storeCache[tableName].update[cacheKey] !== undefined ||
-          storeCache[tableName].find[cacheKey]?.record !== undefined
-        ) {
+        // Check cache truthiness, will be false if record is null.
+        if (storeCache[tableName][cacheKey]?.record) {
           throw new UniqueConstraintError(
             `Unique constraint failed for '${tableName}.id'.`,
           );
@@ -491,7 +444,8 @@ export const getHistoricalStore = ({
 
         const bytes = getBytesSize(record);
 
-        storeCache[tableName].insert[cacheKey] = {
+        storeCache[tableName][cacheKey] = {
+          type: "insert",
           opIndex: totalCacheOps++,
           bytes,
           record,
@@ -524,34 +478,12 @@ export const getHistoricalStore = ({
       const id = structuredClone(_id);
       const cacheKey = getCacheKey(id, tableName);
 
-      let cacheEntry: Entry<UserRecord>;
+      let cacheEntry = storeCache[tableName][cacheKey];
 
-      const insertEntry = storeCache[tableName].insert[cacheKey];
-      const updateEntry = storeCache[tableName].update[cacheKey];
-      const findEntry = storeCache[tableName].find[cacheKey];
-
-      if (insertEntry !== undefined) {
-        cacheEntry = insertEntry;
-      } else if (isCacheExhaustive) {
-        throw new RecordNotFoundError(
-          "No existing record was found with the specified ID",
-        );
-      } else if (updateEntry !== undefined) {
-        cacheEntry = updateEntry;
-      } else if (findEntry !== undefined) {
-        if (findEntry.record === undefined) {
-          throw new RecordNotFoundError(
-            "No existing record was found with the specified ID",
-          );
-        }
-
-        // move cache entry to "update"
-        storeCache[tableName].update[cacheKey] = findEntry as Entry;
-        delete storeCache[tableName].find[cacheKey];
-
-        cacheEntry = findEntry as Entry;
-      } else {
-        const record = await readonlyStore.findUnique({ tableName, id });
+      if (cacheEntry === undefined) {
+        const record = isCacheExhaustive
+          ? null
+          : await readonlyStore.findUnique({ tableName, id });
 
         if (record === null) {
           throw new RecordNotFoundError(
@@ -561,21 +493,33 @@ export const getHistoricalStore = ({
 
         // Note: a "spoof" cache entry is created
         cacheEntry = {
+          type: "update",
           opIndex: 0,
           bytes: 0,
           record,
         };
 
-        storeCache[tableName].update[cacheKey] = cacheEntry;
+        storeCache[tableName][cacheKey] = cacheEntry;
+      } else {
+        if (cacheEntry.record === null) {
+          throw new RecordNotFoundError(
+            "No existing record was found with the specified ID",
+          );
+        }
+
+        if (cacheEntry.type === "find") {
+          // move cache entry to "update"
+          (cacheEntry.type as Entry["type"]) = "update";
+        }
       }
 
       const update =
         typeof data === "function"
-          ? data({ current: structuredClone(cacheEntry.record) })
+          ? data({ current: structuredClone(cacheEntry.record!) })
           : data;
 
       // copy user-land record
-      const record = cacheEntry.record;
+      const record = cacheEntry.record!;
       for (const [key, value] of Object.entries(structuredClone(update))) {
         record[key] = value;
       }
@@ -749,77 +693,40 @@ export const getHistoricalStore = ({
       const id = structuredClone(_id);
       const cacheKey = getCacheKey(id, tableName);
 
-      let cacheEntry: Entry | undefined;
-
-      const insertEntry = storeCache[tableName].insert[cacheKey];
-      const updateEntry = storeCache[tableName].update[cacheKey];
-      const findEntry = storeCache[tableName].find[cacheKey];
-
-      if (insertEntry !== undefined) {
-        cacheEntry = insertEntry;
-      } else if (updateEntry !== undefined) {
-        cacheEntry = updateEntry;
-      } else if (findEntry !== undefined) {
-        if (findEntry.record !== undefined) {
-          // move cache entry to "update"
-          storeCache[tableName].update[cacheKey] = findEntry as Entry;
-          delete storeCache[tableName].find[cacheKey];
-
-          cacheEntry = findEntry as Entry;
-        } else {
-          // cache entry will be moved to "insert"
-          const bytes = findEntry.bytes;
-          delete storeCache[tableName].find[cacheKey];
-
-          cacheSize--;
-          cacheSizeBytes -= bytes;
-        }
-      } else if (isCacheExhaustive === false) {
-        const record = await readonlyStore.findUnique({ tableName, id });
-
-        if (record !== null) {
-          // Note: a "spoof" cache entry is created
-          cacheEntry = {
-            opIndex: 0,
-            bytes: 0,
-            record,
-          };
-          storeCache[tableName].update[cacheKey] = cacheEntry;
-        }
-        // Note: an "insert" cache entry will be created if the record is null,
-        // so don't need to create it here.
-      }
+      let cacheEntry = storeCache[tableName][cacheKey];
 
       if (cacheEntry === undefined) {
-        // insert/create branch
+        if (isCacheExhaustive === false) {
+          const record = await readonlyStore.findUnique({ tableName, id });
 
-        // copy user-land record
-        const record = structuredClone(create) as UserRecord;
-        record.id = id;
+          if (record !== null) {
+            // Note: a "spoof" cache entry is created
+            cacheEntry = {
+              type: "update",
+              opIndex: 0,
+              bytes: 0,
+              record,
+            };
+            storeCache[tableName][cacheKey] = cacheEntry;
+          }
 
-        normalizeRecord(record, tableName);
-
-        validateRecord({
-          record,
-          table: tables[tableName].table,
-          schema,
-        });
-
-        const bytes = getBytesSize(record);
-
-        storeCache[tableName].insert[cacheKey] = {
-          opIndex: totalCacheOps++,
-          bytes,
-          record,
-        };
-
-        cacheSize++;
-        cacheSizeBytes += bytes;
-
-        if (shouldFlush()) await flush(false);
-
-        return structuredClone(record);
+          // Note: an "insert" cache entry will be created if the record is null,
+          // so don't need to create it here.
+        }
       } else {
+        if (cacheEntry.type === "find") {
+          if (cacheEntry.record === null) {
+            // cache entry will be moved to "insert"
+            (cacheEntry.type as Entry["type"]) = "insert";
+          } else {
+            // move cache entry to "update"
+            (cacheEntry.type as Entry["type"]) = "update";
+          }
+        }
+      }
+
+      // Check cache truthiness, will be false if record is null.
+      if (cacheEntry?.record) {
         // update branch
 
         const _update =
@@ -848,6 +755,36 @@ export const getHistoricalStore = ({
         cacheEntry.bytes = bytes;
 
         return structuredClone(record);
+      } else {
+        // insert/create branch
+
+        // copy user-land record
+        const record = structuredClone(create) as UserRecord;
+        record.id = id;
+
+        normalizeRecord(record, tableName);
+
+        validateRecord({
+          record,
+          table: tables[tableName].table,
+          schema,
+        });
+
+        const bytes = getBytesSize(record);
+
+        storeCache[tableName][cacheKey] = {
+          type: "insert",
+          opIndex: totalCacheOps++,
+          bytes,
+          record,
+        };
+
+        cacheSize++;
+        cacheSizeBytes += bytes;
+
+        if (shouldFlush()) await flush(false);
+
+        return structuredClone(record);
       }
     },
     delete: async ({
@@ -860,55 +797,48 @@ export const getHistoricalStore = ({
       const id = structuredClone(_id);
       const cacheKey = getCacheKey(id, tableName);
 
-      const insertEntry = storeCache[tableName].insert[cacheKey];
-      const updateEntry = storeCache[tableName].update[cacheKey];
-      const findEntry = storeCache[tableName].find[cacheKey];
+      const cacheEntry = storeCache[tableName][cacheKey];
 
-      if (insertEntry !== undefined) {
-        const bytes = insertEntry.bytes;
-        delete storeCache[tableName].insert[cacheKey];
+      const deleteFromDb = async () => {
+        const table = (schema[tableName] as { table: Table }).table;
 
-        cacheSize--;
-        cacheSizeBytes -= bytes;
+        const deletedRow = await db
+          .withSchema(namespaceInfo.userNamespace)
+          .deleteFrom(tableName)
+          .where(
+            "id",
+            "=",
+            encodeField({ value: id, column: table.id, encoding }),
+          )
+          .returning(["id"])
+          .executeTakeFirst()
+          .catch((err) => {
+            throw parseStoreError(err, { id });
+          });
 
-        return true;
-      } else if (isCacheExhaustive) {
-        return false;
-      } else if (findEntry !== undefined) {
-        if (findEntry.record === undefined) {
+        return !!deletedRow;
+      };
+
+      if (cacheEntry === undefined) {
+        if (isCacheExhaustive) {
           return false;
+        } else {
+          return await deleteFromDb();
         }
-
-        const bytes = findEntry.bytes;
-        delete storeCache[tableName].find[cacheKey];
-
-        cacheSize--;
-        cacheSizeBytes -= bytes;
-      } else if (updateEntry !== undefined) {
-        const bytes = updateEntry.bytes;
-        delete storeCache[tableName].update[cacheKey];
+      } else {
+        // delete from cache
+        const bytes = cacheEntry.bytes;
+        delete storeCache[tableName][cacheKey];
 
         cacheSize--;
         cacheSizeBytes -= bytes;
+
+        if (cacheEntry.record === null) {
+          return false;
+        } else {
+          return await deleteFromDb();
+        }
       }
-
-      const table = (schema[tableName] as { table: Table }).table;
-
-      const deletedRow = await db
-        .withSchema(namespaceInfo.userNamespace)
-        .deleteFrom(tableName)
-        .where(
-          "id",
-          "=",
-          encodeField({ value: id, column: table.id, encoding }),
-        )
-        .returning(["id"])
-        .executeTakeFirst()
-        .catch((err) => {
-          throw parseStoreError(err, { id });
-        });
-
-      return !!deletedRow;
     },
     flush,
   };
