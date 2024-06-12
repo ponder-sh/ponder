@@ -250,7 +250,7 @@ export async function run({
         sources: sources,
         fromCheckpoint,
         toCheckpoint,
-        limit: 1_000,
+        limit: 10_000,
       })) {
         const result = await handleEvents(
           decodeEvents(syncService, rawEvents),
