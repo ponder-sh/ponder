@@ -10,6 +10,9 @@ export const ponderRegex =
 export const serverRegex =
   /^import\s+\{[^}]*\bhono\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
 
+export const graphqlRegex =
+  /^import\s+\{[^}]*\bgraphQLMiddleware\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
+
 export const ponderShim = `export let ponder = {
   fns: [],
   on(name, fn) {
@@ -43,7 +46,7 @@ export const vitePluginPonder = (common: Common): Plugin => {
     transform: (code, id) => {
       if (
         id === path.join(common.options.srcDir, SERVER_FILE) &&
-        serverRegex.test(code)
+        (serverRegex.test(code) || graphqlRegex.test(code))
       ) {
         const s = replaceStateless(code, serverRegex, serverShim);
         const transformed = s.toString();

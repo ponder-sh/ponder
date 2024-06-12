@@ -11,7 +11,7 @@ export const ponderEnv = `// This file enables type checking and editor autocomp
 
 declare module "@/generated" {
   import type { Virtual } from "@ponder/core";
-  import type { Hono } from "hono";
+  import type { Hono, Context as HonoContext } from "hono";
 
   type config = typeof import("./ponder.config.ts").default;
   type schema = typeof import("./ponder.schema.ts").default;
@@ -19,6 +19,10 @@ declare module "@/generated" {
   export const ponder: Virtual.Registry<config, schema>;
 
   export const hono: Hono;
+
+  export const graphQLMiddleware: () => (
+    c: HonoContext<any, any, {}>,
+  ) => Promise<Response>;
 
   export type EventNames = Virtual.EventNames<config>;
   export type Event<name extends EventNames = EventNames> = Virtual.Event<

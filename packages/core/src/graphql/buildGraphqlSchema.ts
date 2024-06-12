@@ -1,4 +1,4 @@
-import type { IndexingStore } from "@/indexing-store/store.js";
+import type { ReadonlyStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
 import { getTables } from "@/schema/utils.js";
 import {
@@ -15,7 +15,7 @@ import { buildSingularField } from "./singular.js";
 
 // TODO(kyle) stricter type
 export type Parent = Record<string, any>;
-export type Context = { store: IndexingStore; getLoader: GetLoader };
+export type Context = { store: ReadonlyStore; getLoader: GetLoader };
 
 export const buildGraphqlSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Parent, Context>> = {};

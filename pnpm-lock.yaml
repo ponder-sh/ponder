@@ -572,9 +572,6 @@ importers:
       '@escape.tech/graphql-armor-max-tokens':
         specifier: ^2.3.0
         version: 2.3.0
-      '@hono/graphql-server':
-        specifier: ^0.4.3
-        version: 0.4.3(hono@4.0.0)
       '@hono/node-server':
         specifier: ^1.8.2
         version: 1.8.2
@@ -3203,16 +3200,6 @@ packages:
       client-only: 0.0.1
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
-    dev: false
-
-  /@hono/graphql-server@0.4.3(hono@4.0.0):
-    resolution: {integrity: sha512-HSoOeW5F0PdlKaxC5Skc2m6mSML2yXDrVAFJfu0Hifp6igqmhqh8bhY18JgkzLyn5xuAM1/suHORETpUJnA6gQ==}
-    engines: {node: '>=16.0.0'}
-    peerDependencies:
-      hono: '>=3.0.0'
-    dependencies:
-      graphql: 16.8.1
-      hono: 4.0.0
     dev: false
 
   /@hono/node-server@1.8.2:
@@ -8549,6 +8536,7 @@ packages:
   /hono@4.0.0:
     resolution: {integrity: sha512-8dKhuBBpRZEodUttQhrSFJ6PQqHRjXHyeeegfxOf132pvgbf0tOb9qqb7q7eYwAWpOcYrsUOsWdJ0sQIIovhZg==}
     engines: {node: '>=16.0.0'}
+    dev: true
 
   /hono@4.1.3:
     resolution: {integrity: sha512-V0I6qCw0gn2MA4LLtyXe6oD3/7ToeQf5Zv98o7uSuLuViQgWHJeYoYrZ4NbXhOtg4SaZjNJJm1+XuFB3LN+j6A==}

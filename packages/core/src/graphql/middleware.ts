@@ -1,9 +1,8 @@
 import type { Schema } from "@/schema/common.js";
-import { graphqlServer } from "@hono/graphql-server";
-import { buildGraphqlSchema } from "./buildGraphqlSchema.js";
+import { createMiddleware } from "hono/factory";
 
-export const createGraphQLMiddleware = ({
-  schema,
-}: { schema: Schema }): ReturnType<typeof graphqlServer> => {
-  return graphqlServer({ schema: buildGraphqlSchema(schema) });
+export const createGraphQLMiddleware = (_: { schema: Schema }) => {
+  return createMiddleware(async (c) => {
+    return c.text("graphql");
+  });
 };
