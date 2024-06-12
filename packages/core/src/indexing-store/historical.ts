@@ -12,11 +12,11 @@ import {
   isScalarColumn,
 } from "@/schema/utils.js";
 import type {
-  DatabaseColumn,
   DatabaseRecord,
-  UserColumn,
+  DatabaseValue,
   UserId,
   UserRecord,
+  UserValue,
 } from "@/types/schema.js";
 import { createQueue } from "@ponder/common";
 import { sql } from "kysely";
@@ -25,8 +25,8 @@ import { getReadonlyStore } from "./readonly.js";
 import type { HistoricalStore, OrderByInput, WhereInput } from "./store.js";
 import {
   decodeRecord,
-  encodeField,
   encodeRecord,
+  encodeValue,
   validateRecord,
 } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
@@ -174,27 +174,27 @@ export const getHistoricalStore = ({
           async ([tableName, tableStoreCache]) => {
             const table = (schema[tableName] as { table: Table }).table;
 
-            let insertRows: UserRecord[];
-            let updateRows: UserRecord[];
+            let insertRecords: UserRecord[];
+            let updateRecords: UserRecord[];
 
             const cacheEntries = Object.values(tableStoreCache);
 
             if (fullFlush) {
-              insertRows = cacheEntries
+              insertRecords = cacheEntries
                 .filter(({ type }) => type === "insert")
                 .map(({ record }) => record!);
-              updateRows = cacheEntries
+              updateRecords = cacheEntries
                 .filter(({ type }) => type === "update")
                 .map(({ record }) => record!);
             } else {
-              insertRows = cacheEntries
+              insertRecords = cacheEntries
                 .filter(
                   ({ type, opIndex }) =>
                     type === "insert" && opIndex < flushIndex,
                 )
                 .map(({ record }) => record!);
 
-              updateRows = cacheEntries
+              updateRecords = cacheEntries
                 .filter(
                   ({ type, opIndex }) =>
                     type === "update" && opIndex < flushIndex,
@@ -202,23 +202,23 @@ export const getHistoricalStore = ({
                 .map(({ record }) => record!);
             }
 
-            if (insertRows.length + updateRows.length === 0) return;
+            if (insertRecords.length + updateRecords.length === 0) return;
 
             common.logger.debug({
               service: "indexing",
               msg: `Flushing ${
-                insertRows.length + updateRows.length
+                insertRecords.length + updateRecords.length
               } cached '${tableName}' records to the database`,
             });
 
             // insert
             for (
-              let i = 0, len = insertRows.length;
+              let i = 0, len = insertRecords.length;
               i < len;
               i += MAX_BATCH_SIZE
             ) {
               await db.wrap({ method: `${tableName}.flush` }, async () => {
-                const _insertRows = insertRows
+                const _insertRecords = insertRecords
                   .slice(i, i + MAX_BATCH_SIZE)
                   // skip validation because its already occurred in the store method
                   .map((record) =>
@@ -234,12 +234,12 @@ export const getHistoricalStore = ({
                 await db
                   .withSchema(namespaceInfo.userNamespace)
                   .insertInto(tableName)
-                  .values(_insertRows)
+                  .values(_insertRecords)
                   .execute()
                   .catch((err) => {
                     throw parseStoreError(
                       err,
-                      _insertRows.length > 0 ? _insertRows[0] : {},
+                      _insertRecords.length > 0 ? _insertRecords[0] : {},
                     );
                   });
               });
@@ -247,12 +247,12 @@ export const getHistoricalStore = ({
 
             // update
             for (
-              let i = 0, len = updateRows.length;
+              let i = 0, len = updateRecords.length;
               i < len;
               i += MAX_BATCH_SIZE
             ) {
               await db.wrap({ method: `${tableName}.flush` }, async () => {
-                const _updateRows = updateRows
+                const _updateRecords = updateRecords
                   .slice(i, i + MAX_BATCH_SIZE)
                   // skip validation because its already occurred in the store method
                   .map((record) =>
@@ -268,7 +268,7 @@ export const getHistoricalStore = ({
                 await db
                   .withSchema(namespaceInfo.userNamespace)
                   .insertInto(tableName)
-                  .values(_updateRows)
+                  .values(_updateRecords)
                   .onConflict((oc) =>
                     oc.column("id").doUpdateSet((eb) =>
                       Object.entries(table).reduce<any>(
@@ -293,7 +293,7 @@ export const getHistoricalStore = ({
                   .catch((err) => {
                     throw parseStoreError(
                       err,
-                      _updateRows.length > 0 ? _updateRows[0] : {},
+                      _updateRecords.length > 0 ? _updateRecords[0] : {},
                     );
                   });
               });
@@ -461,8 +461,8 @@ export const getHistoricalStore = ({
       if (shouldFlush()) await flush(false);
 
       const returnData = structuredClone(data);
-      for (const row of data) {
-        normalizeRecord(row, tableName);
+      for (const record of data) {
+        normalizeRecord(record, tableName);
       }
       return returnData;
     },
@@ -555,30 +555,30 @@ export const getHistoricalStore = ({
           .where((eb) => buildWhereConditions({ eb, where, table, encoding }))
           .orderBy("id", "asc");
 
-        const rows: UserRecord[] = [];
-        let cursor: DatabaseColumn = null;
+        const records: UserRecord[] = [];
+        let cursor: DatabaseValue = null;
 
         while (true) {
-          const _rows = await db.wrap(
+          const _records = await db.wrap(
             { method: `${tableName}.updateMany` },
             async () => {
-              const latestRows: DatabaseRecord[] = await query
+              const latestRecords: DatabaseRecord[] = await query
                 .limit(MAX_BATCH_SIZE)
                 .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
                 .execute();
 
-              const rows: DatabaseRecord[] = [];
+              const records: DatabaseRecord[] = [];
 
-              for (const latestRow of latestRows) {
+              for (const latestRecord of latestRecords) {
                 const current = decodeRecord({
-                  record: latestRow,
+                  record: latestRecord,
                   table,
                   encoding,
                 });
                 const updateObject = data({ current });
-                // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
-                const updateRow = {
-                  id: latestRow.id,
+                // Here, `latestRecord` is already encoded, so we need to exclude it from `encodeRecord`.
+                const updateRecord = {
+                  id: latestRecord.id,
                   ...encodeRecord({
                     record: updateObject,
                     table,
@@ -588,42 +588,42 @@ export const getHistoricalStore = ({
                   }),
                 };
 
-                const row = await db
+                const record = await db
                   .withSchema(namespaceInfo.userNamespace)
                   .updateTable(tableName)
-                  .set(updateRow)
-                  .where("id", "=", latestRow.id)
+                  .set(updateRecord)
+                  .where("id", "=", latestRecord.id)
                   .returningAll()
                   .executeTakeFirstOrThrow()
                   .catch((err) => {
                     throw parseStoreError(err, updateObject);
                   });
-                rows.push(row);
+                records.push(record);
               }
 
-              return rows.map((row) =>
-                decodeRecord({ record: row, table, encoding }),
+              return records.map((record) =>
+                decodeRecord({ record, table, encoding }),
               );
             },
           );
 
-          rows.push(..._rows);
+          records.push(..._records);
 
-          if (_rows.length === 0) {
+          if (_records.length === 0) {
             break;
           } else {
-            cursor = encodeField({
-              value: _rows[_rows.length - 1].id,
+            cursor = encodeValue({
+              value: _records[_records.length - 1].id,
               column: table.id,
               encoding,
             });
           }
         }
 
-        return rows;
+        return records;
       } else {
         return db.wrap({ method: `${tableName}.updateMany` }, async () => {
-          const updateRow = encodeRecord({
+          const updateRecord = encodeRecord({
             record: data,
             table,
             schema,
@@ -631,7 +631,7 @@ export const getHistoricalStore = ({
             skipValidation: false,
           });
 
-          const rows = await db
+          const records = await db
             .with("latestRows(id)", (db) =>
               db
                 .withSchema(namespaceInfo.userNamespace)
@@ -643,7 +643,7 @@ export const getHistoricalStore = ({
             )
             .withSchema(namespaceInfo.userNamespace)
             .updateTable(tableName)
-            .set(updateRow)
+            .set(updateRecord)
             .from("latestRows")
             .where(`${tableName}.id`, "=", sql.ref("latestRows.id"))
             .returningAll()
@@ -652,8 +652,8 @@ export const getHistoricalStore = ({
               throw parseStoreError(err, data);
             });
 
-          return rows.map((row) =>
-            decodeRecord({ record: row, table, encoding }),
+          return records.map((record) =>
+            decodeRecord({ record, table, encoding }),
           );
         });
       }
@@ -779,13 +779,13 @@ export const getHistoricalStore = ({
       } else {
         const table = (schema[tableName] as { table: Table }).table;
 
-        const deletedRow = await db
+        const deletedRecord = await db
           .withSchema(namespaceInfo.userNamespace)
           .deleteFrom(tableName)
           .where(
             "id",
             "=",
-            encodeField({ value: id, column: table.id, encoding }),
+            encodeValue({ value: id, column: table.id, encoding }),
           )
           .returning(["id"])
           .executeTakeFirst()
@@ -793,14 +793,14 @@ export const getHistoricalStore = ({
             throw parseStoreError(err, { id });
           });
 
-        return !!deletedRow;
+        return !!deletedRecord;
       }
     },
     flush,
   };
 };
 
-const getBytesSize = (value: UserRecord | UserColumn) => {
+const getBytesSize = (value: UserRecord | UserValue) => {
   // size of metadata
   let size = 16;
 

@@ -10,7 +10,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from "./utils/cursor.js";
-import { decodeRecord, encodeField } from "./utils/encoding.js";
+import { decodeRecord, encodeValue } from "./utils/encoding.js";
 import { buildWhereConditions } from "./utils/filter.js";
 import {
   buildOrderByConditions,
@@ -41,22 +41,22 @@ export const getReadonlyStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findUnique` }, async () => {
-      const encodedId = encodeField({
+      const encodedId = encodeValue({
         value: id,
         column: table.id,
         encoding,
       });
 
-      const row = await db
+      const record = await db
         .withSchema(namespaceInfo.userNamespace)
         .selectFrom(tableName)
         .selectAll()
         .where("id", "=", encodedId)
         .executeTakeFirst();
 
-      if (row === undefined) return null;
+      if (record === undefined) return null;
 
-      return decodeRecord({ record: row, table, encoding });
+      return decodeRecord({ record, table, encoding });
     });
   },
   findMany: async ({
@@ -119,10 +119,11 @@ export const getReadonlyStore = ({
       // Neither cursors are specified, apply the order conditions and execute.
       if (after === null && before === null) {
         query = query.limit(limit + 1);
-        const rows = await query.execute();
-        const records = rows.map((row) =>
-          decodeRecord({ record: row, table, encoding }),
-        );
+        const records = await query
+          .execute()
+          .then((records) =>
+            records.map((record) => decodeRecord({ record, table, encoding })),
+          );
 
         if (records.length === limit + 1) {
           records.pop();
@@ -149,7 +150,7 @@ export const getReadonlyStore = ({
         const rawCursorValues = decodeCursor(after, orderByConditions);
         const cursorValues = rawCursorValues.map(([columnName, value]) => [
           columnName,
-          encodeField({
+          encodeValue({
             value,
             column: table[columnName] as NonVirtualColumn,
             encoding,
@@ -161,10 +162,11 @@ export const getReadonlyStore = ({
           )
           .limit(limit + 2);
 
-        const rows = await query.execute();
-        const records = rows.map((row) =>
-          decodeRecord({ record: row, table, encoding }),
-        );
+        const records = await query
+          .execute()
+          .then((records) =>
+            records.map((record) => decodeRecord({ record, table, encoding })),
+          );
 
         if (records.length === 0) {
           return {
@@ -214,7 +216,7 @@ export const getReadonlyStore = ({
         const rawCursorValues = decodeCursor(before!, orderByConditions);
         const cursorValues = rawCursorValues.map(([columnName, value]) => [
           columnName,
-          encodeField({
+          encodeValue({
             value,
             column: table[columnName] as NonVirtualColumn,
             encoding,
@@ -234,11 +236,12 @@ export const getReadonlyStore = ({
           query = query.orderBy(column, direction);
         }
 
-        const rows = await query.execute();
-        const records = rows
-          .map((row) => decodeRecord({ record: row, table, encoding }))
-          // Reverse the records again, back to the original order.
-          .reverse();
+        const records = await query.execute().then((records) =>
+          records
+            .map((record) => decodeRecord({ record, table, encoding }))
+            // Reverse the records again, back to the original order.
+            .reverse(),
+        );
 
         if (records.length === 0) {
           return {

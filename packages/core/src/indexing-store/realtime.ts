@@ -2,13 +2,13 @@ import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import type {
-  DatabaseColumn,
   DatabaseRecord,
+  DatabaseValue,
   UserId,
   UserRecord,
 } from "@/types/schema.js";
 import type { WhereInput, WriteStore } from "./store.js";
-import { decodeRecord, encodeField, encodeRecord } from "./utils/encoding.js";
+import { decodeRecord, encodeRecord, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
@@ -39,7 +39,7 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.create` }, async () => {
-      const createRow = encodeRecord({
+      const createRecord = encodeRecord({
         record: { id, ...data },
         table,
         encoding,
@@ -48,10 +48,10 @@ export const getRealtimeStore = ({
       });
 
       return await db.transaction().execute(async (tx) => {
-        const row = await tx
+        const record = await tx
           .withSchema(namespaceInfo.userNamespace)
           .insertInto(tableName)
-          .values(createRow)
+          .values(createRecord)
           .returningAll()
           .executeTakeFirstOrThrow()
           .catch((err) => {
@@ -63,12 +63,12 @@ export const getRealtimeStore = ({
           .insertInto(namespaceInfo.internalTableIds[tableName])
           .values({
             operation: 0,
-            id: createRow.id,
+            id: createRecord.id,
             checkpoint: encodedCheckpoint,
           })
           .execute();
 
-        return decodeRecord({ record: row, table, encoding });
+        return decodeRecord({ record: record, table, encoding });
       });
     });
   },
@@ -84,10 +84,10 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.createMany` }, async () => {
-      const rows: DatabaseRecord[] = [];
+      const records: DatabaseRecord[] = [];
       await db.transaction().execute(async (tx) => {
         for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
-          const createRows = data.slice(i, i + MAX_BATCH_SIZE).map((d) =>
+          const createRecords = data.slice(i, i + MAX_BATCH_SIZE).map((d) =>
             encodeRecord({
               record: d,
               table,
@@ -97,25 +97,25 @@ export const getRealtimeStore = ({
             }),
           );
 
-          const _rows = await tx
+          const _records = await tx
             .withSchema(namespaceInfo.userNamespace)
             .insertInto(tableName)
-            .values(createRows)
+            .values(createRecords)
             .returningAll()
             .execute()
             .catch((err) => {
               throw parseStoreError(err, data.length > 0 ? data[0] : {});
             });
 
-          rows.push(..._rows);
+          records.push(..._records);
 
           await tx
             .withSchema(namespaceInfo.internalNamespace)
             .insertInto(namespaceInfo.internalTableIds[tableName])
             .values(
-              createRows.map((row) => ({
+              createRecords.map((record) => ({
                 operation: 0,
-                id: row.id,
+                id: record.id,
                 checkpoint: encodedCheckpoint,
               })),
             )
@@ -123,7 +123,7 @@ export const getRealtimeStore = ({
         }
       });
 
-      return rows.map((row) => decodeRecord({ record: row, table, encoding }));
+      return records.map((record) => decodeRecord({ record, table, encoding }));
     });
   },
   update: ({
@@ -142,10 +142,10 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.update` }, async () => {
-      const encodedId = encodeField({ value: id, column: table.id, encoding });
+      const encodedId = encodeValue({ value: id, column: table.id, encoding });
 
-      const row = await db.transaction().execute(async (tx) => {
-        const latestRow = await tx
+      const record = await db.transaction().execute(async (tx) => {
+        const latestRecord = await tx
           .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
@@ -158,10 +158,14 @@ export const getRealtimeStore = ({
         const updateObject =
           typeof data === "function"
             ? data({
-                current: decodeRecord({ record: latestRow, table, encoding }),
+                current: decodeRecord({
+                  record: latestRecord,
+                  table,
+                  encoding,
+                }),
               })
             : data;
-        const updateRow = encodeRecord({
+        const updateRecord = encodeRecord({
           record: { id, ...updateObject },
           table,
           encoding,
@@ -172,7 +176,7 @@ export const getRealtimeStore = ({
         const updateResult = await tx
           .withSchema(namespaceInfo.userNamespace)
           .updateTable(tableName)
-          .set(updateRow)
+          .set(updateRecord)
           .where("id", "=", encodedId)
           .returningAll()
           .executeTakeFirstOrThrow()
@@ -186,14 +190,14 @@ export const getRealtimeStore = ({
           .values({
             operation: 1,
             checkpoint: encodedCheckpoint,
-            ...latestRow,
+            ...latestRecord,
           })
           .execute();
 
         return updateResult;
       });
 
-      const result = decodeRecord({ record: row, table, encoding });
+      const result = decodeRecord({ record: record, table, encoding });
 
       return result;
     });
@@ -213,99 +217,100 @@ export const getRealtimeStore = ({
   }) => {
     const table = (schema[tableName] as { table: Table }).table;
 
-    const rows: UserRecord[] = [];
-    let cursor: DatabaseColumn = null;
+    const records: UserRecord[] = [];
+    let cursor: DatabaseValue = null;
 
     while (true) {
-      const _rows = await db.wrap({ method: `${tableName}.updateMany` }, () =>
-        db.transaction().execute(async (tx) => {
-          const latestRows: DatabaseRecord[] = await tx
-            .withSchema(namespaceInfo.userNamespace)
-            .selectFrom(tableName)
-            .selectAll()
-            .where((eb) =>
-              buildWhereConditions({
-                eb,
-                where,
-                table,
-                encoding,
-              }),
-            )
-            .orderBy("id", "asc")
-            .limit(MAX_BATCH_SIZE)
-            .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
-            .execute();
-
-          const rows: DatabaseRecord[] = [];
-
-          for (const latestRow of latestRows) {
-            const updateObject =
-              typeof data === "function"
-                ? data({
-                    current: decodeRecord({
-                      record: latestRow,
-                      table,
-                      encoding,
-                    }),
-                  })
-                : data;
-
-            // Here, `latestRow` is already encoded, so we need to exclude it from `encodeRow`.
-            const updateRow = {
-              id: latestRow.id,
-              ...encodeRecord({
-                record: updateObject,
-                table,
-                encoding,
-                schema,
-                skipValidation: false,
-              }),
-            };
-
-            const row = await tx
+      const _records = await db.wrap(
+        { method: `${tableName}.updateMany` },
+        () => db.transaction().execute(async (tx) => {
+            const latestRecords: DatabaseRecord[] = await tx
               .withSchema(namespaceInfo.userNamespace)
-              .updateTable(tableName)
-              .set(updateRow)
-              .where("id", "=", latestRow.id)
-              .returningAll()
-              .executeTakeFirstOrThrow()
-              .catch((err) => {
-                throw parseStoreError(err, updateObject);
-              });
-
-            rows.push(row);
-
-            await tx
-              .withSchema(namespaceInfo.internalNamespace)
-              .insertInto(namespaceInfo.internalTableIds[tableName])
-              .values({
-                operation: 1,
-                checkpoint: encodedCheckpoint,
-                ...latestRow,
-              })
+              .selectFrom(tableName)
+              .selectAll()
+              .where((eb) =>
+                buildWhereConditions({
+                  eb,
+                  where,
+                  table,
+                  encoding,
+                }),
+              )
+              .orderBy("id", "asc")
+              .limit(MAX_BATCH_SIZE)
+              .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
               .execute();
-          }
 
-          return rows.map((row) =>
-            decodeRecord({ record: row, table, encoding }),
-          );
-        }),
+            const records: DatabaseRecord[] = [];
+
+            for (const latestRecord of latestRecords) {
+              const updateObject =
+                typeof data === "function"
+                  ? data({
+                      current: decodeRecord({
+                        record: latestRecord,
+                        table,
+                        encoding,
+                      }),
+                    })
+                  : data;
+
+              // Here, `latestRecord` is already encoded, so we need to exclude it from `encodeRecord`.
+              const updateRecord = {
+                id: latestRecord.id,
+                ...encodeRecord({
+                  record: updateObject,
+                  table,
+                  encoding,
+                  schema,
+                  skipValidation: false,
+                }),
+              };
+
+              const record = await tx
+                .withSchema(namespaceInfo.userNamespace)
+                .updateTable(tableName)
+                .set(updateRecord)
+                .where("id", "=", latestRecord.id)
+                .returningAll()
+                .executeTakeFirstOrThrow()
+                .catch((err) => {
+                  throw parseStoreError(err, updateObject);
+                });
+
+              records.push(record);
+
+              await tx
+                .withSchema(namespaceInfo.internalNamespace)
+                .insertInto(namespaceInfo.internalTableIds[tableName])
+                .values({
+                  operation: 1,
+                  checkpoint: encodedCheckpoint,
+                  ...latestRecord,
+                })
+                .execute();
+            }
+
+            return records.map((record) =>
+              decodeRecord({ record, table, encoding }),
+            );
+          }),
       );
 
-      rows.push(..._rows);
+      records.push(..._records);
 
-      if (_rows.length === 0) {
+      if (_records.length === 0) {
         break;
       } else {
-        cursor = encodeField({
-          value: _rows[_rows.length - 1].id,
+        cursor = encodeValue({
+          value: _records[_records.length - 1].id,
           column: table.id,
           encoding,
         });
       }
     }
 
-    return rows;
+    return records;
   },
   upsert: ({
     tableName,
@@ -325,8 +330,8 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.upsert` }, async () => {
-      const encodedId = encodeField({ value: id, column: table.id, encoding });
-      const createRow = encodeRecord({
+      const encodedId = encodeValue({ value: id, column: table.id, encoding });
+      const createRecord = encodeRecord({
         record: { id, ...create },
         table,
         encoding,
@@ -334,9 +339,9 @@ export const getRealtimeStore = ({
         skipValidation: false,
       });
 
-      const row = await db.transaction().execute(async (tx) => {
+      const record = await db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
-        const latestRow = await tx
+        const latestRecord = await tx
           .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
@@ -344,11 +349,11 @@ export const getRealtimeStore = ({
           .executeTakeFirst();
 
         // If there is no latest version, insert a new version using the create data.
-        if (latestRow === undefined) {
-          const row = await tx
+        if (latestRecord === undefined) {
+          const record = await tx
             .withSchema(namespaceInfo.userNamespace)
             .insertInto(tableName)
-            .values(createRow)
+            .values(createRecord)
             .returningAll()
             .executeTakeFirstOrThrow()
             .catch((err) => {
@@ -369,21 +374,25 @@ export const getRealtimeStore = ({
             .insertInto(namespaceInfo.internalTableIds[tableName])
             .values({
               operation: 0,
-              id: createRow.id,
+              id: createRecord.id,
               checkpoint: encodedCheckpoint,
             })
             .execute();
 
-          return row;
+          return record;
         }
 
         const updateObject =
           typeof update === "function"
             ? update({
-                current: decodeRecord({ record: latestRow, table, encoding }),
+                current: decodeRecord({
+                  record: latestRecord,
+                  table,
+                  encoding,
+                }),
               })
             : update;
-        const updateRow = encodeRecord({
+        const updateRecord = encodeRecord({
           record: { id, ...updateObject },
           table,
           encoding,
@@ -391,10 +400,10 @@ export const getRealtimeStore = ({
           skipValidation: false,
         });
 
-        const row = await tx
+        const record = await tx
           .withSchema(namespaceInfo.userNamespace)
           .updateTable(tableName)
-          .set(updateRow)
+          .set(updateRecord)
           .where("id", "=", encodedId)
           .returningAll()
           .executeTakeFirstOrThrow()
@@ -413,14 +422,14 @@ export const getRealtimeStore = ({
           .values({
             operation: 1,
             checkpoint: encodedCheckpoint,
-            ...latestRow,
+            ...latestRecord,
           })
           .execute();
 
-        return row;
+        return record;
       });
 
-      return decodeRecord({ record: row, table, encoding });
+      return decodeRecord({ record, table, encoding });
     });
   },
   delete: ({
@@ -435,17 +444,17 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.delete` }, async () => {
-      const encodedId = encodeField({ value: id, column: table.id, encoding });
+      const encodedId = encodeValue({ value: id, column: table.id, encoding });
 
       const isDeleted = await db.transaction().execute(async (tx) => {
-        const row = await tx
+        const record = await tx
           .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
           .executeTakeFirst();
 
-        const deletedRow = await tx
+        const deletedRecord = await tx
           .withSchema(namespaceInfo.userNamespace)
           .deleteFrom(tableName)
           .where("id", "=", encodedId)
@@ -455,19 +464,19 @@ export const getRealtimeStore = ({
             throw parseStoreError(err, { id });
           });
 
-        if (row !== undefined) {
+        if (record !== undefined) {
           await tx
             .withSchema(namespaceInfo.internalNamespace)
             .insertInto(namespaceInfo.internalTableIds[tableName])
             .values({
               operation: 2,
               checkpoint: encodedCheckpoint,
-              ...row,
+              ...record,
             })
             .execute();
         }
 
-        return !!deletedRow;
+        return !!deletedRecord;
       });
 
       return isDeleted;

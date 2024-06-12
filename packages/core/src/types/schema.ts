@@ -2,7 +2,7 @@ import type { Hex } from "viem";
 
 export type UserId = string | number | Hex | bigint;
 
-export type UserColumn =
+export type UserValue =
   | string
   | string[]
   | number
@@ -19,14 +19,14 @@ export type UserColumn =
 
 export type UserRecord = {
   id: string | number | Hex | bigint;
-  [columnName: string]: UserColumn;
+  [columnName: string]: UserValue;
 };
 
 export type UserTable = {
   id: string | number | Hex | bigint;
-  [columnName: string]: UserColumn;
+  [columnName: string]: UserValue;
 };
 
-export type DatabaseColumn = string | number | Buffer | bigint | object | null;
+export type DatabaseValue = string | number | Buffer | bigint | object | null;
 
-export type DatabaseRecord = { [columnName: string]: DatabaseColumn };
+export type DatabaseRecord = { [columnName: string]: DatabaseValue };

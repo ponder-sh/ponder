@@ -26,10 +26,10 @@ import {
   isScalarColumn,
 } from "@/schema/utils.js";
 import type {
-  DatabaseColumn,
   DatabaseRecord,
-  UserColumn,
+  DatabaseValue,
   UserRecord,
+  UserValue,
 } from "@/types/schema.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import { never } from "@/utils/never.js";
@@ -45,7 +45,7 @@ const scalarToTsType = {
 } as const satisfies { [key in Scalar]: string };
 
 /**
- * Convert a user-land row into a database-ready object.
+ * Convert a user-land record into a database-ready object.
  */
 export function encodeRecord({
   record,
@@ -68,7 +68,7 @@ export function encodeRecord({
   for (const [columnName, value] of Object.entries(record)) {
     const column = table[columnName] as NonVirtualColumn;
 
-    instance[columnName] = encodeField({
+    instance[columnName] = encodeValue({
       value,
       column,
       encoding,
@@ -81,18 +81,18 @@ export function encodeRecord({
 /**
  * Convert a user-land value into a database-ready value.
  */
-export function encodeField(
+export function encodeValue(
   {
     value,
     column,
     encoding,
   }: {
-    value: UserColumn;
+    value: UserValue;
     column: NonVirtualColumn;
     encoding: "sqlite" | "postgres";
   },
   // @ts-ignore
-): DatabaseColumn {
+): DatabaseValue {
   switch (column[" type"]) {
     case "enum": {
       if (isOptionalColumn(column) && (value === undefined || value === null)) {
@@ -133,7 +133,7 @@ export function encodeField(
         case "string":
         case "int":
         case "float":
-          return value as DatabaseColumn;
+          return value as DatabaseValue;
         case "hex":
           return Buffer.from(hexToBytes(value as Hex));
         case "bigint":
@@ -182,16 +182,16 @@ export function validateRecord({
       );
     }
 
-    validateField({ value, column, schema });
+    validateValue({ value, column, schema });
   }
 }
 
-function validateField({
+function validateValue({
   value,
   column,
   schema,
 }: {
-  value: UserColumn;
+  value: UserValue;
   column: Column;
   schema: Schema;
 }): void {
@@ -361,7 +361,7 @@ export function decodeRecord({
       isEnumColumn(column) ||
       isJSONColumn(column)
     ) {
-      instance[columnName] = decodeField({
+      instance[columnName] = decodeValue({
         value: record[columnName],
         column,
         encoding,
@@ -372,21 +372,21 @@ export function decodeRecord({
   return instance;
 }
 
-function decodeField({
+function decodeValue({
   value,
   column,
   encoding,
 }: {
-  value: DatabaseColumn;
+  value: DatabaseValue;
   column: ScalarColumn | ReferenceColumn | EnumColumn | JSONColumn;
   encoding: "sqlite" | "postgres";
-}): UserColumn {
+}): UserValue {
   if (value === null) return null;
   else if (isEnumColumn(column)) {
     if (isListColumn(column)) {
       return JSON.parse(value as string);
     }
-    return value as UserColumn;
+    return value as UserValue;
   } else if (isJSONColumn(column)) {
     return encoding === "postgres" ? value : JSON.parse(value as string);
   } else if (isListColumn(column)) {
@@ -400,6 +400,6 @@ function decodeField({
   } else if (column[" scalar"] === "bigint" && encoding === "sqlite") {
     return decodeToBigInt(value as string);
   } else {
-    return value as UserColumn;
+    return value as UserValue;
   }
 }
