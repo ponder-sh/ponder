@@ -34,6 +34,7 @@ export async function createServer({
   let isHealthy = false;
   const startTime = Date.now();
 
+  // TODO(kyle) move metrics middleware so that user requests are measured.
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const commonLabels = { method: c.req.method, path: c.req.path };
     common.metrics.ponder_http_server_active_requests.inc(commonLabels);
@@ -135,10 +136,15 @@ export async function createServer({
     return httpServer;
   };
 
+  const middleware = createMiddleware(async (_, next) => {
+    await next();
+  });
+
   const hono = new Hono<{
     Variables: { store: ReadonlyStore; getLoader: GetLoader };
   }>()
     .route("/_ponder", ponderApp)
+    .use(middleware)
     .route("/", app);
 
   const httpServer = await new Promise<http.Server>((resolve, reject) => {
