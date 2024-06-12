@@ -8,10 +8,9 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import { type GetLoader } from "../graphql/buildLoaderCache.js";
 
 type Server = {
-  hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;
+  hono: Hono;
   port: number;
   setHealthy: () => void;
   kill: () => Promise<void>;
@@ -26,15 +25,41 @@ export async function createServer({
   readonlyStore: ReadonlyStore;
   common: Common;
 }): Promise<Server> {
-  const ponderApp = new Hono<{
-    Variables: { store: ReadonlyStore; getLoader: GetLoader };
-  }>();
+  // Create hono app
 
-  let port = common.options.port;
-  let isHealthy = false;
   const startTime = Date.now();
+  let isHealthy = false;
 
-  // TODO(kyle) move metrics middleware so that user requests are measured.
+  const ponderApp = new Hono()
+    .use(cors())
+    .get("/metrics", async (c) => {
+      try {
+        const metrics = await common.metrics.getMetrics();
+        return c.text(metrics);
+      } catch (error) {
+        return c.json(error, 500);
+      }
+    })
+    .get("/health", async (c) => {
+      if (isHealthy) {
+        return c.text("", 200);
+      }
+
+      const elapsed = (Date.now() - startTime) / 1000;
+      const max = common.options.maxHealthcheckDuration;
+
+      if (elapsed > max) {
+        common.logger.warn({
+          service: "server",
+          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
+        });
+        return c.text("", 200);
+      }
+
+      return c.text("Historical indexing is not complete.", 503);
+    })
+    .get("/ready", async (c) => c.text("", 200));
+
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const commonLabels = { method: c.req.method, path: c.req.path };
     common.metrics.ponder_http_server_active_requests.inc(commonLabels);
@@ -71,36 +96,19 @@ export async function createServer({
     }
   });
 
-  ponderApp
-    .use(cors())
+  const contextMiddleware = createMiddleware(async (_, next) => {
+    await next();
+  });
+
+  const hono = new Hono()
     .use(metricsMiddleware)
-    .get("/metrics", async (c) => {
-      try {
-        const metrics = await common.metrics.getMetrics();
-        return c.text(metrics);
-      } catch (error) {
-        return c.json(error, 500);
-      }
-    })
-    .get("/health", async (c) => {
-      if (isHealthy) {
-        return c.text("", 200);
-      }
+    .route("/_ponder", ponderApp)
+    .use(contextMiddleware)
+    .route("/", app);
 
-      const elapsed = (Date.now() - startTime) / 1000;
-      const max = common.options.maxHealthcheckDuration;
+  // Create nodejs server
 
-      if (elapsed > max) {
-        common.logger.warn({
-          service: "server",
-          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
-        });
-        return c.text("", 200);
-      }
-
-      return c.text("Historical indexing is not complete.", 503);
-    })
-    .get("/ready", async (c) => c.text("", 200));
+  let port = common.options.port;
 
   const createServerWithNextAvailablePort: typeof http.createServer = (
     ...args: any
@@ -135,17 +143,6 @@ export async function createServer({
 
     return httpServer;
   };
-
-  const middleware = createMiddleware(async (_, next) => {
-    await next();
-  });
-
-  const hono = new Hono<{
-    Variables: { store: ReadonlyStore; getLoader: GetLoader };
-  }>()
-    .route("/_ponder", ponderApp)
-    .use(middleware)
-    .route("/", app);
 
   const httpServer = await new Promise<http.Server>((resolve, reject) => {
     const timeout = setTimeout(() => {
