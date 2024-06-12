@@ -157,6 +157,18 @@ export namespace Virtual {
     >[property],
   > = ([base] extends [never] ? undefined : base) | override;
 
+  export type ReadonlyDb<schema extends BuilderSchema> = {
+    [key in keyof InferSchemaType<schema>]: Prettify<
+      Pick<
+        DatabaseModel<
+          // @ts-ignore
+          InferSchemaType<schema>[key]
+        >,
+        "findUnique" | "findMany"
+      >
+    >;
+  };
+
   export type Context<
     config extends Config,
     schema extends BuilderSchema,

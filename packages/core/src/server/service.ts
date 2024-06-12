@@ -1,5 +1,10 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
+import type { ReadonlyStore } from "@/indexing-store/store.js";
+import type { Schema } from "@/schema/common.js";
+import { getTables } from "@/schema/utils.js";
+import type { DatabaseModel } from "@/types/model.js";
+import type { UserRecord } from "@/types/schema.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -9,9 +14,13 @@ import { createHttpTerminator } from "http-terminator";
 
 export async function createServer({
   app,
+  schema,
+  readonlyStore,
   common,
 }: {
   app?: Hono;
+  schema: Schema;
+  readonlyStore: ReadonlyStore;
   common: Common;
 }) {
   // Create hono app
@@ -85,7 +94,44 @@ export async function createServer({
     }
   });
 
-  const contextMiddleware = createMiddleware(async (_, next) => {
+  const db = Object.keys(getTables(schema)).reduce<{
+    [tableName: string]: Pick<
+      DatabaseModel<UserRecord>,
+      "findUnique" | "findMany"
+    >;
+  }>((acc, tableName) => {
+    acc[tableName] = {
+      findUnique: async ({ id }) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.findUnique(id=${id})`,
+        });
+        return readonlyStore.findUnique({
+          tableName,
+          id,
+        });
+      },
+      findMany: async ({ where, orderBy, limit, before, after } = {}) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.findMany`,
+        });
+        return readonlyStore.findMany({
+          tableName,
+          where,
+          orderBy,
+          limit,
+          before,
+          after,
+        });
+      },
+    };
+    return acc;
+  }, {});
+
+  const contextMiddleware = createMiddleware(async (c, next) => {
+    c.set("db", db);
+    c.set("schema", schema);
     await next();
   });
 

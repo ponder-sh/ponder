@@ -18,11 +18,9 @@ declare module "@/generated" {
 
   export const ponder: Virtual.Registry<config, schema>;
 
-  export const hono: Hono;
-
-  export const graphQLMiddleware: () => (
-    c: HonoContext<any, any, {}>,
-  ) => Promise<Response>;
+  export const hono: Hono<{
+    Variables: { db: Virtual.ReadonlyDb<schema> };
+  }>;
 
   export type EventNames = Virtual.EventNames<config>;
   export type Event<name extends EventNames = EventNames> = Virtual.Event<
