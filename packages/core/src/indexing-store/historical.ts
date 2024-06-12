@@ -137,8 +137,9 @@ export const getHistoricalStore = ({
   };
 
   /**
-   * Normalizes a record. In simpler terms, the shape of the record
-   * will match what it would be if it was encoded and decoded.
+   * Updates a record as if it had been encoded, stored in the database,
+   * and then decoded. This is required to normalize p.hex() column values
+   * and nullable column values.
    */
   const normalizeRecord = (record: UserRecord, tableName: string) => {
     for (const [columnName, column] of Object.entries(
@@ -176,22 +177,24 @@ export const getHistoricalStore = ({
             let insertRows: UserRecord[];
             let updateRows: UserRecord[];
 
+            const cacheEntries = Object.values(tableStoreCache);
+
             if (fullFlush) {
-              insertRows = Object.values(tableStoreCache)
+              insertRows = cacheEntries
                 .filter(({ type }) => type === "insert")
                 .map(({ record }) => record!);
-              updateRows = Object.values(tableStoreCache)
+              updateRows = cacheEntries
                 .filter(({ type }) => type === "update")
                 .map(({ record }) => record!);
             } else {
-              insertRows = Object.values(tableStoreCache)
+              insertRows = cacheEntries
                 .filter(
                   ({ type, opIndex }) =>
                     type === "insert" && opIndex < flushIndex,
                 )
                 .map(({ record }) => record!);
 
-              updateRows = Object.values(tableStoreCache)
+              updateRows = cacheEntries
                 .filter(
                   ({ type, opIndex }) =>
                     type === "update" && opIndex < flushIndex,
@@ -205,7 +208,7 @@ export const getHistoricalStore = ({
               service: "indexing",
               msg: `Flushing ${
                 insertRows.length + updateRows.length
-              } '${tableName}' database records from cache`,
+              } cached '${tableName}' records to the database`,
             });
 
             // insert
@@ -345,15 +348,20 @@ export const getHistoricalStore = ({
         ? null
         : await readonlyStore.findUnique({ tableName, id });
 
+      const bytes = getBytesSize(record);
+
       // add "find" entry to cache
       storeCache[tableName][cacheKey] = {
         type: "find",
         opIndex: totalCacheOps++,
-        bytes: 24,
+        bytes,
         record,
       };
 
+      cacheSizeBytes += bytes;
       cacheSize++;
+
+      if (shouldFlush()) await flush(false);
 
       return structuredClone(record);
     },
@@ -394,11 +402,7 @@ export const getHistoricalStore = ({
 
       normalizeRecord(record, tableName);
 
-      validateRecord({
-        record,
-        table: tables[tableName].table,
-        schema,
-      });
+      validateRecord({ record, table: tables[tableName].table, schema });
 
       const bytes = getBytesSize(record);
 
@@ -438,11 +442,7 @@ export const getHistoricalStore = ({
 
         normalizeRecord(record, tableName);
 
-        validateRecord({
-          record,
-          table: tables[tableName].table,
-          schema,
-        });
+        validateRecord({ record, table: tables[tableName].table, schema });
 
         const bytes = getBytesSize(record);
 
@@ -494,12 +494,7 @@ export const getHistoricalStore = ({
         }
 
         // Note: a "spoof" cache entry is created
-        cacheEntry = {
-          type: "update",
-          opIndex: 0,
-          bytes: 0,
-          record,
-        };
+        cacheEntry = { type: "update", opIndex: 0, bytes: 0, record };
 
         storeCache[tableName][cacheKey] = cacheEntry;
       } else {
@@ -528,11 +523,7 @@ export const getHistoricalStore = ({
 
       normalizeRecord(record, tableName);
 
-      validateRecord({
-        record,
-        table: tables[tableName].table,
-        schema,
-      });
+      validateRecord({ record, table: tables[tableName].table, schema });
 
       const bytes = getBytesSize(record);
 
@@ -561,14 +552,7 @@ export const getHistoricalStore = ({
           .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
-          .where((eb) =>
-            buildWhereConditions({
-              eb,
-              where,
-              table,
-              encoding,
-            }),
-          )
+          .where((eb) => buildWhereConditions({ eb, where, table, encoding }))
           .orderBy("id", "asc");
 
         const rows: UserRecord[] = [];
@@ -654,12 +638,7 @@ export const getHistoricalStore = ({
                 .selectFrom(tableName)
                 .select("id")
                 .where((eb) =>
-                  buildWhereConditions({
-                    eb,
-                    where,
-                    table,
-                    encoding,
-                  }),
+                  buildWhereConditions({ eb, where, table, encoding }),
                 ),
             )
             .withSchema(namespaceInfo.userNamespace)
@@ -703,12 +682,7 @@ export const getHistoricalStore = ({
 
           if (record !== null) {
             // Note: a "spoof" cache entry is created
-            cacheEntry = {
-              type: "update",
-              opIndex: 0,
-              bytes: 0,
-              record,
-            };
+            cacheEntry = { type: "update", opIndex: 0, bytes: 0, record };
             storeCache[tableName][cacheKey] = cacheEntry;
           }
 
@@ -730,7 +704,6 @@ export const getHistoricalStore = ({
       // Check cache truthiness, will be false if record is null.
       if (cacheEntry?.record) {
         // update branch
-
         const _update =
           typeof update === "function"
             ? update({ current: structuredClone(cacheEntry.record) })
@@ -744,11 +717,7 @@ export const getHistoricalStore = ({
 
         normalizeRecord(record, tableName);
 
-        validateRecord({
-          record,
-          table: tables[tableName].table,
-          schema,
-        });
+        validateRecord({ record, table: tables[tableName].table, schema });
 
         const bytes = getBytesSize(record);
 
@@ -766,11 +735,7 @@ export const getHistoricalStore = ({
 
         normalizeRecord(record, tableName);
 
-        validateRecord({
-          record,
-          table: tables[tableName].table,
-          schema,
-        });
+        validateRecord({ record, table: tables[tableName].table, schema });
 
         const bytes = getBytesSize(record);
 
@@ -801,7 +766,17 @@ export const getHistoricalStore = ({
 
       const cacheEntry = storeCache[tableName][cacheKey];
 
-      const deleteFromDb = async () => {
+      if (cacheEntry !== undefined) {
+        // delete from cache
+        const bytes = cacheEntry.bytes;
+        delete storeCache[tableName][cacheKey];
+        cacheSize--;
+        cacheSizeBytes -= bytes;
+      }
+
+      if (isCacheExhaustive || cacheEntry?.record === null) {
+        return false;
+      } else {
         const table = (schema[tableName] as { table: Table }).table;
 
         const deletedRow = await db
@@ -819,27 +794,6 @@ export const getHistoricalStore = ({
           });
 
         return !!deletedRow;
-      };
-
-      if (cacheEntry === undefined) {
-        if (isCacheExhaustive) {
-          return false;
-        } else {
-          return await deleteFromDb();
-        }
-      } else {
-        // delete from cache
-        const bytes = cacheEntry.bytes;
-        delete storeCache[tableName][cacheKey];
-
-        cacheSize--;
-        cacheSizeBytes -= bytes;
-
-        if (cacheEntry.record === null) {
-          return false;
-        } else {
-          return await deleteFromDb();
-        }
       }
     },
     flush,
