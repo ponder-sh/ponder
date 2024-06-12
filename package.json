@@ -20,7 +20,8 @@
     "lint-staged": "^15.1.0",
     "simple-git-hooks": "^2.9.0",
     "typescript": "5.0.4",
-    "viem": "1.16.0"
+    "viem": "1.16.0",
+    "hono": "4.0.0"
   },
   "lint-staged": {
     "*.ts": ["biome format --no-errors-on-unmatched", "biome check"],
