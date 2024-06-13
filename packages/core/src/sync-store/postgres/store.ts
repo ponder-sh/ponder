@@ -192,7 +192,7 @@ export class PostgresSyncStore implements SyncStore {
                   .selectFrom("logFilterIntervals")
                   .where("logFilterId", "=", logFilterId)
                   .select("id")
-                  .limit(this.common.options.syncMaxIntervals),
+                  .limit(this.common.options.syncStoreMaxIntervals),
               )
               .returning(["startBlock", "endBlock"])
               .execute();
@@ -220,7 +220,8 @@ export class PostgresSyncStore implements SyncStore {
             }
 
             if (
-              mergedIntervalRows.length === this.common.options.syncMaxIntervals
+              mergedIntervalRows.length ===
+              this.common.options.syncStoreMaxIntervals
             ) {
               // This occurs when there are too many non-mergeable ranges with the same logFilterId. Should be almost impossible.
               throw new NonRetryableError(
@@ -229,7 +230,8 @@ export class PostgresSyncStore implements SyncStore {
             }
 
             if (
-              existingIntervals.length !== this.common.options.syncMaxIntervals
+              existingIntervals.length !==
+              this.common.options.syncStoreMaxIntervals
             )
               break;
           }
@@ -492,7 +494,7 @@ export class PostgresSyncStore implements SyncStore {
                     .selectFrom("factoryLogFilterIntervals")
                     .where("factoryId", "=", factoryId)
                     .select("id")
-                    .limit(this.common.options.syncMaxIntervals),
+                    .limit(this.common.options.syncStoreMaxIntervals),
                 )
                 .returning(["startBlock", "endBlock"])
                 .execute();
@@ -521,7 +523,7 @@ export class PostgresSyncStore implements SyncStore {
 
               if (
                 mergedIntervalRows.length ===
-                this.common.options.syncMaxIntervals
+                this.common.options.syncStoreMaxIntervals
               ) {
                 // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
                 throw new NonRetryableError(
@@ -531,7 +533,7 @@ export class PostgresSyncStore implements SyncStore {
 
               if (
                 existingIntervals.length !==
-                this.common.options.syncMaxIntervals
+                this.common.options.syncStoreMaxIntervals
               )
                 break;
             }
@@ -883,7 +885,7 @@ export class PostgresSyncStore implements SyncStore {
                   .selectFrom("traceFilterIntervals")
                   .where("traceFilterId", "=", traceFilterId)
                   .select("id")
-                  .limit(this.common.options.syncMaxIntervals),
+                  .limit(this.common.options.syncStoreMaxIntervals),
               )
               .returning(["startBlock", "endBlock"])
               .execute();
@@ -911,7 +913,8 @@ export class PostgresSyncStore implements SyncStore {
             }
 
             if (
-              mergedIntervalRows.length === this.common.options.syncMaxIntervals
+              mergedIntervalRows.length ===
+              this.common.options.syncStoreMaxIntervals
             ) {
               // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
               throw new NonRetryableError(
@@ -920,7 +923,8 @@ export class PostgresSyncStore implements SyncStore {
             }
 
             if (
-              existingIntervals.length !== this.common.options.syncMaxIntervals
+              existingIntervals.length !==
+              this.common.options.syncStoreMaxIntervals
             )
               break;
           }
@@ -1131,7 +1135,7 @@ export class PostgresSyncStore implements SyncStore {
                     .selectFrom("factoryTraceFilterIntervals")
                     .where("factoryId", "=", factoryId)
                     .select("id")
-                    .limit(this.common.options.syncMaxIntervals),
+                    .limit(this.common.options.syncStoreMaxIntervals),
                 )
                 .returning(["startBlock", "endBlock"])
                 .execute();
@@ -1160,7 +1164,7 @@ export class PostgresSyncStore implements SyncStore {
 
               if (
                 mergedIntervalRows.length ===
-                this.common.options.syncMaxIntervals
+                this.common.options.syncStoreMaxIntervals
               ) {
                 // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
                 throw new NonRetryableError(
@@ -1170,7 +1174,7 @@ export class PostgresSyncStore implements SyncStore {
 
               if (
                 existingIntervals.length !==
-                this.common.options.syncMaxIntervals
+                this.common.options.syncStoreMaxIntervals
               )
                 break;
             }

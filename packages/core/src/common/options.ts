@@ -32,9 +32,10 @@ export type Options = {
   databaseHeartbeatInterval: number;
   databaseHeartbeatTimeout: number;
 
-  indexingCacheBytes: number;
+  indexingCacheMaxBytes: number;
+  indexingCacheFlushRatio: number;
 
-  syncMaxIntervals: number;
+  syncStoreMaxIntervals: number;
   syncEventsQuerySize: number;
 };
 
@@ -104,9 +105,10 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     databaseHeartbeatInterval: 10 * 1000,
     databaseHeartbeatTimeout: 25 * 1000,
 
-    indexingCacheBytes: os.freemem() / 3,
+    indexingCacheMaxBytes: os.freemem() / 3,
+    indexingCacheFlushRatio: 0.35,
 
-    syncMaxIntervals: 50_000,
+    syncStoreMaxIntervals: 50_000,
     syncEventsQuerySize: 10_000,
   } satisfies Options;
 };

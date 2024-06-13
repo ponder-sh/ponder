@@ -305,6 +305,22 @@ export const create = async ({
         blockNumber: hexToBigInt(finalizedBlock.number),
       };
 
+      const startCheckpoint = {
+        ...zeroCheckpoint,
+        blockTimestamp: hexToNumber(startBlock.timestamp),
+        blockNumber: hexToBigInt(startBlock.number),
+        chainId: BigInt(network.chainId),
+      };
+
+      const endCheckpoint = endBlock
+        ? {
+            ...zeroCheckpoint,
+            blockTimestamp: hexToNumber(endBlock.timestamp),
+            blockNumber: hexToBigInt(endBlock.number),
+            chainId: BigInt(network.chainId),
+          }
+        : undefined;
+
       const canSkipRealtime = getCanSkipRealtime({
         sources: networkSources,
         finalizedBlock,
@@ -316,20 +332,8 @@ export const create = async ({
           sources: networkSources,
           requestQueue,
           cachedTransport: cachedTransport({ requestQueue, syncStore }),
-          startCheckpoint: {
-            ...zeroCheckpoint,
-            blockTimestamp: hexToNumber(startBlock.timestamp),
-            blockNumber: hexToBigInt(startBlock.number),
-            chainId: BigInt(network.chainId),
-          },
-          endCheckpoint: endBlock
-            ? {
-                ...zeroCheckpoint,
-                blockTimestamp: hexToNumber(endBlock.timestamp),
-                blockNumber: hexToBigInt(endBlock.number),
-                chainId: BigInt(network.chainId),
-              }
-            : undefined,
+          startCheckpoint,
+          endCheckpoint,
           initialFinalizedCheckpoint,
           realtime: undefined,
           historical: {
@@ -355,20 +359,8 @@ export const create = async ({
           sources: networkSources,
           requestQueue,
           cachedTransport: cachedTransport({ requestQueue, syncStore }),
-          startCheckpoint: {
-            ...zeroCheckpoint,
-            blockTimestamp: hexToNumber(startBlock.timestamp),
-            blockNumber: hexToBigInt(startBlock.number),
-            chainId: BigInt(network.chainId),
-          },
-          endCheckpoint: endBlock
-            ? {
-                ...zeroCheckpoint,
-                blockTimestamp: hexToNumber(endBlock.timestamp),
-                blockNumber: hexToBigInt(endBlock.number),
-                chainId: BigInt(network.chainId),
-              }
-            : undefined,
+          startCheckpoint,
+          endCheckpoint,
           initialFinalizedCheckpoint,
           realtime: {
             realtimeSync,

@@ -33,7 +33,6 @@ import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 const MAX_BATCH_SIZE = 1_000;
-const CACHE_FLUSH = 0.35;
 
 /** Cache entries that need to be created in the database. */
 type InsertEntry = {
@@ -90,7 +89,7 @@ export const getHistoricalStore = ({
   common: Common;
   isCacheExhaustive: boolean;
 }): HistoricalStore => {
-  const maxSizeBytes = common.options.indexingCacheBytes;
+  const maxSizeBytes = common.options.indexingCacheMaxBytes;
   const storeCache: StoreCache = {};
   const tables = getTables(schema);
   const readonlyStore = getReadonlyStore({
@@ -167,7 +166,9 @@ export const getHistoricalStore = ({
     initialStart: true,
     browser: false,
     worker: async ({ isFullFlush }: { isFullFlush: boolean }) => {
-      const flushIndex = totalCacheOps - cacheSize * (1 - CACHE_FLUSH);
+      const flushIndex =
+        totalCacheOps -
+        cacheSize * (1 - common.options.indexingCacheFlushRatio);
 
       await Promise.all(
         Object.entries(storeCache).map(

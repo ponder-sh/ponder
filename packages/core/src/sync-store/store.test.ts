@@ -575,7 +575,10 @@ test("getLogFilterIntervals handles size over MAX", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
-  context.common.options = { ...context.common.options, syncMaxIntervals: 20 };
+  context.common.options = {
+    ...context.common.options,
+    syncStoreMaxIntervals: 20,
+  };
 
   for (const i in range(0, 25)) {
     await syncStore.insertLogFilterInterval({
@@ -607,7 +610,10 @@ test("getLogFilterIntervals throws non-retryable error after no merges", async (
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
-  context.common.options = { ...context.common.options, syncMaxIntervals: 20 };
+  context.common.options = {
+    ...context.common.options,
+    syncStoreMaxIntervals: 20,
+  };
 
   for (let i = 0; i < 50; i += 2) {
     await syncStore.insertLogFilterInterval({

@@ -242,7 +242,9 @@ export async function run({
 
     await historicalStore.flush({ isFullFlush: true });
 
-    // set completed indexing metrics
+    // Manually update metrics to fix a UI bug that occurs when the end
+    // checkpoint is between the last processed event and the finalized
+    // checkpoint.
     common.metrics.ponder_indexing_completed_seconds.set(
       syncService.checkpoint.blockTimestamp -
         syncService.startCheckpoint.blockTimestamp,
