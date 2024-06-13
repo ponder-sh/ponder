@@ -181,6 +181,7 @@ export async function run({
   const historicalStore = getHistoricalStore({
     encoding: database.kind,
     schema,
+    readonlyStore,
     namespaceInfo,
     db: database.indexingDb,
     common,
@@ -273,12 +274,7 @@ export async function run({
     });
 
     indexingStore = {
-      ...getReadonlyStore({
-        encoding: database.kind,
-        schema,
-        namespaceInfo,
-        db: database.indexingDb,
-      }),
+      ...readonlyStore,
       ...getRealtimeStore({
         encoding: database.kind,
         schema,
