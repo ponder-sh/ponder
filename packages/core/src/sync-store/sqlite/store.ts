@@ -1783,7 +1783,7 @@ export class SqliteSyncStore implements SyncStore {
         ...zeroCheckpoint,
         blockTimestamp: Math.min(
           decodeCheckpoint(fromCursor).blockTimestamp + this.seconds,
-          9999999999,
+          maxCheckpoint.blockTimestamp,
         ),
       });
       toCursor =
