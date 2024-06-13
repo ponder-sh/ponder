@@ -3,7 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { ReadonlyStore } from "@/indexing-store/store.js";
+import type { HistoricalStore, ReadonlyStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import type { GraphQLSchema } from "graphql";
@@ -160,6 +160,8 @@ test("graphql", async (context) => {
       bigint: 0n,
     },
   });
+
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const graphqlSchema = buildGraphqlSchema(schema);
 

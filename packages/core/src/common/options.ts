@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { LevelWithSilent } from "pino";
@@ -31,7 +32,11 @@ export type Options = {
   databaseHeartbeatInterval: number;
   databaseHeartbeatTimeout: number;
 
-  syncMaxIntervals: number;
+  indexingCacheMaxBytes: number;
+  indexingCacheFlushRatio: number;
+
+  syncStoreMaxIntervals: number;
+  syncEventsQuerySize: number;
 };
 
 export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
@@ -100,6 +105,18 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     databaseHeartbeatInterval: 10 * 1000,
     databaseHeartbeatTimeout: 25 * 1000,
 
-    syncMaxIntervals: 50_000,
+    // os.freemem() / 4, bucketed closest to 64, 128, 256, 512, 1024, 2048 mB
+    indexingCacheMaxBytes:
+      2 **
+        Math.min(
+          Math.max(Math.round(Math.log2(os.freemem() / 1_024 / 1_024 / 4)), 6),
+          11,
+        ) *
+      1_024 *
+      1_024,
+    indexingCacheFlushRatio: 0.35,
+
+    syncStoreMaxIntervals: 50_000,
+    syncEventsQuerySize: 10_000,
   } satisfies Options;
 };

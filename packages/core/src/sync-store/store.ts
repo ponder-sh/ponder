@@ -267,14 +267,7 @@ export interface SyncStore {
     sources: EventSource[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
-    limit: number;
   }): AsyncGenerator<RawEvent[]>;
-
-  getLastEventCheckpoint(arg: {
-    sources: EventSource[];
-    fromCheckpoint: Checkpoint;
-    toCheckpoint: Checkpoint;
-  }): Promise<Checkpoint | undefined>;
 
   /** PRUNING */
 

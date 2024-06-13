@@ -67,12 +67,16 @@ export class PostgresSyncStore implements SyncStore {
   db: HeadlessKysely<SyncStoreTables>;
   common: Common;
 
+  private seconds: number;
+
   constructor({
     db,
     common,
   }: { db: HeadlessKysely<SyncStoreTables>; common: Common }) {
     this.db = db;
     this.common = common;
+
+    this.seconds = common.options.syncEventsQuerySize * 2;
   }
 
   insertLogFilterInterval = async ({
@@ -188,7 +192,7 @@ export class PostgresSyncStore implements SyncStore {
                   .selectFrom("logFilterIntervals")
                   .where("logFilterId", "=", logFilterId)
                   .select("id")
-                  .limit(this.common.options.syncMaxIntervals),
+                  .limit(this.common.options.syncStoreMaxIntervals),
               )
               .returning(["startBlock", "endBlock"])
               .execute();
@@ -216,7 +220,8 @@ export class PostgresSyncStore implements SyncStore {
             }
 
             if (
-              mergedIntervalRows.length === this.common.options.syncMaxIntervals
+              mergedIntervalRows.length ===
+              this.common.options.syncStoreMaxIntervals
             ) {
               // This occurs when there are too many non-mergeable ranges with the same logFilterId. Should be almost impossible.
               throw new NonRetryableError(
@@ -225,7 +230,8 @@ export class PostgresSyncStore implements SyncStore {
             }
 
             if (
-              existingIntervals.length !== this.common.options.syncMaxIntervals
+              existingIntervals.length !==
+              this.common.options.syncStoreMaxIntervals
             )
               break;
           }
@@ -488,7 +494,7 @@ export class PostgresSyncStore implements SyncStore {
                     .selectFrom("factoryLogFilterIntervals")
                     .where("factoryId", "=", factoryId)
                     .select("id")
-                    .limit(this.common.options.syncMaxIntervals),
+                    .limit(this.common.options.syncStoreMaxIntervals),
                 )
                 .returning(["startBlock", "endBlock"])
                 .execute();
@@ -517,7 +523,7 @@ export class PostgresSyncStore implements SyncStore {
 
               if (
                 mergedIntervalRows.length ===
-                this.common.options.syncMaxIntervals
+                this.common.options.syncStoreMaxIntervals
               ) {
                 // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
                 throw new NonRetryableError(
@@ -527,7 +533,7 @@ export class PostgresSyncStore implements SyncStore {
 
               if (
                 existingIntervals.length !==
-                this.common.options.syncMaxIntervals
+                this.common.options.syncStoreMaxIntervals
               )
                 break;
             }
@@ -879,7 +885,7 @@ export class PostgresSyncStore implements SyncStore {
                   .selectFrom("traceFilterIntervals")
                   .where("traceFilterId", "=", traceFilterId)
                   .select("id")
-                  .limit(this.common.options.syncMaxIntervals),
+                  .limit(this.common.options.syncStoreMaxIntervals),
               )
               .returning(["startBlock", "endBlock"])
               .execute();
@@ -907,7 +913,8 @@ export class PostgresSyncStore implements SyncStore {
             }
 
             if (
-              mergedIntervalRows.length === this.common.options.syncMaxIntervals
+              mergedIntervalRows.length ===
+              this.common.options.syncStoreMaxIntervals
             ) {
               // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
               throw new NonRetryableError(
@@ -916,7 +923,8 @@ export class PostgresSyncStore implements SyncStore {
             }
 
             if (
-              existingIntervals.length !== this.common.options.syncMaxIntervals
+              existingIntervals.length !==
+              this.common.options.syncStoreMaxIntervals
             )
               break;
           }
@@ -1127,7 +1135,7 @@ export class PostgresSyncStore implements SyncStore {
                     .selectFrom("factoryTraceFilterIntervals")
                     .where("factoryId", "=", factoryId)
                     .select("id")
-                    .limit(this.common.options.syncMaxIntervals),
+                    .limit(this.common.options.syncStoreMaxIntervals),
                 )
                 .returning(["startBlock", "endBlock"])
                 .execute();
@@ -1156,7 +1164,7 @@ export class PostgresSyncStore implements SyncStore {
 
               if (
                 mergedIntervalRows.length ===
-                this.common.options.syncMaxIntervals
+                this.common.options.syncStoreMaxIntervals
               ) {
                 // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
                 throw new NonRetryableError(
@@ -1166,7 +1174,7 @@ export class PostgresSyncStore implements SyncStore {
 
               if (
                 existingIntervals.length !==
-                this.common.options.syncMaxIntervals
+                this.common.options.syncStoreMaxIntervals
               )
                 break;
             }
@@ -1700,15 +1708,14 @@ export class PostgresSyncStore implements SyncStore {
     sources,
     fromCheckpoint,
     toCheckpoint,
-    limit,
   }: {
     sources: EventSource[];
     fromCheckpoint: Checkpoint;
     toCheckpoint: Checkpoint;
-    limit: number;
   }) {
-    let cursor = encodeCheckpoint(fromCheckpoint);
-    const encodedToCheckpoint = encodeCheckpoint(toCheckpoint);
+    let fromCursor = encodeCheckpoint(fromCheckpoint);
+    let toCursor = encodeCheckpoint(toCheckpoint);
+    const maxToCursor = toCursor;
 
     const sourcesById = sources.reduce<{
       [sourceId: string]: (typeof sources)[number];
@@ -1739,6 +1746,16 @@ export class PostgresSyncStore implements SyncStore {
       );
 
     while (true) {
+      const estimatedToCursor = encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockTimestamp: Math.min(
+          decodeCheckpoint(fromCursor).blockTimestamp + this.seconds,
+          maxCheckpoint.blockTimestamp,
+        ),
+      });
+      toCursor =
+        estimatedToCursor > maxToCursor ? maxToCursor : estimatedToCursor;
+
       const events = await this.db.wrap({ method: "getEvents" }, async () => {
         // Get full log objects, including the eventSelector clause.
         const requestedLogs = await this.db
@@ -2017,10 +2034,10 @@ export class PostgresSyncStore implements SyncStore {
                 "transactionReceipts.type as txr_type",
               ]),
           )
-          .where("events.checkpoint", ">", cursor)
-          .where("events.checkpoint", "<=", encodedToCheckpoint)
+          .where("events.checkpoint", ">", fromCursor)
+          .where("events.checkpoint", "<=", toCursor)
           .orderBy("events.checkpoint", "asc")
-          .limit(limit + 1)
+          .limit(this.common.options.syncEventsQuerySize)
           .execute();
 
         return requestedLogs.map((_row) => {
@@ -2202,114 +2219,35 @@ export class PostgresSyncStore implements SyncStore {
         });
       });
 
-      const hasNextPage = events.length === limit + 1;
-
-      if (!hasNextPage) {
-        yield events;
-        break;
+      // set fromCursor + seconds
+      if (events.length === 0) {
+        this.seconds = Math.round(this.seconds * 2);
+        fromCursor = toCursor;
+      } else if (events.length === this.common.options.syncEventsQuerySize) {
+        this.seconds = Math.round(this.seconds / 2);
+        fromCursor = events[events.length - 1].encodedCheckpoint;
       } else {
-        events.pop();
-        cursor = events[events.length - 1].encodedCheckpoint;
-        yield events;
+        this.seconds = Math.round(
+          Math.min(
+            (this.seconds / events.length) *
+              this.common.options.syncEventsQuerySize *
+              0.9,
+            this.seconds * 2,
+          ),
+        );
+        fromCursor = toCursor;
+      }
+
+      if (events.length > 0) yield events;
+
+      // exit condition
+      if (
+        events.length !== this.common.options.syncEventsQuerySize &&
+        toCursor === maxToCursor
+      ) {
+        break;
       }
     }
-  }
-
-  async getLastEventCheckpoint({
-    sources,
-    fromCheckpoint,
-    toCheckpoint,
-  }: {
-    sources: EventSource[];
-    fromCheckpoint: Checkpoint;
-    toCheckpoint: Checkpoint;
-  }): Promise<Checkpoint | undefined> {
-    return this.db.wrap({ method: "getLastEventCheckpoint" }, async () => {
-      const checkpoint = await this.db
-        .selectFrom("logs")
-        .where((eb) => {
-          const logFilterCmprs = sources
-            .filter(sourceIsLog)
-            .map((logFilter) => {
-              const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-              return eb.and(exprs);
-            });
-
-          const factoryCmprs = sources
-            .filter(sourceIsFactoryLog)
-            .map((factory) => {
-              const exprs = this.buildFactoryLogFilterCmprs({ eb, factory });
-              return eb.and(exprs);
-            });
-
-          return eb.or([...logFilterCmprs, ...factoryCmprs]);
-        })
-        .select("checkpoint")
-        .unionAll(
-          this.db
-            .selectFrom("blocks")
-            .where((eb) => {
-              const exprs = [];
-              const blockFilters = sources.filter(sourceIsBlock);
-              for (const blockFilter of blockFilters) {
-                exprs.push(
-                  eb.and([
-                    eb("chainId", "=", blockFilter.chainId),
-                    eb("number", ">=", BigInt(blockFilter.startBlock)),
-                    ...(blockFilter.endBlock !== undefined
-                      ? [eb("number", "<=", BigInt(blockFilter.endBlock))]
-                      : []),
-                    sql`(number - ${sql.val(
-                      BigInt(blockFilter.criteria.offset),
-                    )}) % ${sql.val(
-                      BigInt(blockFilter.criteria.interval),
-                    )} = 0`,
-                  ]),
-                );
-              }
-              return eb.or(exprs);
-            })
-            .select("checkpoint"),
-        )
-        .unionAll(
-          this.db
-            .selectFrom("callTraces")
-            .where((eb) => {
-              const traceFilterCmprs = sources
-                .filter(sourceIsCallTrace)
-                .map((callTraceSource) => {
-                  const exprs = this.buildTraceFilterCmprs({
-                    eb,
-                    callTraceSource,
-                  });
-                  return eb.and(exprs);
-                });
-
-              const factoryCallTraceCmprs = sources
-                .filter(sourceIsFactoryCallTrace)
-                .map((factory) => {
-                  const exprs = this.buildFactoryTraceFilterCmprs({
-                    eb,
-                    factory,
-                  });
-                  return eb.and(exprs);
-                });
-
-              return eb.or([...traceFilterCmprs, ...factoryCallTraceCmprs]);
-            })
-            .select("checkpoint"),
-        )
-        .where("checkpoint", ">", encodeCheckpoint(fromCheckpoint))
-        .where("checkpoint", "<=", encodeCheckpoint(toCheckpoint))
-        .orderBy("checkpoint", "desc")
-        .executeTakeFirst();
-
-      return checkpoint
-        ? checkpoint.checkpoint
-          ? decodeCheckpoint(checkpoint.checkpoint)
-          : undefined
-        : undefined;
-    });
   }
 
   private buildLogFilterCmprs = ({

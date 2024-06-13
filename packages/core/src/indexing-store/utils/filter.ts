@@ -183,7 +183,7 @@ export function buildWhereConditions({
           }
           return v;
         }
-        return encodeValue(v, column, encoding);
+        return encodeValue({ value: v, column, encoding });
       };
 
       const [comparator, encodedValue] = filterEncodingFn(value, encode);

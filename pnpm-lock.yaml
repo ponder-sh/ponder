@@ -436,6 +436,12 @@ importers:
         specifier: ^1.5.2
         version: 1.5.2(typescript@5.0.4)
 
+  examples/with-foundry/foundry:
+    dependencies:
+      forge-std:
+        specifier: github:foundry-rs/forge-std
+        version: github.com/foundry-rs/forge-std/52715a217dc51d0de15877878ab8213f6cbbbab5
+
   examples/with-foundry/ponder:
     dependencies:
       '@ponder/core':
@@ -4813,9 +4819,6 @@ packages:
 
   /ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
-    peerDependenciesMeta:
-      ajv:
-        optional: true
     dependencies:
       ajv: 8.12.0
     dev: false
@@ -14969,4 +14972,10 @@ packages:
 
   /zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
+    dev: false
+
+  github.com/foundry-rs/forge-std/52715a217dc51d0de15877878ab8213f6cbbbab5:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/52715a217dc51d0de15877878ab8213f6cbbbab5}
+    name: forge-std
+    version: 1.8.2
     dev: false

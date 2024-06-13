@@ -96,7 +96,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const readonlyStore = getReadonlyStore({
-    kind: "postgres",
+    encoding: "postgres",
     schema,
     // Note: `ponder serve` serves data from the `publishSchema`. Also, it does
     // not need the other fields in NamespaceInfo because it only uses findUnique
