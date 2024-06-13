@@ -101,7 +101,9 @@ export const getHistoricalStore = ({
 
   common.logger.debug({
     service: "indexing",
-    msg: `Using a ${Math.round(maxSizeBytes / (1024 * 1024))} mB cache.`,
+    msg: `Using a ${Math.round(
+      maxSizeBytes / (1024 * 1024),
+    )} MB indexing cache`,
   });
 
   /** True if the cache contains the complete state of the store. */
