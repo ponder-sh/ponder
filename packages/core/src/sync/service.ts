@@ -13,7 +13,6 @@ import {
   type Checkpoint,
   checkpointMax,
   checkpointMin,
-  isCheckpointEqual,
   isCheckpointGreaterThan,
   maxCheckpoint,
   zeroCheckpoint,
@@ -33,7 +32,12 @@ export type Service = {
 
   // state
   checkpoint: Checkpoint;
+  /** Checkpoint of the earliest start block. */
   startCheckpoint: Checkpoint;
+  /**
+   * Checkpoint of the latest end block, can
+   * be undefined if not every end block is set.
+   */
   endCheckpoint: Checkpoint | undefined;
   finalizedCheckpoint: Checkpoint;
   isKilled: boolean;
@@ -316,12 +320,14 @@ export const create = async ({
             ...zeroCheckpoint,
             blockTimestamp: hexToNumber(startBlock.timestamp),
             blockNumber: hexToBigInt(startBlock.number),
+            chainId: BigInt(network.chainId),
           },
           endCheckpoint: endBlock
             ? {
                 ...zeroCheckpoint,
                 blockTimestamp: hexToNumber(endBlock.timestamp),
                 blockNumber: hexToBigInt(endBlock.number),
+                chainId: BigInt(network.chainId),
               }
             : undefined,
           initialFinalizedCheckpoint,
@@ -353,12 +359,14 @@ export const create = async ({
             ...zeroCheckpoint,
             blockTimestamp: hexToNumber(startBlock.timestamp),
             blockNumber: hexToBigInt(startBlock.number),
+            chainId: BigInt(network.chainId),
           },
           endCheckpoint: endBlock
             ? {
                 ...zeroCheckpoint,
                 blockTimestamp: hexToNumber(endBlock.timestamp),
                 blockNumber: hexToBigInt(endBlock.number),
+                chainId: BigInt(network.chainId),
               }
             : undefined,
           initialFinalizedCheckpoint,
@@ -445,9 +453,8 @@ export const create = async ({
     endCheckpoint: networkServices.every((ns) => ns.endCheckpoint !== undefined)
       ? checkpointMax(...networkServices.map((ns) => ns.endCheckpoint!))
       : undefined,
-    checkpoint: isCheckpointEqual(initialCheckpoint, zeroCheckpoint)
-      ? startCheckpoint
-      : initialCheckpoint,
+    // Note: The initial checkpoint will be not zero if there is a cache hit.
+    checkpoint: checkpointMax(initialCheckpoint, startCheckpoint),
     finalizedCheckpoint: checkpointMin(
       ...networkServices.map((ns) => ns.initialFinalizedCheckpoint),
     ),

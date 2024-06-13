@@ -7,18 +7,33 @@ import {
 import { getEventsLog, getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { EventSource } from "@/config/sources.js";
 import type { SyncBlock } from "@/sync/index.js";
-import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
-import { hexToNumber, numberToHex } from "viem";
+import { hexToBigInt, hexToNumber, numberToHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { HistoricalSyncService } from "./service.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+
+const createBlockCheckpoint = (
+  block: SyncBlock,
+  isInclusive: boolean,
+): Checkpoint => {
+  return {
+    ...(isInclusive ? maxCheckpoint : zeroCheckpoint),
+    blockTimestamp: hexToNumber(block.timestamp),
+    blockNumber: hexToBigInt(block.number),
+  };
+};
 
 const getBlockNumbers = () =>
   publicClient.getBlockNumber().then((b) => ({
@@ -413,6 +428,8 @@ test("start() adds log filter events to sync store", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
+  const rpcData = await getRawRPCData(sources);
+
   const service = new HistoricalSyncService({
     common,
     syncStore,
@@ -426,8 +443,8 @@ test("start() adds log filter events to sync store", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[0]],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block1.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block5.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -456,6 +473,8 @@ test("start() adds factory events to sync store", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
+  const rpcData = await getRawRPCData(sources);
+
   const service = new HistoricalSyncService({
     common,
     syncStore,
@@ -469,8 +488,8 @@ test("start() adds factory events to sync store", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[1]],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block1.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block5.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -486,6 +505,8 @@ test("start() adds block filter events to sync store", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
+  const rpcData = await getRawRPCData(sources);
+
   const service = new HistoricalSyncService({
     common,
     syncStore,
@@ -499,8 +520,8 @@ test("start() adds block filter events to sync store", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[4]],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block1.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block5.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -524,6 +545,8 @@ test("start() adds trace filter events to sync store", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
+  const rpcData = await getRawRPCData(sources);
+
   const service = new HistoricalSyncService({
     common,
     syncStore,
@@ -540,8 +563,8 @@ test("start() adds trace filter events to sync store", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[3]],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block1.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block5.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -562,6 +585,8 @@ test("start() adds factory trace filter events to sync store", async (context) =
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumbers = await getBlockNumbers();
 
+  const rpcData = await getRawRPCData(sources);
+
   const service = new HistoricalSyncService({
     common,
     syncStore,
@@ -578,8 +603,8 @@ test("start() adds factory trace filter events to sync store", async (context) =
 
   const ag = syncStore.getEvents({
     sources: [sources[2]],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block1.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block5.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 

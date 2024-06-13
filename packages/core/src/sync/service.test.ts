@@ -54,7 +54,8 @@ test("createSyncService()", async (context) => {
     initialCheckpoint: zeroCheckpoint,
   });
 
-  expect(syncService.checkpoint).toStrictEqual(zeroCheckpoint);
+  expect(syncService.checkpoint.blockNumber).toStrictEqual(0n);
+  expect(syncService.checkpoint.chainId).toStrictEqual(1n);
   expect(syncService.networkServices).toHaveLength(2);
 
   expect(syncService.networkServices[0].realtime!.finalizedBlock.number).toBe(
@@ -139,6 +140,8 @@ test("getHistoricalEvents returns checkpoints", async (context) => {
     initialCheckpoint: zeroCheckpoint,
   });
 
+  syncService.checkpoint = zeroCheckpoint;
+
   const ag = getHistoricalCheckpoint(syncService);
 
   syncService.networkServices[0].historical.checkpoint = createCheckpoint({
@@ -211,8 +214,10 @@ test("onRealtimeSyncEvent gets checkpoints", async (context) => {
     initialCheckpoint: zeroCheckpoint,
   });
 
-  syncService.networkServices[0].realtime!.checkpoint = zeroCheckpoint;
-  syncService.networkServices[1].realtime!.checkpoint = zeroCheckpoint;
+  syncService.checkpoint = zeroCheckpoint;
+
+  syncService.networkServices[0].realtime!.checkpoint = syncService.checkpoint;
+  syncService.networkServices[1].realtime!.checkpoint = syncService.checkpoint;
 
   syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "checkpoint",
@@ -248,6 +253,8 @@ test("onRealtimeSyncEvent reorg", async (context) => {
     onFatalError: vi.fn(),
     initialCheckpoint: zeroCheckpoint,
   });
+
+  syncService.checkpoint = zeroCheckpoint;
 
   syncService.networkServices[0].realtime!.checkpoint = createCheckpoint({
     blockNumber: 5n,
@@ -292,6 +299,8 @@ test("onRealtimeSyncEvent multi network", async (context) => {
     initialCheckpoint: zeroCheckpoint,
   });
 
+  syncService.checkpoint = zeroCheckpoint;
+
   syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "checkpoint",
     chainId: networks[0].chainId,
@@ -320,6 +329,8 @@ test("onRealtimeSyncEvent finalize", async (context) => {
     onFatalError: vi.fn(),
     initialCheckpoint: zeroCheckpoint,
   });
+
+  syncService.checkpoint = zeroCheckpoint;
 
   syncService.networkServices[0].realtime!.finalizedCheckpoint =
     createCheckpoint({
@@ -380,6 +391,8 @@ test("onRealtimeSyncEvent unfinalized end block", async (context) => {
     onFatalError: vi.fn(),
     initialCheckpoint: zeroCheckpoint,
   });
+
+  syncService.checkpoint = zeroCheckpoint;
 
   const killSpy = vi.spyOn(
     syncService.networkServices[1].realtime!.realtimeSync,
