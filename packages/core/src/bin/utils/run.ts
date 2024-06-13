@@ -187,15 +187,7 @@ export async function run({
     isCacheExhaustive: isCheckpointEqual(zeroCheckpoint, initialCheckpoint),
   });
 
-  let indexingStore: IndexingStore = {
-    ...getReadonlyStore({
-      encoding: database.kind,
-      schema,
-      namespaceInfo,
-      db: database.indexingDb,
-    }),
-    ...historicalStore,
-  };
+  let indexingStore: IndexingStore = historicalStore;
 
   const indexingService = createIndexingService({
     indexingFunctions,
