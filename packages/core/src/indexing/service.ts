@@ -66,8 +66,7 @@ export type Service = {
   eventCount: {
     [eventName: string]: { [networkName: string]: number };
   };
-  firstEventCheckpoint: Checkpoint | undefined;
-  lastEventCheckpoint: Checkpoint | undefined;
+  startCheckpoint: Checkpoint;
 
   /**
    * Reduce memory usage by reserving space for objects ahead of time
@@ -182,8 +181,7 @@ export const create = ({
     indexingStore,
     isKilled: false,
     eventCount,
-    firstEventCheckpoint: undefined,
-    lastEventCheckpoint: undefined,
+    startCheckpoint: syncService.startCheckpoint,
     currentEvent: {
       contextState,
       context: {
@@ -274,21 +272,6 @@ export const processEvents = async (
   | { status: "success" }
   | { status: "killed" }
 > => {
-  // set first event checkpoint
-  if (events.length > 0 && indexingService.firstEventCheckpoint === undefined) {
-    indexingService.firstEventCheckpoint = decodeCheckpoint(
-      events[0].encodedCheckpoint,
-    );
-
-    // set total seconds
-    if (indexingService.lastEventCheckpoint !== undefined) {
-      indexingService.common.metrics.ponder_indexing_total_seconds.set(
-        indexingService.lastEventCheckpoint.blockTimestamp -
-          indexingService.firstEventCheckpoint.blockTimestamp,
-      );
-    }
-  }
-
   const eventCounts: { [eventName: string]: number } = {};
 
   for (let i = 0; i < events.length; i++) {
@@ -394,30 +377,26 @@ export const processEvents = async (
       ).blockTimestamp;
 
       indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-        eventTimestamp - indexingService.firstEventCheckpoint!.blockTimestamp,
+        eventTimestamp - indexingService.startCheckpoint.blockTimestamp,
       );
       indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
         eventTimestamp,
       );
 
-      // Note(kyle) this is only needed for sqlite
+      // Note: allows for terminal and logs to be updated
       await new Promise(setImmediate);
     }
   }
 
   // set completed seconds
-  if (
-    events.length > 0 &&
-    indexingService.firstEventCheckpoint !== undefined &&
-    indexingService.lastEventCheckpoint !== undefined
-  ) {
+  if (events.length > 0) {
     const lastEventInBatchTimestamp = decodeCheckpoint(
       events[events.length - 1].encodedCheckpoint,
     ).blockTimestamp;
 
     indexingService.common.metrics.ponder_indexing_completed_seconds.set(
       lastEventInBatchTimestamp -
-        indexingService.firstEventCheckpoint.blockTimestamp,
+        indexingService.startCheckpoint.blockTimestamp,
     );
     indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
       lastEventInBatchTimestamp,
@@ -451,18 +430,14 @@ export const kill = (indexingService: Service) => {
   indexingService.isKilled = true;
 };
 
-export const updateLastEventCheckpoint = (
+export const updateTotalSeconds = (
   indexingService: Service,
-  lastEventCheckpoint: Checkpoint,
+  endCheckpoint: Checkpoint,
 ) => {
-  indexingService.lastEventCheckpoint = lastEventCheckpoint;
-
-  if (indexingService.firstEventCheckpoint !== undefined) {
-    indexingService.common.metrics.ponder_indexing_total_seconds.set(
-      indexingService.lastEventCheckpoint.blockTimestamp -
-        indexingService.firstEventCheckpoint.blockTimestamp,
-    );
-  }
+  indexingService.common.metrics.ponder_indexing_total_seconds.set(
+    endCheckpoint.blockTimestamp -
+      indexingService.startCheckpoint.blockTimestamp,
+  );
 };
 
 const updateCompletedEvents = (indexingService: Service) => {

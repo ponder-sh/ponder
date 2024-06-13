@@ -124,13 +124,8 @@ export async function run({
     initialCheckpoint,
   });
 
-  const handleEvents = async (
-    events: Event[],
-    lastEventCheckpoint: Checkpoint | undefined,
-  ) => {
-    if (lastEventCheckpoint !== undefined) {
-      indexingService.updateLastEventCheckpoint(lastEventCheckpoint);
-    }
+  const handleEvents = async (events: Event[], toCheckpoint: Checkpoint) => {
+    indexingService.updateTotalSeconds(toCheckpoint);
 
     if (events.length === 0) return { status: "success" } as const;
 
@@ -155,20 +150,14 @@ export async function run({
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "newEvents": {
-          const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
-            sources: sources,
-            fromCheckpoint: event.fromCheckpoint,
-            toCheckpoint: event.toCheckpoint,
-          });
           for await (const rawEvents of syncStore.getEvents({
             sources,
             fromCheckpoint: event.fromCheckpoint,
             toCheckpoint: event.toCheckpoint,
-            limit: 1_000,
           })) {
             const result = await handleEvents(
               decodeEvents(syncService, rawEvents),
-              lastEventCheckpoint,
+              event.toCheckpoint,
             );
             if (result.status === "error") onReloadableError(result.error);
           }
@@ -233,21 +222,14 @@ export async function run({
       fromCheckpoint,
       toCheckpoint,
     } of syncService.getHistoricalCheckpoint()) {
-      const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
-        sources: sources,
-        fromCheckpoint,
-        toCheckpoint,
-      });
-
       for await (const rawEvents of syncStore.getEvents({
         sources: sources,
         fromCheckpoint,
         toCheckpoint,
-        limit: 1_000,
       })) {
         const result = await handleEvents(
           decodeEvents(syncService, rawEvents),
-          lastEventCheckpoint,
+          toCheckpoint,
         );
 
         if (result.status === "killed") {
@@ -260,6 +242,17 @@ export async function run({
     }
 
     await historicalStore.flush({ isFullFlush: true });
+
+    // Manually update metrics to fix a UI bug that occurs when the end
+    // checkpoint is between the last processed event and the finalized
+    // checkpoint.
+    common.metrics.ponder_indexing_completed_seconds.set(
+      syncService.checkpoint.blockTimestamp -
+        syncService.startCheckpoint.blockTimestamp,
+    );
+    common.metrics.ponder_indexing_completed_timestamp.set(
+      syncService.checkpoint.blockTimestamp,
+    );
 
     // Become healthy
     common.logger.info({
