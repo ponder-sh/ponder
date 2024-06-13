@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Improved performance of indexing functions by using an in-memory cache.
+Improved indexing performance by batching database writes using an in-memory LRU record cache.
