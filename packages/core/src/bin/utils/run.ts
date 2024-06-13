@@ -192,21 +192,14 @@ export async function run({
   const historicalStore = getHistoricalStore({
     encoding: database.kind,
     schema,
+    readonlyStore,
     namespaceInfo,
     db: database.indexingDb,
     common,
     isCacheExhaustive: isCheckpointEqual(zeroCheckpoint, initialCheckpoint),
   });
 
-  let indexingStore: IndexingStore = {
-    ...getReadonlyStore({
-      encoding: database.kind,
-      schema,
-      namespaceInfo,
-      db: database.indexingDb,
-    }),
-    ...historicalStore,
-  };
+  let indexingStore: IndexingStore = historicalStore;
 
   const indexingService = createIndexingService({
     indexingFunctions,
@@ -288,12 +281,7 @@ export async function run({
     });
 
     indexingStore = {
-      ...getReadonlyStore({
-        encoding: database.kind,
-        schema,
-        namespaceInfo,
-        db: database.indexingDb,
-      }),
+      ...readonlyStore,
       ...getRealtimeStore({
         encoding: database.kind,
         schema,

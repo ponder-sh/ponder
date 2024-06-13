@@ -160,36 +160,33 @@ export async function setupDatabaseServices(
       common: context.common,
     });
 
-    const indexingStore = {
-      ...getReadonlyStore({
-        encoding: "sqlite",
-        schema: config.schema,
-        namespaceInfo: result.namespaceInfo,
-        db: database.indexingDb,
-      }),
-      ...(config.indexing === "historical"
+    const readonlyStore = getReadonlyStore({
+      encoding: "sqlite",
+      schema: config.schema,
+      namespaceInfo: result.namespaceInfo,
+      db: database.indexingDb,
+    });
+
+    const indexingStore =
+      config.indexing === "historical"
         ? getHistoricalStore({
             encoding: "sqlite",
             schema: config.schema,
+            readonlyStore,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
             common: context.common,
             isCacheExhaustive: true,
           })
-        : getRealtimeStore({
-            encoding: "sqlite",
-            schema: config.schema,
-            namespaceInfo: result.namespaceInfo,
-            db: database.indexingDb,
-          })),
-    };
-
-    const readonlyStore = getReadonlyStore({
-      encoding: "sqlite",
-      schema: config.schema,
-      namespaceInfo: result.namespaceInfo,
-      db: database.readonlyDb,
-    });
+        : {
+            ...readonlyStore,
+            ...getRealtimeStore({
+              encoding: "sqlite",
+              schema: config.schema,
+              namespaceInfo: result.namespaceInfo,
+              db: database.indexingDb,
+            }),
+          };
 
     const cleanup = () => database.kill();
 
@@ -216,37 +213,33 @@ export async function setupDatabaseServices(
       db: database.syncDb,
       common: context.common,
     });
+    const readonlyStore = getReadonlyStore({
+      encoding: "postgres",
+      schema: config.schema,
+      namespaceInfo: result.namespaceInfo,
+      db: database.indexingDb,
+    });
 
-    const indexingStore = {
-      ...getReadonlyStore({
-        encoding: "postgres",
-        schema: config.schema,
-        namespaceInfo: result.namespaceInfo,
-        db: database.indexingDb,
-      }),
-      ...(config.indexing === "historical"
+    const indexingStore =
+      config.indexing === "historical"
         ? getHistoricalStore({
             encoding: "postgres",
             schema: config.schema,
+            readonlyStore,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
             common: context.common,
             isCacheExhaustive: true,
           })
-        : getRealtimeStore({
-            encoding: "postgres",
-            schema: config.schema,
-            namespaceInfo: result.namespaceInfo,
-            db: database.indexingDb,
-          })),
-    };
-
-    const readonlyStore = getReadonlyStore({
-      encoding: "postgres",
-      schema: config.schema,
-      namespaceInfo: result.namespaceInfo,
-      db: database.readonlyDb,
-    });
+        : {
+            ...readonlyStore,
+            ...getRealtimeStore({
+              encoding: "postgres",
+              schema: config.schema,
+              namespaceInfo: result.namespaceInfo,
+              db: database.indexingDb,
+            }),
+          };
 
     const cleanup = () => database.kill();
 
