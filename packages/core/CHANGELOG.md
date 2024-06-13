@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.4.37
+
+### Patch Changes
+
+- [#929](https://github.com/ponder-sh/ponder/pull/929) [`42f2e9194343fc9e851656c1baedb9d9dd5d66a4`](https://github.com/ponder-sh/ponder/commit/42f2e9194343fc9e851656c1baedb9d9dd5d66a4) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved indexing performance by using a dynamic checkpoint range when querying raw events from the sync store. The checkpoint range adjusts based on the density of events in the previous batch. This eliminates performance issues when using databases that had >1M rows in the `ponder_sync.logs` table.
+
+- [#929](https://github.com/ponder-sh/ponder/pull/929) [`42f2e9194343fc9e851656c1baedb9d9dd5d66a4`](https://github.com/ponder-sh/ponder/commit/42f2e9194343fc9e851656c1baedb9d9dd5d66a4) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved indexing performance by batching database writes using an in-memory LRU record cache.
+
 ## 0.4.36
 
 ### Patch Changes
