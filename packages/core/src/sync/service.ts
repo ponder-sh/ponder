@@ -11,12 +11,9 @@ import {
 import type { SyncStore } from "@/sync-store/store.js";
 import {
   type Checkpoint,
-  checkpointMax,
   checkpointMin,
-  isCheckpointEqual,
   isCheckpointGreaterThan,
   maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
@@ -33,8 +30,6 @@ export type Service = {
 
   // state
   checkpoint: Checkpoint;
-  startCheckpoint: Checkpoint;
-  endCheckpoint: Checkpoint | undefined;
   finalizedCheckpoint: Checkpoint;
   isKilled: boolean;
 
@@ -45,8 +40,6 @@ export type Service = {
     requestQueue: RequestQueue;
     cachedTransport: Transport;
 
-    startCheckpoint: Checkpoint;
-    endCheckpoint: Checkpoint | undefined;
     initialFinalizedCheckpoint: Checkpoint;
 
     realtime:
@@ -227,40 +220,14 @@ export const create = async ({
         common,
       });
 
-      const hasEndBlock = networkSources.every(
-        (source) => source.endBlock !== undefined,
-      );
-
-      const [
-        startBlock,
-        endBlock,
-        { latestBlock, finalizedBlock },
-        remoteChainId,
-      ] = await Promise.all([
-        _eth_getBlockByNumber(
-          { requestQueue },
-          {
-            blockNumber: Math.min(
-              ...networkSources.map((source) => source.startBlock),
-            ),
-          },
-        ),
-        hasEndBlock
-          ? _eth_getBlockByNumber(
-              { requestQueue },
-              {
-                blockNumber: Math.max(
-                  ...networkSources.map((source) => source.endBlock!),
-                ),
-              },
-            )
-          : undefined,
-        getLatestAndFinalizedBlocks({
-          network,
-          requestQueue,
-        }),
-        requestQueue.request({ method: "eth_chainId" }).then(hexToNumber),
-      ]);
+      const [{ latestBlock, finalizedBlock }, remoteChainId] =
+        await Promise.all([
+          getLatestAndFinalizedBlocks({
+            network,
+            requestQueue,
+          }),
+          requestQueue.request({ method: "eth_chainId" }).then(hexToNumber),
+        ]);
 
       if (network.chainId !== remoteChainId) {
         common.logger.warn({
@@ -312,18 +279,6 @@ export const create = async ({
           sources: networkSources,
           requestQueue,
           cachedTransport: cachedTransport({ requestQueue, syncStore }),
-          startCheckpoint: {
-            ...zeroCheckpoint,
-            blockTimestamp: hexToNumber(startBlock.timestamp),
-            blockNumber: hexToBigInt(startBlock.number),
-          },
-          endCheckpoint: endBlock
-            ? {
-                ...zeroCheckpoint,
-                blockTimestamp: hexToNumber(endBlock.timestamp),
-                blockNumber: hexToBigInt(endBlock.number),
-              }
-            : undefined,
           initialFinalizedCheckpoint,
           realtime: undefined,
           historical: {
@@ -349,18 +304,6 @@ export const create = async ({
           sources: networkSources,
           requestQueue,
           cachedTransport: cachedTransport({ requestQueue, syncStore }),
-          startCheckpoint: {
-            ...zeroCheckpoint,
-            blockTimestamp: hexToNumber(startBlock.timestamp),
-            blockNumber: hexToBigInt(startBlock.number),
-          },
-          endCheckpoint: endBlock
-            ? {
-                ...zeroCheckpoint,
-                blockTimestamp: hexToNumber(endBlock.timestamp),
-                blockNumber: hexToBigInt(endBlock.number),
-              }
-            : undefined,
           initialFinalizedCheckpoint,
           realtime: {
             realtimeSync,
@@ -431,23 +374,13 @@ export const create = async ({
     }
   }
 
-  const startCheckpoint = checkpointMin(
-    ...networkServices.map((ns) => ns.startCheckpoint),
-  );
-
   const syncService: Service = {
     common,
     syncStore,
     sources,
     networkServices,
     isKilled: false,
-    startCheckpoint,
-    endCheckpoint: networkServices.every((ns) => ns.endCheckpoint !== undefined)
-      ? checkpointMax(...networkServices.map((ns) => ns.endCheckpoint!))
-      : undefined,
-    checkpoint: isCheckpointEqual(initialCheckpoint, zeroCheckpoint)
-      ? startCheckpoint
-      : initialCheckpoint,
+    checkpoint: initialCheckpoint,
     finalizedCheckpoint: checkpointMin(
       ...networkServices.map((ns) => ns.initialFinalizedCheckpoint),
     ),
@@ -494,7 +427,7 @@ export const getHistoricalCheckpoint = async function* (
 
       yield {
         fromCheckpoint: syncService.checkpoint,
-        toCheckpoint: syncService.endCheckpoint ?? finalityCheckpoint,
+        toCheckpoint: finalityCheckpoint,
       };
 
       syncService.checkpoint = finalityCheckpoint;

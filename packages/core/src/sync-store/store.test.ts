@@ -15,9 +15,7 @@ import {
   sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
-import type { SyncBlock } from "@/sync/index.js";
 import {
-  type Checkpoint,
   EVENT_TYPES,
   decodeCheckpoint,
   maxCheckpoint,
@@ -42,17 +40,6 @@ import { beforeEach, expect, test } from "vitest";
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
-
-const createBlockCheckpoint = (
-  block: SyncBlock,
-  isInclusive: boolean,
-): Checkpoint => {
-  return {
-    ...(isInclusive ? maxCheckpoint : zeroCheckpoint),
-    blockTimestamp: hexToNumber(block.timestamp),
-    blockNumber: hexToBigInt(block.number),
-  };
-};
 
 test("setup creates tables", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -2203,8 +2190,9 @@ test("getEvents with log filters", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: sources.filter((s) => sourceIsFactoryLog(s) || sourceIsLog(s)),
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2254,8 +2242,9 @@ test("getEvents with logs filters and receipts", async (context) => {
         ...s,
         criteria: { ...s.criteria, includeTransactionReceipts: true },
       })),
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2305,8 +2294,9 @@ test("getEvents with block filters", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[4]],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2336,8 +2326,9 @@ test("getEvents with trace filters", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[3]],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2366,8 +2357,9 @@ test("getEvents with factory trace filters", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[2]],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2402,8 +2394,9 @@ test("getEvents filters on log filter with multiple addresses", async (context) 
         },
       },
     ],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2450,8 +2443,9 @@ test("getEvents filters on log filter with single topic", async (context) => {
         },
       },
     ],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2503,8 +2497,9 @@ test("getEvents filters on log filter with multiple topics", async (context) => 
         },
       },
     ],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2542,8 +2537,9 @@ test("getEvents filters on simple factory", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[1]],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block4.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2573,8 +2569,9 @@ test("getEvents filters on startBlock", async (context) => {
     sources: [
       { ...sources[0], startBlock: hexToNumber(rpcData.block4.block.number) },
     ],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2601,8 +2598,9 @@ test("getEvents filters on endBlock", async (context) => {
     sources: [
       { ...sources[0], endBlock: hexToNumber(rpcData.block2.block.number) - 1 },
     ],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2636,7 +2634,8 @@ test("getEvents filters on fromCheckpoint (exclusive)", async (context) => {
       // Should exclude the 1st log in the first block.
       eventIndex: hexToBigInt(rpcData.block2.logs[0].logIndex!),
     },
-    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2662,7 +2661,7 @@ test("getEvents filters on toCheckpoint (inclusive)", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[0]],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    fromCheckpoint: zeroCheckpoint,
     toCheckpoint: {
       chainId: 1n,
       blockTimestamp: Number(rpcData.block2.block.timestamp!),
@@ -2672,6 +2671,7 @@ test("getEvents filters on toCheckpoint (inclusive)", async (context) => {
       // Should include the 2nd log in the first block.
       eventIndex: hexToBigInt(rpcData.block2.logs[1].logIndex!),
     },
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2703,8 +2703,9 @@ test("getEvents filters on block filter criteria", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [{ ...sources[4], endBlock: 3 }],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2744,8 +2745,9 @@ test("getEvents filters on trace filter criteria", async (context) => {
         endBlock: 3,
       },
     ],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2774,8 +2776,9 @@ test("getEvents multiple sources", async (context) => {
 
   const ag = syncStore.getEvents({
     sources,
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2810,8 +2813,9 @@ test("getEvents event filter on factory", async (context) => {
         criteria: { ...sources[1].criteria, topics: [`0x${"0".repeat(64)}`] },
       },
     ],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block3.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2838,8 +2842,9 @@ test("getEvents multichain", async (context) => {
         chainId: 2,
       },
     ],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block2.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2860,10 +2865,6 @@ test("getEvents multichain", async (context) => {
 
 test("getEvents pagination", async (context) => {
   const { erc20, sources } = context;
-
-  // set limit
-  context.common.options.syncEventsQuerySize = 1;
-
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
@@ -2874,8 +2875,9 @@ test("getEvents pagination", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[0], sources[1]],
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block2.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 1,
   });
 
   const firstBatchEvents = await ag.next();
@@ -2914,16 +2916,53 @@ test("getEvents pagination", async (context) => {
 test("getEvents empty", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const rpcData = await getRawRPCData(sources);
 
   const ag = syncStore.getEvents({
     sources,
-    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
-    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
   expect(events).toHaveLength(0);
+
+  await cleanup();
+});
+
+test("getLastEventCheckpoint", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({
+    chainId: 1,
+    ...rpcData.block2,
+  });
+
+  const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
+    sources,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+  });
+
+  expect(lastEventCheckpoint?.blockNumber).toBe(2n);
+  expect(lastEventCheckpoint?.transactionIndex).toBe(1n);
+  expect(lastEventCheckpoint?.eventIndex).toBe(1n);
+
+  await cleanup();
+});
+
+test("getLastEventCheckpoint empty", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
+    sources,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
+  });
+  expect(lastEventCheckpoint).toBe(undefined);
 
   await cleanup();
 });

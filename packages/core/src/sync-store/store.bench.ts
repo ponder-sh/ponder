@@ -337,6 +337,7 @@ for (const c of LOG_FILTER_CASES) {
           ] as EventSource[],
           toCheckpoint,
           fromCheckpoint,
+          limit: 5000,
         });
         const events = await drainAsyncGenerator(ag);
 
@@ -378,6 +379,7 @@ for (const c of LOG_FILTER_CASES) {
           ] as EventSource[],
           toCheckpoint,
           fromCheckpoint,
+          limit: 5000,
         });
         const events = await drainAsyncGenerator(ag);
 
@@ -419,6 +421,7 @@ for (const c of LOG_FILTER_CASES) {
           ] as EventSource[],
           toCheckpoint,
           fromCheckpoint,
+          limit: 5000,
         });
         const events = await drainAsyncGenerator(ag);
 

@@ -5,7 +5,7 @@ import {
   processEvents,
   processSetupEvents,
   updateIndexingStore,
-  updateTotalSeconds,
+  updateLastEventCheckpoint,
 } from "./service.js";
 import type { Context, Service } from "./service.js";
 
@@ -15,7 +15,7 @@ const methods = {
   processEvents,
   processSetupEvents,
   updateIndexingStore,
-  updateTotalSeconds,
+  updateLastEventCheckpoint,
 };
 
 export const createIndexingService = extend(create, methods);
