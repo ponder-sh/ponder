@@ -103,7 +103,15 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     databaseHeartbeatInterval: 10 * 1000,
     databaseHeartbeatTimeout: 25 * 1000,
 
-    indexingCacheBytes: os.freemem() / 3,
+    // os.freemem() / 4, bucketed closest to 64, 128, 256, 512, 1024, 2048 mB
+    indexingCacheBytes:
+      2 **
+        Math.min(
+          Math.max(Math.round(Math.log2(os.freemem() / 1_024 / 1_024 / 4)), 6),
+          11,
+        ) *
+      1_024 *
+      1_024,
 
     syncMaxIntervals: 50_000,
   } satisfies Options;
