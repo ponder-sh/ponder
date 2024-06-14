@@ -256,7 +256,7 @@ const getTxBlockNumber = async (
   const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
 
   const hexBlockNumber = data.result.blockNumber as string;
-  return parseInt(hexBlockNumber.slice(2), 16);
+  return Number.parseInt(hexBlockNumber.slice(2), 16);
 };
 
 const getContractAbiAndName = async (

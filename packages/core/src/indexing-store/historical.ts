@@ -1,6 +1,6 @@
 import type { Common } from "@/common/common.js";
 import { RecordNotFoundError, UniqueConstraintError } from "@/common/errors.js";
-import { HeadlessKysely } from "@/database/kysely.js";
+import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
@@ -178,136 +178,134 @@ export const getHistoricalStore = ({
         cacheSize * (1 - common.options.indexingCacheFlushRatio);
 
       await Promise.all(
-        Object.entries(storeCache).map(
-          async ([tableName, tableStoreCache]) => {
-            const table = (schema[tableName] as { table: Table }).table;
+        Object.entries(storeCache).map(async ([tableName, tableStoreCache]) => {
+          const table = (schema[tableName] as { table: Table }).table;
 
-            let insertRecords: UserRecord[];
-            let updateRecords: UserRecord[];
+          let insertRecords: UserRecord[];
+          let updateRecords: UserRecord[];
 
-            const cacheEntries = Object.values(tableStoreCache);
+          const cacheEntries = Object.values(tableStoreCache);
 
-            if (isFullFlush) {
-              insertRecords = cacheEntries
-                .filter(({ type }) => type === "insert")
-                .map(({ record }) => record!);
-              updateRecords = cacheEntries
-                .filter(({ type }) => type === "update")
-                .map(({ record }) => record!);
-            } else {
-              insertRecords = cacheEntries
-                .filter(
-                  ({ type, opIndex }) =>
-                    type === "insert" && opIndex < flushIndex,
-                )
-                .map(({ record }) => record!);
+          if (isFullFlush) {
+            insertRecords = cacheEntries
+              .filter(({ type }) => type === "insert")
+              .map(({ record }) => record!);
+            updateRecords = cacheEntries
+              .filter(({ type }) => type === "update")
+              .map(({ record }) => record!);
+          } else {
+            insertRecords = cacheEntries
+              .filter(
+                ({ type, opIndex }) =>
+                  type === "insert" && opIndex < flushIndex,
+              )
+              .map(({ record }) => record!);
 
-              updateRecords = cacheEntries
-                .filter(
-                  ({ type, opIndex }) =>
-                    type === "update" && opIndex < flushIndex,
-                )
-                .map(({ record }) => record!);
-            }
+            updateRecords = cacheEntries
+              .filter(
+                ({ type, opIndex }) =>
+                  type === "update" && opIndex < flushIndex,
+              )
+              .map(({ record }) => record!);
+          }
 
-            if (insertRecords.length + updateRecords.length === 0) return;
+          if (insertRecords.length + updateRecords.length === 0) return;
 
-            common.logger.debug({
-              service: "indexing",
-              msg: `Flushing ${
-                insertRecords.length + updateRecords.length
-              } cached '${tableName}' records to the database`,
+          common.logger.debug({
+            service: "indexing",
+            msg: `Flushing ${
+              insertRecords.length + updateRecords.length
+            } cached '${tableName}' records to the database`,
+          });
+
+          // insert
+          for (
+            let i = 0, len = insertRecords.length;
+            i < len;
+            i += MAX_BATCH_SIZE
+          ) {
+            await db.wrap({ method: `${tableName}.flush` }, async () => {
+              const _insertRecords = insertRecords
+                .slice(i, i + MAX_BATCH_SIZE)
+                // skip validation because its already occurred in the store method
+                .map((record) =>
+                  encodeRecord({
+                    record,
+                    table,
+                    schema,
+                    encoding,
+                    skipValidation: true,
+                  }),
+                );
+
+              await db
+                .withSchema(namespaceInfo.userNamespace)
+                .insertInto(tableName)
+                .values(_insertRecords)
+                .execute()
+                .catch((err) => {
+                  throw parseStoreError(
+                    err,
+                    _insertRecords.length > 0 ? _insertRecords[0] : {},
+                  );
+                });
             });
+          }
 
-            // insert
-            for (
-              let i = 0, len = insertRecords.length;
-              i < len;
-              i += MAX_BATCH_SIZE
-            ) {
-              await db.wrap({ method: `${tableName}.flush` }, async () => {
-                const _insertRecords = insertRecords
-                  .slice(i, i + MAX_BATCH_SIZE)
-                  // skip validation because its already occurred in the store method
-                  .map((record) =>
-                    encodeRecord({
-                      record,
-                      table,
-                      schema,
-                      encoding,
-                      skipValidation: true,
-                    }),
-                  );
+          // update
+          for (
+            let i = 0, len = updateRecords.length;
+            i < len;
+            i += MAX_BATCH_SIZE
+          ) {
+            await db.wrap({ method: `${tableName}.flush` }, async () => {
+              const _updateRecords = updateRecords
+                .slice(i, i + MAX_BATCH_SIZE)
+                // skip validation because its already occurred in the store method
+                .map((record) =>
+                  encodeRecord({
+                    record,
+                    table,
+                    schema,
+                    encoding,
+                    skipValidation: true,
+                  }),
+                );
 
-                await db
-                  .withSchema(namespaceInfo.userNamespace)
-                  .insertInto(tableName)
-                  .values(_insertRecords)
-                  .execute()
-                  .catch((err) => {
-                    throw parseStoreError(
-                      err,
-                      _insertRecords.length > 0 ? _insertRecords[0] : {},
-                    );
-                  });
-              });
-            }
-
-            // update
-            for (
-              let i = 0, len = updateRecords.length;
-              i < len;
-              i += MAX_BATCH_SIZE
-            ) {
-              await db.wrap({ method: `${tableName}.flush` }, async () => {
-                const _updateRecords = updateRecords
-                  .slice(i, i + MAX_BATCH_SIZE)
-                  // skip validation because its already occurred in the store method
-                  .map((record) =>
-                    encodeRecord({
-                      record,
-                      table,
-                      schema,
-                      encoding,
-                      skipValidation: true,
-                    }),
-                  );
-
-                await db
-                  .withSchema(namespaceInfo.userNamespace)
-                  .insertInto(tableName)
-                  .values(_updateRecords)
-                  .onConflict((oc) =>
-                    oc.column("id").doUpdateSet((eb) =>
-                      Object.entries(table).reduce<any>(
-                        (acc, [colName, column]) => {
-                          if (colName !== "id") {
-                            if (
-                              isScalarColumn(column) ||
-                              isReferenceColumn(column) ||
-                              isEnumColumn(column) ||
-                              isJSONColumn(column)
-                            ) {
-                              acc[colName] = eb.ref(`excluded.${colName}`);
-                            }
+              await db
+                .withSchema(namespaceInfo.userNamespace)
+                .insertInto(tableName)
+                .values(_updateRecords)
+                .onConflict((oc) =>
+                  oc.column("id").doUpdateSet((eb) =>
+                    Object.entries(table).reduce<any>(
+                      (acc, [colName, column]) => {
+                        if (colName !== "id") {
+                          if (
+                            isScalarColumn(column) ||
+                            isReferenceColumn(column) ||
+                            isEnumColumn(column) ||
+                            isJSONColumn(column)
+                          ) {
+                            acc[colName] = eb.ref(`excluded.${colName}`);
                           }
-                          return acc;
-                        },
-                        {},
-                      ),
+                        }
+                        return acc;
+                      },
+                      {},
                     ),
-                  )
-                  .execute()
-                  .catch((err) => {
-                    throw parseStoreError(
-                      err,
-                      _updateRecords.length > 0 ? _updateRecords[0] : {},
-                    );
-                  });
-              });
-            }
-          },
-        ),
+                  ),
+                )
+                .execute()
+                .catch((err) => {
+                  throw parseStoreError(
+                    err,
+                    _updateRecords.length > 0 ? _updateRecords[0] : {},
+                  );
+                });
+            });
+          }
+        }),
       );
 
       if (isFullFlush) {

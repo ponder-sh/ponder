@@ -345,7 +345,9 @@ export async function buildConfigAndIndexingFunctions({
         : endBlockMaybeNan;
 
       if (endBlock !== undefined && endBlock < startBlock) {
-        throw new Error(`Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`)
+        throw new Error(
+          `Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`,
+        );
       }
 
       // Single network case.
@@ -388,9 +390,11 @@ export async function buildConfigAndIndexingFunctions({
             ? undefined
             : endBlockMaybeNan;
 
-            if (endBlock !== undefined && endBlock < startBlock) {
-              throw new Error(`Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`)
-            }
+          if (endBlock !== undefined && endBlock < startBlock) {
+            throw new Error(
+              `Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`,
+            );
+          }
 
           return {
             contractName,
@@ -591,7 +595,8 @@ export async function buildConfigAndIndexingFunctions({
 
         if (resolvedFactory) {
           // Note that this can throw.
-          const childAddressCriteria = buildChildAddressCriteria(resolvedFactory);
+          const childAddressCriteria =
+            buildChildAddressCriteria(resolvedFactory);
 
           const factoryLogSource = {
             ...baseContract,
@@ -600,7 +605,8 @@ export async function buildConfigAndIndexingFunctions({
             abiEvents: abiEvents,
             criteria: {
               ...childAddressCriteria,
-              includeTransactionReceipts: rawContract.includeTransactionReceipts,
+              includeTransactionReceipts:
+                rawContract.includeTransactionReceipts,
               topics,
             },
           } satisfies FactoryLogSource;

@@ -29,10 +29,10 @@ import { wait } from "@/utils/wait.js";
 import {
   type CreateTableBuilder,
   type Insertable,
-  Kysely,
+  type Kysely,
+  type Transaction as KyselyTransaction,
   Migrator,
   SqliteDialect,
-  Transaction as KyselyTransaction,
   WithSchemaPlugin,
   sql,
 } from "kysely";

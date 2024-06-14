@@ -1,4 +1,4 @@
-import path from "path";
+import path from "node:path";
 import { pathExists } from "fs-extra";
 import pico from "picocolors";
 import validatePackageName from "validate-npm-package-name";

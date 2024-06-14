@@ -6,7 +6,7 @@ import { parse } from "yaml";
 
 import { getGraphProtocolChainId } from "./helpers/getGraphProtocolChainId.js";
 import {
-  GraphSource,
+  type GraphSource,
   validateGraphProtocolSource,
 } from "./helpers/validateGraphProtocolSource.js";
 

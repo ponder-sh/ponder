@@ -1,6 +1,6 @@
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
-import { type Narrow, type Transport } from "viem";
+import type { Narrow, Transport } from "viem";
 import type { GetAddress } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
 import type { NonStrictPick } from "./utilityTypes.js";

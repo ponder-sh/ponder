@@ -15,8 +15,8 @@ import {
 } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
 import {
-  migrationProvider as syncMigrationProvider,
   moveLegacyTables,
+  migrationProvider as syncMigrationProvider,
 } from "@/sync-store/postgres/migrations.js";
 import {
   type Checkpoint,
@@ -31,10 +31,10 @@ import { wait } from "@/utils/wait.js";
 import {
   type CreateTableBuilder,
   type Insertable,
-  Kysely,
+  type Kysely,
+  type Transaction as KyselyTransaction,
   Migrator,
   PostgresDialect,
-  Transaction as KyselyTransaction,
   WithSchemaPlugin,
   sql,
 } from "kysely";

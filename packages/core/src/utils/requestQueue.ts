@@ -13,7 +13,7 @@ import {
   InvalidInputRpcError,
   LimitExceededRpcError,
   type PublicRpcSchema,
-  RpcError,
+  type RpcError,
   type RpcLog,
   hexToBigInt,
   isHex,

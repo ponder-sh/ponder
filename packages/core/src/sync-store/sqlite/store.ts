@@ -46,9 +46,9 @@ import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
 import {
   type ExpressionBuilder,
+  type Transaction as KyselyTransaction,
   type OperandExpression,
   type SqlBool,
-  type Transaction as KyselyTransaction,
   sql,
 } from "kysely";
 import {

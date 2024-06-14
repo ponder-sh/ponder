@@ -2,7 +2,7 @@ import {
   type Address,
   type Hex,
   type LogTopic,
-  RpcError,
+  type RpcError,
   hexToBigInt,
   numberToHex,
 } from "viem";

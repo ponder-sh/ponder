@@ -252,535 +252,544 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       }
 
       switch (source.type) {
-        case "log": {
-          const completedLogFilterIntervals =
-            await this.syncStore.getLogFilterIntervals({
-              chainId: source.chainId,
-              logFilter: source.criteria,
+        case "log":
+          {
+            const completedLogFilterIntervals =
+              await this.syncStore.getLogFilterIntervals({
+                chainId: source.chainId,
+                logFilter: source.criteria,
+              });
+            const logFilterProgressTracker = new ProgressTracker({
+              target: [startBlock, endBlock],
+              completed: completedLogFilterIntervals,
             });
-          const logFilterProgressTracker = new ProgressTracker({
-            target: [startBlock, endBlock],
-            completed: completedLogFilterIntervals,
-          });
-          this.logFilterProgressTrackers[source.id] = logFilterProgressTracker;
+            this.logFilterProgressTrackers[source.id] =
+              logFilterProgressTracker;
 
-          const requiredLogFilterIntervals =
-            logFilterProgressTracker.getRequired();
+            const requiredLogFilterIntervals =
+              logFilterProgressTracker.getRequired();
 
-          const logFilterTaskChunks = getChunks({
-            intervals: requiredLogFilterIntervals,
-            maxChunkSize:
-              source.maxBlockRange ?? this.network.defaultMaxBlockRange,
-          });
+            const logFilterTaskChunks = getChunks({
+              intervals: requiredLogFilterIntervals,
+              maxChunkSize:
+                source.maxBlockRange ?? this.network.defaultMaxBlockRange,
+            });
 
-          for (const [fromBlock, toBlock] of logFilterTaskChunks) {
-            this.queue.addTask(
+            for (const [fromBlock, toBlock] of logFilterTaskChunks) {
+              this.queue.addTask(
+                {
+                  kind: "LOG_FILTER",
+                  logFilter: source,
+                  fromBlock,
+                  toBlock,
+                },
+                { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              );
+            }
+            if (logFilterTaskChunks.length > 0) {
+              const total = intervalSum(requiredLogFilterIntervals);
+              this.common.logger.debug({
+                service: "historical",
+                msg: `Added '${this.network.name}' LOG_FILTER tasks for '${source.contractName}' over a ${total} block range`,
+              });
+            }
+
+            const targetBlockCount = endBlock - startBlock + 1;
+            const cachedBlockCount =
+              targetBlockCount - intervalSum(requiredLogFilterIntervals);
+
+            this.common.metrics.ponder_historical_total_blocks.set(
               {
-                kind: "LOG_FILTER",
-                logFilter: source,
-                fromBlock,
-                toBlock,
+                network: this.network.name,
+                source: source.contractName,
+                type: "log",
               },
-              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              targetBlockCount,
             );
-          }
-          if (logFilterTaskChunks.length > 0) {
-            const total = intervalSum(requiredLogFilterIntervals);
-            this.common.logger.debug({
-              service: "historical",
-              msg: `Added '${this.network.name}' LOG_FILTER tasks for '${source.contractName}' over a ${total} block range`,
-            });
-          }
-
-          const targetBlockCount = endBlock - startBlock + 1;
-          const cachedBlockCount =
-            targetBlockCount - intervalSum(requiredLogFilterIntervals);
-
-          this.common.metrics.ponder_historical_total_blocks.set(
-            {
-              network: this.network.name,
-              source: source.contractName,
-              type: "log",
-            },
-            targetBlockCount,
-          );
-          this.common.metrics.ponder_historical_cached_blocks.set(
-            {
-              network: this.network.name,
-              source: source.contractName,
-              type: "log",
-            },
-            cachedBlockCount,
-          );
-
-          this.common.logger.info({
-            service: "historical",
-            msg: `Started syncing '${this.network.name}' logs for '${
-              source.contractName
-            }' with ${formatPercentage(
-              Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
-            )} cached`,
-          });
-        }
-        break;
-
-        case "factoryLog": {
-          // Note that factory child address progress is stored using
-          // log intervals for the factory log.
-          const completedFactoryChildAddressIntervals =
-            await this.syncStore.getLogFilterIntervals({
-              chainId: source.chainId,
-              logFilter: {
-                address: source.criteria.address,
-                topics: [source.criteria.eventSelector],
-                includeTransactionReceipts: false,
-              },
-            });
-          const factoryChildAddressProgressTracker = new ProgressTracker({
-            target: [startBlock, endBlock],
-            completed: completedFactoryChildAddressIntervals,
-          });
-          this.factoryChildAddressProgressTrackers[source.id] =
-            factoryChildAddressProgressTracker;
-
-          const requiredFactoryChildAddressIntervals =
-            factoryChildAddressProgressTracker.getRequired();
-          const factoryChildAddressTaskChunks = getChunks({
-            intervals: requiredFactoryChildAddressIntervals,
-            maxChunkSize:
-              source.maxBlockRange ?? this.network.defaultMaxBlockRange,
-          });
-
-          for (const [fromBlock, toBlock] of factoryChildAddressTaskChunks) {
-            this.queue.addTask(
+            this.common.metrics.ponder_historical_cached_blocks.set(
               {
-                kind: "FACTORY_CHILD_ADDRESS",
-                factory: source,
-                fromBlock,
-                toBlock,
+                network: this.network.name,
+                source: source.contractName,
+                type: "log",
               },
-              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              cachedBlockCount,
             );
-          }
-          if (factoryChildAddressTaskChunks.length > 0) {
-            const total = intervalSum(requiredFactoryChildAddressIntervals);
-            this.common.logger.debug({
+
+            this.common.logger.info({
               service: "historical",
-              msg: `Added '${this.network.name}' FACTORY_CHILD_ADDRESS tasks for '${source.contractName}' over a ${total} block range`,
+              msg: `Started syncing '${this.network.name}' logs for '${
+                source.contractName
+              }' with ${formatPercentage(
+                Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
+              )} cached`,
             });
           }
+          break;
 
-          const targetFactoryChildAddressBlockCount = endBlock - startBlock + 1;
-          const cachedFactoryChildAddressBlockCount =
-            targetFactoryChildAddressBlockCount -
-            intervalSum(requiredFactoryChildAddressIntervals);
-
-          this.common.metrics.ponder_historical_total_blocks.set(
-            {
-              network: this.network.name,
-              source: `${source.contractName}_factory`,
-              type: "log",
-            },
-            targetFactoryChildAddressBlockCount,
-          );
-          this.common.metrics.ponder_historical_cached_blocks.set(
-            {
-              network: this.network.name,
-              source: `${source.contractName}_factory`,
-              type: "log",
-            },
-            cachedFactoryChildAddressBlockCount,
-          );
-
-          const completedFactoryLogFilterIntervals =
-            await this.syncStore.getFactoryLogFilterIntervals({
-              chainId: source.chainId,
-              factory: source.criteria,
+        case "factoryLog":
+          {
+            // Note that factory child address progress is stored using
+            // log intervals for the factory log.
+            const completedFactoryChildAddressIntervals =
+              await this.syncStore.getLogFilterIntervals({
+                chainId: source.chainId,
+                logFilter: {
+                  address: source.criteria.address,
+                  topics: [source.criteria.eventSelector],
+                  includeTransactionReceipts: false,
+                },
+              });
+            const factoryChildAddressProgressTracker = new ProgressTracker({
+              target: [startBlock, endBlock],
+              completed: completedFactoryChildAddressIntervals,
             });
-          const factoryLogFilterProgressTracker = new ProgressTracker({
-            target: [startBlock, endBlock],
-            completed: completedFactoryLogFilterIntervals,
-          });
-          this.factoryLogFilterProgressTrackers[source.id] =
-            factoryLogFilterProgressTracker;
+            this.factoryChildAddressProgressTrackers[source.id] =
+              factoryChildAddressProgressTracker;
 
-          // Only add factory log filter tasks for any intervals where the
-          // child address tasks are completed, but the factory log filter tasks are not,
-          // because these won't be added automatically by child address tasks.
-          const requiredFactoryLogFilterIntervals =
-            factoryLogFilterProgressTracker.getRequired();
-          const missingFactoryLogFilterIntervals = intervalDifference(
-            requiredFactoryLogFilterIntervals,
-            requiredFactoryChildAddressIntervals,
-          );
+            const requiredFactoryChildAddressIntervals =
+              factoryChildAddressProgressTracker.getRequired();
+            const factoryChildAddressTaskChunks = getChunks({
+              intervals: requiredFactoryChildAddressIntervals,
+              maxChunkSize:
+                source.maxBlockRange ?? this.network.defaultMaxBlockRange,
+            });
 
-          const missingFactoryLogFilterTaskChunks = getChunks({
-            intervals: missingFactoryLogFilterIntervals,
-            maxChunkSize:
-              source.maxBlockRange ?? this.network.defaultMaxBlockRange,
-          });
+            for (const [fromBlock, toBlock] of factoryChildAddressTaskChunks) {
+              this.queue.addTask(
+                {
+                  kind: "FACTORY_CHILD_ADDRESS",
+                  factory: source,
+                  fromBlock,
+                  toBlock,
+                },
+                { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              );
+            }
+            if (factoryChildAddressTaskChunks.length > 0) {
+              const total = intervalSum(requiredFactoryChildAddressIntervals);
+              this.common.logger.debug({
+                service: "historical",
+                msg: `Added '${this.network.name}' FACTORY_CHILD_ADDRESS tasks for '${source.contractName}' over a ${total} block range`,
+              });
+            }
 
-          for (const [
-            fromBlock,
-            toBlock,
-          ] of missingFactoryLogFilterTaskChunks) {
-            this.queue.addTask(
+            const targetFactoryChildAddressBlockCount =
+              endBlock - startBlock + 1;
+            const cachedFactoryChildAddressBlockCount =
+              targetFactoryChildAddressBlockCount -
+              intervalSum(requiredFactoryChildAddressIntervals);
+
+            this.common.metrics.ponder_historical_total_blocks.set(
               {
-                kind: "FACTORY_LOG_FILTER",
-                factoryLogFilter: source,
-                fromBlock,
-                toBlock,
+                network: this.network.name,
+                source: `${source.contractName}_factory`,
+                type: "log",
               },
-              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              targetFactoryChildAddressBlockCount,
             );
-          }
-          if (missingFactoryLogFilterTaskChunks.length > 0) {
-            const total = intervalSum(missingFactoryLogFilterIntervals);
-            this.common.logger.debug({
-              service: "historical",
-              msg: `Added '${this.network.name}' FACTORY_LOG_FILTER tasks for '${source.contractName}' over a ${total} block range`,
-            });
-          }
-
-          const targetFactoryLogFilterBlockCount = endBlock - startBlock + 1;
-          const cachedFactoryLogFilterBlockCount =
-            targetFactoryLogFilterBlockCount -
-            intervalSum(requiredFactoryLogFilterIntervals);
-
-          this.common.metrics.ponder_historical_total_blocks.set(
-            {
-              network: this.network.name,
-              source: source.contractName,
-              type: "log",
-            },
-            targetFactoryLogFilterBlockCount,
-          );
-          this.common.metrics.ponder_historical_cached_blocks.set(
-            {
-              network: this.network.name,
-              source: source.contractName,
-              type: "log",
-            },
-            cachedFactoryLogFilterBlockCount,
-          );
-
-          // Use factory log filter progress for the logger because it better represents
-          // user-facing progress.
-          const cacheRate = Math.min(
-            1,
-            cachedFactoryLogFilterBlockCount /
-              (targetFactoryLogFilterBlockCount || 1),
-          );
-          this.common.logger.info({
-            service: "historical",
-            msg: `Started syncing '${this.network.name}' logs for '${
-              source.contractName
-            }' with ${formatPercentage(cacheRate)} cached`,
-          });
-        }
-        break;
-
-        case "callTrace": {
-          const completedTraceFilterIntervals =
-            await this.syncStore.getTraceFilterIntervals({
-              chainId: source.chainId,
-              traceFilter: source.criteria,
-            });
-          const traceFilterProgressTracker = new ProgressTracker({
-            target: [startBlock, endBlock],
-            completed: completedTraceFilterIntervals,
-          });
-          this.traceFilterProgressTrackers[source.id] =
-            traceFilterProgressTracker;
-
-          const requiredTraceFilterIntervals =
-            traceFilterProgressTracker.getRequired();
-
-          const traceFilterTaskChunks = getChunks({
-            intervals: requiredTraceFilterIntervals,
-            maxChunkSize: TRACE_FILTER_CHUNK_SIZE,
-          });
-
-          for (const [fromBlock, toBlock] of traceFilterTaskChunks) {
-            this.queue.addTask(
+            this.common.metrics.ponder_historical_cached_blocks.set(
               {
-                kind: "TRACE_FILTER",
-                traceFilter: source,
-                fromBlock,
-                toBlock,
+                network: this.network.name,
+                source: `${source.contractName}_factory`,
+                type: "log",
               },
-              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              cachedFactoryChildAddressBlockCount,
             );
-          }
-          if (traceFilterTaskChunks.length > 0) {
-            const total = intervalSum(requiredTraceFilterIntervals);
-            this.common.logger.debug({
-              service: "historical",
-              msg: `Added '${this.network.name}' TRACE_FILTER tasks for '${source.contractName}' over a ${total} block range`,
+
+            const completedFactoryLogFilterIntervals =
+              await this.syncStore.getFactoryLogFilterIntervals({
+                chainId: source.chainId,
+                factory: source.criteria,
+              });
+            const factoryLogFilterProgressTracker = new ProgressTracker({
+              target: [startBlock, endBlock],
+              completed: completedFactoryLogFilterIntervals,
             });
-          }
+            this.factoryLogFilterProgressTrackers[source.id] =
+              factoryLogFilterProgressTracker;
 
-          const targetBlockCount = endBlock - startBlock + 1;
-          const cachedBlockCount =
-            targetBlockCount - intervalSum(requiredTraceFilterIntervals);
+            // Only add factory log filter tasks for any intervals where the
+            // child address tasks are completed, but the factory log filter tasks are not,
+            // because these won't be added automatically by child address tasks.
+            const requiredFactoryLogFilterIntervals =
+              factoryLogFilterProgressTracker.getRequired();
+            const missingFactoryLogFilterIntervals = intervalDifference(
+              requiredFactoryLogFilterIntervals,
+              requiredFactoryChildAddressIntervals,
+            );
 
-          this.common.metrics.ponder_historical_total_blocks.set(
-            {
-              network: this.network.name,
-              source: source.contractName,
-              type: "trace",
-            },
-            targetBlockCount,
-          );
-          this.common.metrics.ponder_historical_cached_blocks.set(
-            {
-              network: this.network.name,
-              source: source.contractName,
-              type: "trace",
-            },
-            cachedBlockCount,
-          );
-
-          this.common.logger.info({
-            service: "historical",
-            msg: `Started syncing '${this.network.name}' call traces for '${
-              source.contractName
-            }' with ${formatPercentage(
-              Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
-            )} cached`,
-          });
-        }
-        break;
-
-        case "factoryCallTrace": {
-          // Note that factory child address progress is stored using
-          // log intervals for the factory log.
-          const completedFactoryChildAddressIntervals =
-            await this.syncStore.getLogFilterIntervals({
-              chainId: source.chainId,
-              logFilter: {
-                address: source.criteria.address,
-                topics: [source.criteria.eventSelector],
-                includeTransactionReceipts: false,
-              },
+            const missingFactoryLogFilterTaskChunks = getChunks({
+              intervals: missingFactoryLogFilterIntervals,
+              maxChunkSize:
+                source.maxBlockRange ?? this.network.defaultMaxBlockRange,
             });
-          const factoryChildAddressProgressTracker = new ProgressTracker({
-            target: [startBlock, endBlock],
-            completed: completedFactoryChildAddressIntervals,
-          });
-          this.factoryChildAddressProgressTrackers[source.id] =
-            factoryChildAddressProgressTracker;
 
-          const requiredFactoryChildAddressIntervals =
-            factoryChildAddressProgressTracker.getRequired();
-          const factoryChildAddressTaskChunks = getChunks({
-            intervals: requiredFactoryChildAddressIntervals,
-            maxChunkSize:
-              source.maxBlockRange ?? this.network.defaultMaxBlockRange,
-          });
+            for (const [
+              fromBlock,
+              toBlock,
+            ] of missingFactoryLogFilterTaskChunks) {
+              this.queue.addTask(
+                {
+                  kind: "FACTORY_LOG_FILTER",
+                  factoryLogFilter: source,
+                  fromBlock,
+                  toBlock,
+                },
+                { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              );
+            }
+            if (missingFactoryLogFilterTaskChunks.length > 0) {
+              const total = intervalSum(missingFactoryLogFilterIntervals);
+              this.common.logger.debug({
+                service: "historical",
+                msg: `Added '${this.network.name}' FACTORY_LOG_FILTER tasks for '${source.contractName}' over a ${total} block range`,
+              });
+            }
 
-          for (const [fromBlock, toBlock] of factoryChildAddressTaskChunks) {
-            this.queue.addTask(
+            const targetFactoryLogFilterBlockCount = endBlock - startBlock + 1;
+            const cachedFactoryLogFilterBlockCount =
+              targetFactoryLogFilterBlockCount -
+              intervalSum(requiredFactoryLogFilterIntervals);
+
+            this.common.metrics.ponder_historical_total_blocks.set(
               {
-                kind: "FACTORY_CHILD_ADDRESS",
-                factory: source,
-                fromBlock,
-                toBlock,
+                network: this.network.name,
+                source: source.contractName,
+                type: "log",
               },
-              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              targetFactoryLogFilterBlockCount,
             );
-          }
-          if (factoryChildAddressTaskChunks.length > 0) {
-            const total = intervalSum(requiredFactoryChildAddressIntervals);
-            this.common.logger.debug({
-              service: "historical",
-              msg: `Added '${this.network.name}' FACTORY_CHILD_ADDRESS tasks for '${source.contractName}' over a ${total} block range`,
-            });
-          }
-
-          const targetFactoryChildAddressBlockCount = endBlock - startBlock + 1;
-          const cachedFactoryChildAddressBlockCount =
-            targetFactoryChildAddressBlockCount -
-            intervalSum(requiredFactoryChildAddressIntervals);
-
-          this.common.metrics.ponder_historical_total_blocks.set(
-            {
-              network: this.network.name,
-              source: `${source.contractName}_factory`,
-              type: "trace",
-            },
-            targetFactoryChildAddressBlockCount,
-          );
-          this.common.metrics.ponder_historical_cached_blocks.set(
-            {
-              network: this.network.name,
-              source: `${source.contractName}_factory`,
-              type: "trace",
-            },
-            cachedFactoryChildAddressBlockCount,
-          );
-
-          const completedFactoryTraceFilterIntervals =
-            await this.syncStore.getFactoryTraceFilterIntervals({
-              chainId: source.chainId,
-              factory: source.criteria,
-            });
-          const factoryTraceFilterProgressTracker = new ProgressTracker({
-            target: [startBlock, endBlock],
-            completed: completedFactoryTraceFilterIntervals,
-          });
-          this.factoryTraceFilterProgressTrackers[source.id] =
-            factoryTraceFilterProgressTracker;
-
-          // Only add factory trace filter tasks for any intervals where the
-          // child address tasks are completed, but the factory trace filter tasks are not,
-          // because these won't be added automatically by child address tasks.
-          const requiredFactoryTraceFilterIntervals =
-            factoryTraceFilterProgressTracker.getRequired();
-          const missingFactoryTraceFilterIntervals = intervalDifference(
-            requiredFactoryTraceFilterIntervals,
-            requiredFactoryChildAddressIntervals,
-          );
-
-          const missingFactoryTraceFilterTaskChunks = getChunks({
-            intervals: missingFactoryTraceFilterIntervals,
-            maxChunkSize: TRACE_FILTER_CHUNK_SIZE,
-          });
-
-          for (const [
-            fromBlock,
-            toBlock,
-          ] of missingFactoryTraceFilterTaskChunks) {
-            this.queue.addTask(
+            this.common.metrics.ponder_historical_cached_blocks.set(
               {
-                kind: "FACTORY_TRACE_FILTER",
-                factoryTraceFilter: source,
-                fromBlock,
-                toBlock,
+                network: this.network.name,
+                source: source.contractName,
+                type: "log",
               },
-              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              cachedFactoryLogFilterBlockCount,
             );
-          }
-          if (missingFactoryTraceFilterTaskChunks.length > 0) {
-            const total = intervalSum(missingFactoryTraceFilterIntervals);
-            this.common.logger.debug({
+
+            // Use factory log filter progress for the logger because it better represents
+            // user-facing progress.
+            const cacheRate = Math.min(
+              1,
+              cachedFactoryLogFilterBlockCount /
+                (targetFactoryLogFilterBlockCount || 1),
+            );
+            this.common.logger.info({
               service: "historical",
-              msg: `Added '${this.network.name}' FACTORY_TRACE_FILTER tasks for '${source.contractName}' over a ${total} block range`,
+              msg: `Started syncing '${this.network.name}' logs for '${
+                source.contractName
+              }' with ${formatPercentage(cacheRate)} cached`,
             });
           }
+          break;
 
-          const targetFactoryTraceFilterBlockCount = endBlock - startBlock + 1;
-          const cachedFactoryTraceFilterBlockCount =
-            targetFactoryTraceFilterBlockCount -
-            intervalSum(requiredFactoryTraceFilterIntervals);
-
-          this.common.metrics.ponder_historical_total_blocks.set(
-            {
-              network: this.network.name,
-              source: source.contractName,
-              type: "trace",
-            },
-            targetFactoryTraceFilterBlockCount,
-          );
-          this.common.metrics.ponder_historical_cached_blocks.set(
-            {
-              network: this.network.name,
-              source: source.contractName,
-              type: "trace",
-            },
-            cachedFactoryTraceFilterBlockCount,
-          );
-
-          // Use factory trace filter progress for the logger because it better represents
-          // user-facing progress.
-          const cacheRate = Math.min(
-            1,
-            cachedFactoryTraceFilterBlockCount /
-              (targetFactoryTraceFilterBlockCount || 1),
-          );
-          this.common.logger.info({
-            service: "historical",
-            msg: `Started syncing '${this.network.name}' call traces for '${
-              source.contractName
-            }' with ${formatPercentage(cacheRate)} cached`,
-          });
-        }
-        break;
-
-        case "block": {
-          const completedBlockFilterIntervals =
-            await this.syncStore.getBlockFilterIntervals({
-              chainId: source.chainId,
-              blockFilter: source.criteria,
+        case "callTrace":
+          {
+            const completedTraceFilterIntervals =
+              await this.syncStore.getTraceFilterIntervals({
+                chainId: source.chainId,
+                traceFilter: source.criteria,
+              });
+            const traceFilterProgressTracker = new ProgressTracker({
+              target: [startBlock, endBlock],
+              completed: completedTraceFilterIntervals,
             });
-          const blockFilterProgressTracker = new ProgressTracker({
-            target: [startBlock, endBlock],
-            completed: completedBlockFilterIntervals,
-          });
-          this.blockFilterProgressTrackers[source.id] =
-            blockFilterProgressTracker;
+            this.traceFilterProgressTrackers[source.id] =
+              traceFilterProgressTracker;
 
-          const requiredBlockFilterIntervals =
-            blockFilterProgressTracker.getRequired();
+            const requiredTraceFilterIntervals =
+              traceFilterProgressTracker.getRequired();
 
-          // block filters are chunked into intervals to avoid unmanageable
-          // amounts of block callbacks being added at once.
+            const traceFilterTaskChunks = getChunks({
+              intervals: requiredTraceFilterIntervals,
+              maxChunkSize: TRACE_FILTER_CHUNK_SIZE,
+            });
 
-          const blockFilterTaskChunks = getChunks({
-            intervals: requiredBlockFilterIntervals,
-            maxChunkSize: this.network.defaultMaxBlockRange,
-          });
+            for (const [fromBlock, toBlock] of traceFilterTaskChunks) {
+              this.queue.addTask(
+                {
+                  kind: "TRACE_FILTER",
+                  traceFilter: source,
+                  fromBlock,
+                  toBlock,
+                },
+                { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              );
+            }
+            if (traceFilterTaskChunks.length > 0) {
+              const total = intervalSum(requiredTraceFilterIntervals);
+              this.common.logger.debug({
+                service: "historical",
+                msg: `Added '${this.network.name}' TRACE_FILTER tasks for '${source.contractName}' over a ${total} block range`,
+              });
+            }
 
-          for (const [fromBlock, toBlock] of blockFilterTaskChunks) {
-            this.queue.addTask(
+            const targetBlockCount = endBlock - startBlock + 1;
+            const cachedBlockCount =
+              targetBlockCount - intervalSum(requiredTraceFilterIntervals);
+
+            this.common.metrics.ponder_historical_total_blocks.set(
               {
-                kind: "BLOCK_FILTER",
-                blockFilter: source,
-                fromBlock,
-                toBlock,
+                network: this.network.name,
+                source: source.contractName,
+                type: "trace",
               },
-              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              targetBlockCount,
             );
-          }
-          if (blockFilterTaskChunks.length > 0) {
-            const total = intervalSum(requiredBlockFilterIntervals);
-            this.common.logger.debug({
+            this.common.metrics.ponder_historical_cached_blocks.set(
+              {
+                network: this.network.name,
+                source: source.contractName,
+                type: "trace",
+              },
+              cachedBlockCount,
+            );
+
+            this.common.logger.info({
               service: "historical",
-              msg: `Added '${this.network.name}' BLOCK_FILTER tasks for '${source.sourceName}' over a ${total} block range`,
+              msg: `Started syncing '${this.network.name}' call traces for '${
+                source.contractName
+              }' with ${formatPercentage(
+                Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
+              )} cached`,
             });
           }
+          break;
 
-          const targetBlockCount = endBlock - startBlock + 1;
-          const cachedBlockCount =
-            targetBlockCount - intervalSum(requiredBlockFilterIntervals);
+        case "factoryCallTrace":
+          {
+            // Note that factory child address progress is stored using
+            // log intervals for the factory log.
+            const completedFactoryChildAddressIntervals =
+              await this.syncStore.getLogFilterIntervals({
+                chainId: source.chainId,
+                logFilter: {
+                  address: source.criteria.address,
+                  topics: [source.criteria.eventSelector],
+                  includeTransactionReceipts: false,
+                },
+              });
+            const factoryChildAddressProgressTracker = new ProgressTracker({
+              target: [startBlock, endBlock],
+              completed: completedFactoryChildAddressIntervals,
+            });
+            this.factoryChildAddressProgressTrackers[source.id] =
+              factoryChildAddressProgressTracker;
 
-          this.common.metrics.ponder_historical_total_blocks.set(
-            {
-              network: this.network.name,
-              source: source.sourceName,
-              type: "block",
-            },
-            targetBlockCount,
-          );
-          this.common.metrics.ponder_historical_cached_blocks.set(
-            {
-              network: this.network.name,
-              source: source.sourceName,
-              type: "block",
-            },
-            cachedBlockCount,
-          );
+            const requiredFactoryChildAddressIntervals =
+              factoryChildAddressProgressTracker.getRequired();
+            const factoryChildAddressTaskChunks = getChunks({
+              intervals: requiredFactoryChildAddressIntervals,
+              maxChunkSize:
+                source.maxBlockRange ?? this.network.defaultMaxBlockRange,
+            });
 
-          this.common.logger.info({
-            service: "historical",
-            msg: `Started syncing '${this.network.name}' blocks for '${
-              source.sourceName
-            }' with ${formatPercentage(
-              Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
-            )} cached`,
-          });
-        }
-        break;
+            for (const [fromBlock, toBlock] of factoryChildAddressTaskChunks) {
+              this.queue.addTask(
+                {
+                  kind: "FACTORY_CHILD_ADDRESS",
+                  factory: source,
+                  fromBlock,
+                  toBlock,
+                },
+                { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              );
+            }
+            if (factoryChildAddressTaskChunks.length > 0) {
+              const total = intervalSum(requiredFactoryChildAddressIntervals);
+              this.common.logger.debug({
+                service: "historical",
+                msg: `Added '${this.network.name}' FACTORY_CHILD_ADDRESS tasks for '${source.contractName}' over a ${total} block range`,
+              });
+            }
+
+            const targetFactoryChildAddressBlockCount =
+              endBlock - startBlock + 1;
+            const cachedFactoryChildAddressBlockCount =
+              targetFactoryChildAddressBlockCount -
+              intervalSum(requiredFactoryChildAddressIntervals);
+
+            this.common.metrics.ponder_historical_total_blocks.set(
+              {
+                network: this.network.name,
+                source: `${source.contractName}_factory`,
+                type: "trace",
+              },
+              targetFactoryChildAddressBlockCount,
+            );
+            this.common.metrics.ponder_historical_cached_blocks.set(
+              {
+                network: this.network.name,
+                source: `${source.contractName}_factory`,
+                type: "trace",
+              },
+              cachedFactoryChildAddressBlockCount,
+            );
+
+            const completedFactoryTraceFilterIntervals =
+              await this.syncStore.getFactoryTraceFilterIntervals({
+                chainId: source.chainId,
+                factory: source.criteria,
+              });
+            const factoryTraceFilterProgressTracker = new ProgressTracker({
+              target: [startBlock, endBlock],
+              completed: completedFactoryTraceFilterIntervals,
+            });
+            this.factoryTraceFilterProgressTrackers[source.id] =
+              factoryTraceFilterProgressTracker;
+
+            // Only add factory trace filter tasks for any intervals where the
+            // child address tasks are completed, but the factory trace filter tasks are not,
+            // because these won't be added automatically by child address tasks.
+            const requiredFactoryTraceFilterIntervals =
+              factoryTraceFilterProgressTracker.getRequired();
+            const missingFactoryTraceFilterIntervals = intervalDifference(
+              requiredFactoryTraceFilterIntervals,
+              requiredFactoryChildAddressIntervals,
+            );
+
+            const missingFactoryTraceFilterTaskChunks = getChunks({
+              intervals: missingFactoryTraceFilterIntervals,
+              maxChunkSize: TRACE_FILTER_CHUNK_SIZE,
+            });
+
+            for (const [
+              fromBlock,
+              toBlock,
+            ] of missingFactoryTraceFilterTaskChunks) {
+              this.queue.addTask(
+                {
+                  kind: "FACTORY_TRACE_FILTER",
+                  factoryTraceFilter: source,
+                  fromBlock,
+                  toBlock,
+                },
+                { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              );
+            }
+            if (missingFactoryTraceFilterTaskChunks.length > 0) {
+              const total = intervalSum(missingFactoryTraceFilterIntervals);
+              this.common.logger.debug({
+                service: "historical",
+                msg: `Added '${this.network.name}' FACTORY_TRACE_FILTER tasks for '${source.contractName}' over a ${total} block range`,
+              });
+            }
+
+            const targetFactoryTraceFilterBlockCount =
+              endBlock - startBlock + 1;
+            const cachedFactoryTraceFilterBlockCount =
+              targetFactoryTraceFilterBlockCount -
+              intervalSum(requiredFactoryTraceFilterIntervals);
+
+            this.common.metrics.ponder_historical_total_blocks.set(
+              {
+                network: this.network.name,
+                source: source.contractName,
+                type: "trace",
+              },
+              targetFactoryTraceFilterBlockCount,
+            );
+            this.common.metrics.ponder_historical_cached_blocks.set(
+              {
+                network: this.network.name,
+                source: source.contractName,
+                type: "trace",
+              },
+              cachedFactoryTraceFilterBlockCount,
+            );
+
+            // Use factory trace filter progress for the logger because it better represents
+            // user-facing progress.
+            const cacheRate = Math.min(
+              1,
+              cachedFactoryTraceFilterBlockCount /
+                (targetFactoryTraceFilterBlockCount || 1),
+            );
+            this.common.logger.info({
+              service: "historical",
+              msg: `Started syncing '${this.network.name}' call traces for '${
+                source.contractName
+              }' with ${formatPercentage(cacheRate)} cached`,
+            });
+          }
+          break;
+
+        case "block":
+          {
+            const completedBlockFilterIntervals =
+              await this.syncStore.getBlockFilterIntervals({
+                chainId: source.chainId,
+                blockFilter: source.criteria,
+              });
+            const blockFilterProgressTracker = new ProgressTracker({
+              target: [startBlock, endBlock],
+              completed: completedBlockFilterIntervals,
+            });
+            this.blockFilterProgressTrackers[source.id] =
+              blockFilterProgressTracker;
+
+            const requiredBlockFilterIntervals =
+              blockFilterProgressTracker.getRequired();
+
+            // block filters are chunked into intervals to avoid unmanageable
+            // amounts of block callbacks being added at once.
+
+            const blockFilterTaskChunks = getChunks({
+              intervals: requiredBlockFilterIntervals,
+              maxChunkSize: this.network.defaultMaxBlockRange,
+            });
+
+            for (const [fromBlock, toBlock] of blockFilterTaskChunks) {
+              this.queue.addTask(
+                {
+                  kind: "BLOCK_FILTER",
+                  blockFilter: source,
+                  fromBlock,
+                  toBlock,
+                },
+                { priority: Number.MAX_SAFE_INTEGER - fromBlock },
+              );
+            }
+            if (blockFilterTaskChunks.length > 0) {
+              const total = intervalSum(requiredBlockFilterIntervals);
+              this.common.logger.debug({
+                service: "historical",
+                msg: `Added '${this.network.name}' BLOCK_FILTER tasks for '${source.sourceName}' over a ${total} block range`,
+              });
+            }
+
+            const targetBlockCount = endBlock - startBlock + 1;
+            const cachedBlockCount =
+              targetBlockCount - intervalSum(requiredBlockFilterIntervals);
+
+            this.common.metrics.ponder_historical_total_blocks.set(
+              {
+                network: this.network.name,
+                source: source.sourceName,
+                type: "block",
+              },
+              targetBlockCount,
+            );
+            this.common.metrics.ponder_historical_cached_blocks.set(
+              {
+                network: this.network.name,
+                source: source.sourceName,
+                type: "block",
+              },
+              cachedBlockCount,
+            );
+
+            this.common.logger.info({
+              service: "historical",
+              msg: `Started syncing '${this.network.name}' blocks for '${
+                source.sourceName
+              }' with ${formatPercentage(
+                Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
+              )} cached`,
+            });
+          }
+          break;
 
         default:
           never(source);

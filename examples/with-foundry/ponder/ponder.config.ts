@@ -1,6 +1,6 @@
 import { createConfig } from "@ponder/core";
 import { http, getAddress, hexToNumber } from "viem";
-import { Hex } from "viem";
+import type { Hex } from "viem";
 import { counterABI } from "../abis/CounterAbi";
 import CounterDeploy from "../foundry/broadcast/Deploy.s.sol/31337/run-latest.json";
 
