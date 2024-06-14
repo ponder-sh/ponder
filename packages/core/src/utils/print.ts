@@ -8,18 +8,11 @@ export function prettyPrint(
       if (value === undefined) return null;
 
       const trimmedValue =
-        typeof value === "string" && value.length > 80
-          ? value.slice(0, 80).concat("...")
-          : value;
+        typeof value === "string" && value.length > 80 ? value.slice(0, 80).concat("...") : value;
 
       return [key, trimmedValue];
     })
     .filter(Boolean) as [string, string][];
-  const maxLength = entries.reduce(
-    (acc, [key]) => Math.max(acc, key.length),
-    0,
-  );
-  return entries
-    .map(([key, value]) => `  ${`${key}`.padEnd(maxLength + 1)}  ${value}`)
-    .join("\n");
+  const maxLength = entries.reduce((acc, [key]) => Math.max(acc, key.length), 0);
+  return entries.map(([key, value]) => `  ${`${key}`.padEnd(maxLength + 1)}  ${value}`).join("\n");
 }

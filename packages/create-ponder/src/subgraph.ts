@@ -47,10 +47,7 @@ export const fromSubgraphId = async ({
   // Fetch and write all referenced ABIs.
   const abiFiles = dataSources
     .flatMap((source) => validateGraphProtocolSource(source).mapping.abis)
-    .filter(
-      (source, idx, arr) =>
-        arr.findIndex((s) => s.name === source.name) === idx,
-    );
+    .filter((source, idx, arr) => arr.findIndex((s) => s.name === source.name) === idx);
 
   const abis: any = {};
 
@@ -60,10 +57,9 @@ export const fromSubgraphId = async ({
       const abiPath = path.join(rootDir, `./abis/${abi.name}Abi.ts`);
       writeFileSync(
         abiPath,
-        await prettier.format(
-          `export const ${abi.name}Abi = ${abiContent} as const`,
-          { parser: "typescript" },
-        ),
+        await prettier.format(`export const ${abi.name}Abi = ${abiContent} as const`, {
+          parser: "typescript",
+        }),
       );
       abis[abi.name] = JSON.parse(abiContent);
     }),
@@ -99,9 +95,7 @@ export const fromSubgraphId = async ({
     contractsObject[pc.name] = pc;
     networksObject[pc.network] = {
       chainId: getGraphProtocolChainId(pc.network),
-      transport: `http(process.env.PONDER_RPC_URL_${getGraphProtocolChainId(
-        pc.network,
-      )})`,
+      transport: `http(process.env.PONDER_RPC_URL_${getGraphProtocolChainId(pc.network)})`,
     };
     contractsObject[pc.name].name = undefined;
   });

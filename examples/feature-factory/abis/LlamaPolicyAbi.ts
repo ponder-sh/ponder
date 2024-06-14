@@ -309,9 +309,7 @@ export const LlamaPolicyAbi = [
       { internalType: "uint256", name: "timestamp", type: "uint256" },
     ],
     name: "getPastRoleSupplyAsNumberOfHolders",
-    outputs: [
-      { internalType: "uint96", name: "numberOfHolders", type: "uint96" },
-    ],
+    outputs: [{ internalType: "uint96", name: "numberOfHolders", type: "uint96" }],
     stateMutability: "view",
     type: "function",
   },
@@ -321,9 +319,7 @@ export const LlamaPolicyAbi = [
       { internalType: "uint256", name: "timestamp", type: "uint256" },
     ],
     name: "getPastRoleSupplyAsQuantitySum",
-    outputs: [
-      { internalType: "uint96", name: "totalQuantity", type: "uint96" },
-    ],
+    outputs: [{ internalType: "uint96", name: "totalQuantity", type: "uint96" }],
     stateMutability: "view",
     type: "function",
   },
@@ -340,18 +336,14 @@ export const LlamaPolicyAbi = [
   {
     inputs: [{ internalType: "uint8", name: "role", type: "uint8" }],
     name: "getRoleSupplyAsNumberOfHolders",
-    outputs: [
-      { internalType: "uint96", name: "numberOfHolders", type: "uint96" },
-    ],
+    outputs: [{ internalType: "uint96", name: "numberOfHolders", type: "uint96" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [{ internalType: "uint8", name: "role", type: "uint8" }],
     name: "getRoleSupplyAsQuantitySum",
-    outputs: [
-      { internalType: "uint96", name: "totalQuantity", type: "uint96" },
-    ],
+    outputs: [{ internalType: "uint96", name: "totalQuantity", type: "uint96" }],
     stateMutability: "view",
     type: "function",
   },
@@ -573,9 +565,7 @@ export const LlamaPolicyAbi = [
     type: "function",
   },
   {
-    inputs: [
-      { internalType: "address", name: "policyholder", type: "address" },
-    ],
+    inputs: [{ internalType: "address", name: "policyholder", type: "address" }],
     name: "revokePolicy",
     outputs: [],
     stateMutability: "nonpayable",

@@ -24,19 +24,9 @@ import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
-import type {
-  BlockEvent,
-  CallTraceEvent,
-  Event,
-  LogEvent,
-  SetupEvent,
-} from "../sync/events.js";
+import type { BlockEvent, CallTraceEvent, Event, LogEvent, SetupEvent } from "../sync/events.js";
 import { addStackTrace } from "./addStackTrace.js";
-import {
-  type ReadOnlyClient,
-  buildCachedActions,
-  buildDb,
-} from "./ponderActions.js";
+import { type ReadOnlyClient, buildCachedActions, buildDb } from "./ponderActions.js";
 
 export type Context = {
   network: { chainId: number; name: string };
@@ -110,13 +100,10 @@ export const create = ({
   const clientByChainId: Service["clientByChainId"] = {};
   const contractsByChainId: Service["contractsByChainId"] = {};
 
-  const networkByChainId = networks.reduce<Service["networkByChainId"]>(
-    (acc, cur) => {
-      acc[cur.chainId] = cur;
-      return acc;
-    },
-    {},
-  );
+  const networkByChainId = networks.reduce<Service["networkByChainId"]>((acc, cur) => {
+    acc[cur.chainId] = cur;
+    return acc;
+  }, {});
 
   // build contractsByChainId
   for (const source of sources) {
@@ -139,8 +126,7 @@ export const create = ({
 
     // Note: multiple sources with the same contract (logs and traces)
     // should only create one entry in the `contracts` object
-    if (contractsByChainId[source.chainId][source.contractName] !== undefined)
-      continue;
+    if (contractsByChainId[source.chainId][source.contractName] !== undefined) continue;
 
     contractsByChainId[source.chainId][source.contractName] = {
       abi: source.abi,
@@ -220,11 +206,7 @@ export const processSetupEvents = async (
     sources: EventSource[];
     networks: Network[];
   },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" } | { status: "killed" }> => {
   for (const eventName of Object.keys(indexingService.indexingFunctions)) {
     if (!eventName.endsWith(":setup")) continue;
 
@@ -267,11 +249,7 @@ export const processSetupEvents = async (
 export const processEvents = async (
   indexingService: Service,
   { events }: { events: Event[] },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" } | { status: "killed" }> => {
   const eventCounts: { [eventName: string]: number } = {};
 
   for (let i = 0; i < events.length; i++) {
@@ -372,16 +350,12 @@ export const processEvents = async (
     if (i % 93 === 0) {
       updateCompletedEvents(indexingService);
 
-      const eventTimestamp = decodeCheckpoint(
-        event.encodedCheckpoint,
-      ).blockTimestamp;
+      const eventTimestamp = decodeCheckpoint(event.encodedCheckpoint).blockTimestamp;
 
       indexingService.common.metrics.ponder_indexing_completed_seconds.set(
         eventTimestamp - indexingService.startCheckpoint.blockTimestamp,
       );
-      indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
-        eventTimestamp,
-      );
+      indexingService.common.metrics.ponder_indexing_completed_timestamp.set(eventTimestamp);
 
       // Note: allows for terminal and logs to be updated
       await new Promise(setImmediate);
@@ -395,8 +369,7 @@ export const processEvents = async (
     ).blockTimestamp;
 
     indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-      lastEventInBatchTimestamp -
-        indexingService.startCheckpoint.blockTimestamp,
+      lastEventInBatchTimestamp - indexingService.startCheckpoint.blockTimestamp,
     );
     indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
       lastEventInBatchTimestamp,
@@ -430,13 +403,9 @@ export const kill = (indexingService: Service) => {
   indexingService.isKilled = true;
 };
 
-export const updateTotalSeconds = (
-  indexingService: Service,
-  endCheckpoint: Checkpoint,
-) => {
+export const updateTotalSeconds = (indexingService: Service, endCheckpoint: Checkpoint) => {
   indexingService.common.metrics.ponder_indexing_total_seconds.set(
-    endCheckpoint.blockTimestamp -
-      indexingService.startCheckpoint.blockTimestamp,
+    endCheckpoint.blockTimestamp - indexingService.startCheckpoint.blockTimestamp,
   );
 };
 
@@ -458,11 +427,7 @@ const updateCompletedEvents = (indexingService: Service) => {
 const executeSetup = async (
   indexingService: Service,
   { event }: { event: SetupEvent },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" } | { status: "killed" }> => {
   const {
     common,
     indexingFunctions,
@@ -492,10 +457,7 @@ const executeSetup = async (
       context: currentEvent.context,
     });
 
-    common.metrics.ponder_indexing_function_duration.observe(
-      metricLabel,
-      endClock(),
-    );
+    common.metrics.ponder_indexing_function_duration.observe(metricLabel, endClock());
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
     const error = _error as Error;
@@ -523,11 +485,7 @@ const executeSetup = async (
 const executeLog = async (
   indexingService: Service,
   { event }: { event: LogEvent },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" } | { status: "killed" }> => {
   const {
     common,
     indexingFunctions,
@@ -565,10 +523,7 @@ const executeLog = async (
       context: currentEvent.context,
     });
 
-    common.metrics.ponder_indexing_function_duration.observe(
-      metricLabel,
-      endClock(),
-    );
+    common.metrics.ponder_indexing_function_duration.observe(metricLabel, endClock());
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
     const error = _error as Error & { meta?: string[] };
@@ -599,11 +554,7 @@ const executeLog = async (
 const executeBlock = async (
   indexingService: Service,
   { event }: { event: BlockEvent },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" } | { status: "killed" }> => {
   const {
     common,
     indexingFunctions,
@@ -638,10 +589,7 @@ const executeBlock = async (
       context: currentEvent.context,
     });
 
-    common.metrics.ponder_indexing_function_duration.observe(
-      metricLabel,
-      endClock(),
-    );
+    common.metrics.ponder_indexing_function_duration.observe(metricLabel, endClock());
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
     const error = _error as Error & { meta?: string[] };
@@ -677,11 +625,7 @@ const executeBlock = async (
 const executeCallTrace = async (
   indexingService: Service,
   { event }: { event: CallTraceEvent },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" } | { status: "killed" }> => {
   const {
     common,
     indexingFunctions,
@@ -719,10 +663,7 @@ const executeCallTrace = async (
       context: currentEvent.context,
     });
 
-    common.metrics.ponder_indexing_function_duration.observe(
-      metricLabel,
-      endClock(),
-    );
+    common.metrics.ponder_indexing_function_duration.observe(metricLabel, endClock());
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
     const error = _error as Error & { meta?: string[] };

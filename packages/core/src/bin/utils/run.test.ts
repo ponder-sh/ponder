@@ -1,8 +1,4 @@
-import {
-  setupAnvil,
-  setupCommon,
-  setupIsolatedDatabase,
-} from "@/_test/setup.js";
+import { setupAnvil, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import type { Build } from "@/build/index.js";
 import * as codegen from "@/common/codegen.js";
 import { createSchema } from "@/schema/schema.js";

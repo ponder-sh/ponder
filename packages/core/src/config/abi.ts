@@ -1,10 +1,5 @@
 import { getDuplicateElements } from "@/utils/duplicates.js";
-import {
-  type Abi,
-  type AbiEvent,
-  type AbiFunction,
-  formatAbiItem,
-} from "abitype";
+import { type Abi, type AbiEvent, type AbiFunction, formatAbiItem } from "abitype";
 import {
   type GetEventArgs,
   type Hex,
@@ -66,9 +61,7 @@ export const buildAbiEvents = ({ abi }: { abi: Abi }) => {
     .filter((item): item is AbiEvent => item.type === "event")
     .filter((item) => item.anonymous === undefined || item.anonymous === false);
 
-  const overloadedEventNames = getDuplicateElements(
-    abiEvents.map((item) => item.name),
-  );
+  const overloadedEventNames = getDuplicateElements(abiEvents.map((item) => item.name));
 
   return abiEvents.reduce<AbiEvents>(
     (acc, item) => {
@@ -95,9 +88,7 @@ export function buildTopics(
 ): LogTopic[] {
   if (Array.isArray(filter.event)) {
     // List of event signatures
-    return [
-      filter.event.map((event) => getEventSelector(findAbiEvent(abi, event))),
-    ];
+    return [filter.event.map((event) => getEventSelector(findAbiEvent(abi, event)))];
   } else {
     // Single event with args
     return encodeEventTopics({
@@ -122,13 +113,9 @@ const findAbiEvent = (abi: Abi, eventName: string): AbiEvent => {
 };
 
 export const buildAbiFunctions = ({ abi }: { abi: Abi }) => {
-  const abiFunctions = abi.filter(
-    (item): item is AbiFunction => item.type === "function",
-  );
+  const abiFunctions = abi.filter((item): item is AbiFunction => item.type === "function");
 
-  const overloadedFunctionNames = getDuplicateElements(
-    abiFunctions.map((item) => item.name),
-  );
+  const overloadedFunctionNames = getDuplicateElements(abiFunctions.map((item) => item.name));
 
   return abiFunctions.reduce<AbiFunctions>(
     (acc, item) => {

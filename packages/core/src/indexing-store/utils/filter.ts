@@ -9,11 +9,7 @@ import {
   isReferenceColumn,
   isScalarColumn,
 } from "@/schema/utils.js";
-import type {
-  ComparisonOperatorExpression,
-  ExpressionBuilder,
-  ExpressionWrapper,
-} from "kysely";
+import type { ComparisonOperatorExpression, ExpressionBuilder, ExpressionWrapper } from "kysely";
 import { encodeValue } from "./encoding.js";
 
 const filterValidityMap = {
@@ -61,10 +57,8 @@ const filterEncodingMap: {
   ) => [comparator: ComparisonOperatorExpression, value: any];
 } = {
   // Universal
-  equals: (value, encode) =>
-    value === null ? ["is", null] : ["=", encode(value)],
-  not: (value, encode) =>
-    value === null ? ["is not", null] : ["!=", encode(value)],
+  equals: (value, encode) => (value === null ? ["is", null] : ["=", encode(value)]),
+  not: (value, encode) => (value === null ? ["is not", null] : ["!=", encode(value)]),
   // Singular
   in: (value, encode) => ["in", value.map(encode)],
   notIn: (value, encode) => ["not in", value.map(encode)],
@@ -134,15 +128,11 @@ export function buildWhereConditions({
     }
 
     if (isOneColumn(column) || isManyColumn(column)) {
-      throw new StoreError(
-        `Invalid filter. Cannot filter on virtual column '${columnName}'.`,
-      );
+      throw new StoreError(`Invalid filter. Cannot filter on virtual column '${columnName}'.`);
     }
 
     if (isJSONColumn(column)) {
-      throw new StoreError(
-        `Invalid filter. Cannot filter on json column '${columnName}'.`,
-      );
+      throw new StoreError(`Invalid filter. Cannot filter on json column '${columnName}'.`);
     }
 
     // Handle the shortcut case for `equals`, e.g. { user: "abc" }.
@@ -153,9 +143,7 @@ export function buildWhereConditions({
       const filterType = isEnumColumn(column) ? "string" : column[" scalar"];
 
       const allowedConditions =
-        filterValidityMap[filterType]?.[
-          isListColumn(column) ? "list" : "singular"
-        ];
+        filterValidityMap[filterType]?.[isListColumn(column) ? "list" : "singular"];
       if (!allowedConditions.includes(condition)) {
         throw new StoreError(
           `Invalid filter condition for column '${columnName}'. Got '${condition}', expected one of [${allowedConditions
@@ -170,8 +158,7 @@ export function buildWhereConditions({
       // We need to use the singular encoding function for the arguments.
       const encode = (v: any) => {
         const isListCondition =
-          isListColumn(column) &&
-          (condition === "has" || condition === "notHas");
+          isListColumn(column) && (condition === "has" || condition === "notHas");
 
         if (isListCondition) {
           // Must encode the value the same way that it is encoded as a list in

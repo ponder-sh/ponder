@@ -15,13 +15,10 @@ export const EVM_MIN_INT =
  * @returns 33-byte Buffer representing the encoded integer.
  */
 export function encodeAsText(value: bigint | number | Hex) {
-  if (typeof value === "string" || typeof value === "number")
-    value = BigInt(value);
+  if (typeof value === "string" || typeof value === "number") value = BigInt(value);
 
-  if (value > EVM_MAX_UINT)
-    throw new Error(`Value cannot be greater than EVM_MAX_UINT (${value})`);
-  if (value < EVM_MIN_INT)
-    throw new Error(`Value cannot be less than EVM_MIN_INT (${value})`);
+  if (value > EVM_MAX_UINT) throw new Error(`Value cannot be greater than EVM_MAX_UINT (${value})`);
+  if (value < EVM_MIN_INT) throw new Error(`Value cannot be less than EVM_MIN_INT (${value})`);
 
   const signChar = value >= 0n ? "0" : "-";
 

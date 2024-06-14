@@ -38,9 +38,7 @@ test("zkevm block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
-  expect(JSON.stringify(error)).includes(
-    "logs are limited to a 10000 block range",
-  );
+  expect(JSON.stringify(error)).includes("logs are limited to a 10000 block range");
 
   const retry = getLogsRetryHelper({
     params,

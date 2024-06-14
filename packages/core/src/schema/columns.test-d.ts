@@ -5,9 +5,7 @@ test("base", () => {
   const c = string();
   //    ^?
 
-  assertType<keyof typeof c>(
-    {} as unknown as "optional" | "list" | "references",
-  );
+  assertType<keyof typeof c>({} as unknown as "optional" | "list" | "references");
   assertType<Omit<typeof c, "optional" | "list" | "references">>(
     {} as unknown as {
       " type": "scalar";
@@ -162,9 +160,7 @@ test("one", () => {
   const c = one("column");
   //    ^?
 
-  assertType<typeof c>(
-    {} as unknown as { " type": "one"; " reference": "column" },
-  );
+  assertType<typeof c>({} as unknown as { " type": "one"; " reference": "column" });
 });
 
 test("many", () => {
@@ -244,9 +240,7 @@ test("index", () => {
   const i = index("column");
   //    ^?
 
-  assertType<keyof typeof i>(
-    {} as unknown as "asc" | "desc" | "nullsFirst" | "nullsLast",
-  );
+  assertType<keyof typeof i>({} as unknown as "asc" | "desc" | "nullsFirst" | "nullsLast");
   assertType<Omit<typeof i, "asc" | "desc" | "nullsFirst" | "nullsLast">>(
     {} as unknown as {
       " type": "index";

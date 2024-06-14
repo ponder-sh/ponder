@@ -1,8 +1,4 @@
-import {
-  setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
-} from "@/_test/setup.js";
+import { setupCommon, setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
 import type { HistoricalStore, ReadonlyStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -142,10 +138,9 @@ test("graphql", async (context) => {
     }),
   }));
 
-  const { indexingStore, readonlyStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { indexingStore, readonlyStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
 
   await indexingStore.create({
     tableName: "table",
@@ -263,9 +258,7 @@ test("graphql extra filter", async (context) => {
 
   expect(response.status).toBe(200);
   const body = await response.json();
-  expect(body.errors[0].message).toBe(
-    'Unknown argument "doesntExist" on field "Query.table".',
-  );
+  expect(body.errors[0].message).toBe('Unknown argument "doesntExist" on field "Query.table".');
 
   await cleanup();
 
@@ -319,9 +312,7 @@ test("graphql token limit error", async (context) => {
 
   expect(response.status).toBe(200);
   const body = await response.json();
-  expect(body.errors[0].message).toBe(
-    "Syntax Error: Token limit of 3 exceeded.",
-  );
+  expect(body.errors[0].message).toBe("Syntax Error: Token limit of 3 exceeded.");
 
   await cleanup();
 
@@ -375,9 +366,7 @@ test("graphql depth limit error", async (context) => {
 
   expect(response.status).toBe(200);
   const body = await response.json();
-  expect(body.errors[0].message).toBe(
-    "Syntax Error: Query depth limit of 5 exceeded, found 7.",
-  );
+  expect(body.errors[0].message).toBe("Syntax Error: Query depth limit of 5 exceeded, found 7.");
 
   await cleanup();
 
@@ -441,9 +430,7 @@ test("graphql max aliases error", async (context) => {
 
   expect(response.status).toBe(200);
   const body = await response.json();
-  expect(body.errors[0].message).toBe(
-    "Syntax Error: Aliases limit of 2 exceeded, found 3.",
-  );
+  expect(body.errors[0].message).toBe("Syntax Error: Aliases limit of 2 exceeded, found 3.");
 
   await cleanup();
 

@@ -17,10 +17,7 @@ type Log = {
   error?: Error;
 };
 
-export function createLogger({
-  level,
-  mode = "pretty",
-}: { level: LogLevel; mode?: LogMode }) {
+export function createLogger({ level, mode = "pretty" }: { level: LogLevel; mode?: LogMode }) {
   const stream: DestinationStream = {
     write(logString: string) {
       if (mode === "json") {
@@ -39,9 +36,7 @@ export function createLogger({
       level,
       serializers: {
         error: pino.stdSerializers.wrapErrorSerializer((error) => {
-          error.meta = Array.isArray(error.meta)
-            ? error.meta.join("\n")
-            : error.meta;
+          error.meta = Array.isArray(error.meta) ? error.meta.join("\n") : error.meta;
           //@ts-ignore
           error.type = undefined;
           return error;

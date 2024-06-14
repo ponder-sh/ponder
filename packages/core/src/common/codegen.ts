@@ -40,11 +40,7 @@ export function runCodegen({
   common: Common;
   graphqlSchema: GraphQLSchema;
 }) {
-  writeFileSync(
-    path.join(common.options.rootDir, "ponder-env.d.ts"),
-    ponderEnv,
-    "utf8",
-  );
+  writeFileSync(path.join(common.options.rootDir, "ponder-env.d.ts"), ponderEnv, "utf8");
 
   common.logger.debug({
     service: "codegen",

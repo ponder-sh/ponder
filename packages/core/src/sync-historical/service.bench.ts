@@ -19,8 +19,7 @@ const setup = async () => {
   setupCommon(context);
   await setupAnvil(context);
   const teardownDatabase = await setupIsolatedDatabase(context);
-  const { syncStore: syncStore_, cleanup: cleanupSyncStore } =
-    await setupDatabaseServices(context);
+  const { syncStore: syncStore_, cleanup: cleanupSyncStore } = await setupDatabaseServices(context);
   syncStore = syncStore_;
 
   cleanup = async () => {

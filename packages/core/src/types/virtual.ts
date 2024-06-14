@@ -9,13 +9,7 @@ import type {
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type { Schema as BuilderSchema } from "@/schema/common.js";
 import type { InferSchemaType } from "@/schema/infer.js";
-import type {
-  Block,
-  CallTrace,
-  Log,
-  Transaction,
-  TransactionReceipt,
-} from "@/types/eth.js";
+import type { Block, CallTrace, Log, Transaction, TransactionReceipt } from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Prettify } from "./utils.js";
 
@@ -50,9 +44,7 @@ export namespace Virtual {
     blocks extends Config["blocks"],
   > =
     | {
-        [name in keyof contracts]: `${name & string}:${
-          | _FormatEventNames<contracts[name]>
-          | Setup}`;
+        [name in keyof contracts]: `${name & string}:${_FormatEventNames<contracts[name]> | Setup}`;
       }[keyof contracts]
     | {
         [name in keyof blocks]: `${name & string}:block`;
@@ -69,10 +61,7 @@ export namespace Virtual {
   type FormatTransactionReceipts<
     contract extends Config["contracts"][string],
     ///
-    includeTxr = ExtractOverridenProperty<
-      contract,
-      "includeTransactionReceipts"
-    >,
+    includeTxr = ExtractOverridenProperty<contract, "includeTransactionReceipts">,
   > = includeTxr extends includeTxr
     ? includeTxr extends true
       ? {
@@ -113,14 +102,8 @@ export namespace Virtual {
     : name extends `${string}.${string}`
       ? Prettify<
           {
-            args: FormatFunctionArgs<
-              config["contracts"][contractName]["abi"],
-              eventName
-            >;
-            result: FormatFunctionResult<
-              config["contracts"][contractName]["abi"],
-              eventName
-            >;
+            args: FormatFunctionArgs<config["contracts"][contractName]["abi"], eventName>;
+            result: FormatFunctionResult<config["contracts"][contractName]["abi"], eventName>;
             trace: Prettify<CallTrace>;
             block: Prettify<Block>;
             transaction: Prettify<Transaction>;
@@ -131,10 +114,7 @@ export namespace Virtual {
         : Prettify<
             {
               name: eventName;
-              args: FormatEventArgs<
-                config["contracts"][contractName]["abi"],
-                eventName
-              >;
+              args: FormatEventArgs<config["contracts"][contractName]["abi"], eventName>;
               log: Prettify<Log>;
               block: Prettify<Block>;
               transaction: Prettify<Transaction>;
@@ -176,18 +156,9 @@ export namespace Virtual {
     contracts: {
       [_contractName in keyof config["contracts"]]: {
         abi: config["contracts"][_contractName]["abi"];
-        address: ExtractOverridenProperty<
-          config["contracts"][_contractName],
-          "address"
-        >;
-        startBlock: ExtractOverridenProperty<
-          config["contracts"][_contractName],
-          "startBlock"
-        >;
-        endBlock: ExtractOverridenProperty<
-          config["contracts"][_contractName],
-          "endBlock"
-        >;
+        address: ExtractOverridenProperty<config["contracts"][_contractName], "address">;
+        startBlock: ExtractOverridenProperty<config["contracts"][_contractName], "startBlock">;
+        endBlock: ExtractOverridenProperty<config["contracts"][_contractName], "endBlock">;
       };
     };
     network: sourceNetwork extends string
@@ -200,8 +171,7 @@ export namespace Virtual {
         {
           [key in keyof sourceNetwork]: {
             name: key;
-            chainId: config["networks"][key &
-              keyof config["networks"]]["chainId"];
+            chainId: config["networks"][key & keyof config["networks"]]["chainId"];
           };
         }[keyof sourceNetwork];
     client: Prettify<

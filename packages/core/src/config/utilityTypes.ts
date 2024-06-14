@@ -11,10 +11,11 @@ export type NonStrictPick<T, K> = {
   [P in Extract<keyof T, K>]: T[P];
 };
 
-export type ExtractAbiEvents<
-  abi extends Abi,
-  events = Extract<abi[number], { type: "event" }>,
-> = [events] extends [never] ? AbiEvent : events;
+export type ExtractAbiEvents<abi extends Abi, events = Extract<abi[number], { type: "event" }>> = [
+  events,
+] extends [never]
+  ? AbiEvent
+  : events;
 
 export type ExtractAbiFunctions<
   abi extends Abi,
@@ -45,10 +46,7 @@ export type ParseAbiFunction<
     abiFunctions,
     { name: signature extends `${infer _signature}()` ? _signature : never }
   >,
-  overloadFunction = Extract<
-    abiFunctions,
-    ParseAbiItem<`function ${signature}`>
-  >,
+  overloadFunction = Extract<abiFunctions, ParseAbiItem<`function ${signature}`>>,
 > = [overloadFunction] extends [never]
   ? [noOverloadFunction] extends [never]
     ? AbiFunction
@@ -61,10 +59,7 @@ export type FormatAbiEvent<
   event extends AbiEvent,
   ///
   abiEvents extends AbiEvent = ExtractAbiEvents<abi>,
-  matchingNameEvents extends AbiEvent = Extract<
-    abiEvents,
-    { name: event["name"] }
-  >,
+  matchingNameEvents extends AbiEvent = Extract<abiEvents, { name: event["name"] }>,
 > = [matchingNameEvents] extends [never]
   ? Abi extends abi
     ? event["name"]
@@ -81,10 +76,7 @@ export type FormatAbiFunction<
   _function extends AbiFunction,
   ///
   abiFunctions extends AbiFunction = ExtractAbiFunctions<abi>,
-  matchingNameFunctions extends AbiFunction = Extract<
-    abiFunctions,
-    { name: _function["name"] }
-  >,
+  matchingNameFunctions extends AbiFunction = Extract<abiFunctions, { name: _function["name"] }>,
 > = [matchingNameFunctions] extends [never]
   ? Abi extends abi
     ? `${_function["name"]}()`
@@ -111,14 +103,9 @@ export type SafeFunctionNames<
   abi extends Abi,
   ///
   abiFunctions extends AbiFunction = ExtractAbiFunctions<abi>,
-> = abiFunctions extends abiFunctions
-  ? FormatAbiFunction<abi, abiFunctions>
-  : never;
+> = abiFunctions extends abiFunctions ? FormatAbiFunction<abi, abiFunctions> : never;
 
-export type FormatEventArgs<
-  abi extends Abi,
-  signature extends string,
-> = GetEventArgs<
+export type FormatEventArgs<abi extends Abi, signature extends string> = GetEventArgs<
   Abi,
   string,
   {
@@ -133,20 +120,12 @@ export type FormatFunctionArgs<
   abi extends Abi,
   signature extends string,
   ///
-  args = AbiParametersToPrimitiveTypes<
-    ParseAbiFunction<abi, signature>["inputs"]
-  >,
+  args = AbiParametersToPrimitiveTypes<ParseAbiFunction<abi, signature>["inputs"]>,
 > = readonly [] extends args ? never : args;
 
 export type FormatFunctionResult<
   abi extends Abi,
   signature extends string,
   ///
-  result = AbiParametersToPrimitiveTypes<
-    ParseAbiFunction<abi, signature>["outputs"]
-  >,
-> = readonly [] extends result
-  ? never
-  : result extends readonly [unknown]
-    ? result[0]
-    : result;
+  result = AbiParametersToPrimitiveTypes<ParseAbiFunction<abi, signature>["outputs"]>,
+> = readonly [] extends result ? never : result extends readonly [unknown] ? result[0] : result;

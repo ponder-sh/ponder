@@ -9,10 +9,8 @@ ponder.on("multicall3.aggregate3()", async ({ event, context }) => {
         (acc, cur) => acc + Math.ceil((cur.callData.length - 2) / 8),
         0,
       ),
-      successfulCalls: event.result.filter(({ success }) => success === true)
-        .length,
-      failedCalls: event.result.filter(({ success }) => success === false)
-        .length,
+      successfulCalls: event.result.filter(({ success }) => success === true).length,
+      failedCalls: event.result.filter(({ success }) => success === false).length,
     },
     update: ({ current }) => ({
       gasUsed: current.gasUsed + event.trace.gasUsed,
@@ -23,11 +21,9 @@ ponder.on("multicall3.aggregate3()", async ({ event, context }) => {
           0,
         ),
       successfulCalls:
-        current.successfulCalls +
-        event.result.filter(({ success }) => success === true).length,
+        current.successfulCalls + event.result.filter(({ success }) => success === true).length,
       failedCalls:
-        current.failedCalls +
-        event.result.filter(({ success }) => success === false).length,
+        current.failedCalls + event.result.filter(({ success }) => success === false).length,
     }),
   });
 });

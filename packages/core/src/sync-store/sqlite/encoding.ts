@@ -3,12 +3,7 @@ import { encodeAsText } from "@/utils/encoding.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { Generated, Insertable } from "kysely";
 import type { Address, Hash, Hex, RpcTransactionReceipt } from "viem";
-import {
-  type RpcBlock,
-  type RpcLog,
-  type RpcTransaction,
-  hexToNumber,
-} from "viem";
+import { type RpcBlock, type RpcLog, type RpcTransaction, hexToNumber } from "viem";
 
 export type BigIntText = string;
 
@@ -39,13 +34,9 @@ type BlocksTable = {
 
 export type InsertableBlock = Insertable<BlocksTable>;
 
-export function rpcToSqliteBlock(
-  block: RpcBlock,
-): Omit<InsertableBlock, "chainId" | "checkpoint"> {
+export function rpcToSqliteBlock(block: RpcBlock): Omit<InsertableBlock, "chainId" | "checkpoint"> {
   return {
-    baseFeePerGas: block.baseFeePerGas
-      ? encodeAsText(block.baseFeePerGas)
-      : null,
+    baseFeePerGas: block.baseFeePerGas ? encodeAsText(block.baseFeePerGas) : null,
     difficulty: encodeAsText(block.difficulty),
     extraData: block.extraData,
     gasLimit: encodeAsText(block.gasLimit),
@@ -62,9 +53,7 @@ export function rpcToSqliteBlock(
     size: encodeAsText(block.size),
     stateRoot: block.stateRoot,
     timestamp: encodeAsText(block.timestamp),
-    totalDifficulty: block.totalDifficulty
-      ? encodeAsText(block.totalDifficulty)
-      : null,
+    totalDifficulty: block.totalDifficulty ? encodeAsText(block.totalDifficulty) : null,
     transactionsRoot: block.transactionsRoot,
   };
 }
@@ -99,9 +88,7 @@ export function rpcToSqliteTransaction(
   transaction: RpcTransaction,
 ): Omit<InsertableTransaction, "chainId"> {
   return {
-    accessList: transaction.accessList
-      ? JSON.stringify(transaction.accessList)
-      : undefined,
+    accessList: transaction.accessList ? JSON.stringify(transaction.accessList) : undefined,
     blockHash: transaction.blockHash!,
     blockNumber: encodeAsText(transaction.blockNumber!),
     from: toLowerCase(transaction.from),
@@ -109,9 +96,7 @@ export function rpcToSqliteTransaction(
     gasPrice: transaction.gasPrice ? encodeAsText(transaction.gasPrice) : null,
     hash: transaction.hash,
     input: transaction.input,
-    maxFeePerGas: transaction.maxFeePerGas
-      ? encodeAsText(transaction.maxFeePerGas)
-      : null,
+    maxFeePerGas: transaction.maxFeePerGas ? encodeAsText(transaction.maxFeePerGas) : null,
     maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
       ? encodeAsText(transaction.maxPriorityFeePerGas)
       : null,
@@ -145,8 +130,7 @@ type TransactionReceiptsTable = {
   chainId: number;
 };
 
-export type InsertableTransactionReceipts =
-  Insertable<TransactionReceiptsTable>;
+export type InsertableTransactionReceipts = Insertable<TransactionReceiptsTable>;
 
 export function rpcToSqliteTransactionReceipt(
   transactionReceipt: RpcTransactionReceipt,

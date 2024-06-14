@@ -1,8 +1,4 @@
-import {
-  setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
-} from "@/_test/setup.js";
+import { setupCommon, setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -2906,9 +2902,7 @@ test("limit error", async (context) => {
   });
 
   // @ts-ignore
-  expect(result.errors[0].message).toBe(
-    "Invalid limit. Got 1005, expected <=1000.",
-  );
+  expect(result.errors[0].message).toBe("Invalid limit. Got 1005, expected <=1000.");
 
   await cleanup();
 });
@@ -2945,13 +2939,10 @@ test("filter type has correct suffixes and types", () => {
     { name: string; type: GraphQLType }
   >;
 
-  const fieldsPretty = Object.entries(fields).reduce<Record<string, any>>(
-    (acc, [key, value]) => {
-      acc[key] = value.type.toString();
-      return acc;
-    },
-    {},
-  );
+  const fieldsPretty = Object.entries(fields).reduce<Record<string, any>>((acc, [key, value]) => {
+    acc[key] = value.type.toString();
+    return acc;
+  }, {});
 
   expect(fieldsPretty).toMatchObject({
     id: "String",

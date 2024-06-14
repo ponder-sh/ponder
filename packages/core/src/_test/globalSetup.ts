@@ -23,9 +23,7 @@ export default async function () {
       const databases = databaseRows.rows.map((r) => r.datname) as string[];
 
       await Promise.all(
-        databases.map((databaseName) =>
-          pool.query(`DROP DATABASE "${databaseName}"`),
-        ),
+        databases.map((databaseName) => pool.query(`DROP DATABASE "${databaseName}"`)),
       );
 
       await pool.end();

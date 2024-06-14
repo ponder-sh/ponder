@@ -8,9 +8,7 @@ import { fetchWithTimeout, startClock } from "./utils";
 
 const fetchPonderMetrics = async () => {
   try {
-    const metricsResponse = await fetchWithTimeout(
-      "http://0.0.0.0:42069/metrics",
-    );
+    const metricsResponse = await fetchWithTimeout("http://0.0.0.0:42069/metrics");
     const metricsRaw = await metricsResponse.text();
     return metricsRaw.split("\n");
   } catch (err) {

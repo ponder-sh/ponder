@@ -164,9 +164,7 @@ export function buildWhereObject(where: Record<string, any>) {
 
     const storeCondition = graphqlFilterToStoreCondition[condition];
     if (!storeCondition) {
-      throw new BuildError(
-        `Invalid query: Unknown where condition: ${fieldName}_${condition}`,
-      );
+      throw new BuildError(`Invalid query: Unknown where condition: ${fieldName}_${condition}`);
     }
 
     whereObject[fieldName] ||= {};

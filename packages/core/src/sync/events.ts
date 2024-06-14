@@ -1,18 +1,7 @@
 import type { RawEvent } from "@/sync-store/store.js";
-import type {
-  Block,
-  CallTrace,
-  Log,
-  Transaction,
-  TransactionReceipt,
-} from "@/types/eth.js";
+import type { Block, CallTrace, Log, Transaction, TransactionReceipt } from "@/types/eth.js";
 import { never } from "@/utils/never.js";
-import {
-  type Hex,
-  decodeEventLog,
-  decodeFunctionData,
-  decodeFunctionResult,
-} from "viem";
+import { type Hex, decodeEventLog, decodeFunctionData, decodeFunctionResult } from "viem";
 import type { Service } from "./service.js";
 
 export type SetupEvent = {
@@ -111,8 +100,7 @@ export const decodeEvents = (
             throw new Error();
           }
 
-          const functionName =
-            source.abiFunctions.bySelector[selector]!.safeName;
+          const functionName = source.abiFunctions.bySelector[selector]!.safeName;
 
           events.push({
             type: "callTrace",
@@ -156,8 +144,7 @@ export const decodeEvents = (
             throw new Error();
           }
 
-          const logEventName =
-            source.abiEvents.bySelector[event.log!.topics[0]]!.safeName;
+          const logEventName = source.abiEvents.bySelector[event.log!.topics[0]]!.safeName;
 
           events.push({
             type: "log",

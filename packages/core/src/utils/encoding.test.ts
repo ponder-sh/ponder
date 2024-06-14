@@ -1,11 +1,6 @@
 import { expect, test } from "vitest";
 
-import {
-  EVM_MAX_UINT,
-  EVM_MIN_INT,
-  decodeToBigInt,
-  encodeAsText,
-} from "./encoding.js";
+import { EVM_MAX_UINT, EVM_MIN_INT, decodeToBigInt, encodeAsText } from "./encoding.js";
 
 test("encodeAsText handles small positive integer", () => {
   const value = 101n;

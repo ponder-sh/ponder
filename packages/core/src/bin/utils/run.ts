@@ -16,11 +16,7 @@ import type { SyncStore } from "@/sync-store/store.js";
 import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
 import { createSyncService } from "@/sync/index.js";
-import {
-  type Checkpoint,
-  isCheckpointEqual,
-  zeroCheckpoint,
-} from "@/utils/checkpoint.js";
+import { type Checkpoint, isCheckpointEqual, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
 
@@ -218,19 +214,13 @@ export async function run({
     }
 
     // Run historical indexing until complete.
-    for await (const {
-      fromCheckpoint,
-      toCheckpoint,
-    } of syncService.getHistoricalCheckpoint()) {
+    for await (const { fromCheckpoint, toCheckpoint } of syncService.getHistoricalCheckpoint()) {
       for await (const rawEvents of syncStore.getEvents({
         sources: sources,
         fromCheckpoint,
         toCheckpoint,
       })) {
-        const result = await handleEvents(
-          decodeEvents(syncService, rawEvents),
-          toCheckpoint,
-        );
+        const result = await handleEvents(decodeEvents(syncService, rawEvents), toCheckpoint);
 
         if (result.status === "killed") {
           return;
@@ -247,12 +237,9 @@ export async function run({
     // checkpoint is between the last processed event and the finalized
     // checkpoint.
     common.metrics.ponder_indexing_completed_seconds.set(
-      syncService.checkpoint.blockTimestamp -
-        syncService.startCheckpoint.blockTimestamp,
+      syncService.checkpoint.blockTimestamp - syncService.startCheckpoint.blockTimestamp,
     );
-    common.metrics.ponder_indexing_completed_timestamp.set(
-      syncService.checkpoint.blockTimestamp,
-    );
+    common.metrics.ponder_indexing_completed_timestamp.set(syncService.checkpoint.blockTimestamp);
 
     // Become healthy
     common.logger.info({

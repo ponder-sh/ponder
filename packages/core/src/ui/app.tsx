@@ -89,9 +89,7 @@ const App = (ui: UiState) => {
       <Box flexDirection="column">
         <Text> </Text>
 
-        <Text color="cyan">
-          Resolve the error and save your changes to reload the server.
-        </Text>
+        <Text color="cyan">Resolve the error and save your changes to reload the server.</Text>
       </Box>
     );
   }
@@ -109,8 +107,7 @@ const App = (ui: UiState) => {
     historicalElement = (
       <>
         <Text>
-          <Text bold={true}>Historical sync </Text>(
-          <Text color="greenBright">done</Text>)
+          <Text bold={true}>Historical sync </Text>(<Text color="greenBright">done</Text>)
         </Text>
         <Text> </Text>
       </>
@@ -119,15 +116,10 @@ const App = (ui: UiState) => {
     historicalElement = (
       <>
         <Text>
-          <Text bold={true}>Historical sync </Text>(
-          <Text color="yellowBright">in progress</Text>)
+          <Text bold={true}>Historical sync </Text>(<Text color="yellowBright">in progress</Text>)
         </Text>
         <Box flexDirection="row">
-          <ProgressBar
-            current={historical.overall.progress}
-            end={1}
-            width={50}
-          />
+          <ProgressBar current={historical.overall.progress} end={1} width={50} />
           <Text>
             {" "}
             {historical.overall.progress === 1 ? (
@@ -135,10 +127,7 @@ const App = (ui: UiState) => {
             ) : (
               formatPercentage(historical.overall.progress)
             )}{" "}
-            (
-            {historical.overall.cachedBlocks +
-              historical.overall.completedBlocks}{" "}
-            blocks)
+            ({historical.overall.cachedBlocks + historical.overall.completedBlocks} blocks)
           </Text>
         </Box>
         <Text> </Text>
@@ -152,8 +141,7 @@ const App = (ui: UiState) => {
               title: "Cached",
               key: "cachedBlocks",
               align: "right",
-              format: (_, row) =>
-                row.cachedBlocks !== undefined ? row.cachedBlocks : "-",
+              format: (_, row) => (row.cachedBlocks !== undefined ? row.cachedBlocks : "-"),
             },
             {
               title: "Completed",
@@ -233,11 +221,7 @@ const App = (ui: UiState) => {
               key: "averageDuration",
               align: "right",
               format: (v) =>
-                v > 0
-                  ? v < 1
-                    ? `${(v * 1_000).toFixed(2)}μs`
-                    : `${v.toFixed(2)}ms`
-                  : "-",
+                v > 0 ? (v < 1 ? `${(v * 1_000).toFixed(2)}μs` : `${v.toFixed(2)}ms`) : "-",
             },
           ]}
         />

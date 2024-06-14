@@ -17,9 +17,7 @@ export const erc1155ABI = [
       { name: "ids", internalType: "uint256[]", type: "uint256[]" },
     ],
     name: "balanceOfBatch",
-    outputs: [
-      { name: "balances", internalType: "uint256[]", type: "uint256[]" },
-    ],
+    outputs: [{ name: "balances", internalType: "uint256[]", type: "uint256[]" }],
   },
   {
     stateMutability: "view",

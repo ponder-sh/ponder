@@ -107,11 +107,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     // os.freemem() / 4, bucketed closest to 64, 128, 256, 512, 1024, 2048 mB
     indexingCacheMaxBytes:
-      2 **
-        Math.min(
-          Math.max(Math.round(Math.log2(os.freemem() / 1_024 / 1_024 / 4)), 6),
-          11,
-        ) *
+      2 ** Math.min(Math.max(Math.round(Math.log2(os.freemem() / 1_024 / 1_024 / 4)), 6), 11) *
       1_024 *
       1_024,
     indexingCacheFlushRatio: 0.35,

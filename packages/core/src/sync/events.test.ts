@@ -3,12 +3,7 @@ import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import { getEventsBlock, getEventsLog, getEventsTrace } from "@/_test/utils.js";
 import { checksumAddress, parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
-import {
-  type BlockEvent,
-  type CallTraceEvent,
-  type LogEvent,
-  decodeEvents,
-} from "./events.js";
+import { type BlockEvent, type CallTraceEvent, type LogEvent, decodeEvents } from "./events.js";
 import type { Service } from "./service.js";
 
 beforeEach(setupCommon);
@@ -24,11 +19,7 @@ test("decodeEvents() log", async (context) => {
 
   const rawEvents = await getEventsLog(sources);
 
-  const events = decodeEvents({ common, sourceById }, rawEvents) as [
-    LogEvent,
-    LogEvent,
-    LogEvent,
-  ];
+  const events = decodeEvents({ common, sourceById }, rawEvents) as [LogEvent, LogEvent, LogEvent];
 
   expect(events).toHaveLength(3);
   expect(events[0].event.args).toMatchObject({
@@ -68,10 +59,7 @@ test("decodeEvents() log error", async (context) => {
 
   // remove data from log, causing an error when decoding
   rawEvents[0].log!.data = "0x0";
-  const events = decodeEvents({ common, sourceById }, rawEvents) as [
-    LogEvent,
-    LogEvent,
-  ];
+  const events = decodeEvents({ common, sourceById }, rawEvents) as [LogEvent, LogEvent];
 
   expect(events).toHaveLength(2);
 
@@ -98,9 +86,7 @@ test("decodeEvents() block", async (context) => {
 
   const rawEvents = await getEventsBlock(sources);
 
-  const events = decodeEvents({ common, sourceById }, rawEvents) as [
-    BlockEvent,
-  ];
+  const events = decodeEvents({ common, sourceById }, rawEvents) as [BlockEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.block).toMatchObject({
@@ -118,9 +104,7 @@ test("decodeEvents() trace", async (context) => {
 
   const rawEvents = await getEventsTrace(sources);
 
-  const events = decodeEvents({ common, sourceById }, rawEvents) as [
-    CallTraceEvent,
-  ];
+  const events = decodeEvents({ common, sourceById }, rawEvents) as [CallTraceEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toBeUndefined();
@@ -140,9 +124,7 @@ test("decodeEvents() trace error", async (context) => {
 
   // change function selector, causing an error when decoding
   rawEvents[0].trace!.input = "0x0";
-  const events = decodeEvents({ common, sourceById }, rawEvents) as [
-    CallTraceEvent,
-  ];
+  const events = decodeEvents({ common, sourceById }, rawEvents) as [CallTraceEvent];
 
   expect(events).toHaveLength(0);
 });

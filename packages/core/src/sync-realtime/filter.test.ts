@@ -10,16 +10,11 @@ import { filterLogs } from "./filter.js";
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 
-const zeroHash =
-  "0x0000000000000000000000000000000000000000000000000000000000000000";
+const zeroHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
-const AliceHex = toLowerCase(
-  "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-);
+const AliceHex = toLowerCase("0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
 
-const BobHex = toLowerCase(
-  "0x00000000000000000000000070997970C51812dc3A010C7d01b50e0d17dc79C8",
-);
+const BobHex = toLowerCase("0x00000000000000000000000070997970C51812dc3A010C7d01b50e0d17dc79C8");
 
 const getLogs = async () => {
   const blockNumber = await publicClient.getBlockNumber();

@@ -43,10 +43,7 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
-const createBlockCheckpoint = (
-  block: SyncBlock,
-  isInclusive: boolean,
-): Checkpoint => {
+const createBlockCheckpoint = (block: SyncBlock, isInclusive: boolean): Checkpoint => {
   return {
     ...(isInclusive ? maxCheckpoint : zeroCheckpoint),
     blockTimestamp: hexToNumber(block.timestamp),
@@ -99,10 +96,7 @@ test("insertLogFilterInterval inserts block, transactions, receipts, and logs", 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(1);
 
-  const transactions = await syncStore.db
-    .selectFrom("transactions")
-    .selectAll()
-    .execute();
+  const transactions = await syncStore.db.selectFrom("transactions").selectAll().execute();
   expect(transactions).toHaveLength(2);
 
   const transactionReceipts = await syncStore.db
@@ -136,8 +130,7 @@ test("insertLogFilterInterval updates sync db metrics", async (context) => {
     },
   });
 
-  const metrics = (await common.metrics.ponder_database_method_duration.get())
-    .values;
+  const metrics = (await common.metrics.ponder_database_method_duration.get()).values;
   const countMetric = metrics
     .filter((m) => m.labels.method === "insertLogFilterInterval")
     .find((m) => m.metricName === "ponder_database_method_duration_count");
@@ -664,8 +657,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
 
   const factoryCriteria = {
     address: "0xfactory",
-    eventSelector:
-      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
@@ -736,8 +728,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
 
   const factoryCriteria = {
     address: "0xfactory",
-    eventSelector:
-      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "offset32",
     topics: [],
     includeTransactionReceipts: false,
@@ -749,18 +740,14 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
       {
         ...rpcData.block2.logs[0],
         address: "0xfactory",
-        topics: [
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
-        ],
+        topics: ["0x0000000000000000000000000000000000000000000factoryeventsignature"],
         data: "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000child10000000000000000000000000000000000000000000000000000000000child30000000000000000000000000000000000",
         blockNumber: toHex(100),
       },
       {
         ...rpcData.block2.logs[1],
         address: "0xfactory",
-        topics: [
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
-        ],
+        topics: ["0x0000000000000000000000000000000000000000000factoryeventsignature"],
         data: "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000child20000000000000000000000000000000000000000000000000000000000child30000000000000000000000000000000000",
         blockNumber: toHex(100),
       },
@@ -791,8 +778,7 @@ test("getFactoryChildAddresses respects toBlock argument", async (context) => {
 
   const factoryCriteria = {
     address: "0xfactory",
-    eventSelector:
-      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
@@ -858,8 +844,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
 
   const factoryCriteria = {
     address: "0xfactory",
-    eventSelector:
-      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
@@ -872,8 +857,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
       {
         ...rpcData.block2.logs[0],
         blockNumber: toHex(150),
-        blockHash:
-          "0x000000000000000000000000child80000000000000000000000000000000000",
+        blockHash: "0x000000000000000000000000child80000000000000000000000000000000000",
         logIndex: "0x8",
         address: "0xfactory",
         topics: [
@@ -884,8 +868,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
       {
         ...rpcData.block2.logs[1],
         blockNumber: toHex(200),
-        blockHash:
-          "0x000000000000000000000000child20000000000000000000000000000000000",
+        blockHash: "0x000000000000000000000000child20000000000000000000000000000000000",
         logIndex: "0x2",
         address: "0xfactory",
         topics: [
@@ -897,8 +880,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
       {
         ...rpcData.block2.logs[1],
         blockNumber: toHex(201),
-        blockHash:
-          "0x000000000000000000000000child30000000000000000000000000000000000",
+        blockHash: "0x000000000000000000000000child30000000000000000000000000000000000",
         logIndex: "0x3",
         address: "0xfactory",
         topics: [
@@ -909,8 +891,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
       {
         ...rpcData.block2.logs[1],
         blockNumber: toHex(201),
-        blockHash:
-          "0x000000000000000000000000child30000000000000000000000000000000000",
+        blockHash: "0x000000000000000000000000child30000000000000000000000000000000000",
         logIndex: "0x4",
         address: "0xfactory",
         topics: [
@@ -921,8 +902,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
       {
         ...rpcData.block2.logs[0],
         blockNumber: toHex(100),
-        blockHash:
-          "0x000000000000000000000000child10000000000000000000000000000000000",
+        blockHash: "0x000000000000000000000000child10000000000000000000000000000000000",
         logIndex: "0x1",
         address: "0xfactory",
         topics: [
@@ -933,8 +913,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
       {
         ...rpcData.block2.logs[1],
         blockNumber: toHex(203),
-        blockHash:
-          "0x000000000000000000000000child50000000000000000000000000000000000",
+        blockHash: "0x000000000000000000000000child50000000000000000000000000000000000",
         logIndex: "0x5",
         address: "0xfactory",
         topics: [
@@ -973,8 +952,7 @@ test("getFactoryChildAddresses does not yield empty list", async (context) => {
 
   const factoryCriteria = {
     address: "0xfactory",
-    eventSelector:
-      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
@@ -1003,8 +981,7 @@ test("insertFactoryLogFilterInterval inserts block, transactions, receipts and l
 
   const factoryCriteria = {
     address: "0xfactory",
-    eventSelector:
-      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
@@ -1020,10 +997,7 @@ test("insertFactoryLogFilterInterval inserts block, transactions, receipts and l
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(1);
 
-  const transactions = await syncStore.db
-    .selectFrom("transactions")
-    .selectAll()
-    .execute();
+  const transactions = await syncStore.db.selectFrom("transactions").selectAll().execute();
   expect(transactions).toHaveLength(2);
 
   const transactionReceipts = await syncStore.db
@@ -1044,8 +1018,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
 
   const factoryCriteria = {
     address: "0xfactory",
-    eventSelector:
-      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
@@ -1098,8 +1071,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
 
   const factoryCriteria = {
     address: "0xfactory",
-    eventSelector:
-      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
     topics: [],
     includeTransactionReceipts: false,
@@ -1143,8 +1115,7 @@ test("getFactoryLogFilterIntervals handles includeTransactionReceipts", async (c
 
   const factoryCriteria: FactoryLogFilterCriteria = {
     address: "0xfactory",
-    eventSelector:
-      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
     topics: ["0x0"],
     includeTransactionReceipts: false,
@@ -1347,10 +1318,7 @@ test("insertTraceFilterIntervals inserts traces", async (context) => {
       },
     });
 
-    const traces = await syncStore.db
-      .selectFrom("callTraces")
-      .selectAll()
-      .execute();
+    const traces = await syncStore.db.selectFrom("callTraces").selectAll().execute();
     expect(traces).toHaveLength(2);
 
     await cleanup();
@@ -1639,8 +1607,7 @@ test("insertFactoryTraceFilterInverval inserts traces", async (context) => {
       chainId: 1,
       factory: {
         address: "0xfactory",
-        eventSelector:
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
         childAddressLocation: "topic1",
         includeTransactionReceipts: false,
         functionSelectors: [],
@@ -1652,10 +1619,7 @@ test("insertFactoryTraceFilterInverval inserts traces", async (context) => {
       },
     });
 
-    const traces = await syncStore.db
-      .selectFrom("callTraces")
-      .selectAll()
-      .execute();
+    const traces = await syncStore.db.selectFrom("callTraces").selectAll().execute();
     expect(traces).toHaveLength(1);
 
     await cleanup();
@@ -1672,8 +1636,7 @@ test("insertFactoryTraceFilterIntervals inserts and merges child contract interv
       chainId: 1,
       factory: {
         address: "0xfactory",
-        eventSelector:
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
         childAddressLocation: "topic1",
         includeTransactionReceipts: false,
         functionSelectors: [],
@@ -1696,8 +1659,7 @@ test("insertFactoryTraceFilterIntervals inserts and merges child contract interv
       chainId: 1,
       factory: {
         address: "0xfactory",
-        eventSelector:
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
         childAddressLocation: "topic1",
         includeTransactionReceipts: false,
         functionSelectors: [],
@@ -1738,8 +1700,7 @@ test("insertFactoryTraceFilterIntervals inserts and merges child contract interv
       chainId: 1,
       factory: {
         address: "0xfactory",
-        eventSelector:
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
         childAddressLocation: "topic1",
         includeTransactionReceipts: false,
         functionSelectors: [],
@@ -1794,8 +1755,7 @@ test("insertFactoryTraceFilterInterval updates checkpoints for existing traces",
       chainId: 1,
       factory: {
         address: "0xfactory",
-        eventSelector:
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
         childAddressLocation: "topic1",
         includeTransactionReceipts: false,
         functionSelectors: [],
@@ -1808,8 +1768,7 @@ test("insertFactoryTraceFilterInterval updates checkpoints for existing traces",
       chainId: 1,
       factory: {
         address: "0xfactory",
-        eventSelector:
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
         childAddressLocation: "topic1",
         includeTransactionReceipts: false,
         functionSelectors: [],
@@ -1822,8 +1781,7 @@ test("insertFactoryTraceFilterInterval updates checkpoints for existing traces",
       chainId: 1,
       factory: {
         address: "0xfactory",
-        eventSelector:
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
         childAddressLocation: "topic1",
         includeTransactionReceipts: false,
         functionSelectors: [],
@@ -1839,8 +1797,7 @@ test("insertFactoryTraceFilterInterval updates checkpoints for existing traces",
       chainId: 1,
       factory: {
         address: "0xfactory",
-        eventSelector:
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
         childAddressLocation: "topic1",
         includeTransactionReceipts: false,
         functionSelectors: [],
@@ -1853,8 +1810,7 @@ test("insertFactoryTraceFilterInterval updates checkpoints for existing traces",
       chainId: 1,
       factory: {
         address: "0xfactory",
-        eventSelector:
-          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        eventSelector: "0x0000000000000000000000000000000000000000000factoryeventsignature",
         childAddressLocation: "topic1",
         includeTransactionReceipts: false,
         functionSelectors: [],
@@ -1880,16 +1836,10 @@ test("insertRealtimeBlock inserts data", async (context) => {
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(1);
 
-  const transactions = await syncStore.db
-    .selectFrom("transactions")
-    .selectAll()
-    .execute();
+  const transactions = await syncStore.db.selectFrom("transactions").selectAll().execute();
   expect(transactions).toHaveLength(2);
 
-  const transactionReceipts = await syncStore.db
-    .selectFrom("logs")
-    .selectAll()
-    .execute();
+  const transactionReceipts = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(transactionReceipts).toHaveLength(2);
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
@@ -1923,10 +1873,7 @@ test("insertRealtimeBlock upserts transactions", async (context) => {
     traces: [],
   });
 
-  const transactions = await syncStore.db
-    .selectFrom("transactions")
-    .selectAll()
-    .execute();
+  const transactions = await syncStore.db.selectFrom("transactions").selectAll().execute();
   expect(transactions).toHaveLength(2);
 
   expect(BigInt(transactions[0].blockNumber)).toBe(2n);
@@ -2113,10 +2060,7 @@ test("insertRpcRequestResult upserts on conflict", async (context) => {
     result: "0x789",
   });
 
-  const rpcRequestResult = await syncStore.db
-    .selectFrom("rpcRequestResults")
-    .selectAll()
-    .execute();
+  const rpcRequestResult = await syncStore.db.selectFrom("rpcRequestResults").selectAll().execute();
 
   expect(rpcRequestResult).toHaveLength(1);
   expect(rpcRequestResult[0]).toMatchObject({
@@ -2442,9 +2386,7 @@ test("getEvents filters on log filter with single topic", async (context) => {
     ...rpcData.block3,
   });
 
-  const transferSelector = getEventSelector(
-    getAbiItem({ abi: erc20ABI, name: "Transfer" }),
-  );
+  const transferSelector = getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" }));
 
   const ag = syncStore.getEvents({
     sources: [
@@ -2490,21 +2432,14 @@ test("getEvents filters on log filter with multiple topics", async (context) => 
     ...rpcData.block3,
   });
 
-  const transferSelector = getEventSelector(
-    getAbiItem({ abi: erc20ABI, name: "Transfer" }),
-  );
+  const transferSelector = getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" }));
 
   const ag = syncStore.getEvents({
     sources: [
       {
         ...sources[0],
         criteria: {
-          topics: [
-            transferSelector,
-            padHex(ALICE).toLowerCase() as Hex,
-            null,
-            null,
-          ],
+          topics: [transferSelector, padHex(ALICE).toLowerCase() as Hex, null, null],
           includeTransactionReceipts: false,
         },
       },
@@ -2516,11 +2451,7 @@ test("getEvents filters on log filter with multiple topics", async (context) => 
 
   expect(events[0]).toMatchObject({
     log: {
-      topics: [
-        transferSelector,
-        padHex(ALICE).toLowerCase(),
-        padHex(BOB).toLowerCase(),
-      ],
+      topics: [transferSelector, padHex(ALICE).toLowerCase(), padHex(BOB).toLowerCase()],
     },
   });
   expect(events).toHaveLength(1);
@@ -2576,9 +2507,7 @@ test("getEvents filters on startBlock", async (context) => {
   });
 
   const ag = syncStore.getEvents({
-    sources: [
-      { ...sources[0], startBlock: hexToNumber(rpcData.block4.block.number) },
-    ],
+    sources: [{ ...sources[0], startBlock: hexToNumber(rpcData.block4.block.number) }],
     fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
     toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
   });
@@ -2604,9 +2533,7 @@ test("getEvents filters on endBlock", async (context) => {
   });
 
   const ag = syncStore.getEvents({
-    sources: [
-      { ...sources[0], endBlock: hexToNumber(rpcData.block2.block.number) - 1 },
-    ],
+    sources: [{ ...sources[0], endBlock: hexToNumber(rpcData.block2.block.number) - 1 }],
     fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
     toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
   });
@@ -2889,26 +2816,18 @@ test("getEvents pagination", async (context) => {
   expect(firstBatchEvents.done).toBe(false);
   expect(firstBatchEvents.value).toHaveLength(1);
 
-  expect(firstBatchEvents.value[0].log.address).toBe(
-    checksumAddress(erc20.address),
-  );
+  expect(firstBatchEvents.value[0].log.address).toBe(checksumAddress(erc20.address));
   expect(firstBatchEvents.value[0].block.hash).toBe(rpcData.block2.block.hash);
-  expect(firstBatchEvents.value[0].transaction.hash).toBe(
-    rpcData.block2.transactions[0].hash,
-  );
+  expect(firstBatchEvents.value[0].transaction.hash).toBe(rpcData.block2.transactions[0].hash);
 
   const secondBatchEvents = await ag.next();
 
   expect(secondBatchEvents.done).toBe(false);
   expect(secondBatchEvents.value).toHaveLength(1);
 
-  expect(secondBatchEvents.value[0].log.address).toBe(
-    checksumAddress(erc20.address),
-  );
+  expect(secondBatchEvents.value[0].log.address).toBe(checksumAddress(erc20.address));
   expect(secondBatchEvents.value[0].block.hash).toBe(rpcData.block2.block.hash);
-  expect(secondBatchEvents.value[0].transaction.hash).toBe(
-    rpcData.block2.transactions[1].hash,
-  );
+  expect(secondBatchEvents.value[0].transaction.hash).toBe(rpcData.block2.transactions[1].hash);
 
   const thirdBatchEvents = await ag.next();
 
@@ -3256,14 +3175,8 @@ test("pruneByChainId deletes blocks, logs, traces, transactions", async (context
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
-  const callTraces = await syncStore.db
-    .selectFrom("callTraces")
-    .selectAll()
-    .execute();
-  const transactions = await syncStore.db
-    .selectFrom("transactions")
-    .selectAll()
-    .execute();
+  const callTraces = await syncStore.db.selectFrom("callTraces").selectAll().execute();
+  const transactions = await syncStore.db.selectFrom("transactions").selectAll().execute();
   const transactionReceipts = await syncStore.db
     .selectFrom("transactionReceipts")
     .selectAll()

@@ -279,12 +279,8 @@ test("SafeEventNames overloaded events", () => {
     // ^?
     readonly [Event0, Event1, Event1Overloaded, Func0]
   >;
-  assertType<"Event0" | "Event1()" | "Event1(bytes32 indexed)">(
-    {} as unknown as a,
-  );
-  assertType<a>(
-    {} as unknown as "Event0" | "Event1()" | "Event1(bytes32 indexed)",
-  );
+  assertType<"Event0" | "Event1()" | "Event1(bytes32 indexed)">({} as unknown as a);
+  assertType<a>({} as unknown as "Event0" | "Event1()" | "Event1(bytes32 indexed)");
 });
 
 test("SafeEventNames semi-weak abi", () => {

@@ -1,10 +1,7 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import { type Queue, createQueue } from "@ponder/common";
-import {
-  type GetLogsRetryHelperParameters,
-  getLogsRetryHelper,
-} from "@ponder/utils";
+import { type GetLogsRetryHelperParameters, getLogsRetryHelper } from "@ponder/utils";
 import {
   BlockNotFoundError,
   type EIP1193Parameters,
@@ -21,9 +18,10 @@ import {
 import { startClock } from "./timer.js";
 import { wait } from "./wait.js";
 
-type RequestReturnType<
-  method extends EIP1193Parameters<PublicRpcSchema>["method"],
-> = Extract<PublicRpcSchema[number], { Method: method }>["ReturnType"];
+type RequestReturnType<method extends EIP1193Parameters<PublicRpcSchema>["method"]> = Extract<
+  PublicRpcSchema[number],
+  { Method: method }
+>["ReturnType"];
 
 export type RequestQueue = Omit<
   Queue<
@@ -83,9 +81,7 @@ export const createRequestQueue = ({
             }', retrying with ranges: [${getLogsErrorResponse.ranges
               .map(
                 ({ fromBlock, toBlock }) =>
-                  `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(
-                    toBlock,
-                  ).toString()}]`,
+                  `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(toBlock).toString()}]`,
               )
               .join(", ")}].`,
           });
@@ -121,9 +117,7 @@ export const createRequestQueue = ({
         if (i === RETRY_COUNT) {
           common.logger.warn({
             service: "sync",
-            msg: `Failed '${request.method}' RPC request after ${
-              i + 1
-            } attempts`,
+            msg: `Failed '${request.method}' RPC request after ${i + 1} attempts`,
             error,
           });
           throw error;
@@ -166,9 +160,7 @@ export const createRequestQueue = ({
 
   return {
     ...requestQueue,
-    request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
-      params: TParameters,
-    ) => {
+    request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(params: TParameters) => {
       const stopClockLag = startClock();
 
       return requestQueue.add({ request: params, stopClockLag });

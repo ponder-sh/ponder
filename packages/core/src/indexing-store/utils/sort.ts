@@ -10,10 +10,7 @@ import {
 } from "@/schema/utils.js";
 import type { OrderByInput } from "../store.js";
 
-export type OrderByConditions = [
-  columnName: string,
-  direction: "asc" | "desc",
-][];
+export type OrderByConditions = [columnName: string, direction: "asc" | "desc"][];
 
 export function buildOrderByConditions({
   orderBy,
@@ -27,8 +24,7 @@ export function buildOrderByConditions({
   }
 
   const conditions = Object.entries(orderBy);
-  if (conditions.length > 1)
-    throw new StoreError("Invalid sort. Cannot sort by multiple columns.");
+  if (conditions.length > 1) throw new StoreError("Invalid sort. Cannot sort by multiple columns.");
 
   const [columnName, orderDirection] = conditions[0];
 
@@ -51,15 +47,11 @@ export function buildOrderByConditions({
     );
   }
   if (isOneColumn(column) || isManyColumn(column)) {
-    throw new StoreError(
-      `Invalid sort. Cannot sort on virtual column '${columnName}'.`,
-    );
+    throw new StoreError(`Invalid sort. Cannot sort on virtual column '${columnName}'.`);
   }
 
   if (isJSONColumn(column)) {
-    throw new StoreError(
-      `Invalid sort. Cannot sort on json column '${columnName}'.`,
-    );
+    throw new StoreError(`Invalid sort. Cannot sort on json column '${columnName}'.`);
   }
 
   if (orderDirection === undefined || !["asc", "desc"].includes(orderDirection))

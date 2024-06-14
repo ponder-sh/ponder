@@ -18,17 +18,13 @@ export const isScalarColumn = (column: Column): column is ScalarColumn =>
 export const isReferenceColumn = (column: Column): column is ReferenceColumn =>
   column[" type"] === "reference";
 
-export const isOneColumn = (column: Column): column is OneColumn =>
-  column[" type"] === "one";
+export const isOneColumn = (column: Column): column is OneColumn => column[" type"] === "one";
 
-export const isManyColumn = (column: Column): column is ManyColumn =>
-  column[" type"] === "many";
+export const isManyColumn = (column: Column): column is ManyColumn => column[" type"] === "many";
 
-export const isJSONColumn = (column: Column): column is JSONColumn =>
-  column[" type"] === "json";
+export const isJSONColumn = (column: Column): column is JSONColumn => column[" type"] === "json";
 
-export const isEnumColumn = (column: Column): column is EnumColumn =>
-  column[" type"] === "enum";
+export const isEnumColumn = (column: Column): column is EnumColumn => column[" type"] === "enum";
 
 export const isOptionalColumn = (column: Column): boolean => {
   if (isManyColumn(column) || isOneColumn(column)) return false;
@@ -48,8 +44,7 @@ export const isListColumn = (column: Column): boolean => {
 
 export const isTable = (
   tableOrEnum: Schema[string],
-): tableOrEnum is { table: Table; constraints: Constraints } =>
-  !Array.isArray(tableOrEnum);
+): tableOrEnum is { table: Table; constraints: Constraints } => !Array.isArray(tableOrEnum);
 
 export const isEnum = (tableOrEnum: Schema[string]): tableOrEnum is Enum =>
   Array.isArray(tableOrEnum);

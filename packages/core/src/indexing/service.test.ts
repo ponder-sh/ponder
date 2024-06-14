@@ -14,13 +14,7 @@ import { promiseWithResolvers } from "@ponder/common";
 import { type Address, checksumAddress, parseEther, toHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { decodeEvents } from "../sync/events.js";
-import {
-  type Context,
-  create,
-  kill,
-  processEvents,
-  processSetupEvents,
-} from "./service.js";
+import { type Context, create, kill, processEvents, processSetupEvents } from "./service.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -39,10 +33,7 @@ const schema = createSchema((p) => ({
 
 test("createIndexing()", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -72,10 +63,7 @@ test("createIndexing()", async (context) => {
 
 test("processSetupEvents() empty", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -109,10 +97,7 @@ test("processSetupEvents() empty", async (context) => {
 
 test("processSetupEvents()", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -182,10 +167,7 @@ test("processSetupEvents()", async (context) => {
 
 test("processEvent() log events", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -198,8 +180,7 @@ test("processEvent() log events", async (context) => {
   });
 
   const indexingFunctions = {
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      vi.fn(),
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": vi.fn(),
     "Pair:Swap": vi.fn(),
   };
 
@@ -221,14 +202,10 @@ test("processEvent() log events", async (context) => {
   expect(result).toStrictEqual({ status: "success" });
 
   expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
+    indexingFunctions["Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"],
   ).toHaveBeenCalledTimes(2);
   expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
+    indexingFunctions["Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"],
   ).toHaveBeenCalledWith({
     event: {
       name: "Transfer(address indexed from, address indexed to, uint256 amount)",
@@ -273,10 +250,7 @@ test("processEvent() log events", async (context) => {
 
 test("processEvents() block events", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -349,10 +323,7 @@ test("processEvents() block events", async (context) => {
 
 test("processEvents() call trace events", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -430,10 +401,7 @@ test("processEvents() call trace events", async (context) => {
 
 test("processEvents killed", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -446,8 +414,7 @@ test("processEvents killed", async (context) => {
   });
 
   const indexingFunctions = {
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      vi.fn(),
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": vi.fn(),
     "Pair:Swap": vi.fn(),
   };
 
@@ -470,9 +437,7 @@ test("processEvents killed", async (context) => {
   expect(result).toStrictEqual({ status: "killed" });
 
   expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
+    indexingFunctions["Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"],
   ).toHaveBeenCalledTimes(0);
 
   await cleanup();
@@ -480,10 +445,7 @@ test("processEvents killed", async (context) => {
 
 test("processEvents eventCount", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -496,8 +458,7 @@ test("processEvents eventCount", async (context) => {
   });
 
   const indexingFunctions = {
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      vi.fn(),
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": vi.fn(),
     "Pair:Swap": vi.fn(),
   };
 
@@ -519,10 +480,9 @@ test("processEvents eventCount", async (context) => {
   expect(result).toStrictEqual({ status: "success" });
 
   expect(indexingService.eventCount).toStrictEqual({
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      {
-        mainnet: 2,
-      },
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": {
+      mainnet: 2,
+    },
     "Pair:Swap": {
       mainnet: 1,
     },
@@ -533,10 +493,7 @@ test("processEvents eventCount", async (context) => {
 
 test("executeSetup() context.client", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -566,10 +523,7 @@ test("executeSetup() context.client", async (context) => {
     schema,
   });
 
-  const getBalanceSpy = vi.spyOn(
-    indexingService.clientByChainId[1],
-    "getBalance",
-  );
+  const getBalanceSpy = vi.spyOn(indexingService.clientByChainId[1], "getBalance");
 
   const result = await processSetupEvents(indexingService, {
     sources,
@@ -588,10 +542,7 @@ test("executeSetup() context.client", async (context) => {
 
 test("executeSetup() context.db", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -624,10 +575,7 @@ test("executeSetup() context.db", async (context) => {
     schema,
   });
 
-  const createSpy = vi.spyOn(
-    indexingService.currentEvent.context.db.Supply,
-    "create",
-  );
+  const createSpy = vi.spyOn(indexingService.currentEvent.context.db.Supply, "create");
 
   const result = await processSetupEvents(indexingService, {
     sources,
@@ -656,10 +604,7 @@ test("executeSetup() context.db", async (context) => {
 
 test("executeSetup() metrics", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -697,10 +642,7 @@ test("executeSetup() metrics", async (context) => {
 
 test("executeSetup() error", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -741,10 +683,7 @@ test("executeSetup() error", async (context) => {
 
 test("processEvents() context.client", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -764,8 +703,7 @@ test("processEvents() context.client", async (context) => {
 
   const indexingService = create({
     indexingFunctions: {
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        clientCall,
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": clientCall,
       "Pair:Swap": clientCall,
       "OddBlocks:block": clientCall,
       "Factory.createPair()": clientCall,
@@ -778,10 +716,7 @@ test("processEvents() context.client", async (context) => {
     schema,
   });
 
-  const getBalanceSpy = vi.spyOn(
-    indexingService.clientByChainId[1],
-    "getBalance",
-  );
+  const getBalanceSpy = vi.spyOn(indexingService.clientByChainId[1], "getBalance");
 
   const rawEvents = [
     ...(await getEventsLog(sources)),
@@ -804,10 +739,7 @@ test("processEvents() context.client", async (context) => {
 
 test("processEvents() context.db", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -819,10 +751,7 @@ test("processEvents() context.db", async (context) => {
     initialCheckpoint: zeroCheckpoint,
   });
 
-  const dbCall = async ({
-    event,
-    context,
-  }: { event: any; context: Context }) => {
+  const dbCall = async ({ event, context }: { event: any; context: Context }) => {
     await context.db.TransferEvent.create({
       id: event.transaction?.hash ?? event.block.hash,
       data: {
@@ -833,8 +762,7 @@ test("processEvents() context.db", async (context) => {
 
   const indexingService = create({
     indexingFunctions: {
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        dbCall,
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": dbCall,
       "Pair:Swap": dbCall,
       "OddBlocks:block": dbCall,
       "Factory.createPair()": dbCall,
@@ -847,10 +775,7 @@ test("processEvents() context.db", async (context) => {
     schema,
   });
 
-  const createSpy = vi.spyOn(
-    indexingService.currentEvent.context.db.TransferEvent,
-    "create",
-  );
+  const createSpy = vi.spyOn(indexingService.currentEvent.context.db.TransferEvent, "create");
 
   const rawEvents = [
     ...(await getEventsLog(sources)),
@@ -876,10 +801,7 @@ test("processEvents() context.db", async (context) => {
 
 test("processEvents() metrics", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -893,8 +815,7 @@ test("processEvents() metrics", async (context) => {
 
   const indexingService = create({
     indexingFunctions: {
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        vi.fn(),
+      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": vi.fn(),
       "Pair:Swap": vi.fn(),
       "OddBlocks:block": vi.fn(),
       "Factory.createPair()": vi.fn(),
@@ -925,10 +846,7 @@ test("processEvents() metrics", async (context) => {
 
 test("processEvents() error", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -941,8 +859,7 @@ test("processEvents() error", async (context) => {
   });
 
   const indexingFunctions = {
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      vi.fn(),
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": vi.fn(),
     "Pair:Swap": vi.fn(),
     "OddBlocks:block": vi.fn(),
     "Factory.createPair()": vi.fn(),
@@ -977,9 +894,7 @@ test("processEvents() error", async (context) => {
     error: expect.any(Error),
   });
   expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
+    indexingFunctions["Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"],
   ).toHaveBeenCalledTimes(1);
   expect(indexingFunctions["Pair:Swap"]).toHaveBeenCalledTimes(0);
   expect(indexingFunctions["OddBlocks:block"]).toHaveBeenCalledTimes(0);
@@ -990,10 +905,7 @@ test("processEvents() error", async (context) => {
 
 test("execute() error after killed", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -1007,8 +919,7 @@ test("execute() error after killed", async (context) => {
 
   const { promise, reject } = promiseWithResolvers();
   const indexingFunctions = {
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      () => promise,
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": () => promise,
   };
 
   const indexingService = create({
@@ -1036,10 +947,7 @@ test("execute() error after killed", async (context) => {
 
 test("ponderActions getBalance()", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -1072,10 +980,7 @@ test("ponderActions getBalance()", async (context) => {
 
 test("ponderActions getBytecode()", async (context) => {
   const { common, sources, networks, erc20 } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -1108,10 +1013,7 @@ test("ponderActions getBytecode()", async (context) => {
 
 test("ponderActions getStorageAt()", async (context) => {
   const { common, sources, networks, erc20 } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -1146,10 +1048,7 @@ test("ponderActions getStorageAt()", async (context) => {
 
 test("ponderActions readContract()", async (context) => {
   const { common, sources, networks, erc20 } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -1184,10 +1083,7 @@ test("ponderActions readContract()", async (context) => {
 
 test("ponderActions readContract() blockNumber", async (context) => {
   const { common, sources, networks, erc20 } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,
@@ -1224,10 +1120,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
 // Note: Kyle the local chain doesn't have a deployed instance of "multicall3"
 test.skip("ponderActions multicall()", async (context) => {
   const { common, sources, networks, erc20 } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(context, { schema });
 
   const syncService = await createSyncService({
     common,

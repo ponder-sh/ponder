@@ -160,10 +160,7 @@ test("buildWhereConditions handles or operator", () => {
     and: [
       ["bigAge", "<", 10n],
       {
-        or: [
-          { and: [["id", "like", "%abc%"]] },
-          { and: [["id", "not like", "z%"]] },
-        ],
+        or: [{ and: [["id", "like", "%abc%"]] }, { and: [["id", "not like", "z%"]] }],
       },
     ],
   });

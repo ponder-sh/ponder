@@ -35,9 +35,7 @@ export const buildPluralField = ({
 
     const whereObject = where ? buildWhereObject(where) : {};
 
-    const orderByObject = orderBy
-      ? { [orderBy]: orderDirection || "asc" }
-      : undefined;
+    const orderByObject = orderBy ? { [orderBy]: orderDirection || "asc" } : undefined;
 
     return await context.store.findMany({
       tableName,

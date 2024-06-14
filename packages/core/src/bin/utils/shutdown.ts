@@ -17,10 +17,7 @@ export function setupShutdown({
 }) {
   let isShuttingDown = false;
 
-  const shutdown = async ({
-    reason,
-    code,
-  }: { reason: string; code: 0 | 1 }) => {
+  const shutdown = async ({ reason, code }: { reason: string; code: 0 | 1 }) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
     setTimeout(async () => {
@@ -60,18 +57,12 @@ export function setupShutdown({
       input: process.stdin,
       output: process.stdout,
     });
-    readlineInterface.on("SIGINT", () =>
-      shutdown({ reason: "Received SIGINT", code: 0 }),
-    );
+    readlineInterface.on("SIGINT", () => shutdown({ reason: "Received SIGINT", code: 0 }));
   }
 
   process.on("SIGINT", () => shutdown({ reason: "Received SIGINT", code: 0 }));
-  process.on("SIGTERM", () =>
-    shutdown({ reason: "Received SIGTERM", code: 0 }),
-  );
-  process.on("SIGQUIT", () =>
-    shutdown({ reason: "Received SIGQUIT", code: 0 }),
-  );
+  process.on("SIGTERM", () => shutdown({ reason: "Received SIGTERM", code: 0 }));
+  process.on("SIGQUIT", () => shutdown({ reason: "Received SIGQUIT", code: 0 }));
 
   process.on("uncaughtException", (error: Error) => {
     if (error instanceof IgnorableError) return;

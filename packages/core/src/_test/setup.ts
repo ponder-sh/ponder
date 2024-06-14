@@ -40,13 +40,7 @@ declare module "vitest" {
   export interface TestContext {
     common: Common;
     databaseConfig: DatabaseConfig;
-    sources: [
-      LogSource,
-      FactoryLogSource,
-      FactoryCallTraceSource,
-      CallTraceSource,
-      BlockSource,
-    ];
+    sources: [LogSource, FactoryLogSource, FactoryCallTraceSource, CallTraceSource, BlockSource];
     networks: Network[];
     requestQueues: RequestQueue[];
     config: Config;

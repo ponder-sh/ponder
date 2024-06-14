@@ -24,10 +24,7 @@ export async function validateProjectName({
   // Validate project name
   const nameValidation = validatePackageName(projectName);
   if (!nameValidation.validForNewPackages) {
-    const problems = [
-      ...(nameValidation.errors ?? []),
-      ...(nameValidation.warnings ?? []),
-    ];
+    const problems = [...(nameValidation.errors ?? []), ...(nameValidation.warnings ?? [])];
     return {
       valid: false,
       message: `🙈 "${projectName}" is not a valid project name.`,
@@ -47,10 +44,7 @@ export async function validateProjectPath({
   if (await pathExists(projectPath))
     return {
       valid: false,
-      message: `🙈 the directory "${path.relative(
-        process.cwd(),
-        projectPath,
-      )}" already exists.`,
+      message: `🙈 the directory "${path.relative(process.cwd(), projectPath)}" already exists.`,
       problems: "👉 choose another name or delete the directory.",
     };
 
@@ -79,9 +73,7 @@ export async function validateTemplateName({
     return {
       valid: false,
       message: `🙈 the template "${templateId}" does not exist.`,
-      problems: `Choose a valid name. Available: ${templates
-        .map(({ id }) => id)
-        .join(", ")}`,
+      problems: `Choose a valid name. Available: ${templates.map(({ id }) => id).join(", ")}`,
     };
 
   return { valid: true };

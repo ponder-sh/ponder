@@ -85,9 +85,7 @@ export type RealtimeSyncEvent =
       checkpoint: Checkpoint;
     };
 
-const ERROR_TIMEOUT = [
-  1, 2, 5, 10, 30, 60, 60, 60, 60, 60, 60, 60, 60, 60,
-] as const;
+const ERROR_TIMEOUT = [1, 2, 5, 10, 30, 60, 60, 60, 60, 60, 60, 60, 60, 60] as const;
 const MAX_QUEUED_BLOCKS = 25;
 
 export const create = ({
@@ -183,15 +181,10 @@ export const start = (service: Service) => {
           // Retrieve missing blocks, but only fetch a certain amount.
           const missingBlockRange = range(
             latestLocalBlock.number + 1,
-            Math.min(
-              newHeadBlockNumber,
-              latestLocalBlock.number + MAX_QUEUED_BLOCKS,
-            ),
+            Math.min(newHeadBlockNumber, latestLocalBlock.number + MAX_QUEUED_BLOCKS),
           );
           const pendingBlocks = await Promise.all(
-            missingBlockRange.map((blockNumber) =>
-              _eth_getBlockByNumber(service, { blockNumber }),
-            ),
+            missingBlockRange.map((blockNumber) => _eth_getBlockByNumber(service, { blockNumber })),
           );
 
           service.common.logger.debug({
@@ -348,8 +341,7 @@ export const handleBlock = async (
       logFilters: service.logSources.map((s) => s.criteria),
     });
   const shouldRequestTraces =
-    service.callTraceSources.length > 0 ||
-    service.factoryCallTraceSources.length > 0;
+    service.callTraceSources.length > 0 || service.factoryCallTraceSources.length > 0;
 
   // Request logs
   const blockLogs = shouldRequestLogs
@@ -361,14 +353,8 @@ export const handleBlock = async (
   });
 
   // Protect against RPCs returning empty logs. Known to happen near chain tip.
-  if (
-    shouldRequestLogs &&
-    newHeadBlock.logsBloom !== zeroLogsBloom &&
-    blockLogs.length === 0
-  ) {
-    throw new Error(
-      `Detected invalid '${service.network.name}' eth_getLogs response.`,
-    );
+  if (shouldRequestLogs && newHeadBlock.logsBloom !== zeroLogsBloom && blockLogs.length === 0) {
+    throw new Error(`Detected invalid '${service.network.name}' eth_getLogs response.`);
   }
 
   if (
@@ -387,9 +373,7 @@ export const handleBlock = async (
         blockNumber: newHeadBlockNumber,
       })
     : [];
-  const blockCallTraces = blockTraces.filter(
-    (trace) => trace.type === "call",
-  ) as SyncCallTrace[];
+  const blockCallTraces = blockTraces.filter((trace) => trace.type === "call") as SyncCallTrace[];
   const newCallTraces = await getMatchedCallTraces(service, {
     callTraces: blockCallTraces,
     logs: blockLogs,
@@ -407,14 +391,8 @@ export const handleBlock = async (
 
   // Protect against RPCs returning empty traces. Known to happen near chain tip.
   // Use the fact that any stateRoot change produces a trace.
-  if (
-    shouldRequestTraces &&
-    newHeadBlock.transactions.length !== 0 &&
-    blockTraces.length === 0
-  ) {
-    throw new Error(
-      `Detected invalid '${service.network.name}' trace_block response.`,
-    );
+  if (shouldRequestTraces && newHeadBlock.transactions.length !== 0 && blockTraces.length === 0) {
+    throw new Error(`Detected invalid '${service.network.name}' trace_block response.`);
   }
 
   const transactionHashes = new Set<Hash>();
@@ -425,16 +403,12 @@ export const handleBlock = async (
     transactionHashes.add(callTrace.transactionHash);
   }
 
-  const transactions = newHeadBlock.transactions.filter((t) =>
-    transactionHashes.has(t.hash),
-  );
+  const transactions = newHeadBlock.transactions.filter((t) => transactionHashes.has(t.hash));
 
   const newTransactionReceipts =
     service.hasTransactionReceiptSource || newCallTraces.length > 0
       ? await Promise.all(
-          transactions.map(({ hash }) =>
-            _eth_getTransactionReceipt(service, { hash }),
-          ),
+          transactions.map(({ hash }) => _eth_getTransactionReceipt(service, { hash })),
         )
       : [];
 
@@ -457,9 +431,7 @@ export const handleBlock = async (
   const hasCallTraceEvent = newPersistentCallTraces.length > 0;
   const hasBlockEvent = service.blockSources.some(
     (blockSource) =>
-      (newHeadBlockNumber - blockSource.criteria.offset) %
-        blockSource.criteria.interval ===
-      0,
+      (newHeadBlockNumber - blockSource.criteria.offset) % blockSource.criteria.interval === 0,
   );
 
   if (hasLogEvent || hasCallTraceEvent || hasBlockEvent) {
@@ -474,12 +446,9 @@ export const handleBlock = async (
   }
 
   if (hasLogEvent || hasCallTraceEvent) {
-    const logCountText =
-      newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
+    const logCountText = newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
     const traceCountText =
-      newCallTraces.length === 1
-        ? "1 call trace"
-        : `${newCallTraces.length} call traces`;
+      newCallTraces.length === 1 ? "1 call trace" : `${newCallTraces.length} call traces`;
     const text = [logCountText, traceCountText].join(" and ");
     service.common.logger.info({
       service: "realtime",
@@ -519,13 +488,10 @@ export const handleBlock = async (
   // Essentially, there is a range the width of finalityBlockCount that is entirely
   // finalized.
   const blockMovesFinality =
-    newHeadBlockNumber >=
-    service.finalizedBlock.number + 2 * service.network.finalityBlockCount;
+    newHeadBlockNumber >= service.finalizedBlock.number + 2 * service.network.finalityBlockCount;
   if (blockMovesFinality) {
     const pendingFinalizedBlock = service.localChain.find(
-      (block) =>
-        block.number ===
-        newHeadBlockNumber - service.network.finalityBlockCount,
+      (block) => block.number === newHeadBlockNumber - service.network.finalityBlockCount,
     )!;
 
     // Insert cache intervals into the store and update the local chain.
@@ -536,9 +502,7 @@ export const handleBlock = async (
       factoryLogFilters: service.factoryLogSources.map((f) => f.criteria),
       blockFilters: service.blockSources.map((b) => b.criteria),
       traceFilters: service.callTraceSources.map((f) => f.criteria),
-      factoryTraceFilters: service.factoryCallTraceSources.map(
-        (f) => f.criteria,
-      ),
+      factoryTraceFilters: service.factoryCallTraceSources.map((f) => f.criteria),
       interval: {
         startBlock: BigInt(service.finalizedBlock.number + 1),
         endBlock: BigInt(pendingFinalizedBlock.number),
@@ -585,10 +549,7 @@ export const handleBlock = async (
  * @param newHeadBlock Block that caused reorg to be detected.
  * Must be at most 1 block ahead of the local chain.
  */
-export const handleReorg = async (
-  service: Service,
-  newHeadBlock: SyncBlock,
-) => {
+export const handleReorg = async (service: Service, newHeadBlock: SyncBlock) => {
   const forkedBlockNumber = hexToNumber(newHeadBlock.number);
 
   service.common.logger.warn({
@@ -597,9 +558,7 @@ export const handleReorg = async (
   });
 
   // Prune the local chain of blocks that have been reorged out
-  const newLocalChain = service.localChain.filter(
-    (block) => block.number < forkedBlockNumber,
-  );
+  const newLocalChain = service.localChain.filter((block) => block.number < forkedBlockNumber);
 
   // Block we are attempting to fit into the local chain.
   let remoteBlock = newHeadBlock;

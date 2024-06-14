@@ -1,7 +1,4 @@
-import type {
-  CallTraceFilterCriteria,
-  LogFilterCriteria,
-} from "@/config/sources.js";
+import type { CallTraceFilterCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { SyncCallTrace, SyncLog } from "@/sync/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
@@ -38,8 +35,7 @@ export function isLogMatchedByFilter({
     for (const [index, topic] of logFilter.topics.entries()) {
       if (topic === null || topic === undefined) continue;
 
-      if (log.topics[index] === null || log.topics[index] === undefined)
-        return false;
+      if (log.topics[index] === null || log.topics[index] === undefined) return false;
 
       if (Array.isArray(topic)) {
         if (!topic.includes(toLowerCase(log.topics[index]))) return false;
@@ -57,10 +53,7 @@ export function filterCallTraces({
   callTraceFilters,
 }: {
   callTraces: SyncCallTrace[];
-  callTraceFilters: Pick<
-    CallTraceFilterCriteria,
-    "fromAddress" | "toAddress"
-  >[];
+  callTraceFilters: Pick<CallTraceFilterCriteria, "fromAddress" | "toAddress">[];
 }) {
   return callTraces.filter((callTrace) =>
     callTraceFilters.some((callTraceFilter) =>
@@ -79,17 +72,11 @@ export function isCallTraceMatchedByFilter({
   const fromAddress = toLowerCase(callTrace.action.from);
   const toAddress = toLowerCase(callTrace.action.to);
 
-  if (
-    callTraceFilter.fromAddress !== undefined &&
-    callTraceFilter.fromAddress.length > 0
-  ) {
+  if (callTraceFilter.fromAddress !== undefined && callTraceFilter.fromAddress.length > 0) {
     if (!callTraceFilter.fromAddress.includes(fromAddress)) return false;
   }
 
-  if (
-    callTraceFilter.toAddress !== undefined &&
-    callTraceFilter.toAddress.length > 0
-  ) {
+  if (callTraceFilter.toAddress !== undefined && callTraceFilter.toAddress.length > 0) {
     if (!callTraceFilter.toAddress.includes(toAddress)) return false;
   }
 

@@ -1,7 +1,4 @@
-import {
-  isContractAddressInBloom,
-  isTopicInBloom,
-} from "ethereum-bloom-filters";
+import { isContractAddressInBloom, isTopicInBloom } from "ethereum-bloom-filters";
 import type { Address, Hex, LogTopic } from "viem";
 
 export const zeroLogsBloom =

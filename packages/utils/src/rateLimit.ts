@@ -6,10 +6,7 @@ import { type Transport, type TransportConfig, createTransport } from "viem";
  */
 export const rateLimit = (
   _transport: Transport,
-  {
-    requestsPerSecond,
-    browser = true,
-  }: { requestsPerSecond: number; browser?: boolean },
+  { requestsPerSecond, browser = true }: { requestsPerSecond: number; browser?: boolean },
 ): Transport => {
   return ({ chain, retryCount, timeout }) => {
     const transport =

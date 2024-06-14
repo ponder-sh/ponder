@@ -4,10 +4,7 @@ import DataLoader from "dataloader";
 export type GetLoader = ReturnType<typeof buildLoaderCache>;
 
 export function buildLoaderCache({ store }: { store: ReadonlyStore }) {
-  const loaderCache: Record<
-    string,
-    DataLoader<string | number | bigint, any> | undefined
-  > = {};
+  const loaderCache: Record<string, DataLoader<string | number | bigint, any> | undefined> = {};
 
   return ({ tableName }: { tableName: string }) => {
     const loader = (loaderCache[tableName] ??= new DataLoader(

@@ -5,17 +5,10 @@ import type { NonVirtualColumn, Schema, Table } from "@/schema/common.js";
 import type { UserId } from "@/types/schema.js";
 import { sql } from "kysely";
 import type { OrderByInput, ReadonlyStore, WhereInput } from "./store.js";
-import {
-  buildCursorConditions,
-  decodeCursor,
-  encodeCursor,
-} from "./utils/cursor.js";
+import { buildCursorConditions, decodeCursor, encodeCursor } from "./utils/cursor.js";
 import { decodeRecord, encodeValue } from "./utils/encoding.js";
 import { buildWhereConditions } from "./utils/filter.js";
-import {
-  buildOrderByConditions,
-  reverseOrderByConditions,
-} from "./utils/sort.js";
+import { buildOrderByConditions, reverseOrderByConditions } from "./utils/sort.js";
 
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
@@ -77,15 +70,10 @@ export const getReadonlyStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findMany` }, async () => {
-      let query = db
-        .withSchema(namespaceInfo.userNamespace)
-        .selectFrom(tableName)
-        .selectAll();
+      let query = db.withSchema(namespaceInfo.userNamespace).selectFrom(tableName).selectAll();
 
       if (where) {
-        query = query.where((eb) =>
-          buildWhereConditions({ eb, where, table, encoding }),
-        );
+        query = query.where((eb) => buildWhereConditions({ eb, where, table, encoding }));
       }
 
       const orderByConditions = buildOrderByConditions({ orderBy, table });
@@ -102,9 +90,7 @@ export const getReadonlyStore = ({
       const orderDirection = orderByConditions[0][1];
 
       if (limit > MAX_LIMIT) {
-        throw new StoreError(
-          `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
-        );
+        throw new StoreError(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
       }
 
       if (after !== null && before !== null) {
@@ -121,23 +107,16 @@ export const getReadonlyStore = ({
         query = query.limit(limit + 1);
         const records = await query
           .execute()
-          .then((records) =>
-            records.map((record) => decodeRecord({ record, table, encoding })),
-          );
+          .then((records) => records.map((record) => decodeRecord({ record, table, encoding })));
 
         if (records.length === limit + 1) {
           records.pop();
           hasNextPage = true;
         }
 
-        startCursor =
-          records.length > 0
-            ? encodeCursor(records[0], orderByConditions)
-            : null;
+        startCursor = records.length > 0 ? encodeCursor(records[0], orderByConditions) : null;
         endCursor =
-          records.length > 0
-            ? encodeCursor(records[records.length - 1], orderByConditions)
-            : null;
+          records.length > 0 ? encodeCursor(records[records.length - 1], orderByConditions) : null;
 
         return {
           items: records,
@@ -157,16 +136,12 @@ export const getReadonlyStore = ({
           }),
         ]) satisfies [string, any][];
         query = query
-          .where((eb) =>
-            buildCursorConditions(cursorValues, "after", orderDirection, eb),
-          )
+          .where((eb) => buildCursorConditions(cursorValues, "after", orderDirection, eb))
           .limit(limit + 2);
 
         const records = await query
           .execute()
-          .then((records) =>
-            records.map((record) => decodeRecord({ record, table, encoding })),
-          );
+          .then((records) => records.map((record) => decodeRecord({ record, table, encoding })));
 
         if (records.length === 0) {
           return {
@@ -198,14 +173,9 @@ export const getReadonlyStore = ({
         }
 
         // Now calculate the cursors.
-        startCursor =
-          records.length > 0
-            ? encodeCursor(records[0], orderByConditions)
-            : null;
+        startCursor = records.length > 0 ? encodeCursor(records[0], orderByConditions) : null;
         endCursor =
-          records.length > 0
-            ? encodeCursor(records[records.length - 1], orderByConditions)
-            : null;
+          records.length > 0 ? encodeCursor(records[records.length - 1], orderByConditions) : null;
 
         return {
           items: records,
@@ -223,15 +193,12 @@ export const getReadonlyStore = ({
           }),
         ]) satisfies [string, any][];
         query = query
-          .where((eb) =>
-            buildCursorConditions(cursorValues, "before", orderDirection, eb),
-          )
+          .where((eb) => buildCursorConditions(cursorValues, "before", orderDirection, eb))
           .limit(limit + 2);
 
         // Reverse the order by conditions to get the previous page.
         query = query.clearOrderBy();
-        const reversedOrderByConditions =
-          reverseOrderByConditions(orderByConditions);
+        const reversedOrderByConditions = reverseOrderByConditions(orderByConditions);
         for (const [column, direction] of reversedOrderByConditions) {
           query = query.orderBy(column, direction);
         }
@@ -257,10 +224,7 @@ export const getReadonlyStore = ({
 
         // If the cursor of the last returned record equals the `before` cursor,
         // `hasNextPage` is true. Remove that record.
-        if (
-          encodeCursor(records[records.length - 1], orderByConditions) ===
-          before
-        ) {
+        if (encodeCursor(records[records.length - 1], orderByConditions) === before) {
           records.pop();
           hasNextPage = true;
         } else {
@@ -276,14 +240,9 @@ export const getReadonlyStore = ({
         }
 
         // Now calculate the cursors.
-        startCursor =
-          records.length > 0
-            ? encodeCursor(records[0], orderByConditions)
-            : null;
+        startCursor = records.length > 0 ? encodeCursor(records[0], orderByConditions) : null;
         endCursor =
-          records.length > 0
-            ? encodeCursor(records[records.length - 1], orderByConditions)
-            : null;
+          records.length > 0 ? encodeCursor(records[records.length - 1], orderByConditions) : null;
 
         return {
           items: records,

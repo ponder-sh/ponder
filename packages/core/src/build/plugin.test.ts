@@ -36,8 +36,7 @@ test("regex matches import includinga types after", () => {
 });
 
 test("regex matches import including newlines", () => {
-  const code =
-    "import {\n" + "ponder,\n" + "type Context,\n" + '} from "@/generated";\n';
+  const code = "import {\n" + "ponder,\n" + "type Context,\n" + '} from "@/generated";\n';
 
   expect(regex.test(code)).toBe(true);
   const s = replaceStateless(code);
@@ -69,9 +68,7 @@ test("regex matches no trailing newline", () => {
 });
 
 test("regex matches preceding import", () => {
-  const code =
-    `import {decodeEventLog} from "viem";\n` +
-    `import {ponder} from "@/generated";\n`;
+  const code = `import {decodeEventLog} from "viem";\n` + `import {ponder} from "@/generated";\n`;
 
   expect(regex.test(code)).toBe(true);
   const s = replaceStateless(code);

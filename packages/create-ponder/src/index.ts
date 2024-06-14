@@ -34,9 +34,7 @@ export type SerializableNetwork = {
 };
 
 export type SerializableContract = {
-  abi:
-    | { abi: Abi; name: string; dir: string }
-    | { abi: Abi; name: string; dir: string }[];
+  abi: { abi: Abi; name: string; dir: string } | { abi: Abi; name: string; dir: string }[];
   address: string;
   network: Record<string, any> | string;
   startBlock?: number;
@@ -281,9 +279,7 @@ export async function run({
         etherscanApiKey: options.etherscanApiKey,
       }),
       {
-        text: `Fetching contract metadata from ${pico.bold(
-          host,
-        )}. This may take a few seconds.`,
+        text: `Fetching contract metadata from ${pico.bold(host)}. This may take a few seconds.`,
         failText: "Failed to fetch contract metadata.",
         successText: `Fetched contract metadata from ${pico.bold(host)}.`,
       },
@@ -315,47 +311,30 @@ export async function run({
     // Write the config file.
     const configContent = `
       import { createConfig${
-        Object.values(config.contracts).some((c) => Array.isArray(c.abi))
-          ? ", mergeAbis"
-          : ""
+        Object.values(config.contracts).some((c) => Array.isArray(c.abi)) ? ", mergeAbis" : ""
       } } from "@ponder/core";
       import { http } from "viem";
 
       ${Object.values(config.contracts)
         .flatMap((c) => c.abi)
-        .filter(
-          (tag, index, array) =>
-            array.findIndex((t) => t.dir === tag.dir) === index,
-        )
-        .map(
-          (abi) =>
-            `import {${abi.name}} from "${abi.dir.slice(
-              0,
-              abi.dir.length - 3,
-            )}"`,
-        )
+        .filter((tag, index, array) => array.findIndex((t) => t.dir === tag.dir) === index)
+        .map((abi) => `import {${abi.name}} from "${abi.dir.slice(0, abi.dir.length - 3)}"`)
         .join("\n")}
 
       export default createConfig({
         networks: ${JSON.stringify(config.networks)
-          .replaceAll(
-            /"process.env.PONDER_RPC_URL_(.*?)"/g,
-            "process.env.PONDER_RPC_URL_$1",
-          )
+          .replaceAll(/"process.env.PONDER_RPC_URL_(.*?)"/g, "process.env.PONDER_RPC_URL_$1")
           .replaceAll(/"http\((.*?)\)"/g, "http($1)")},
         contracts: ${JSON.stringify(
-          Object.entries(config.contracts).reduce<Record<string, any>>(
-            (acc, [name, c]) => {
-              acc[name] = {
-                ...c,
-                abi: Array.isArray(c.abi)
-                  ? `mergeAbis([${c.abi.map((a) => a.name).join(",")}])`
-                  : c.abi.name,
-              };
-              return acc;
-            },
-            {},
-          ),
+          Object.entries(config.contracts).reduce<Record<string, any>>((acc, [name, c]) => {
+            acc[name] = {
+              ...c,
+              abi: Array.isArray(c.abi)
+                ? `mergeAbis([${c.abi.map((a) => a.name).join(",")}])`
+                : c.abi.name,
+            };
+            return acc;
+          }, {}),
         ).replaceAll(/"abi":"(.*?)"/g, "abi:$1")},
       });
     `;
@@ -376,9 +355,7 @@ export async function run({
         (item): item is AbiEvent => item.type === "event" && !item.anonymous,
       );
 
-      const eventNamesToWrite = abiEvents
-        .map((event) => event.name)
-        .slice(0, 4);
+      const eventNamesToWrite = abiEvents.map((event) => event.name).slice(0, 4);
 
       const indexingFunctionFileContents = `
       import { ponder } from '@/generated'
@@ -406,20 +383,13 @@ export async function run({
   const packageJson = await fs.readJSON(path.join(projectPath, "package.json"));
   packageJson.name = projectName;
   packageJson.dependencies["@ponder/core"] = `^${rootPackageJson.version}`;
-  packageJson.devDependencies["eslint-config-ponder"] =
-    `^${rootPackageJson.version}`;
-  await fs.writeFile(
-    path.join(projectPath, "package.json"),
-    JSON.stringify(packageJson, null, 2),
-  );
+  packageJson.devDependencies["eslint-config-ponder"] = `^${rootPackageJson.version}`;
+  await fs.writeFile(path.join(projectPath, "package.json"), JSON.stringify(packageJson, null, 2));
 
   const packageManager = getPackageManager({ options });
 
   // Install in background to not clutter screen
-  const installArgs = [
-    "install",
-    packageManager === "npm" ? "--quiet" : "--silent",
-  ];
+  const installArgs = ["install", packageManager === "npm" ? "--quiet" : "--silent"];
   await oraPromise(
     execa(packageManager, installArgs, {
       cwd: projectPath,
@@ -433,9 +403,7 @@ export async function run({
       },
     }),
     {
-      text: `Installing packages with ${pico.bold(
-        packageManager,
-      )}. This may take a few seconds.`,
+      text: `Installing packages with ${pico.bold(packageManager)}. This may take a few seconds.`,
       failText: "Failed to install packages.",
       successText: `Installed packages with ${pico.bold(packageManager)}.`,
     },
@@ -449,12 +417,7 @@ export async function run({
         await execa("git", ["add", "."], { cwd: projectPath });
         await execa(
           "git",
-          [
-            "commit",
-            "--no-verify",
-            "--message",
-            "chore: initial commit from create-ponder",
-          ],
+          ["commit", "--no-verify", "--message", "chore: initial commit from create-ponder"],
           { cwd: projectPath },
         );
       },
@@ -510,10 +473,7 @@ export async function run({
     .option("--pnpm", "Use pnpm as your package manager")
     .option("--yarn", "Use yarn as your package manager")
     .option("--skip-git", "Skip initializing a git repository")
-    .option(
-      "--etherscan-api-key [key]",
-      "Etherscan API key for Etherscan template",
-    )
+    .option("--etherscan-api-key [key]", "Etherscan API key for Etherscan template")
     .help();
 
   // Check Nodejs version
@@ -525,9 +485,7 @@ export async function run({
   ];
   if (nodeVersion[0] < 18 || (nodeVersion[0] === 18 && nodeVersion[1] < 14))
     throw new Error(
-      pico.red(
-        `Node version:${process.version} does not meet the >=18.14 requirement`,
-      ),
+      pico.red(`Node version:${process.version} does not meet the >=18.14 requirement`),
     );
 
   const { args, options } = cli.parse(process.argv);
@@ -537,11 +495,7 @@ export async function run({
     log();
     await notifyUpdate({ options });
   } catch (error) {
-    log(
-      error instanceof ValidationError
-        ? error.message
-        : pico.red((<Error>error).message),
-    );
+    log(error instanceof ValidationError ? error.message : pico.red((<Error>error).message));
     log();
     await notifyUpdate({ options });
     process.exit(1);

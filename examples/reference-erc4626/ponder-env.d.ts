@@ -12,15 +12,8 @@ declare module "@/generated" {
   export const ponder: Virtual.Registry<config, schema>;
 
   export type EventNames = Virtual.EventNames<config>;
-  export type Event<name extends EventNames = EventNames> = Virtual.Event<
-    config,
-    name
-  >;
-  export type Context<name extends EventNames = EventNames> = Virtual.Context<
-    config,
-    schema,
-    name
-  >;
+  export type Event<name extends EventNames = EventNames> = Virtual.Event<config, name>;
+  export type Context<name extends EventNames = EventNames> = Virtual.Context<config, schema, name>;
   export type IndexingFunctionArgs<name extends EventNames = EventNames> =
     Virtual.IndexingFunctionArgs<config, schema, name>;
   export type Schema = Virtual.Schema<schema>;

@@ -6,9 +6,7 @@ import { type Transport, type TransportConfig, createTransport } from "viem";
 export const loadBalance = (_transports: Transport[]): Transport => {
   return ({ chain, retryCount, timeout }) => {
     const transports = _transports.map((t) =>
-      chain === undefined
-        ? t({ retryCount: 0, timeout })
-        : t({ chain, retryCount: 0, timeout }),
+      chain === undefined ? t({ retryCount: 0, timeout }) : t({ chain, retryCount: 0, timeout }),
     );
 
     let index = 0;

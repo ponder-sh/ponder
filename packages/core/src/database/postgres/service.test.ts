@@ -2,11 +2,7 @@ import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { getRealtimeStore } from "@/indexing-store/realtime.js";
 import { createSchema } from "@/schema/schema.js";
-import {
-  encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
-} from "@/utils/checkpoint.js";
+import { encodeCheckpoint, maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
 import { wait } from "@/utils/wait.js";
 import { sql } from "kysely";
@@ -78,10 +74,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public", "abc", "Person"]),
     ]);
 
-    expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
+    expect(await getTableNames(database.db, "public")).toStrictEqual(["Pet", "Person"]);
 
     await database.kill();
   });
@@ -112,10 +105,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
     ]);
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual(["Pet", "Person"]);
 
     await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
@@ -126,10 +116,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public", "def", "Dog"]),
       hash(["public", "def", "Apple"]),
     ]);
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "Dog",
-      "Apple",
-    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual(["Dog", "Apple"]);
 
     await databaseTwo.kill();
   });
@@ -157,14 +144,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public", "abc", "Pet"]),
       hash(["public", "abc", "Person"]),
     ]);
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
-    expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual(["Pet", "Person"]);
+    expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual(["Pet", "Person"]);
 
     await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
     await databaseTwo.publish();
@@ -176,14 +157,8 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public", "def", "Dog"]),
       hash(["public", "def", "Apple"]),
     ]);
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "Dog",
-      "Apple",
-    ]);
-    expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual([
-      "Dog",
-      "Apple",
-    ]);
+    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual(["Dog", "Apple"]);
+    expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual(["Dog", "Apple"]);
 
     await databaseTwo.kill();
   });
@@ -206,9 +181,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     });
 
     await databaseTwo.db.executeQuery(
-      sql`CREATE TABLE public.not_a_ponder_table (id TEXT)`.compile(
-        databaseTwo.db,
-      ),
+      sql`CREATE TABLE public.not_a_ponder_table (id TEXT)`.compile(databaseTwo.db),
     );
     await databaseTwo.db.executeQuery(
       sql`CREATE TABLE public."AnotherTable" (id TEXT)`.compile(databaseTwo.db),
@@ -300,11 +273,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       userNamespace: context.databaseConfig.schema,
     });
 
-    const { checkpoint, namespaceInfo: namespaceInfoTwo } =
-      await databaseTwo.setup({
-        schema: schema,
-        buildId: "abc",
-      });
+    const { checkpoint, namespaceInfo: namespaceInfoTwo } = await databaseTwo.setup({
+      schema: schema,
+      buildId: "abc",
+    });
 
     const readonlyIndexingStore = getReadonlyStore({
       encoding: context.databaseConfig.kind,
@@ -409,15 +381,11 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       userNamespace: context.databaseConfig.schema,
     });
 
-    await database.db.executeQuery(
-      sql`CREATE TABLE public."Pet" (id TEXT)`.compile(database.db),
-    );
+    await database.db.executeQuery(sql`CREATE TABLE public."Pet" (id TEXT)`.compile(database.db));
 
     expect(await getTableNames(database.db, "public")).toStrictEqual(["Pet"]);
 
-    await expect(() =>
-      database.setup({ schema, buildId: "abc" }),
-    ).rejects.toThrow(
+    await expect(() => database.setup({ schema, buildId: "abc" })).rejects.toThrow(
       "Unable to create table 'public'.'Pet' because a table with that name already exists. Is there another application using the 'public' database schema?",
     );
 
@@ -454,9 +422,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       .select(["heartbeat_at"])
       .executeTakeFirst();
 
-    expect(BigInt(rowAfterHeartbeat!.heartbeat_at)).toBeGreaterThan(
-      BigInt(row!.heartbeat_at),
-    );
+    expect(BigInt(rowAfterHeartbeat!.heartbeat_at)).toBeGreaterThan(BigInt(row!.heartbeat_at));
 
     await database.kill();
   });
@@ -480,9 +446,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       .execute();
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].finalized_checkpoint).toStrictEqual(
-      encodeCheckpoint(maxCheckpoint),
-    );
+    expect(rows[0].finalized_checkpoint).toStrictEqual(encodeCheckpoint(maxCheckpoint));
 
     await database.kill();
   });
@@ -559,10 +523,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public2", "def", "Dog"]),
       hash(["public2", "def", "Apple"]),
     ]);
-    expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual([
-      "Dog",
-      "Apple",
-    ]);
+    expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual(["Dog", "Apple"]);
 
     await databaseTwo.kill();
     await database.kill();
@@ -603,10 +564,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public2", "abc", "Dog"]),
       hash(["public2", "abc", "Apple"]),
     ]);
-    expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual([
-      "Dog",
-      "Apple",
-    ]);
+    expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual(["Dog", "Apple"]);
 
     await database.kill();
     await databaseTwo.kill();
@@ -623,17 +581,11 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.setup({ schema, buildId: "abc" });
 
-    expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
+    expect(await getTableNames(database.db, "public")).toStrictEqual(["Pet", "Person"]);
 
     await database.publish();
 
-    expect(await getViewNames(database.db, "publish")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
+    expect(await getViewNames(database.db, "publish")).toStrictEqual(["Pet", "Person"]);
 
     await database.kill();
   });
@@ -649,22 +601,15 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.setup({ schema, buildId: "abc" });
 
-    expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
+    expect(await getTableNames(database.db, "public")).toStrictEqual(["Pet", "Person"]);
 
     await database.db.schema.createSchema("publish").ifNotExists().execute();
-    await database.db.executeQuery(
-      sql`CREATE TABLE publish."Pet" (id TEXT)`.compile(database.db),
-    );
+    await database.db.executeQuery(sql`CREATE TABLE publish."Pet" (id TEXT)`.compile(database.db));
 
     await database.publish();
 
     expect(await getTableNames(database.db, "publish")).toStrictEqual(["Pet"]);
-    expect(await getViewNames(database.db, "publish")).toStrictEqual([
-      "Person",
-    ]);
+    expect(await getViewNames(database.db, "publish")).toStrictEqual(["Person"]);
 
     await database.kill();
   });
@@ -680,27 +625,16 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.setup({ schema, buildId: "abc" });
 
-    expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
+    expect(await getTableNames(database.db, "public")).toStrictEqual(["Pet", "Person"]);
 
-    await database.db.schema
-      .createSchema("nice_looks-great")
-      .ifNotExists()
-      .execute();
+    await database.db.schema.createSchema("nice_looks-great").ifNotExists().execute();
     await database.db.executeQuery(
-      sql`CREATE VIEW "nice_looks-great"."Pet" AS SELECT 1`.compile(
-        database.db,
-      ),
+      sql`CREATE VIEW "nice_looks-great"."Pet" AS SELECT 1`.compile(database.db),
     );
 
     await database.publish();
 
-    expect(await getViewNames(database.db, "nice_looks-great")).toStrictEqual([
-      "Pet",
-      "Person",
-    ]);
+    expect(await getViewNames(database.db, "nice_looks-great")).toStrictEqual(["Pet", "Person"]);
 
     await database.kill();
   });
@@ -859,11 +793,7 @@ async function getViewNames(db: HeadlessKysely<any>, schemaName: string) {
   return rows.map((r) => r.table_name);
 }
 
-async function getTableIndexes(
-  db: HeadlessKysely<any>,
-  tableName: string,
-  schemaName: string,
-) {
+async function getTableIndexes(db: HeadlessKysely<any>, tableName: string, schemaName: string) {
   const { rows } = await db.executeQuery<{
     indexname: string;
   }>(

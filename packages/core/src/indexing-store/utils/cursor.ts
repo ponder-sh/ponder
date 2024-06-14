@@ -4,25 +4,14 @@ import { deserialize, serialize } from "@/utils/serialize.js";
 import type { ExpressionBuilder } from "kysely";
 import type { OrderByConditions } from "./sort.js";
 
-export function encodeCursor(
-  record: UserRecord,
-  orderByConditions: OrderByConditions,
-) {
-  const cursorValues = orderByConditions.map(([columnName]) => [
-    columnName,
-    record[columnName],
-  ]);
+export function encodeCursor(record: UserRecord, orderByConditions: OrderByConditions) {
+  const cursorValues = orderByConditions.map(([columnName]) => [columnName, record[columnName]]);
 
   return Buffer.from(serialize(cursorValues)).toString("base64");
 }
 
-export function decodeCursor(
-  cursor: string,
-  orderByConditions: OrderByConditions,
-) {
-  const cursorValues = deserialize<[string, any][]>(
-    Buffer.from(cursor, "base64").toString(),
-  );
+export function decodeCursor(cursor: string, orderByConditions: OrderByConditions) {
+  const cursorValues = deserialize<[string, any][]>(Buffer.from(cursor, "base64").toString());
 
   // Validate cursor values against order by conditions.
   if (cursorValues.length !== orderByConditions.length) {
@@ -67,10 +56,7 @@ export function buildCursorConditions(
 
     return eb.or([
       eb.eb(columnName1, comparator, value1),
-      eb.and([
-        eb.eb(columnName1, "=", value1),
-        eb.eb(columnName2, comparatorOrEquals, value2),
-      ]),
+      eb.and([eb.eb(columnName1, "=", value1), eb.eb(columnName2, comparatorOrEquals, value2)]),
     ]);
   } else {
     throw new StoreError(

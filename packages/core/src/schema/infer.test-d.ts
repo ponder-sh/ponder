@@ -8,11 +8,7 @@ import type {
   ReferenceColumn,
   ScalarColumn,
 } from "./common.js";
-import type {
-  InferColumnType,
-  InferScalarType,
-  InferTableType,
-} from "./infer.js";
+import type { InferColumnType, InferScalarType, InferTableType } from "./infer.js";
 
 test("infer scalar string", () => {
   type inferred = InferScalarType<"string">;

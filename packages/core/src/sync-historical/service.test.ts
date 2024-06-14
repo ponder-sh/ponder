@@ -7,11 +7,7 @@ import {
 import { getEventsLog, getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { EventSource } from "@/config/sources.js";
 import type { SyncBlock } from "@/sync/index.js";
-import {
-  type Checkpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
-} from "@/utils/checkpoint.js";
+import { type Checkpoint, maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -24,10 +20,7 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
-const createBlockCheckpoint = (
-  block: SyncBlock,
-  isInclusive: boolean,
-): Checkpoint => {
+const createBlockCheckpoint = (block: SyncBlock, isInclusive: boolean): Checkpoint => {
   return {
     ...(isInclusive ? maxCheckpoint : zeroCheckpoint),
     blockTimestamp: hexToNumber(block.timestamp),
@@ -52,24 +45,16 @@ const getRequestQueue = async ({
     ...requestQueue,
     request: (request: any) => {
       if (request.method === "trace_filter") {
-        let traces = [
-          ...rpcData.block2.traces,
-          ...rpcData.block3.traces,
-          ...rpcData.block4.traces,
-        ];
+        let traces = [...rpcData.block2.traces, ...rpcData.block3.traces, ...rpcData.block4.traces];
 
         if (request.params[0].fromBlock !== undefined) {
           traces = traces.filter(
-            (t) =>
-              hexToNumber(t.blockNumber) >=
-              hexToNumber(request.params[0].fromBlock),
+            (t) => hexToNumber(t.blockNumber) >= hexToNumber(request.params[0].fromBlock),
           );
         }
         if (request.params[0].toBlock) {
           traces = traces.filter(
-            (t) =>
-              hexToNumber(t.blockNumber) <=
-              hexToNumber(request.params[0].toBlock),
+            (t) => hexToNumber(t.blockNumber) <= hexToNumber(request.params[0].toBlock),
           );
         }
 
@@ -101,9 +86,7 @@ test("start() with log filter inserts log filter interval records", async (conte
     logFilter: sources[0].criteria,
   });
 
-  expect(logFilterIntervals).toMatchObject([
-    [0, blockNumbers.finalizedBlockNumber],
-  ]);
+  expect(logFilterIntervals).toMatchObject([[0, blockNumbers.finalizedBlockNumber]]);
 
   service.kill();
   await service.onIdle();
@@ -167,17 +150,13 @@ test("start() with factory contract inserts log filter and factory log filter in
     },
   });
 
-  expect(childAddressLogFilterIntervals).toMatchObject([
-    [0, blockNumbers.finalizedBlockNumber],
-  ]);
+  expect(childAddressLogFilterIntervals).toMatchObject([[0, blockNumbers.finalizedBlockNumber]]);
 
   const childContractIntervals = await syncStore.getFactoryLogFilterIntervals({
     chainId: sources[1].chainId,
     factory: sources[1].criteria,
   });
-  expect(childContractIntervals).toMatchObject([
-    [0, blockNumbers.finalizedBlockNumber],
-  ]);
+  expect(childContractIntervals).toMatchObject([[0, blockNumbers.finalizedBlockNumber]]);
 
   service.kill();
   await service.onIdle();
@@ -242,9 +221,7 @@ test("start() with block filter inserts block filter interval", async (context) 
     blockFilter: sources[4].criteria,
   });
 
-  expect(blockFilterIntervals).toMatchObject([
-    [1, blockNumbers.finalizedBlockNumber],
-  ]);
+  expect(blockFilterIntervals).toMatchObject([[1, blockNumbers.finalizedBlockNumber]]);
 
   expect(requestSpy).toHaveBeenCalledTimes(3);
 
@@ -292,9 +269,7 @@ test("start() with block filter skips blocks already in database", async (contex
     blockFilter: sources[4].criteria,
   });
 
-  expect(blockFilterIntervals).toMatchObject([
-    [1, blockNumbers.finalizedBlockNumber],
-  ]);
+  expect(blockFilterIntervals).toMatchObject([[1, blockNumbers.finalizedBlockNumber]]);
 
   expect(requestSpy).toHaveBeenCalledTimes(2);
 
@@ -320,9 +295,7 @@ test("setup() updates block metrics", async (context) => {
   });
   await service.setup(blockNumbers);
 
-  const cachedBlocksMetric = (
-    await common.metrics.ponder_historical_cached_blocks.get()
-  ).values;
+  const cachedBlocksMetric = (await common.metrics.ponder_historical_cached_blocks.get()).values;
   expect(cachedBlocksMetric).toEqual(
     expect.arrayContaining([
       {
@@ -345,9 +318,7 @@ test("setup() updates block metrics", async (context) => {
     ]),
   );
 
-  const totalBlocksMetric = (
-    await common.metrics.ponder_historical_total_blocks.get()
-  ).values;
+  const totalBlocksMetric = (await common.metrics.ponder_historical_total_blocks.get()).values;
   const value = blockNumbers.finalizedBlockNumber + 1;
   expect(totalBlocksMetric).toEqual(
     expect.arrayContaining([
@@ -392,9 +363,8 @@ test("start() updates completed blocks metrics", async (context) => {
   service.start();
   await service.onIdle();
 
-  const completedBlocksMetric = (
-    await common.metrics.ponder_historical_completed_blocks.get()
-  ).values;
+  const completedBlocksMetric = (await common.metrics.ponder_historical_completed_blocks.get())
+    .values;
   const value = blockNumbers.finalizedBlockNumber + 1;
 
   expect(completedBlocksMetric).toEqual(
@@ -645,9 +615,7 @@ test("start() retries unexpected error in log filter task", async (context) => {
     logFilter: sources[0].criteria,
   });
 
-  expect(logFilterIntervals).toMatchObject([
-    [0, blockNumbers.finalizedBlockNumber],
-  ]);
+  expect(logFilterIntervals).toMatchObject([[0, blockNumbers.finalizedBlockNumber]]);
   // 2 logs + 2 blocks
   expect(rpcRequestSpy).toHaveBeenCalledTimes(4);
 
@@ -680,9 +648,7 @@ test("start() retries unexpected error in block task", async (context) => {
     logFilter: sources[0].criteria,
   });
 
-  expect(logFilterIntervals).toMatchObject([
-    [0, blockNumbers.finalizedBlockNumber],
-  ]);
+  expect(logFilterIntervals).toMatchObject([[0, blockNumbers.finalizedBlockNumber]]);
   expect(spy).toHaveBeenCalledTimes(3);
 
   service.kill();

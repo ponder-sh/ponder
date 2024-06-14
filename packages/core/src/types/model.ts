@@ -1,10 +1,6 @@
 import type { OrderByInput, WhereInput } from "@/indexing-store/store.js";
 import type { UserTable } from "./schema.js";
-import type {
-  HasOnlyIdProperty,
-  HasRequiredPropertiesOtherThanId,
-  Prettify,
-} from "./utils.js";
+import type { HasOnlyIdProperty, HasRequiredPropertiesOtherThanId, Prettify } from "./utils.js";
 
 export type StoreMethod = Prettify<keyof DatabaseModel<any>>;
 
@@ -21,9 +17,7 @@ export type DatabaseModel<table extends UserTable> = {
     >,
   ) => Promise<Prettify<table>>;
 
-  createMany: (options: { data: Prettify<table>[] }) => Promise<
-    Prettify<table>[]
-  >;
+  createMany: (options: { data: Prettify<table>[] }) => Promise<Prettify<table>[]>;
 
   update: (
     options: Prettify<

@@ -2,11 +2,7 @@ import { http, fallback, webSocket } from "viem";
 import { mainnet } from "viem/chains";
 import { expect, test } from "vitest";
 
-import {
-  getDefaultMaxBlockRange,
-  getRpcUrlsForClient,
-  isRpcUrlPublic,
-} from "./networks.js";
+import { getDefaultMaxBlockRange, getRpcUrlsForClient, isRpcUrlPublic } from "./networks.js";
 
 test("getRpcUrlsForClient handles default RPC URL", async () => {
   const rpcUrls = await getRpcUrlsForClient({

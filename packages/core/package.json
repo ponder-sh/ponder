@@ -9,13 +9,7 @@
     "url": "https://github.com/ponder-sh/ponder",
     "directory": "packages/core"
   },
-  "files": [
-    "dist",
-    "src/**/*.ts",
-    "!src/**/*.test.ts",
-    "!src/**/*.test-d.ts",
-    "!src/_test/**/*"
-  ],
+  "files": ["dist", "src/**/*.ts", "!src/**/*.test.ts", "!src/**/*.test-d.ts", "!src/_test/**/*"],
   "bin": {
     "ponder": "./dist/bin/ponder.js"
   },

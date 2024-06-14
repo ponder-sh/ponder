@@ -31,8 +31,7 @@ export default createConfig({
       abi: erc20ABI,
       address: CONTRACTS.erc20Address,
       filter: {
-        event:
-          "Transfer(address indexed from, address indexed to, uint256 amount)",
+        event: "Transfer(address indexed from, address indexed to, uint256 amount)",
       },
     },
   },

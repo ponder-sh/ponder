@@ -14,11 +14,7 @@ class ESBuildContextError extends Error {
   override name = "ESBuildContextError";
 }
 
-type ViteNodeError =
-  | ESBuildTransformError
-  | ESBuildBuildError
-  | ESBuildContextError
-  | Error;
+type ViteNodeError = ESBuildTransformError | ESBuildBuildError | ESBuildContextError | Error;
 
 export function parseViteNodeError(file: string, error: Error): ViteNodeError {
   let resolvedError: ViteNodeError;
@@ -57,8 +53,7 @@ export function parseViteNodeError(file: string, error: Error): ViteNodeError {
         : errorKind === "Build failed"
           ? new ESBuildBuildError(innerError.detail)
           : new ESBuildContextError(innerError.detail);
-    if (innerError.location)
-      resolvedError.stack = `    at ${innerError.location}`;
+    if (innerError.location) resolvedError.stack = `    at ${innerError.location}`;
   }
   // If it's not an ESBuild error, it's a user-land vm.runModuleInContext execution error.
   // Attempt to build a user-land stack trace.
@@ -123,8 +118,7 @@ export function parseViteNodeError(file: string, error: Error): ViteNodeError {
   const verb =
     resolvedError.name === "ESBuildTransformError"
       ? "transforming"
-      : resolvedError.name === "ESBuildBuildError" ||
-          resolvedError.name === "ESBuildContextError"
+      : resolvedError.name === "ESBuildBuildError" || resolvedError.name === "ESBuildContextError"
         ? "building"
         : "executing";
   resolvedError.message = `Error while ${verb} ${file}: ${resolvedError.message}`;

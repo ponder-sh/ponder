@@ -42,9 +42,7 @@ test(
     }).catch((error) => error);
 
     expect(error).toBeInstanceOf(InvalidParamsRpcError);
-    expect(JSON.stringify(error)).includes(
-      "eth_getLogs is limited to 1024 block range",
-    );
+    expect(JSON.stringify(error)).includes("eth_getLogs is limited to 1024 block range");
 
     const retry = getLogsRetryHelper({
       params,

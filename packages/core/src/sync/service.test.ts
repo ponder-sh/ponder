@@ -58,19 +58,11 @@ test("createSyncService()", async (context) => {
   expect(syncService.checkpoint.chainId).toStrictEqual(1n);
   expect(syncService.networkServices).toHaveLength(2);
 
-  expect(syncService.networkServices[0].realtime!.finalizedBlock.number).toBe(
-    "0x1",
-  );
-  expect(syncService.networkServices[1].realtime!.finalizedBlock.number).toBe(
-    "0x1",
-  );
+  expect(syncService.networkServices[0].realtime!.finalizedBlock.number).toBe("0x1");
+  expect(syncService.networkServices[1].realtime!.finalizedBlock.number).toBe("0x1");
 
-  expect(
-    syncService.networkServices[0].historical.isHistoricalSyncComplete,
-  ).toBe(false);
-  expect(
-    syncService.networkServices[1].historical.isHistoricalSyncComplete,
-  ).toBe(false);
+  expect(syncService.networkServices[0].historical.isHistoricalSyncComplete).toBe(false);
+  expect(syncService.networkServices[1].historical.isHistoricalSyncComplete).toBe(false);
 
   expect(syncService.networkServices[0].historical.checkpoint).toBe(undefined);
   expect(syncService.networkServices[1].historical.checkpoint).toBe(undefined);
@@ -274,9 +266,7 @@ test("onRealtimeSyncEvent reorg", async (context) => {
   expect(syncService.networkServices[0].realtime!.checkpoint).toStrictEqual(
     createCheckpoint({ blockNumber: 2n }),
   );
-  expect(syncService.checkpoint).toStrictEqual(
-    createCheckpoint({ blockNumber: 2n }),
-  );
+  expect(syncService.checkpoint).toStrictEqual(createCheckpoint({ blockNumber: 2n }));
 
   await kill(syncService);
   await cleanup();
@@ -332,14 +322,12 @@ test("onRealtimeSyncEvent finalize", async (context) => {
 
   syncService.checkpoint = zeroCheckpoint;
 
-  syncService.networkServices[0].realtime!.finalizedCheckpoint =
-    createCheckpoint({
-      blockNumber: 6n,
-    });
-  syncService.networkServices[1].realtime!.finalizedCheckpoint =
-    createCheckpoint({
-      blockNumber: 4n,
-    });
+  syncService.networkServices[0].realtime!.finalizedCheckpoint = createCheckpoint({
+    blockNumber: 6n,
+  });
+  syncService.networkServices[1].realtime!.finalizedCheckpoint = createCheckpoint({
+    blockNumber: 4n,
+  });
 
   syncService.finalizedCheckpoint = createCheckpoint({ blockNumber: 4n });
 
@@ -349,12 +337,10 @@ test("onRealtimeSyncEvent finalize", async (context) => {
     checkpoint: createCheckpoint({ blockNumber: 7n }),
   });
 
-  expect(
-    syncService.networkServices[0].realtime!.finalizedCheckpoint,
-  ).toStrictEqual(createCheckpoint({ blockNumber: 7n }));
-  expect(syncService.finalizedCheckpoint).toStrictEqual(
-    createCheckpoint({ blockNumber: 4n }),
+  expect(syncService.networkServices[0].realtime!.finalizedCheckpoint).toStrictEqual(
+    createCheckpoint({ blockNumber: 7n }),
   );
+  expect(syncService.finalizedCheckpoint).toStrictEqual(createCheckpoint({ blockNumber: 4n }));
 
   expect(onRealtimeEvent).toHaveBeenCalledTimes(0);
 
@@ -364,12 +350,10 @@ test("onRealtimeSyncEvent finalize", async (context) => {
     checkpoint: createCheckpoint({ blockNumber: 6n }),
   });
 
-  expect(
-    syncService.networkServices[1].realtime!.finalizedCheckpoint,
-  ).toStrictEqual(createCheckpoint({ blockNumber: 6n }));
-  expect(syncService.finalizedCheckpoint).toStrictEqual(
+  expect(syncService.networkServices[1].realtime!.finalizedCheckpoint).toStrictEqual(
     createCheckpoint({ blockNumber: 6n }),
   );
+  expect(syncService.finalizedCheckpoint).toStrictEqual(createCheckpoint({ blockNumber: 6n }));
 
   expect(onRealtimeEvent).toHaveBeenCalledTimes(1);
 
@@ -394,10 +378,7 @@ test("onRealtimeSyncEvent unfinalized end block", async (context) => {
 
   syncService.checkpoint = zeroCheckpoint;
 
-  const killSpy = vi.spyOn(
-    syncService.networkServices[1].realtime!.realtimeSync,
-    "kill",
-  );
+  const killSpy = vi.spyOn(syncService.networkServices[1].realtime!.realtimeSync, "kill");
 
   syncService.networkServices[0].realtime!.realtimeSync.onEvent({
     type: "finalize",

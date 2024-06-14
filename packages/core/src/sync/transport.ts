@@ -4,12 +4,7 @@ import type { RequestQueue } from "@/utils/requestQueue.js";
 import type { Address, Hex, Transport } from "viem";
 import { custom, hexToBigInt, maxUint256 } from "viem";
 
-const cachedMethods = [
-  "eth_call",
-  "eth_getBalance",
-  "eth_getCode",
-  "eth_getStorageAt",
-] as const;
+const cachedMethods = ["eth_call", "eth_getBalance", "eth_getCode", "eth_getStorageAt"] as const;
 
 export const cachedTransport = ({
   requestQueue,
@@ -28,14 +23,9 @@ export const cachedTransport = ({
           let blockNumber: Hex | "latest" = undefined!;
 
           if (method === "eth_call") {
-            const [{ data, to }, _blockNumber] = params as [
-              { data: Hex; to: Hex },
-              Hex | "latest",
-            ];
+            const [{ data, to }, _blockNumber] = params as [{ data: Hex; to: Hex }, Hex | "latest"];
 
-            request = `${method as string}_${toLowerCase(to)}_${toLowerCase(
-              data,
-            )}`;
+            request = `${method as string}_${toLowerCase(to)}_${toLowerCase(data)}`;
             blockNumber = _blockNumber;
           } else if (method === "eth_getBalance") {
             const [address, _blockNumber] = params as [Address, Hex | "latest"];
@@ -48,15 +38,9 @@ export const cachedTransport = ({
             request = `${method as string}_${toLowerCase(address)}`;
             blockNumber = _blockNumber;
           } else if (method === "eth_getStorageAt") {
-            const [address, slot, _blockNumber] = params as [
-              Address,
-              Hex,
-              Hex | "latest",
-            ];
+            const [address, slot, _blockNumber] = params as [Address, Hex, Hex | "latest"];
 
-            request = `${method as string}_${toLowerCase(
-              address,
-            )}_${toLowerCase(slot)}`;
+            request = `${method as string}_${toLowerCase(address)}_${toLowerCase(slot)}`;
             blockNumber = _blockNumber;
           }
 

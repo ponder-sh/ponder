@@ -14,41 +14,22 @@ dotenv.config({ path: ".env.local" });
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = resolve(__dirname, "../../package.json");
-const packageJson = JSON.parse(
-  readFileSync(packageJsonPath, { encoding: "utf8" }),
-);
+const packageJson = JSON.parse(readFileSync(packageJsonPath, { encoding: "utf8" }));
 
 const ponder = new Command("ponder")
   .usage("<command> [OPTIONS]")
   .helpOption("-h, --help", "Show this help message")
   .helpCommand(false)
-  .option(
-    "--root <PATH>",
-    "Path to the project root directory (default: working directory)",
-  )
-  .option(
-    "--config <PATH>",
-    "Path to the project config file",
-    "ponder.config.ts",
-  )
-  .option(
-    "-v, --debug",
-    "Enable debug logs, e.g. realtime blocks, internal events",
-  )
-  .option(
-    "-vv, --trace",
-    "Enable trace logs, e.g. db queries, indexing checkpoints",
-  )
+  .option("--root <PATH>", "Path to the project root directory (default: working directory)")
+  .option("--config <PATH>", "Path to the project config file", "ponder.config.ts")
+  .option("-v, --debug", "Enable debug logs, e.g. realtime blocks, internal events")
+  .option("-vv, --trace", "Enable trace logs, e.g. db queries, indexing checkpoints")
   .option(
     "--log-level <LEVEL>",
     'Minimum log level ("error", "warn", "info", "debug", or "trace")',
     "info",
   )
-  .option(
-    "--log-format <FORMAT>",
-    'The log format ("pretty" or "json")',
-    "pretty",
-  )
+  .option("--log-format <FORMAT>", 'The log format ("pretty" or "json")', "pretty")
   .version(packageJson.version, "-V, --version", "Show the version number")
   .configureHelp({ showGlobalOptions: true })
   .allowExcessArguments(false)

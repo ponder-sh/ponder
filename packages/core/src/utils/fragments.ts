@@ -148,9 +148,7 @@ export function buildTraceFragments({
     toAddress: Hex | null;
   }[] = [];
 
-  for (const _fromAddress of Array.isArray(fromAddress)
-    ? fromAddress
-    : [null]) {
+  for (const _fromAddress of Array.isArray(fromAddress) ? fromAddress : [null]) {
     for (const _toAddress of Array.isArray(toAddress) ? toAddress : [null]) {
       fragments.push({
         id: `${chainId}_${_fromAddress}_${_toAddress}`,
@@ -179,9 +177,7 @@ export function buildFactoryTraceFragments({
     fromAddress: Hex | null;
   } & ChildAddressCriteria)[] = [];
 
-  for (const _fromAddress of Array.isArray(fromAddress)
-    ? fromAddress
-    : [null]) {
+  for (const _fromAddress of Array.isArray(fromAddress) ? fromAddress : [null]) {
     fragments.push({
       id: `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${_fromAddress}`,
       chainId,

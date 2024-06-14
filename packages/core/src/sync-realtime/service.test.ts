@@ -6,11 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { getRawRPCData, testClient } from "@/_test/utils.js";
 import type { EventSource } from "@/config/sources.js";
-import {
-  type SyncBlock,
-  type SyncTrace,
-  _eth_getBlockByNumber,
-} from "@/sync/index.js";
+import { type SyncBlock, type SyncTrace, _eth_getBlockByNumber } from "@/sync/index.js";
 import { maxCheckpoint } from "@/utils/checkpoint.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -140,9 +136,7 @@ test("start() no-op when receiving same block twice", async (context) => {
 
   const queue = await start(realtimeSyncService);
 
-  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 5 }).then(
-    queue.add,
-  );
+  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 5 }).then(queue.add);
 
   await queue.onIdle();
 
@@ -217,9 +211,7 @@ test("start() finds reorg with block number", async (context) => {
 
   const queue = await start(realtimeSyncService);
 
-  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 3 }).then(
-    queue.add,
-  );
+  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 3 }).then(queue.add);
   await queue.onIdle();
 
   expect(onEvent).toHaveBeenCalledWith({
@@ -259,16 +251,14 @@ test("start() finds reorg with block hash", async (context) => {
   const queue = await start(realtimeSyncService);
   await queue.onIdle();
 
-  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 5 }).then(
-    (block) => {
-      queue.add({
-        ...block,
-        number: "0x6",
-        parentHash: realtimeSyncService.localChain[3].hash,
-        hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
-      });
-    },
-  );
+  await _eth_getBlockByNumber(realtimeSyncService, { blockNumber: 5 }).then((block) => {
+    queue.add({
+      ...block,
+      number: "0x6",
+      parentHash: realtimeSyncService.localChain[3].hash,
+      hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+    });
+  });
   await queue.onIdle();
 
   expect(realtimeSyncService.localChain).toHaveLength(0);
@@ -425,14 +415,8 @@ test("handleBlock() ingests block and logs", async (context) => {
 
   const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
-  const transactions = await syncStore.db
-    .selectFrom("transactions")
-    .selectAll()
-    .execute();
-  const traces = await syncStore.db
-    .selectFrom("callTraces")
-    .selectAll()
-    .execute();
+  const transactions = await syncStore.db.selectFrom("transactions").selectAll().execute();
+  const traces = await syncStore.db.selectFrom("callTraces").selectAll().execute();
   const transactionReceipts = await syncStore.db
     .selectFrom("transactionReceipts")
     .selectAll()
@@ -607,11 +591,10 @@ test("handleBlock() finalizes range", async (context) => {
   });
   expect(logFilterIntervals).toMatchObject([[1, 4]]);
 
-  const factoryLogFilterIntervals =
-    await syncStore.getFactoryLogFilterIntervals({
-      chainId: sources[1].chainId,
-      factory: sources[1].criteria,
-    });
+  const factoryLogFilterIntervals = await syncStore.getFactoryLogFilterIntervals({
+    chainId: sources[1].chainId,
+    factory: sources[1].criteria,
+  });
   expect(factoryLogFilterIntervals).toMatchObject([[1, 4]]);
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
@@ -670,10 +653,7 @@ test("handleReorg() finds common ancestor", async (context) => {
 
   await handleReorg(
     realtimeSyncService,
-    await _eth_getBlockByNumber(
-      { requestQueue: requestQueues[0] },
-      { blockNumber: 4 },
-    ),
+    await _eth_getBlockByNumber({ requestQueue: requestQueues[0] }, { blockNumber: 4 }),
   );
 
   const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
@@ -736,10 +716,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
 
   const error = await handleReorg(
     realtimeSyncService,
-    await _eth_getBlockByNumber(
-      { requestQueue: requestQueues[0] },
-      { blockNumber: 4 },
-    ),
+    await _eth_getBlockByNumber({ requestQueue: requestQueues[0] }, { blockNumber: 4 }),
   ).catch((err) => err);
 
   expect(realtimeSyncService.localChain).toHaveLength(0);

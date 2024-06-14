@@ -39,10 +39,7 @@ function Table({ deposits }: { deposits: Deposit[] }) {
         <p className="hidden sm:flex">Timestamp</p>
       </li>
       {deposits.map(({ id, account, timestamp, amount }) => (
-        <li
-          className="w-full grid grid-cols-2 sm:grid-cols-3 font-semibold text-lg py-2"
-          key={id}
-        >
+        <li className="w-full grid grid-cols-2 sm:grid-cols-3 font-semibold text-lg py-2" key={id}>
           <a
             className="text-blue-500 text-sm font-semibold underline"
             href={`https://etherscan.io/address/${account}`}
@@ -58,9 +55,7 @@ function Table({ deposits }: { deposits: Deposit[] }) {
             separator={","}
             className="text-sm font-semibold"
           />
-          <p className="text-sm hidden sm:flex">
-            {new Date(timestamp * 1000).toLocaleString()}
-          </p>
+          <p className="text-sm hidden sm:flex">{new Date(timestamp * 1000).toLocaleString()}</p>
         </li>
       ))}
     </ul>

@@ -1,11 +1,7 @@
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
 import { getTables } from "@/schema/utils.js";
-import {
-  type GraphQLFieldConfig,
-  GraphQLObjectType,
-  GraphQLSchema,
-} from "graphql";
+import { type GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
 import type { GetLoader } from "./buildLoaderCache.js";
 import { buildEntityTypes } from "./entity.js";
 import { buildEnumTypes } from "./enum.js";
@@ -33,8 +29,7 @@ export const buildGraphqlSchema = (schema: Schema): GraphQLSchema => {
     const entityPageType = entityPageTypes[tableName];
     const entityFilterType = entityFilterTypes[tableName];
 
-    const singularFieldName =
-      tableName.charAt(0).toLowerCase() + tableName.slice(1);
+    const singularFieldName = tableName.charAt(0).toLowerCase() + tableName.slice(1);
     queryFields[singularFieldName] = buildSingularField({
       tableName,
       table,

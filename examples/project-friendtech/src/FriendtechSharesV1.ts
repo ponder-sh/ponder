@@ -11,9 +11,7 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
   const subjectId = event.args.subject;
   const traderId = event.args.trader;
   const shareId = `${event.args.subject}-${event.args.trader}`;
-  const tradeEventId = `${
-    event.transaction.hash
-  }-${event.log.logIndex.toString()}`;
+  const tradeEventId = `${event.transaction.hash}-${event.log.logIndex.toString()}`;
 
   const feeAmount = event.args.protocolEthAmount + event.args.subjectEthAmount;
 
@@ -49,24 +47,17 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
     },
     update: ({ current }) => {
       const shareDelta =
-        tradeEvent.tradeType === "BUY"
-          ? tradeEvent.shareAmount
-          : -tradeEvent.shareAmount;
+        tradeEvent.tradeType === "BUY" ? tradeEvent.shareAmount : -tradeEvent.shareAmount;
 
-      const traderSpend =
-        tradeEvent.tradeType === "BUY" ? traderAmount : tradeEvent.ethAmount;
+      const traderSpend = tradeEvent.tradeType === "BUY" ? traderAmount : tradeEvent.ethAmount;
 
       return {
         totalTrades: current.totalTrades + 1n,
         totalShares: current.totalShares + shareDelta,
-        lastPrice:
-          tradeEvent.shareAmount > 0
-            ? traderSpend / tradeEvent.shareAmount
-            : 0n,
+        lastPrice: tradeEvent.shareAmount > 0 ? traderSpend / tradeEvent.shareAmount : 0n,
         earnings: current.earnings + tradeEvent.subjectEthAmount,
         traderVolume: current.traderVolume + traderSpend,
-        protocolFeesGenerated:
-          current.protocolFeesGenerated + tradeEvent.protocolEthAmount,
+        protocolFeesGenerated: current.protocolFeesGenerated + tradeEvent.protocolEthAmount,
       };
     },
   });
@@ -84,16 +75,14 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
     update: ({ current }) => {
       const spendDelta = tradeEvent.tradeType === "BUY" ? traderAmount : 0n;
       const earningsDelta = tradeEvent.tradeType === "BUY" ? 0n : traderAmount;
-      const profitDelta =
-        tradeEvent.tradeType === "BUY" ? -traderAmount : traderAmount;
+      const profitDelta = tradeEvent.tradeType === "BUY" ? -traderAmount : traderAmount;
       return {
         totalTrades: current.totalTrades + 1n,
         spend: current.spend + spendDelta,
         earnings: current.earnings + earningsDelta,
         profit: current.profit + profitDelta,
         subjectFeesPaid: current.subjectFeesPaid + tradeEvent.subjectEthAmount,
-        protocolFeesPaid:
-          current.protocolFeesPaid + tradeEvent.protocolEthAmount,
+        protocolFeesPaid: current.protocolFeesPaid + tradeEvent.protocolEthAmount,
       };
     },
   });

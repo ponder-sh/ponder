@@ -81,9 +81,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
         if (i === RETRY_COUNT) {
           this.common.logger.warn({
             service: this.name,
-            msg: `Failed '${options.method}' database method after '${
-              i + 1
-            }' attempts`,
+            msg: `Failed '${options.method}' database method after '${i + 1}' attempts`,
             error,
           });
           throw firstError;

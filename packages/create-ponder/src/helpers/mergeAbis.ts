@@ -2,10 +2,7 @@ import type { Abi } from "abitype";
 import type { AbiItem } from "viem";
 import { formatAbiItem } from "viem/utils";
 
-export type MergeAbi<
-  TBase extends Abi,
-  TInsert extends Abi,
-> = TInsert extends readonly [
+export type MergeAbi<TBase extends Abi, TInsert extends Abi> = TInsert extends readonly [
   infer First extends AbiItem,
   ...infer Rest extends Abi,
 ]
@@ -16,18 +13,14 @@ export type MergeAbi<
     : MergeAbi<TBase, Rest>
   : TBase;
 
-type MergeAbis<
-  TAbis extends readonly Abi[],
-  TMerged extends Abi = [],
-> = TAbis extends readonly [
+type MergeAbis<TAbis extends readonly Abi[], TMerged extends Abi = []> = TAbis extends readonly [
   infer First extends Abi,
   ...infer Rest extends readonly Abi[],
 ]
   ? MergeAbis<Rest, MergeAbi<TMerged, First>>
   : TMerged;
 
-const isAbiItemEqual = (a: AbiItem, b: AbiItem): boolean =>
-  formatAbiItem(a) === formatAbiItem(b);
+const isAbiItemEqual = (a: AbiItem, b: AbiItem): boolean => formatAbiItem(a) === formatAbiItem(b);
 
 /**
  * Combine multiple ABIs into one, removing duplicates if necessary.

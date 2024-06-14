@@ -23,17 +23,11 @@ pg.Client.prototype.query = function query(
     error.name = "PostgresError";
 
     let parameters = parameters_ ?? [];
-    parameters =
-      parameters.length <= 25
-        ? parameters
-        : parameters.slice(0, 26).concat(["..."]);
-    const params = parameters.reduce<Record<number, any>>(
-      (acc, parameter, idx) => {
-        acc[idx + 1] = parameter;
-        return acc;
-      },
-      {},
-    );
+    parameters = parameters.length <= 25 ? parameters : parameters.slice(0, 26).concat(["..."]);
+    const params = parameters.reduce<Record<number, any>>((acc, parameter, idx) => {
+      acc[idx + 1] = parameter;
+      return acc;
+    }, {});
 
     error.meta = Array.isArray(error.meta) ? error.meta : [];
     if (error.detail) error.meta.push(`Detail:\n  ${error.detail}`);
