@@ -323,7 +323,7 @@ test("insertLogFilterInterval updates log checkpoints on conflict", async (conte
 
   let logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
-  expect(logs[0].checkpoint).toBe(null);
+  expect(logs[0]!.checkpoint).toBe(null);
 
   await syncStore.insertLogFilterInterval({
     chainId: 1,
@@ -341,7 +341,7 @@ test("insertLogFilterInterval updates log checkpoints on conflict", async (conte
 
   logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
-  expect(logs[0].checkpoint).toBeTruthy();
+  expect(logs[0]!.checkpoint).toBeTruthy();
 
   await cleanup();
 });
@@ -1411,17 +1411,23 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
       .execute();
 
     expect(traces).toHaveLength(3);
-    expect(traces[0].transactionHash).toBe(rpcData.block2.transactions[0].hash);
-    expect(traces[0].traceAddress).toBe(JSON.stringify([0, 0]));
-    expect(decodeCheckpoint(traces[0].checkpoint).eventIndex).toBe(0n);
+    expect(traces[0]!.transactionHash).toBe(
+      rpcData.block2.transactions[0].hash,
+    );
+    expect(traces[0]!.traceAddress).toBe(JSON.stringify([0, 0]));
+    expect(decodeCheckpoint(traces[0]!.checkpoint).eventIndex).toBe(0n);
 
-    expect(traces[1].transactionHash).toBe(rpcData.block2.transactions[0].hash);
-    expect(traces[1].traceAddress).toBe(JSON.stringify([1]));
-    expect(decodeCheckpoint(traces[1].checkpoint).eventIndex).toBe(1n);
+    expect(traces[1]!.transactionHash).toBe(
+      rpcData.block2.transactions[0].hash,
+    );
+    expect(traces[1]!.traceAddress).toBe(JSON.stringify([1]));
+    expect(decodeCheckpoint(traces[1]!.checkpoint).eventIndex).toBe(1n);
 
-    expect(traces[2].transactionHash).toBe(rpcData.block2.transactions[1].hash);
-    expect(traces[2].traceAddress).toBe(JSON.stringify([0]));
-    expect(decodeCheckpoint(traces[2].checkpoint).eventIndex).toBe(0n);
+    expect(traces[2]!.transactionHash).toBe(
+      rpcData.block2.transactions[1].hash,
+    );
+    expect(traces[2]!.traceAddress).toBe(JSON.stringify([0]));
+    expect(decodeCheckpoint(traces[2]!.checkpoint).eventIndex).toBe(0n);
 
     await syncStore.insertTraceFilterInterval({
       chainId: 1,
@@ -1450,21 +1456,29 @@ test("insertTraceFilterIntervals updates checkpoint for existing traces", async 
       .execute();
     expect(traces).toHaveLength(4);
 
-    expect(traces[0].transactionHash).toBe(rpcData.block2.transactions[0].hash);
-    expect(traces[0].traceAddress).toBe(JSON.stringify([0, 0]));
-    expect(decodeCheckpoint(traces[0].checkpoint).eventIndex).toBe(0n);
+    expect(traces[0]!.transactionHash).toBe(
+      rpcData.block2.transactions[0].hash,
+    );
+    expect(traces[0]!.traceAddress).toBe(JSON.stringify([0, 0]));
+    expect(decodeCheckpoint(traces[0]!.checkpoint).eventIndex).toBe(0n);
 
-    expect(traces[1].transactionHash).toBe(rpcData.block2.transactions[0].hash);
-    expect(traces[1].traceAddress).toBe(JSON.stringify([0, 2]));
-    expect(decodeCheckpoint(traces[1].checkpoint).eventIndex).toBe(1n);
+    expect(traces[1]!.transactionHash).toBe(
+      rpcData.block2.transactions[0].hash,
+    );
+    expect(traces[1]!.traceAddress).toBe(JSON.stringify([0, 2]));
+    expect(decodeCheckpoint(traces[1]!.checkpoint).eventIndex).toBe(1n);
 
-    expect(traces[2].transactionHash).toBe(rpcData.block2.transactions[0].hash);
-    expect(traces[2].traceAddress).toBe(JSON.stringify([1]));
-    expect(decodeCheckpoint(traces[2].checkpoint).eventIndex).toBe(2n);
+    expect(traces[2]!.transactionHash).toBe(
+      rpcData.block2.transactions[0].hash,
+    );
+    expect(traces[2]!.traceAddress).toBe(JSON.stringify([1]));
+    expect(decodeCheckpoint(traces[2]!.checkpoint).eventIndex).toBe(2n);
 
-    expect(traces[3].transactionHash).toBe(rpcData.block2.transactions[1].hash);
-    expect(traces[3].traceAddress).toBe(JSON.stringify([0]));
-    expect(decodeCheckpoint(traces[3].checkpoint).eventIndex).toBe(0n);
+    expect(traces[3]!.transactionHash).toBe(
+      rpcData.block2.transactions[1].hash,
+    );
+    expect(traces[3]!.traceAddress).toBe(JSON.stringify([0]));
+    expect(decodeCheckpoint(traces[3]!.checkpoint).eventIndex).toBe(0n);
 
     await cleanup();
   }
@@ -1722,17 +1736,23 @@ test("insertFactoryTraceFilterIntervals inserts and merges child contract interv
       .execute();
 
     expect(traces).toHaveLength(3);
-    expect(traces[0].transactionHash).toBe(rpcData.block2.transactions[0].hash);
-    expect(traces[0].traceAddress).toBe(JSON.stringify([0, 0]));
-    expect(decodeCheckpoint(traces[0].checkpoint).eventIndex).toBe(0n);
+    expect(traces[0]!.transactionHash).toBe(
+      rpcData.block2.transactions[0].hash,
+    );
+    expect(traces[0]!.traceAddress).toBe(JSON.stringify([0, 0]));
+    expect(decodeCheckpoint(traces[0]!.checkpoint).eventIndex).toBe(0n);
 
-    expect(traces[1].transactionHash).toBe(rpcData.block2.transactions[0].hash);
-    expect(traces[1].traceAddress).toBe(JSON.stringify([1]));
-    expect(decodeCheckpoint(traces[1].checkpoint).eventIndex).toBe(1n);
+    expect(traces[1]!.transactionHash).toBe(
+      rpcData.block2.transactions[0].hash,
+    );
+    expect(traces[1]!.traceAddress).toBe(JSON.stringify([1]));
+    expect(decodeCheckpoint(traces[1]!.checkpoint).eventIndex).toBe(1n);
 
-    expect(traces[2].transactionHash).toBe(rpcData.block2.transactions[1].hash);
-    expect(traces[2].traceAddress).toBe(JSON.stringify([0]));
-    expect(decodeCheckpoint(traces[2].checkpoint).eventIndex).toBe(0n);
+    expect(traces[2]!.transactionHash).toBe(
+      rpcData.block2.transactions[1].hash,
+    );
+    expect(traces[2]!.traceAddress).toBe(JSON.stringify([0]));
+    expect(decodeCheckpoint(traces[2]!.checkpoint).eventIndex).toBe(0n);
 
     await syncStore.insertFactoryTraceFilterInterval({
       chainId: 1,
@@ -1764,21 +1784,29 @@ test("insertFactoryTraceFilterIntervals inserts and merges child contract interv
       .execute();
     expect(traces).toHaveLength(4);
 
-    expect(traces[0].transactionHash).toBe(rpcData.block2.transactions[0].hash);
-    expect(traces[0].traceAddress).toBe(JSON.stringify([0, 0]));
-    expect(decodeCheckpoint(traces[0].checkpoint).eventIndex).toBe(0n);
+    expect(traces[0]!.transactionHash).toBe(
+      rpcData.block2.transactions[0].hash,
+    );
+    expect(traces[0]!.traceAddress).toBe(JSON.stringify([0, 0]));
+    expect(decodeCheckpoint(traces[0]!.checkpoint).eventIndex).toBe(0n);
 
-    expect(traces[1].transactionHash).toBe(rpcData.block2.transactions[0].hash);
-    expect(traces[1].traceAddress).toBe(JSON.stringify([0, 2]));
-    expect(decodeCheckpoint(traces[1].checkpoint).eventIndex).toBe(1n);
+    expect(traces[1]!.transactionHash).toBe(
+      rpcData.block2.transactions[0].hash,
+    );
+    expect(traces[1]!.traceAddress).toBe(JSON.stringify([0, 2]));
+    expect(decodeCheckpoint(traces[1]!.checkpoint).eventIndex).toBe(1n);
 
-    expect(traces[2].transactionHash).toBe(rpcData.block2.transactions[0].hash);
-    expect(traces[2].traceAddress).toBe(JSON.stringify([1]));
-    expect(decodeCheckpoint(traces[2].checkpoint).eventIndex).toBe(2n);
+    expect(traces[2]!.transactionHash).toBe(
+      rpcData.block2.transactions[0].hash,
+    );
+    expect(traces[2]!.traceAddress).toBe(JSON.stringify([1]));
+    expect(decodeCheckpoint(traces[2]!.checkpoint).eventIndex).toBe(2n);
 
-    expect(traces[3].transactionHash).toBe(rpcData.block2.transactions[1].hash);
-    expect(traces[3].traceAddress).toBe(JSON.stringify([0]));
-    expect(decodeCheckpoint(traces[3].checkpoint).eventIndex).toBe(0n);
+    expect(traces[3]!.transactionHash).toBe(
+      rpcData.block2.transactions[1].hash,
+    );
+    expect(traces[3]!.traceAddress).toBe(JSON.stringify([0]));
+    expect(decodeCheckpoint(traces[3]!.checkpoint).eventIndex).toBe(0n);
 
     await cleanup();
   }
@@ -1929,11 +1957,11 @@ test("insertRealtimeBlock upserts transactions", async (context) => {
     .execute();
   expect(transactions).toHaveLength(2);
 
-  expect(BigInt(transactions[0].blockNumber)).toBe(2n);
+  expect(BigInt(transactions[0]!.blockNumber)).toBe(2n);
 
-  expect(BigInt(transactions[1].blockNumber)).toBe(hexToBigInt("0x69"));
-  expect(transactions[1].blockHash).toBe("0x68");
-  expect(BigInt(transactions[1].transactionIndex)).toBe(hexToBigInt("0x67"));
+  expect(BigInt(transactions[1]!.blockNumber)).toBe(hexToBigInt("0x69"));
+  expect(transactions[1]!.blockHash).toBe("0x68");
+  expect(BigInt(transactions[1]!.transactionIndex)).toBe(hexToBigInt("0x67"));
 
   await cleanup();
 });
@@ -2216,20 +2244,26 @@ test("getEvents with log filters", async (context) => {
 
   expect(events).toHaveLength(3);
 
-  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[0].block.hash).toBe(rpcData.block2.block.hash);
-  expect(events[0].transaction!.hash).toBe(rpcData.block2.transactions[0].hash);
-  expect(events[0].transactionReceipt).toBeUndefined();
+  expect(events[0]!.log!.address).toBe(checksumAddress(erc20.address));
+  expect(events[0]!.block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[0]!.transaction!.hash).toBe(
+    rpcData.block2.transactions[0].hash,
+  );
+  expect(events[0]!.transactionReceipt).toBeUndefined();
 
-  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[1].block.hash).toBe(rpcData.block2.block.hash);
-  expect(events[1].transaction!.hash).toBe(rpcData.block2.transactions[1].hash);
-  expect(events[1].transactionReceipt).toBeUndefined();
+  expect(events[1]!.log!.address).toBe(checksumAddress(erc20.address));
+  expect(events[1]!.block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[1]!.transaction!.hash).toBe(
+    rpcData.block2.transactions[1].hash,
+  );
+  expect(events[1]!.transactionReceipt).toBeUndefined();
 
-  expect(events[2].log!.address).toBe(checksumAddress(factory.pair));
-  expect(events[2].block.hash).toBe(rpcData.block4.block.hash);
-  expect(events[2].transaction!.hash).toBe(rpcData.block4.transactions[0].hash);
-  expect(events[2].transactionReceipt).toBeUndefined();
+  expect(events[2]!.log!.address).toBe(checksumAddress(factory.pair));
+  expect(events[2]!.block.hash).toBe(rpcData.block4.block.hash);
+  expect(events[2]!.transaction!.hash).toBe(
+    rpcData.block4.transactions[0].hash,
+  );
+  expect(events[2]!.transactionReceipt).toBeUndefined();
 
   await cleanup();
 });
@@ -2267,24 +2301,30 @@ test("getEvents with logs filters and receipts", async (context) => {
 
   expect(events).toHaveLength(3);
 
-  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[0].block.hash).toBe(rpcData.block2.block.hash);
-  expect(events[0].transaction!.hash).toBe(rpcData.block2.transactions[0].hash);
-  expect(events[0].transactionReceipt?.transactionHash).toBe(
+  expect(events[0]!.log!.address).toBe(checksumAddress(erc20.address));
+  expect(events[0]!.block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[0]!.transaction!.hash).toBe(
+    rpcData.block2.transactions[0].hash,
+  );
+  expect(events[0]!.transactionReceipt?.transactionHash).toBe(
     rpcData.block2.transactionReceipts[0].transactionHash,
   );
 
-  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[1].block.hash).toBe(rpcData.block2.block.hash);
-  expect(events[1].transaction!.hash).toBe(rpcData.block2.transactions[1].hash);
-  expect(events[1].transactionReceipt?.transactionHash).toBe(
+  expect(events[1]!.log!.address).toBe(checksumAddress(erc20.address));
+  expect(events[1]!.block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[1]!.transaction!.hash).toBe(
+    rpcData.block2.transactions[1].hash,
+  );
+  expect(events[1]!.transactionReceipt?.transactionHash).toBe(
     rpcData.block2.transactionReceipts[1].transactionHash,
   );
 
-  expect(events[2].log!.address).toBe(checksumAddress(factory.pair));
-  expect(events[2].block.hash).toBe(rpcData.block4.block.hash);
-  expect(events[2].transaction!.hash).toBe(rpcData.block4.transactions[0].hash);
-  expect(events[2].transactionReceipt?.transactionHash).toBe(
+  expect(events[2]!.log!.address).toBe(checksumAddress(factory.pair));
+  expect(events[2]!.block.hash).toBe(rpcData.block4.block.hash);
+  expect(events[2]!.transaction!.hash).toBe(
+    rpcData.block4.transactions[0].hash,
+  );
+  expect(events[2]!.transactionReceipt?.transactionHash).toBe(
     rpcData.block4.transactionReceipts[0].transactionHash,
   );
 
@@ -2647,7 +2687,7 @@ test("getEvents filters on fromCheckpoint (exclusive)", async (context) => {
   const events = await drainAsyncGenerator(ag);
 
   expect(events).toHaveLength(1);
-  expect(events[0].block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[0]!.block.hash).toBe(rpcData.block2.block.hash);
   await cleanup();
 });
 
@@ -2851,15 +2891,19 @@ test("getEvents multichain", async (context) => {
 
   expect(events).toHaveLength(2);
 
-  expect(events[0].sourceId).toBe("log_Erc20_mainnet");
-  expect(events[0].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[0].block.hash).toBe(rpcData.block2.block.hash);
-  expect(events[0].transaction!.hash).toBe(rpcData.block2.transactions[0].hash);
+  expect(events[0]!.sourceId).toBe("log_Erc20_mainnet");
+  expect(events[0]!.log!.address).toBe(checksumAddress(erc20.address));
+  expect(events[0]!.block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[0]!.transaction!.hash).toBe(
+    rpcData.block2.transactions[0].hash,
+  );
 
-  expect(events[1].sourceId).toBe("log_Erc20_mainnet");
-  expect(events[1].log!.address).toBe(checksumAddress(erc20.address));
-  expect(events[1].block.hash).toBe(rpcData.block2.block.hash);
-  expect(events[1].transaction!.hash).toBe(rpcData.block2.transactions[1].hash);
+  expect(events[1]!.sourceId).toBe("log_Erc20_mainnet");
+  expect(events[1]!.log!.address).toBe(checksumAddress(erc20.address));
+  expect(events[1]!.block.hash).toBe(rpcData.block2.block.hash);
+  expect(events[1]!.transaction!.hash).toBe(
+    rpcData.block2.transactions[1].hash,
+  );
 
   await cleanup();
 });
@@ -3141,7 +3185,7 @@ test("pruneByChainId updates filters", async (context) => {
     .orderBy("endBlock", "asc")
     .execute();
   expect(logFilterIntervals).toHaveLength(2);
-  expect(Number(logFilterIntervals[0].endBlock)).toBe(1);
+  expect(Number(logFilterIntervals[0]!.endBlock)).toBe(1);
 
   const factoryLogFilterIntervals = await syncStore.db
     .selectFrom("factoryLogFilterIntervals")
@@ -3149,7 +3193,7 @@ test("pruneByChainId updates filters", async (context) => {
     .orderBy("endBlock", "asc")
     .execute();
   expect(factoryLogFilterIntervals).toHaveLength(2);
-  expect(Number(factoryLogFilterIntervals[0].endBlock)).toBe(1);
+  expect(Number(factoryLogFilterIntervals[0]!.endBlock)).toBe(1);
 
   const traceFilterIntervals = await syncStore.db
     .selectFrom("traceFilterIntervals")
@@ -3157,7 +3201,7 @@ test("pruneByChainId updates filters", async (context) => {
     .orderBy("endBlock", "asc")
     .execute();
   expect(traceFilterIntervals).toHaveLength(2);
-  expect(Number(traceFilterIntervals[0].endBlock)).toBe(1);
+  expect(Number(traceFilterIntervals[0]!.endBlock)).toBe(1);
 
   const factoryTraceFilterIntervals = await syncStore.db
     .selectFrom("factoryTraceFilterIntervals")
@@ -3165,7 +3209,7 @@ test("pruneByChainId updates filters", async (context) => {
     .orderBy("endBlock", "asc")
     .execute();
   expect(factoryTraceFilterIntervals).toHaveLength(2);
-  expect(Number(factoryTraceFilterIntervals[0].endBlock)).toBe(1);
+  expect(Number(factoryTraceFilterIntervals[0]!.endBlock)).toBe(1);
 
   await cleanup();
 });
@@ -3239,7 +3283,7 @@ test("pruneByChainId updates block filters", async (context) => {
     .orderBy("endBlock", "asc")
     .execute();
   expect(blockFilterIntervals).toHaveLength(2);
-  expect(Number(blockFilterIntervals[0].endBlock)).toBe(1);
+  expect(Number(blockFilterIntervals[0]!.endBlock)).toBe(1);
 
   await cleanup();
 });

@@ -383,7 +383,7 @@ export class SqliteSyncStore implements SyncStore {
       // If the batch is less than the page size, there are no more pages.
       if (batch.length < pageSize) break;
       // Otherwise, set the cursor to the last block number in the batch.
-      cursor = batch[batch.length - 1].id;
+      cursor = batch[batch.length - 1]!.id;
     }
   }
 
@@ -810,7 +810,7 @@ export class SqliteSyncStore implements SyncStore {
           if (traceByTransactionHash[trace.transactionHash] === undefined) {
             traceByTransactionHash[trace.transactionHash] = [];
           }
-          traceByTransactionHash[trace.transactionHash].push(trace);
+          traceByTransactionHash[trace.transactionHash]!.push(trace);
         }
 
         for (const transactionHash of Object.keys(traceByTransactionHash)) {
@@ -822,7 +822,7 @@ export class SqliteSyncStore implements SyncStore {
             .execute();
 
           (traces as Omit<InsertableCallTrace, "checkpoint">[]).push(
-            ...traceByTransactionHash[transactionHash as Hex].map((trace) => ({
+            ...traceByTransactionHash[transactionHash as Hex]!.map((trace) => ({
               ...rpcToSqliteTrace(trace),
               chainId,
             })),
@@ -834,7 +834,7 @@ export class SqliteSyncStore implements SyncStore {
           });
 
           for (let i = 0; i < traces.length; i++) {
-            const trace = traces[i];
+            const trace = traces[i]!;
             const checkpoint = encodeCheckpoint({
               blockTimestamp: hexToNumber(rpcBlock.timestamp),
               chainId: BigInt(chainId),
@@ -1055,7 +1055,7 @@ export class SqliteSyncStore implements SyncStore {
             if (traceByTransactionHash[trace.transactionHash] === undefined) {
               traceByTransactionHash[trace.transactionHash] = [];
             }
-            traceByTransactionHash[trace.transactionHash].push(trace);
+            traceByTransactionHash[trace.transactionHash]!.push(trace);
           }
 
           for (const transactionHash of Object.keys(traceByTransactionHash)) {
@@ -1067,7 +1067,7 @@ export class SqliteSyncStore implements SyncStore {
               .execute();
 
             (traces as Omit<InsertableCallTrace, "checkpoint">[]).push(
-              ...traceByTransactionHash[transactionHash as Hex].map(
+              ...traceByTransactionHash[transactionHash as Hex]!.map(
                 (trace) => ({
                   ...rpcToSqliteTrace(trace),
                   chainId,
@@ -1081,7 +1081,7 @@ export class SqliteSyncStore implements SyncStore {
             });
 
             for (let i = 0; i < traces.length; i++) {
-              const trace = traces[i];
+              const trace = traces[i]!;
               const checkpoint = encodeCheckpoint({
                 blockTimestamp: hexToNumber(rpcBlock.timestamp),
                 chainId: BigInt(chainId),
@@ -2088,7 +2088,7 @@ export class SqliteSyncStore implements SyncStore {
           // that those fields are indeed present before continuing here.
           const row = _row as NonNull<(typeof requestedLogs)[number]>;
 
-          const source = sourcesById[row.source_id];
+          const source = sourcesById[row.source_id]!;
 
           const shouldIncludeLog =
             sourceIsLog(source) || sourceIsFactoryLog(source);
@@ -2281,7 +2281,7 @@ export class SqliteSyncStore implements SyncStore {
         fromCursor = toCursor;
       } else if (events.length === this.common.options.syncEventsQuerySize) {
         this.seconds = Math.round(this.seconds / 2);
-        fromCursor = events[events.length - 1].encodedCheckpoint;
+        fromCursor = events[events.length - 1]!.encodedCheckpoint;
       } else {
         this.seconds = Math.round(
           Math.min(

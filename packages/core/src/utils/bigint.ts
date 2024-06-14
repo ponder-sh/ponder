@@ -9,10 +9,10 @@ export function bigIntMin(values: bigint[]): bigint {
     throw new Error("Input array must not be empty.");
   }
 
-  let minVal: bigint = values[0];
+  let minVal: bigint = values[0]!;
   for (let i = 1; i < values.length; i++) {
-    if (values[i] < minVal) {
-      minVal = values[i];
+    if (values[i]! < minVal) {
+      minVal = values[i]!;
     }
   }
 
@@ -30,10 +30,10 @@ export function bigIntMax(values: bigint[]): bigint {
     throw new Error("Input array must not be empty.");
   }
 
-  let maxVal: bigint = values[0];
+  let maxVal: bigint = values[0]!;
   for (let i = 1; i < values.length; i++) {
-    if (values[i] > maxVal) {
-      maxVal = values[i];
+    if (values[i]! > maxVal) {
+      maxVal = values[i]!;
     }
   }
 

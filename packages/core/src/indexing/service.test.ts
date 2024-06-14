@@ -567,7 +567,7 @@ test("executeSetup() context.client", async (context) => {
   });
 
   const getBalanceSpy = vi.spyOn(
-    indexingService.clientByChainId[1],
+    indexingService.clientByChainId[1]!,
     "getBalance",
   );
 
@@ -605,7 +605,7 @@ test("executeSetup() context.db", async (context) => {
 
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
-      await context.db.Supply.create({
+      await context.db.Supply!.create({
         id: "supply",
         data: {
           supply: 0n,
@@ -625,7 +625,7 @@ test("executeSetup() context.db", async (context) => {
   });
 
   const createSpy = vi.spyOn(
-    indexingService.currentEvent.context.db.Supply,
+    indexingService.currentEvent.context.db.Supply!,
     "create",
   );
 
@@ -779,7 +779,7 @@ test("processEvents() context.client", async (context) => {
   });
 
   const getBalanceSpy = vi.spyOn(
-    indexingService.clientByChainId[1],
+    indexingService.clientByChainId[1]!,
     "getBalance",
   );
 
@@ -823,7 +823,7 @@ test("processEvents() context.db", async (context) => {
     event,
     context,
   }: { event: any; context: Context }) => {
-    await context.db.TransferEvent.create({
+    await context.db.TransferEvent!.create({
       id: event.transaction?.hash ?? event.block.hash,
       data: {
         timestamp: Number(event.block.timestamp),
@@ -848,7 +848,7 @@ test("processEvents() context.db", async (context) => {
   });
 
   const createSpy = vi.spyOn(
-    indexingService.currentEvent.context.db.TransferEvent,
+    indexingService.currentEvent.context.db.TransferEvent!,
     "create",
   );
 
@@ -1061,7 +1061,7 @@ test("ponderActions getBalance()", async (context) => {
     schema,
   });
 
-  const balance = await indexingService.clientByChainId[1].getBalance({
+  const balance = await indexingService.clientByChainId[1]!.getBalance({
     address: BOB,
   });
 
@@ -1097,7 +1097,7 @@ test("ponderActions getBytecode()", async (context) => {
     schema,
   });
 
-  const bytecode = await indexingService.clientByChainId[1].getBytecode({
+  const bytecode = await indexingService.clientByChainId[1]!.getBytecode({
     address: erc20.address,
   });
 
@@ -1133,7 +1133,7 @@ test("ponderActions getStorageAt()", async (context) => {
     schema,
   });
 
-  const storage = await indexingService.clientByChainId[1].getStorageAt({
+  const storage = await indexingService.clientByChainId[1]!.getStorageAt({
     address: erc20.address,
     // totalSupply is in the third storage slot
     slot: toHex(2),
@@ -1171,7 +1171,7 @@ test("ponderActions readContract()", async (context) => {
     schema,
   });
 
-  const totalSupply = await indexingService.clientByChainId[1].readContract({
+  const totalSupply = await indexingService.clientByChainId[1]!.readContract({
     abi: erc20ABI,
     functionName: "totalSupply",
     address: erc20.address,
@@ -1209,7 +1209,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
     schema,
   });
 
-  const totalSupply = await indexingService.clientByChainId[1].readContract({
+  const totalSupply = await indexingService.clientByChainId[1]!.readContract({
     abi: erc20ABI,
     functionName: "totalSupply",
     address: erc20.address,
@@ -1249,7 +1249,7 @@ test.skip("ponderActions multicall()", async (context) => {
     schema,
   });
 
-  const [totalSupply] = await indexingService.clientByChainId[1].multicall({
+  const [totalSupply] = await indexingService.clientByChainId[1]!.multicall({
     allowFailure: false,
     contracts: [
       {

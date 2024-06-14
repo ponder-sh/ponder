@@ -271,7 +271,7 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
         // Note: entries in `values` with the same `id` have the same "total"
         // block range. Using `Math.min()` ensures that a contract with both
         // "callTrace" and "log" type sources are displayed correctly.
-        acc[id].value = Math.min(acc[id].value, cur.value);
+        acc[id]!.value = Math.min(acc[id]!.value, cur.value);
       }
 
       return acc;
@@ -353,8 +353,8 @@ export async function getIndexingProgress(metrics: MetricsService) {
     (await metrics.ponder_indexing_completed_seconds.get()).values[0]?.value ??
     0;
   const completedToTimestamp =
-    (await metrics.ponder_indexing_completed_timestamp.get()).values[0].value ??
-    0;
+    (await metrics.ponder_indexing_completed_timestamp.get()).values[0]!
+      .value ?? 0;
 
   const progress = totalSeconds === 0 ? 0 : completedSeconds / totalSeconds;
 

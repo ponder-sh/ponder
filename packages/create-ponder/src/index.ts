@@ -520,11 +520,11 @@ export async function run({
   // Check Nodejs version
   const _nodeVersion = process.version.split(".");
   const nodeVersion = [
-    Number(_nodeVersion[0].slice(1)),
+    Number(_nodeVersion[0]!.slice(1)),
     Number(_nodeVersion[1]),
     Number(_nodeVersion[2]),
   ];
-  if (nodeVersion[0] < 18 || (nodeVersion[0] === 18 && nodeVersion[1] < 14))
+  if (nodeVersion[0]! < 18 || (nodeVersion[0] === 18 && nodeVersion[1]! < 14))
     throw new Error(
       pico.red(
         `Node version:${process.version} does not meet the >=18.14 requirement`,

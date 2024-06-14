@@ -83,6 +83,6 @@ function getArrayComponents(
   const matches = type.match(/^(.*)\[(\d+)?\]$/);
   return matches
     ? // Return `null` if the array is dynamic.
-      [matches[2] ? Number(matches[2]) : null, matches[1]]
+      [matches[2] ? Number(matches[2]) : null, matches[1]!]
     : undefined;
 }

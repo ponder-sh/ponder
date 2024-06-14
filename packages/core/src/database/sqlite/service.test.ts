@@ -259,7 +259,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     });
 
     expect(pets.length).toBe(1);
-    expect(pets[0].name).toBe("Skip");
+    expect(pets[0]!.name).toBe("Skip");
 
     await databaseTwo.kill();
   });
@@ -412,7 +412,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       .execute();
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].finalized_checkpoint).toStrictEqual(
+    expect(rows[0]!.finalized_checkpoint).toStrictEqual(
       encodeCheckpoint(maxCheckpoint),
     );
 

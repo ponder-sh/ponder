@@ -242,7 +242,7 @@ export async function buildConfigAndIndexingFunctions({
       const defaultChain =
         Object.values(chains).find((c) =>
           "id" in c ? c.id === chainId : false,
-        ) ?? chains.mainnet;
+        ) ?? chains.mainnet!;
       const chain = { ...defaultChain, name: networkName, id: chainId };
 
       // Note: This can throw.
@@ -449,7 +449,7 @@ export async function buildConfigAndIndexingFunctions({
         for (const eventName of Object.keys(indexingFunctions)) {
           // log event
           if (eventName.includes(":")) {
-            const [logContractName, logEventName] = eventName.split(":");
+            const [logContractName, logEventName] = eventName.split(":") as [string, string];
             if (
               logContractName === rawContract.contractName &&
               logEventName !== "setup"
@@ -460,7 +460,7 @@ export async function buildConfigAndIndexingFunctions({
 
           // call trace event
           if (eventName.includes(".")) {
-            const [functionContractName, functionName] = eventName.split(".");
+            const [functionContractName, functionName] = eventName.split(".") as [string, string];
             if (functionContractName === rawContract.contractName) {
               registeredCallTraceEvents.push(functionName);
             }

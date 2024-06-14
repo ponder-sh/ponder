@@ -143,7 +143,7 @@ test("buildFactoryFragments builds id containing topic", () => {
       topics: [null, null, null, null],
       ...criteria,
       includeTransactionReceipts: false,
-    })[0].id,
+    })[0]!.id,
   ).toBe(
     "1_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_topic1_null_null_null_null_0",
   );
@@ -162,7 +162,7 @@ test("buildFactoryFragments builds id containing offset", () => {
       topics: [null, null, null, null],
       ...criteria,
       includeTransactionReceipts: false,
-    })[0].id,
+    })[0]!.id,
   ).toBe(
     "115511_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null_0",
   );

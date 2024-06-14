@@ -139,10 +139,10 @@ export const create = ({
 
     // Note: multiple sources with the same contract (logs and traces)
     // should only create one entry in the `contracts` object
-    if (contractsByChainId[source.chainId][source.contractName] !== undefined)
+    if (contractsByChainId[source.chainId]![source.contractName] !== undefined)
       continue;
 
-    contractsByChainId[source.chainId][source.contractName] = {
+    contractsByChainId[source.chainId]![source.contractName] = {
       abi: source.abi,
       address: address ? checksumAddress(address) : address,
       startBlock: source.startBlock,
@@ -171,7 +171,7 @@ export const create = ({
   for (const eventName of Object.keys(indexingFunctions)) {
     eventCount[eventName] = {};
     for (const network of networks) {
-      eventCount[eventName][network.name] = 0;
+      eventCount[eventName]![network.name] = 0;
     }
   }
 
@@ -239,7 +239,7 @@ export const processSetupEvents = async (
       )! as LogSource | FactoryLogSource;
 
       if (indexingService.isKilled) return { status: "killed" };
-      indexingService.eventCount[eventName][source.networkName]++;
+      indexingService.eventCount[eventName]![source.networkName]++;
 
       const result = await executeSetup(indexingService, {
         event: {
@@ -277,14 +277,14 @@ export const processEvents = async (
   for (let i = 0; i < events.length; i++) {
     if (indexingService.isKilled) return { status: "killed" };
 
-    const event = events[i];
+    const event = events[i]!;
 
     switch (event.type) {
       case "log": {
         const eventName = `${event.contractName}:${event.logEventName}`;
 
-        indexingService.eventCount[eventName][
-          indexingService.networkByChainId[event.chainId].name
+        indexingService.eventCount[eventName]![
+          indexingService.networkByChainId[event.chainId]!.name
         ]++;
 
         indexingService.common.logger.trace({
@@ -311,8 +311,8 @@ export const processEvents = async (
       case "block": {
         const eventName = `${event.sourceName}:block`;
 
-        indexingService.eventCount[eventName][
-          indexingService.networkByChainId[event.chainId].name
+        indexingService.eventCount[eventName]![
+          indexingService.networkByChainId[event.chainId]!.name
         ]++;
 
         indexingService.common.logger.trace({
@@ -339,8 +339,8 @@ export const processEvents = async (
       case "callTrace": {
         const eventName = `${event.contractName}.${event.functionName}`;
 
-        indexingService.eventCount[eventName][
-          indexingService.networkByChainId[event.chainId].name
+        indexingService.eventCount[eventName]![
+          indexingService.networkByChainId[event.chainId]!.name
         ]++;
 
         indexingService.common.logger.trace({
@@ -391,7 +391,7 @@ export const processEvents = async (
   // set completed seconds
   if (events.length > 0) {
     const lastEventInBatchTimestamp = decodeCheckpoint(
-      events[events.length - 1].encodedCheckpoint,
+      events[events.length - 1]!.encodedCheckpoint,
     ).blockTimestamp;
 
     indexingService.common.metrics.ponder_indexing_completed_seconds.set(
@@ -442,14 +442,14 @@ export const updateTotalSeconds = (
 
 const updateCompletedEvents = (indexingService: Service) => {
   for (const event of Object.keys(indexingService.eventCount)) {
-    for (const network of Object.keys(indexingService.eventCount[event])) {
+    for (const network of Object.keys(indexingService.eventCount[event]!)) {
       const metricLabel = {
         event,
         network,
       };
       indexingService.common.metrics.ponder_indexing_completed_events.set(
         metricLabel,
-        indexingService.eventCount[event][network],
+        indexingService.eventCount[event]![network]!,
       );
     }
   }
@@ -474,21 +474,21 @@ const executeSetup = async (
   const eventName = `${event.contractName}:setup`;
   const indexingFunction = indexingFunctions[eventName];
 
-  const networkName = networkByChainId[event.chainId].name;
+  const networkName = networkByChainId[event.chainId]!.name;
   const metricLabel = { event: eventName, network: networkName };
 
   try {
     // set currentEvent
     currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = networkByChainId[event.chainId].name;
-    currentEvent.context.client = clientByChainId[event.chainId];
-    currentEvent.context.contracts = contractsByChainId[event.chainId];
+    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
+    currentEvent.context.client = clientByChainId[event.chainId]!;
+    currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
     currentEvent.contextState.blockNumber = event.startBlock;
 
     const endClock = startClock();
 
-    await indexingFunction({
+    await indexingFunction!({
       context: currentEvent.context,
     });
 
@@ -539,21 +539,21 @@ const executeLog = async (
   const eventName = `${event.contractName}:${event.logEventName}`;
   const indexingFunction = indexingFunctions[eventName];
 
-  const networkName = networkByChainId[event.chainId].name;
+  const networkName = networkByChainId[event.chainId]!.name;
   const metricLabel = { event: eventName, network: networkName };
 
   try {
     // set currentEvent
     currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = networkByChainId[event.chainId].name;
-    currentEvent.context.client = clientByChainId[event.chainId];
-    currentEvent.context.contracts = contractsByChainId[event.chainId];
+    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
+    currentEvent.context.client = clientByChainId[event.chainId]!;
+    currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
 
     const endClock = startClock();
 
-    await indexingFunction({
+    await indexingFunction!({
       event: {
         name: event.logEventName,
         args: event.event.args,
@@ -617,21 +617,21 @@ const executeBlock = async (
 
   const metricLabel = {
     event: eventName,
-    network: networkByChainId[event.chainId].name,
+    network: networkByChainId[event.chainId]!.name,
   };
 
   try {
     // set currentEvent
     currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = networkByChainId[event.chainId].name;
-    currentEvent.context.client = clientByChainId[event.chainId];
-    currentEvent.context.contracts = contractsByChainId[event.chainId];
+    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
+    currentEvent.context.client = clientByChainId[event.chainId]!;
+    currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
 
     const endClock = startClock();
 
-    await indexingFunction({
+    await indexingFunction!({
       event: {
         block: event.event.block,
       },
@@ -693,21 +693,21 @@ const executeCallTrace = async (
   const eventName = `${event.contractName}.${event.functionName}`;
   const indexingFunction = indexingFunctions[eventName];
 
-  const networkName = networkByChainId[event.chainId].name;
+  const networkName = networkByChainId[event.chainId]!.name;
   const metricLabel = { event: eventName, network: networkName };
 
   try {
     // set currentEvent
     currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = networkByChainId[event.chainId].name;
-    currentEvent.context.client = clientByChainId[event.chainId];
-    currentEvent.context.contracts = contractsByChainId[event.chainId];
+    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
+    currentEvent.context.client = clientByChainId[event.chainId]!;
+    currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.encodedCheckpoint = event.encodedCheckpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
 
     const endClock = startClock();
 
-    await indexingFunction({
+    await indexingFunction!({
       event: {
         args: event.event.args,
         result: event.event.result,

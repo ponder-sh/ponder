@@ -222,7 +222,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             for (const [tableName, table] of Object.entries(
               getTables(schema),
             )) {
-              const tableId = namespaceInfo.internalTableIds[tableName];
+              const tableId = namespaceInfo.internalTableIds[tableName]!;
 
               await tx.schema
                 .withSchema(this.internalNamespace)
@@ -740,7 +740,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           if (isListColumn(column) === false) {
             col = col.check(
               sql`${sql.ref(columnName)} in (${sql.join(
-                getEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
+                getEnums(schema)[column[" enum"]]!.map((v) => sql.lit(v)),
               )})`,
             );
           }

@@ -47,8 +47,8 @@ declare module "vitest" {
       CallTraceSource,
       BlockSource,
     ];
-    networks: Network[];
-    requestQueues: RequestQueue[];
+    networks: [Network];
+    requestQueues: [RequestQueue];
     config: Config;
     erc20: { address: Address };
     factory: { address: Address; pair: Address };
@@ -276,8 +276,8 @@ export async function setupAnvil(context: TestContext) {
     addresses,
     context.common,
   );
-  context.networks = networks;
-  context.requestQueues = requestQueues;
+  context.networks = networks as [Network];
+  context.requestQueues = requestQueues as [RequestQueue];
   context.sources = sources as [
     LogSource,
     FactoryLogSource,

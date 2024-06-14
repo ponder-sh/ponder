@@ -173,10 +173,10 @@ export function validateRecord({
         )
           .filter(
             (column) =>
-              isScalarColumn(table[column]) ||
-              isReferenceColumn(table[column]) ||
-              isEnumColumn(table[column]) ||
-              isJSONColumn(table[column]),
+              isScalarColumn(table[column]!) ||
+              isReferenceColumn(table[column]!) ||
+              isEnumColumn(table[column]!) ||
+              isJSONColumn(table[column]!),
           )
           .join(", ")}]`,
       );
@@ -212,13 +212,13 @@ function validateValue({
           `Unable to encode ${value} as an enum. Got type '${typeof value}' but expected type 'string'.`,
         );
       } else {
-        if (getEnums(schema)[column[" enum"]].includes(value) === false) {
+        if (getEnums(schema)[column[" enum"]]!.includes(value) === false) {
           throw new CheckConstraintError(
             `Unable to encode ${value} as a '${
               column[" enum"]
             }' enum. Got '${value}' but expected one of [${getEnums(schema)[
               column[" enum"]
-            ].join(", ")}].`,
+            ]!.join(", ")}].`,
           );
         }
       }
@@ -362,7 +362,7 @@ export function decodeRecord({
       isJSONColumn(column)
     ) {
       instance[columnName] = decodeValue({
-        value: record[columnName],
+        value: record[columnName]!,
         column,
         encoding,
       });

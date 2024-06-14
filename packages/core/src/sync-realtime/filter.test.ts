@@ -38,8 +38,8 @@ test("filterLogs handles one logFilter, one address", async (context) => {
   });
 
   expect(filteredLogs).toHaveLength(2);
-  expect(filteredLogs[0].address).toEqual(context.erc20.address);
-  expect(filteredLogs[1].address).toEqual(context.erc20.address);
+  expect(filteredLogs[0]!.address).toEqual(context.erc20.address);
+  expect(filteredLogs[1]!.address).toEqual(context.erc20.address);
 });
 
 test("filterLogs handles one logFilter, two addresses", async (context) => {
@@ -56,9 +56,9 @@ test("filterLogs handles one logFilter, two addresses", async (context) => {
   });
 
   expect(filteredLogs).toHaveLength(3);
-  expect(filteredLogs[0].address).toEqual(context.erc20.address);
-  expect(filteredLogs[1].address).toEqual(context.erc20.address);
-  expect(filteredLogs[2].address).toEqual(context.factory.address);
+  expect(filteredLogs[0]!.address).toEqual(context.erc20.address);
+  expect(filteredLogs[1]!.address).toEqual(context.erc20.address);
+  expect(filteredLogs[2]!.address).toEqual(context.factory.address);
 });
 
 test("filterLogs handles empty array of addresses", async () => {
@@ -85,9 +85,9 @@ test("filterLogs handles two logFilters, one address each", async (context) => {
   });
 
   expect(filteredLogs).toHaveLength(3);
-  expect(filteredLogs[0].address).toEqual(context.erc20.address);
-  expect(filteredLogs[1].address).toEqual(context.erc20.address);
-  expect(filteredLogs[2].address).toEqual(context.factory.address);
+  expect(filteredLogs[0]!.address).toEqual(context.erc20.address);
+  expect(filteredLogs[1]!.address).toEqual(context.erc20.address);
+  expect(filteredLogs[2]!.address).toEqual(context.factory.address);
 });
 
 test("filterLogs handles one logFilter, one topic", async (context) => {
@@ -108,8 +108,8 @@ test("filterLogs handles one logFilter, one topic", async (context) => {
   });
 
   expect(filteredLogs).toHaveLength(2);
-  expect(filteredLogs[0].address).toEqual(context.erc20.address);
-  expect(filteredLogs[1].address).toEqual(context.erc20.address);
+  expect(filteredLogs[0]!.address).toEqual(context.erc20.address);
+  expect(filteredLogs[1]!.address).toEqual(context.erc20.address);
 });
 
 test("filterLogs handles one logFilter, many topics", async () => {
@@ -131,7 +131,7 @@ test("filterLogs handles one logFilter, many topics", async () => {
 
   // Should match log 1 only.
   expect(filteredLogs).toHaveLength(1);
-  expect(filteredLogs[0].topics).toMatchObject([
+  expect(filteredLogs[0]!.topics).toMatchObject([
     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
     AliceHex,
     BobHex,
@@ -155,12 +155,12 @@ test("filterLogs handles two logFilters, one topic each", async () => {
 
   // Should match log 1 and 3.
   expect(filteredLogs).toHaveLength(2);
-  expect(filteredLogs[0].topics).toMatchObject([
+  expect(filteredLogs[0]!.topics).toMatchObject([
     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
     zeroHash,
     AliceHex,
   ]);
-  expect(filteredLogs[1].topics).toEqual([
+  expect(filteredLogs[1]!.topics).toEqual([
     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
     AliceHex,
     BobHex,
@@ -180,17 +180,17 @@ test("filterLogs handles one logFilter, one topic, list of values", async () => 
   });
 
   expect(filteredLogs).toHaveLength(3);
-  expect(filteredLogs[0].topics).toMatchObject([
+  expect(filteredLogs[0]!.topics).toMatchObject([
     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
     zeroHash,
     AliceHex,
   ]);
-  expect(filteredLogs[1].topics).toEqual([
+  expect(filteredLogs[1]!.topics).toEqual([
     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
     AliceHex,
     BobHex,
   ]);
-  expect(filteredLogs[2].topics).toEqual([
+  expect(filteredLogs[2]!.topics).toEqual([
     getEventSelector(getAbiItem({ abi: pairABI, name: "Swap" })),
     AliceHex,
     AliceHex,
