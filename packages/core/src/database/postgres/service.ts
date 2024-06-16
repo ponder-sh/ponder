@@ -199,11 +199,18 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     return this.db.wrap({ method: "setup" }, async () => {
       const attemptSetup = async () => {
         return await this.db.transaction().execute(async (tx) => {
-          const previousLockRow = await tx
+          const namespaceLockRow = await tx
             .withSchema(this.internalNamespace)
             .selectFrom("namespace_lock")
             .selectAll()
             .where("namespace", "=", this.userNamespace)
+            .executeTakeFirst();
+
+          const buildIdLockRow = await tx
+            .withSchema(this.internalNamespace)
+            .selectFrom("namespace_lock")
+            .selectAll()
+            .where("build_id", "=", buildId)
             .executeTakeFirst();
 
           const newLockRow = {
@@ -262,8 +269,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             }
           };
 
-          // If no lock row is found for this namespace, we can acquire the lock.
-          if (previousLockRow === undefined) {
+          // If no lock rows are found, we can acquire the lock.
+          if (namespaceLockRow === undefined && buildIdLockRow === undefined) {
             await tx
               .withSchema(this.internalNamespace)
               .insertInto("namespace_lock")
@@ -278,6 +285,12 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
             return { status: "success", checkpoint: zeroCheckpoint } as const;
           }
+
+          // When a row is found for both types of lock rows, build ID takes
+          // precedence because its more likely to skip re-indexing.
+          // Note: build ID and namespace can be referring to the same row.
+          const previousLockRow =
+            buildIdLockRow !== undefined ? buildIdLockRow : namespaceLockRow!;
 
           // If the lock row is held and has not expired, we cannot proceed.
           const expiresAt =
@@ -298,14 +311,48 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             previousLockRow.finalized_checkpoint !==
               encodeCheckpoint(zeroCheckpoint)
           ) {
-            this.common.logger.info({
-              service: "database",
-              msg: `Detected cache hit for build '${this.buildId}' in schema '${
-                this.userNamespace
-              }' last active ${formatEta(
-                Date.now() - previousLockRow.heartbeat_at,
-              )} ago`,
-            });
+            if (
+              buildIdLockRow !== undefined &&
+              buildIdLockRow.namespace !== this.userNamespace
+            ) {
+              this.common.logger.info({
+                service: "database",
+                msg: `Detected cache hit for build '${
+                  this.buildId
+                }' in schema '${
+                  buildIdLockRow.namespace
+                }' last active ${formatEta(
+                  Date.now() - previousLockRow.heartbeat_at,
+                )} ago`,
+              });
+              this.common.logger.warn({
+                service: "database",
+                msg: `Switching schema for indexed tables from '${this.userNamespace}' to '${buildIdLockRow.namespace}'`,
+              });
+
+              // Update user namespace to the namespace of the previous lock holder.
+              this.userNamespace = buildIdLockRow.namespace;
+              namespaceInfo.userNamespace = buildIdLockRow.namespace;
+              namespaceInfo.internalTableIds = Object.keys(
+                getTables(schema),
+              ).reduce((acc, tableName) => {
+                acc[tableName] = hash([
+                  this.userNamespace,
+                  this.buildId,
+                  tableName,
+                ]);
+                return acc;
+              }, {} as { [tableName: string]: string });
+            } else {
+              this.common.logger.info({
+                service: "database",
+                msg: `Detected cache hit for build '${
+                  this.buildId
+                }' in schema '${this.userNamespace}' last active ${formatEta(
+                  Date.now() - previousLockRow.heartbeat_at,
+                )} ago`,
+              });
+            }
 
             // Remove any indexes, will be recreated once the app
             // becomes healthy.
@@ -332,6 +379,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               .withSchema(this.internalNamespace)
               .updateTable("namespace_lock")
               .set({ is_locked: 1, heartbeat_at: Date.now() })
+              .where("build_id", "=", buildId)
               .execute();
             this.common.logger.debug({
               service: "database",
@@ -339,12 +387,12 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             });
 
             const finalizedCheckpoint = decodeCheckpoint(
-              previousLockRow.finalized_checkpoint,
+              buildIdLockRow!.finalized_checkpoint,
             );
 
             this.common.logger.info({
               service: "database",
-              msg: `Reverting operations prior to finalized checkpoint (timestamp=${finalizedCheckpoint.blockTimestamp} chainId=${finalizedCheckpoint.chainId} block=${finalizedCheckpoint.blockNumber})`,
+              msg: `Reverting operations after the finalized checkpoint (timestamp=${finalizedCheckpoint.blockTimestamp} chainId=${finalizedCheckpoint.chainId} block=${finalizedCheckpoint.blockNumber})`,
             });
 
             // Revert unfinalized data from the existing tables.
@@ -356,7 +404,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 .withSchema(namespaceInfo.internalNamespace)
                 .deleteFrom(tableId)
                 .returningAll()
-                .where("checkpoint", ">", previousLockRow.finalized_checkpoint)
+                .where("checkpoint", ">", buildIdLockRow!.finalized_checkpoint)
                 .execute();
 
               const reversed = rows.sort(
@@ -429,30 +477,33 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             msg: `Acquired lock on schema '${this.userNamespace}' previously used by build '${previousBuildId}'`,
           });
 
-          for (const tableName of Object.keys(previousSchema.tables)) {
-            const tableId = hash([
-              this.userNamespace,
-              previousBuildId,
-              tableName,
-            ]);
+          // Only drop tables if the previous app is using the same namespace.
+          if (namespaceLockRow !== undefined) {
+            for (const tableName of Object.keys(previousSchema.tables)) {
+              const tableId = hash([
+                this.userNamespace,
+                previousBuildId,
+                tableName,
+              ]);
 
-            await tx.schema
-              .withSchema(this.internalNamespace)
-              .dropTable(tableId)
-              .ifExists()
-              .execute();
+              await tx.schema
+                .withSchema(this.internalNamespace)
+                .dropTable(tableId)
+                .ifExists()
+                .execute();
 
-            await tx.schema
-              .withSchema(this.userNamespace)
-              .dropTable(tableName)
-              .cascade() // Need cascade here to drop dependent published views.
-              .ifExists()
-              .execute();
+              await tx.schema
+                .withSchema(this.userNamespace)
+                .dropTable(tableName)
+                .cascade() // Need cascade here to drop dependent published views.
+                .ifExists()
+                .execute();
 
-            this.common.logger.debug({
-              service: "database",
-              msg: `Dropped '${tableName}' table left by previous build`,
-            });
+              this.common.logger.debug({
+                service: "database",
+                msg: `Dropped '${tableName}' table left by previous build`,
+              });
+            }
           }
 
           await createTables();

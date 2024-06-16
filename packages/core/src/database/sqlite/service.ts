@@ -305,6 +305,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               .withSchema(this.internalNamespace)
               .updateTable("namespace_lock")
               .set({ is_locked: 1, heartbeat_at: Date.now() })
+              .where("namespace", "=", this.userNamespace)
               .execute();
             this.common.logger.debug({
               service: "database",
