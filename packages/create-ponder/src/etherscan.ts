@@ -117,7 +117,7 @@ export const fromEtherscan = async ({
       (item) =>
         item.type === "event" &&
         item.name === "Upgraded" &&
-        item.inputs[0].name === "implementation",
+        item.inputs[0]!.name === "implementation",
     )
   ) {
     if (!apiKey) await wait(5000);

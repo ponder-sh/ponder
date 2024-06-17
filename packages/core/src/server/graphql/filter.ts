@@ -56,7 +56,7 @@ export const buildEntityFilterTypes = ({
           if (isJSONColumn(column)) return;
 
           const type = isEnumColumn(column)
-            ? enumTypes[column[" enum"]]
+            ? enumTypes[column[" enum"]]!
             : SCALARS[column[" scalar"]];
 
           if (isListColumn(column)) {
@@ -69,7 +69,7 @@ export const buildEntityFilterTypes = ({
 
             filterOperators.plural.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
-                type: type,
+                type,
               };
             });
           } else {
@@ -77,7 +77,7 @@ export const buildEntityFilterTypes = ({
             // Note: Booleans => universal and singular only.
             filterOperators.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
-                type: type,
+                type,
               };
             });
 
@@ -169,8 +169,8 @@ export function buildWhereObject(where: Record<string, any>) {
       );
     }
 
-    whereObject[fieldName] ||= {};
-    whereObject[fieldName][storeCondition] = rawValue;
+    whereObject[fieldName!] ||= {};
+    whereObject[fieldName!][storeCondition] = rawValue;
   }
 
   return whereObject;

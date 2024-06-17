@@ -74,7 +74,7 @@ export const buildAbiEvents = ({ abi }: { abi: Abi }) => {
     (acc, item) => {
       const signature = formatAbiItem(item);
       const safeName = overloadedEventNames.has(item.name)
-        ? signature.split("event ")[1]
+        ? signature.split("event ")[1]!
         : item.name;
       const selector = getEventSelector(item);
 
@@ -134,7 +134,7 @@ export const buildAbiFunctions = ({ abi }: { abi: Abi }) => {
     (acc, item) => {
       const signature = formatAbiItem(item);
       const safeName = overloadedFunctionNames.has(item.name)
-        ? signature.split("function ")[1]
+        ? signature.split("function ")[1]!
         : `${item.name}()`;
       const selector = getFunctionSelector(item);
 

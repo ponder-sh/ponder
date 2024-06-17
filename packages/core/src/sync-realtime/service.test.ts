@@ -264,7 +264,7 @@ test("start() finds reorg with block hash", async (context) => {
       queue.add({
         ...block,
         number: "0x6",
-        parentHash: realtimeSyncService.localChain[3].hash,
+        parentHash: realtimeSyncService.localChain[3]!.hash,
         hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
       });
     },
@@ -444,10 +444,10 @@ test("handleBlock() ingests block and logs", async (context) => {
   expect(traces).toHaveLength(2);
   expect(transactionReceipts).toHaveLength(2);
 
-  expect(transactions[0].to).toBe(erc20.address);
-  expect(transactions[1].to).toBe(erc20.address);
-  expect(transactions[2].to).toBe(factory.address);
-  expect(transactions[3].to).toBe(factory.pair);
+  expect(transactions[0]!.to).toBe(erc20.address);
+  expect(transactions[1]!.to).toBe(erc20.address);
+  expect(transactions[2]!.to).toBe(factory.address);
+  expect(transactions[3]!.to).toBe(factory.pair);
 
   expect(realtimeSyncService.localChain).toHaveLength(4);
 
@@ -512,10 +512,10 @@ test("handleBlock() gets receipts", async (context) => {
     .execute();
 
   expect(transactionReceipts).toHaveLength(4);
-  expect(transactionReceipts[0].to).toBe(erc20.address);
-  expect(transactionReceipts[1].to).toBe(erc20.address);
-  expect(transactionReceipts[2].to).toBe(factory.address);
-  expect(transactionReceipts[3].to).toBe(factory.pair);
+  expect(transactionReceipts[0]!.to).toBe(erc20.address);
+  expect(transactionReceipts[1]!.to).toBe(erc20.address);
+  expect(transactionReceipts[2]!.to).toBe(factory.address);
+  expect(transactionReceipts[3]!.to).toBe(factory.pair);
 
   await kill(realtimeSyncService);
 
@@ -666,7 +666,7 @@ test("handleReorg() finds common ancestor", async (context) => {
     });
   }
 
-  realtimeSyncService.localChain[2].hash = "0x0";
+  realtimeSyncService.localChain[2]!.hash = "0x0";
 
   await handleReorg(
     realtimeSyncService,
@@ -731,7 +731,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
 
   realtimeSyncService.finalizedBlock.hash = "0x1";
   for (let i = 0; i < 3; i++) {
-    realtimeSyncService.localChain[i].hash = "0x0";
+    realtimeSyncService.localChain[i]!.hash = "0x0";
   }
 
   const error = await handleReorg(

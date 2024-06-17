@@ -247,7 +247,7 @@ export const start = (service: Service) => {
           error,
         });
 
-        const duration = ERROR_TIMEOUT[service.consecutiveErrors];
+        const duration = ERROR_TIMEOUT[service.consecutiveErrors]!;
 
         service.common.logger.warn({
           service: "realtime",
@@ -795,5 +795,5 @@ const getLatestLocalBlock = ({
 }: Pick<Service, "localChain" | "finalizedBlock">) => {
   if (localChain.length === 0) {
     return finalizedBlock;
-  } else return localChain[localChain.length - 1];
+  } else return localChain[localChain.length - 1]!;
 };

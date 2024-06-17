@@ -86,8 +86,8 @@ export const buildEntityTypes = ({
 
             fieldConfigMap[columnName] = {
               type: isOptionalColumn(referenceColumn)
-                ? entityTypes[referencedTable]
-                : new GraphQLNonNull(entityTypes[referencedTable]),
+                ? entityTypes[referencedTable]!
+                : new GraphQLNonNull(entityTypes[referencedTable]!),
               resolve: resolver,
             };
           } else if (isManyColumn(column)) {
@@ -128,9 +128,9 @@ export const buildEntityTypes = ({
             };
 
             fieldConfigMap[columnName] = {
-              type: entityPageTypes[column[" referenceTable"]],
+              type: entityPageTypes[column[" referenceTable"]]!,
               args: {
-                where: { type: entityFilterTypes[column[" referenceTable"]] },
+                where: { type: entityFilterTypes[column[" referenceTable"]]! },
                 orderBy: { type: GraphQLString },
                 orderDirection: { type: GraphQLString },
                 before: { type: GraphQLString },
@@ -147,7 +147,7 @@ export const buildEntityTypes = ({
             };
           } else {
             const type = isEnumColumn(column)
-              ? enumTypes[column[" enum"]]
+              ? enumTypes[column[" enum"]]!
               : SCALARS[column[" scalar"]];
             if (isListColumn(column)) {
               const listType = new GraphQLList(new GraphQLNonNull(type));
@@ -175,7 +175,7 @@ export const buildEntityTypes = ({
       fields: () => ({
         items: {
           type: new GraphQLNonNull(
-            new GraphQLList(new GraphQLNonNull(entityTypes[tableName])),
+            new GraphQLList(new GraphQLNonNull(entityTypes[tableName]!)),
           ),
         },
         pageInfo: { type: new GraphQLNonNull(GraphQLPageInfo) },

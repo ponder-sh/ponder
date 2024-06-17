@@ -143,8 +143,8 @@ export function createTelemetry({
         system_release: os.release(),
         system_architecture: os.arch(),
         cpu_count: cpus.length,
-        cpu_model: cpus.length > 0 ? cpus[0].model : "unknown",
-        cpu_speed: cpus.length > 0 ? cpus[0].speed : 0,
+        cpu_model: cpus.length > 0 ? cpus[0]!.model : "unknown",
+        cpu_speed: cpus.length > 0 ? cpus[0]!.speed : 0,
         total_memory_bytes: os.totalmem(),
       } satisfies SessionProperties,
     };

@@ -73,7 +73,7 @@ export const decodeEvents = (
   const events: Event[] = [];
 
   for (const event of rawEvents) {
-    const source = sourceById[event.sourceId];
+    const source = sourceById[event.sourceId]!;
 
     switch (source.type) {
       case "block": {

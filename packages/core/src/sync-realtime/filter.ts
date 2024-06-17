@@ -42,9 +42,9 @@ export function isLogMatchedByFilter({
         return false;
 
       if (Array.isArray(topic)) {
-        if (!topic.includes(toLowerCase(log.topics[index]))) return false;
+        if (!topic.includes(toLowerCase(log.topics[index]!))) return false;
       } else {
-        if (toLowerCase(log.topics[index]) !== topic) return false;
+        if (toLowerCase(log.topics[index]!) !== topic) return false;
       }
     }
   }

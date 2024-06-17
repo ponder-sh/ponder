@@ -107,7 +107,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
 
           if (!isReferenceColumn(usedColumn[1])) {
             const foreignKeyColumns = Object.keys(table).filter(
-              (c) => c !== columnName && isReferenceColumn(table[c]),
+              (c) => c !== columnName && isReferenceColumn(table[c]!),
             );
             throw new Error(
               `Validation failed. Relationship column '${tableName}.${columnName}' uses a column that is not foreign key column. Got '${
@@ -250,17 +250,17 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
                 ).join(", ")}].`,
               );
 
-            if (isJSONColumn(table[c]))
+            if (isJSONColumn(table[c]!))
               throw new Error(
                 `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'json', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
               );
 
-            if (isOneColumn(table[c]))
+            if (isOneColumn(table[c]!))
               throw new Error(
                 `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'one', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
               );
 
-            if (isManyColumn(table[c]))
+            if (isManyColumn(table[c]!))
               throw new Error(
                 `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'many', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
               );
@@ -288,17 +288,17 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
                 .join(", ")}].`,
             );
 
-          if (isJSONColumn(table[column]))
+          if (isJSONColumn(table[column]!))
             throw new Error(
               `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'json', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
             );
 
-          if (isOneColumn(table[column]))
+          if (isOneColumn(table[column]!))
             throw new Error(
               `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'one', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
             );
 
-          if (isManyColumn(table[column]))
+          if (isManyColumn(table[column]!))
             throw new Error(
               `Validation failed: Invalid type for column '${column}' referenced by index '${name}'. Got 'many', expected one of ['string', 'hex', 'bigint', 'int', 'boolean', 'float'].`,
             );

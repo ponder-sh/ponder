@@ -128,7 +128,7 @@ export const getHistoricalStore = ({
     }).toLowerCase();
 
   const getCacheKey = (id: UserId, tableName: string): Key => {
-    if (tables[tableName].table.id[" scalar"] === "hex")
+    if (tables[tableName]!.table.id[" scalar"] === "hex")
       return normalizeHex(id as Hex);
     if (typeof id === "bigint") return `#Bigint.${id}`;
     return id;
@@ -141,7 +141,7 @@ export const getHistoricalStore = ({
    */
   const normalizeRecord = (record: UserRecord, tableName: string) => {
     for (const [columnName, column] of Object.entries(
-      tables[tableName].table,
+      tables[tableName]!.table,
     )) {
       // optional columns are null
       if (
@@ -228,7 +228,7 @@ export const getHistoricalStore = ({
                   .catch((err) => {
                     throw parseStoreError(
                       err,
-                      _insertRecords.length > 0 ? _insertRecords[0] : {},
+                      _insertRecords.length > 0 ? _insertRecords[0]! : {},
                     );
                   });
               });
@@ -306,7 +306,7 @@ export const getHistoricalStore = ({
                   .catch((err) => {
                     throw parseStoreError(
                       err,
-                      _updateRecords.length > 0 ? _updateRecords[0] : {},
+                      _updateRecords.length > 0 ? _updateRecords[0]! : {},
                     );
                   });
               });
@@ -325,8 +325,8 @@ export const getHistoricalStore = ({
         for (const [tableName, tableStoreCache] of Object.entries(storeCache)) {
           for (const [key, { opIndex }] of Object.entries(tableStoreCache)) {
             if (opIndex < flushIndex) {
-              const bytes = storeCache[tableName][key].bytes;
-              delete storeCache[tableName][key];
+              const bytes = storeCache[tableName]![key]!.bytes;
+              delete storeCache[tableName]![key];
 
               cacheSize--;
               cacheSizeBytes -= bytes;
@@ -346,7 +346,7 @@ export const getHistoricalStore = ({
     tableName: string;
     id: UserId;
   }) => {
-    const table = tables[tableName].table;
+    const table = tables[tableName]!.table;
 
     const encodedId = encodeValue({
       value: id,
@@ -380,7 +380,7 @@ export const getHistoricalStore = ({
         const id = structuredClone(_id);
         const cacheKey = getCacheKey(id, tableName);
 
-        const cacheEntry = storeCache[tableName][cacheKey];
+        const cacheEntry = storeCache[tableName]![cacheKey];
         if (cacheEntry !== undefined) {
           cacheEntry.opIndex = totalCacheOps++;
           return structuredClone(cacheEntry.record);
@@ -394,7 +394,7 @@ export const getHistoricalStore = ({
         const bytes = getBytesSize(record);
 
         // add "find" entry to cache
-        storeCache[tableName][cacheKey] = {
+        storeCache[tableName]![cacheKey] = {
           type: "find",
           opIndex: totalCacheOps++,
           bytes,
@@ -434,7 +434,7 @@ export const getHistoricalStore = ({
         const cacheKey = getCacheKey(id, tableName);
 
         // Check cache truthiness, will be false if record is null.
-        if (storeCache[tableName][cacheKey]?.record) {
+        if (storeCache[tableName]![cacheKey]?.record) {
           throw new UniqueConstraintError(
             `Unique constraint failed for '${tableName}.id'.`,
           );
@@ -446,11 +446,11 @@ export const getHistoricalStore = ({
 
         normalizeRecord(record, tableName);
 
-        validateRecord({ record, table: tables[tableName].table, schema });
+        validateRecord({ record, table: tables[tableName]!.table, schema });
 
         const bytes = getBytesSize(record);
 
-        storeCache[tableName][cacheKey] = {
+        storeCache[tableName]![cacheKey] = {
           type: "insert",
           opIndex: totalCacheOps++,
           bytes,
@@ -477,7 +477,7 @@ export const getHistoricalStore = ({
           const cacheKey = getCacheKey(_record.id, tableName);
 
           // Check cache truthiness, will be false if record is null.
-          if (storeCache[tableName][cacheKey]?.record) {
+          if (storeCache[tableName]![cacheKey]?.record) {
             throw new UniqueConstraintError(
               `Unique constraint failed for '${tableName}.id'.`,
             );
@@ -488,11 +488,11 @@ export const getHistoricalStore = ({
 
           normalizeRecord(record, tableName);
 
-          validateRecord({ record, table: tables[tableName].table, schema });
+          validateRecord({ record, table: tables[tableName]!.table, schema });
 
           const bytes = getBytesSize(record);
 
-          storeCache[tableName][cacheKey] = {
+          storeCache[tableName]![cacheKey] = {
             type: "insert",
             opIndex: totalCacheOps++,
             bytes,
@@ -528,7 +528,7 @@ export const getHistoricalStore = ({
         const id = structuredClone(_id);
         const cacheKey = getCacheKey(id, tableName);
 
-        let cacheEntry = storeCache[tableName][cacheKey];
+        let cacheEntry = storeCache[tableName]![cacheKey];
 
         if (cacheEntry === undefined) {
           const record = isCacheExhaustive
@@ -544,7 +544,7 @@ export const getHistoricalStore = ({
           // Note: a "spoof" cache entry is created
           cacheEntry = { type: "update", opIndex: 0, bytes: 0, record };
 
-          storeCache[tableName][cacheKey] = cacheEntry;
+          storeCache[tableName]![cacheKey] = cacheEntry;
         } else {
           if (cacheEntry.record === null) {
             throw new RecordNotFoundError(
@@ -571,7 +571,7 @@ export const getHistoricalStore = ({
 
         normalizeRecord(record, tableName);
 
-        validateRecord({ record, table: tables[tableName].table, schema });
+        validateRecord({ record, table: tables[tableName]!.table, schema });
 
         const bytes = getBytesSize(record);
 
@@ -663,7 +663,7 @@ export const getHistoricalStore = ({
             break;
           } else {
             cursor = encodeValue({
-              value: _records[_records.length - 1].id,
+              value: _records[_records.length - 1]!.id,
               column: table.id,
               encoding,
             });
@@ -727,7 +727,7 @@ export const getHistoricalStore = ({
         const id = structuredClone(_id);
         const cacheKey = getCacheKey(id, tableName);
 
-        let cacheEntry = storeCache[tableName][cacheKey];
+        let cacheEntry = storeCache[tableName]![cacheKey];
 
         if (cacheEntry === undefined) {
           if (isCacheExhaustive === false) {
@@ -736,7 +736,7 @@ export const getHistoricalStore = ({
             if (record !== null) {
               // Note: a "spoof" cache entry is created
               cacheEntry = { type: "update", opIndex: 0, bytes: 0, record };
-              storeCache[tableName][cacheKey] = cacheEntry;
+              storeCache[tableName]![cacheKey] = cacheEntry;
             }
 
             // Note: an "insert" cache entry will be created if the record is null,
@@ -770,7 +770,7 @@ export const getHistoricalStore = ({
 
           normalizeRecord(record, tableName);
 
-          validateRecord({ record, table: tables[tableName].table, schema });
+          validateRecord({ record, table: tables[tableName]!.table, schema });
 
           const bytes = getBytesSize(record);
 
@@ -788,11 +788,11 @@ export const getHistoricalStore = ({
 
           normalizeRecord(record, tableName);
 
-          validateRecord({ record, table: tables[tableName].table, schema });
+          validateRecord({ record, table: tables[tableName]!.table, schema });
 
           const bytes = getBytesSize(record);
 
-          storeCache[tableName][cacheKey] = {
+          storeCache[tableName]![cacheKey] = {
             type: "insert",
             opIndex: totalCacheOps++,
             bytes,
@@ -819,12 +819,12 @@ export const getHistoricalStore = ({
         const id = structuredClone(_id);
         const cacheKey = getCacheKey(id, tableName);
 
-        const cacheEntry = storeCache[tableName][cacheKey];
+        const cacheEntry = storeCache[tableName]![cacheKey];
 
         if (cacheEntry !== undefined) {
           // delete from cache
           const bytes = cacheEntry.bytes;
-          delete storeCache[tableName][cacheKey];
+          delete storeCache[tableName]![cacheKey];
           cacheSize--;
           cacheSizeBytes -= bytes;
         }

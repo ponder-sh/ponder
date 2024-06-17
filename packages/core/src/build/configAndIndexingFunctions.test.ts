@@ -250,7 +250,7 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
     options,
   });
 
-  expect(sources[0].networkName).toBe("mainnet");
+  expect(sources[0]!.networkName).toBe("mainnet");
 });
 
 test("buildConfigAndIndexingFunctions() validates network name", async () => {
@@ -614,7 +614,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
     options,
   });
 
-  expect(sources[0].endBlock).toBe(undefined);
+  expect(sources[0]!.endBlock).toBe(undefined);
 });
 
 test("buildConfigAndIndexingFunctions() database uses sqlite by default", async () => {

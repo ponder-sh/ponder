@@ -31,10 +31,10 @@ export function intervalUnion(intervals_: [number, number][]) {
   intervals.sort((a, b) => a[0] - b[0]);
 
   const result: [number, number][] = [];
-  let currentInterval = intervals[0];
+  let currentInterval = intervals[0]!;
 
   for (let i = 1; i < intervals.length; i++) {
-    const nextInterval = intervals[i];
+    const nextInterval = intervals[i]!;
 
     if (currentInterval[1] >= nextInterval[0] - 1) {
       // Merge overlapping intervals
@@ -60,14 +60,14 @@ export function intervalUnion(intervals_: [number, number][]) {
 export function intervalIntersection(
   list1: [number, number][],
   list2: [number, number][],
-) {
+): [number, number][] {
   const result: [number, number][] = [];
   let i = 0;
   let j = 0;
 
   while (i < list1.length && j < list2.length) {
-    const [start1, end1] = list1[i];
-    const [start2, end2] = list2[j];
+    const [start1, end1] = list1[i]!;
+    const [start2, end2] = list2[j]!;
 
     const intersectionStart = Math.max(start1, start2);
     const intersectionEnd = Math.min(end1, end2);
@@ -94,14 +94,16 @@ export function intervalIntersection(
  * @param list2 Second list of numeric intervals.
  * @returns Intersection of the intervals, represented as a list of intervals.
  */
-export function intervalIntersectionMany(lists: [number, number][][]) {
+export function intervalIntersectionMany(
+  lists: [number, number][][],
+): [number, number][] {
   if (lists.length === 0) return [];
-  if (lists.length === 1) return lists[0];
+  if (lists.length === 1) return lists[0]!;
 
-  let result: [number, number][] = lists[0];
+  let result: [number, number][] = lists[0]!;
 
   for (let i = 1; i < lists.length; i++) {
-    result = intervalIntersection(result, lists[i]);
+    result = intervalIntersection(result, lists[i]!);
   }
 
   return intervalUnion(result);
@@ -117,7 +119,7 @@ export function intervalIntersectionMany(lists: [number, number][][]) {
 export function intervalDifference(
   initial: [number, number][],
   remove: [number, number][],
-) {
+): [number, number][] {
   // Create copies to avoid mutating the originals.
   const initial_ = initial.map((interval) => [...interval] as [number, number]);
   const remove_ = remove.map((interval) => [...interval] as [number, number]);
@@ -128,8 +130,8 @@ export function intervalDifference(
   let j = 0;
 
   while (i < initial.length && j < remove.length) {
-    const interval1 = initial_[i];
-    const interval2 = remove_[j];
+    const interval1 = initial_[i]!;
+    const interval2 = remove_[j]!;
 
     if (interval1[1] < interval2[0]) {
       // No overlap, add interval1 to the result
@@ -157,7 +159,7 @@ export function intervalDifference(
 
   // Add any remaining intervals from initial
   while (i < initial_.length) {
-    result.push(initial_[i]);
+    result.push(initial_[i]!);
     i++;
   }
 
@@ -292,10 +294,10 @@ export class BlockProgressTracker {
   addPendingBlocks({ blockNumbers }: { blockNumbers: number[] }): void {
     if (blockNumbers.length === 0) return;
 
-    const maxPendingBlock = this.pendingBlocks[this.pendingBlocks.length - 1];
+    const maxPendingBlock = this.pendingBlocks[this.pendingBlocks.length - 1]!;
 
     const sorted = blockNumbers.sort((a, b) => a - b);
-    const minNewPendingBlock = sorted[0];
+    const minNewPendingBlock = sorted[0]!;
 
     if (
       this.pendingBlocks.length > 0 &&
@@ -341,21 +343,21 @@ export class BlockProgressTracker {
     // If the pending blocks list is now empty, return the max block present in
     // the list of completed blocks. This happens at the end of the sync.
     if (this.pendingBlocks.length === 0) {
-      this.checkpoint = this.completedBlocks[this.completedBlocks.length - 1];
+      this.checkpoint = this.completedBlocks[this.completedBlocks.length - 1]!;
       return this.checkpoint;
     }
 
     // Find all completed blocks that are less than the minimum pending block.
     // These blocks are "safe".
     const safeCompletedBlocks = this.completedBlocks.filter(
-      ({ blockNumber }) => blockNumber < this.pendingBlocks[0],
+      ({ blockNumber }) => blockNumber < this.pendingBlocks[0]!,
     );
 
     // If there are no safe blocks, the first pending block has not been completed yet.
     if (safeCompletedBlocks.length === 0) return null;
 
     const maximumSafeCompletedBlock =
-      safeCompletedBlocks[safeCompletedBlocks.length - 1];
+      safeCompletedBlocks[safeCompletedBlocks.length - 1]!;
 
     // Remove all safe completed blocks that are less than the new checkpoint.
     // This avoid a memory leak and speeds up subsequent calls.

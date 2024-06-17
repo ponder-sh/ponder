@@ -1023,7 +1023,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       if (this.blockCallbacks[endBlock] === undefined)
         this.blockCallbacks[endBlock] = [];
 
-      this.blockCallbacks[endBlock].push(async (block) => {
+      this.blockCallbacks[endBlock]!.push(async (block) => {
         const { transactionHashes } = logInterval;
         const transactions = block.transactions.filter((tx) =>
           transactionHashes.has(tx.hash),
@@ -1064,7 +1064,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
     }
 
-    this.logFilterProgressTrackers[logFilter.id].addCompletedInterval([
+    this.logFilterProgressTrackers[logFilter.id]!.addCompletedInterval([
       fromBlock,
       toBlock,
     ]);
@@ -1116,7 +1116,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       if (this.blockCallbacks[endBlock] === undefined)
         this.blockCallbacks[endBlock] = [];
 
-      this.blockCallbacks[endBlock].push(async (block) => {
+      this.blockCallbacks[endBlock]!.push(async (block) => {
         const transactions = block.transactions.filter((tx) =>
           transactionHashes.has(tx.hash),
         );
@@ -1158,7 +1158,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     this.factoryLogFilterProgressTrackers[
       factoryLogFilter.id
-    ].addCompletedInterval([fromBlock, toBlock]);
+    ]!.addCompletedInterval([fromBlock, toBlock]);
 
     this.enqueueBlockTasks();
 
@@ -1202,7 +1202,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       if (this.blockCallbacks[logInterval.endBlock] === undefined)
         this.blockCallbacks[logInterval.endBlock] = [];
 
-      this.blockCallbacks[logInterval.endBlock].push(async (block) => {
+      this.blockCallbacks[logInterval.endBlock]!.push(async (block) => {
         const { transactionHashes } = logInterval;
 
         const transactions = block.transactions.filter((tx) =>
@@ -1230,9 +1230,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     // Update the checkpoint, and if necessary, enqueue factory log filter tasks.
     const { isUpdated, prevCheckpoint, newCheckpoint } =
-      this.factoryChildAddressProgressTrackers[factory.id].addCompletedInterval(
-        [fromBlock, toBlock],
-      );
+      this.factoryChildAddressProgressTrackers[
+        factory.id
+      ]!.addCompletedInterval([fromBlock, toBlock]);
 
     switch (factory.type) {
       case "factoryLog": {
@@ -1242,7 +1242,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           // are still marked as required.
           const requiredIntervals = intervalIntersection(
             [[prevCheckpoint + 1, newCheckpoint]],
-            this.factoryLogFilterProgressTrackers[factory.id].getRequired(),
+            this.factoryLogFilterProgressTrackers[factory.id]!.getRequired(),
           );
           const factoryLogFilterChunks = getChunks({
             intervals: requiredIntervals,
@@ -1280,7 +1280,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           // are still marked as required.
           const requiredIntervals = intervalIntersection(
             [[prevCheckpoint + 1, newCheckpoint]],
-            this.factoryTraceFilterProgressTrackers[factory.id].getRequired(),
+            this.factoryTraceFilterProgressTrackers[factory.id]!.getRequired(),
           );
           const factoryTraceFilterChunks = getChunks({
             intervals: requiredIntervals,
@@ -1386,7 +1386,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         if (this.blockCallbacks[blockNumber] === undefined)
           this.blockCallbacks[blockNumber] = [];
 
-        this.blockCallbacks[blockNumber].push(async (block) => {
+        this.blockCallbacks[blockNumber]!.push(async (block) => {
           await this.syncStore.insertBlockFilterInterval({
             chainId: blockFilter.chainId,
             blockFilter: blockFilter.criteria,
@@ -1411,7 +1411,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       prevBlockNumber = blockNumber + 1;
     }
 
-    this.blockFilterProgressTrackers[blockFilter.id].addCompletedInterval([
+    this.blockFilterProgressTrackers[blockFilter.id]!.addCompletedInterval([
       fromBlock,
       toBlock,
     ]);
@@ -1522,7 +1522,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       if (this.blockCallbacks[endBlock] === undefined)
         this.blockCallbacks[endBlock] = [];
 
-      this.blockCallbacks[endBlock].push(async (block) => {
+      this.blockCallbacks[endBlock]!.push(async (block) => {
         const { transactionHashes } = traceInterval;
         const transactions = block.transactions.filter((tx) =>
           transactionHashes.has(tx.hash),
@@ -1556,7 +1556,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         );
       });
     }
-    this.traceFilterProgressTrackers[traceFilter.id].addCompletedInterval([
+    this.traceFilterProgressTrackers[traceFilter.id]!.addCompletedInterval([
       fromBlock,
       toBlock,
     ]);
@@ -1678,7 +1678,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       if (this.blockCallbacks[endBlock] === undefined)
         this.blockCallbacks[endBlock] = [];
 
-      this.blockCallbacks[endBlock].push(async (block) => {
+      this.blockCallbacks[endBlock]!.push(async (block) => {
         const { transactionHashes } = traceInterval;
         const transactions = block.transactions.filter((tx) =>
           transactionHashes.has(tx.hash),
@@ -1715,7 +1715,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     this.factoryTraceFilterProgressTrackers[
       factoryTraceFilter.id
-    ].addCompletedInterval([fromBlock, toBlock]);
+    ]!.addCompletedInterval([fromBlock, toBlock]);
 
     this.enqueueBlockTasks();
 
@@ -1844,7 +1844,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           {
             kind: "BLOCK",
             blockNumber,
-            callbacks: this.blockCallbacks[blockNumber],
+            callbacks: this.blockCallbacks[blockNumber]!,
           },
           { priority: Number.MAX_SAFE_INTEGER - blockNumber },
         );
