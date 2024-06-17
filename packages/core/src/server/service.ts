@@ -13,6 +13,13 @@ import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
 import type { QueryResult } from "kysely";
 
+type Server = {
+  hono: Hono;
+  port: number;
+  setHealthy: () => void;
+  kill: () => Promise<void>;
+};
+
 export async function createServer({
   app,
   schema,
@@ -25,7 +32,7 @@ export async function createServer({
   readonlyStore: ReadonlyStore;
   query: (query: string) => Promise<QueryResult<unknown>>;
   common: Common;
-}) {
+}): Promise<Server> {
   // Create hono app
 
   const startTime = Date.now();
@@ -38,7 +45,7 @@ export async function createServer({
         const metrics = await common.metrics.getMetrics();
         return c.text(metrics);
       } catch (error) {
-        return c.json(error, 500);
+        return c.json(error as Error, 500);
       }
     })
     .get("/health", async (c) => {
@@ -145,8 +152,11 @@ export async function createServer({
   const hono = new Hono()
     .use(metricsMiddleware)
     .route("/_ponder", ponderApp)
-    .use(contextMiddleware)
-    .route("/", app);
+    .use(contextMiddleware);
+
+  if (app !== undefined) {
+    hono.route("/", app);
+  }
 
   // Create nodejs server
 
