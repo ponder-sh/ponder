@@ -88,9 +88,10 @@ export async function buildConfigAndIndexingFunctions({
             "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
           );
         }
-        schema = `${
-          process.env.RAILWAY_SERVICE_NAME
-        }_${process.env.RAILWAY_DEPLOYMENT_ID.slice(0, 8)}`;
+        schema = `${process.env.RAILWAY_SERVICE_NAME}_${process.env.RAILWAY_DEPLOYMENT_ID.slice(
+          0,
+          8,
+        )}`;
         source = "from RAILWAY_DEPLOYMENT_ID env var";
       } else {
         schema = "public";
@@ -172,9 +173,10 @@ export async function buildConfigAndIndexingFunctions({
             "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
           );
         }
-        schema = `${
-          process.env.RAILWAY_SERVICE_NAME
-        }_${process.env.RAILWAY_DEPLOYMENT_ID.slice(0, 8)}`;
+        schema = `${process.env.RAILWAY_SERVICE_NAME}_${process.env.RAILWAY_DEPLOYMENT_ID.slice(
+          0,
+          8,
+        )}`;
         source = "from RAILWAY_DEPLOYMENT_ID env var";
       } else {
         schema = "public";

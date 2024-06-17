@@ -1142,3 +1142,44 @@ test("flush() partial", async (context) => {
 
   await cleanup();
 });
+
+test("flush() skips update w/ no data", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+    }),
+  }));
+
+  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  await indexingStore.create({
+    tableName: "table",
+    id: "id",
+  });
+
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
+
+  const instance = await indexingStore.upsert({
+    tableName: "table",
+    id: "id",
+  });
+
+  expect(instance).toMatchObject({ id: "id" });
+
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
+
+  const rows = await database.indexingDb
+    .withSchema(namespaceInfo.userNamespace)
+    .selectFrom("table")
+    .selectAll()
+    .execute();
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    id: "id",
+  });
+
+  await cleanup();
+});

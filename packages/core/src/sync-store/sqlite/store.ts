@@ -230,11 +230,11 @@ export class SqliteSyncStore implements SyncStore {
             sql`( values ${sql.join(
               fragments.map(
                 (f) =>
-                  sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                    f.topic0,
-                  )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                    f.topic3,
-                  )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                  sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(f.topic0)}, ${sql.val(
+                    f.topic1,
+                  )}, ${sql.val(f.topic2)}, ${sql.val(f.topic3)}, ${sql.lit(
+                    f.includeTransactionReceipts,
+                  )} )`,
               ),
             )} )`,
         )
@@ -507,11 +507,11 @@ export class SqliteSyncStore implements SyncStore {
                 (f) =>
                   sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
                     f.eventSelector,
-                  )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
-                    f.topic0,
-                  )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                    f.topic3,
-                  )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                  )}, ${sql.val(f.childAddressLocation)}, ${sql.val(f.topic0)}, ${sql.val(
+                    f.topic1,
+                  )}, ${sql.val(f.topic2)}, ${sql.val(f.topic3)}, ${sql.lit(
+                    f.includeTransactionReceipts,
+                  )} )`,
               ),
             )} )`,
         )

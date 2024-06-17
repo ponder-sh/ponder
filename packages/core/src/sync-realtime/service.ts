@@ -511,11 +511,9 @@ export const handleBlock = async (
 
     service.common.logger.debug({
       service: "realtime",
-      msg: `Finalized ${
-        pendingFinalizedBlock.number - service.finalizedBlock.number + 1
-      } '${service.network.name}' blocks from ${
-        service.finalizedBlock.number + 1
-      } to ${pendingFinalizedBlock.number}`,
+      msg: `Finalized ${pendingFinalizedBlock.number - service.finalizedBlock.number + 1} '${
+        service.network.name
+      }' blocks from ${service.finalizedBlock.number + 1} to ${pendingFinalizedBlock.number}`,
     });
 
     service.localChain = service.localChain.filter(
@@ -590,11 +588,9 @@ export const handleReorg = async (service: Service, newHeadBlock: SyncBlock) => 
 
       service.common.logger.warn({
         service: "realtime",
-        msg: `Reconciled ${
-          forkedBlockNumber - parentBlock.number
-        }-block reorg on '${service.network.name}' with common ancestor block ${
-          parentBlock.number
-        }`,
+        msg: `Reconciled ${forkedBlockNumber - parentBlock.number}-block reorg on '${
+          service.network.name
+        }' with common ancestor block ${parentBlock.number}`,
       });
 
       return;

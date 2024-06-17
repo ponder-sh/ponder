@@ -516,9 +516,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""}`;
 
             await this.db.executeQuery(
-              sql`CREATE INDEX ${sql.ref(this.userNamespace)}.${sql.ref(
-                indexName,
-              )} ON ${sql.table(tableName)} (${sql.raw(columns)})`.compile(this.db),
+              sql`CREATE INDEX ${sql.ref(this.userNamespace)}.${sql.ref(indexName)} ON ${sql.table(
+                tableName,
+              )} (${sql.raw(columns)})`.compile(this.db),
             );
           });
 

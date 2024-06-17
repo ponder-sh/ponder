@@ -438,9 +438,9 @@ export async function run({
   log("―――――――――――――――――――――");
   log();
   log(
-    `${pico.green("Success!")} Created ${pico.bold(
-      projectName,
-    )} at ${pico.green(path.resolve(projectPath))}`,
+    `${pico.green("Success!")} Created ${pico.bold(projectName)} at ${pico.green(
+      path.resolve(projectPath),
+    )}`,
   );
   log();
   log(

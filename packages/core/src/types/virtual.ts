@@ -79,12 +79,12 @@ export namespace Virtual {
         ? EventName
         : never;
 
-  export type ExtractSourceName<name extends string> =
-    name extends `${infer SourceName extends string}:${string}`
+  export type ExtractSourceName<name extends string> = name extends `${infer SourceName extends
+    string}:${string}`
+    ? SourceName
+    : name extends `${infer SourceName extends string}.${string}`
       ? SourceName
-      : name extends `${infer SourceName extends string}.${string}`
-        ? SourceName
-        : never;
+      : never;
 
   export type EventNames<config extends Config> = FormatEventNames<
     config["contracts"],

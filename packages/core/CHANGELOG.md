@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.38
+
+### Patch Changes
+
+- [#939](https://github.com/ponder-sh/ponder/pull/939) [`81705fa2640754c42ddc3172aca8c3bd15bb7465`](https://github.com/ponder-sh/ponder/commit/81705fa2640754c42ddc3172aca8c3bd15bb7465) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue introduced in v0.4.37 where updating a table with only an "id" column would cause a SQL syntax error.
+
 ## 0.4.37
 
 ### Patch Changes
