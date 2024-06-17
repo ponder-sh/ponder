@@ -17,6 +17,7 @@ import type {
   TransactionReceipt,
 } from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
+import type { QueryResult } from "kysely";
 import type { Prettify } from "./utils.js";
 
 export namespace Virtual {
@@ -167,6 +168,11 @@ export namespace Virtual {
         "findUnique" | "findMany"
       >
     >;
+  } & {
+    query: <t = unknown>(
+      sqlFragment: string,
+      ...parameters: unknown[]
+    ) => Promise<QueryResult<t>>;
   };
 
   export type Context<

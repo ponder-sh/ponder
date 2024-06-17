@@ -23,6 +23,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
+import { sql } from "kysely";
 
 export type RealtimeEvent =
   | {
@@ -105,6 +106,9 @@ export async function run({
     app: build.app,
     readonlyStore,
     schema,
+    query: (...query: any) => {
+      return sql.raw(query).execute(database.indexingDb);
+    },
     common,
   });
 

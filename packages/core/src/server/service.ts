@@ -11,16 +11,19 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
+import { type QueryResult } from "kysely";
 
 export async function createServer({
   app,
   schema,
   readonlyStore,
+  query,
   common,
 }: {
   app?: Hono;
   schema: Schema;
   readonlyStore: ReadonlyStore;
+  query: (query: string) => Promise<QueryResult<unknown>>;
   common: Common;
 }) {
   // Create hono app
@@ -128,6 +131,9 @@ export async function createServer({
     };
     return acc;
   }, {});
+
+  // @ts-ignore
+  db.query = query;
 
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("db", db);
