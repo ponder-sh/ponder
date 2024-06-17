@@ -62,7 +62,8 @@ export function Table<TRow extends { [key: string]: any }>(props: {
       <Box flexDirection="row" key="border">
         <Text>├</Text>
         {columnWidths.map((width, index) => (
-          <Text key={`separator-${width}`}>
+          // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+          <Text key={index}>
             {"─".repeat(width + 2)}
             {index < columns.length - 1 ? "┼" : "┤"}
           </Text>
@@ -73,13 +74,12 @@ export function Table<TRow extends { [key: string]: any }>(props: {
       {formattedRows.map((row, rowIndex) => (
         <Box
           flexDirection="row"
-          key={`row-${
-            // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
-            rowIndex
-          }`}
+          // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+          key={rowIndex}
         >
           {columns.map(({ key, align }, index) => (
-            <React.Fragment key={`cell-${rowIndex}-${row[key]}`}>
+            // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+            <React.Fragment key={index}>
               <Text>│</Text>
               <Box
                 width={columnWidths[index]}
