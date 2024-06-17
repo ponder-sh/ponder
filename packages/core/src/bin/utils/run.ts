@@ -107,7 +107,9 @@ export async function run({
     readonlyStore,
     schema,
     query: (...query: any) => {
-      return sql.raw(query).execute(database.indexingDb);
+      return sql
+        .raw(query)
+        .execute(database.indexingDb.withSchema(namespaceInfo.userNamespace));
     },
     common,
   });
