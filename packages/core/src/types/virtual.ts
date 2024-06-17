@@ -51,9 +51,7 @@ export namespace Virtual {
     blocks extends Config["blocks"],
   > =
     | {
-        [name in keyof contracts]: `${name & string}:${
-          | _FormatEventNames<contracts[name]>
-          | Setup}`;
+        [name in keyof contracts]: `${name & string}:${_FormatEventNames<contracts[name]> | Setup}`;
       }[keyof contracts]
     | {
         [name in keyof blocks]: `${name & string}:block`;

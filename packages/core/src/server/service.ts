@@ -11,7 +11,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import { type QueryResult } from "kysely";
+import type { QueryResult } from "kysely";
 
 export async function createServer({
   app,

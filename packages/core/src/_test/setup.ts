@@ -1,7 +1,7 @@
-import { randomUUID } from "crypto";
-import { mkdirSync } from "fs";
+import { randomUUID } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import os from "os";
 import type { Common } from "@/common/common.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
@@ -32,7 +32,7 @@ import type { RequestQueue } from "@/utils/requestQueue.js";
 import pg from "pg";
 import { rimrafSync } from "rimraf";
 import type { Address } from "viem";
-import { type TestContext } from "vitest";
+import type { TestContext } from "vitest";
 import { deploy, simulate } from "./simulate.js";
 import { getConfig, getNetworkAndSources, testClient } from "./utils.js";
 
@@ -47,8 +47,8 @@ declare module "vitest" {
       CallTraceSource,
       BlockSource,
     ];
-    networks: Network[];
-    requestQueues: RequestQueue[];
+    networks: [Network];
+    requestQueues: [RequestQueue];
     config: Config;
     erc20: { address: Address };
     factory: { address: Address; pair: Address };
@@ -276,8 +276,8 @@ export async function setupAnvil(context: TestContext) {
     addresses,
     context.common,
   );
-  context.networks = networks;
-  context.requestQueues = requestQueues;
+  context.networks = networks as [Network];
+  context.requestQueues = requestQueues as [RequestQueue];
   context.sources = sources as [
     LogSource,
     FactoryLogSource,

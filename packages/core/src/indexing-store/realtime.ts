@@ -60,7 +60,7 @@ export const getRealtimeStore = ({
 
         await tx
           .withSchema(namespaceInfo.internalNamespace)
-          .insertInto(namespaceInfo.internalTableIds[tableName])
+          .insertInto(namespaceInfo.internalTableIds[tableName]!)
           .values({
             operation: 0,
             id: createRecord.id,
@@ -104,14 +104,14 @@ export const getRealtimeStore = ({
             .returningAll()
             .execute()
             .catch((err) => {
-              throw parseStoreError(err, data.length > 0 ? data[0] : {});
+              throw parseStoreError(err, data.length > 0 ? data[0]! : {});
             });
 
           records.push(..._records);
 
           await tx
             .withSchema(namespaceInfo.internalNamespace)
-            .insertInto(namespaceInfo.internalTableIds[tableName])
+            .insertInto(namespaceInfo.internalTableIds[tableName]!)
             .values(
               createRecords.map((record) => ({
                 operation: 0,
@@ -186,7 +186,7 @@ export const getRealtimeStore = ({
 
         await tx
           .withSchema(namespaceInfo.internalNamespace)
-          .insertInto(namespaceInfo.internalTableIds[tableName])
+          .insertInto(namespaceInfo.internalTableIds[tableName]!)
           .values({
             operation: 1,
             checkpoint: encodedCheckpoint,
@@ -223,7 +223,8 @@ export const getRealtimeStore = ({
     while (true) {
       const _records = await db.wrap(
         { method: `${tableName}.updateMany` },
-        () => db.transaction().execute(async (tx) => {
+        () =>
+          db.transaction().execute(async (tx) => {
             const latestRecords: DatabaseRecord[] = await tx
               .withSchema(namespaceInfo.userNamespace)
               .selectFrom(tableName)
@@ -282,7 +283,7 @@ export const getRealtimeStore = ({
 
               await tx
                 .withSchema(namespaceInfo.internalNamespace)
-                .insertInto(namespaceInfo.internalTableIds[tableName])
+                .insertInto(namespaceInfo.internalTableIds[tableName]!)
                 .values({
                   operation: 1,
                   checkpoint: encodedCheckpoint,
@@ -303,7 +304,7 @@ export const getRealtimeStore = ({
         break;
       } else {
         cursor = encodeValue({
-          value: _records[_records.length - 1].id,
+          value: _records[_records.length - 1]!.id,
           column: table.id,
           encoding,
         });
@@ -371,7 +372,7 @@ export const getRealtimeStore = ({
 
           await tx
             .withSchema(namespaceInfo.internalNamespace)
-            .insertInto(namespaceInfo.internalTableIds[tableName])
+            .insertInto(namespaceInfo.internalTableIds[tableName]!)
             .values({
               operation: 0,
               id: createRecord.id,
@@ -418,7 +419,7 @@ export const getRealtimeStore = ({
 
         await tx
           .withSchema(namespaceInfo.internalNamespace)
-          .insertInto(namespaceInfo.internalTableIds[tableName])
+          .insertInto(namespaceInfo.internalTableIds[tableName]!)
           .values({
             operation: 1,
             checkpoint: encodedCheckpoint,
@@ -467,7 +468,7 @@ export const getRealtimeStore = ({
         if (record !== undefined) {
           await tx
             .withSchema(namespaceInfo.internalNamespace)
-            .insertInto(namespaceInfo.internalTableIds[tableName])
+            .insertInto(namespaceInfo.internalTableIds[tableName]!)
             .values({
               operation: 2,
               checkpoint: encodedCheckpoint,

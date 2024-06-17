@@ -10,7 +10,7 @@ import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
 import type { Schema } from "@/schema/common.js";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
-import { Hono } from "hono";
+import type { Hono } from "hono";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";

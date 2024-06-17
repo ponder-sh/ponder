@@ -53,7 +53,7 @@ export class UiService {
       this.ui.indexing = await getIndexingProgress(metrics);
 
       // Server
-      const port = (await metrics.ponder_http_server_port.get()).values[0]
+      const port = (await metrics.ponder_http_server_port.get()).values[0]!
         .value;
       this.ui.port = port;
 

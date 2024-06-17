@@ -67,7 +67,7 @@ test("decodeEvents() log error", async (context) => {
   const rawEvents = await getEventsLog(sources);
 
   // remove data from log, causing an error when decoding
-  rawEvents[0].log!.data = "0x0";
+  rawEvents[0]!.log!.data = "0x0";
   const events = decodeEvents({ common, sourceById }, rawEvents) as [
     LogEvent,
     LogEvent,
@@ -139,7 +139,7 @@ test("decodeEvents() trace error", async (context) => {
   const rawEvents = await getEventsTrace(sources);
 
   // change function selector, causing an error when decoding
-  rawEvents[0].trace!.input = "0x0";
+  rawEvents[0]!.trace!.input = "0x0";
   const events = decodeEvents({ common, sourceById }, rawEvents) as [
     CallTraceEvent,
   ];

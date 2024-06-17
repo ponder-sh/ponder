@@ -170,7 +170,7 @@ export const getNetworkAndSources = async (
   const mainnet = { ...networks[0], finalityBlockCount: 4 };
 
   const requestQueue = createRequestQueue({
-    network: networks[0],
+    network: networks[0]!,
     common,
   });
 
@@ -218,7 +218,7 @@ export const getRawRPCData = async (sources: EventSource[]) => {
       method: "eth_getLogs",
       params: [
         {
-          address: slice(logs[2].topics[1]!, 12),
+          address: slice(logs[2]!.topics[1]!, 12),
           fromBlock: toHex(latestBlock - 3n),
         },
       ],
@@ -273,9 +273,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           },
           subtraces: 0,
           traceAddress: [0],
-          transactionHash: blocks[0]!.transactions[0].hash,
+          transactionHash: blocks[0]!.transactions[0]!.hash,
           transactionPosition: hexToNumber(
-            blocks[0]!.transactions[0].transactionIndex,
+            blocks[0]!.transactions[0]!.transactionIndex,
           ),
           type: "create",
         },
@@ -295,9 +295,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           },
           subtraces: 0,
           traceAddress: [0],
-          transactionHash: blocks[0]!.transactions[1].hash,
+          transactionHash: blocks[0]!.transactions[1]!.hash,
           transactionPosition: hexToNumber(
-            blocks[0]!.transactions[1].transactionIndex,
+            blocks[0]!.transactions[1]!.transactionIndex,
           ),
           type: "create",
         },
@@ -335,9 +335,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           },
           subtraces: 0,
           traceAddress: [0],
-          transactionHash: blocks[1]!.transactions[0].hash,
+          transactionHash: blocks[1]!.transactions[0]!.hash,
           transactionPosition: hexToNumber(
-            blocks[1]!.transactions[0].transactionIndex,
+            blocks[1]!.transactions[0]!.transactionIndex,
           ),
           type: "call",
         },
@@ -365,9 +365,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           },
           subtraces: 0,
           traceAddress: [0],
-          transactionHash: blocks[1]!.transactions[1].hash,
+          transactionHash: blocks[1]!.transactions[1]!.hash,
           transactionPosition: hexToNumber(
-            blocks[1]!.transactions[1].transactionIndex,
+            blocks[1]!.transactions[1]!.transactionIndex,
           ),
           type: "call",
         },
@@ -400,14 +400,14 @@ export const getRawRPCData = async (sources: EventSource[]) => {
             output: encodeFunctionResult({
               abi: factoryABI,
               functionName: "createPair",
-              result: logs[3].address,
+              result: logs[3]!.address,
             }),
           },
           subtraces: 0,
           traceAddress: [0],
-          transactionHash: blocks[2]!.transactions[0].hash,
+          transactionHash: blocks[2]!.transactions[0]!.hash,
           transactionPosition: hexToNumber(
-            blocks[2]!.transactions[0].transactionIndex,
+            blocks[2]!.transactions[0]!.transactionIndex,
           ),
           type: "call",
         },
@@ -445,9 +445,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           },
           subtraces: 0,
           traceAddress: [0],
-          transactionHash: blocks[3]!.transactions[0].hash,
+          transactionHash: blocks[3]!.transactions[0]!.hash,
           transactionPosition: hexToNumber(
-            blocks[3]!.transactions[0].transactionIndex,
+            blocks[3]!.transactions[0]!.transactionIndex,
           ),
           type: "call",
         },
@@ -534,8 +534,8 @@ export const getEventsLog = async (
       transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
     }))
     .map(({ log, block, transaction, transactionReceipt }, i) => ({
-      sourceId: i === 0 || i === 1 ? sources[0].id : sources[1].id,
-      chainId: sources[0].chainId,
+      sourceId: i === 0 || i === 1 ? sources[0]!.id : sources[1]!.id,
+      chainId: sources[0]!.chainId,
       log: {
         ...log,
         id: `${log.blockHash}-${toHex(log.logIndex!)}`,
@@ -560,7 +560,7 @@ export const getEventsLog = async (
       },
       encodedCheckpoint: encodeCheckpoint({
         blockTimestamp: Number(block.timestamp),
-        chainId: BigInt(sources[0].chainId),
+        chainId: BigInt(sources[0]!.chainId),
         blockNumber: block.number!,
         transactionIndex: BigInt(transaction.transactionIndex!),
         eventType: 5,
@@ -586,14 +586,14 @@ export const getEventsBlock = async (
       block: formatBlock(e.block),
     }))
     .map(({ block }) => ({
-      sourceId: sources[4].id,
-      chainId: sources[4].chainId,
+      sourceId: sources[4]!.id,
+      chainId: sources[4]!.chainId,
 
       block: { ...block, miner: checksumAddress(block.miner) },
 
       encodedCheckpoint: encodeCheckpoint({
         blockTimestamp: Number(block.timestamp),
-        chainId: BigInt(sources[0].chainId),
+        chainId: BigInt(sources[0]!.chainId),
         blockNumber: block.number!,
         transactionIndex: maxCheckpoint.transactionIndex,
         eventType: 5,
@@ -625,8 +625,8 @@ export const getEventsTrace = async (
       transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
     }))
     .map(({ trace, block, transaction, transactionReceipt }) => ({
-      sourceId: sources[3].id,
-      chainId: sources[3].chainId,
+      sourceId: sources[3]!.id,
+      chainId: sources[3]!.chainId,
       trace: {
         id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
         from: checksumAddress(trace.action.from),
@@ -663,7 +663,7 @@ export const getEventsTrace = async (
       },
       encodedCheckpoint: encodeCheckpoint({
         blockTimestamp: Number(block.timestamp),
-        chainId: BigInt(sources[0].chainId),
+        chainId: BigInt(sources[0]!.chainId),
         blockNumber: block.number!,
         transactionIndex: BigInt(transaction.transactionIndex!),
         eventType: 7,

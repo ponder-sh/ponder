@@ -1,7 +1,7 @@
 import type { Schema } from "@/schema/common.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
-import { PostgresDatabaseService } from "./postgres/service.js";
-import { SqliteDatabaseService } from "./sqlite/service.js";
+import type { PostgresDatabaseService } from "./postgres/service.js";
+import type { SqliteDatabaseService } from "./sqlite/service.js";
 
 export type DatabaseService = PostgresDatabaseService | SqliteDatabaseService;
 

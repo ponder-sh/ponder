@@ -46,9 +46,9 @@ import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
 import {
   type ExpressionBuilder,
+  type Transaction as KyselyTransaction,
   type OperandExpression,
   type SqlBool,
-  type Transaction as KyselyTransaction,
   sql,
 } from "kysely";
 import {
@@ -253,11 +253,11 @@ export class SqliteSyncStore implements SyncStore {
             sql`( values ${sql.join(
               fragments.map(
                 (f) =>
-                  sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                    f.topic0,
-                  )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                    f.topic3,
-                  )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                  sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(f.topic0)}, ${sql.val(
+                    f.topic1,
+                  )}, ${sql.val(f.topic2)}, ${sql.val(f.topic3)}, ${sql.lit(
+                    f.includeTransactionReceipts,
+                  )} )`,
               ),
             )} )`,
         )
@@ -352,7 +352,9 @@ export class SqliteSyncStore implements SyncStore {
   }) {
     const { address, eventSelector, childAddressLocation } = factory;
     const selectChildAddressExpression =
-      buildFactoryChildAddressSelectExpression({ childAddressLocation });
+      buildFactoryChildAddressSelectExpression({
+        childAddressLocation,
+      });
 
     const baseQuery = this.db
       .selectFrom("logs")
@@ -383,7 +385,7 @@ export class SqliteSyncStore implements SyncStore {
       // If the batch is less than the page size, there are no more pages.
       if (batch.length < pageSize) break;
       // Otherwise, set the cursor to the last block number in the batch.
-      cursor = batch[batch.length - 1].id;
+      cursor = batch[batch.length - 1]!.id;
     }
   }
 
@@ -559,11 +561,11 @@ export class SqliteSyncStore implements SyncStore {
                   (f) =>
                     sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
                       f.eventSelector,
-                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
-                      f.topic0,
-                    )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                      f.topic3,
-                    )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(f.topic0)}, ${sql.val(
+                      f.topic1,
+                    )}, ${sql.val(f.topic2)}, ${sql.val(f.topic3)}, ${sql.lit(
+                      f.includeTransactionReceipts,
+                    )} )`,
                 ),
               )} )`,
           )
@@ -810,7 +812,7 @@ export class SqliteSyncStore implements SyncStore {
           if (traceByTransactionHash[trace.transactionHash] === undefined) {
             traceByTransactionHash[trace.transactionHash] = [];
           }
-          traceByTransactionHash[trace.transactionHash].push(trace);
+          traceByTransactionHash[trace.transactionHash]!.push(trace);
         }
 
         for (const transactionHash of Object.keys(traceByTransactionHash)) {
@@ -822,7 +824,7 @@ export class SqliteSyncStore implements SyncStore {
             .execute();
 
           (traces as Omit<InsertableCallTrace, "checkpoint">[]).push(
-            ...traceByTransactionHash[transactionHash as Hex].map((trace) => ({
+            ...traceByTransactionHash[transactionHash as Hex]!.map((trace) => ({
               ...rpcToSqliteTrace(trace),
               chainId,
             })),
@@ -834,7 +836,7 @@ export class SqliteSyncStore implements SyncStore {
           });
 
           for (let i = 0; i < traces.length; i++) {
-            const trace = traces[i];
+            const trace = traces[i]!;
             const checkpoint = encodeCheckpoint({
               blockTimestamp: hexToNumber(rpcBlock.timestamp),
               chainId: BigInt(chainId),
@@ -947,9 +949,7 @@ export class SqliteSyncStore implements SyncStore {
             sql`( values ${sql.join(
               fragments.map(
                 (f) =>
-                  sql`( ${sql.val(f.id)}, ${sql.val(f.fromAddress)}, ${sql.val(
-                    f.toAddress,
-                  )} )`,
+                  sql`( ${sql.val(f.id)}, ${sql.val(f.fromAddress)}, ${sql.val(f.toAddress)} )`,
               ),
             )} )`,
         )
@@ -1055,7 +1055,7 @@ export class SqliteSyncStore implements SyncStore {
             if (traceByTransactionHash[trace.transactionHash] === undefined) {
               traceByTransactionHash[trace.transactionHash] = [];
             }
-            traceByTransactionHash[trace.transactionHash].push(trace);
+            traceByTransactionHash[trace.transactionHash]!.push(trace);
           }
 
           for (const transactionHash of Object.keys(traceByTransactionHash)) {
@@ -1067,7 +1067,7 @@ export class SqliteSyncStore implements SyncStore {
               .execute();
 
             (traces as Omit<InsertableCallTrace, "checkpoint">[]).push(
-              ...traceByTransactionHash[transactionHash as Hex].map(
+              ...traceByTransactionHash[transactionHash as Hex]!.map(
                 (trace) => ({
                   ...rpcToSqliteTrace(trace),
                   chainId,
@@ -1081,7 +1081,7 @@ export class SqliteSyncStore implements SyncStore {
             });
 
             for (let i = 0; i < traces.length; i++) {
-              const trace = traces[i];
+              const trace = traces[i]!;
               const checkpoint = encodeCheckpoint({
                 blockTimestamp: hexToNumber(rpcBlock.timestamp),
                 chainId: BigInt(chainId),
@@ -1199,9 +1199,7 @@ export class SqliteSyncStore implements SyncStore {
                   (f) =>
                     sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
                       f.eventSelector,
-                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
-                      f.fromAddress,
-                    )} )`,
+                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(f.fromAddress)} )`,
                 ),
               )} )`,
           )
@@ -2088,7 +2086,7 @@ export class SqliteSyncStore implements SyncStore {
           // that those fields are indeed present before continuing here.
           const row = _row as NonNull<(typeof requestedLogs)[number]>;
 
-          const source = sourcesById[row.source_id];
+          const source = sourcesById[row.source_id]!;
 
           const shouldIncludeLog =
             sourceIsLog(source) || sourceIsFactoryLog(source);
@@ -2281,7 +2279,7 @@ export class SqliteSyncStore implements SyncStore {
         fromCursor = toCursor;
       } else if (events.length === this.common.options.syncEventsQuerySize) {
         this.seconds = Math.round(this.seconds / 2);
-        fromCursor = events[events.length - 1].encodedCheckpoint;
+        fromCursor = events[events.length - 1]!.encodedCheckpoint;
       } else {
         this.seconds = Math.round(
           Math.min(
@@ -2620,9 +2618,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "factoryId",
             "in",
-            sql`(SELECT "factoryId" FROM ${sql.table(
-              "deleteFactoryLogFilter",
-            )})`,
+            sql`(SELECT "factoryId" FROM ${sql.table("deleteFactoryLogFilter")})`,
           )
           .execute();
 
@@ -2648,9 +2644,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "factoryId",
             "in",
-            sql`(SELECT "factoryId" FROM ${sql.table(
-              "updateFactoryLogFilter",
-            )})`,
+            sql`(SELECT "factoryId" FROM ${sql.table("updateFactoryLogFilter")})`,
           )
           .execute();
 
@@ -2667,9 +2661,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "traceFilterId",
             "in",
-            sql`(SELECT "traceFilterId" FROM ${sql.table(
-              "deleteTraceFilter",
-            )})`,
+            sql`(SELECT "traceFilterId" FROM ${sql.table("deleteTraceFilter")})`,
           )
           .execute();
 
@@ -2690,9 +2682,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "traceFilterId",
             "in",
-            sql`(SELECT "traceFilterId" FROM ${sql.table(
-              "updateTraceFilter",
-            )})`,
+            sql`(SELECT "traceFilterId" FROM ${sql.table("updateTraceFilter")})`,
           )
           .execute();
 
@@ -2713,9 +2703,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "factoryId",
             "in",
-            sql`(SELECT "factoryId" FROM ${sql.table(
-              "deleteFactoryTraceFilter",
-            )})`,
+            sql`(SELECT "factoryId" FROM ${sql.table("deleteFactoryTraceFilter")})`,
           )
           .execute();
 
@@ -2741,9 +2729,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "factoryId",
             "in",
-            sql`(SELECT "factoryId" FROM ${sql.table(
-              "updateFactoryTraceFilter",
-            )})`,
+            sql`(SELECT "factoryId" FROM ${sql.table("updateFactoryTraceFilter")})`,
           )
           .execute();
 
@@ -2760,9 +2746,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "blockFilterId",
             "in",
-            sql`(SELECT "blockFilterId" FROM ${sql.table(
-              "deleteBlockFilter",
-            )})`,
+            sql`(SELECT "blockFilterId" FROM ${sql.table("deleteBlockFilter")})`,
           )
           .execute();
 
@@ -2783,9 +2767,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "blockFilterId",
             "in",
-            sql`(SELECT "blockFilterId" FROM ${sql.table(
-              "updateBlockFilter",
-            )})`,
+            sql`(SELECT "blockFilterId" FROM ${sql.table("updateBlockFilter")})`,
           )
           .execute();
 
@@ -2837,8 +2819,6 @@ function buildFactoryChildAddressSelectExpression({
   } else {
     const start = 2 + 12 * 2 + 1;
     const length = 20 * 2;
-    return sql<Hex>`'0x' || substring(${sql.ref(
-      childAddressLocation,
-    )}, ${start}, ${length})`;
+    return sql<Hex>`'0x' || substring(${sql.ref(childAddressLocation)}, ${start}, ${length})`;
   }
 }

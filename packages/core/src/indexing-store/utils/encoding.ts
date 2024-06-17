@@ -173,10 +173,10 @@ export function validateRecord({
         )
           .filter(
             (column) =>
-              isScalarColumn(table[column]) ||
-              isReferenceColumn(table[column]) ||
-              isEnumColumn(table[column]) ||
-              isJSONColumn(table[column]),
+              isScalarColumn(table[column]!) ||
+              isReferenceColumn(table[column]!) ||
+              isEnumColumn(table[column]!) ||
+              isJSONColumn(table[column]!),
           )
           .join(", ")}]`,
       );
@@ -212,13 +212,13 @@ function validateValue({
           `Unable to encode ${value} as an enum. Got type '${typeof value}' but expected type 'string'.`,
         );
       } else {
-        if (getEnums(schema)[column[" enum"]].includes(value) === false) {
+        if (getEnums(schema)[column[" enum"]]!.includes(value) === false) {
           throw new CheckConstraintError(
             `Unable to encode ${value} as a '${
               column[" enum"]
             }' enum. Got '${value}' but expected one of [${getEnums(schema)[
               column[" enum"]
-            ].join(", ")}].`,
+            ]!.join(", ")}].`,
           );
         }
       }
@@ -249,9 +249,7 @@ function validateValue({
         const error = new NotNullConstraintError(
           `Unable to encode ${value} as a ${
             column[" scalar"]
-          }. Got '${typeof value}' but expected type '${
-            scalarToTsType[column[" scalar"]]
-          }'.`,
+          }. Got '${typeof value}' but expected type '${scalarToTsType[column[" scalar"]]}'.`,
         );
         error.meta.push(
           "Hint:\n  Use the .optional() modifier to allow for null or undefined values.",
@@ -330,9 +328,7 @@ function validateValue({
     case "one":
     case "many": {
       throw new StoreError(
-        `Unable to encode ${value} into a "${
-          isManyColumn(column) ? "many" : "one"
-        }" column. "${
+        `Unable to encode ${value} into a "${isManyColumn(column) ? "many" : "one"}" column. "${
           isManyColumn(column) ? "many" : "one"
         }" columns are virtual and therefore should not be given a value.`,
       );
@@ -362,7 +358,7 @@ export function decodeRecord({
       isJSONColumn(column)
     ) {
       instance[columnName] = decodeValue({
-        value: record[columnName],
+        value: record[columnName]!,
         column,
         encoding,
       });

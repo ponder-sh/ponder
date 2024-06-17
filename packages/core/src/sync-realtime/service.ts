@@ -247,7 +247,7 @@ export const start = (service: Service) => {
           error,
         });
 
-        const duration = ERROR_TIMEOUT[service.consecutiveErrors];
+        const duration = ERROR_TIMEOUT[service.consecutiveErrors]!;
 
         service.common.logger.warn({
           service: "realtime",
@@ -547,11 +547,9 @@ export const handleBlock = async (
 
     service.common.logger.debug({
       service: "realtime",
-      msg: `Finalized ${
-        pendingFinalizedBlock.number - service.finalizedBlock.number + 1
-      } '${service.network.name}' blocks from ${
-        service.finalizedBlock.number + 1
-      } to ${pendingFinalizedBlock.number}`,
+      msg: `Finalized ${pendingFinalizedBlock.number - service.finalizedBlock.number + 1} '${
+        service.network.name
+      }' blocks from ${service.finalizedBlock.number + 1} to ${pendingFinalizedBlock.number}`,
     });
 
     service.localChain = service.localChain.filter(
@@ -631,11 +629,9 @@ export const handleReorg = async (
 
       service.common.logger.warn({
         service: "realtime",
-        msg: `Reconciled ${
-          forkedBlockNumber - parentBlock.number
-        }-block reorg on '${service.network.name}' with common ancestor block ${
-          parentBlock.number
-        }`,
+        msg: `Reconciled ${forkedBlockNumber - parentBlock.number}-block reorg on '${
+          service.network.name
+        }' with common ancestor block ${parentBlock.number}`,
       });
 
       return;
@@ -799,5 +795,5 @@ const getLatestLocalBlock = ({
 }: Pick<Service, "localChain" | "finalizedBlock">) => {
   if (localChain.length === 0) {
     return finalizedBlock;
-  } else return localChain[localChain.length - 1];
+  } else return localChain[localChain.length - 1]!;
 };

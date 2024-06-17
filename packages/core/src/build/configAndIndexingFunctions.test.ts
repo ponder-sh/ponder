@@ -1,4 +1,4 @@
-import path from "path";
+import path from "node:path";
 import type { Options } from "@/common/options.js";
 import type {
   CallTraceSource,
@@ -250,7 +250,7 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
     options,
   });
 
-  expect(sources[0].networkName).toBe("mainnet");
+  expect(sources[0]!.networkName).toBe("mainnet");
 });
 
 test("buildConfigAndIndexingFunctions() validates network name", async () => {
@@ -462,7 +462,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to 0", async () =
       a: {
         network: { mainnet: {} },
         abi: [event0, event1],
-        startBlock: NaN,
+        startBlock: Number.NaN,
       },
     },
   });
@@ -603,7 +603,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
       a: {
         network: { mainnet: {} },
         abi: [event0, event1],
-        endBlock: NaN,
+        endBlock: Number.NaN,
       },
     },
   });
@@ -614,7 +614,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
     options,
   });
 
-  expect(sources[0].endBlock).toBe(undefined);
+  expect(sources[0]!.endBlock).toBe(undefined);
 });
 
 test("buildConfigAndIndexingFunctions() database uses sqlite by default", async () => {

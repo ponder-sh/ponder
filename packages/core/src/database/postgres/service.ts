@@ -15,8 +15,8 @@ import {
 } from "@/schema/utils.js";
 import type { SyncStoreTables } from "@/sync-store/postgres/encoding.js";
 import {
-  migrationProvider as syncMigrationProvider,
   moveLegacyTables,
+  migrationProvider as syncMigrationProvider,
 } from "@/sync-store/postgres/migrations.js";
 import {
   type Checkpoint,
@@ -31,10 +31,10 @@ import { wait } from "@/utils/wait.js";
 import {
   type CreateTableBuilder,
   type Insertable,
-  Kysely,
+  type Kysely,
+  type Transaction as KyselyTransaction,
   Migrator,
   PostgresDialect,
-  Transaction as KyselyTransaction,
   WithSchemaPlugin,
   sql,
 } from "kysely";
@@ -222,7 +222,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             for (const [tableName, table] of Object.entries(
               getTables(schema),
             )) {
-              const tableId = namespaceInfo.internalTableIds[tableName];
+              const tableId = namespaceInfo.internalTableIds[tableName]!;
 
               await tx.schema
                 .withSchema(this.internalNamespace)
@@ -302,9 +302,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               service: "database",
               msg: `Detected cache hit for build '${this.buildId}' in schema '${
                 this.userNamespace
-              }' last active ${formatEta(
-                Date.now() - previousLockRow.heartbeat_at,
-              )} ago`,
+              }' last active ${formatEta(Date.now() - previousLockRow.heartbeat_at)} ago`,
             });
 
             // Remove any indexes, will be recreated once the app
@@ -641,9 +639,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
             const columns = Array.isArray(indexColumn)
               ? indexColumn.map((ic) => `"${ic}"`).join(", ")
-              : `"${indexColumn}" ${
-                  order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""
-                } ${
+              : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""} ${
                   nulls === "first"
                     ? "NULLS FIRST"
                     : nulls === "last"
@@ -740,7 +736,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           if (isListColumn(column) === false) {
             col = col.check(
               sql`${sql.ref(columnName)} in (${sql.join(
-                getEnums(schema)[column[" enum"]].map((v) => sql.lit(v)),
+                getEnums(schema)[column[" enum"]]!.map((v) => sql.lit(v)),
               )})`,
             );
           }

@@ -1,5 +1,5 @@
 import type { AbiEvent, AbiFunction, ParseAbiItem } from "abitype";
-import { type Abi } from "viem";
+import type { Abi } from "viem";
 import { assertType, test } from "vitest";
 import type {
   ExtractAbiEvents,

@@ -1,9 +1,9 @@
-import { exec } from "child_process";
+import { exec } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "util";
+import { promisify } from "node:util";
 import type { Build } from "@/build/service.js";
 import type { Options } from "@/common/options.js";
 import { getTables } from "@/schema/utils.js";
@@ -143,8 +143,8 @@ export function createTelemetry({
         system_release: os.release(),
         system_architecture: os.arch(),
         cpu_count: cpus.length,
-        cpu_model: cpus.length > 0 ? cpus[0].model : "unknown",
-        cpu_speed: cpus.length > 0 ? cpus[0].speed : 0,
+        cpu_model: cpus.length > 0 ? cpus[0]!.model : "unknown",
+        cpu_speed: cpus.length > 0 ? cpus[0]!.speed : 0,
         total_memory_bytes: os.totalmem(),
       } satisfies SessionProperties,
     };

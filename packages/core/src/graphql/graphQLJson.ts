@@ -36,7 +36,7 @@ const parseLiteral = (
       return ast.value;
     case Kind.INT:
     case Kind.FLOAT:
-      return parseFloat(ast.value);
+      return Number.parseFloat(ast.value);
     case Kind.OBJECT:
       return parseObject(ast, variables);
     case Kind.LIST:

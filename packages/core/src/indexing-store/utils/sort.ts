@@ -30,7 +30,7 @@ export function buildOrderByConditions({
   if (conditions.length > 1)
     throw new StoreError("Invalid sort. Cannot sort by multiple columns.");
 
-  const [columnName, orderDirection] = conditions[0];
+  const [columnName, orderDirection] = conditions[0]!;
 
   // Validate column name.
   const column = table[columnName];
@@ -41,10 +41,10 @@ export function buildOrderByConditions({
       )
         .filter(
           (columnName) =>
-            isScalarColumn(table[columnName]) ||
-            isReferenceColumn(table[columnName]) ||
-            isEnumColumn(table[columnName]) ||
-            isJSONColumn(table[columnName]),
+            isScalarColumn(table[columnName]!) ||
+            isReferenceColumn(table[columnName]!) ||
+            isEnumColumn(table[columnName]!) ||
+            isJSONColumn(table[columnName]!),
         )
         .map((c) => `'${c}'`)
         .join(", ")}]`,

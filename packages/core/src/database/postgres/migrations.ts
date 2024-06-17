@@ -1,5 +1,5 @@
-import { type Kysely } from "kysely";
-import { type Migration, type MigrationProvider } from "kysely";
+import type { Kysely } from "kysely";
+import type { Migration, MigrationProvider } from "kysely";
 
 const migrations: Record<string, Migration> = {
   "2024_03_28_0_initial": {

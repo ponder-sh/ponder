@@ -456,12 +456,12 @@ test("start() adds log filter events to sync store", async (context) => {
     ...erc20Events[0],
     transactionReceipt: undefined,
     trace: undefined,
-  }).toMatchObject(events[0]);
+  }).toMatchObject(events[0]!);
   expect({
     ...erc20Events[1],
     transactionReceipt: undefined,
     trace: undefined,
-  }).toMatchObject(events[1]);
+  }).toMatchObject(events[1]!);
 
   service.kill();
   await service.onIdle();
@@ -527,13 +527,13 @@ test("start() adds block filter events to sync store", async (context) => {
 
   expect(events).toHaveLength(2);
 
-  expect(events[0].log).toBeUndefined();
-  expect(events[0].transaction).toBeUndefined();
-  expect(events[0].block.number).toBe(1n);
+  expect(events[0]!.log).toBeUndefined();
+  expect(events[0]!.transaction).toBeUndefined();
+  expect(events[0]!.block.number).toBe(1n);
 
-  expect(events[1].log).toBeUndefined();
-  expect(events[1].transaction).toBeUndefined();
-  expect(events[1].block.number).toBe(3n);
+  expect(events[1]!.log).toBeUndefined();
+  expect(events[1]!.transaction).toBeUndefined();
+  expect(events[1]!.block.number).toBe(3n);
 
   service.kill();
   await service.onIdle();
@@ -570,10 +570,10 @@ test("start() adds trace filter events to sync store", async (context) => {
 
   expect(events).toHaveLength(1);
 
-  expect(events[0].log).toBeUndefined();
-  expect(events[0].transaction).toBeDefined();
-  expect(events[0].trace).toBeDefined();
-  expect(events[0].block.number).toBe(3n);
+  expect(events[0]!.log).toBeUndefined();
+  expect(events[0]!.transaction).toBeDefined();
+  expect(events[0]!.trace).toBeDefined();
+  expect(events[0]!.block.number).toBe(3n);
 
   service.kill();
   await service.onIdle();
@@ -610,10 +610,10 @@ test("start() adds factory trace filter events to sync store", async (context) =
 
   expect(events).toHaveLength(1);
 
-  expect(events[0].log).toBeUndefined();
-  expect(events[0].transaction).toBeDefined();
-  expect(events[0].trace).toBeDefined();
-  expect(events[0].block.number).toBe(4n);
+  expect(events[0]!.log).toBeUndefined();
+  expect(events[0]!.transaction).toBeDefined();
+  expect(events[0]!.trace).toBeDefined();
+  expect(events[0]!.block.number).toBe(4n);
 
   service.kill();
   await service.onIdle();

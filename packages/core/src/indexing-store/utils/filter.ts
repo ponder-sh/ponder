@@ -123,10 +123,10 @@ export function buildWhereConditions({
         )
           .filter(
             (columnName) =>
-              isScalarColumn(table[columnName]) ||
-              isReferenceColumn(table[columnName]) ||
-              isEnumColumn(table[columnName]) ||
-              isJSONColumn(table[columnName]),
+              isScalarColumn(table[columnName]!) ||
+              isReferenceColumn(table[columnName]!) ||
+              isEnumColumn(table[columnName]!) ||
+              isJSONColumn(table[columnName]!),
           )
           .map((c) => `'${c}'`)
           .join(", ")}]`,
@@ -186,7 +186,7 @@ export function buildWhereConditions({
         return encodeValue({ value: v, column, encoding });
       };
 
-      const [comparator, encodedValue] = filterEncodingFn(value, encode);
+      const [comparator, encodedValue] = filterEncodingFn!(value, encode);
       exprs.push(eb.eb(columnName, comparator, encodedValue));
     }
   }

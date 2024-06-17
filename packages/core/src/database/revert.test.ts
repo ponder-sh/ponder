@@ -41,7 +41,10 @@ function calculateLogTableName(tableName: string) {
 
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
   const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, { schema, indexing: "realtime" });
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -88,15 +91,15 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
   const { items: pets } = await indexingStore.findMany({ tableName: "Pet" });
 
   expect(pets.length).toBe(1);
-  expect(pets[0].name).toBe("Skip");
+  expect(pets[0]!.name).toBe("Skip");
 
   const { items: persons } = await indexingStore.findMany({
     tableName: "Person",
   });
 
   expect(persons.length).toBe(2);
-  expect(persons[0].name).toBe("Bobby");
-  expect(persons[1].name).toBe("Kevin");
+  expect(persons[0]!.name).toBe("Bobby");
+  expect(persons[1]!.name).toBe("Kevin");
 
   const PetLogs = await database.indexingDb
     .withSchema(namespaceInfo.internalNamespace)
@@ -118,7 +121,10 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 
 test("revert() updates versions with intermediate logs", async (context) => {
   const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, { schema, indexing: "realtime" });
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",

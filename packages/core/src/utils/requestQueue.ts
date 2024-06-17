@@ -13,7 +13,7 @@ import {
   InvalidInputRpcError,
   LimitExceededRpcError,
   type PublicRpcSchema,
-  RpcError,
+  type RpcError,
   type RpcLog,
   hexToBigInt,
   isHex,
@@ -83,9 +83,7 @@ export const createRequestQueue = ({
             }', retrying with ranges: [${getLogsErrorResponse.ranges
               .map(
                 ({ fromBlock, toBlock }) =>
-                  `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(
-                    toBlock,
-                  ).toString()}]`,
+                  `[${hexToBigInt(fromBlock).toString()}, ${hexToBigInt(toBlock).toString()}]`,
               )
               .join(", ")}].`,
           });
@@ -121,9 +119,7 @@ export const createRequestQueue = ({
         if (i === RETRY_COUNT) {
           common.logger.warn({
             service: "sync",
-            msg: `Failed '${request.method}' RPC request after ${
-              i + 1
-            } attempts`,
+            msg: `Failed '${request.method}' RPC request after ${i + 1} attempts`,
             error,
           });
           throw error;

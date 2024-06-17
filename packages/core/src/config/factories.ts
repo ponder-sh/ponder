@@ -47,7 +47,7 @@ export function buildChildAddressCriteria({
 
   let offset = 0;
   for (let i = 0; i < nonIndexedInputPosition; i++) {
-    offset += getBytesConsumedByParam(nonIndexedInputs[i]);
+    offset += getBytesConsumedByParam(nonIndexedInputs[i]!);
   }
 
   return {

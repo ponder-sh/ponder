@@ -32,9 +32,11 @@ export function decodeCursor(
   }
 
   for (const [index, [columnName]] of orderByConditions.entries()) {
-    if (cursorValues[index][0] !== columnName) {
+    if (cursorValues[index]![0] !== columnName) {
       throw new StoreError(
-        `Invalid cursor. Got column '${cursorValues[index][0]}' at index ${index}, expected '${columnName}'.`,
+        `Invalid cursor. Got column '${
+          cursorValues[index]![0]
+        }' at index ${index}, expected '${columnName}'.`,
       );
     }
   }
@@ -59,11 +61,11 @@ export function buildCursorConditions(
   const comparatorOrEquals = `${comparator}=` as const;
 
   if (cursorValues.length === 1) {
-    const [columnName, value] = cursorValues[0];
+    const [columnName, value] = cursorValues[0]!;
     return eb.eb(columnName, comparatorOrEquals, value);
   } else if (cursorValues.length === 2) {
-    const [columnName1, value1] = cursorValues[0];
-    const [columnName2, value2] = cursorValues[1];
+    const [columnName1, value1] = cursorValues[0]!;
+    const [columnName2, value2] = cursorValues[1]!;
 
     return eb.or([
       eb.eb(columnName1, comparator, value1),

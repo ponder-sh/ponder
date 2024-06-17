@@ -99,7 +99,7 @@ export const getReadonlyStore = ({
               : sql`desc nulls last`,
         );
       }
-      const orderDirection = orderByConditions[0][1];
+      const orderDirection = orderByConditions[0]![1];
 
       if (limit > MAX_LIMIT) {
         throw new StoreError(
@@ -132,11 +132,11 @@ export const getReadonlyStore = ({
 
         startCursor =
           records.length > 0
-            ? encodeCursor(records[0], orderByConditions)
+            ? encodeCursor(records[0]!, orderByConditions)
             : null;
         endCursor =
           records.length > 0
-            ? encodeCursor(records[records.length - 1], orderByConditions)
+            ? encodeCursor(records[records.length - 1]!, orderByConditions)
             : null;
 
         return {
@@ -182,7 +182,7 @@ export const getReadonlyStore = ({
 
         // If the cursor of the first returned record equals the `after` cursor,
         // `hasPreviousPage` is true. Remove that record.
-        if (encodeCursor(records[0], orderByConditions) === after) {
+        if (encodeCursor(records[0]!, orderByConditions) === after) {
           records.shift();
           hasPreviousPage = true;
         } else {
@@ -200,11 +200,11 @@ export const getReadonlyStore = ({
         // Now calculate the cursors.
         startCursor =
           records.length > 0
-            ? encodeCursor(records[0], orderByConditions)
+            ? encodeCursor(records[0]!, orderByConditions)
             : null;
         endCursor =
           records.length > 0
-            ? encodeCursor(records[records.length - 1], orderByConditions)
+            ? encodeCursor(records[records.length - 1]!, orderByConditions)
             : null;
 
         return {
@@ -258,7 +258,7 @@ export const getReadonlyStore = ({
         // If the cursor of the last returned record equals the `before` cursor,
         // `hasNextPage` is true. Remove that record.
         if (
-          encodeCursor(records[records.length - 1], orderByConditions) ===
+          encodeCursor(records[records.length - 1]!, orderByConditions) ===
           before
         ) {
           records.pop();
@@ -278,11 +278,11 @@ export const getReadonlyStore = ({
         // Now calculate the cursors.
         startCursor =
           records.length > 0
-            ? encodeCursor(records[0], orderByConditions)
+            ? encodeCursor(records[0]!, orderByConditions)
             : null;
         endCursor =
           records.length > 0
-            ? encodeCursor(records[records.length - 1], orderByConditions)
+            ? encodeCursor(records[records.length - 1]!, orderByConditions)
             : null;
 
         return {

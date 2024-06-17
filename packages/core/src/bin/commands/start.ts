@@ -16,7 +16,9 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     mode: options.logFormat,
   });
 
-  const [major, minor, _patch] = process.versions.node.split(".").map(Number);
+  const [major, minor, _patch] = process.versions.node
+    .split(".")
+    .map(Number) as [number, number, number];
   if (major < 18 || (major === 18 && minor < 14)) {
     logger.fatal({
       service: "process",

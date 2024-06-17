@@ -1,6 +1,6 @@
 import type { Common } from "@/common/common.js";
 import { RecordNotFoundError, UniqueConstraintError } from "@/common/errors.js";
-import { HeadlessKysely } from "@/database/kysely.js";
+import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
@@ -100,9 +100,7 @@ export const getHistoricalStore = ({
 
   common.logger.debug({
     service: "indexing",
-    msg: `Using a ${Math.round(
-      maxSizeBytes / (1024 * 1024),
-    )} MB indexing cache`,
+    msg: `Using a ${Math.round(maxSizeBytes / (1024 * 1024))} MB indexing cache`,
   });
 
   /** True if the cache contains the complete state of the store. */
@@ -130,7 +128,7 @@ export const getHistoricalStore = ({
     }).toLowerCase();
 
   const getCacheKey = (id: UserId, tableName: string): Key => {
-    if (tables[tableName].table.id[" scalar"] === "hex")
+    if (tables[tableName]!.table.id[" scalar"] === "hex")
       return normalizeHex(id as Hex);
     if (typeof id === "bigint") return `#Bigint.${id}`;
     return id;
@@ -143,7 +141,7 @@ export const getHistoricalStore = ({
    */
   const normalizeRecord = (record: UserRecord, tableName: string) => {
     for (const [columnName, column] of Object.entries(
-      tables[tableName].table,
+      tables[tableName]!.table,
     )) {
       // optional columns are null
       if (
@@ -178,145 +176,143 @@ export const getHistoricalStore = ({
         cacheSize * (1 - common.options.indexingCacheFlushRatio);
 
       await Promise.all(
-        Object.entries(storeCache).map(
-          async ([tableName, tableStoreCache]) => {
-            const table = (schema[tableName] as { table: Table }).table;
-            const cacheEntries = Object.values(tableStoreCache);
+        Object.entries(storeCache).map(async ([tableName, tableStoreCache]) => {
+          const table = (schema[tableName] as { table: Table }).table;
+          const cacheEntries = Object.values(tableStoreCache);
 
-            let insertRecords: UserRecord[];
+          let insertRecords: UserRecord[];
 
-            if (isFullFlush) {
-              insertRecords = cacheEntries
-                .filter(({ type }) => type === "insert")
-                .map(({ record }) => record!);
-            } else {
-              insertRecords = cacheEntries
-                .filter(
-                  ({ type, opIndex }) =>
-                    type === "insert" && opIndex < flushIndex,
-                )
-                .map(({ record }) => record!);
-            }
+          if (isFullFlush) {
+            insertRecords = cacheEntries
+              .filter(({ type }) => type === "insert")
+              .map(({ record }) => record!);
+          } else {
+            insertRecords = cacheEntries
+              .filter(
+                ({ type, opIndex }) =>
+                  type === "insert" && opIndex < flushIndex,
+              )
+              .map(({ record }) => record!);
+          }
 
-            if (insertRecords.length !== 0) {
-              common.logger.debug({
-                service: "indexing",
-                msg: `Inserting ${insertRecords.length} cached '${tableName}' records into the database`,
-              });
+          if (insertRecords.length !== 0) {
+            common.logger.debug({
+              service: "indexing",
+              msg: `Inserting ${insertRecords.length} cached '${tableName}' records into the database`,
+            });
 
-              for (
-                let i = 0, len = insertRecords.length;
-                i < len;
-                i += MAX_BATCH_SIZE
-              ) {
-                await db.wrap({ method: `${tableName}.flush` }, async () => {
-                  const _insertRecords = insertRecords
-                    .slice(i, i + MAX_BATCH_SIZE)
-                    // skip validation because its already occurred in the store method
-                    .map((record) =>
-                      encodeRecord({
-                        record,
-                        table,
-                        schema,
-                        encoding,
-                        skipValidation: true,
-                      }),
+            for (
+              let i = 0, len = insertRecords.length;
+              i < len;
+              i += MAX_BATCH_SIZE
+            ) {
+              await db.wrap({ method: `${tableName}.flush` }, async () => {
+                const _insertRecords = insertRecords
+                  .slice(i, i + MAX_BATCH_SIZE)
+                  // skip validation because its already occurred in the store method
+                  .map((record) =>
+                    encodeRecord({
+                      record,
+                      table,
+                      schema,
+                      encoding,
+                      skipValidation: true,
+                    }),
+                  );
+
+                await db
+                  .withSchema(namespaceInfo.userNamespace)
+                  .insertInto(tableName)
+                  .values(_insertRecords)
+                  .execute()
+                  .catch((err) => {
+                    throw parseStoreError(
+                      err,
+                      _insertRecords.length > 0 ? _insertRecords[0]! : {},
                     );
-
-                  await db
-                    .withSchema(namespaceInfo.userNamespace)
-                    .insertInto(tableName)
-                    .values(_insertRecords)
-                    .execute()
-                    .catch((err) => {
-                      throw parseStoreError(
-                        err,
-                        _insertRecords.length > 0 ? _insertRecords[0] : {},
-                      );
-                    });
-                });
-              }
-            }
-
-            // Exit early if the table only has an "id" column.
-            if (Object.keys(table).length === 1) return;
-
-            let updateRecords: UserRecord[];
-
-            if (isFullFlush) {
-              updateRecords = cacheEntries
-                .filter(({ type }) => type === "update")
-                .map(({ record }) => record!);
-            } else {
-              updateRecords = cacheEntries
-                .filter(
-                  ({ type, opIndex }) =>
-                    type === "update" && opIndex < flushIndex,
-                )
-                .map(({ record }) => record!);
-            }
-
-            if (updateRecords.length !== 0) {
-              common.logger.debug({
-                service: "indexing",
-                msg: `Updating ${updateRecords.length} cached '${tableName}' records in the database`,
+                  });
               });
+            }
+          }
 
-              for (
-                let i = 0, len = updateRecords.length;
-                i < len;
-                i += MAX_BATCH_SIZE
-              ) {
-                await db.wrap({ method: `${tableName}.flush` }, async () => {
-                  const _updateRecords = updateRecords
-                    .slice(i, i + MAX_BATCH_SIZE)
-                    // skip validation because its already occurred in the store method
-                    .map((record) =>
-                      encodeRecord({
-                        record,
-                        table,
-                        schema,
-                        encoding,
-                        skipValidation: true,
-                      }),
-                    );
+          // Exit early if the table only has an "id" column.
+          if (Object.keys(table).length === 1) return;
 
-                  await db
-                    .withSchema(namespaceInfo.userNamespace)
-                    .insertInto(tableName)
-                    .values(_updateRecords)
-                    .onConflict((oc) =>
-                      oc.column("id").doUpdateSet((eb) =>
-                        Object.entries(table).reduce<any>(
-                          (acc, [colName, column]) => {
-                            if (colName !== "id") {
-                              if (
-                                isScalarColumn(column) ||
-                                isReferenceColumn(column) ||
-                                isEnumColumn(column) ||
-                                isJSONColumn(column)
-                              ) {
-                                acc[colName] = eb.ref(`excluded.${colName}`);
-                              }
+          let updateRecords: UserRecord[];
+
+          if (isFullFlush) {
+            updateRecords = cacheEntries
+              .filter(({ type }) => type === "update")
+              .map(({ record }) => record!);
+          } else {
+            updateRecords = cacheEntries
+              .filter(
+                ({ type, opIndex }) =>
+                  type === "update" && opIndex < flushIndex,
+              )
+              .map(({ record }) => record!);
+          }
+
+          if (updateRecords.length !== 0) {
+            common.logger.debug({
+              service: "indexing",
+              msg: `Updating ${updateRecords.length} cached '${tableName}' records in the database`,
+            });
+
+            for (
+              let i = 0, len = updateRecords.length;
+              i < len;
+              i += MAX_BATCH_SIZE
+            ) {
+              await db.wrap({ method: `${tableName}.flush` }, async () => {
+                const _updateRecords = updateRecords
+                  .slice(i, i + MAX_BATCH_SIZE)
+                  // skip validation because its already occurred in the store method
+                  .map((record) =>
+                    encodeRecord({
+                      record,
+                      table,
+                      schema,
+                      encoding,
+                      skipValidation: true,
+                    }),
+                  );
+
+                await db
+                  .withSchema(namespaceInfo.userNamespace)
+                  .insertInto(tableName)
+                  .values(_updateRecords)
+                  .onConflict((oc) =>
+                    oc.column("id").doUpdateSet((eb) =>
+                      Object.entries(table).reduce<any>(
+                        (acc, [colName, column]) => {
+                          if (colName !== "id") {
+                            if (
+                              isScalarColumn(column) ||
+                              isReferenceColumn(column) ||
+                              isEnumColumn(column) ||
+                              isJSONColumn(column)
+                            ) {
+                              acc[colName] = eb.ref(`excluded.${colName}`);
                             }
-                            return acc;
-                          },
-                          {},
-                        ),
+                          }
+                          return acc;
+                        },
+                        {},
                       ),
-                    )
-                    .execute()
-                    .catch((err) => {
-                      throw parseStoreError(
-                        err,
-                        _updateRecords.length > 0 ? _updateRecords[0] : {},
-                      );
-                    });
-                });
-              }
+                    ),
+                  )
+                  .execute()
+                  .catch((err) => {
+                    throw parseStoreError(
+                      err,
+                      _updateRecords.length > 0 ? _updateRecords[0]! : {},
+                    );
+                  });
+              });
             }
-          },
-        ),
+          }
+        }),
       );
 
       if (isFullFlush) {
@@ -329,8 +325,8 @@ export const getHistoricalStore = ({
         for (const [tableName, tableStoreCache] of Object.entries(storeCache)) {
           for (const [key, { opIndex }] of Object.entries(tableStoreCache)) {
             if (opIndex < flushIndex) {
-              const bytes = storeCache[tableName][key].bytes;
-              delete storeCache[tableName][key];
+              const bytes = storeCache[tableName]![key]!.bytes;
+              delete storeCache[tableName]![key];
 
               cacheSize--;
               cacheSizeBytes -= bytes;
@@ -350,7 +346,7 @@ export const getHistoricalStore = ({
     tableName: string;
     id: UserId;
   }) => {
-    const table = tables[tableName].table;
+    const table = tables[tableName]!.table;
 
     const encodedId = encodeValue({
       value: id,
@@ -384,7 +380,7 @@ export const getHistoricalStore = ({
         const id = structuredClone(_id);
         const cacheKey = getCacheKey(id, tableName);
 
-        const cacheEntry = storeCache[tableName][cacheKey];
+        const cacheEntry = storeCache[tableName]![cacheKey];
         if (cacheEntry !== undefined) {
           cacheEntry.opIndex = totalCacheOps++;
           return structuredClone(cacheEntry.record);
@@ -398,7 +394,7 @@ export const getHistoricalStore = ({
         const bytes = getBytesSize(record);
 
         // add "find" entry to cache
-        storeCache[tableName][cacheKey] = {
+        storeCache[tableName]![cacheKey] = {
           type: "find",
           opIndex: totalCacheOps++,
           bytes,
@@ -438,7 +434,7 @@ export const getHistoricalStore = ({
         const cacheKey = getCacheKey(id, tableName);
 
         // Check cache truthiness, will be false if record is null.
-        if (storeCache[tableName][cacheKey]?.record) {
+        if (storeCache[tableName]![cacheKey]?.record) {
           throw new UniqueConstraintError(
             `Unique constraint failed for '${tableName}.id'.`,
           );
@@ -450,11 +446,11 @@ export const getHistoricalStore = ({
 
         normalizeRecord(record, tableName);
 
-        validateRecord({ record, table: tables[tableName].table, schema });
+        validateRecord({ record, table: tables[tableName]!.table, schema });
 
         const bytes = getBytesSize(record);
 
-        storeCache[tableName][cacheKey] = {
+        storeCache[tableName]![cacheKey] = {
           type: "insert",
           opIndex: totalCacheOps++,
           bytes,
@@ -481,7 +477,7 @@ export const getHistoricalStore = ({
           const cacheKey = getCacheKey(_record.id, tableName);
 
           // Check cache truthiness, will be false if record is null.
-          if (storeCache[tableName][cacheKey]?.record) {
+          if (storeCache[tableName]![cacheKey]?.record) {
             throw new UniqueConstraintError(
               `Unique constraint failed for '${tableName}.id'.`,
             );
@@ -492,11 +488,11 @@ export const getHistoricalStore = ({
 
           normalizeRecord(record, tableName);
 
-          validateRecord({ record, table: tables[tableName].table, schema });
+          validateRecord({ record, table: tables[tableName]!.table, schema });
 
           const bytes = getBytesSize(record);
 
-          storeCache[tableName][cacheKey] = {
+          storeCache[tableName]![cacheKey] = {
             type: "insert",
             opIndex: totalCacheOps++,
             bytes,
@@ -532,7 +528,7 @@ export const getHistoricalStore = ({
         const id = structuredClone(_id);
         const cacheKey = getCacheKey(id, tableName);
 
-        let cacheEntry = storeCache[tableName][cacheKey];
+        let cacheEntry = storeCache[tableName]![cacheKey];
 
         if (cacheEntry === undefined) {
           const record = isCacheExhaustive
@@ -548,7 +544,7 @@ export const getHistoricalStore = ({
           // Note: a "spoof" cache entry is created
           cacheEntry = { type: "update", opIndex: 0, bytes: 0, record };
 
-          storeCache[tableName][cacheKey] = cacheEntry;
+          storeCache[tableName]![cacheKey] = cacheEntry;
         } else {
           if (cacheEntry.record === null) {
             throw new RecordNotFoundError(
@@ -575,7 +571,7 @@ export const getHistoricalStore = ({
 
         normalizeRecord(record, tableName);
 
-        validateRecord({ record, table: tables[tableName].table, schema });
+        validateRecord({ record, table: tables[tableName]!.table, schema });
 
         const bytes = getBytesSize(record);
 
@@ -667,7 +663,7 @@ export const getHistoricalStore = ({
             break;
           } else {
             cursor = encodeValue({
-              value: _records[_records.length - 1].id,
+              value: _records[_records.length - 1]!.id,
               column: table.id,
               encoding,
             });
@@ -731,7 +727,7 @@ export const getHistoricalStore = ({
         const id = structuredClone(_id);
         const cacheKey = getCacheKey(id, tableName);
 
-        let cacheEntry = storeCache[tableName][cacheKey];
+        let cacheEntry = storeCache[tableName]![cacheKey];
 
         if (cacheEntry === undefined) {
           if (isCacheExhaustive === false) {
@@ -740,7 +736,7 @@ export const getHistoricalStore = ({
             if (record !== null) {
               // Note: a "spoof" cache entry is created
               cacheEntry = { type: "update", opIndex: 0, bytes: 0, record };
-              storeCache[tableName][cacheKey] = cacheEntry;
+              storeCache[tableName]![cacheKey] = cacheEntry;
             }
 
             // Note: an "insert" cache entry will be created if the record is null,
@@ -774,7 +770,7 @@ export const getHistoricalStore = ({
 
           normalizeRecord(record, tableName);
 
-          validateRecord({ record, table: tables[tableName].table, schema });
+          validateRecord({ record, table: tables[tableName]!.table, schema });
 
           const bytes = getBytesSize(record);
 
@@ -792,11 +788,11 @@ export const getHistoricalStore = ({
 
           normalizeRecord(record, tableName);
 
-          validateRecord({ record, table: tables[tableName].table, schema });
+          validateRecord({ record, table: tables[tableName]!.table, schema });
 
           const bytes = getBytesSize(record);
 
-          storeCache[tableName][cacheKey] = {
+          storeCache[tableName]![cacheKey] = {
             type: "insert",
             opIndex: totalCacheOps++,
             bytes,
@@ -823,12 +819,12 @@ export const getHistoricalStore = ({
         const id = structuredClone(_id);
         const cacheKey = getCacheKey(id, tableName);
 
-        const cacheEntry = storeCache[tableName][cacheKey];
+        const cacheEntry = storeCache[tableName]![cacheKey];
 
         if (cacheEntry !== undefined) {
           // delete from cache
           const bytes = cacheEntry.bytes;
-          delete storeCache[tableName][cacheKey];
+          delete storeCache[tableName]![cacheKey];
           cacheSize--;
           cacheSizeBytes -= bytes;
         }
