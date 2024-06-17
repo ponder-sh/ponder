@@ -1,5 +1,60 @@
 # @ponder/core
 
+## 0.4.38
+
+### Patch Changes
+
+- [#939](https://github.com/ponder-sh/ponder/pull/939) [`81705fa2640754c42ddc3172aca8c3bd15bb7465`](https://github.com/ponder-sh/ponder/commit/81705fa2640754c42ddc3172aca8c3bd15bb7465) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue introduced in v0.4.37 where updating a table with only an "id" column would cause a SQL syntax error.
+
+## 0.4.37
+
+### Patch Changes
+
+- [#929](https://github.com/ponder-sh/ponder/pull/929) [`42f2e9194343fc9e851656c1baedb9d9dd5d66a4`](https://github.com/ponder-sh/ponder/commit/42f2e9194343fc9e851656c1baedb9d9dd5d66a4) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved indexing performance by using a dynamic checkpoint range when querying raw events from the sync store. The checkpoint range adjusts based on the density of events in the previous batch. This eliminates performance issues when using databases that had >1M rows in the `ponder_sync.logs` table.
+
+- [#929](https://github.com/ponder-sh/ponder/pull/929) [`42f2e9194343fc9e851656c1baedb9d9dd5d66a4`](https://github.com/ponder-sh/ponder/commit/42f2e9194343fc9e851656c1baedb9d9dd5d66a4) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved indexing performance by batching database writes using an in-memory LRU record cache.
+
+## 0.4.36
+
+### Patch Changes
+
+- [#931](https://github.com/ponder-sh/ponder/pull/931) [`3bf69809b25c7d3e50be6eaf2f8d3564c7bb8f14`](https://github.com/ponder-sh/ponder/commit/3bf69809b25c7d3e50be6eaf2f8d3564c7bb8f14) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed bug with cache intervals occasionally causing statement timeouts for large apps.
+
+## 0.4.35
+
+### Patch Changes
+
+- [`b77a43fb7fbad4e2710d31537ce21a29c1f6aafe`](https://github.com/ponder-sh/ponder/commit/b77a43fb7fbad4e2710d31537ce21a29c1f6aafe) Thanks [@0xOlias](https://github.com/0xOlias)! - Improves support for indexing local nodes by adding a `disableCache` network option. [Read more](https://ponder.sh/docs/advanced/foundry).
+
+- [#927](https://github.com/ponder-sh/ponder/pull/927) [`3be6365c4c71dd0ac8275d485eb0317a656672b7`](https://github.com/ponder-sh/ponder/commit/3be6365c4c71dd0ac8275d485eb0317a656672b7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issues that would cause unexpected blocks to immediately cause a fatal error with a deep reorg.
+
+## 0.4.34
+
+### Patch Changes
+
+- [#925](https://github.com/ponder-sh/ponder/pull/925) [`2a95909da55c816a9ea77f23170b1370f11ee555`](https://github.com/ponder-sh/ponder/commit/2a95909da55c816a9ea77f23170b1370f11ee555) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `0.4.33` that could cause events to be skipped.
+
+## 0.4.33
+
+### Patch Changes
+
+- [`e29efbb4c51181e723ca25ba35c2dd7263738f77`](https://github.com/ponder-sh/ponder/commit/e29efbb4c51181e723ca25ba35c2dd7263738f77) Thanks [@0xOlias](https://github.com/0xOlias)! - Added new CLI options `--log-level` and `--log-format`. Added support for structured logs using newline delimited JSON. [Read more](https://ponder.sh/docs/advanced/logging).
+
+- [#922](https://github.com/ponder-sh/ponder/pull/922) [`ec5472749ee195a7f6ec8753d622ecf575656983`](https://github.com/ponder-sh/ponder/commit/ec5472749ee195a7f6ec8753d622ecf575656983) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated `hono` and `@hono/node-server` to fix a memory leak in the server.
+
+- [#917](https://github.com/ponder-sh/ponder/pull/917) [`1e423a1c4f5eb303711842cc6389f9e13cfeecde`](https://github.com/ponder-sh/ponder/commit/1e423a1c4f5eb303711842cc6389f9e13cfeecde) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for `startBlock` or `endBlock` to be greater than the finalized or latest block.
+
+- [#907](https://github.com/ponder-sh/ponder/pull/907) [`c9886d9dd86bea13b85fe0335a96c8ca24a30fd9`](https://github.com/ponder-sh/ponder/commit/c9886d9dd86bea13b85fe0335a96c8ca24a30fd9) Thanks [@erensanlier](https://github.com/erensanlier)! - Improved the performance an important internal SQL query (`getEvents`) for large apps. An app with ~5M rows in the `ponder_sync.logs` table saw a ~20x reduction in execution time for this query. Smaller apps will see a more modest improvement.
+
+## 0.4.32
+
+### Patch Changes
+
+- [`4ef2d6212e59b4c4ba0723e78a1c204db3d94542`](https://github.com/ponder-sh/ponder/commit/4ef2d6212e59b4c4ba0723e78a1c204db3d94542) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `replaceBigInts` utility function to `@ponder/utils` (re-exported from `@ponder/core`). [Read more](https://ponder.sh/docs/utilities/replace-bigints).
+
+- Updated dependencies [[`4ef2d6212e59b4c4ba0723e78a1c204db3d94542`](https://github.com/ponder-sh/ponder/commit/4ef2d6212e59b4c4ba0723e78a1c204db3d94542)]:
+  - @ponder/utils@0.1.6
+
 ## 0.4.31
 
 ### Patch Changes

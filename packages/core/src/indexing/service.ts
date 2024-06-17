@@ -31,12 +31,12 @@ import type {
   LogEvent,
   SetupEvent,
 } from "../sync/events.js";
+import { addStackTrace } from "./addStackTrace.js";
 import {
   type ReadOnlyClient,
   buildCachedActions,
   buildDb,
 } from "./ponderActions.js";
-import { addUserStackTrace } from "./trace.js";
 
 export type Context = {
   network: { chainId: number; name: string };
@@ -66,8 +66,7 @@ export type Service = {
   eventCount: {
     [eventName: string]: { [networkName: string]: number };
   };
-  firstEventCheckpoint: Checkpoint | undefined;
-  lastEventCheckpoint: Checkpoint | undefined;
+  startCheckpoint: Checkpoint;
 
   /**
    * Reduce memory usage by reserving space for objects ahead of time
@@ -182,8 +181,7 @@ export const create = ({
     indexingStore,
     isKilled: false,
     eventCount,
-    firstEventCheckpoint: undefined,
-    lastEventCheckpoint: undefined,
+    startCheckpoint: syncService.startCheckpoint,
     currentEvent: {
       contextState,
       context: {
@@ -274,21 +272,6 @@ export const processEvents = async (
   | { status: "success" }
   | { status: "killed" }
 > => {
-  // set first event checkpoint
-  if (events.length > 0 && indexingService.firstEventCheckpoint === undefined) {
-    indexingService.firstEventCheckpoint = decodeCheckpoint(
-      events[0].encodedCheckpoint,
-    );
-
-    // set total seconds
-    if (indexingService.lastEventCheckpoint !== undefined) {
-      indexingService.common.metrics.ponder_indexing_total_seconds.set(
-        indexingService.lastEventCheckpoint.blockTimestamp -
-          indexingService.firstEventCheckpoint.blockTimestamp,
-      );
-    }
-  }
-
   const eventCounts: { [eventName: string]: number } = {};
 
   for (let i = 0; i < events.length; i++) {
@@ -394,30 +377,26 @@ export const processEvents = async (
       ).blockTimestamp;
 
       indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-        eventTimestamp - indexingService.firstEventCheckpoint!.blockTimestamp,
+        eventTimestamp - indexingService.startCheckpoint.blockTimestamp,
       );
       indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
         eventTimestamp,
       );
 
-      // Note(kyle) this is only needed for sqlite
+      // Note: allows for terminal and logs to be updated
       await new Promise(setImmediate);
     }
   }
 
   // set completed seconds
-  if (
-    events.length > 0 &&
-    indexingService.firstEventCheckpoint !== undefined &&
-    indexingService.lastEventCheckpoint !== undefined
-  ) {
+  if (events.length > 0) {
     const lastEventInBatchTimestamp = decodeCheckpoint(
       events[events.length - 1].encodedCheckpoint,
     ).blockTimestamp;
 
     indexingService.common.metrics.ponder_indexing_completed_seconds.set(
       lastEventInBatchTimestamp -
-        indexingService.firstEventCheckpoint.blockTimestamp,
+        indexingService.startCheckpoint.blockTimestamp,
     );
     indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
       lastEventInBatchTimestamp,
@@ -451,18 +430,14 @@ export const kill = (indexingService: Service) => {
   indexingService.isKilled = true;
 };
 
-export const updateLastEventCheckpoint = (
+export const updateTotalSeconds = (
   indexingService: Service,
-  lastEventCheckpoint: Checkpoint,
+  endCheckpoint: Checkpoint,
 ) => {
-  indexingService.lastEventCheckpoint = lastEventCheckpoint;
-
-  if (indexingService.firstEventCheckpoint !== undefined) {
-    indexingService.common.metrics.ponder_indexing_total_seconds.set(
-      indexingService.lastEventCheckpoint.blockTimestamp -
-        indexingService.firstEventCheckpoint.blockTimestamp,
-    );
-  }
+  indexingService.common.metrics.ponder_indexing_total_seconds.set(
+    endCheckpoint.blockTimestamp -
+      indexingService.startCheckpoint.blockTimestamp,
+  );
 };
 
 const updateCompletedEvents = (indexingService: Service) => {
@@ -521,15 +496,15 @@ const executeSetup = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = _error as Error;
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    addUserStackTrace(error, common.options);
+    addStackTrace(error, common.options);
 
     common.metrics.ponder_indexing_has_error.set(1);
 
@@ -594,17 +569,18 @@ const executeLog = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = _error as Error & { meta?: string[] };
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    error.meta = `Event arguments:\n${prettyPrint(event.event.args)}`;
+    addStackTrace(error, common.options);
 
-    addUserStackTrace(error, common.options);
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
 
     common.logger.error({
       service: "indexing",
@@ -614,7 +590,7 @@ const executeLog = async (
 
     common.metrics.ponder_indexing_has_error.set(1);
 
-    return { status: "error", error: error };
+    return { status: "error", error };
   }
 
   return { status: "success" };
@@ -666,19 +642,27 @@ const executeBlock = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
-
+    const error = _error as Error & { meta?: string[] };
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    addUserStackTrace(error, common.options);
+    addStackTrace(error, common.options);
+
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(
+      `Block:\n${prettyPrint({
+        hash: event.event.block.hash,
+        number: event.event.block.number,
+        timestamp: event.event.block.timestamp,
+      })}`,
+    );
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing ${eventName} event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}: `,
+      msg: `Error while processing ${eventName} event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}`,
       error,
     });
 
@@ -739,17 +723,18 @@ const executeCallTrace = async (
       metricLabel,
       endClock(),
     );
-  } catch (error_) {
+  } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = error_ as Error & { meta?: string };
+    const error = _error as Error & { meta?: string[] };
 
     common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.encodedCheckpoint);
 
-    error.meta = `Function arguments:\n${prettyPrint(event.event.args)}`;
+    addStackTrace(error, common.options);
 
-    addUserStackTrace(error, common.options);
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(`Call trace arguments:\n${prettyPrint(event.event.args)}`);
 
     common.logger.error({
       service: "indexing",

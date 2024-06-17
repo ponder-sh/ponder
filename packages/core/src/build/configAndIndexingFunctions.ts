@@ -1,4 +1,5 @@
 import path from "node:path";
+import { BuildError } from "@/common/errors.js";
 import type { Options } from "@/common/options.js";
 import {
   buildAbiEvents,
@@ -266,6 +267,7 @@ export async function buildConfigAndIndexingFunctions({
         finalityBlockCount: getFinalityBlockCount({ chainId }),
         maxHistoricalTaskConcurrency:
           network.maxHistoricalTaskConcurrency ?? 20,
+        disableCache: network.disableCache ?? false,
       } satisfies Network;
     }),
   );
@@ -342,6 +344,10 @@ export async function buildConfigAndIndexingFunctions({
         ? undefined
         : endBlockMaybeNan;
 
+      if (endBlock !== undefined && endBlock < startBlock) {
+        throw new Error(`Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`)
+      }
+
       // Single network case.
       if (typeof contract.network === "string") {
         return {
@@ -381,6 +387,10 @@ export async function buildConfigAndIndexingFunctions({
           const endBlock = Number.isNaN(endBlockMaybeNan)
             ? undefined
             : endBlockMaybeNan;
+
+            if (endBlock !== undefined && endBlock < startBlock) {
+              throw new Error(`Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`)
+            }
 
           return {
             contractName,
@@ -703,11 +713,17 @@ export async function buildConfigAndIndexingFunctions({
         ? undefined
         : endBlockMaybeNan;
 
+      if (endBlock !== undefined && endBlock < startBlock) {
+        throw new Error(
+          `Validation failed: Start block for block source '${sourceName}' is after end block (${startBlock} > ${endBlock}).`,
+        );
+      }
+
       const intervalMaybeNan = blockSourceConfig.interval;
       const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
 
       if (!Number.isInteger(interval) || interval === 0) {
-        throw Error(
+        throw new Error(
           `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
         );
       }
@@ -768,6 +784,12 @@ export async function buildConfigAndIndexingFunctions({
             ? undefined
             : endBlockMaybeNan;
 
+          if (endBlock !== undefined && endBlock < startBlock) {
+            throw new Error(
+              `Validation failed: Start block for block source '${sourceName}' is after end block (${startBlock} > ${endBlock}).`,
+            );
+          }
+
           const intervalMaybeNan =
             overrides.interval ?? blockSourceConfig.interval;
           const interval = Number.isNaN(intervalMaybeNan)
@@ -775,7 +797,7 @@ export async function buildConfigAndIndexingFunctions({
             : intervalMaybeNan;
 
           if (!Number.isInteger(interval) || interval === 0) {
-            throw Error(
+            throw new Error(
               `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
             );
           }
@@ -868,9 +890,10 @@ export async function safeBuildConfigAndIndexingFunctions({
       optionsConfig: result.optionsConfig,
       logs: result.logs,
     } as const;
-  } catch (error_) {
-    const error = error_ as Error;
-    return { status: "error", error } as const;
+  } catch (_error) {
+    const buildError = new BuildError((_error as Error).message);
+    buildError.stack = undefined;
+    return { status: "error", error: buildError } as const;
   }
 }
 

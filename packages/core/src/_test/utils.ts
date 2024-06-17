@@ -14,6 +14,9 @@ import type {
   SyncBlock,
   SyncCallTrace,
   SyncCreateTrace,
+  SyncLog,
+  SyncTransaction,
+  SyncTransactionReceipt,
 } from "@/sync/index.js";
 import {
   encodeCheckpoint,
@@ -22,14 +25,9 @@ import {
 } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
-  type BlockTag,
   type Chain,
   type Hash,
   type Hex,
-  type RpcBlock,
-  type RpcLog,
-  type RpcTransaction,
-  type RpcTransactionReceipt,
   encodeFunctionData,
   encodeFunctionResult,
   formatTransactionReceipt,
@@ -465,35 +463,35 @@ export const getRawRPCData = async (sources: EventSource[]) => {
   } as unknown as {
     block1: {
       logs: [];
-      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
+      block: SyncBlock;
       transactions: [];
       transactionReceipts: [];
       traces: [SyncCreateTrace, SyncCreateTrace];
     };
     block2: {
-      logs: [RpcLog, RpcLog];
-      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
-      transactions: [RpcTransaction, RpcTransaction];
-      transactionReceipts: [RpcTransactionReceipt, RpcTransactionReceipt];
+      logs: [SyncLog, SyncLog];
+      block: SyncBlock;
+      transactions: [SyncTransaction, SyncTransaction];
+      transactionReceipts: [SyncTransactionReceipt, SyncTransactionReceipt];
       traces: [SyncCallTrace, SyncCallTrace];
     };
     block3: {
-      logs: [RpcLog];
-      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
-      transactions: [RpcTransaction];
-      transactionReceipts: [RpcTransactionReceipt];
+      logs: [SyncLog];
+      block: SyncBlock;
+      transactions: [SyncTransaction];
+      transactionReceipts: [SyncTransactionReceipt];
       traces: [SyncCallTrace];
     };
     block4: {
-      logs: [RpcLog];
-      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
-      transactions: [RpcTransaction];
-      transactionReceipts: [RpcTransactionReceipt];
+      logs: [SyncLog];
+      block: SyncBlock;
+      transactions: [SyncTransaction];
+      transactionReceipts: [SyncTransactionReceipt];
       traces: [SyncCallTrace];
     };
     block5: {
       logs: [];
-      block: RpcBlock<Exclude<BlockTag, "pending">, true>;
+      block: SyncBlock;
       transactions: [];
       transactionReceipts: [];
       traces: [];

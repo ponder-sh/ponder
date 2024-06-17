@@ -2,11 +2,20 @@ import type { Prettify } from "@/types/utils.js";
 import pc from "picocolors";
 import { type DestinationStream, type LevelWithSilent, pino } from "pino";
 
-export type LogMode = "pretty" | "structured";
+export type LogMode = "pretty" | "json";
 export type LogLevel = Prettify<LevelWithSilent>;
 export type Logger = ReturnType<typeof createLogger>;
 
-type LogOptions = { msg: string; service: string } & { [key: string]: any };
+type Log = {
+  // Pino properties
+  level: 60 | 50 | 40 | 30 | 20 | 10;
+  time: number;
+
+  service: string;
+  msg: string;
+
+  error?: Error;
+};
 
 export function createLogger({
   level,
@@ -14,31 +23,30 @@ export function createLogger({
 }: { level: LogLevel; mode?: LogMode }) {
   const stream: DestinationStream = {
     write(logString: string) {
-      if (mode === "structured") {
-        // Remove trailing newline character. Note that this is bad for performance.
+      if (mode === "json") {
         console.log(logString.trimEnd());
         return;
       }
 
-      const log = JSON.parse(logString);
+      const log = JSON.parse(logString) as Log;
       const prettyLog = format(log);
       console.log(prettyLog);
-
-      // If there is an "error" property, log the stack trace.
-      if (log.error) {
-        const message = log.error.stack ?? log.error.message ?? log.error;
-        console.log(message);
-        if (typeof log.error?.meta === "string") console.log(log.error.meta);
-        if (Array.isArray(log.error?.meta))
-          console.log(log.error.meta.join("\n"));
-      }
     },
   };
 
   const logger = pino(
     {
       level,
-      serializers: { error: pino.stdSerializers.errWithCause },
+      serializers: {
+        error: pino.stdSerializers.wrapErrorSerializer((error) => {
+          error.meta = Array.isArray(error.meta)
+            ? error.meta.join("\n")
+            : error.meta;
+          //@ts-ignore
+          error.type = undefined;
+          return error;
+        }),
+      },
       // Removes "pid" and "hostname" properties from the log.
       base: undefined,
     },
@@ -46,36 +54,25 @@ export function createLogger({
   );
 
   return {
-    fatal(options: LogOptions) {
+    fatal(options: Omit<Log, "level" | "time">) {
       logger.fatal(options);
     },
-    error(options: LogOptions & { error: Error }) {
+    error(options: Omit<Log, "level" | "time">) {
       logger.error(options);
     },
-    warn(options: LogOptions) {
+    warn(options: Omit<Log, "level" | "time">) {
       logger.warn(options);
     },
-    info(options: LogOptions) {
+    info(options: Omit<Log, "level" | "time">) {
       logger.info(options);
     },
-    debug(options: LogOptions) {
+    debug(options: Omit<Log, "level" | "time">) {
       logger.debug(options);
     },
-    trace(options: LogOptions) {
+    trace(options: Omit<Log, "level" | "time">) {
       logger.trace(options);
     },
-    async kill() {
-      // TODO: Ask kyle about this
-      // return new Promise<void>((resolve, reject) => {
-      //   logger.flush((error) => {
-      //     if (error) {
-      //       reject(error);
-      //     } else {
-      //       resolve();
-      //     }
-      //   });
-      // }),
-    },
+    async kill() {},
   };
 }
 
@@ -94,21 +91,34 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   second: "numeric",
 });
 
-const format = (log: LogOptions) => {
+const format = (log: Log) => {
   const time = timeFormatter.format(new Date(log.time));
-  const message = log.msg ?? log.error?.message;
+  const levelObject = levels[log.level ?? 30];
 
-  const levelObject =
-    levels[(log.level as keyof typeof levels) ?? 30] ?? levels[30];
-
+  let prettyLog: string[];
   if (pc.isColorSupported) {
     const level = levelObject.colorLabel;
     const service = log.service ? pc.cyan(log.service.padEnd(10, " ")) : "";
-    const messageText = pc.reset(message);
-    return `${pc.gray(time)} ${level} ${service} ${messageText}`;
+    const messageText = pc.reset(log.msg);
+
+    prettyLog = [`${pc.gray(time)} ${level} ${service} ${messageText}`];
   } else {
     const level = levelObject.label;
     const service = log.service ? log.service.padEnd(10, " ") : "";
-    return `${time} ${level} ${service} ${message}`;
+
+    prettyLog = [`${time} ${level} ${service} ${log.msg}`];
   }
+
+  if (log.error) {
+    if (log.error.stack) {
+      prettyLog.push(log.error.stack);
+    } else {
+      prettyLog.push(`${log.error.name}: ${log.error.message}`);
+    }
+
+    if ("meta" in log.error) {
+      prettyLog.push(log.error.meta as string);
+    }
+  }
+  return prettyLog.join("\n");
 };

@@ -36,4 +36,4 @@ export const graphQLMiddleware = createMiddleware(async (c) => {
   });
 
   return yoga.handle(c.req.raw);
-});
+}) as any;

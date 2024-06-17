@@ -6,10 +6,8 @@ import type { Config, OptionsConfig } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { EventSource } from "@/config/sources.js";
-import { buildGraphqlSchema } from "@/graphql/buildGraphqlSchema.js";
 import type { Schema } from "@/schema/common.js";
 import { glob } from "glob";
-import type { GraphQLSchema } from "graphql";
 import type { Hono } from "hono";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
@@ -51,7 +49,6 @@ export type Build = {
   networks: Network[];
   // Schema
   schema: Schema;
-  graphqlSchema: GraphQLSchema;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
   // Server
@@ -492,8 +489,6 @@ const validateAndBuild = async (
     common.logger[log.level]({ service: "build", msg: log.msg });
   }
 
-  const graphqlSchema = buildGraphqlSchema(buildSchemaResult.schema);
-
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
     await safeBuildConfigAndIndexingFunctions({
@@ -504,7 +499,7 @@ const validateAndBuild = async (
   if (buildConfigAndIndexingFunctionsResult.status === "error") {
     common.logger.error({
       service: "build",
-      msg: "Failed build with error:",
+      msg: "Failed build",
       error: buildConfigAndIndexingFunctionsResult.error,
     });
 
@@ -537,7 +532,6 @@ const validateAndBuild = async (
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
       schema: buildSchemaResult.schema,
-      graphqlSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
       app: rawBuild.server.app,

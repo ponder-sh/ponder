@@ -14,7 +14,10 @@ import { setupShutdown } from "../utils/shutdown.js";
 export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
-  const logger = createLogger({ level: options.logLevel });
+  const logger = createLogger({
+    level: options.logLevel,
+    mode: options.logFormat,
+  });
 
   const [major, minor, _patch] = process.versions.node.split(".").map(Number);
   if (major < 18 || (major === 18 && minor < 14)) {
@@ -61,8 +64,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "serve", ...buildPayload(initialResult.build) },
   });
 
-  const { databaseConfig, optionsConfig, schema, graphqlSchema } =
-    initialResult.build;
+  const { databaseConfig, optionsConfig, schema, app } = initialResult.build;
 
   common.options = { ...common.options, ...optionsConfig };
 
@@ -93,7 +95,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const readonlyStore = getReadonlyStore({
-    kind: "postgres",
+    encoding: "postgres",
     schema,
     // Note: `ponder serve` serves data from the `publishSchema`. Also, it does
     // not need the other fields in NamespaceInfo because it only uses findUnique
@@ -104,7 +106,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     db: database.readonlyDb,
   });
 
-  const server = await createServer({ common });
+  const server = await createServer({ app, readonlyStore, schema, common });
   server.setHealthy();
 
   cleanupReloadable = async () => {

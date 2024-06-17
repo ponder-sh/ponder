@@ -10,7 +10,10 @@ import { setupShutdown } from "../utils/shutdown.js";
 export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
-  const logger = createLogger({ level: options.logLevel });
+  const logger = createLogger({
+    level: options.logLevel,
+    mode: options.logFormat,
+  });
 
   const [major, minor, _patch] = process.versions.node.split(".").map(Number);
   if (major < 18 || (major === 18 && minor < 14)) {
@@ -40,7 +43,7 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   if (buildResult.status === "error") {
     logger.error({
       service: "process",
-      msg: "Failed schema build with error:",
+      msg: "Failed schema build",
       error: buildResult.error,
     });
     await shutdown({ reason: "Failed schema build", code: 1 });
@@ -52,10 +55,10 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "codegen" },
   });
 
-  runCodegen({ common, graphqlSchema: buildResult.build.graphqlSchema });
+  runCodegen({ common });
 
   logger.info({ service: "codegen", msg: "Wrote ponder-env.d.ts" });
-  logger.info({ service: "codegen", msg: "Wrote schema.graphql" });
+  // logger.info({ service: "codegen", msg: "Wrote schema.graphql" });
 
   await shutdown({ reason: "Success", code: 0 });
 }

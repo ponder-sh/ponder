@@ -184,7 +184,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     const { namespaceInfo } = await database.setup({ schema, buildId: "abc" });
 
     const realtimeIndexingStore = getRealtimeStore({
-      kind: context.databaseConfig.kind,
+      encoding: context.databaseConfig.kind,
       schema,
       db: database.indexingDb,
       namespaceInfo,
@@ -246,7 +246,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       });
 
     const readonlyIndexingStore = getReadonlyStore({
-      kind: context.databaseConfig.kind,
+      encoding: context.databaseConfig.kind,
       schema,
       db: databaseTwo.indexingDb,
       namespaceInfo: namespaceInfoTwo,

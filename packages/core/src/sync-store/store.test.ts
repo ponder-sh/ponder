@@ -7,6 +7,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
+import { NonRetryableError } from "@/common/errors.js";
 import {
   type BlockFilterCriteria,
   type FactoryLogFilterCriteria,
@@ -14,13 +15,16 @@ import {
   sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
+import type { SyncBlock } from "@/sync/index.js";
 import {
+  type Checkpoint,
   EVENT_TYPES,
   decodeCheckpoint,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
+import { range } from "@/utils/range.js";
 import {
   type Address,
   type Hex,
@@ -38,6 +42,17 @@ import { beforeEach, expect, test } from "vitest";
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+
+const createBlockCheckpoint = (
+  block: SyncBlock,
+  isInclusive: boolean,
+): Checkpoint => {
+  return {
+    ...(isInclusive ? maxCheckpoint : zeroCheckpoint),
+    blockTimestamp: hexToNumber(block.timestamp),
+    blockNumber: hexToBigInt(block.number),
+  };
+};
 
 test("setup creates tables", async (context) => {
   const { syncStore, cleanup } = await setupDatabaseServices(context);
@@ -437,46 +452,49 @@ test("getLogFilterIntervals merges overlapping intervals that both match a filte
   await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {
-      topics: [["0xc", "0xd"], null, null, null],
-      includeTransactionReceipts: false,
-    },
-    ...rpcData.block2,
-    interval: { startBlock: 0n, endBlock: 50n },
-  });
-
-  // Broad criteria only includes broad intervals.
-  let logFilterIntervals = await syncStore.getLogFilterIntervals({
-    chainId: 1,
-    logFilter: {
-      address: "0xaddress",
-      topics: [["0xc"], null, null, null],
-      includeTransactionReceipts: false,
-    },
-  });
-  expect(logFilterIntervals).toMatchObject([[0, 50]]);
-
-  await syncStore.insertLogFilterInterval({
-    chainId: 1,
-    logFilter: {
-      address: "0xaddress",
-      topics: [["0xc"], null, null, null],
+      address: ["0xa", "0xb"],
+      topics: [["0xc", "0xd"], null, "0xe", null],
       includeTransactionReceipts: false,
     },
     ...rpcData.block2,
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
-  logFilterIntervals = await syncStore.getLogFilterIntervals({
+  // This is a narrower inclusion criteria on `address` and `topic0`. Full range is available.
+  let logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: {
-      address: "0xaddress",
-      topics: [["0xc"], null, null, null],
+      address: ["0xa"],
+      topics: [["0xc"], null, "0xe", null],
       includeTransactionReceipts: false,
     },
   });
 
-  expect(logFilterIntervals).toMatchObject([[0, 100]]);
+  expect(logFilterRanges).toMatchObject([[0, 100]]);
 
+  // This is a broader inclusion criteria on `address`. No ranges available.
+  logFilterRanges = await syncStore.getLogFilterIntervals({
+    chainId: 1,
+    logFilter: {
+      address: undefined,
+      topics: [["0xc"], null, "0xe", null],
+      includeTransactionReceipts: false,
+    },
+  });
+
+  expect(logFilterRanges).toMatchObject([]);
+
+  // This is a narrower inclusion criteria on `topic1`. Full range available.
+  logFilterRanges = await syncStore.getLogFilterIntervals({
+    chainId: 1,
+    logFilter: {
+      address: ["0xa"],
+      topics: [["0xc"], "0xd", "0xe", null],
+      includeTransactionReceipts: false,
+    },
+  });
+
+  expect(logFilterRanges).toMatchObject([[0, 100]]);
   await cleanup();
 });
 
@@ -548,6 +566,78 @@ test("getLogFilterIntervals handles includeTransactionReceipts", async (context)
   });
 
   expect(logFilterRanges).toMatchObject([[0, 100]]);
+
+  await cleanup();
+});
+
+test("getLogFilterIntervals handles size over MAX", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  context.common.options = {
+    ...context.common.options,
+    syncStoreMaxIntervals: 20,
+  };
+
+  for (const i in range(0, 25)) {
+    await syncStore.insertLogFilterInterval({
+      chainId: 1,
+      logFilter: {
+        topics: [null, null, null, null],
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block2,
+      interval: { startBlock: BigInt(i), endBlock: BigInt(i) },
+    });
+  }
+
+  const logFilterRanges = await syncStore.getLogFilterIntervals({
+    chainId: 1,
+    logFilter: {
+      topics: [null, null, null, null],
+      includeTransactionReceipts: false,
+    },
+  });
+
+  expect(logFilterRanges).toMatchObject([[0, 24]]);
+
+  await cleanup();
+});
+
+test("getLogFilterIntervals throws non-retryable error after no merges", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  context.common.options = {
+    ...context.common.options,
+    syncStoreMaxIntervals: 20,
+  };
+
+  for (let i = 0; i < 50; i += 2) {
+    await syncStore.insertLogFilterInterval({
+      chainId: 1,
+      logFilter: {
+        topics: [null, null, null, null],
+        includeTransactionReceipts: false,
+      },
+      ...rpcData.block2,
+      interval: { startBlock: BigInt(i), endBlock: BigInt(i) },
+    });
+  }
+
+  const error = await syncStore
+    .getLogFilterIntervals({
+      chainId: 1,
+      logFilter: {
+        topics: [null, null, null, null],
+        includeTransactionReceipts: false,
+      },
+    })
+    .catch((err) => err);
+
+  expect(error).toBeInstanceOf(NonRetryableError);
 
   await cleanup();
 });
@@ -2119,9 +2209,8 @@ test("getEvents with log filters", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: sources.filter((s) => sourceIsFactoryLog(s) || sourceIsLog(s)),
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2171,9 +2260,8 @@ test("getEvents with logs filters and receipts", async (context) => {
         ...s,
         criteria: { ...s.criteria, includeTransactionReceipts: true },
       })),
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2223,9 +2311,8 @@ test("getEvents with block filters", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[4]],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2255,9 +2342,8 @@ test("getEvents with trace filters", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[3]],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2286,9 +2372,8 @@ test("getEvents with factory trace filters", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[2]],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2323,9 +2408,8 @@ test("getEvents filters on log filter with multiple addresses", async (context) 
         },
       },
     ],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2372,9 +2456,8 @@ test("getEvents filters on log filter with single topic", async (context) => {
         },
       },
     ],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2426,9 +2509,8 @@ test("getEvents filters on log filter with multiple topics", async (context) => 
         },
       },
     ],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2466,9 +2548,8 @@ test("getEvents filters on simple factory", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[1]],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block4.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2498,9 +2579,8 @@ test("getEvents filters on startBlock", async (context) => {
     sources: [
       { ...sources[0], startBlock: hexToNumber(rpcData.block4.block.number) },
     ],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2527,9 +2607,8 @@ test("getEvents filters on endBlock", async (context) => {
     sources: [
       { ...sources[0], endBlock: hexToNumber(rpcData.block2.block.number) - 1 },
     ],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2563,8 +2642,7 @@ test("getEvents filters on fromCheckpoint (exclusive)", async (context) => {
       // Should exclude the 1st log in the first block.
       eventIndex: hexToBigInt(rpcData.block2.logs[0].logIndex!),
     },
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2590,7 +2668,7 @@ test("getEvents filters on toCheckpoint (inclusive)", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[0]],
-    fromCheckpoint: zeroCheckpoint,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
     toCheckpoint: {
       chainId: 1n,
       blockTimestamp: Number(rpcData.block2.block.timestamp!),
@@ -2600,7 +2678,6 @@ test("getEvents filters on toCheckpoint (inclusive)", async (context) => {
       // Should include the 2nd log in the first block.
       eventIndex: hexToBigInt(rpcData.block2.logs[1].logIndex!),
     },
-    limit: 100,
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2632,9 +2709,8 @@ test("getEvents filters on block filter criteria", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [{ ...sources[4], endBlock: 3 }],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2674,9 +2750,8 @@ test("getEvents filters on trace filter criteria", async (context) => {
         endBlock: 3,
       },
     ],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2705,9 +2780,8 @@ test("getEvents multiple sources", async (context) => {
 
   const ag = syncStore.getEvents({
     sources,
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2742,9 +2816,8 @@ test("getEvents event filter on factory", async (context) => {
         criteria: { ...sources[1].criteria, topics: [`0x${"0".repeat(64)}`] },
       },
     ],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block3.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block4.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2771,9 +2844,8 @@ test("getEvents multichain", async (context) => {
         chainId: 2,
       },
     ],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block2.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2794,6 +2866,10 @@ test("getEvents multichain", async (context) => {
 
 test("getEvents pagination", async (context) => {
   const { erc20, sources } = context;
+
+  // set limit
+  context.common.options.syncEventsQuerySize = 1;
+
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
@@ -2804,9 +2880,8 @@ test("getEvents pagination", async (context) => {
 
   const ag = syncStore.getEvents({
     sources: [sources[0], sources[1]],
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 1,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block2.block, true),
   });
 
   const firstBatchEvents = await ag.next();
@@ -2845,12 +2920,12 @@ test("getEvents pagination", async (context) => {
 test("getEvents empty", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
 
   const ag = syncStore.getEvents({
     sources,
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
-    limit: 100,
+    fromCheckpoint: createBlockCheckpoint(rpcData.block2.block, false),
+    toCheckpoint: createBlockCheckpoint(rpcData.block3.block, true),
   });
   const events = await drainAsyncGenerator(ag);
 
@@ -2859,39 +2934,346 @@ test("getEvents empty", async (context) => {
   await cleanup();
 });
 
-test("getLastEventCheckpoint", async (context) => {
+test("pruneByChainId deletes filters", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData(sources);
 
-  await syncStore.insertRealtimeBlock({
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
     chainId: 1,
     ...rpcData.block2,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
   });
 
-  const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
-    sources,
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
   });
 
-  expect(lastEventCheckpoint?.blockNumber).toBe(2n);
-  expect(lastEventCheckpoint?.transactionIndex).toBe(1n);
-  expect(lastEventCheckpoint?.eventIndex).toBe(1n);
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertTraceFilterInterval({
+    traceFilter: sources[3].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertTraceFilterInterval({
+    traceFilter: sources[3].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryTraceFilterInterval({
+    factory: sources[2].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryTraceFilterInterval({
+    factory: sources[2].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 1n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneByChainId({ chainId: 1, block: 0 });
+
+  const logFilterIntervals = await syncStore.db
+    .selectFrom("logFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(logFilterIntervals).toHaveLength(1);
+
+  const factoryLogFilterIntervals = await syncStore.db
+    .selectFrom("factoryLogFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(factoryLogFilterIntervals).toHaveLength(1);
+
+  const traceFilterIntervals = await syncStore.db
+    .selectFrom("traceFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(traceFilterIntervals).toHaveLength(1);
+
+  const factoryTraceFilterIntervals = await syncStore.db
+    .selectFrom("factoryTraceFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(factoryTraceFilterIntervals).toHaveLength(1);
 
   await cleanup();
 });
 
-test("getLastEventCheckpoint empty", async (context) => {
+test("pruneByChainId updates filters", async (context) => {
   const { sources } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
 
-  const lastEventCheckpoint = await syncStore.getLastEventCheckpoint({
-    sources,
-    fromCheckpoint: zeroCheckpoint,
-    toCheckpoint: maxCheckpoint,
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
   });
-  expect(lastEventCheckpoint).toBe(undefined);
+
+  await syncStore.insertLogFilterInterval({
+    logFilter: sources[0].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryLogFilterInterval({
+    factory: sources[1].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertTraceFilterInterval({
+    traceFilter: sources[3].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertTraceFilterInterval({
+    traceFilter: sources[3].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryTraceFilterInterval({
+    factory: sources[2].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertFactoryTraceFilterInterval({
+    factory: sources[2].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneByChainId({ chainId: 1, block: 1 });
+
+  const logFilterIntervals = await syncStore.db
+    .selectFrom("logFilterIntervals")
+    .selectAll()
+    .orderBy("endBlock", "asc")
+    .execute();
+  expect(logFilterIntervals).toHaveLength(2);
+  expect(Number(logFilterIntervals[0].endBlock)).toBe(1);
+
+  const factoryLogFilterIntervals = await syncStore.db
+    .selectFrom("factoryLogFilterIntervals")
+    .selectAll()
+    .orderBy("endBlock", "asc")
+    .execute();
+  expect(factoryLogFilterIntervals).toHaveLength(2);
+  expect(Number(factoryLogFilterIntervals[0].endBlock)).toBe(1);
+
+  const traceFilterIntervals = await syncStore.db
+    .selectFrom("traceFilterIntervals")
+    .selectAll()
+    .orderBy("endBlock", "asc")
+    .execute();
+  expect(traceFilterIntervals).toHaveLength(2);
+  expect(Number(traceFilterIntervals[0].endBlock)).toBe(1);
+
+  const factoryTraceFilterIntervals = await syncStore.db
+    .selectFrom("factoryTraceFilterIntervals")
+    .selectAll()
+    .orderBy("endBlock", "asc")
+    .execute();
+  expect(factoryTraceFilterIntervals).toHaveLength(2);
+  expect(Number(factoryTraceFilterIntervals[0].endBlock)).toBe(1);
+
+  await cleanup();
+});
+
+test("pruneByChainId deletes block filters", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    blockFilter: sources[4].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 2n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertBlockFilterInterval({
+    blockFilter: sources[4].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 2n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneByChainId({ chainId: 1, block: 1 });
+
+  const blockFilterIntervals = await syncStore.db
+    .selectFrom("blockFilterIntervals")
+    .selectAll()
+    .execute();
+  expect(blockFilterIntervals).toHaveLength(1);
+
+  await cleanup();
+});
+
+test("pruneByChainId updates block filters", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertBlockFilterInterval({
+    blockFilter: sources[4].criteria,
+    chainId: 1,
+    ...rpcData.block2,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.insertBlockFilterInterval({
+    blockFilter: sources[4].criteria,
+    chainId: 2,
+    ...rpcData.block3,
+    interval: {
+      startBlock: 0n,
+      endBlock: 4n,
+    },
+  });
+
+  await syncStore.pruneByChainId({ chainId: 1, block: 1 });
+
+  const blockFilterIntervals = await syncStore.db
+    .selectFrom("blockFilterIntervals")
+    .selectAll()
+    .orderBy("endBlock", "asc")
+    .execute();
+  expect(blockFilterIntervals).toHaveLength(2);
+  expect(Number(blockFilterIntervals[0].endBlock)).toBe(1);
+
+  await cleanup();
+});
+
+test("pruneByChainId deletes blocks, logs, traces, transactions", async (context) => {
+  const { sources } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData(sources);
+
+  await syncStore.insertRealtimeBlock({ chainId: 1, ...rpcData.block2 });
+  await syncStore.insertRealtimeBlock({ chainId: 1, ...rpcData.block3 });
+
+  await syncStore.pruneByChainId({ chainId: 1, block: 3 });
+
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
+  const callTraces = await syncStore.db
+    .selectFrom("callTraces")
+    .selectAll()
+    .execute();
+  const transactions = await syncStore.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+  const transactionReceipts = await syncStore.db
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
+
+  expect(logs).toHaveLength(2);
+  expect(blocks).toHaveLength(1);
+  expect(callTraces).toHaveLength(2);
+  expect(transactions).toHaveLength(2);
+  expect(transactionReceipts).toHaveLength(2);
 
   await cleanup();
 });

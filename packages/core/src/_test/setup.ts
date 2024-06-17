@@ -56,11 +56,15 @@ declare module "vitest" {
 }
 
 export function setupCommon(context: TestContext) {
-  const options = {
-    ...buildOptions({ cliOptions: { command: "start", config: "", root: "" } }),
-    telemetryDisabled: true,
-  };
-  const logger = createLogger({ level: "silent" });
+  const cliOptions = {
+    command: "start",
+    config: "",
+    root: "",
+    logLevel: "silent",
+    logFormat: "pretty",
+  } as const;
+  const options = { ...buildOptions({ cliOptions }), telemetryDisabled: true };
+  const logger = createLogger({ level: cliOptions.logLevel });
   const metrics = new MetricsService();
   const telemetry = createTelemetry({ options, logger });
   context.common = { options, logger, metrics, telemetry };
@@ -151,36 +155,38 @@ export async function setupDatabaseServices(
 
     await database.migrateSyncStore();
 
-    const syncStore = new SqliteSyncStore({ db: database.syncDb });
-
-    const indexingStore = {
-      ...getReadonlyStore({
-        kind: "sqlite",
-        schema: config.schema,
-        namespaceInfo: result.namespaceInfo,
-        db: database.indexingDb,
-      }),
-      ...(config.indexing === "historical"
-        ? getHistoricalStore({
-            kind: "sqlite",
-            schema: config.schema,
-            namespaceInfo: result.namespaceInfo,
-            db: database.indexingDb,
-          })
-        : getRealtimeStore({
-            kind: "sqlite",
-            schema: config.schema,
-            namespaceInfo: result.namespaceInfo,
-            db: database.indexingDb,
-          })),
-    };
+    const syncStore = new SqliteSyncStore({
+      db: database.syncDb,
+      common: context.common,
+    });
 
     const readonlyStore = getReadonlyStore({
-      kind: "sqlite",
+      encoding: "sqlite",
       schema: config.schema,
       namespaceInfo: result.namespaceInfo,
-      db: database.readonlyDb,
+      db: database.indexingDb,
     });
+
+    const indexingStore =
+      config.indexing === "historical"
+        ? getHistoricalStore({
+            encoding: "sqlite",
+            schema: config.schema,
+            readonlyStore,
+            namespaceInfo: result.namespaceInfo,
+            db: database.indexingDb,
+            common: context.common,
+            isCacheExhaustive: true,
+          })
+        : {
+            ...readonlyStore,
+            ...getRealtimeStore({
+              encoding: "sqlite",
+              schema: config.schema,
+              namespaceInfo: result.namespaceInfo,
+              db: database.indexingDb,
+            }),
+          };
 
     const cleanup = () => database.kill();
 
@@ -203,36 +209,37 @@ export async function setupDatabaseServices(
 
     await database.migrateSyncStore();
 
-    const syncStore = new PostgresSyncStore({ db: database.syncDb });
-
-    const indexingStore = {
-      ...getReadonlyStore({
-        kind: "postgres",
-        schema: config.schema,
-        namespaceInfo: result.namespaceInfo,
-        db: database.indexingDb,
-      }),
-      ...(config.indexing === "historical"
-        ? getHistoricalStore({
-            kind: "postgres",
-            schema: config.schema,
-            namespaceInfo: result.namespaceInfo,
-            db: database.indexingDb,
-          })
-        : getRealtimeStore({
-            kind: "postgres",
-            schema: config.schema,
-            namespaceInfo: result.namespaceInfo,
-            db: database.indexingDb,
-          })),
-    };
-
+    const syncStore = new PostgresSyncStore({
+      db: database.syncDb,
+      common: context.common,
+    });
     const readonlyStore = getReadonlyStore({
-      kind: "postgres",
+      encoding: "postgres",
       schema: config.schema,
       namespaceInfo: result.namespaceInfo,
-      db: database.readonlyDb,
+      db: database.indexingDb,
     });
+
+    const indexingStore =
+      config.indexing === "historical"
+        ? getHistoricalStore({
+            encoding: "postgres",
+            schema: config.schema,
+            readonlyStore,
+            namespaceInfo: result.namespaceInfo,
+            db: database.indexingDb,
+            common: context.common,
+            isCacheExhaustive: true,
+          })
+        : {
+            ...readonlyStore,
+            ...getRealtimeStore({
+              encoding: "postgres",
+              schema: config.schema,
+              namespaceInfo: result.namespaceInfo,
+              db: database.indexingDb,
+            }),
+          };
 
     const cleanup = () => database.kill();
 

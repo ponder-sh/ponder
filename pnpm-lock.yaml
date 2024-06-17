@@ -439,6 +439,12 @@ importers:
         specifier: ^1.5.2
         version: 1.5.2(typescript@5.0.4)
 
+  examples/with-foundry/foundry:
+    dependencies:
+      forge-std:
+        specifier: github:foundry-rs/forge-std
+        version: github.com/foundry-rs/forge-std/52715a217dc51d0de15877878ab8213f6cbbbab5
+
   examples/with-foundry/ponder:
     dependencies:
       '@ponder/core':
@@ -573,8 +579,8 @@ importers:
         specifier: ^2.3.0
         version: 2.3.0
       '@hono/node-server':
-        specifier: ^1.8.2
-        version: 1.8.2
+        specifier: ^1.11.2
+        version: 1.11.2
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
@@ -3202,8 +3208,8 @@ packages:
       react-dom: 18.2.0(react@18.2.0)
     dev: false
 
-  /@hono/node-server@1.8.2:
-    resolution: {integrity: sha512-h8l2TBLCPHZBUrrkosZ6L5CpBLj6zdESyF4B+zngiCDF7aZFQJ0alVbLx7jn8PCVi9EyoFf8a4hOZFi1tD95EA==}
+  /@hono/node-server@1.11.2:
+    resolution: {integrity: sha512-JhX0nUC66GeDxpIdMKWDRMEwtQBa64CY907iAF1sYqb4m2p2PdSU7zkbnNhAZLg/6IjSlTuj6CF307JlBXVvpg==}
     engines: {node: '>=18.14.1'}
     dev: false
 
@@ -14972,4 +14978,10 @@ packages:
 
   /zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
+    dev: false
+
+  github.com/foundry-rs/forge-std/52715a217dc51d0de15877878ab8213f6cbbbab5:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/52715a217dc51d0de15877878ab8213f6cbbbab5}
+    name: forge-std
+    version: 1.8.2
     dev: false

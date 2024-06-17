@@ -239,10 +239,12 @@ export const start = (service: Service) => {
         if (service.isKilled) return;
 
         const error = _error as Error;
+        error.stack = undefined;
 
         service.common.logger.warn({
           service: "realtime",
-          msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber} with error: ${error.message}`,
+          msg: `Failed to process '${service.network.name}' block ${newHeadBlockNumber}`,
+          error,
         });
 
         const duration = ERROR_TIMEOUT[service.consecutiveErrors];
@@ -288,7 +290,8 @@ export const start = (service: Service) => {
 
       service.common.logger.warn({
         service: "realtime",
-        msg: `Failed to fetch latest '${service.network.name}' block with error: ${error.message}`,
+        msg: `Failed to fetch latest '${service.network.name}' block`,
+        error,
       });
     }
   };
@@ -305,6 +308,12 @@ export const kill = async (service: Service) => {
   service.isKilled = true;
   service.queue?.pause();
   service.queue?.clear();
+
+  service.common.logger.debug({
+    service: "realtime",
+    msg: `Killed '${service.network.name}' realtime sync`,
+  });
+
   await service.queue?.onIdle();
 };
 
@@ -363,7 +372,7 @@ export const handleBlock = async (
   }
 
   if (
-    shouldRequestLogs &&
+    shouldRequestLogs === false &&
     (service.logSources.length > 0 || service.factoryLogSources.length > 0)
   ) {
     service.common.logger.debug({
@@ -646,9 +655,10 @@ export const handleReorg = async (
   const msg = `Encountered unrecoverable '${service.network.name}' reorg beyond finalized block ${service.finalizedBlock.number}`;
 
   service.common.logger.warn({ service: "realtime", msg });
-  service.onFatalError(new Error(msg));
 
   service.localChain = [];
+
+  throw new Error(msg);
 };
 
 const getMatchedLogs = async (

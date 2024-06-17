@@ -1,4 +1,4 @@
-export class BaseError extends Error {
+class BaseError extends Error {
   override name = "BaseError";
 
   meta: string[] = [];
@@ -15,6 +15,15 @@ export function getBaseError(err: any) {
   if (typeof err?.message === "string") return new BaseError(err.message);
   if (typeof err === "string") return new BaseError(err);
   return new BaseError("unknown error");
+}
+
+export class BuildError extends BaseError {
+  override name = "BuildError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, BuildError.prototype);
+  }
 }
 
 export class NonRetryableError extends BaseError {
@@ -34,6 +43,8 @@ export class IgnorableError extends BaseError {
     Object.setPrototypeOf(this, IgnorableError.prototype);
   }
 }
+
+// Indexing store errors
 
 export class StoreError extends NonRetryableError {
   override name = "StoreError";
@@ -80,11 +91,11 @@ export class CheckConstraintError extends NonRetryableError {
   }
 }
 
-export class JSONSerializeError extends NonRetryableError {
-  override name = "JSONSerializeError";
+export class BigIntSerializationError extends NonRetryableError {
+  override name = "BigIntSerializationError";
 
   constructor(message?: string | undefined) {
     super(message);
-    Object.setPrototypeOf(this, JSONSerializeError.prototype);
+    Object.setPrototypeOf(this, BigIntSerializationError.prototype);
   }
 }

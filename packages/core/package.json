@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.4.31",
+  "version": "0.4.38",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -48,7 +48,7 @@
     "@escape.tech/graphql-armor-max-aliases": "^2.3.0",
     "@escape.tech/graphql-armor-max-depth": "^2.2.0",
     "@escape.tech/graphql-armor-max-tokens": "^2.3.0",
-    "@hono/node-server": "^1.8.2",
+    "@hono/node-server": "^1.11.2",
     "@ponder/utils": "workspace:*",
     "abitype": "^0.10.2",
     "better-sqlite3": "^10.0.0",

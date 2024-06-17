@@ -525,7 +525,7 @@ export async function run({
     Number(_nodeVersion[2]),
   ];
   if (nodeVersion[0] < 18 || (nodeVersion[0] === 18 && nodeVersion[1] < 14))
-    throw Error(
+    throw new Error(
       pico.red(
         `Node version:${process.version} does not meet the >=18.14 requirement`,
       ),

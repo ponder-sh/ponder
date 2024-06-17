@@ -75,6 +75,8 @@ export type Column =
   | ManyColumn
   | EnumColumn;
 
+export type NonVirtualColumn = Exclude<Column, OneColumn | ManyColumn>;
+
 export type Table = { id: IdColumn } & {
   [columnName: string]: Column;
 };

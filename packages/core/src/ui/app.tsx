@@ -181,7 +181,15 @@ const App = (ui: UiState) => {
   }
 
   let indexingElement: JSX.Element;
-  if (indexing.overall.progress === 0) {
+
+  // Edge case: If all matched events occurred in the same unix timestamp (second), progress will
+  // be zero, even though indexing is complete. When this happens, totalEvents will be non-zero.
+  const indexingProgress =
+    indexing.overall.progress === 0 && indexing.overall.totalEvents > 0
+      ? 1
+      : indexing.overall.progress;
+
+  if (indexingProgress === 0) {
     indexingElement = (
       <>
         <Text bold={true}>Indexing </Text>
@@ -190,9 +198,7 @@ const App = (ui: UiState) => {
       </>
     );
   } else {
-    const effectiveProgress =
-      indexing.overall.progress * historical.overall.progress;
-
+    const effectiveProgress = indexingProgress * historical.overall.progress;
     indexingElement = (
       <>
         <Text>
@@ -226,7 +232,12 @@ const App = (ui: UiState) => {
               title: "Duration (avg)",
               key: "averageDuration",
               align: "right",
-              format: (v) => (v > 0 ? `${v.toFixed(2)}ms` : "-"),
+              format: (v) =>
+                v > 0
+                  ? v < 1
+                    ? `${(v * 1_000).toFixed(2)}μs`
+                    : `${v.toFixed(2)}ms`
+                  : "-",
             },
           ]}
         />

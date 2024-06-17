@@ -1,7 +1,7 @@
 import { StoreError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
-import type { Schema, Table } from "@/schema/common.js";
+import type { NonVirtualColumn, Schema, Table } from "@/schema/common.js";
 import type { UserId } from "@/types/schema.js";
 import { sql } from "kysely";
 import type { OrderByInput, ReadonlyStore, WhereInput } from "./store.js";
@@ -10,7 +10,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from "./utils/cursor.js";
-import { decodeRow, encodeValue } from "./utils/encoding.js";
+import { decodeRecord, encodeValue } from "./utils/encoding.js";
 import { buildWhereConditions } from "./utils/filter.js";
 import {
   buildOrderByConditions,
@@ -21,12 +21,12 @@ const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1_000 as const;
 
 export const getReadonlyStore = ({
-  kind,
+  encoding,
   schema,
   namespaceInfo,
   db,
 }: {
-  kind: "sqlite" | "postgres";
+  encoding: "sqlite" | "postgres";
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
@@ -41,18 +41,22 @@ export const getReadonlyStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findUnique` }, async () => {
-      const encodedId = encodeValue(id, table.id, kind);
+      const encodedId = encodeValue({
+        value: id,
+        column: table.id,
+        encoding,
+      });
 
-      const row = await db
+      const record = await db
         .withSchema(namespaceInfo.userNamespace)
         .selectFrom(tableName)
         .selectAll()
         .where("id", "=", encodedId)
         .executeTakeFirst();
 
-      if (row === undefined) return null;
+      if (record === undefined) return null;
 
-      return decodeRow(row, table, kind);
+      return decodeRecord({ record, table, encoding });
     });
   },
   findMany: async ({
@@ -80,7 +84,7 @@ export const getReadonlyStore = ({
 
       if (where) {
         query = query.where((eb) =>
-          buildWhereConditions({ eb, where, table, encoding: kind }),
+          buildWhereConditions({ eb, where, table, encoding }),
         );
       }
 
@@ -88,7 +92,7 @@ export const getReadonlyStore = ({
       for (const [column, direction] of orderByConditions) {
         query = query.orderBy(
           column,
-          kind === "sqlite"
+          encoding === "sqlite"
             ? direction
             : direction === "asc"
               ? sql`asc nulls first`
@@ -115,8 +119,11 @@ export const getReadonlyStore = ({
       // Neither cursors are specified, apply the order conditions and execute.
       if (after === null && before === null) {
         query = query.limit(limit + 1);
-        const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, kind));
+        const records = await query
+          .execute()
+          .then((records) =>
+            records.map((record) => decodeRecord({ record, table, encoding })),
+          );
 
         if (records.length === limit + 1) {
           records.pop();
@@ -143,7 +150,11 @@ export const getReadonlyStore = ({
         const rawCursorValues = decodeCursor(after, orderByConditions);
         const cursorValues = rawCursorValues.map(([columnName, value]) => [
           columnName,
-          encodeValue(value, table[columnName], kind),
+          encodeValue({
+            value,
+            column: table[columnName] as NonVirtualColumn,
+            encoding,
+          }),
         ]) satisfies [string, any][];
         query = query
           .where((eb) =>
@@ -151,8 +162,11 @@ export const getReadonlyStore = ({
           )
           .limit(limit + 2);
 
-        const rows = await query.execute();
-        const records = rows.map((row) => decodeRow(row, table, kind));
+        const records = await query
+          .execute()
+          .then((records) =>
+            records.map((record) => decodeRecord({ record, table, encoding })),
+          );
 
         if (records.length === 0) {
           return {
@@ -202,7 +216,11 @@ export const getReadonlyStore = ({
         const rawCursorValues = decodeCursor(before!, orderByConditions);
         const cursorValues = rawCursorValues.map(([columnName, value]) => [
           columnName,
-          encodeValue(value, table[columnName], kind),
+          encodeValue({
+            value,
+            column: table[columnName] as NonVirtualColumn,
+            encoding,
+          }),
         ]) satisfies [string, any][];
         query = query
           .where((eb) =>
@@ -218,11 +236,12 @@ export const getReadonlyStore = ({
           query = query.orderBy(column, direction);
         }
 
-        const rows = await query.execute();
-        const records = rows
-          .map((row) => decodeRow(row, table, kind))
-          // Reverse the records again, back to the original order.
-          .reverse();
+        const records = await query.execute().then((records) =>
+          records
+            .map((record) => decodeRecord({ record, table, encoding }))
+            // Reverse the records again, back to the original order.
+            .reverse(),
+        );
 
         if (records.length === 0) {
           return {

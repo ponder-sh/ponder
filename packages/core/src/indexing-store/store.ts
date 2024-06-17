@@ -1,8 +1,8 @@
 import type {
-  UserColumn,
   UserId,
   UserRecord,
   UserTable,
+  UserValue,
 } from "@/types/schema.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Hex } from "viem";
@@ -92,11 +92,18 @@ export type WriteStore<
   ): Promise<boolean>;
 };
 
+export type RealtimeStore = ReadonlyStore & WriteStore<"realtime">;
+
+export type HistoricalStore = ReadonlyStore &
+  WriteStore<"historical"> & {
+    flush: (arg: { isFullFlush: boolean }) => Promise<void>;
+  };
+
 export type IndexingStore<
   env extends "historical" | "realtime" = "historical" | "realtime",
 > = ReadonlyStore & WriteStore<env>;
 
-type OperatorMap<column extends UserColumn> = {
+type OperatorMap<column extends UserValue> = {
   equals?: column;
   not?: column;
 } & (column extends unknown[]
