@@ -46,9 +46,9 @@ import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
 import {
   type ExpressionBuilder,
+  type Transaction as KyselyTransaction,
   type OperandExpression,
   type SqlBool,
-  type Transaction as KyselyTransaction,
   sql,
 } from "kysely";
 import {
@@ -253,11 +253,11 @@ export class SqliteSyncStore implements SyncStore {
             sql`( values ${sql.join(
               fragments.map(
                 (f) =>
-                  sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                    f.topic0,
-                  )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                    f.topic3,
-                  )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                  sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(f.topic0)}, ${sql.val(
+                    f.topic1,
+                  )}, ${sql.val(f.topic2)}, ${sql.val(f.topic3)}, ${sql.lit(
+                    f.includeTransactionReceipts,
+                  )} )`,
               ),
             )} )`,
         )
@@ -352,7 +352,9 @@ export class SqliteSyncStore implements SyncStore {
   }) {
     const { address, eventSelector, childAddressLocation } = factory;
     const selectChildAddressExpression =
-      buildFactoryChildAddressSelectExpression({ childAddressLocation });
+      buildFactoryChildAddressSelectExpression({
+        childAddressLocation,
+      });
 
     const baseQuery = this.db
       .selectFrom("logs")
@@ -559,11 +561,11 @@ export class SqliteSyncStore implements SyncStore {
                   (f) =>
                     sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
                       f.eventSelector,
-                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
-                      f.topic0,
-                    )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                      f.topic3,
-                    )}, ${sql.lit(f.includeTransactionReceipts)} )`,
+                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(f.topic0)}, ${sql.val(
+                      f.topic1,
+                    )}, ${sql.val(f.topic2)}, ${sql.val(f.topic3)}, ${sql.lit(
+                      f.includeTransactionReceipts,
+                    )} )`,
                 ),
               )} )`,
           )
@@ -947,9 +949,7 @@ export class SqliteSyncStore implements SyncStore {
             sql`( values ${sql.join(
               fragments.map(
                 (f) =>
-                  sql`( ${sql.val(f.id)}, ${sql.val(f.fromAddress)}, ${sql.val(
-                    f.toAddress,
-                  )} )`,
+                  sql`( ${sql.val(f.id)}, ${sql.val(f.fromAddress)}, ${sql.val(f.toAddress)} )`,
               ),
             )} )`,
         )
@@ -1199,9 +1199,7 @@ export class SqliteSyncStore implements SyncStore {
                   (f) =>
                     sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
                       f.eventSelector,
-                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
-                      f.fromAddress,
-                    )} )`,
+                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(f.fromAddress)} )`,
                 ),
               )} )`,
           )
@@ -2620,9 +2618,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "factoryId",
             "in",
-            sql`(SELECT "factoryId" FROM ${sql.table(
-              "deleteFactoryLogFilter",
-            )})`,
+            sql`(SELECT "factoryId" FROM ${sql.table("deleteFactoryLogFilter")})`,
           )
           .execute();
 
@@ -2648,9 +2644,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "factoryId",
             "in",
-            sql`(SELECT "factoryId" FROM ${sql.table(
-              "updateFactoryLogFilter",
-            )})`,
+            sql`(SELECT "factoryId" FROM ${sql.table("updateFactoryLogFilter")})`,
           )
           .execute();
 
@@ -2667,9 +2661,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "traceFilterId",
             "in",
-            sql`(SELECT "traceFilterId" FROM ${sql.table(
-              "deleteTraceFilter",
-            )})`,
+            sql`(SELECT "traceFilterId" FROM ${sql.table("deleteTraceFilter")})`,
           )
           .execute();
 
@@ -2690,9 +2682,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "traceFilterId",
             "in",
-            sql`(SELECT "traceFilterId" FROM ${sql.table(
-              "updateTraceFilter",
-            )})`,
+            sql`(SELECT "traceFilterId" FROM ${sql.table("updateTraceFilter")})`,
           )
           .execute();
 
@@ -2713,9 +2703,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "factoryId",
             "in",
-            sql`(SELECT "factoryId" FROM ${sql.table(
-              "deleteFactoryTraceFilter",
-            )})`,
+            sql`(SELECT "factoryId" FROM ${sql.table("deleteFactoryTraceFilter")})`,
           )
           .execute();
 
@@ -2741,9 +2729,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "factoryId",
             "in",
-            sql`(SELECT "factoryId" FROM ${sql.table(
-              "updateFactoryTraceFilter",
-            )})`,
+            sql`(SELECT "factoryId" FROM ${sql.table("updateFactoryTraceFilter")})`,
           )
           .execute();
 
@@ -2760,9 +2746,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "blockFilterId",
             "in",
-            sql`(SELECT "blockFilterId" FROM ${sql.table(
-              "deleteBlockFilter",
-            )})`,
+            sql`(SELECT "blockFilterId" FROM ${sql.table("deleteBlockFilter")})`,
           )
           .execute();
 
@@ -2783,9 +2767,7 @@ export class SqliteSyncStore implements SyncStore {
           .where(
             "blockFilterId",
             "in",
-            sql`(SELECT "blockFilterId" FROM ${sql.table(
-              "updateBlockFilter",
-            )})`,
+            sql`(SELECT "blockFilterId" FROM ${sql.table("updateBlockFilter")})`,
           )
           .execute();
 
@@ -2837,8 +2819,6 @@ function buildFactoryChildAddressSelectExpression({
   } else {
     const start = 2 + 12 * 2 + 1;
     const length = 20 * 2;
-    return sql<Hex>`'0x' || substring(${sql.ref(
-      childAddressLocation,
-    )}, ${start}, ${length})`;
+    return sql<Hex>`'0x' || substring(${sql.ref(childAddressLocation)}, ${start}, ${length})`;
   }
 }

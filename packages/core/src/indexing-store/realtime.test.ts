@@ -213,7 +213,10 @@ test("create() accepts float fields as float and returns as float", async (conte
 
 test("create() inserts into the log table", async (context) => {
   const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, { schema, indexing: "realtime" });
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -316,7 +319,10 @@ test("update() updates a record using an update function", async (context) => {
 
 test("update() inserts into the log table", async (context) => {
   const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, { schema, indexing: "realtime" });
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -450,7 +456,10 @@ test("upsert() updates a record using an update function", async (context) => {
 
 test("upsert() inserts into the log table", async (context) => {
   const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, { schema, indexing: "realtime" });
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -523,7 +532,10 @@ test("delete() removes a record", async (context) => {
 
 test("delete() inserts into the log table", async (context) => {
   const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, { schema, indexing: "realtime" });
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -617,7 +629,10 @@ test("createMany() inserts a large number of entities", async (context) => {
 
 test("createMany() inserts into the log table", async (context) => {
   const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, { schema, indexing: "realtime" });
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.createMany({
     tableName: "Pet",
@@ -691,7 +706,10 @@ test("updateMany() updates multiple entities", async (context) => {
 
 test("updateMany() inserts into the log table", async (context) => {
   const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, { schema, indexing: "realtime" });
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.createMany({
     tableName: "Pet",

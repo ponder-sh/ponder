@@ -33,9 +33,7 @@ export const cachedTransport = ({
               Hex | "latest",
             ];
 
-            request = `${method as string}_${toLowerCase(to)}_${toLowerCase(
-              data,
-            )}`;
+            request = `${method as string}_${toLowerCase(to)}_${toLowerCase(data)}`;
             blockNumber = _blockNumber;
           } else if (method === "eth_getBalance") {
             const [address, _blockNumber] = params as [Address, Hex | "latest"];
@@ -54,9 +52,7 @@ export const cachedTransport = ({
               Hex | "latest",
             ];
 
-            request = `${method as string}_${toLowerCase(
-              address,
-            )}_${toLowerCase(slot)}`;
+            request = `${method as string}_${toLowerCase(address)}_${toLowerCase(slot)}`;
             blockNumber = _blockNumber;
           }
 

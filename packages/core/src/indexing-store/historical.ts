@@ -100,9 +100,7 @@ export const getHistoricalStore = ({
 
   common.logger.debug({
     service: "indexing",
-    msg: `Using a ${Math.round(
-      maxSizeBytes / (1024 * 1024),
-    )} MB indexing cache`,
+    msg: `Using a ${Math.round(maxSizeBytes / (1024 * 1024))} MB indexing cache`,
   });
 
   /** True if the cache contains the complete state of the store. */
@@ -178,145 +176,143 @@ export const getHistoricalStore = ({
         cacheSize * (1 - common.options.indexingCacheFlushRatio);
 
       await Promise.all(
-        Object.entries(storeCache).map(
-          async ([tableName, tableStoreCache]) => {
-            const table = (schema[tableName] as { table: Table }).table;
-            const cacheEntries = Object.values(tableStoreCache);
+        Object.entries(storeCache).map(async ([tableName, tableStoreCache]) => {
+          const table = (schema[tableName] as { table: Table }).table;
+          const cacheEntries = Object.values(tableStoreCache);
 
-            let insertRecords: UserRecord[];
+          let insertRecords: UserRecord[];
 
-            if (isFullFlush) {
-              insertRecords = cacheEntries
-                .filter(({ type }) => type === "insert")
-                .map(({ record }) => record!);
-            } else {
-              insertRecords = cacheEntries
-                .filter(
-                  ({ type, opIndex }) =>
-                    type === "insert" && opIndex < flushIndex,
-                )
-                .map(({ record }) => record!);
-            }
+          if (isFullFlush) {
+            insertRecords = cacheEntries
+              .filter(({ type }) => type === "insert")
+              .map(({ record }) => record!);
+          } else {
+            insertRecords = cacheEntries
+              .filter(
+                ({ type, opIndex }) =>
+                  type === "insert" && opIndex < flushIndex,
+              )
+              .map(({ record }) => record!);
+          }
 
-            if (insertRecords.length !== 0) {
-              common.logger.debug({
-                service: "indexing",
-                msg: `Inserting ${insertRecords.length} cached '${tableName}' records into the database`,
-              });
+          if (insertRecords.length !== 0) {
+            common.logger.debug({
+              service: "indexing",
+              msg: `Inserting ${insertRecords.length} cached '${tableName}' records into the database`,
+            });
 
-              for (
-                let i = 0, len = insertRecords.length;
-                i < len;
-                i += MAX_BATCH_SIZE
-              ) {
-                await db.wrap({ method: `${tableName}.flush` }, async () => {
-                  const _insertRecords = insertRecords
-                    .slice(i, i + MAX_BATCH_SIZE)
-                    // skip validation because its already occurred in the store method
-                    .map((record) =>
-                      encodeRecord({
-                        record,
-                        table,
-                        schema,
-                        encoding,
-                        skipValidation: true,
-                      }),
+            for (
+              let i = 0, len = insertRecords.length;
+              i < len;
+              i += MAX_BATCH_SIZE
+            ) {
+              await db.wrap({ method: `${tableName}.flush` }, async () => {
+                const _insertRecords = insertRecords
+                  .slice(i, i + MAX_BATCH_SIZE)
+                  // skip validation because its already occurred in the store method
+                  .map((record) =>
+                    encodeRecord({
+                      record,
+                      table,
+                      schema,
+                      encoding,
+                      skipValidation: true,
+                    }),
+                  );
+
+                await db
+                  .withSchema(namespaceInfo.userNamespace)
+                  .insertInto(tableName)
+                  .values(_insertRecords)
+                  .execute()
+                  .catch((err) => {
+                    throw parseStoreError(
+                      err,
+                      _insertRecords.length > 0 ? _insertRecords[0]! : {},
                     );
-
-                  await db
-                    .withSchema(namespaceInfo.userNamespace)
-                    .insertInto(tableName)
-                    .values(_insertRecords)
-                    .execute()
-                    .catch((err) => {
-                      throw parseStoreError(
-                        err,
-                        _insertRecords.length > 0 ? _insertRecords[0]! : {},
-                      );
-                    });
-                });
-              }
-            }
-
-            // Exit early if the table only has an "id" column.
-            if (Object.keys(table).length === 1) return;
-
-            let updateRecords: UserRecord[];
-
-            if (isFullFlush) {
-              updateRecords = cacheEntries
-                .filter(({ type }) => type === "update")
-                .map(({ record }) => record!);
-            } else {
-              updateRecords = cacheEntries
-                .filter(
-                  ({ type, opIndex }) =>
-                    type === "update" && opIndex < flushIndex,
-                )
-                .map(({ record }) => record!);
-            }
-
-            if (updateRecords.length !== 0) {
-              common.logger.debug({
-                service: "indexing",
-                msg: `Updating ${updateRecords.length} cached '${tableName}' records in the database`,
+                  });
               });
+            }
+          }
 
-              for (
-                let i = 0, len = updateRecords.length;
-                i < len;
-                i += MAX_BATCH_SIZE
-              ) {
-                await db.wrap({ method: `${tableName}.flush` }, async () => {
-                  const _updateRecords = updateRecords
-                    .slice(i, i + MAX_BATCH_SIZE)
-                    // skip validation because its already occurred in the store method
-                    .map((record) =>
-                      encodeRecord({
-                        record,
-                        table,
-                        schema,
-                        encoding,
-                        skipValidation: true,
-                      }),
-                    );
+          // Exit early if the table only has an "id" column.
+          if (Object.keys(table).length === 1) return;
 
-                  await db
-                    .withSchema(namespaceInfo.userNamespace)
-                    .insertInto(tableName)
-                    .values(_updateRecords)
-                    .onConflict((oc) =>
-                      oc.column("id").doUpdateSet((eb) =>
-                        Object.entries(table).reduce<any>(
-                          (acc, [colName, column]) => {
-                            if (colName !== "id") {
-                              if (
-                                isScalarColumn(column) ||
-                                isReferenceColumn(column) ||
-                                isEnumColumn(column) ||
-                                isJSONColumn(column)
-                              ) {
-                                acc[colName] = eb.ref(`excluded.${colName}`);
-                              }
+          let updateRecords: UserRecord[];
+
+          if (isFullFlush) {
+            updateRecords = cacheEntries
+              .filter(({ type }) => type === "update")
+              .map(({ record }) => record!);
+          } else {
+            updateRecords = cacheEntries
+              .filter(
+                ({ type, opIndex }) =>
+                  type === "update" && opIndex < flushIndex,
+              )
+              .map(({ record }) => record!);
+          }
+
+          if (updateRecords.length !== 0) {
+            common.logger.debug({
+              service: "indexing",
+              msg: `Updating ${updateRecords.length} cached '${tableName}' records in the database`,
+            });
+
+            for (
+              let i = 0, len = updateRecords.length;
+              i < len;
+              i += MAX_BATCH_SIZE
+            ) {
+              await db.wrap({ method: `${tableName}.flush` }, async () => {
+                const _updateRecords = updateRecords
+                  .slice(i, i + MAX_BATCH_SIZE)
+                  // skip validation because its already occurred in the store method
+                  .map((record) =>
+                    encodeRecord({
+                      record,
+                      table,
+                      schema,
+                      encoding,
+                      skipValidation: true,
+                    }),
+                  );
+
+                await db
+                  .withSchema(namespaceInfo.userNamespace)
+                  .insertInto(tableName)
+                  .values(_updateRecords)
+                  .onConflict((oc) =>
+                    oc.column("id").doUpdateSet((eb) =>
+                      Object.entries(table).reduce<any>(
+                        (acc, [colName, column]) => {
+                          if (colName !== "id") {
+                            if (
+                              isScalarColumn(column) ||
+                              isReferenceColumn(column) ||
+                              isEnumColumn(column) ||
+                              isJSONColumn(column)
+                            ) {
+                              acc[colName] = eb.ref(`excluded.${colName}`);
                             }
-                            return acc;
-                          },
-                          {},
-                        ),
+                          }
+                          return acc;
+                        },
+                        {},
                       ),
-                    )
-                    .execute()
-                    .catch((err) => {
-                      throw parseStoreError(
-                        err,
-                        _updateRecords.length > 0 ? _updateRecords[0]! : {},
-                      );
-                    });
-                });
-              }
+                    ),
+                  )
+                  .execute()
+                  .catch((err) => {
+                    throw parseStoreError(
+                      err,
+                      _updateRecords.length > 0 ? _updateRecords[0]! : {},
+                    );
+                  });
+              });
             }
-          },
-        ),
+          }
+        }),
       );
 
       if (isFullFlush) {

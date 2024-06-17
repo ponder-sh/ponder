@@ -7,7 +7,7 @@
     "useDefineForClassFields": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
-    "useUnknownInCatchVariables": true, 
+    "useUnknownInCatchVariables": true,
     "noImplicitOverride": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -34,6 +34,6 @@
 
     // Skip type checking for node modules
     "skipLibCheck": true,
-    "paths": { "@ponder/common": ["../common/src/index.ts"], }
-  },
+    "paths": { "@ponder/common": ["../common/src/index.ts"] }
+  }
 }

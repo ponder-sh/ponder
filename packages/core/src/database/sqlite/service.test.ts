@@ -659,9 +659,9 @@ async function getIndexNames(
   const { rows } = await db.executeQuery<{ name: string; tbl_name: string }>(
     sql`SELECT name, tbl_name FROM ${sql.raw(
       schemaName ? `${schemaName}.` : "",
-    )}sqlite_master WHERE type='index' AND tbl_name='${sql.raw(
-      tableName,
-    )}'`.compile(db),
+    )}sqlite_master WHERE type='index' AND tbl_name='${sql.raw(tableName)}'`.compile(
+      db,
+    ),
   );
   return rows.map((r) => r.name);
 }

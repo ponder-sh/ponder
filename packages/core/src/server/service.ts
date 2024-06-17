@@ -7,7 +7,7 @@ import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { serve } from "@hono/node-server";
-import { GraphQLError, GraphQLSchema } from "graphql";
+import { GraphQLError, type GraphQLSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { Hono } from "hono";
 import { cors } from "hono/cors";

@@ -11,9 +11,7 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
   const subjectId = event.args.subject;
   const traderId = event.args.trader;
   const shareId = `${event.args.subject}-${event.args.trader}`;
-  const tradeEventId = `${
-    event.transaction.hash
-  }-${event.log.logIndex.toString()}`;
+  const tradeEventId = `${event.transaction.hash}-${event.log.logIndex.toString()}`;
 
   const feeAmount = event.args.protocolEthAmount + event.args.subjectEthAmount;
 

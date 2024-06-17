@@ -1,9 +1,9 @@
-import { exec } from "child_process";
+import { exec } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "util";
+import { promisify } from "node:util";
 import type { Build } from "@/build/service.js";
 import type { Options } from "@/common/options.js";
 import { getTables } from "@/schema/utils.js";

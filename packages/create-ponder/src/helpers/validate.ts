@@ -1,4 +1,4 @@
-import path from "path";
+import path from "node:path";
 import { pathExists } from "fs-extra";
 import pico from "picocolors";
 import validatePackageName from "validate-npm-package-name";
@@ -47,10 +47,7 @@ export async function validateProjectPath({
   if (await pathExists(projectPath))
     return {
       valid: false,
-      message: `🙈 the directory "${path.relative(
-        process.cwd(),
-        projectPath,
-      )}" already exists.`,
+      message: `🙈 the directory "${path.relative(process.cwd(), projectPath)}" already exists.`,
       problems: "👉 choose another name or delete the directory.",
     };
 
@@ -79,9 +76,7 @@ export async function validateTemplateName({
     return {
       valid: false,
       message: `🙈 the template "${templateId}" does not exist.`,
-      problems: `Choose a valid name. Available: ${templates
-        .map(({ id }) => id)
-        .join(", ")}`,
+      problems: `Choose a valid name. Available: ${templates.map(({ id }) => id).join(", ")}`,
     };
 
   return { valid: true };

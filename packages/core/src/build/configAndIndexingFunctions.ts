@@ -79,9 +79,7 @@ export async function buildConfigAndIndexingFunctions({
 
       logs.push({
         level: "info",
-        msg: `Using Postgres database '${getDatabaseName(
-          connectionString,
-        )}' (${source})`,
+        msg: `Using Postgres database '${getDatabaseName(connectionString)}' (${source})`,
       });
 
       let schema: string | undefined = undefined;
@@ -94,9 +92,10 @@ export async function buildConfigAndIndexingFunctions({
             "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
           );
         }
-        schema = `${
-          process.env.RAILWAY_SERVICE_NAME
-        }_${process.env.RAILWAY_DEPLOYMENT_ID.slice(0, 8)}`;
+        schema = `${process.env.RAILWAY_SERVICE_NAME}_${process.env.RAILWAY_DEPLOYMENT_ID.slice(
+          0,
+          8,
+        )}`;
         source = "from RAILWAY_DEPLOYMENT_ID env var";
       } else {
         schema = "public";
@@ -167,9 +166,7 @@ export async function buildConfigAndIndexingFunctions({
     if (connectionString !== undefined) {
       logs.push({
         level: "info",
-        msg: `Using Postgres database ${getDatabaseName(
-          connectionString,
-        )} (${source})`,
+        msg: `Using Postgres database ${getDatabaseName(connectionString)} (${source})`,
       });
 
       let schema: string | undefined = undefined;
@@ -180,9 +177,10 @@ export async function buildConfigAndIndexingFunctions({
             "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
           );
         }
-        schema = `${
-          process.env.RAILWAY_SERVICE_NAME
-        }_${process.env.RAILWAY_DEPLOYMENT_ID.slice(0, 8)}`;
+        schema = `${process.env.RAILWAY_SERVICE_NAME}_${process.env.RAILWAY_DEPLOYMENT_ID.slice(
+          0,
+          8,
+        )}`;
         source = "from RAILWAY_DEPLOYMENT_ID env var";
       } else {
         schema = "public";
@@ -345,7 +343,9 @@ export async function buildConfigAndIndexingFunctions({
         : endBlockMaybeNan;
 
       if (endBlock !== undefined && endBlock < startBlock) {
-        throw new Error(`Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`)
+        throw new Error(
+          `Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`,
+        );
       }
 
       // Single network case.
@@ -388,9 +388,11 @@ export async function buildConfigAndIndexingFunctions({
             ? undefined
             : endBlockMaybeNan;
 
-            if (endBlock !== undefined && endBlock < startBlock) {
-              throw new Error(`Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`)
-            }
+          if (endBlock !== undefined && endBlock < startBlock) {
+            throw new Error(
+              `Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`,
+            );
+          }
 
           return {
             contractName,
@@ -449,7 +451,10 @@ export async function buildConfigAndIndexingFunctions({
         for (const eventName of Object.keys(indexingFunctions)) {
           // log event
           if (eventName.includes(":")) {
-            const [logContractName, logEventName] = eventName.split(":") as [string, string];
+            const [logContractName, logEventName] = eventName.split(":") as [
+              string,
+              string,
+            ];
             if (
               logContractName === rawContract.contractName &&
               logEventName !== "setup"
@@ -460,7 +465,9 @@ export async function buildConfigAndIndexingFunctions({
 
           // call trace event
           if (eventName.includes(".")) {
-            const [functionContractName, functionName] = eventName.split(".") as [string, string];
+            const [functionContractName, functionName] = eventName.split(
+              ".",
+            ) as [string, string];
             if (functionContractName === rawContract.contractName) {
               registeredCallTraceEvents.push(functionName);
             }
@@ -591,7 +598,8 @@ export async function buildConfigAndIndexingFunctions({
 
         if (resolvedFactory) {
           // Note that this can throw.
-          const childAddressCriteria = buildChildAddressCriteria(resolvedFactory);
+          const childAddressCriteria =
+            buildChildAddressCriteria(resolvedFactory);
 
           const factoryLogSource = {
             ...baseContract,
@@ -600,7 +608,8 @@ export async function buildConfigAndIndexingFunctions({
             abiEvents: abiEvents,
             criteria: {
               ...childAddressCriteria,
-              includeTransactionReceipts: rawContract.includeTransactionReceipts,
+              includeTransactionReceipts:
+                rawContract.includeTransactionReceipts,
               topics,
             },
           } satisfies FactoryLogSource;
@@ -736,9 +745,7 @@ export async function buildConfigAndIndexingFunctions({
           throw new Error(
             `Validation failed: Invalid network for block source '${sourceName}'. Got '${
               blockSourceConfig.network
-            }', expected one of [${networks
-              .map((n) => `'${n.name}'`)
-              .join(", ")}].`,
+            }', expected one of [${networks.map((n) => `'${n.name}'`).join(", ")}].`,
           );
         }
 
