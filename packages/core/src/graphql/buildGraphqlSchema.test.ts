@@ -290,7 +290,7 @@ test("scalar optional list", async (context) => {
   await cleanup();
 });
 
-test.only("json", async (context) => {
+test("json", async (context) => {
   const schema = createSchema((p) => ({
     table: p.createTable({
       id: p.string(),
