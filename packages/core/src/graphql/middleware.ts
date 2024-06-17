@@ -58,4 +58,4 @@ export const graphQLMiddleware = (
     });
 
     return yoga.handle(c.req.raw);
-  }) as any;
+  });

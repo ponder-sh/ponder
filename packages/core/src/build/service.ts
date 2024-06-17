@@ -465,7 +465,7 @@ const executeServer = async (
 
   buildService.common.logger.debug({
     service: "build",
-    msg: `found server with routes: [${app.routes
+    msg: `Detected a custom server with routes: [${app.routes
       .map((r) => r.path)
       .join(", ")}]`,
   });
