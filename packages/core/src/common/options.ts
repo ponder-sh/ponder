@@ -77,7 +77,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),
     schemaFile: path.join(rootDir, "ponder.schema.ts"),
-    serverFile: path.join(rootDir, "src", "_server.ts"),
+    serverFile: path.join(rootDir, "ponder.server.ts"),
     srcDir: path.join(rootDir, "src"),
     generatedDir: path.join(rootDir, "generated"),
     ponderDir: path.join(rootDir, ".ponder"),

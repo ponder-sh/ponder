@@ -243,7 +243,12 @@ export const start = async (
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
       // Note: We could probably do a better job filtering out files in `isFileIgnored`.
-      if (!hasConfigUpdate && !hasSchemaUpdate && !hasIndexingFunctionUpdate) {
+      if (
+        !hasConfigUpdate &&
+        !hasSchemaUpdate &&
+        !hasIndexingFunctionUpdate &&
+        !hasServerUpdate
+      ) {
         return;
       }
 

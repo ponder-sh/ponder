@@ -443,7 +443,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: github.com/foundry-rs/forge-std/52715a217dc51d0de15877878ab8213f6cbbbab5
+        version: github.com/foundry-rs/forge-std/6e05729b76f1ae0d437e74951aef1ca987788ab3
 
   examples/with-foundry/ponder:
     dependencies:
@@ -14980,8 +14980,8 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
     dev: false
 
-  github.com/foundry-rs/forge-std/52715a217dc51d0de15877878ab8213f6cbbbab5:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/52715a217dc51d0de15877878ab8213f6cbbbab5}
+  github.com/foundry-rs/forge-std/6e05729b76f1ae0d437e74951aef1ca987788ab3:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/6e05729b76f1ae0d437e74951aef1ca987788ab3}
     name: forge-std
     version: 1.8.2
     dev: false

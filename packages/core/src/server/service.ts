@@ -131,6 +131,7 @@ export async function createServer({
 
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("db", db);
+    c.set("readonlyStore", readonlyStore);
     c.set("schema", schema);
     await next();
   });

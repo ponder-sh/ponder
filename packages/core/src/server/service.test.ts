@@ -36,7 +36,7 @@ test("not healthy", async (context) => {
     readonlyStore: {} as ReadonlyStore,
   });
 
-  const response = await server.hono.request("/health");
+  const response = await server.hono.request("/_ponder/health");
 
   expect(response.status).toBe(503);
 
@@ -53,7 +53,7 @@ test("healthy", async (context) => {
     readonlyStore: {} as ReadonlyStore,
   });
 
-  const response = await server.hono.request("/health");
+  const response = await server.hono.request("/_ponder/health");
 
   expect(response.status).toBe(200);
 
@@ -70,7 +70,9 @@ test("healthy PUT", async (context) => {
     readonlyStore: {} as ReadonlyStore,
   });
 
-  const response = await server.hono.request("/health", { method: "PUT" });
+  const response = await server.hono.request("/_ponder/health", {
+    method: "PUT",
+  });
 
   expect(response.status).toBe(404);
 
@@ -84,7 +86,7 @@ test("metrics", async (context) => {
     readonlyStore: {} as ReadonlyStore,
   });
 
-  const response = await server.hono.request("/metrics");
+  const response = await server.hono.request("/_ponder/metrics");
 
   expect(response.status).toBe(200);
 
@@ -101,7 +103,7 @@ test("metrics error", async (context) => {
   const metricsSpy = vi.spyOn(context.common.metrics, "getMetrics");
   metricsSpy.mockRejectedValueOnce(new Error());
 
-  const response = await server.hono.request("/metrics");
+  const response = await server.hono.request("/_ponder/metrics");
 
   expect(response.status).toBe(500);
 
@@ -115,7 +117,9 @@ test("metrics PUT", async (context) => {
     readonlyStore: {} as ReadonlyStore,
   });
 
-  const response = await server.hono.request("/metrics", { method: "PUT" });
+  const response = await server.hono.request("/_ponder/metrics", {
+    method: "PUT",
+  });
 
   expect(response.status).toBe(404);
 
@@ -147,5 +151,5 @@ test.skip("kill", async (context) => {
 
   await server.kill();
 
-  expect(() => server.hono.request("/health")).rejects.toThrow();
+  expect(() => server.hono.request("/_ponder/health")).rejects.toThrow();
 });
