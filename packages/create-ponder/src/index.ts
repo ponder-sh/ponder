@@ -281,9 +281,7 @@ export async function run({
         etherscanApiKey: options.etherscanApiKey,
       }),
       {
-        text: `Fetching contract metadata from ${pico.bold(
-          host,
-        )}. This may take a few seconds.`,
+        text: `Fetching contract metadata from ${pico.bold(host)}. This may take a few seconds.`,
         failText: "Failed to fetch contract metadata.",
         successText: `Fetched contract metadata from ${pico.bold(host)}.`,
       },
@@ -329,10 +327,7 @@ export async function run({
         )
         .map(
           (abi) =>
-            `import {${abi.name}} from "${abi.dir.slice(
-              0,
-              abi.dir.length - 3,
-            )}"`,
+            `import {${abi.name}} from "${abi.dir.slice(0, abi.dir.length - 3)}"`,
         )
         .join("\n")}
 
@@ -406,9 +401,8 @@ export async function run({
   const packageJson = await fs.readJSON(path.join(projectPath, "package.json"));
   packageJson.name = projectName;
   packageJson.dependencies["@ponder/core"] = `^${rootPackageJson.version}`;
-  packageJson.devDependencies[
-    "eslint-config-ponder"
-  ] = `^${rootPackageJson.version}`;
+  packageJson.devDependencies["eslint-config-ponder"] =
+    `^${rootPackageJson.version}`;
   await fs.writeFile(
     path.join(projectPath, "package.json"),
     JSON.stringify(packageJson, null, 2),
@@ -434,9 +428,7 @@ export async function run({
       },
     }),
     {
-      text: `Installing packages with ${pico.bold(
-        packageManager,
-      )}. This may take a few seconds.`,
+      text: `Installing packages with ${pico.bold(packageManager)}. This may take a few seconds.`,
       failText: "Failed to install packages.",
       successText: `Installed packages with ${pico.bold(packageManager)}.`,
     },
@@ -476,9 +468,9 @@ export async function run({
   log("―――――――――――――――――――――");
   log();
   log(
-    `${pico.green("Success!")} Created ${pico.bold(
-      projectName,
-    )} at ${pico.green(path.resolve(projectPath))}`,
+    `${pico.green("Success!")} Created ${pico.bold(projectName)} at ${pico.green(
+      path.resolve(projectPath),
+    )}`,
   );
   log();
   log(

@@ -6,7 +6,7 @@ import { parse } from "yaml";
 
 import { getGraphProtocolChainId } from "./helpers/getGraphProtocolChainId.js";
 import {
-  GraphSource,
+  type GraphSource,
   validateGraphProtocolSource,
 } from "./helpers/validateGraphProtocolSource.js";
 
@@ -62,7 +62,9 @@ export const fromSubgraphId = async ({
         abiPath,
         await prettier.format(
           `export const ${abi.name}Abi = ${abiContent} as const`,
-          { parser: "typescript" },
+          {
+            parser: "typescript",
+          },
         ),
       );
       abis[abi.name] = JSON.parse(abiContent);
@@ -99,9 +101,7 @@ export const fromSubgraphId = async ({
     contractsObject[pc.name] = pc;
     networksObject[pc.network] = {
       chainId: getGraphProtocolChainId(pc.network),
-      transport: `http(process.env.PONDER_RPC_URL_${getGraphProtocolChainId(
-        pc.network,
-      )})`,
+      transport: `http(process.env.PONDER_RPC_URL_${getGraphProtocolChainId(pc.network)})`,
     };
     contractsObject[pc.name].name = undefined;
   });

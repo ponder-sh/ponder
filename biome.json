@@ -9,6 +9,7 @@
       "CHANGELOG.md",
       "generated.ts",
       "**/dist",
+      "**/.next",
       "**/generated",
       "**/cache",
       "**/out",

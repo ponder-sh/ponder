@@ -101,9 +101,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
             throw new Error(
               `Validation failed. Relationship column '${tableName}.${columnName}' uses a column that does not exist. Got '${
                 column[" reference"]
-              }', expected one of [${otherColumns
-                .map((c) => `'${c}'`)
-                .join(", ")}].`,
+              }', expected one of [${otherColumns.map((c) => `'${c}'`).join(", ")}].`,
             );
           }
 
@@ -114,9 +112,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
             throw new Error(
               `Validation failed. Relationship column '${tableName}.${columnName}' uses a column that is not foreign key column. Got '${
                 column[" reference"]
-              }', expected one of [${foreignKeyColumns
-                .map((c) => `'${c}'`)
-                .join(", ")}].`,
+              }', expected one of [${foreignKeyColumns.map((c) => `'${c}'`).join(", ")}].`,
             );
           }
         }
@@ -134,9 +130,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
             throw new Error(
               `Validation failed. Relationship column '${tableName}.${columnName}' uses a table that does not exist. Got '${
                 column[" referenceTable"]
-              }', expected one of [${otherTables
-                .map((t) => `'${t}'`)
-                .join(", ")}].`,
+              }', expected one of [${otherTables.map((t) => `'${t}'`).join(", ")}].`,
             );
           }
 
@@ -149,9 +143,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
             throw new Error(
               `Validation failed. Relationship column '${tableName}.${columnName}' uses a column that does not exist. Got '${
                 column[" referenceTable"]
-              }.${
-                column[" referenceTable"]
-              }', expected one of [${usedTableColumns
+              }.${column[" referenceTable"]}', expected one of [${usedTableColumns
                 .map((c) => `'${usedTable[0]}.${c}'`)
                 .join(", ")}].`,
             );
@@ -164,9 +156,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
             throw new Error(
               `Validation failed. Relationship column '${tableName}.${columnName}' uses a column that is not foreign key column. Got '${
                 column[" referenceTable"]
-              }.${
-                column[" referenceTable"]
-              }', expected one of [${foreignKeyColumnNames
+              }.${column[" referenceTable"]}', expected one of [${foreignKeyColumnNames
                 .map((c) => `'${usedTable[0]}.${c}'`)
                 .join(", ")}].`,
             );

@@ -41,7 +41,10 @@ function calculateLogTableName(tableName: string) {
 
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
   const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, { schema, indexing: "realtime" });
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -118,7 +121,10 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 
 test("revert() updates versions with intermediate logs", async (context) => {
   const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, { schema, indexing: "realtime" });
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",

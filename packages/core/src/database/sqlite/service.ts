@@ -29,10 +29,10 @@ import { wait } from "@/utils/wait.js";
 import {
   type CreateTableBuilder,
   type Insertable,
-  Kysely,
+  type Kysely,
+  type Transaction as KyselyTransaction,
   Migrator,
   SqliteDialect,
-  Transaction as KyselyTransaction,
   WithSchemaPlugin,
   sql,
 } from "kysely";
@@ -271,13 +271,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           ) {
             this.common.logger.info({
               service: "database",
-              msg: `Detected cache hit for build '${
-                this.buildId
-              }' in database file '${
+              msg: `Detected cache hit for build '${this.buildId}' in database file '${
                 this.userNamespace
-              }.db' last active ${formatEta(
-                Date.now() - previousLockRow.heartbeat_at,
-              )} ago`,
+              }.db' last active ${formatEta(Date.now() - previousLockRow.heartbeat_at)} ago`,
             });
 
             // Remove any indexes, will be recreated once the app
@@ -541,16 +537,12 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
             const columns = Array.isArray(indexColumn)
               ? indexColumn.map((ic) => `"${ic}"`).join(", ")
-              : `"${indexColumn}" ${
-                  order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""
-                }`;
+              : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""}`;
 
             await this.db.executeQuery(
-              sql`CREATE INDEX ${sql.ref(this.userNamespace)}.${sql.ref(
-                indexName,
-              )} ON ${sql.table(tableName)} (${sql.raw(columns)})`.compile(
-                this.db,
-              ),
+              sql`CREATE INDEX ${sql.ref(this.userNamespace)}.${sql.ref(indexName)} ON ${sql.table(
+                tableName,
+              )} (${sql.raw(columns)})`.compile(this.db),
             );
           });
 

@@ -223,7 +223,8 @@ export const getRealtimeStore = ({
     while (true) {
       const _records = await db.wrap(
         { method: `${tableName}.updateMany` },
-        () => db.transaction().execute(async (tx) => {
+        () =>
+          db.transaction().execute(async (tx) => {
             const latestRecords: DatabaseRecord[] = await tx
               .withSchema(namespaceInfo.userNamespace)
               .selectFrom(tableName)

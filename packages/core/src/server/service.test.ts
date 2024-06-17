@@ -144,7 +144,9 @@ test("graphql", async (context) => {
 
   const { indexingStore, readonlyStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    {
+      schema,
+    },
   );
 
   await indexingStore.create({

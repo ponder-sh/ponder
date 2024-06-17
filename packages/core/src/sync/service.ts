@@ -277,9 +277,7 @@ export const create = async ({
         if (source.startBlock > hexToNumber(latestBlock.number)) {
           common.logger.warn({
             service: "sync",
-            msg: `Start block ${
-              source.startBlock
-            } is greater than the latest block ${hexToNumber(
+            msg: `Start block ${source.startBlock} is greater than the latest block ${hexToNumber(
               latestBlock.number,
             )} for '${network.name}'.`,
           });

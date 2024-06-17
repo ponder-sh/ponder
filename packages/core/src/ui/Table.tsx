@@ -42,7 +42,7 @@ export function Table<TRow extends { [key: string]: any }>(props: {
       {/* Column Titles */}
       <Box flexDirection="row" key="title">
         {columns.map(({ title, align }, index) => (
-          <React.Fragment key={`title-${index}`}>
+          <React.Fragment key={`title-${title}`}>
             <Text>│</Text>
             <Box
               width={columnWidths[index]}
@@ -62,7 +62,7 @@ export function Table<TRow extends { [key: string]: any }>(props: {
       <Box flexDirection="row" key="border">
         <Text>├</Text>
         {columnWidths.map((width, index) => (
-          <Text key={`separator-${index}`}>
+          <Text key={`separator-${width}`}>
             {"─".repeat(width + 2)}
             {index < columns.length - 1 ? "┼" : "┤"}
           </Text>
@@ -71,9 +71,15 @@ export function Table<TRow extends { [key: string]: any }>(props: {
 
       {/* Rows of Data */}
       {formattedRows.map((row, rowIndex) => (
-        <Box flexDirection="row" key={`row-${rowIndex}`}>
+        <Box
+          flexDirection="row"
+          key={`row-${
+            // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+            rowIndex
+          }`}
+        >
           {columns.map(({ key, align }, index) => (
-            <React.Fragment key={`cell-${rowIndex}-${index}`}>
+            <React.Fragment key={`cell-${rowIndex}-${row[key]}`}>
               <Text>│</Text>
               <Box
                 width={columnWidths[index]}

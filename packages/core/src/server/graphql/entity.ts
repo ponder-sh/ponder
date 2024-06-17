@@ -12,10 +12,10 @@ import {
 import {
   GraphQLBoolean,
   type GraphQLFieldResolver,
-  GraphQLInputObjectType,
+  type GraphQLInputObjectType,
 } from "graphql";
 import {
-  GraphQLEnumType,
+  type GraphQLEnumType,
   type GraphQLFieldConfigMap,
   GraphQLInt,
   GraphQLList,

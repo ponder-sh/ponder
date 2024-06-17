@@ -1,10 +1,10 @@
 import {
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
-  GraphQLInputObjectType,
+  type GraphQLInputObjectType,
   GraphQLInt,
   GraphQLNonNull,
-  GraphQLObjectType,
+  type GraphQLObjectType,
   GraphQLString,
 } from "graphql";
 import type { Context, Parent } from "./buildGraphqlSchema.js";

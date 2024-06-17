@@ -249,9 +249,7 @@ function validateValue({
         const error = new NotNullConstraintError(
           `Unable to encode ${value} as a ${
             column[" scalar"]
-          }. Got '${typeof value}' but expected type '${
-            scalarToTsType[column[" scalar"]]
-          }'.`,
+          }. Got '${typeof value}' but expected type '${scalarToTsType[column[" scalar"]]}'.`,
         );
         error.meta.push(
           "Hint:\n  Use the .optional() modifier to allow for null or undefined values.",
@@ -330,9 +328,7 @@ function validateValue({
     case "one":
     case "many": {
       throw new StoreError(
-        `Unable to encode ${value} into a "${
-          isManyColumn(column) ? "many" : "one"
-        }" column. "${
+        `Unable to encode ${value} into a "${isManyColumn(column) ? "many" : "one"}" column. "${
           isManyColumn(column) ? "many" : "one"
         }" columns are virtual and therefore should not be given a value.`,
       );

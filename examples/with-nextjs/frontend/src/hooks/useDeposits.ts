@@ -42,7 +42,7 @@ export const useDeposits = () => {
         amount: BigInt(d.amount),
       }));
     },
-    staleTime: Infinity,
+    staleTime: Number.POSITIVE_INFINITY,
     refetchInterval: 1_000,
   });
 };
