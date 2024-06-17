@@ -17,7 +17,7 @@ import { buildSingularField } from "./singular.js";
 export type Parent = Record<string, any>;
 export type Context = { store: ReadonlyStore; getLoader: GetLoader };
 
-export const buildGraphqlSchema = (schema: Schema): GraphQLSchema => {
+export const buildGraphQLSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Parent, Context>> = {};
 
   const { enumTypes } = buildEnumTypes({ schema });

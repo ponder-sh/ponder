@@ -1,39 +1,61 @@
-import type { ReadonlyStore } from "@/indexing-store/store.js";
+import { graphiQLHtml } from "@/ui/graphiql.html.js";
+import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
+import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
+import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
-import { buildGraphqlSchema } from "./buildGraphqlSchema.js";
+import { buildGraphQLSchema } from "./buildGraphqlSchema.js";
 import { buildLoaderCache } from "./buildLoaderCache.js";
 
-export const graphQLMiddleware = createMiddleware(async (c) => {
-  const db = c.get("db");
-  const schema = c.get("schema");
-  const graphqlSchema = buildGraphqlSchema(schema);
+export const graphQLMiddleware = (
+  {
+    maxOperationTokens = 1000,
+    maxOperationDepth = 100,
+    maxOperationAliases = 30,
+  }: {
+    maxOperationTokens?: number;
+    maxOperationDepth?: number;
+    maxOperationAliases?: number;
+  } = {
+    // Default limits are from Apollo:
+    // https://www.apollographql.com/blog/prevent-graph-misuse-with-operation-size-and-complexity-limit
+    maxOperationTokens: 1000,
+    maxOperationDepth: 100,
+    maxOperationAliases: 30,
+  },
+) =>
+  createMiddleware(async (c) => {
+    const readonlyStore = c.get("readonlyStore");
+    const schema = c.get("schema");
+    const graphqlSchema = buildGraphQLSchema(schema);
 
-  const readonlyStore = db as unknown as ReadonlyStore;
+    if (c.req.method === "GET") {
+      return c.html(graphiQLHtml(c.req.path));
+    }
 
-  const yoga = createYoga({
-    schema: graphqlSchema,
-    context: () => {
-      const getLoader = buildLoaderCache({ store: readonlyStore });
-      return { store: readonlyStore, getLoader };
-    },
-    graphqlEndpoint: "/",
-    maskedErrors: process.env.NODE_ENV === "production",
-    logging: false,
-    graphiql: false,
-    parserAndValidationCache: false,
-    // plugins: [
-    //   maxTokensPlugin({ n: common.options.graphqlMaxOperationTokens }),
-    //   maxDepthPlugin({
-    //     n: common.options.graphqlMaxOperationDepth,
-    //     ignoreIntrospection: false,
-    //   }),
-    //   maxAliasesPlugin({
-    //     n: common.options.graphqlMaxOperationAliases,
-    //     allowList: [],
-    //   }),
-    // ],
-  });
+    const yoga = createYoga({
+      schema: graphqlSchema,
+      context: () => {
+        const getLoader = buildLoaderCache({ store: readonlyStore });
+        return { store: readonlyStore, getLoader };
+      },
+      graphqlEndpoint: c.req.path,
+      maskedErrors: process.env.NODE_ENV === "production",
+      logging: false,
+      graphiql: false,
+      parserAndValidationCache: false,
+      plugins: [
+        maxTokensPlugin({ n: maxOperationTokens }),
+        maxDepthPlugin({
+          n: maxOperationDepth,
+          ignoreIntrospection: false,
+        }),
+        maxAliasesPlugin({
+          n: maxOperationAliases,
+          allowList: [],
+        }),
+      ],
+    });
 
-  return yoga.handle(c.req.raw);
-}) as any;
+    return yoga.handle(c.req.raw);
+  }) as any;

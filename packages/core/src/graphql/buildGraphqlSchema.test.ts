@@ -8,7 +8,7 @@ import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { type GraphQLType, execute, parse } from "graphql";
 import { beforeEach, expect, test } from "vitest";
-import { buildGraphqlSchema } from "./buildGraphqlSchema.js";
+import { buildGraphQLSchema } from "./buildGraphqlSchema.js";
 import { buildLoaderCache } from "./buildLoaderCache.js";
 
 beforeEach(setupCommon);
@@ -49,7 +49,7 @@ test("scalar", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -117,7 +117,7 @@ test("scalar list", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -185,7 +185,7 @@ test("scalar optional", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -253,7 +253,7 @@ test("scalar optional list", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -311,7 +311,7 @@ test("json", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -360,7 +360,7 @@ test("enum", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -409,7 +409,7 @@ test("enum optional", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -467,7 +467,7 @@ test("enum list", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -525,7 +525,7 @@ test("enum optional list", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -579,7 +579,7 @@ test("one", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -650,7 +650,7 @@ test("many", async (context) => {
     id: "0",
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -731,7 +731,7 @@ test("many w/ filter", async (context) => {
     id: "0",
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -786,7 +786,7 @@ test("bigint id", async (context) => {
     id: 0n,
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -828,7 +828,7 @@ test("hex id", async (context) => {
     id: "0x00",
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -872,7 +872,7 @@ test("filter string eq", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -934,7 +934,7 @@ test("filter string in", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1008,7 +1008,7 @@ test("filter string contains", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1082,7 +1082,7 @@ test("filter string starts with", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1156,7 +1156,7 @@ test("filter string not ends with", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1218,7 +1218,7 @@ test("filter int eq", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1292,7 +1292,7 @@ test("filter int gt", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1354,7 +1354,7 @@ test("filter int lte", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1416,7 +1416,7 @@ test("filter int in", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1478,7 +1478,7 @@ test("filter float eq", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1552,7 +1552,7 @@ test("filter float gt", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1614,7 +1614,7 @@ test("filter float lte", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1676,7 +1676,7 @@ test("filter float in", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1738,7 +1738,7 @@ test("filter bigint eq", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1812,7 +1812,7 @@ test("filter bigint gt", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1874,7 +1874,7 @@ test("filter bigint lte", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1936,7 +1936,7 @@ test("filter bigint in", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -1998,7 +1998,7 @@ test("filer hex eq", async (context) => {
 
   await create("0", indexingStore);
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2072,7 +2072,7 @@ test("filter hex gt", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2146,7 +2146,7 @@ test("filter string list eq", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2220,7 +2220,7 @@ test("filter string list has", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2285,7 +2285,7 @@ test("filter enum eq", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2340,7 +2340,7 @@ test("filter enum in", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2400,7 +2400,7 @@ test("filter ref eq", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2467,7 +2467,7 @@ test("filter ref in", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2553,7 +2553,7 @@ test("order int asc", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2637,7 +2637,7 @@ test("order bigint asc", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2721,7 +2721,7 @@ test("order bigint desc", async (context) => {
     },
   });
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2779,7 +2779,7 @@ test("limit default", async (context) => {
     await create(String(i), indexingStore);
   }
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2830,7 +2830,7 @@ test("limit", async (context) => {
     await create(String(i), indexingStore);
   }
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2881,7 +2881,7 @@ test("limit error", async (context) => {
   //   await create(String(i), indexingStore);
   // }
 
-  const graphqlSchema = buildGraphqlSchema(schema);
+  const graphqlSchema = buildGraphQLSchema(schema);
 
   const document = parse(`
   query {
@@ -2935,7 +2935,7 @@ test("filter type has correct suffixes and types", () => {
     }),
   }));
 
-  const serverSchema = buildGraphqlSchema(s);
+  const serverSchema = buildGraphQLSchema(s);
 
   const typeMap = serverSchema.getTypeMap();
 

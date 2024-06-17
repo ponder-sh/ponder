@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
+import { type GraphQLSchema, printSchema } from "graphql";
 
 export const ponderEnv = `// This file enables type checking and editor autocomplete for this Ponder project.
 // After upgrading, you may find that changes have been made to this file.
@@ -38,10 +39,10 @@ declare module "@/generated" {
 
 export function runCodegen({
   common,
-  // graphqlSchema,
+  graphQLSchema,
 }: {
   common: Common;
-  // graphqlSchema: GraphQLSchema;
+  graphQLSchema: GraphQLSchema;
 }) {
   writeFileSync(
     path.join(common.options.rootDir, "ponder-env.d.ts"),
@@ -55,11 +56,11 @@ export function runCodegen({
   });
 
   mkdirSync(common.options.generatedDir, { recursive: true });
-  // writeFileSync(
-  //   path.join(common.options.generatedDir, "schema.graphql"),
-  //   printSchema(graphqlSchema),
-  //   "utf-8",
-  // );
+  writeFileSync(
+    path.join(common.options.generatedDir, "schema.graphql"),
+    printSchema(graphQLSchema),
+    "utf-8",
+  );
 
   common.logger.debug({
     service: "codegen",

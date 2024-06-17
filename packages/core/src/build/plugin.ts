@@ -1,8 +1,5 @@
-import path from "node:path";
-import type { Common } from "@/common/common.js";
 import MagicString from "magic-string";
 import type { Plugin } from "vite";
-import { SERVER_FILE } from "./service.js";
 
 export const ponderRegex =
   /^import\s+\{[^}]*\bponder\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
@@ -32,14 +29,11 @@ export function replaceStateless(code: string, regex: RegExp, shim: string) {
   return s;
 }
 
-export const vitePluginPonder = (common: Common): Plugin => {
+export const vitePluginPonder = (): Plugin => {
   return {
     name: "ponder",
     transform: (code, id) => {
-      if (
-        id === path.join(common.options.srcDir, SERVER_FILE) &&
-        serverRegex.test(code)
-      ) {
+      if (serverRegex.test(code)) {
         const s = replaceStateless(code, serverRegex, serverShim);
         const transformed = s.toString();
         const sourcemap = s.generateMap({ source: id });

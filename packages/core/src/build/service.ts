@@ -6,9 +6,11 @@ import type { Config, OptionsConfig } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { EventSource } from "@/config/sources.js";
+import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
 import type { Schema } from "@/schema/common.js";
 import { glob } from "glob";
-import type { Hono } from "hono";
+import type { GraphQLSchema } from "graphql";
+import { Hono } from "hono";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -25,8 +27,6 @@ import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 const BUILD_ID_VERSION = "1";
-// TODO(kyle) use option for server
-export const SERVER_FILE = "_server.ts";
 
 export type Service = {
   // static
@@ -49,6 +49,7 @@ export type Build = {
   networks: Network[];
   // Schema
   schema: Schema;
+  graphQLSchema: GraphQLSchema;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
   // Server
@@ -113,7 +114,7 @@ export const create = async ({
     publicDir: false,
     customLogger: viteLogger,
     server: { hmr: false },
-    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder(common)],
+    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
   });
 
   // This is Vite boilerplate (initializes the Rollup container).
@@ -237,7 +238,7 @@ export const start = async (
         buildService.srcRegex.test(file),
       );
       const hasServerUpdate = invalidated.includes(
-        SERVER_FILE.replace(/\\/g, "/"),
+        common.options.serverFile.replace(/\\/g, "/"),
       );
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
@@ -391,6 +392,8 @@ const executeIndexingFunctions = async (
 
   for (const executeResult of executeResults) {
     if (executeResult.status === "error") {
+      console.log("Bad");
+
       buildService.common.logger.error({
         service: "build",
         msg: `Error while executing '${path.relative(
@@ -435,16 +438,14 @@ const executeServer = async (
     }
   | { status: "error"; error: Error }
 > => {
-  const doesServerExist = fs.existsSync(
-    path.join(buildService.common.options.srcDir, SERVER_FILE),
-  );
+  const doesServerExist = fs.existsSync(buildService.common.options.serverFile);
 
   if (doesServerExist === false) {
     return { status: "success" };
   }
 
   const executeResult = await executeFile(buildService, {
-    file: path.join(buildService.common.options.srcDir, SERVER_FILE),
+    file: buildService.common.options.serverFile,
   });
 
   if (executeResult.status === "error") {
@@ -452,7 +453,7 @@ const executeServer = async (
       service: "build",
       msg: `Error while executing '${path.relative(
         buildService.common.options.rootDir,
-        SERVER_FILE,
+        buildService.common.options.serverFile,
       )}':`,
       error: executeResult.error,
     });
@@ -462,7 +463,12 @@ const executeServer = async (
 
   const app = executeResult.exports.hono as Hono;
 
-  // TODO: check export instanceof Hono
+  buildService.common.logger.debug({
+    service: "build",
+    msg: `found server with routes: [${app.routes
+      .map((r) => r.path)
+      .join(", ")}]`,
+  });
 
   return { status: "success", app };
 };
@@ -488,6 +494,8 @@ const validateAndBuild = async (
   for (const log of buildSchemaResult.logs) {
     common.logger[log.level]({ service: "build", msg: log.msg });
   }
+
+  const graphQLSchema = buildGraphQLSchema(buildSchemaResult.schema);
 
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
@@ -532,6 +540,7 @@ const validateAndBuild = async (
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
       schema: buildSchemaResult.schema,
+      graphQLSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
       app: rawBuild.server.app,

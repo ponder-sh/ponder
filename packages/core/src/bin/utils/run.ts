@@ -59,6 +59,7 @@ export async function run({
     optionsConfig,
     networks,
     sources,
+    graphQLSchema,
     schema,
     indexingFunctions,
   } = build;
@@ -111,7 +112,7 @@ export async function run({
   // starting the server so the app can become responsive more quickly.
   await database.migrateSyncStore();
 
-  runCodegen({ common });
+  runCodegen({ common, graphQLSchema });
 
   // Note: can throw
   const syncService = await createSyncService({

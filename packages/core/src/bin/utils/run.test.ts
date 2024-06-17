@@ -5,7 +5,7 @@ import {
 } from "@/_test/setup.js";
 import type { Build } from "@/build/index.js";
 import * as codegen from "@/common/codegen.js";
-import { buildGraphqlSchema } from "@/graphql/buildGraphqlSchema.js";
+import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
 import { createSchema } from "@/schema/schema.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -26,13 +26,13 @@ const schema = createSchema((p) => ({
   }),
 }));
 
-const graphqlSchema = buildGraphqlSchema(schema);
+const graphQLSchema = buildGraphQLSchema(schema);
 
 test("run() kill", async (context) => {
   const build: Build = {
     buildId: "buildId",
     schema,
-    graphqlSchema,
+    graphQLSchema,
     databaseConfig: context.databaseConfig,
     optionsConfig: {},
     networks: context.networks,
@@ -62,7 +62,7 @@ test("run() setup", async (context) => {
   const build: Build = {
     buildId: "buildId",
     schema,
-    graphqlSchema,
+    graphQLSchema,
     databaseConfig: context.databaseConfig,
     optionsConfig: {},
     networks: context.networks,
@@ -91,7 +91,7 @@ test("run() setup error", async (context) => {
   const build: Build = {
     buildId: "buildId",
     schema,
-    graphqlSchema,
+    graphQLSchema,
     databaseConfig: context.databaseConfig,
     optionsConfig: {},
     networks: context.networks,
