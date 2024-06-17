@@ -87,7 +87,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     const internalDatabaseFile = path.join(directory, "ponder.db");
 
     this.internalDatabase = createSqliteDatabase(internalDatabaseFile);
-    this.internalDatabase.exec(`ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`);
+    this.internalDatabase.exec(
+      `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
+    );
 
     this.db = new HeadlessKysely<InternalTables>({
       name: "internal",
@@ -189,13 +191,17 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
           // Function to create the operation log tables and user tables.
           const createTables = async () => {
-            for (const [tableName, table] of Object.entries(getTables(schema))) {
+            for (const [tableName, table] of Object.entries(
+              getTables(schema),
+            )) {
               const tableId = namespaceInfo.internalTableIds[tableName];
 
               await tx.schema
                 .withSchema(this.internalNamespace)
                 .createTable(tableId)
-                .$call((builder) => this.buildOperationLogColumns(builder, table.table))
+                .$call((builder) =>
+                  this.buildOperationLogColumns(builder, table.table),
+                )
                 .execute();
 
               await tx.schema
@@ -208,7 +214,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 await tx.schema
                   .withSchema(this.userNamespace)
                   .createTable(tableName)
-                  .$call((builder) => this.buildColumns(builder, schema, table.table))
+                  .$call((builder) =>
+                    this.buildColumns(builder, schema, table.table),
+                  )
                   .execute();
               } catch (err) {
                 const error = err as Error;
@@ -244,7 +252,8 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
           // If the lock row is held and has not expired, we cannot proceed.
           const expiresAt =
-            previousLockRow.heartbeat_at + this.common.options.databaseHeartbeatTimeout;
+            previousLockRow.heartbeat_at +
+            this.common.options.databaseHeartbeatTimeout;
 
           if (previousLockRow.is_locked === 1 && Date.now() <= expiresAt) {
             const expiresInMs = expiresAt - Date.now();
@@ -257,7 +266,8 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           if (
             this.common.options.command === "start" &&
             previousLockRow.build_id === this.buildId &&
-            previousLockRow.finalized_checkpoint !== encodeCheckpoint(zeroCheckpoint)
+            previousLockRow.finalized_checkpoint !==
+              encodeCheckpoint(zeroCheckpoint)
           ) {
             this.common.logger.info({
               service: "database",
@@ -268,7 +278,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
             // Remove any indexes, will be recreated once the app
             // becomes healthy.
-            for (const [tableName, table] of Object.entries(getTables(schema))) {
+            for (const [tableName, table] of Object.entries(
+              getTables(schema),
+            )) {
               if (table.constraints === undefined) continue;
 
               for (const name of Object.keys(table.constraints)) {
@@ -295,7 +307,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               msg: `Acquired lock on schema '${this.userNamespace}'`,
             });
 
-            const finalizedCheckpoint = decodeCheckpoint(previousLockRow.finalized_checkpoint);
+            const finalizedCheckpoint = decodeCheckpoint(
+              previousLockRow.finalized_checkpoint,
+            );
 
             this.common.logger.info({
               service: "database",
@@ -304,7 +318,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
             // Revert unfinalized data from the existing tables.
             const tx_ = tx as KyselyTransaction<any>;
-            for (const [tableName, tableId] of Object.entries(namespaceInfo.internalTableIds)) {
+            for (const [tableName, tableId] of Object.entries(
+              namespaceInfo.internalTableIds,
+            )) {
               const rows = await tx_
                 .withSchema(namespaceInfo.internalNamespace)
                 .deleteFrom(tableId)
@@ -312,7 +328,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
                 .where("checkpoint", ">", previousLockRow.finalized_checkpoint)
                 .execute();
 
-              const reversed = rows.sort((a, b) => b.operation_id - a.operation_id);
+              const reversed = rows.sort(
+                (a, b) => b.operation_id - a.operation_id,
+              );
 
               for (const log of reversed) {
                 if (log.operation === 0) {
@@ -381,7 +399,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           });
 
           for (const tableName of Object.keys(previousSchema.tables)) {
-            const tableId = hash([this.userNamespace, previousBuildId, tableName]);
+            const tableId = hash([
+              this.userNamespace,
+              previousBuildId,
+              tableName,
+            ]);
 
             await tx.schema
               .withSchema(this.internalNamespace)
@@ -483,7 +505,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     });
   }
 
-  async updateFinalizedCheckpoint({ checkpoint }: { checkpoint: Checkpoint }): Promise<void> {
+  async updateFinalizedCheckpoint({
+    checkpoint,
+  }: { checkpoint: Checkpoint }): Promise<void> {
     await this.db.wrap({ method: "updateFinalizedCheckpoint" }, async () => {
       await this.db
         .withSchema(this.internalNamespace)
@@ -525,7 +549,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           this.common.logger.info({
             service: "database",
             msg: `Created index '${tableName}_${name}' on columns (${
-              Array.isArray(index[" column"]) ? index[" column"].join(", ") : index[" column"]
+              Array.isArray(index[" column"])
+                ? index[" column"].join(", ")
+                : index[" column"]
             }) in '${this.userNamespace}.db'`,
           });
         });
@@ -612,11 +638,15 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         });
       } else {
         // Non-list base columns
-        builder = builder.addColumn(columnName, scalarToSqlType[column[" scalar"]], (col) => {
-          if (isOptionalColumn(column) === false) col = col.notNull();
-          if (columnName === "id") col = col.primaryKey();
-          return col;
-        });
+        builder = builder.addColumn(
+          columnName,
+          scalarToSqlType[column[" scalar"]],
+          (col) => {
+            if (isOptionalColumn(column) === false) col = col.notNull();
+            if (columnName === "id") col = col.primaryKey();
+            return col;
+          },
+        );
       }
     });
 
@@ -642,10 +672,14 @@ export class SqliteDatabaseService implements BaseDatabaseService {
         builder = builder.addColumn(columnName, "jsonb");
       } else {
         // Non-list base columns
-        builder = builder.addColumn(columnName, scalarToSqlType[column[" scalar"]], (col) => {
-          if (columnName === "id") col = col.notNull();
-          return col;
-        });
+        builder = builder.addColumn(
+          columnName,
+          scalarToSqlType[column[" scalar"]],
+          (col) => {
+            if (columnName === "id") col = col.notNull();
+            return col;
+          },
+        );
       }
     });
 
@@ -658,7 +692,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   }
 
   private registerMetrics() {
-    this.common.metrics.registry.removeSingleMetric("ponder_sqlite_query_total");
+    this.common.metrics.registry.removeSingleMetric(
+      "ponder_sqlite_query_total",
+    );
     this.common.metrics.ponder_sqlite_query_total = new prometheus.Counter({
       name: "ponder_sqlite_query_total",
       help: "Number of queries submitted to the database",

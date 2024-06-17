@@ -430,7 +430,9 @@ export const PrimitiveManagerAbi = [
       { internalType: "uint256", name: "minLiquidityOut", type: "uint256" },
     ],
     name: "allocate",
-    outputs: [{ internalType: "uint256", name: "delLiquidity", type: "uint256" }],
+    outputs: [
+      { internalType: "uint256", name: "delLiquidity", type: "uint256" },
+    ],
     stateMutability: "payable",
     type: "function",
   },

@@ -68,13 +68,18 @@ function hasDynamicChild(param: AbiParameter) {
   if (type === "tuple") return (param as any).components?.some(hasDynamicChild);
 
   const arrayComponents = getArrayComponents(param.type);
-  if (arrayComponents && hasDynamicChild({ ...param, type: arrayComponents[1] } as AbiParameter))
+  if (
+    arrayComponents &&
+    hasDynamicChild({ ...param, type: arrayComponents[1] } as AbiParameter)
+  )
     return true;
 
   return false;
 }
 
-function getArrayComponents(type: string): [length: number | null, innerType: string] | undefined {
+function getArrayComponents(
+  type: string,
+): [length: number | null, innerType: string] | undefined {
   const matches = type.match(/^(.*)\[(\d+)?\]$/);
   return matches
     ? // Return `null` if the array is dynamic.

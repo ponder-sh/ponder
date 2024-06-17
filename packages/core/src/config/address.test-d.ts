@@ -10,7 +10,9 @@ const address = <const contract>(
     : contract,
 ) => c;
 
-const event0 = parseAbiItem("event Event0(bytes32 indexed arg, bytes32 indexed arg1)");
+const event0 = parseAbiItem(
+  "event Event0(bytes32 indexed arg, bytes32 indexed arg1)",
+);
 const func = parseAbiItem("function func()");
 
 test("no address or factory", () => {

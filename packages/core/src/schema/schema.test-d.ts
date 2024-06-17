@@ -28,7 +28,9 @@ test("createSchema reference", () => {
   type inferred = InferSchemaType<typeof schema>;
   //   ^?
 
-  assertType<inferred>({} as unknown as { t1: { id: Hex }; t2: { id: Hex; col: Hex } });
+  assertType<inferred>(
+    {} as unknown as { t1: { id: Hex }; t2: { id: Hex; col: Hex } },
+  );
 });
 
 test("createSchema reference error", () => {
@@ -57,7 +59,9 @@ test("createSchema one", () => {
   type inferred = InferSchemaType<typeof schema>;
   //   ^?
 
-  assertType<inferred>({} as unknown as { t1: { id: Hex }; t2: { id: Hex; col1: Hex } });
+  assertType<inferred>(
+    {} as unknown as { t1: { id: Hex }; t2: { id: Hex; col1: Hex } },
+  );
 });
 
 test("createSchema one error", () => {
@@ -89,7 +93,9 @@ test("createSchema many", () => {
   type inferred = InferSchemaType<typeof schema>;
   //   ^?
 
-  assertType<inferred>({} as unknown as { t1: { id: Hex }; t2: { id: Hex; col1: Hex } });
+  assertType<inferred>(
+    {} as unknown as { t1: { id: Hex }; t2: { id: Hex; col1: Hex } },
+  );
 });
 
 test("createSchema many error wrong table", () => {
@@ -137,7 +143,9 @@ test("createSchema enum", () => {
   type inferred = InferSchemaType<typeof schema>;
   //   ^?
 
-  assertType<inferred>({} as unknown as { t: { id: Hex; enum: "one" | "two" } });
+  assertType<inferred>(
+    {} as unknown as { t: { id: Hex; enum: "one" | "two" } },
+  );
 });
 
 test("createSchema enum error", () => {

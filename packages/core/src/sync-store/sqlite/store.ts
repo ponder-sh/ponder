@@ -51,7 +51,13 @@ import {
   type SqlBool,
   sql,
 } from "kysely";
-import { type Hex, type TransactionReceipt, checksumAddress, hexToBigInt, hexToNumber } from "viem";
+import {
+  type Hex,
+  type TransactionReceipt,
+  checksumAddress,
+  hexToBigInt,
+  hexToNumber,
+} from "viem";
 import type { RawEvent, SyncStore } from "../store.js";
 import {
   type InsertableCallTrace,
@@ -72,7 +78,10 @@ export class SqliteSyncStore implements SyncStore {
 
   private seconds: number;
 
-  constructor({ db, common }: { db: HeadlessKysely<SyncStoreTables>; common: Common }) {
+  constructor({
+    db,
+    common,
+  }: { db: HeadlessKysely<SyncStoreTables>; common: Common }) {
     this.db = db;
     this.common = common;
 
@@ -121,10 +130,12 @@ export class SqliteSyncStore implements SyncStore {
         }
 
         if (rpcTransactionReceipts.length > 0) {
-          const transactionReceipts = rpcTransactionReceipts.map((rpcTransactionReceipt) => ({
-            ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
-            chainId,
-          }));
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
           await tx
             .insertInto("transactionReceipts")
             .values(transactionReceipts)
@@ -201,24 +212,36 @@ export class SqliteSyncStore implements SyncStore {
               ]),
             );
 
-            const mergedIntervalRows = mergedIntervals.map(([startBlock, endBlock]) => ({
-              logFilterId,
-              startBlock: encodeAsText(startBlock),
-              endBlock: encodeAsText(endBlock),
-            }));
+            const mergedIntervalRows = mergedIntervals.map(
+              ([startBlock, endBlock]) => ({
+                logFilterId,
+                startBlock: encodeAsText(startBlock),
+                endBlock: encodeAsText(endBlock),
+              }),
+            );
 
             if (mergedIntervalRows.length > 0) {
-              await tx.insertInto("logFilterIntervals").values(mergedIntervalRows).execute();
+              await tx
+                .insertInto("logFilterIntervals")
+                .values(mergedIntervalRows)
+                .execute();
             }
 
-            if (mergedIntervalRows.length === this.common.options.syncStoreMaxIntervals) {
+            if (
+              mergedIntervalRows.length ===
+              this.common.options.syncStoreMaxIntervals
+            ) {
               // This occurs when there are too many non-mergeable ranges with the same logFilterId. Should be almost impossible.
               throw new NonRetryableError(
                 `'logFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
               );
             }
 
-            if (existingIntervals.length !== this.common.options.syncStoreMaxIntervals) break;
+            if (
+              existingIntervals.length !==
+              this.common.options.syncStoreMaxIntervals
+            )
+              break;
           }
         });
       }
@@ -242,10 +265,17 @@ export class SqliteSyncStore implements SyncStore {
         .innerJoin("logFilters", "logFilterId", "logFilters.id")
         .innerJoin("logFilterFragments", (join) => {
           let baseJoin = join.on((eb) =>
-            eb.or([eb("address", "is", null), eb("fragmentAddress", "=", sql.ref("address"))]),
+            eb.or([
+              eb("address", "is", null),
+              eb("fragmentAddress", "=", sql.ref("address")),
+            ]),
           );
           baseJoin = baseJoin.on((eb) =>
-            eb("fragmentIncludeTransactionReceipts", "<=", sql.ref("includeTransactionReceipts")),
+            eb(
+              "fragmentIncludeTransactionReceipts",
+              "<=",
+              sql.ref("includeTransactionReceipts"),
+            ),
           );
           for (const idx_ of range(0, 4)) {
             baseJoin = baseJoin.on((eb) => {
@@ -289,19 +319,22 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     logs: SyncLog[];
   }) => {
-    return this.db.wrap({ method: "insertFactoryChildAddressLogs" }, async () => {
-      if (rpcLogs.length > 0) {
-        const logs = rpcLogs.map((rpcLog) => ({
-          ...rpcToSqliteLog(rpcLog),
-          chainId,
-        }));
-        await this.db
-          .insertInto("logs")
-          .values(logs)
-          .onConflict((oc) => oc.column("id").doNothing())
-          .execute();
-      }
-    });
+    return this.db.wrap(
+      { method: "insertFactoryChildAddressLogs" },
+      async () => {
+        if (rpcLogs.length > 0) {
+          const logs = rpcLogs.map((rpcLog) => ({
+            ...rpcToSqliteLog(rpcLog),
+            chainId,
+          }));
+          await this.db
+            .insertInto("logs")
+            .values(logs)
+            .onConflict((oc) => oc.column("id").doNothing())
+            .execute();
+        }
+      },
+    );
   };
 
   async *getFactoryChildAddresses({
@@ -318,9 +351,10 @@ export class SqliteSyncStore implements SyncStore {
     pageSize?: number;
   }) {
     const { address, eventSelector, childAddressLocation } = factory;
-    const selectChildAddressExpression = buildFactoryChildAddressSelectExpression({
-      childAddressLocation,
-    });
+    const selectChildAddressExpression =
+      buildFactoryChildAddressSelectExpression({
+        childAddressLocation,
+      });
 
     const baseQuery = this.db
       .selectFrom("logs")
@@ -339,8 +373,9 @@ export class SqliteSyncStore implements SyncStore {
       let query = baseQuery;
       if (cursor !== undefined) query = query.where("id", ">", cursor);
 
-      const batch = await this.db.wrap({ method: "getFactoryChildAddresses" }, () =>
-        query.execute(),
+      const batch = await this.db.wrap(
+        { method: "getFactoryChildAddresses" },
+        () => query.execute(),
       );
 
       if (batch.length > 0) {
@@ -371,67 +406,72 @@ export class SqliteSyncStore implements SyncStore {
     logs: SyncLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    return this.db.wrap({ method: "insertFactoryLogFilterInterval" }, async () => {
-      await this.db.transaction().execute(async (tx) => {
-        await tx
-          .insertInto("blocks")
-          .values({
-            ...rpcToSqliteBlock(rpcBlock),
-            chainId,
-            checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
-          })
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute();
-
-        if (rpcTransactions.length > 0) {
-          const transactions = rpcTransactions.map((rpcTransaction) => ({
-            ...rpcToSqliteTransaction(rpcTransaction),
-            chainId,
-          }));
+    return this.db.wrap(
+      { method: "insertFactoryLogFilterInterval" },
+      async () => {
+        await this.db.transaction().execute(async (tx) => {
           await tx
-            .insertInto("transactions")
-            .values(transactions)
+            .insertInto("blocks")
+            .values({
+              ...rpcToSqliteBlock(rpcBlock),
+              chainId,
+              checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
+            })
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
-        }
 
-        if (rpcTransactionReceipts.length > 0) {
-          const transactionReceipts = rpcTransactionReceipts.map((rpcTransactionReceipt) => ({
-            ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
+          if (rpcTransactions.length > 0) {
+            const transactions = rpcTransactions.map((rpcTransaction) => ({
+              ...rpcToSqliteTransaction(rpcTransaction),
+              chainId,
+            }));
+            await tx
+              .insertInto("transactions")
+              .values(transactions)
+              .onConflict((oc) => oc.column("hash").doNothing())
+              .execute();
+          }
+
+          if (rpcTransactionReceipts.length > 0) {
+            const transactionReceipts = rpcTransactionReceipts.map(
+              (rpcTransactionReceipt) => ({
+                ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
+                chainId,
+              }),
+            );
+            await tx
+              .insertInto("transactionReceipts")
+              .values(transactionReceipts)
+              .onConflict((oc) => oc.column("transactionHash").doNothing())
+              .execute();
+          }
+
+          if (rpcLogs.length > 0) {
+            const logs = rpcLogs.map((rpcLog) => ({
+              ...rpcToSqliteLog(rpcLog),
+              chainId,
+              checkpoint: this.createLogCheckpoint(rpcLog, rpcBlock, chainId),
+            }));
+            await tx
+              .insertInto("logs")
+              .values(logs)
+              .onConflict((oc) =>
+                oc.column("id").doUpdateSet((eb) => ({
+                  checkpoint: eb.ref("excluded.checkpoint"),
+                })),
+              )
+              .execute();
+          }
+
+          await this._insertFactoryLogFilterInterval({
+            tx,
             chainId,
-          }));
-          await tx
-            .insertInto("transactionReceipts")
-            .values(transactionReceipts)
-            .onConflict((oc) => oc.column("transactionHash").doNothing())
-            .execute();
-        }
-
-        if (rpcLogs.length > 0) {
-          const logs = rpcLogs.map((rpcLog) => ({
-            ...rpcToSqliteLog(rpcLog),
-            chainId,
-            checkpoint: this.createLogCheckpoint(rpcLog, rpcBlock, chainId),
-          }));
-          await tx
-            .insertInto("logs")
-            .values(logs)
-            .onConflict((oc) =>
-              oc.column("id").doUpdateSet((eb) => ({
-                checkpoint: eb.ref("excluded.checkpoint"),
-              })),
-            )
-            .execute();
-        }
-
-        await this._insertFactoryLogFilterInterval({
-          tx,
-          chainId,
-          factoryLogFilters: [factory],
-          interval,
+            factoryLogFilters: [factory],
+            interval,
+          });
         });
-      });
-    });
+      },
+    );
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -441,123 +481,149 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     factory: FactoryLogFilterCriteria;
   }) => {
-    return this.db.wrap({ method: "getFactoryLogFilterIntervals" }, async () => {
-      const fragments = buildFactoryLogFragments({ ...factory, chainId });
+    return this.db.wrap(
+      { method: "getFactoryLogFilterIntervals" },
+      async () => {
+        const fragments = buildFactoryLogFragments({ ...factory, chainId });
 
-      for (const fragment of fragments) {
-        await this.db.transaction().execute(async (tx) => {
-          while (true) {
-            const { id: factoryId } = await tx
-              .insertInto("factoryLogFilters")
-              .values(fragment)
-              .onConflict((oc) => oc.doUpdateSet(fragment))
-              .returningAll()
-              .executeTakeFirstOrThrow();
+        for (const fragment of fragments) {
+          await this.db.transaction().execute(async (tx) => {
+            while (true) {
+              const { id: factoryId } = await tx
+                .insertInto("factoryLogFilters")
+                .values(fragment)
+                .onConflict((oc) => oc.doUpdateSet(fragment))
+                .returningAll()
+                .executeTakeFirstOrThrow();
 
-            // This is a trick to add a LIMIT to a DELETE statement
-            const existingIntervals = await tx
-              .deleteFrom("factoryLogFilterIntervals")
-              .where(
-                "id",
-                "in",
-                tx
-                  .selectFrom("factoryLogFilterIntervals")
-                  .where("factoryId", "=", factoryId)
-                  .select("id")
-                  .limit(this.common.options.syncStoreMaxIntervals),
+              // This is a trick to add a LIMIT to a DELETE statement
+              const existingIntervals = await tx
+                .deleteFrom("factoryLogFilterIntervals")
+                .where(
+                  "id",
+                  "in",
+                  tx
+                    .selectFrom("factoryLogFilterIntervals")
+                    .where("factoryId", "=", factoryId)
+                    .select("id")
+                    .limit(this.common.options.syncStoreMaxIntervals),
+                )
+                .returning(["startBlock", "endBlock"])
+                .execute();
+
+              const mergedIntervals = intervalUnion(
+                existingIntervals.map((i) => [
+                  Number(decodeToBigInt(i.startBlock)),
+                  Number(decodeToBigInt(i.endBlock)),
+                ]),
+              );
+
+              const mergedIntervalRows = mergedIntervals.map(
+                ([startBlock, endBlock]) => ({
+                  factoryId,
+                  startBlock: encodeAsText(startBlock),
+                  endBlock: encodeAsText(endBlock),
+                }),
+              );
+
+              if (mergedIntervalRows.length > 0) {
+                await tx
+                  .insertInto("factoryLogFilterIntervals")
+                  .values(mergedIntervalRows)
+                  .execute();
+              }
+
+              if (
+                mergedIntervalRows.length ===
+                this.common.options.syncStoreMaxIntervals
+              ) {
+                // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
+                throw new NonRetryableError(
+                  `'factoryLogFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
+                );
+              }
+
+              if (
+                existingIntervals.length !==
+                this.common.options.syncStoreMaxIntervals
               )
-              .returning(["startBlock", "endBlock"])
-              .execute();
+                break;
+            }
+          });
+        }
 
-            const mergedIntervals = intervalUnion(
-              existingIntervals.map((i) => [
-                Number(decodeToBigInt(i.startBlock)),
-                Number(decodeToBigInt(i.endBlock)),
+        const intervals = await this.db
+          .with(
+            "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3, fragmentIncludeTransactionReceipts)",
+            () =>
+              sql`( values ${sql.join(
+                fragments.map(
+                  (f) =>
+                    sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
+                      f.eventSelector,
+                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(f.topic0)}, ${sql.val(
+                      f.topic1,
+                    )}, ${sql.val(f.topic2)}, ${sql.val(f.topic3)}, ${sql.lit(
+                      f.includeTransactionReceipts,
+                    )} )`,
+                ),
+              )} )`,
+          )
+          .selectFrom("factoryLogFilterIntervals")
+          .innerJoin("factoryLogFilters", "factoryId", "factoryLogFilters.id")
+          .innerJoin("factoryFilterFragments", (join) => {
+            let baseJoin = join.on((eb) =>
+              eb.and([
+                eb("fragmentAddress", "=", sql.ref("address")),
+                eb("fragmentEventSelector", "=", sql.ref("eventSelector")),
+                eb(
+                  "fragmentChildAddressLocation",
+                  "=",
+                  sql.ref("childAddressLocation"),
+                ),
               ]),
             );
-
-            const mergedIntervalRows = mergedIntervals.map(([startBlock, endBlock]) => ({
-              factoryId,
-              startBlock: encodeAsText(startBlock),
-              endBlock: encodeAsText(endBlock),
-            }));
-
-            if (mergedIntervalRows.length > 0) {
-              await tx.insertInto("factoryLogFilterIntervals").values(mergedIntervalRows).execute();
-            }
-
-            if (mergedIntervalRows.length === this.common.options.syncStoreMaxIntervals) {
-              // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
-              throw new NonRetryableError(
-                `'factoryLogFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
-              );
-            }
-
-            if (existingIntervals.length !== this.common.options.syncStoreMaxIntervals) break;
-          }
-        });
-      }
-
-      const intervals = await this.db
-        .with(
-          "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3, fragmentIncludeTransactionReceipts)",
-          () =>
-            sql`( values ${sql.join(
-              fragments.map(
-                (f) =>
-                  sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                    f.eventSelector,
-                  )}, ${sql.val(f.childAddressLocation)}, ${sql.val(f.topic0)}, ${sql.val(
-                    f.topic1,
-                  )}, ${sql.val(f.topic2)}, ${sql.val(f.topic3)}, ${sql.lit(
-                    f.includeTransactionReceipts,
-                  )} )`,
+            baseJoin = baseJoin.on((eb) =>
+              eb(
+                "fragmentIncludeTransactionReceipts",
+                "<=",
+                sql.ref("includeTransactionReceipts"),
               ),
-            )} )`,
-        )
-        .selectFrom("factoryLogFilterIntervals")
-        .innerJoin("factoryLogFilters", "factoryId", "factoryLogFilters.id")
-        .innerJoin("factoryFilterFragments", (join) => {
-          let baseJoin = join.on((eb) =>
-            eb.and([
-              eb("fragmentAddress", "=", sql.ref("address")),
-              eb("fragmentEventSelector", "=", sql.ref("eventSelector")),
-              eb("fragmentChildAddressLocation", "=", sql.ref("childAddressLocation")),
-            ]),
-          );
-          baseJoin = baseJoin.on((eb) =>
-            eb("fragmentIncludeTransactionReceipts", "<=", sql.ref("includeTransactionReceipts")),
-          );
-          for (const idx_ of range(0, 4)) {
-            baseJoin = baseJoin.on((eb) => {
-              const idx = idx_ as 0 | 1 | 2 | 3;
-              return eb.or([
-                eb(`topic${idx}`, "is", null),
-                eb(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
-              ]);
-            });
-          }
+            );
+            for (const idx_ of range(0, 4)) {
+              baseJoin = baseJoin.on((eb) => {
+                const idx = idx_ as 0 | 1 | 2 | 3;
+                return eb.or([
+                  eb(`topic${idx}`, "is", null),
+                  eb(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
+                ]);
+              });
+            }
 
-          return baseJoin;
-        })
-        .select(["fragmentId", "startBlock", "endBlock"])
-        .where("chainId", "=", chainId)
-        .execute();
+            return baseJoin;
+          })
+          .select(["fragmentId", "startBlock", "endBlock"])
+          .where("chainId", "=", chainId)
+          .execute();
 
-      const intervalsByFragmentId = intervals.reduce(
-        (acc, cur) => {
-          const { fragmentId, startBlock, endBlock } = cur;
-          (acc[fragmentId] ||= []).push([Number(startBlock), Number(endBlock)]);
-          return acc;
-        },
-        {} as Record<string, [number, number][]>,
-      );
+        const intervalsByFragmentId = intervals.reduce(
+          (acc, cur) => {
+            const { fragmentId, startBlock, endBlock } = cur;
+            (acc[fragmentId] ||= []).push([
+              Number(startBlock),
+              Number(endBlock),
+            ]);
+            return acc;
+          },
+          {} as Record<string, [number, number][]>,
+        );
 
-      const intervalsForEachFragment = fragments.map((f) =>
-        intervalUnion(intervalsByFragmentId[f.id] ?? []),
-      );
-      return intervalIntersectionMany(intervalsForEachFragment);
-    });
+        const intervalsForEachFragment = fragments.map((f) =>
+          intervalUnion(intervalsByFragmentId[f.id] ?? []),
+        );
+        return intervalIntersectionMany(intervalsForEachFragment);
+      },
+    );
   };
 
   insertBlockFilterInterval = async ({
@@ -632,26 +698,35 @@ export class SqliteSyncStore implements SyncStore {
           ]),
         );
 
-        const mergedIntervalRows = mergedIntervals.map(([startBlock, endBlock]) => ({
-          blockFilterId,
-          startBlock: encodeAsText(startBlock),
-          endBlock: encodeAsText(endBlock),
-        }));
+        const mergedIntervalRows = mergedIntervals.map(
+          ([startBlock, endBlock]) => ({
+            blockFilterId,
+            startBlock: encodeAsText(startBlock),
+            endBlock: encodeAsText(endBlock),
+          }),
+        );
 
         if (mergedIntervalRows.length > 0) {
-          await tx.insertInto("blockFilterIntervals").values(mergedIntervalRows).execute();
+          await tx
+            .insertInto("blockFilterIntervals")
+            .values(mergedIntervalRows)
+            .execute();
         }
       });
 
       const intervals = await this.db
         .selectFrom("blockFilterIntervals")
         .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
-        .select(["blockFilterIntervals.startBlock", "blockFilterIntervals.endBlock"])
+        .select([
+          "blockFilterIntervals.startBlock",
+          "blockFilterIntervals.endBlock",
+        ])
         .where("blockFilterId", "=", fragment.id)
         .execute();
 
       return intervals.map(
-        ({ startBlock, endBlock }) => [Number(startBlock), Number(endBlock)] as [number, number],
+        ({ startBlock, endBlock }) =>
+          [Number(startBlock), Number(endBlock)] as [number, number],
       );
     });
   };
@@ -715,10 +790,12 @@ export class SqliteSyncStore implements SyncStore {
         }
 
         if (rpcTransactionReceipts.length > 0) {
-          const transactionReceipts = rpcTransactionReceipts.map((rpcTransactionReceipt) => ({
-            ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
-            chainId,
-          }));
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
           await tx
             .insertInto("transactionReceipts")
             .values(transactionReceipts)
@@ -831,24 +908,36 @@ export class SqliteSyncStore implements SyncStore {
               ]),
             );
 
-            const mergedIntervalRows = mergedIntervals.map(([startBlock, endBlock]) => ({
-              traceFilterId,
-              startBlock: encodeAsText(startBlock),
-              endBlock: encodeAsText(endBlock),
-            }));
+            const mergedIntervalRows = mergedIntervals.map(
+              ([startBlock, endBlock]) => ({
+                traceFilterId,
+                startBlock: encodeAsText(startBlock),
+                endBlock: encodeAsText(endBlock),
+              }),
+            );
 
             if (mergedIntervalRows.length > 0) {
-              await tx.insertInto("traceFilterIntervals").values(mergedIntervalRows).execute();
+              await tx
+                .insertInto("traceFilterIntervals")
+                .values(mergedIntervalRows)
+                .execute();
             }
 
-            if (mergedIntervalRows.length === this.common.options.syncStoreMaxIntervals) {
+            if (
+              mergedIntervalRows.length ===
+              this.common.options.syncStoreMaxIntervals
+            ) {
               // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
               throw new NonRetryableError(
                 `'traceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
               );
             }
 
-            if (existingIntervals.length !== this.common.options.syncStoreMaxIntervals) break;
+            if (
+              existingIntervals.length !==
+              this.common.options.syncStoreMaxIntervals
+            )
+              break;
           }
         });
       }
@@ -917,103 +1006,110 @@ export class SqliteSyncStore implements SyncStore {
     traces: SyncCallTrace[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    return this.db.wrap({ method: "insertFactoryTraceFilterInterval" }, async () => {
-      await this.db.transaction().execute(async (tx) => {
-        await tx
-          .insertInto("blocks")
-          .values({
-            ...rpcToSqliteBlock(rpcBlock),
-            chainId,
-            checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
-          })
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute();
-
-        if (rpcTransactions.length > 0) {
-          const transactions = rpcTransactions.map((rpcTransaction) => ({
-            ...rpcToSqliteTransaction(rpcTransaction),
-            chainId,
-          }));
+    return this.db.wrap(
+      { method: "insertFactoryTraceFilterInterval" },
+      async () => {
+        await this.db.transaction().execute(async (tx) => {
           await tx
-            .insertInto("transactions")
-            .values(transactions)
+            .insertInto("blocks")
+            .values({
+              ...rpcToSqliteBlock(rpcBlock),
+              chainId,
+              checkpoint: this.createBlockCheckpoint(rpcBlock, chainId),
+            })
             .onConflict((oc) => oc.column("hash").doNothing())
             .execute();
-        }
 
-        if (rpcTransactionReceipts.length > 0) {
-          const transactionReceipts = rpcTransactionReceipts.map((rpcTransactionReceipt) => ({
-            ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
-            chainId,
-          }));
-          await tx
-            .insertInto("transactionReceipts")
-            .values(transactionReceipts)
-            .onConflict((oc) => oc.column("transactionHash").doNothing())
-            .execute();
-        }
-
-        // Delete existing traces with the same `transactionHash`. Then, calculate "callTraces.checkpoint"
-        // based on the ordering of "callTraces.traceAddress" and add all traces to "callTraces" table.
-        const traceByTransactionHash: {
-          [transactionHash: Hex]: SyncCallTrace[];
-        } = {};
-        for (const trace of rpcTraces) {
-          if (traceByTransactionHash[trace.transactionHash] === undefined) {
-            traceByTransactionHash[trace.transactionHash] = [];
-          }
-          traceByTransactionHash[trace.transactionHash].push(trace);
-        }
-
-        for (const transactionHash of Object.keys(traceByTransactionHash)) {
-          const traces = await tx
-            .deleteFrom("callTraces")
-            .returningAll()
-            .where("transactionHash", "=", transactionHash as Hex)
-            .where("chainId", "=", chainId)
-            .execute();
-
-          (traces as Omit<InsertableCallTrace, "checkpoint">[]).push(
-            ...traceByTransactionHash[transactionHash as Hex].map((trace) => ({
-              ...rpcToSqliteTrace(trace),
+          if (rpcTransactions.length > 0) {
+            const transactions = rpcTransactions.map((rpcTransaction) => ({
+              ...rpcToSqliteTransaction(rpcTransaction),
               chainId,
-            })),
-          );
+            }));
+            await tx
+              .insertInto("transactions")
+              .values(transactions)
+              .onConflict((oc) => oc.column("hash").doNothing())
+              .execute();
+          }
 
-          // Use lexographical sort of stringified `traceAddress`.
-          traces.sort((a, b) => {
-            return a.traceAddress < b.traceAddress ? -1 : 1;
-          });
+          if (rpcTransactionReceipts.length > 0) {
+            const transactionReceipts = rpcTransactionReceipts.map(
+              (rpcTransactionReceipt) => ({
+                ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
+                chainId,
+              }),
+            );
+            await tx
+              .insertInto("transactionReceipts")
+              .values(transactionReceipts)
+              .onConflict((oc) => oc.column("transactionHash").doNothing())
+              .execute();
+          }
 
-          for (let i = 0; i < traces.length; i++) {
-            const trace = traces[i];
-            const checkpoint = encodeCheckpoint({
-              blockTimestamp: hexToNumber(rpcBlock.timestamp),
-              chainId: BigInt(chainId),
-              blockNumber: decodeToBigInt(trace.blockNumber),
-              transactionIndex: BigInt(trace.transactionPosition),
-              eventType: EVENT_TYPES.callTraces,
-              eventIndex: BigInt(i),
+          // Delete existing traces with the same `transactionHash`. Then, calculate "callTraces.checkpoint"
+          // based on the ordering of "callTraces.traceAddress" and add all traces to "callTraces" table.
+          const traceByTransactionHash: {
+            [transactionHash: Hex]: SyncCallTrace[];
+          } = {};
+          for (const trace of rpcTraces) {
+            if (traceByTransactionHash[trace.transactionHash] === undefined) {
+              traceByTransactionHash[trace.transactionHash] = [];
+            }
+            traceByTransactionHash[trace.transactionHash].push(trace);
+          }
+
+          for (const transactionHash of Object.keys(traceByTransactionHash)) {
+            const traces = await tx
+              .deleteFrom("callTraces")
+              .returningAll()
+              .where("transactionHash", "=", transactionHash as Hex)
+              .where("chainId", "=", chainId)
+              .execute();
+
+            (traces as Omit<InsertableCallTrace, "checkpoint">[]).push(
+              ...traceByTransactionHash[transactionHash as Hex].map(
+                (trace) => ({
+                  ...rpcToSqliteTrace(trace),
+                  chainId,
+                }),
+              ),
+            );
+
+            // Use lexographical sort of stringified `traceAddress`.
+            traces.sort((a, b) => {
+              return a.traceAddress < b.traceAddress ? -1 : 1;
             });
 
-            trace.checkpoint = checkpoint;
+            for (let i = 0; i < traces.length; i++) {
+              const trace = traces[i];
+              const checkpoint = encodeCheckpoint({
+                blockTimestamp: hexToNumber(rpcBlock.timestamp),
+                chainId: BigInt(chainId),
+                blockNumber: decodeToBigInt(trace.blockNumber),
+                transactionIndex: BigInt(trace.transactionPosition),
+                eventType: EVENT_TYPES.callTraces,
+                eventIndex: BigInt(i),
+              });
+
+              trace.checkpoint = checkpoint;
+            }
+
+            await tx
+              .insertInto("callTraces")
+              .values(traces)
+              .onConflict((oc) => oc.column("id").doNothing())
+              .execute();
           }
 
-          await tx
-            .insertInto("callTraces")
-            .values(traces)
-            .onConflict((oc) => oc.column("id").doNothing())
-            .execute();
-        }
-
-        await this._insertFactoryTraceFilterInterval({
-          tx,
-          chainId,
-          factoryTraceFilters: [factory],
-          interval,
+          await this._insertFactoryTraceFilterInterval({
+            tx,
+            chainId,
+            factoryTraceFilters: [factory],
+            interval,
+          });
         });
-      });
-    });
+      },
+    );
   };
 
   getFactoryTraceFilterIntervals = async ({
@@ -1023,112 +1119,135 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     factory: FactoryCallTraceFilterCriteria;
   }) => {
-    return this.db.wrap({ method: "getFactoryTraceFilterIntervals" }, async () => {
-      const fragments = buildFactoryTraceFragments({ ...factory, chainId });
+    return this.db.wrap(
+      { method: "getFactoryTraceFilterIntervals" },
+      async () => {
+        const fragments = buildFactoryTraceFragments({ ...factory, chainId });
 
-      for (const fragment of fragments) {
-        await this.db.transaction().execute(async (tx) => {
-          while (true) {
-            const { id: factoryId } = await tx
-              .insertInto("factoryTraceFilters")
-              .values(fragment)
-              .onConflict((oc) => oc.doUpdateSet(fragment))
-              .returningAll()
-              .executeTakeFirstOrThrow();
+        for (const fragment of fragments) {
+          await this.db.transaction().execute(async (tx) => {
+            while (true) {
+              const { id: factoryId } = await tx
+                .insertInto("factoryTraceFilters")
+                .values(fragment)
+                .onConflict((oc) => oc.doUpdateSet(fragment))
+                .returningAll()
+                .executeTakeFirstOrThrow();
 
-            // This is a trick to add a LIMIT to a DELETE statement
-            const existingIntervals = await tx
-              .deleteFrom("factoryTraceFilterIntervals")
-              .where(
-                "id",
-                "in",
-                tx
-                  .selectFrom("factoryTraceFilterIntervals")
-                  .where("factoryId", "=", factoryId)
-                  .select("id")
-                  .limit(this.common.options.syncStoreMaxIntervals),
-              )
-              .returning(["startBlock", "endBlock"])
-              .execute();
-
-            const mergedIntervals = intervalUnion(
-              existingIntervals.map((i) => [
-                Number(decodeToBigInt(i.startBlock)),
-                Number(decodeToBigInt(i.endBlock)),
-              ]),
-            );
-
-            const mergedIntervalRows = mergedIntervals.map(([startBlock, endBlock]) => ({
-              factoryId,
-              startBlock: encodeAsText(startBlock),
-              endBlock: encodeAsText(endBlock),
-            }));
-
-            if (mergedIntervalRows.length > 0) {
-              await tx
-                .insertInto("factoryTraceFilterIntervals")
-                .values(mergedIntervalRows)
+              // This is a trick to add a LIMIT to a DELETE statement
+              const existingIntervals = await tx
+                .deleteFrom("factoryTraceFilterIntervals")
+                .where(
+                  "id",
+                  "in",
+                  tx
+                    .selectFrom("factoryTraceFilterIntervals")
+                    .where("factoryId", "=", factoryId)
+                    .select("id")
+                    .limit(this.common.options.syncStoreMaxIntervals),
+                )
+                .returning(["startBlock", "endBlock"])
                 .execute();
-            }
 
-            if (mergedIntervalRows.length === this.common.options.syncStoreMaxIntervals) {
-              // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
-              throw new NonRetryableError(
-                `'factoryTraceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
+              const mergedIntervals = intervalUnion(
+                existingIntervals.map((i) => [
+                  Number(decodeToBigInt(i.startBlock)),
+                  Number(decodeToBigInt(i.endBlock)),
+                ]),
               );
+
+              const mergedIntervalRows = mergedIntervals.map(
+                ([startBlock, endBlock]) => ({
+                  factoryId,
+                  startBlock: encodeAsText(startBlock),
+                  endBlock: encodeAsText(endBlock),
+                }),
+              );
+
+              if (mergedIntervalRows.length > 0) {
+                await tx
+                  .insertInto("factoryTraceFilterIntervals")
+                  .values(mergedIntervalRows)
+                  .execute();
+              }
+
+              if (
+                mergedIntervalRows.length ===
+                this.common.options.syncStoreMaxIntervals
+              ) {
+                // This occurs when there are too many non-mergeable ranges with the same factoryId. Should be almost impossible.
+                throw new NonRetryableError(
+                  `'factoryTraceFilterIntervals' table for chain '${chainId}' has reached an unrecoverable level of fragmentation.`,
+                );
+              }
+
+              if (
+                existingIntervals.length !==
+                this.common.options.syncStoreMaxIntervals
+              )
+                break;
             }
+          });
+        }
 
-            if (existingIntervals.length !== this.common.options.syncStoreMaxIntervals) break;
-          }
-        });
-      }
-
-      const intervals = await this.db
-        .with(
-          "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentFromAddress)",
-          () =>
-            sql`( values ${sql.join(
-              fragments.map(
-                (f) =>
-                  sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                    f.eventSelector,
-                  )}, ${sql.val(f.childAddressLocation)}, ${sql.val(f.fromAddress)} )`,
-              ),
-            )} )`,
-        )
-        .selectFrom("factoryTraceFilterIntervals")
-        .innerJoin("factoryTraceFilters", "factoryId", "factoryTraceFilters.id")
-        .innerJoin("factoryFilterFragments", (join) =>
-          join.on((eb) =>
-            eb.and([
-              eb("fragmentAddress", "=", sql.ref("address")),
-              eb("fragmentEventSelector", "=", sql.ref("eventSelector")),
-              eb("fragmentChildAddressLocation", "=", sql.ref("childAddressLocation")),
-              eb.or([
-                eb("fromAddress", "is", null),
-                eb("fragmentFromAddress", "=", sql.ref("fromAddress")),
+        const intervals = await this.db
+          .with(
+            "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentFromAddress)",
+            () =>
+              sql`( values ${sql.join(
+                fragments.map(
+                  (f) =>
+                    sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
+                      f.eventSelector,
+                    )}, ${sql.val(f.childAddressLocation)}, ${sql.val(f.fromAddress)} )`,
+                ),
+              )} )`,
+          )
+          .selectFrom("factoryTraceFilterIntervals")
+          .innerJoin(
+            "factoryTraceFilters",
+            "factoryId",
+            "factoryTraceFilters.id",
+          )
+          .innerJoin("factoryFilterFragments", (join) =>
+            join.on((eb) =>
+              eb.and([
+                eb("fragmentAddress", "=", sql.ref("address")),
+                eb("fragmentEventSelector", "=", sql.ref("eventSelector")),
+                eb(
+                  "fragmentChildAddressLocation",
+                  "=",
+                  sql.ref("childAddressLocation"),
+                ),
+                eb.or([
+                  eb("fromAddress", "is", null),
+                  eb("fragmentFromAddress", "=", sql.ref("fromAddress")),
+                ]),
               ]),
-            ]),
-          ),
-        )
-        .select(["fragmentId", "startBlock", "endBlock"])
-        .where("chainId", "=", chainId)
-        .execute();
+            ),
+          )
+          .select(["fragmentId", "startBlock", "endBlock"])
+          .where("chainId", "=", chainId)
+          .execute();
 
-      const intervalsByFragmentId = intervals.reduce(
-        (acc, cur) => {
-          const { fragmentId, startBlock, endBlock } = cur;
-          (acc[fragmentId] ||= []).push([Number(startBlock), Number(endBlock)]);
-          return acc;
-        },
-        {} as Record<string, [number, number][]>,
-      );
+        const intervalsByFragmentId = intervals.reduce(
+          (acc, cur) => {
+            const { fragmentId, startBlock, endBlock } = cur;
+            (acc[fragmentId] ||= []).push([
+              Number(startBlock),
+              Number(endBlock),
+            ]);
+            return acc;
+          },
+          {} as Record<string, [number, number][]>,
+        );
 
-      const intervalsForEachFragment = fragments.map((f) =>
-        intervalUnion(intervalsByFragmentId[f.id] ?? []),
-      );
-      return intervalIntersectionMany(intervalsForEachFragment);
-    });
+        const intervalsForEachFragment = fragments.map((f) =>
+          intervalUnion(intervalsByFragmentId[f.id] ?? []),
+        );
+        return intervalIntersectionMany(intervalsForEachFragment);
+      },
+    );
   };
 
   insertRealtimeBlock = async ({
@@ -1177,10 +1296,12 @@ export class SqliteSyncStore implements SyncStore {
         }
 
         if (rpcTransactionReceipts.length > 0) {
-          const transactionReceipts = rpcTransactionReceipts.map((rpcTransactionReceipt) => ({
-            ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
-            chainId,
-          }));
+          const transactionReceipts = rpcTransactionReceipts.map(
+            (rpcTransactionReceipt) => ({
+              ...rpcToSqliteTransactionReceipt(rpcTransactionReceipt),
+              chainId,
+            }),
+          );
           await tx
             .insertInto("transactionReceipts")
             .values(transactionReceipts)
@@ -1247,7 +1368,11 @@ export class SqliteSyncStore implements SyncStore {
     });
   };
 
-  private createLogCheckpoint = (log: SyncLog, block: SyncBlock, chainId: number) => {
+  private createLogCheckpoint = (
+    log: SyncLog,
+    block: SyncBlock,
+    chainId: number,
+  ) => {
     return encodeCheckpoint({
       blockTimestamp: Number(BigInt(block.timestamp)),
       chainId: BigInt(chainId),
@@ -1636,7 +1761,8 @@ export class SqliteSyncStore implements SyncStore {
 
     // We can assume that source won't be empty.
     const logSources = sources.filter(
-      (s): s is LogSource | FactoryLogSource => sourceIsLog(s) || sourceIsFactoryLog(s),
+      (s): s is LogSource | FactoryLogSource =>
+        sourceIsLog(s) || sourceIsFactoryLog(s),
     );
     const callTraceSources = sources.filter(
       (s): s is CallTraceSource | FactoryCallTraceSource =>
@@ -1645,11 +1771,14 @@ export class SqliteSyncStore implements SyncStore {
     const blockSources = sources.filter(sourceIsBlock);
 
     const shouldJoinLogs = logSources.length !== 0;
-    const shouldJoinTransactions = logSources.length !== 0 || callTraceSources.length !== 0;
+    const shouldJoinTransactions =
+      logSources.length !== 0 || callTraceSources.length !== 0;
     const shouldJoinTraces = callTraceSources.length !== 0;
     const shouldJoinReceipts =
       logSources.some((source) => source.criteria.includeTransactionReceipts) ||
-      callTraceSources.some((source) => source.criteria.includeTransactionReceipts);
+      callTraceSources.some(
+        (source) => source.criteria.includeTransactionReceipts,
+      );
 
     while (true) {
       const estimatedToCursor = encodeCheckpoint({
@@ -1659,7 +1788,8 @@ export class SqliteSyncStore implements SyncStore {
           maxCheckpoint.blockTimestamp,
         ),
       });
-      toCursor = estimatedToCursor > maxToCursor ? maxToCursor : estimatedToCursor;
+      toCursor =
+        estimatedToCursor > maxToCursor ? maxToCursor : estimatedToCursor;
 
       const events = await this.db.wrap({ method: "getEvents" }, async () => {
         // Query a batch of logs.
@@ -1670,7 +1800,11 @@ export class SqliteSyncStore implements SyncStore {
               sql`( values ${
                 logSources.length === 0
                   ? sql`( null )`
-                  : sql.join(logSources.map((source) => sql`( ${sql.val(source.id)} )`))
+                  : sql.join(
+                      logSources.map(
+                        (source) => sql`( ${sql.val(source.id)} )`,
+                      ),
+                    )
               } )`,
           )
           .with(
@@ -1679,7 +1813,11 @@ export class SqliteSyncStore implements SyncStore {
               sql`( values ${
                 blockSources.length === 0
                   ? sql`( null )`
-                  : sql.join(blockSources.map((source) => sql`( ${sql.val(source.id)} )`))
+                  : sql.join(
+                      blockSources.map(
+                        (source) => sql`( ${sql.val(source.id)} )`,
+                      ),
+                    )
               } )`,
           )
           .with(
@@ -1688,7 +1826,11 @@ export class SqliteSyncStore implements SyncStore {
               sql`( values ${
                 callTraceSources.length === 0
                   ? sql`( null )`
-                  : sql.join(callTraceSources.map((source) => sql`( ${sql.val(source.id)} )`))
+                  : sql.join(
+                      callTraceSources.map(
+                        (source) => sql`( ${sql.val(source.id)} )`,
+                      ),
+                    )
               } )`,
           )
           .with("events", (db) =>
@@ -1696,20 +1838,24 @@ export class SqliteSyncStore implements SyncStore {
               .selectFrom("logs")
               .innerJoin("log_sources", (join) => join.onTrue())
               .where((eb) => {
-                const logFilterCmprs = sources.filter(sourceIsLog).map((logFilter) => {
-                  const exprs = this.buildLogFilterCmprs({ eb, logFilter });
-                  exprs.push(eb("source_id", "=", logFilter.id));
-                  return eb.and(exprs);
-                });
-
-                const factoryCmprs = sources.filter(sourceIsFactoryLog).map((factory) => {
-                  const exprs = this.buildFactoryLogFilterCmprs({
-                    eb,
-                    factory,
+                const logFilterCmprs = sources
+                  .filter(sourceIsLog)
+                  .map((logFilter) => {
+                    const exprs = this.buildLogFilterCmprs({ eb, logFilter });
+                    exprs.push(eb("source_id", "=", logFilter.id));
+                    return eb.and(exprs);
                   });
-                  exprs.push(eb("source_id", "=", factory.id));
-                  return eb.and(exprs);
-                });
+
+                const factoryCmprs = sources
+                  .filter(sourceIsFactoryLog)
+                  .map((factory) => {
+                    const exprs = this.buildFactoryLogFilterCmprs({
+                      eb,
+                      factory,
+                    });
+                    exprs.push(eb("source_id", "=", factory.id));
+                    return eb.and(exprs);
+                  });
 
                 return eb.or([...logFilterCmprs, ...factoryCmprs]);
               })
@@ -1734,9 +1880,19 @@ export class SqliteSyncStore implements SyncStore {
                       exprs.push(
                         eb.and([
                           eb("chainId", "=", blockFilter.chainId),
-                          eb("number", ">=", encodeAsText(blockFilter.startBlock)),
+                          eb(
+                            "number",
+                            ">=",
+                            encodeAsText(blockFilter.startBlock),
+                          ),
                           ...(blockFilter.endBlock !== undefined
-                            ? [eb("number", "<=", encodeAsText(blockFilter.endBlock))]
+                            ? [
+                                eb(
+                                  "number",
+                                  "<=",
+                                  encodeAsText(blockFilter.endBlock),
+                                ),
+                              ]
                             : []),
                           sql`(number - ${blockFilter.criteria.offset}) % ${blockFilter.criteria.interval} = 0`,
                           eb("source_id", "=", blockFilter.id),
@@ -1782,7 +1938,10 @@ export class SqliteSyncStore implements SyncStore {
                         return eb.and(exprs);
                       });
 
-                    return eb.or([...traceFilterCmprs, ...factoryTraceFilterCmprs]);
+                    return eb.or([
+                      ...traceFilterCmprs,
+                      ...factoryTraceFilterCmprs,
+                    ]);
                   })
                   .select([
                     "source_id",
@@ -1842,7 +2001,11 @@ export class SqliteSyncStore implements SyncStore {
           )
           .$if(shouldJoinTransactions, (qb) =>
             qb
-              .leftJoin("transactions", "transactions.hash", "events.transactionHash")
+              .leftJoin(
+                "transactions",
+                "transactions.hash",
+                "events.transactionHash",
+              )
               .select([
                 "transactions.accessList as tx_accessList",
                 "transactions.blockHash as tx_blockHash",
@@ -1925,16 +2088,20 @@ export class SqliteSyncStore implements SyncStore {
 
           const source = sourcesById[row.source_id];
 
-          const shouldIncludeLog = sourceIsLog(source) || sourceIsFactoryLog(source);
+          const shouldIncludeLog =
+            sourceIsLog(source) || sourceIsFactoryLog(source);
           const shouldIncludeTransaction =
             sourceIsLog(source) ||
             sourceIsFactoryLog(source) ||
             sourceIsCallTrace(source) ||
             sourceIsFactoryCallTrace(source);
-          const shouldIncludeTrace = sourceIsCallTrace(source) || sourceIsFactoryCallTrace(source);
+          const shouldIncludeTrace =
+            sourceIsCallTrace(source) || sourceIsFactoryCallTrace(source);
           const shouldIncludeTransactionReceipt =
-            (sourceIsLog(source) && source.criteria.includeTransactionReceipts) ||
-            (sourceIsFactoryLog(source) && source.criteria.includeTransactionReceipts);
+            (sourceIsLog(source) &&
+              source.criteria.includeTransactionReceipts) ||
+            (sourceIsFactoryLog(source) &&
+              source.criteria.includeTransactionReceipts);
           return {
             chainId: source.chainId,
             sourceId: row.source_id,
@@ -1948,9 +2115,12 @@ export class SqliteSyncStore implements SyncStore {
                   id: row.log_id as Log["id"],
                   logIndex: Number(row.log_logIndex),
                   removed: false,
-                  topics: [row.log_topic0, row.log_topic1, row.log_topic2, row.log_topic3].filter(
-                    (t): t is Hex => t !== null,
-                  ) as [Hex, ...Hex[]] | [],
+                  topics: [
+                    row.log_topic0,
+                    row.log_topic1,
+                    row.log_topic2,
+                    row.log_topic3,
+                  ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
                   transactionHash: row.log_transactionHash,
                   transactionIndex: Number(row.log_transactionIndex),
                 }
@@ -2010,7 +2180,9 @@ export class SqliteSyncStore implements SyncStore {
                         ? {
                             type: "eip1559",
                             maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
-                            maxPriorityFeePerGas: decodeToBigInt(row.tx_maxPriorityFeePerGas),
+                            maxPriorityFeePerGas: decodeToBigInt(
+                              row.tx_maxPriorityFeePerGas,
+                            ),
                           }
                         : row.tx_type === "0x7e"
                           ? {
@@ -2069,7 +2241,9 @@ export class SqliteSyncStore implements SyncStore {
                       log.topics[1] ?? null,
                       log.topics[2] ?? null,
                       log.topics[3] ?? null,
-                    ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
+                    ].filter((t): t is Hex => t !== null) as
+                      | [Hex, ...Hex[]]
+                      | [],
                     transactionHash: log.transactionHash,
                     transactionIndex: hexToNumber(log.transactionIndex),
                   })),
@@ -2109,7 +2283,9 @@ export class SqliteSyncStore implements SyncStore {
       } else {
         this.seconds = Math.round(
           Math.min(
-            (this.seconds / events.length) * this.common.options.syncEventsQuerySize * 0.9,
+            (this.seconds / events.length) *
+              this.common.options.syncEventsQuerySize *
+              0.9,
             this.seconds * 2,
           ),
         );
@@ -2119,7 +2295,10 @@ export class SqliteSyncStore implements SyncStore {
       if (events.length > 0) yield events;
 
       // exit condition
-      if (events.length !== this.common.options.syncEventsQuerySize && toCursor === maxToCursor) {
+      if (
+        events.length !== this.common.options.syncEventsQuerySize &&
+        toCursor === maxToCursor
+      ) {
         break;
       }
     }
@@ -2139,7 +2318,8 @@ export class SqliteSyncStore implements SyncStore {
     if (logFilter.criteria.address) {
       // If it's an array of length 1, collapse it.
       const address =
-        Array.isArray(logFilter.criteria.address) && logFilter.criteria.address.length === 1
+        Array.isArray(logFilter.criteria.address) &&
+        logFilter.criteria.address.length === 1
           ? logFilter.criteria.address[0]
           : logFilter.criteria.address;
       if (Array.isArray(address)) {
@@ -2165,9 +2345,13 @@ export class SqliteSyncStore implements SyncStore {
     }
 
     if (logFilter.startBlock !== undefined && logFilter.startBlock !== 0)
-      exprs.push(eb("logs.blockNumber", ">=", encodeAsText(logFilter.startBlock)));
+      exprs.push(
+        eb("logs.blockNumber", ">=", encodeAsText(logFilter.startBlock)),
+      );
     if (logFilter.endBlock)
-      exprs.push(eb("logs.blockNumber", "<=", encodeAsText(logFilter.endBlock)));
+      exprs.push(
+        eb("logs.blockNumber", "<=", encodeAsText(logFilter.endBlock)),
+      );
 
     return exprs;
   };
@@ -2183,9 +2367,10 @@ export class SqliteSyncStore implements SyncStore {
 
     exprs.push(eb("logs.chainId", "=", factory.chainId));
 
-    const selectChildAddressExpression = buildFactoryChildAddressSelectExpression({
-      childAddressLocation: factory.criteria.childAddressLocation,
-    });
+    const selectChildAddressExpression =
+      buildFactoryChildAddressSelectExpression({
+        childAddressLocation: factory.criteria.childAddressLocation,
+      });
 
     exprs.push(
       eb(
@@ -2216,8 +2401,11 @@ export class SqliteSyncStore implements SyncStore {
     }
 
     if (factory.startBlock !== undefined && factory.startBlock !== 0)
-      exprs.push(eb("logs.blockNumber", ">=", encodeAsText(factory.startBlock)));
-    if (factory.endBlock) exprs.push(eb("logs.blockNumber", "<=", encodeAsText(factory.endBlock)));
+      exprs.push(
+        eb("logs.blockNumber", ">=", encodeAsText(factory.startBlock)),
+      );
+    if (factory.endBlock)
+      exprs.push(eb("logs.blockNumber", "<=", encodeAsText(factory.endBlock)));
 
     return exprs;
   };
@@ -2241,7 +2429,9 @@ export class SqliteSyncStore implements SyncStore {
           ? callTraceSource.criteria.fromAddress[0]
           : callTraceSource.criteria.fromAddress;
       if (Array.isArray(fromAddress)) {
-        exprs.push(eb.or(fromAddress.map((a) => eb("callTraces.from", "=", a))));
+        exprs.push(
+          eb.or(fromAddress.map((a) => eb("callTraces.from", "=", a))),
+        );
       } else {
         exprs.push(eb("callTraces.from", "=", fromAddress));
       }
@@ -2271,12 +2461,29 @@ export class SqliteSyncStore implements SyncStore {
     );
 
     // Filter out callTraces with error
-    exprs.push(sql`${sql.ref("callTraces.error")} IS NULL` as OperandExpression<SqlBool>);
+    exprs.push(
+      sql`${sql.ref("callTraces.error")} IS NULL` as OperandExpression<SqlBool>,
+    );
 
-    if (callTraceSource.startBlock !== undefined && callTraceSource.startBlock !== 0)
-      exprs.push(eb("callTraces.blockNumber", ">=", encodeAsText(callTraceSource.startBlock)));
+    if (
+      callTraceSource.startBlock !== undefined &&
+      callTraceSource.startBlock !== 0
+    )
+      exprs.push(
+        eb(
+          "callTraces.blockNumber",
+          ">=",
+          encodeAsText(callTraceSource.startBlock),
+        ),
+      );
     if (callTraceSource.endBlock)
-      exprs.push(eb("callTraces.blockNumber", "<=", encodeAsText(callTraceSource.endBlock)));
+      exprs.push(
+        eb(
+          "callTraces.blockNumber",
+          "<=",
+          encodeAsText(callTraceSource.endBlock),
+        ),
+      );
 
     return exprs;
   };
@@ -2292,9 +2499,10 @@ export class SqliteSyncStore implements SyncStore {
 
     exprs.push(eb("callTraces.chainId", "=", factory.chainId));
 
-    const selectChildAddressExpression = buildFactoryChildAddressSelectExpression({
-      childAddressLocation: factory.criteria.childAddressLocation,
-    });
+    const selectChildAddressExpression =
+      buildFactoryChildAddressSelectExpression({
+        childAddressLocation: factory.criteria.childAddressLocation,
+      });
 
     exprs.push(
       eb(
@@ -2312,11 +2520,14 @@ export class SqliteSyncStore implements SyncStore {
     if (factory.criteria.fromAddress) {
       // If it's an array of length 1, collapse it.
       const fromAddress =
-        Array.isArray(factory.criteria.fromAddress) && factory.criteria.fromAddress.length === 1
+        Array.isArray(factory.criteria.fromAddress) &&
+        factory.criteria.fromAddress.length === 1
           ? factory.criteria.fromAddress[0]
           : factory.criteria.fromAddress;
       if (Array.isArray(fromAddress)) {
-        exprs.push(eb.or(fromAddress.map((a) => eb("callTraces.from", "=", a))));
+        exprs.push(
+          eb.or(fromAddress.map((a) => eb("callTraces.from", "=", a))),
+        );
       } else {
         exprs.push(eb("callTraces.from", "=", fromAddress));
       }
@@ -2325,17 +2536,25 @@ export class SqliteSyncStore implements SyncStore {
     // Filter based on function selectors
     exprs.push(
       eb.or(
-        factory.criteria.functionSelectors.map((fs) => eb("callTraces.functionSelector", "=", fs)),
+        factory.criteria.functionSelectors.map((fs) =>
+          eb("callTraces.functionSelector", "=", fs),
+        ),
       ),
     );
 
     // Filter out callTraces with error
-    exprs.push(sql`${sql.ref("callTraces.error")} IS NULL` as OperandExpression<SqlBool>);
+    exprs.push(
+      sql`${sql.ref("callTraces.error")} IS NULL` as OperandExpression<SqlBool>,
+    );
 
     if (factory.startBlock !== undefined && factory.startBlock !== 0)
-      exprs.push(eb("callTraces.blockNumber", ">=", encodeAsText(factory.startBlock)));
+      exprs.push(
+        eb("callTraces.blockNumber", ">=", encodeAsText(factory.startBlock)),
+      );
     if (factory.endBlock)
-      exprs.push(eb("callTraces.blockNumber", "<=", encodeAsText(factory.endBlock)));
+      exprs.push(
+        eb("callTraces.blockNumber", "<=", encodeAsText(factory.endBlock)),
+      );
 
     return exprs;
   };
@@ -2385,7 +2604,11 @@ export class SqliteSyncStore implements SyncStore {
           .with("deleteFactoryLogFilter(factoryId)", (qb) =>
             qb
               .selectFrom("factoryLogFilterIntervals")
-              .innerJoin("factoryLogFilters", "factoryId", "factoryLogFilters.id")
+              .innerJoin(
+                "factoryLogFilters",
+                "factoryId",
+                "factoryLogFilters.id",
+              )
 
               .select("factoryId")
               .where("chainId", "=", chainId)
@@ -2403,7 +2626,11 @@ export class SqliteSyncStore implements SyncStore {
           .with("updateFactoryLogFilter(factoryId)", (qb) =>
             qb
               .selectFrom("factoryLogFilterIntervals")
-              .innerJoin("factoryLogFilters", "factoryId", "factoryLogFilters.id")
+              .innerJoin(
+                "factoryLogFilters",
+                "factoryId",
+                "factoryLogFilters.id",
+              )
 
               .select("factoryId")
               .where("chainId", "=", chainId)
@@ -2463,7 +2690,11 @@ export class SqliteSyncStore implements SyncStore {
           .with("deleteFactoryTraceFilter(factoryId)", (qb) =>
             qb
               .selectFrom("factoryTraceFilterIntervals")
-              .innerJoin("factoryTraceFilters", "factoryId", "factoryTraceFilters.id")
+              .innerJoin(
+                "factoryTraceFilters",
+                "factoryId",
+                "factoryTraceFilters.id",
+              )
               .select("factoryId")
               .where("chainId", "=", chainId)
               .where("startBlock", ">=", encodeAsText(block)),
@@ -2480,7 +2711,11 @@ export class SqliteSyncStore implements SyncStore {
           .with("updateFactoryTraceFilter(factoryId)", (qb) =>
             qb
               .selectFrom("factoryTraceFilterIntervals")
-              .innerJoin("factoryTraceFilters", "factoryId", "factoryTraceFilters.id")
+              .innerJoin(
+                "factoryTraceFilters",
+                "factoryId",
+                "factoryTraceFilters.id",
+              )
 
               .select("factoryId")
               .where("chainId", "=", chainId)

@@ -36,11 +36,19 @@ export const EVENT_TYPES = {
 } as const;
 
 export const encodeCheckpoint = (checkpoint: Checkpoint) => {
-  const { blockTimestamp, chainId, blockNumber, transactionIndex, eventType, eventIndex } =
-    checkpoint;
+  const {
+    blockTimestamp,
+    chainId,
+    blockNumber,
+    transactionIndex,
+    eventType,
+    eventIndex,
+  } = checkpoint;
 
   if (eventType < 0 || eventType > 9)
-    throw new Error(`Got invalid event type ${eventType}, expected a number from 0 to 9`);
+    throw new Error(
+      `Got invalid event type ${eventType}, expected a number from 0 to 9`,
+    );
 
   const result =
     blockTimestamp.toString().padStart(BLOCK_TIMESTAMP_DIGITS, "0") +
@@ -59,22 +67,31 @@ export const encodeCheckpoint = (checkpoint: Checkpoint) => {
 export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
   let offset = 0;
 
-  const blockTimestamp = +checkpoint.slice(offset, offset + BLOCK_TIMESTAMP_DIGITS);
+  const blockTimestamp = +checkpoint.slice(
+    offset,
+    offset + BLOCK_TIMESTAMP_DIGITS,
+  );
   offset += BLOCK_TIMESTAMP_DIGITS;
 
   const chainId = BigInt(checkpoint.slice(offset, offset + CHAIN_ID_DIGITS));
   offset += CHAIN_ID_DIGITS;
 
-  const blockNumber = BigInt(checkpoint.slice(offset, offset + BLOCK_NUMBER_DIGITS));
+  const blockNumber = BigInt(
+    checkpoint.slice(offset, offset + BLOCK_NUMBER_DIGITS),
+  );
   offset += BLOCK_NUMBER_DIGITS;
 
-  const transactionIndex = BigInt(checkpoint.slice(offset, offset + TRANSACTION_INDEX_DIGITS));
+  const transactionIndex = BigInt(
+    checkpoint.slice(offset, offset + TRANSACTION_INDEX_DIGITS),
+  );
   offset += TRANSACTION_INDEX_DIGITS;
 
   const eventType = +checkpoint.slice(offset, offset + EVENT_TYPE_DIGITS);
   offset += EVENT_TYPE_DIGITS;
 
-  const eventIndex = BigInt(checkpoint.slice(offset, offset + EVENT_INDEX_DIGITS));
+  const eventIndex = BigInt(
+    checkpoint.slice(offset, offset + EVENT_INDEX_DIGITS),
+  );
   offset += EVENT_INDEX_DIGITS;
 
   return {
@@ -121,8 +138,10 @@ export const isCheckpointGreaterThan = (a: Checkpoint, b: Checkpoint) =>
 /**
  * Returns true if checkpoint a is greater than or equal to checkpoint b.
  */
-export const isCheckpointGreaterThanOrEqualTo = (a: Checkpoint, b: Checkpoint) =>
-  encodeCheckpoint(a) >= encodeCheckpoint(b);
+export const isCheckpointGreaterThanOrEqualTo = (
+  a: Checkpoint,
+  b: Checkpoint,
+) => encodeCheckpoint(a) >= encodeCheckpoint(b);
 
 export const checkpointMax = (...checkpoints: Checkpoint[]) =>
   checkpoints.reduce((max, checkpoint) => {

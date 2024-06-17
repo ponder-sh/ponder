@@ -30,8 +30,12 @@ export function buildChildAddressCriteria({
     };
   }
 
-  const nonIndexedInputs = event.inputs.filter((x) => !("indexed" in x && x.indexed));
-  const nonIndexedInputPosition = nonIndexedInputs.findIndex((input) => input.name === parameter);
+  const nonIndexedInputs = event.inputs.filter(
+    (x) => !("indexed" in x && x.indexed),
+  );
+  const nonIndexedInputPosition = nonIndexedInputs.findIndex(
+    (input) => input.name === parameter,
+  );
 
   if (nonIndexedInputPosition === -1) {
     throw new Error(

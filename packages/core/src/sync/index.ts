@@ -49,7 +49,11 @@ export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
 export type SyncLog = Log<Hex, Hex, false>;
 export type SyncTransaction = RpcTransaction;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
-export type SyncTrace = SyncCallTrace | SyncCreateTrace | SyncRewardTrace | SyncSuicideTrace;
+export type SyncTrace =
+  | SyncCallTrace
+  | SyncCreateTrace
+  | SyncRewardTrace
+  | SyncSuicideTrace;
 export type SyncCallTrace = {
   action: {
     callType: "call" | "delegatecall" | "staticcall";
@@ -129,13 +133,17 @@ export const _eth_getBlockByNumber = (
   {
     blockNumber,
     blockTag,
-  }: { blockNumber: Hex | number; blockTag?: never } | { blockNumber?: never; blockTag: "latest" },
+  }:
+    | { blockNumber: Hex | number; blockTag?: never }
+    | { blockNumber?: never; blockTag: "latest" },
 ): Promise<SyncBlock> =>
   requestQueue
     .request({
       method: "eth_getBlockByNumber",
       params: [
-        typeof blockNumber === "number" ? numberToHex(blockNumber) : blockNumber ?? blockTag,
+        typeof blockNumber === "number"
+          ? numberToHex(blockNumber)
+          : blockNumber ?? blockTag,
         true,
       ],
     })
@@ -176,7 +184,10 @@ export const _eth_getLogs = async (
   params: {
     address?: Address | Address[];
     topics?: LogTopic[];
-  } & ({ fromBlock: Hex | number; toBlock: Hex | number } | { blockHash: Hash }),
+  } & (
+    | { fromBlock: Hex | number; toBlock: Hex | number }
+    | { blockHash: Hash }
+  ),
 ): Promise<SyncLog[]> => {
   if ("blockHash" in params) {
     return requestQueue
@@ -204,9 +215,13 @@ export const _eth_getLogs = async (
       params: [
         {
           fromBlock:
-            typeof params.fromBlock === "number" ? numberToHex(params.fromBlock) : params.fromBlock,
+            typeof params.fromBlock === "number"
+              ? numberToHex(params.fromBlock)
+              : params.fromBlock,
           toBlock:
-            typeof params.toBlock === "number" ? numberToHex(params.toBlock) : params.toBlock,
+            typeof params.toBlock === "number"
+              ? numberToHex(params.toBlock)
+              : params.toBlock,
 
           topics: params.topics,
           address: params.address
@@ -260,13 +275,19 @@ export const _trace_filter = (
       params: [
         {
           fromBlock:
-            typeof params.fromBlock === "number" ? numberToHex(params.fromBlock) : params.fromBlock,
+            typeof params.fromBlock === "number"
+              ? numberToHex(params.fromBlock)
+              : params.fromBlock,
           toBlock:
-            typeof params.toBlock === "number" ? numberToHex(params.toBlock) : params.toBlock,
+            typeof params.toBlock === "number"
+              ? numberToHex(params.toBlock)
+              : params.toBlock,
           fromAddress: params.fromAddress
             ? params.fromAddress.map((a) => toLowerCase(a))
             : undefined,
-          toAddress: params.toAddress ? params.toAddress.map((a) => toLowerCase(a)) : undefined,
+          toAddress: params.toAddress
+            ? params.toAddress.map((a) => toLowerCase(a))
+            : undefined,
         },
       ],
     } as any)

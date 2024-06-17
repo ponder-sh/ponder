@@ -53,7 +53,9 @@ export type Build = {
   indexingFunctions: IndexingFunctions;
 };
 
-export type BuildResult = { status: "success"; build: Build } | { status: "error"; error: Error };
+export type BuildResult =
+  | { status: "success"; build: Build }
+  | { status: "error"; error: Error };
 
 type RawBuild = {
   config: { config: Config; contentHash: string };
@@ -151,11 +153,12 @@ export const start = async (
 ): Promise<BuildResult> => {
   const { common } = buildService;
 
-  const [configResult, schemaResult, indexingFunctionsResult] = await Promise.all([
-    executeConfig(buildService),
-    executeSchema(buildService),
-    executeIndexingFunctions(buildService),
-  ]);
+  const [configResult, schemaResult, indexingFunctionsResult] =
+    await Promise.all([
+      executeConfig(buildService),
+      executeSchema(buildService),
+      executeIndexingFunctions(buildService),
+    ]);
 
   if (configResult.status === "error") {
     return { status: "error", error: configResult.error };
@@ -199,11 +202,16 @@ export const start = async (
       if (isFileIgnored(_file)) return;
 
       // Note that `toFilePath` always returns a POSIX path, even if you pass a Windows path.
-      const file = toFilePath(normalizeModuleId(_file), common.options.rootDir).path;
+      const file = toFilePath(
+        normalizeModuleId(_file),
+        common.options.rootDir,
+      ).path;
 
       // Invalidate all modules that depend on the updated files.
       // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.
-      const invalidated = [...buildService.viteNodeRunner.moduleCache.invalidateDepTree([file])];
+      const invalidated = [
+        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree([file]),
+      ];
 
       // If no files were invalidated, no need to reload.
       if (invalidated.length === 0) return;
@@ -211,8 +219,12 @@ export const start = async (
       // Note that the paths in `invalidated` are POSIX, so we need to
       // convert the paths in `options` to POSIX for this comparison.
       // The `srcDir` regex is already converted to POSIX.
-      const hasConfigUpdate = invalidated.includes(common.options.configFile.replace(/\\/g, "/"));
-      const hasSchemaUpdate = invalidated.includes(common.options.schemaFile.replace(/\\/g, "/"));
+      const hasConfigUpdate = invalidated.includes(
+        common.options.configFile.replace(/\\/g, "/"),
+      );
+      const hasSchemaUpdate = invalidated.includes(
+        common.options.schemaFile.replace(/\\/g, "/"),
+      );
       const hasIndexingFunctionUpdate = invalidated.some((file) =>
         buildService.srcRegex.test(file),
       );
@@ -278,7 +290,8 @@ export const kill = async (buildService: Service): Promise<void> => {
 const executeConfig = async (
   buildService: Service,
 ): Promise<
-  { status: "success"; config: Config; contentHash: string } | { status: "error"; error: Error }
+  | { status: "success"; config: Config; contentHash: string }
+  | { status: "error"; error: Error }
 > => {
   const executeResult = await executeFile(buildService, {
     file: buildService.common.options.configFile,
@@ -296,7 +309,9 @@ const executeConfig = async (
 
   const config = executeResult.exports.default as Config;
 
-  const contentHash = createHash("sha256").update(JSON.stringify(config)).digest("hex");
+  const contentHash = createHash("sha256")
+    .update(JSON.stringify(config))
+    .digest("hex");
 
   return { status: "success", config, contentHash } as const;
 };
@@ -304,7 +319,8 @@ const executeConfig = async (
 const executeSchema = async (
   buildService: Service,
 ): Promise<
-  { status: "success"; schema: Schema; contentHash: string } | { status: "error"; error: Error }
+  | { status: "success"; schema: Schema; contentHash: string }
+  | { status: "error"; error: Error }
 > => {
   const executeResult = await executeFile(buildService, {
     file: buildService.common.options.schemaFile,
@@ -322,7 +338,9 @@ const executeSchema = async (
 
   const schema = executeResult.exports.default as Schema;
 
-  const contentHash = createHash("sha256").update(JSON.stringify(schema)).digest("hex");
+  const contentHash = createHash("sha256")
+    .update(JSON.stringify(schema))
+    .digest("hex");
 
   return { status: "success", schema, contentHash };
 };
@@ -413,11 +431,12 @@ const validateAndBuild = async (
   const graphqlSchema = buildGraphqlSchema(buildSchemaResult.schema);
 
   // Validates and build the config
-  const buildConfigAndIndexingFunctionsResult = await safeBuildConfigAndIndexingFunctions({
-    config: rawBuild.config.config,
-    rawIndexingFunctions: rawBuild.indexingFunctions.indexingFunctions,
-    options: common.options,
-  });
+  const buildConfigAndIndexingFunctionsResult =
+    await safeBuildConfigAndIndexingFunctions({
+      config: rawBuild.config.config,
+      rawIndexingFunctions: rawBuild.indexingFunctions.indexingFunctions,
+      options: common.options,
+    });
   if (buildConfigAndIndexingFunctionsResult.status === "error") {
     common.logger.error({
       service: "build",
@@ -455,7 +474,8 @@ const validateAndBuild = async (
       sources: buildConfigAndIndexingFunctionsResult.sources,
       schema: buildSchemaResult.schema,
       graphqlSchema,
-      indexingFunctions: buildConfigAndIndexingFunctionsResult.indexingFunctions,
+      indexingFunctions:
+        buildConfigAndIndexingFunctionsResult.indexingFunctions,
     },
   };
 };
@@ -463,7 +483,9 @@ const validateAndBuild = async (
 const executeFile = async (
   { common, viteNodeRunner }: Service,
   { file }: { file: string },
-): Promise<{ status: "success"; exports: any } | { status: "error"; error: Error }> => {
+): Promise<
+  { status: "success"; exports: any } | { status: "error"; error: Error }
+> => {
   try {
     const exports = await viteNodeRunner.executeFile(file);
     return { status: "success", exports } as const;

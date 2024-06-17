@@ -1,6 +1,10 @@
 import path from "node:path";
 import { ALICE, BOB } from "@/_test/constants.js";
-import { setupAnvil, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupAnvil,
+  setupCommon,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
 import { getFreePort, postGraphql, waitForHealthy } from "@/_test/utils.js";
 import { serve } from "@/bin/commands/serve.js";

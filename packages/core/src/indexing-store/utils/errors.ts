@@ -12,7 +12,9 @@ export function parseStoreError(err: unknown, args: Record<string, unknown>) {
   let error = getBaseError(err);
 
   if (error.message?.includes("no result")) {
-    error = new RecordNotFoundError("No existing record was found with the specified ID");
+    error = new RecordNotFoundError(
+      "No existing record was found with the specified ID",
+    );
   } else if (
     error.message?.includes("UNIQUE constraint failed") ||
     error.message?.includes("violates unique constraint")

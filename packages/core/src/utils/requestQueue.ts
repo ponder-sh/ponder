@@ -1,7 +1,10 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import { type Queue, createQueue } from "@ponder/common";
-import { type GetLogsRetryHelperParameters, getLogsRetryHelper } from "@ponder/utils";
+import {
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
+} from "@ponder/utils";
 import {
   BlockNotFoundError,
   type EIP1193Parameters,
@@ -18,10 +21,9 @@ import {
 import { startClock } from "./timer.js";
 import { wait } from "./wait.js";
 
-type RequestReturnType<method extends EIP1193Parameters<PublicRpcSchema>["method"]> = Extract<
-  PublicRpcSchema[number],
-  { Method: method }
->["ReturnType"];
+type RequestReturnType<
+  method extends EIP1193Parameters<PublicRpcSchema>["method"],
+> = Extract<PublicRpcSchema[number], { Method: method }>["ReturnType"];
 
 export type RequestQueue = Omit<
   Queue<
@@ -160,7 +162,9 @@ export const createRequestQueue = ({
 
   return {
     ...requestQueue,
-    request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(params: TParameters) => {
+    request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
+      params: TParameters,
+    ) => {
       const stopClockLag = startClock();
 
       return requestQueue.add({ request: params, stopClockLag });

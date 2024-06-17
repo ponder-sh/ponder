@@ -1,15 +1,18 @@
 import prometheus from "prom-client";
 
 const databaseQueryDurationMs = [
-  0.05, 0.1, 1, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1_000, 2_500, 5_000, 7_500, 10_000, 25_000,
+  0.05, 0.1, 1, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1_000, 2_500, 5_000,
+  7_500, 10_000, 25_000,
 ];
 
 const httpRequestDurationMs = [
-  5, 10, 25, 50, 75, 100, 250, 500, 750, 1_000, 2_500, 5_000, 7_500, 10_000, 25_000,
+  5, 10, 25, 50, 75, 100, 250, 500, 750, 1_000, 2_500, 5_000, 7_500, 10_000,
+  25_000,
 ];
 
 const httpRequestSizeBytes = [
-  10, 100, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000, 1_000_000, 5_000_000, 10_000_000,
+  10, 100, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000, 1_000_000, 5_000_000,
+  10_000_000,
 ];
 
 export class MetricsService {
@@ -26,9 +29,15 @@ export class MetricsService {
   ponder_indexing_function_error_total: prometheus.Counter<"network" | "event">;
 
   ponder_historical_start_timestamp: prometheus.Gauge<"network">;
-  ponder_historical_total_blocks: prometheus.Gauge<"network" | "source" | "type">;
-  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "source" | "type">;
-  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "source" | "type">;
+  ponder_historical_total_blocks: prometheus.Gauge<
+    "network" | "source" | "type"
+  >;
+  ponder_historical_cached_blocks: prometheus.Gauge<
+    "network" | "source" | "type"
+  >;
+  ponder_historical_completed_blocks: prometheus.Gauge<
+    "network" | "source" | "type"
+  >;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
@@ -40,9 +49,15 @@ export class MetricsService {
 
   ponder_http_server_port: prometheus.Gauge;
   ponder_http_server_active_requests: prometheus.Gauge<"method" | "path">;
-  ponder_http_server_request_duration_ms: prometheus.Histogram<"method" | "path" | "status">;
-  ponder_http_server_request_size_bytes: prometheus.Histogram<"method" | "path" | "status">;
-  ponder_http_server_response_size_bytes: prometheus.Histogram<"method" | "path" | "status">;
+  ponder_http_server_request_duration_ms: prometheus.Histogram<
+    "method" | "path" | "status"
+  >;
+  ponder_http_server_request_size_bytes: prometheus.Histogram<
+    "method" | "path" | "status"
+  >;
+  ponder_http_server_response_size_bytes: prometheus.Histogram<
+    "method" | "path" | "status"
+  >;
 
   ponder_rpc_request_duration: prometheus.Histogram<"network" | "method">;
   ponder_rpc_request_lag: prometheus.Histogram<"network" | "method">;
@@ -227,10 +242,13 @@ export class MetricsService {
 export async function getHistoricalSyncProgress(metrics: MetricsService) {
   // Historical sync table
   const startTimestampMetric =
-    (await metrics.ponder_historical_start_timestamp.get()).values?.[0]?.value ?? Date.now();
+    (await metrics.ponder_historical_start_timestamp.get()).values?.[0]
+      ?.value ?? Date.now();
 
   /** Aggregate block metrics for different "types" of sources. */
-  const reduceBlockMetrics = (values: prometheus.MetricValue<"network" | "source" | "type">[]) =>
+  const reduceBlockMetrics = (
+    values: prometheus.MetricValue<"network" | "source" | "type">[],
+  ) =>
     values.reduce<{
       [id: string]: {
         labels: { source: string; network: string };
@@ -311,8 +329,12 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
 
   const totalBlocks = sources.reduce((a, c) => a + c.totalBlocks, 0);
   const cachedBlocks = sources.reduce((a, c) => a + (c.cachedBlocks ?? 0), 0);
-  const completedBlocks = sources.reduce((a, c) => a + (c.completedBlocks ?? 0), 0);
-  const progress = totalBlocks === 0 ? 0 : (completedBlocks + cachedBlocks) / totalBlocks;
+  const completedBlocks = sources.reduce(
+    (a, c) => a + (c.completedBlocks ?? 0),
+    0,
+  );
+  const progress =
+    totalBlocks === 0 ? 0 : (completedBlocks + cachedBlocks) / totalBlocks;
 
   return {
     overall: { totalBlocks, cachedBlocks, completedBlocks, progress },
@@ -321,31 +343,40 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
 }
 
 export async function getIndexingProgress(metrics: MetricsService) {
-  const hasErrorMetric = (await metrics.ponder_indexing_has_error.get()).values[0]?.value;
+  const hasErrorMetric = (await metrics.ponder_indexing_has_error.get())
+    .values[0]?.value;
   const hasError = hasErrorMetric === 1;
 
-  const totalSeconds = (await metrics.ponder_indexing_total_seconds.get()).values[0]?.value ?? 0;
+  const totalSeconds =
+    (await metrics.ponder_indexing_total_seconds.get()).values[0]?.value ?? 0;
   const completedSeconds =
-    (await metrics.ponder_indexing_completed_seconds.get()).values[0]?.value ?? 0;
+    (await metrics.ponder_indexing_completed_seconds.get()).values[0]?.value ??
+    0;
   const completedToTimestamp =
-    (await metrics.ponder_indexing_completed_timestamp.get()).values[0].value ?? 0;
+    (await metrics.ponder_indexing_completed_timestamp.get()).values[0].value ??
+    0;
 
   const progress = totalSeconds === 0 ? 0 : completedSeconds / totalSeconds;
 
-  const indexingCompletedEventsMetric = (await metrics.ponder_indexing_completed_events.get())
-    .values;
-  const indexingFunctionErrorMetric = (await metrics.ponder_indexing_function_error_total.get())
-    .values;
-  const indexingFunctionDurationMetric = (await metrics.ponder_indexing_function_duration.get())
-    .values;
+  const indexingCompletedEventsMetric = (
+    await metrics.ponder_indexing_completed_events.get()
+  ).values;
+  const indexingFunctionErrorMetric = (
+    await metrics.ponder_indexing_function_error_total.get()
+  ).values;
+  const indexingFunctionDurationMetric = (
+    await metrics.ponder_indexing_function_duration.get()
+  ).values;
 
   const indexingDurationSum: Record<string, Record<string, number>> = {};
   const indexingDurationCount: Record<string, Record<string, number>> = {};
   for (const m of indexingFunctionDurationMetric) {
     if (m.metricName === "ponder_indexing_function_duration_sum")
-      (indexingDurationSum[m.labels.event!] ??= {})[m.labels.network!] = m.value;
+      (indexingDurationSum[m.labels.event!] ??= {})[m.labels.network!] =
+        m.value;
     if (m.metricName === "ponder_indexing_function_duration_count")
-      (indexingDurationCount[m.labels.event!] ??= {})[m.labels.network!] = m.value;
+      (indexingDurationCount[m.labels.event!] ??= {})[m.labels.network!] =
+        m.value;
   }
 
   const events = indexingCompletedEventsMetric.map((m) => {
@@ -355,7 +386,8 @@ export async function getIndexingProgress(metrics: MetricsService) {
 
     const durationSum = indexingDurationSum[eventName]?.[networkName] ?? 0;
     const durationCount = indexingDurationCount[eventName]?.[networkName] ?? 0;
-    const averageDuration = durationCount === 0 ? 0 : durationSum / durationCount;
+    const averageDuration =
+      durationCount === 0 ? 0 : durationSum / durationCount;
 
     const errorCount =
       indexingFunctionErrorMetric.find(

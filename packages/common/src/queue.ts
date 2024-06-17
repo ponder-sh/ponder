@@ -1,4 +1,7 @@
-import { type PromiseWithResolvers, promiseWithResolvers } from "./promiseWithResolvers.js";
+import {
+  type PromiseWithResolvers,
+  promiseWithResolvers,
+} from "./promiseWithResolvers.js";
 
 export type InnerQueue<returnType, taskType> = {
   task: taskType;
@@ -17,7 +20,10 @@ export type Queue<returnType, taskType> = {
   onIdle: () => Promise<void>;
   onEmpty: () => Promise<void>;
   setParameters: (
-    parameters: Pick<CreateQueueParameters<unknown, unknown>, "frequency" | "concurrency">,
+    parameters: Pick<
+      CreateQueueParameters<unknown, unknown>,
+      "frequency" | "concurrency"
+    >,
   ) => void;
 };
 
@@ -37,7 +43,10 @@ export type CreateQueueParameters<returnType, taskType> = {
 const validateParameters = ({
   concurrency,
   frequency,
-}: Pick<CreateQueueParameters<unknown, unknown>, "frequency" | "concurrency">) => {
+}: Pick<
+  CreateQueueParameters<unknown, unknown>,
+  "frequency" | "concurrency"
+>) => {
   if (concurrency === undefined && frequency === undefined) {
     throw new Error(
       "Invalid queue configuration, must specify either 'concurrency' or 'frequency'.",
@@ -62,7 +71,10 @@ export const createQueue = <returnType, taskType = void>({
   initialStart = false,
   browser = true,
   ..._parameters
-}: CreateQueueParameters<returnType, taskType>): Queue<returnType, taskType> => {
+}: CreateQueueParameters<returnType, taskType>): Queue<
+  returnType,
+  taskType
+> => {
   validateParameters(_parameters);
 
   const parameters: Pick<
@@ -77,10 +89,12 @@ export const createQueue = <returnType, taskType = void>({
 
   let timer: NodeJS.Timeout | undefined;
 
-  let emptyPromiseWithResolvers: (PromiseWithResolvers<void> & { completed: boolean }) | undefined =
-    undefined;
-  let idlePromiseWithResolvers: (PromiseWithResolvers<void> & { completed: boolean }) | undefined =
-    undefined;
+  let emptyPromiseWithResolvers:
+    | (PromiseWithResolvers<void> & { completed: boolean })
+    | undefined = undefined;
+  let idlePromiseWithResolvers:
+    | (PromiseWithResolvers<void> & { completed: boolean })
+    | undefined = undefined;
 
   const next = () => {
     if (!isStarted) return;
@@ -95,8 +109,12 @@ export const createQueue = <returnType, taskType = void>({
     if (timer) return;
 
     while (
-      (parameters.frequency !== undefined ? requests < parameters.frequency : true) &&
-      (parameters.concurrency !== undefined ? pending < parameters.concurrency : true) &&
+      (parameters.frequency !== undefined
+        ? requests < parameters.frequency
+        : true) &&
+      (parameters.concurrency !== undefined
+        ? pending < parameters.concurrency
+        : true) &&
       queue.length > 0
     ) {
       const { task, resolve, reject } = queue.shift()!;
@@ -110,7 +128,11 @@ export const createQueue = <returnType, taskType = void>({
         .finally(() => {
           pending--;
 
-          if (idlePromiseWithResolvers !== undefined && queue.length === 0 && pending === 0) {
+          if (
+            idlePromiseWithResolvers !== undefined &&
+            queue.length === 0 &&
+            pending === 0
+          ) {
             idlePromiseWithResolvers.resolve();
             idlePromiseWithResolvers.completed = true;
           }
@@ -124,7 +146,10 @@ export const createQueue = <returnType, taskType = void>({
       }
     }
 
-    if (parameters.frequency !== undefined && requests >= parameters.frequency) {
+    if (
+      parameters.frequency !== undefined &&
+      requests >= parameters.frequency
+    ) {
       timer = setTimeout(
         () => {
           timer = undefined;
@@ -140,9 +165,13 @@ export const createQueue = <returnType, taskType = void>({
     size: () => queue.length,
     pending: () => {
       if (browser) {
-        return new Promise<number>((resolve) => setTimeout(() => resolve(pending)));
+        return new Promise<number>((resolve) =>
+          setTimeout(() => resolve(pending)),
+        );
       } else {
-        return new Promise<number>((resolve) => setImmediate(() => resolve(pending)));
+        return new Promise<number>((resolve) =>
+          setImmediate(() => resolve(pending)),
+        );
       }
     },
     add: (task: taskType) => {
@@ -161,24 +190,29 @@ export const createQueue = <returnType, taskType = void>({
     isStarted: () => isStarted,
     start: () => {
       if (browser) {
-        return new Promise<number>((resolve) => setTimeout(() => resolve(pending))).then(() => {
+        return new Promise<number>((resolve) =>
+          setTimeout(() => resolve(pending)),
+        ).then(() => {
           isStarted = true;
           next();
         });
       } else {
-        return new Promise<number>((resolve) => process.nextTick(() => resolve(pending))).then(
-          () => {
-            isStarted = true;
-            next();
-          },
-        );
+        return new Promise<number>((resolve) =>
+          process.nextTick(() => resolve(pending)),
+        ).then(() => {
+          isStarted = true;
+          next();
+        });
       }
     },
     pause: () => {
       isStarted = false;
     },
     onIdle: () => {
-      if (idlePromiseWithResolvers === undefined || idlePromiseWithResolvers.completed) {
+      if (
+        idlePromiseWithResolvers === undefined ||
+        idlePromiseWithResolvers.completed
+      ) {
         if (queue.length === 0 && pending === 0) return Promise.resolve();
 
         idlePromiseWithResolvers = {
@@ -189,7 +223,10 @@ export const createQueue = <returnType, taskType = void>({
       return idlePromiseWithResolvers.promise;
     },
     onEmpty: () => {
-      if (emptyPromiseWithResolvers === undefined || emptyPromiseWithResolvers.completed) {
+      if (
+        emptyPromiseWithResolvers === undefined ||
+        emptyPromiseWithResolvers.completed
+      ) {
         if (queue.length === 0) return Promise.resolve();
 
         emptyPromiseWithResolvers = {

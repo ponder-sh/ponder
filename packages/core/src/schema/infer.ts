@@ -65,5 +65,8 @@ export type InferTableType<table, schema> = table extends {
   : never;
 
 export type InferSchemaType<schema extends Schema | unknown> = {
-  [tableName in ExtractTableNames<schema>]: InferTableType<schema[tableName], schema>;
+  [tableName in ExtractTableNames<schema>]: InferTableType<
+    schema[tableName],
+    schema
+  >;
 };

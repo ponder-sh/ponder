@@ -188,11 +188,12 @@ export function isRpcUrlPublic(rpcUrl: string | undefined) {
         acc.add(httpRpcUrl);
       });
 
-      ((chain.rpcUrls.default as unknown as { webSocket?: string[] }).webSocket ?? []).forEach(
-        (webSocketRpcUrl) => {
-          acc.add(webSocketRpcUrl);
-        },
-      );
+      (
+        (chain.rpcUrls.default as unknown as { webSocket?: string[] })
+          .webSocket ?? []
+      ).forEach((webSocketRpcUrl) => {
+        acc.add(webSocketRpcUrl);
+      });
 
       return acc;
     }, new Set<string>());

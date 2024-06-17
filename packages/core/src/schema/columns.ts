@@ -117,7 +117,11 @@ const enumList =
     }
   };
 
-type Asc<index extends Index> = () => BuilderIndex<index[" column"], "asc", index[" nulls"]>;
+type Asc<index extends Index> = () => BuilderIndex<
+  index[" column"],
+  "asc",
+  index[" nulls"]
+>;
 
 const asc =
   <index extends BuilderIndex>(i: index): Asc<index> =>
@@ -224,14 +228,13 @@ const nullsLast =
       return newIndex;
     }
   };
-type ReferenceOptional<column extends BuilderReferenceColumn> = () => BuilderReferenceColumn<
-  column[" scalar"],
-  true,
-  column[" reference"]
->;
+type ReferenceOptional<column extends BuilderReferenceColumn> =
+  () => BuilderReferenceColumn<column[" scalar"], true, column[" reference"]>;
 
 const referenceOptional =
-  <column extends BuilderReferenceColumn>(col: column): ReferenceOptional<column> =>
+  <column extends BuilderReferenceColumn>(
+    col: column,
+  ): ReferenceOptional<column> =>
   () => {
     return {
       " type": col[" type"],
@@ -241,7 +244,9 @@ const referenceOptional =
     };
   };
 
-type References<column extends BuilderScalarColumn> = <reference extends string>(
+type References<column extends BuilderScalarColumn> = <
+  reference extends string,
+>(
   ref: reference,
 ) => BuilderReferenceColumn<column[" scalar"], column[" optional"], reference>;
 
@@ -301,7 +306,11 @@ export type BuilderScalarColumn<
   optional extends boolean = boolean,
   list extends boolean = boolean,
   ///
-  base extends ScalarColumn<scalar, optional, list> = ScalarColumn<scalar, optional, list>,
+  base extends ScalarColumn<scalar, optional, list> = ScalarColumn<
+    scalar,
+    optional,
+    list
+  >,
 > = list extends false
   ? optional extends false
     ? base & {
@@ -475,7 +484,11 @@ export type BuilderEnumColumn<
   optional extends boolean = boolean,
   list extends boolean = boolean,
   ///
-  base extends EnumColumn<_enum, optional, list> = EnumColumn<_enum, optional, list>,
+  base extends EnumColumn<_enum, optional, list> = EnumColumn<
+    _enum,
+    optional,
+    list
+  >,
 > = list extends false
   ? optional extends false
     ? base & {
@@ -607,7 +620,9 @@ export const json = <type = any>(): BuilderJSONColumn<type, false> => {
   };
 };
 
-export const one = <reference extends string>(ref: reference): BuilderOneColumn<reference> => ({
+export const one = <reference extends string>(
+  ref: reference,
+): BuilderOneColumn<reference> => ({
   " type": "one",
   " reference": ref,
 });

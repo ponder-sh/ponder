@@ -24,7 +24,10 @@ export async function validateProjectName({
   // Validate project name
   const nameValidation = validatePackageName(projectName);
   if (!nameValidation.validForNewPackages) {
-    const problems = [...(nameValidation.errors ?? []), ...(nameValidation.warnings ?? [])];
+    const problems = [
+      ...(nameValidation.errors ?? []),
+      ...(nameValidation.warnings ?? []),
+    ];
     return {
       valid: false,
       message: `🙈 "${projectName}" is not a valid project name.`,

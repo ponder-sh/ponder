@@ -20,8 +20,18 @@ import type {
 import { createQueue } from "@ponder/common";
 import { sql } from "kysely";
 import { type Hex, padHex } from "viem";
-import type { HistoricalStore, OrderByInput, ReadonlyStore, WhereInput } from "./store.js";
-import { decodeRecord, encodeRecord, encodeValue, validateRecord } from "./utils/encoding.js";
+import type {
+  HistoricalStore,
+  OrderByInput,
+  ReadonlyStore,
+  WhereInput,
+} from "./store.js";
+import {
+  decodeRecord,
+  encodeRecord,
+  encodeValue,
+  validateRecord,
+} from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
@@ -118,7 +128,8 @@ export const getHistoricalStore = ({
     }).toLowerCase();
 
   const getCacheKey = (id: UserId, tableName: string): Key => {
-    if (tables[tableName].table.id[" scalar"] === "hex") return normalizeHex(id as Hex);
+    if (tables[tableName].table.id[" scalar"] === "hex")
+      return normalizeHex(id as Hex);
     if (typeof id === "bigint") return `#Bigint.${id}`;
     return id;
   };
@@ -129,7 +140,9 @@ export const getHistoricalStore = ({
    * and nullable column values.
    */
   const normalizeRecord = (record: UserRecord, tableName: string) => {
-    for (const [columnName, column] of Object.entries(tables[tableName].table)) {
+    for (const [columnName, column] of Object.entries(
+      tables[tableName].table,
+    )) {
       // optional columns are null
       if (
         (isScalarColumn(column) ||
@@ -158,7 +171,9 @@ export const getHistoricalStore = ({
     initialStart: true,
     browser: false,
     worker: async ({ isFullFlush }: { isFullFlush: boolean }) => {
-      const flushIndex = totalCacheOps - cacheSize * (1 - common.options.indexingCacheFlushRatio);
+      const flushIndex =
+        totalCacheOps -
+        cacheSize * (1 - common.options.indexingCacheFlushRatio);
 
       await Promise.all(
         Object.entries(storeCache).map(async ([tableName, tableStoreCache]) => {
@@ -173,7 +188,10 @@ export const getHistoricalStore = ({
               .map(({ record }) => record!);
           } else {
             insertRecords = cacheEntries
-              .filter(({ type, opIndex }) => type === "insert" && opIndex < flushIndex)
+              .filter(
+                ({ type, opIndex }) =>
+                  type === "insert" && opIndex < flushIndex,
+              )
               .map(({ record }) => record!);
           }
 
@@ -183,7 +201,11 @@ export const getHistoricalStore = ({
               msg: `Inserting ${insertRecords.length} cached '${tableName}' records into the database`,
             });
 
-            for (let i = 0, len = insertRecords.length; i < len; i += MAX_BATCH_SIZE) {
+            for (
+              let i = 0, len = insertRecords.length;
+              i < len;
+              i += MAX_BATCH_SIZE
+            ) {
               await db.wrap({ method: `${tableName}.flush` }, async () => {
                 const _insertRecords = insertRecords
                   .slice(i, i + MAX_BATCH_SIZE)
@@ -204,7 +226,10 @@ export const getHistoricalStore = ({
                   .values(_insertRecords)
                   .execute()
                   .catch((err) => {
-                    throw parseStoreError(err, _insertRecords.length > 0 ? _insertRecords[0] : {});
+                    throw parseStoreError(
+                      err,
+                      _insertRecords.length > 0 ? _insertRecords[0] : {},
+                    );
                   });
               });
             }
@@ -221,7 +246,10 @@ export const getHistoricalStore = ({
               .map(({ record }) => record!);
           } else {
             updateRecords = cacheEntries
-              .filter(({ type, opIndex }) => type === "update" && opIndex < flushIndex)
+              .filter(
+                ({ type, opIndex }) =>
+                  type === "update" && opIndex < flushIndex,
+              )
               .map(({ record }) => record!);
           }
 
@@ -231,7 +259,11 @@ export const getHistoricalStore = ({
               msg: `Updating ${updateRecords.length} cached '${tableName}' records in the database`,
             });
 
-            for (let i = 0, len = updateRecords.length; i < len; i += MAX_BATCH_SIZE) {
+            for (
+              let i = 0, len = updateRecords.length;
+              i < len;
+              i += MAX_BATCH_SIZE
+            ) {
               await db.wrap({ method: `${tableName}.flush` }, async () => {
                 const _updateRecords = updateRecords
                   .slice(i, i + MAX_BATCH_SIZE)
@@ -252,24 +284,30 @@ export const getHistoricalStore = ({
                   .values(_updateRecords)
                   .onConflict((oc) =>
                     oc.column("id").doUpdateSet((eb) =>
-                      Object.entries(table).reduce<any>((acc, [colName, column]) => {
-                        if (colName !== "id") {
-                          if (
-                            isScalarColumn(column) ||
-                            isReferenceColumn(column) ||
-                            isEnumColumn(column) ||
-                            isJSONColumn(column)
-                          ) {
-                            acc[colName] = eb.ref(`excluded.${colName}`);
+                      Object.entries(table).reduce<any>(
+                        (acc, [colName, column]) => {
+                          if (colName !== "id") {
+                            if (
+                              isScalarColumn(column) ||
+                              isReferenceColumn(column) ||
+                              isEnumColumn(column) ||
+                              isJSONColumn(column)
+                            ) {
+                              acc[colName] = eb.ref(`excluded.${colName}`);
+                            }
                           }
-                        }
-                        return acc;
-                      }, {}),
+                          return acc;
+                        },
+                        {},
+                      ),
                     ),
                   )
                   .execute()
                   .catch((err) => {
-                    throw parseStoreError(err, _updateRecords.length > 0 ? _updateRecords[0] : {});
+                    throw parseStoreError(
+                      err,
+                      _updateRecords.length > 0 ? _updateRecords[0] : {},
+                    );
                   });
               });
             }
@@ -349,7 +387,9 @@ export const getHistoricalStore = ({
         }
 
         // At this point if cache is exhaustive, findUnique will always return null
-        const record = isCacheExhaustive ? null : await _findUnique({ tableName, id });
+        const record = isCacheExhaustive
+          ? null
+          : await _findUnique({ tableName, id });
 
         const bytes = getBytesSize(record);
 
@@ -395,7 +435,9 @@ export const getHistoricalStore = ({
 
         // Check cache truthiness, will be false if record is null.
         if (storeCache[tableName][cacheKey]?.record) {
-          throw new UniqueConstraintError(`Unique constraint failed for '${tableName}.id'.`);
+          throw new UniqueConstraintError(
+            `Unique constraint failed for '${tableName}.id'.`,
+          );
         }
 
         // copy user-land record
@@ -436,7 +478,9 @@ export const getHistoricalStore = ({
 
           // Check cache truthiness, will be false if record is null.
           if (storeCache[tableName][cacheKey]?.record) {
-            throw new UniqueConstraintError(`Unique constraint failed for '${tableName}.id'.`);
+            throw new UniqueConstraintError(
+              `Unique constraint failed for '${tableName}.id'.`,
+            );
           }
 
           // copy user-land record
@@ -487,10 +531,14 @@ export const getHistoricalStore = ({
         let cacheEntry = storeCache[tableName][cacheKey];
 
         if (cacheEntry === undefined) {
-          const record = isCacheExhaustive ? null : await _findUnique({ tableName, id });
+          const record = isCacheExhaustive
+            ? null
+            : await _findUnique({ tableName, id });
 
           if (record === null) {
-            throw new RecordNotFoundError("No existing record was found with the specified ID");
+            throw new RecordNotFoundError(
+              "No existing record was found with the specified ID",
+            );
           }
 
           // Note: a "spoof" cache entry is created
@@ -499,7 +547,9 @@ export const getHistoricalStore = ({
           storeCache[tableName][cacheKey] = cacheEntry;
         } else {
           if (cacheEntry.record === null) {
-            throw new RecordNotFoundError("No existing record was found with the specified ID");
+            throw new RecordNotFoundError(
+              "No existing record was found with the specified ID",
+            );
           }
 
           if (cacheEntry.type === "find") {
@@ -559,48 +609,53 @@ export const getHistoricalStore = ({
         let cursor: DatabaseValue = null;
 
         while (true) {
-          const _records = await db.wrap({ method: `${tableName}.updateMany` }, async () => {
-            const latestRecords: DatabaseRecord[] = await query
-              .limit(MAX_BATCH_SIZE)
-              .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
-              .execute();
+          const _records = await db.wrap(
+            { method: `${tableName}.updateMany` },
+            async () => {
+              const latestRecords: DatabaseRecord[] = await query
+                .limit(MAX_BATCH_SIZE)
+                .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
+                .execute();
 
-            const records: DatabaseRecord[] = [];
+              const records: DatabaseRecord[] = [];
 
-            for (const latestRecord of latestRecords) {
-              const current = decodeRecord({
-                record: latestRecord,
-                table,
-                encoding,
-              });
-              const updateObject = data({ current });
-              // Here, `latestRecord` is already encoded, so we need to exclude it from `encodeRecord`.
-              const updateRecord = {
-                id: latestRecord.id,
-                ...encodeRecord({
-                  record: updateObject,
+              for (const latestRecord of latestRecords) {
+                const current = decodeRecord({
+                  record: latestRecord,
                   table,
-                  schema,
                   encoding,
-                  skipValidation: false,
-                }),
-              };
-
-              const record = await db
-                .withSchema(namespaceInfo.userNamespace)
-                .updateTable(tableName)
-                .set(updateRecord)
-                .where("id", "=", latestRecord.id)
-                .returningAll()
-                .executeTakeFirstOrThrow()
-                .catch((err) => {
-                  throw parseStoreError(err, updateObject);
                 });
-              records.push(record);
-            }
+                const updateObject = data({ current });
+                // Here, `latestRecord` is already encoded, so we need to exclude it from `encodeRecord`.
+                const updateRecord = {
+                  id: latestRecord.id,
+                  ...encodeRecord({
+                    record: updateObject,
+                    table,
+                    schema,
+                    encoding,
+                    skipValidation: false,
+                  }),
+                };
 
-            return records.map((record) => decodeRecord({ record, table, encoding }));
-          });
+                const record = await db
+                  .withSchema(namespaceInfo.userNamespace)
+                  .updateTable(tableName)
+                  .set(updateRecord)
+                  .where("id", "=", latestRecord.id)
+                  .returningAll()
+                  .executeTakeFirstOrThrow()
+                  .catch((err) => {
+                    throw parseStoreError(err, updateObject);
+                  });
+                records.push(record);
+              }
+
+              return records.map((record) =>
+                decodeRecord({ record, table, encoding }),
+              );
+            },
+          );
 
           records.push(..._records);
 
@@ -632,7 +687,9 @@ export const getHistoricalStore = ({
                 .withSchema(namespaceInfo.userNamespace)
                 .selectFrom(tableName)
                 .select("id")
-                .where((eb) => buildWhereConditions({ eb, where, table, encoding })),
+                .where((eb) =>
+                  buildWhereConditions({ eb, where, table, encoding }),
+                ),
             )
             .withSchema(namespaceInfo.userNamespace)
             .updateTable(tableName)
@@ -645,7 +702,9 @@ export const getHistoricalStore = ({
               throw parseStoreError(err, data);
             });
 
-          return records.map((record) => decodeRecord({ record, table, encoding }));
+          return records.map((record) =>
+            decodeRecord({ record, table, encoding }),
+          );
         });
       }
     },
@@ -778,7 +837,11 @@ export const getHistoricalStore = ({
           const deletedRecord = await db
             .withSchema(namespaceInfo.userNamespace)
             .deleteFrom(tableName)
-            .where("id", "=", encodeValue({ value: id, column: table.id, encoding }))
+            .where(
+              "id",
+              "=",
+              encodeValue({ value: id, column: table.id, encoding }),
+            )
             .returning(["id"])
             .executeTakeFirst()
             .catch((err) => {

@@ -1,6 +1,10 @@
 import type { Table } from "@/schema/common.js";
 import type { GraphQLObjectType } from "graphql";
-import { type GraphQLFieldConfig, type GraphQLFieldResolver, GraphQLNonNull } from "graphql";
+import {
+  type GraphQLFieldConfig,
+  type GraphQLFieldResolver,
+  GraphQLNonNull,
+} from "graphql";
 import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { SCALARS } from "./scalar.js";
 

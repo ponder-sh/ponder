@@ -2,7 +2,9 @@ import { http, type Abi, type HttpTransport, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
 import { createConfig } from "./config.js";
 
-const event0 = parseAbiItem("event Event0(bytes32 indexed arg, bytes32 indexed arg1)");
+const event0 = parseAbiItem(
+  "event Event0(bytes32 indexed arg, bytes32 indexed arg1)",
+);
 const event1 = parseAbiItem("event Event1()");
 const func = parseAbiItem("function func()");
 
@@ -286,7 +288,9 @@ test("createConfig strict return type", () => {
     },
   });
 
-  assertType<{ mainnet: { chainId: 1; transport: HttpTransport } }>(config.networks);
+  assertType<{ mainnet: { chainId: 1; transport: HttpTransport } }>(
+    config.networks,
+  );
   assertType<{
     c2: {
       abi: readonly [typeof event0, typeof event1];

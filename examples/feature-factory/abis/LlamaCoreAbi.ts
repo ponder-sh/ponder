@@ -24,7 +24,9 @@ export const LlamaCoreAbi = [
   { inputs: [], name: "IncorrectMsgValue", type: "error" },
   { inputs: [], name: "InfoHashMismatch", type: "error" },
   {
-    inputs: [{ internalType: "enum ActionState", name: "current", type: "uint8" }],
+    inputs: [
+      { internalType: "enum ActionState", name: "current", type: "uint8" },
+    ],
     name: "InvalidActionState",
     type: "error",
   },
@@ -1009,14 +1011,18 @@ export const LlamaCoreAbi = [
       { internalType: "bytes4", name: "selector", type: "bytes4" },
     ],
     name: "nonces",
-    outputs: [{ internalType: "uint256", name: "currentNonce", type: "uint256" }],
+    outputs: [
+      { internalType: "uint256", name: "currentNonce", type: "uint256" },
+    ],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
     name: "policy",
-    outputs: [{ internalType: "contract LlamaPolicy", name: "", type: "address" }],
+    outputs: [
+      { internalType: "contract LlamaPolicy", name: "", type: "address" },
+    ],
     stateMutability: "view",
     type: "function",
   },

@@ -1,7 +1,11 @@
 import path from "node:path";
 import { BuildError } from "@/common/errors.js";
 import type { Options } from "@/common/options.js";
-import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/config/abi.js";
+import {
+  buildAbiEvents,
+  buildAbiFunctions,
+  buildTopics,
+} from "@/config/abi.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import { buildChildAddressCriteria } from "@/config/factories.js";
@@ -234,7 +238,9 @@ export async function buildConfigAndIndexingFunctions({
       const { chainId, transport } = network;
 
       const defaultChain =
-        Object.values(chains).find((c) => ("id" in c ? c.id === chainId : false)) ?? chains.mainnet;
+        Object.values(chains).find((c) =>
+          "id" in c ? c.id === chainId : false,
+        ) ?? chains.mainnet;
       const chain = { ...defaultChain, name: networkName, id: chainId };
 
       // Note: This can throw.
@@ -257,7 +263,8 @@ export async function buildConfigAndIndexingFunctions({
         pollingInterval: network.pollingInterval ?? 1_000,
         defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
         finalityBlockCount: getFinalityBlockCount({ chainId }),
-        maxHistoricalTaskConcurrency: network.maxHistoricalTaskConcurrency ?? 20,
+        maxHistoricalTaskConcurrency:
+          network.maxHistoricalTaskConcurrency ?? 20,
         disableCache: network.disableCache ?? false,
       } satisfies Network;
     }),
@@ -327,9 +334,13 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       const startBlockMaybeNan = contract.startBlock ?? 0;
-      const startBlock = Number.isNaN(startBlockMaybeNan) ? 0 : startBlockMaybeNan;
+      const startBlock = Number.isNaN(startBlockMaybeNan)
+        ? 0
+        : startBlockMaybeNan;
       const endBlockMaybeNan = contract.endBlock;
-      const endBlock = Number.isNaN(endBlockMaybeNan) ? undefined : endBlockMaybeNan;
+      const endBlock = Number.isNaN(endBlockMaybeNan)
+        ? undefined
+        : endBlockMaybeNan;
 
       if (endBlock !== undefined && endBlock < startBlock) {
         throw new Error(
@@ -349,7 +360,8 @@ export async function buildConfigAndIndexingFunctions({
           factory: "factory" in contract ? contract.factory : undefined,
           filter: contract.filter,
 
-          includeTransactionReceipts: contract.includeTransactionReceipts ?? false,
+          includeTransactionReceipts:
+            contract.includeTransactionReceipts ?? false,
           includeCallTraces: contract.includeCallTraces ?? false,
 
           startBlock,
@@ -366,10 +378,15 @@ export async function buildConfigAndIndexingFunctions({
       return Object.entries(contract.network)
         .filter((n): n is [string, DefinedNetworkOverride] => !!n[1])
         .map(([networkName, overrides]) => {
-          const startBlockMaybeNan = overrides.startBlock ?? contract.startBlock ?? 0;
-          const startBlock = Number.isNaN(startBlockMaybeNan) ? 0 : startBlockMaybeNan;
+          const startBlockMaybeNan =
+            overrides.startBlock ?? contract.startBlock ?? 0;
+          const startBlock = Number.isNaN(startBlockMaybeNan)
+            ? 0
+            : startBlockMaybeNan;
           const endBlockMaybeNan = overrides.endBlock ?? contract.endBlock;
-          const endBlock = Number.isNaN(endBlockMaybeNan) ? undefined : endBlockMaybeNan;
+          const endBlock = Number.isNaN(endBlockMaybeNan)
+            ? undefined
+            : endBlockMaybeNan;
 
           if (endBlock !== undefined && endBlock < startBlock) {
             throw new Error(
@@ -391,8 +408,13 @@ export async function buildConfigAndIndexingFunctions({
             filter: overrides.filter ?? contract.filter,
 
             includeTransactionReceipts:
-              overrides.includeTransactionReceipts ?? contract.includeTransactionReceipts ?? false,
-            includeCallTraces: overrides.includeCallTraces ?? contract.includeCallTraces ?? false,
+              overrides.includeTransactionReceipts ??
+              contract.includeTransactionReceipts ??
+              false,
+            includeCallTraces:
+              overrides.includeCallTraces ??
+              contract.includeCallTraces ??
+              false,
 
             startBlock,
             endBlock,
@@ -404,8 +426,15 @@ export async function buildConfigAndIndexingFunctions({
     .flatMap(
       (
         rawContract,
-      ): (LogSource | FactoryLogSource | CallTraceSource | FactoryCallTraceSource)[] => {
-        const network = networks.find((n) => n.name === rawContract.networkName);
+      ): (
+        | LogSource
+        | FactoryLogSource
+        | CallTraceSource
+        | FactoryCallTraceSource
+      )[] => {
+        const network = networks.find(
+          (n) => n.name === rawContract.networkName,
+        );
         if (!network) {
           throw new Error(
             `Validation failed: Invalid network for contract '${
@@ -423,7 +452,10 @@ export async function buildConfigAndIndexingFunctions({
           // log event
           if (eventName.includes(":")) {
             const [logContractName, logEventName] = eventName.split(":");
-            if (logContractName === rawContract.contractName && logEventName !== "setup") {
+            if (
+              logContractName === rawContract.contractName &&
+              logEventName !== "setup"
+            ) {
               registeredLogEvents.push(logEventName);
             }
           }
@@ -477,7 +509,10 @@ export async function buildConfigAndIndexingFunctions({
         let topics: LogTopic[] = [registeredEventSelectors];
 
         if (rawContract.filter !== undefined) {
-          if (Array.isArray(rawContract.filter.event) && rawContract.filter.args !== undefined) {
+          if (
+            Array.isArray(rawContract.filter.event) &&
+            rawContract.filter.args !== undefined
+          ) {
             throw new Error(
               `Validation failed: Event filter for contract '${rawContract.contractName}' cannot contain indexed argument values if multiple events are provided.`,
             );
@@ -520,7 +555,8 @@ export async function buildConfigAndIndexingFunctions({
           // defined for a log event that is excluded by the filter.
           for (const registeredEventSelector of registeredEventSelectors) {
             if (!filteredEventSelectors.includes(registeredEventSelector)) {
-              const logEventName = abiEvents.bySelector[registeredEventSelector]!.safeName;
+              const logEventName =
+                abiEvents.bySelector[registeredEventSelector]!.safeName;
 
               throw new Error(
                 `Validation failed: Event '${logEventName}' is excluded by the event filter defined on the contract '${
@@ -557,7 +593,8 @@ export async function buildConfigAndIndexingFunctions({
 
         if (resolvedFactory) {
           // Note that this can throw.
-          const childAddressCriteria = buildChildAddressCriteria(resolvedFactory);
+          const childAddressCriteria =
+            buildChildAddressCriteria(resolvedFactory);
 
           const factoryLogSource = {
             ...baseContract,
@@ -566,7 +603,8 @@ export async function buildConfigAndIndexingFunctions({
             abiEvents: abiEvents,
             criteria: {
               ...childAddressCriteria,
-              includeTransactionReceipts: rawContract.includeTransactionReceipts,
+              includeTransactionReceipts:
+                rawContract.includeTransactionReceipts,
               topics,
             },
           } satisfies FactoryLogSource;
@@ -582,7 +620,8 @@ export async function buildConfigAndIndexingFunctions({
                 criteria: {
                   ...childAddressCriteria,
                   functionSelectors: registeredFunctionSelectors,
-                  includeTransactionReceipts: rawContract.includeTransactionReceipts,
+                  includeTransactionReceipts:
+                    rawContract.includeTransactionReceipts,
                 },
               } satisfies FactoryCallTraceSource,
             ];
@@ -642,7 +681,8 @@ export async function buildConfigAndIndexingFunctions({
                     ? undefined
                     : [validatedAddress],
                 functionSelectors: registeredFunctionSelectors,
-                includeTransactionReceipts: rawContract.includeTransactionReceipts,
+                includeTransactionReceipts:
+                  rawContract.includeTransactionReceipts,
               },
             } satisfies CallTraceSource,
           ];
@@ -669,9 +709,13 @@ export async function buildConfigAndIndexingFunctions({
   const blockSources: BlockSource[] = Object.entries(config.blocks ?? {})
     .flatMap(([sourceName, blockSourceConfig]) => {
       const startBlockMaybeNan = blockSourceConfig.startBlock ?? 0;
-      const startBlock = Number.isNaN(startBlockMaybeNan) ? 0 : startBlockMaybeNan;
+      const startBlock = Number.isNaN(startBlockMaybeNan)
+        ? 0
+        : startBlockMaybeNan;
       const endBlockMaybeNan = blockSourceConfig.endBlock;
-      const endBlock = Number.isNaN(endBlockMaybeNan) ? undefined : endBlockMaybeNan;
+      const endBlock = Number.isNaN(endBlockMaybeNan)
+        ? undefined
+        : endBlockMaybeNan;
 
       if (endBlock !== undefined && endBlock < startBlock) {
         throw new Error(
@@ -689,7 +733,9 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       if (typeof blockSourceConfig.network === "string") {
-        const network = networks.find((n) => n.name === blockSourceConfig.network);
+        const network = networks.find(
+          (n) => n.name === blockSourceConfig.network,
+        );
         if (!network) {
           throw new Error(
             `Validation failed: Invalid network for block source '${sourceName}'. Got '${
@@ -729,10 +775,16 @@ export async function buildConfigAndIndexingFunctions({
             );
           }
 
-          const startBlockMaybeNan = overrides.startBlock ?? blockSourceConfig.startBlock ?? 0;
-          const startBlock = Number.isNaN(startBlockMaybeNan) ? 0 : startBlockMaybeNan;
-          const endBlockMaybeNan = overrides.endBlock ?? blockSourceConfig.endBlock;
-          const endBlock = Number.isNaN(endBlockMaybeNan) ? undefined : endBlockMaybeNan;
+          const startBlockMaybeNan =
+            overrides.startBlock ?? blockSourceConfig.startBlock ?? 0;
+          const startBlock = Number.isNaN(startBlockMaybeNan)
+            ? 0
+            : startBlockMaybeNan;
+          const endBlockMaybeNan =
+            overrides.endBlock ?? blockSourceConfig.endBlock;
+          const endBlock = Number.isNaN(endBlockMaybeNan)
+            ? undefined
+            : endBlockMaybeNan;
 
           if (endBlock !== undefined && endBlock < startBlock) {
             throw new Error(
@@ -740,8 +792,11 @@ export async function buildConfigAndIndexingFunctions({
             );
           }
 
-          const intervalMaybeNan = overrides.interval ?? blockSourceConfig.interval;
-          const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
+          const intervalMaybeNan =
+            overrides.interval ?? blockSourceConfig.interval;
+          const interval = Number.isNaN(intervalMaybeNan)
+            ? 0
+            : intervalMaybeNan;
 
           if (!Number.isInteger(interval) || interval === 0) {
             throw new Error(
@@ -780,7 +835,9 @@ export async function buildConfigAndIndexingFunctions({
 
   // Filter out any networks that don't have any sources registered.
   const networksWithSources = networks.filter((network) => {
-    const hasSources = sources.some((source) => source.networkName === network.name);
+    const hasSources = sources.some(
+      (source) => source.networkName === network.name,
+    );
     if (!hasSources) {
       logs.push({
         level: "warn",
@@ -792,7 +849,8 @@ export async function buildConfigAndIndexingFunctions({
 
   const optionsConfig: Partial<Options> = {};
   if (config.options?.maxHealthcheckDuration !== undefined) {
-    optionsConfig.maxHealthcheckDuration = config.options.maxHealthcheckDuration;
+    optionsConfig.maxHealthcheckDuration =
+      config.options.maxHealthcheckDuration;
     logs.push({
       level: "info",
       msg: `Set max healthcheck duration to ${optionsConfig.maxHealthcheckDuration} seconds (from ponder.config.ts)`,

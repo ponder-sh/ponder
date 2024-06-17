@@ -31,7 +31,9 @@ export type NonNull<T> = {
 /**
  * @description Returns true if T only has a property named "id".
  */
-export type HasOnlyIdProperty<T> = Exclude<keyof T, "id"> extends never ? true : false;
+export type HasOnlyIdProperty<T> = Exclude<keyof T, "id"> extends never
+  ? true
+  : false;
 
 /**
  * @description Creates a union of the names of all the required properties of T.

@@ -34,11 +34,16 @@ function improveSqliteErrors(database: BetterSqlite3.Database) {
 
           let parameters = (args[0] ?? []) as string[];
           parameters =
-            parameters.length <= 25 ? parameters : parameters.slice(0, 26).concat(["..."]);
-          const params = parameters.reduce<Record<number, any>>((acc, parameter, idx) => {
-            acc[idx + 1] = parameter;
-            return acc;
-          }, {});
+            parameters.length <= 25
+              ? parameters
+              : parameters.slice(0, 26).concat(["..."]);
+          const params = parameters.reduce<Record<number, any>>(
+            (acc, parameter, idx) => {
+              acc[idx + 1] = parameter;
+              return acc;
+            },
+            {},
+          );
 
           error.meta = Array.isArray(error.meta) ? error.meta : [];
           if (error.detail) error.meta.push(`Detail:\n  ${error.detail}`);

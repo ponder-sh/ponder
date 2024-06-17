@@ -87,7 +87,9 @@ export type Constraints = {
   [name: string]: Index;
 };
 
-export type IsTable<a extends Table | Enum> = a extends readonly unknown[] ? false : true;
+export type IsTable<a extends Table | Enum> = a extends readonly unknown[]
+  ? false
+  : true;
 
 export type Schema = {
   [name: string]: { table: Table; constraints: Constraints } | Enum;
@@ -110,10 +112,16 @@ export type ExtractEnumNames<
   schema extends Schema | unknown,
   ///
   names = keyof schema & string,
-> = names extends names ? (schema[names & keyof schema] extends Enum ? names : never) : never;
+> = names extends names
+  ? schema[names & keyof schema] extends Enum
+    ? names
+    : never
+  : never;
 
 export type ExtractOptionalColumnNames<
-  tableAndConstraints extends { table: Table; constraints: Constraints } | unknown,
+  tableAndConstraints extends
+    | { table: Table; constraints: Constraints }
+    | unknown,
   ///
   table = tableAndConstraints extends { table: Table; constraints: Constraints }
     ? tableAndConstraints["table"]
@@ -132,7 +140,9 @@ export type ExtractOptionalColumnNames<
   : never;
 
 export type ExtractRequiredColumnNames<
-  tableAndConstraints extends { table: Table; constraints: Constraints } | unknown,
+  tableAndConstraints extends
+    | { table: Table; constraints: Constraints }
+    | unknown,
   ///
   table = tableAndConstraints extends { table: Table; constraints: Constraints }
     ? tableAndConstraints["table"]
@@ -151,7 +161,9 @@ export type ExtractRequiredColumnNames<
   : never;
 
 export type ExtractReferenceColumnNames<
-  tableAndConstraints extends { table: Table; constraints: Constraints } | unknown,
+  tableAndConstraints extends
+    | { table: Table; constraints: Constraints }
+    | unknown,
   referenceTable extends string = string,
   ///
   table = tableAndConstraints extends { table: Table; constraints: Constraints }
@@ -173,7 +185,10 @@ export type ExtractNonVirtualColumnNames<
   ///
   columnNames = keyof table & string,
 > = columnNames extends columnNames
-  ? table[columnNames & keyof table] extends ReferenceColumn | ScalarColumn | EnumColumn
+  ? table[columnNames & keyof table] extends
+      | ReferenceColumn
+      | ScalarColumn
+      | EnumColumn
     ? columnNames
     : never
   : never;

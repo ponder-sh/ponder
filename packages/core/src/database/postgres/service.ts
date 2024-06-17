@@ -166,8 +166,14 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.schema = schema;
     this.buildId = buildId;
 
-    await this.db.schema.createSchema(this.userNamespace).ifNotExists().execute();
-    await this.db.schema.createSchema(this.internalNamespace).ifNotExists().execute();
+    await this.db.schema
+      .createSchema(this.userNamespace)
+      .ifNotExists()
+      .execute();
+    await this.db.schema
+      .createSchema(this.internalNamespace)
+      .ifNotExists()
+      .execute();
 
     const migrator = new Migrator({
       db: this.db.withPlugin(new WithSchemaPlugin(this.internalNamespace)),
@@ -213,13 +219,17 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
           // Function to create the operation log tables and user tables.
           const createTables = async () => {
-            for (const [tableName, table] of Object.entries(getTables(schema))) {
+            for (const [tableName, table] of Object.entries(
+              getTables(schema),
+            )) {
               const tableId = namespaceInfo.internalTableIds[tableName];
 
               await tx.schema
                 .withSchema(this.internalNamespace)
                 .createTable(tableId)
-                .$call((builder) => this.buildOperationLogColumns(builder, table.table))
+                .$call((builder) =>
+                  this.buildOperationLogColumns(builder, table.table),
+                )
                 .execute();
 
               await tx.schema
@@ -233,7 +243,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 await tx.schema
                   .withSchema(this.userNamespace)
                   .createTable(tableName)
-                  .$call((builder) => this.buildColumns(builder, schema, table.table))
+                  .$call((builder) =>
+                    this.buildColumns(builder, schema, table.table),
+                  )
                   .execute();
               } catch (err) {
                 const error = err as Error;
@@ -269,7 +281,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
           // If the lock row is held and has not expired, we cannot proceed.
           const expiresAt =
-            previousLockRow.heartbeat_at + this.common.options.databaseHeartbeatTimeout;
+            previousLockRow.heartbeat_at +
+            this.common.options.databaseHeartbeatTimeout;
 
           if (previousLockRow.is_locked === 1 && Date.now() <= expiresAt) {
             const expiresInMs = expiresAt - Date.now();
@@ -282,7 +295,8 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           if (
             this.common.options.command === "start" &&
             previousLockRow.build_id === this.buildId &&
-            previousLockRow.finalized_checkpoint !== encodeCheckpoint(zeroCheckpoint)
+            previousLockRow.finalized_checkpoint !==
+              encodeCheckpoint(zeroCheckpoint)
           ) {
             this.common.logger.info({
               service: "database",
@@ -293,7 +307,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
             // Remove any indexes, will be recreated once the app
             // becomes healthy.
-            for (const [tableName, table] of Object.entries(getTables(schema))) {
+            for (const [tableName, table] of Object.entries(
+              getTables(schema),
+            )) {
               if (table.constraints === undefined) continue;
 
               for (const name of Object.keys(table.constraints)) {
@@ -320,7 +336,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               msg: `Acquired lock on schema '${this.userNamespace}'`,
             });
 
-            const finalizedCheckpoint = decodeCheckpoint(previousLockRow.finalized_checkpoint);
+            const finalizedCheckpoint = decodeCheckpoint(
+              previousLockRow.finalized_checkpoint,
+            );
 
             this.common.logger.info({
               service: "database",
@@ -329,7 +347,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
             // Revert unfinalized data from the existing tables.
             const tx_ = tx as KyselyTransaction<any>;
-            for (const [tableName, tableId] of Object.entries(namespaceInfo.internalTableIds)) {
+            for (const [tableName, tableId] of Object.entries(
+              namespaceInfo.internalTableIds,
+            )) {
               const rows = await tx_
                 .withSchema(namespaceInfo.internalNamespace)
                 .deleteFrom(tableId)
@@ -337,7 +357,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
                 .where("checkpoint", ">", previousLockRow.finalized_checkpoint)
                 .execute();
 
-              const reversed = rows.sort((a, b) => b.operation_id - a.operation_id);
+              const reversed = rows.sort(
+                (a, b) => b.operation_id - a.operation_id,
+              );
 
               for (const log of reversed) {
                 if (log.operation === 0) {
@@ -406,7 +428,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           });
 
           for (const tableName of Object.keys(previousSchema.tables)) {
-            const tableId = hash([this.userNamespace, previousBuildId, tableName]);
+            const tableId = hash([
+              this.userNamespace,
+              previousBuildId,
+              tableName,
+            ]);
 
             await tx.schema
               .withSchema(this.internalNamespace)
@@ -509,7 +535,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     });
   }
 
-  async updateFinalizedCheckpoint({ checkpoint }: { checkpoint: Checkpoint }): Promise<void> {
+  async updateFinalizedCheckpoint({
+    checkpoint,
+  }: { checkpoint: Checkpoint }): Promise<void> {
     await this.db.wrap({ method: "updateFinalizedCheckpoint" }, async () => {
       await this.db
         .withSchema(this.internalNamespace)
@@ -564,7 +592,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
           const isView = result.rows[0]?.table_type === "VIEW";
           if (isView) {
-            await tx.schema.withSchema(publishSchema).dropView(tableName).ifExists().execute();
+            await tx.schema
+              .withSchema(publishSchema)
+              .dropView(tableName)
+              .ifExists()
+              .execute();
 
             this.common.logger.debug({
               service: "database",
@@ -576,7 +608,10 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             .withSchema(publishSchema)
             .createView(tableName)
             .as(
-              (tx as Kysely<any>).withSchema(this.userNamespace).selectFrom(tableName).selectAll(),
+              (tx as Kysely<any>)
+                .withSchema(this.userNamespace)
+                .selectFrom(tableName)
+                .selectAll(),
             )
             .execute();
 
@@ -605,7 +640,11 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             const columns = Array.isArray(indexColumn)
               ? indexColumn.map((ic) => `"${ic}"`).join(", ")
               : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""} ${
-                  nulls === "first" ? "NULLS FIRST" : nulls === "last" ? "NULLS LAST" : ""
+                  nulls === "first"
+                    ? "NULLS FIRST"
+                    : nulls === "last"
+                      ? "NULLS LAST"
+                      : ""
                 }`;
 
             await this.db.executeQuery(
@@ -618,7 +657,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           this.common.logger.info({
             service: "database",
             msg: `Created index '${tableName}_${name}' on columns (${
-              Array.isArray(index[" column"]) ? index[" column"].join(", ") : index[" column"]
+              Array.isArray(index[" column"])
+                ? index[" column"].join(", ")
+                : index[" column"]
             }) in schema '${this.userNamespace}'`,
           });
         });
@@ -715,11 +756,15 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         });
       } else {
         // Non-list base columns
-        builder = builder.addColumn(columnName, scalarToSqlType[column[" scalar"]], (col) => {
-          if (isOptionalColumn(column) === false) col = col.notNull();
-          if (columnName === "id") col = col.primaryKey();
-          return col;
-        });
+        builder = builder.addColumn(
+          columnName,
+          scalarToSqlType[column[" scalar"]],
+          (col) => {
+            if (isOptionalColumn(column) === false) col = col.notNull();
+            if (columnName === "id") col = col.primaryKey();
+            return col;
+          },
+        );
       }
     });
 
@@ -745,10 +790,14 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         builder = builder.addColumn(columnName, "jsonb");
       } else {
         // Non-list base columns
-        builder = builder.addColumn(columnName, scalarToSqlType[column[" scalar"]], (col) => {
-          if (columnName === "id") col = col.notNull();
-          return col;
-        });
+        builder = builder.addColumn(
+          columnName,
+          scalarToSqlType[column[" scalar"]],
+          (col) => {
+            if (columnName === "id") col = col.notNull();
+            return col;
+          },
+        );
       }
     });
 
@@ -763,7 +812,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   private registerMetrics() {
     const service = this;
 
-    this.common.metrics.registry.removeSingleMetric("ponder_postgres_query_total");
+    this.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_query_total",
+    );
     this.common.metrics.ponder_postgres_query_total = new prometheus.Counter({
       name: "ponder_postgres_query_total",
       help: "Total number of queries submitted to the database",
@@ -771,40 +822,69 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       registers: [this.common.metrics.registry],
     });
 
-    this.common.metrics.registry.removeSingleMetric("ponder_postgres_pool_connections");
-    this.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge({
-      name: "ponder_postgres_pool_connections",
-      help: "Number of connections in the pool",
-      labelNames: ["pool", "kind"] as const,
-      registers: [this.common.metrics.registry],
-      collect() {
-        this.set({ pool: "internal", kind: "idle" }, service.internalPool.idleCount);
-        this.set({ pool: "internal", kind: "total" }, service.internalPool.totalCount);
+    this.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_pool_connections",
+    );
+    this.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_pool_connections",
+        help: "Number of connections in the pool",
+        labelNames: ["pool", "kind"] as const,
+        registers: [this.common.metrics.registry],
+        collect() {
+          this.set(
+            { pool: "internal", kind: "idle" },
+            service.internalPool.idleCount,
+          );
+          this.set(
+            { pool: "internal", kind: "total" },
+            service.internalPool.totalCount,
+          );
 
-        this.set({ pool: "sync", kind: "idle" }, service.syncPool.idleCount);
-        this.set({ pool: "sync", kind: "total" }, service.syncPool.totalCount);
+          this.set({ pool: "sync", kind: "idle" }, service.syncPool.idleCount);
+          this.set(
+            { pool: "sync", kind: "total" },
+            service.syncPool.totalCount,
+          );
 
-        this.set({ pool: "indexing", kind: "idle" }, service.indexingPool.idleCount);
-        this.set({ pool: "indexing", kind: "total" }, service.indexingPool.totalCount);
+          this.set(
+            { pool: "indexing", kind: "idle" },
+            service.indexingPool.idleCount,
+          );
+          this.set(
+            { pool: "indexing", kind: "total" },
+            service.indexingPool.totalCount,
+          );
 
-        this.set({ pool: "readonly", kind: "idle" }, service.readonlyPool.idleCount);
-        this.set({ pool: "readonly", kind: "total" }, service.readonlyPool.totalCount);
+          this.set(
+            { pool: "readonly", kind: "idle" },
+            service.readonlyPool.idleCount,
+          );
+          this.set(
+            { pool: "readonly", kind: "total" },
+            service.readonlyPool.totalCount,
+          );
+        },
       },
-    });
+    );
 
-    this.common.metrics.registry.removeSingleMetric("ponder_postgres_query_queue_size");
-    this.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge({
-      name: "ponder_postgres_query_queue_size",
-      help: "Number of query requests waiting for an available connection",
-      labelNames: ["pool"] as const,
-      registers: [this.common.metrics.registry],
-      collect() {
-        this.set({ pool: "internal" }, service.internalPool.waitingCount);
-        this.set({ pool: "sync" }, service.syncPool.waitingCount);
-        this.set({ pool: "indexing" }, service.indexingPool.waitingCount);
-        this.set({ pool: "readonly" }, service.readonlyPool.waitingCount);
+    this.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_query_queue_size",
+    );
+    this.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_query_queue_size",
+        help: "Number of query requests waiting for an available connection",
+        labelNames: ["pool"] as const,
+        registers: [this.common.metrics.registry],
+        collect() {
+          this.set({ pool: "internal" }, service.internalPool.waitingCount);
+          this.set({ pool: "sync" }, service.syncPool.waitingCount);
+          this.set({ pool: "indexing" }, service.indexingPool.waitingCount);
+          this.set({ pool: "readonly" }, service.readonlyPool.waitingCount);
+        },
       },
-    });
+    );
   }
 }
 

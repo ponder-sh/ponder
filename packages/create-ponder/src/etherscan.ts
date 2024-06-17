@@ -43,7 +43,9 @@ export const fromEtherscan = async ({
 
   const chainExplorer = chainExplorerByHostname[explorerUrl.hostname];
   if (!chainExplorer)
-    throw new Error(`Block explorer (${explorerUrl.hostname}) is not present in viem/chains.`);
+    throw new Error(
+      `Block explorer (${explorerUrl.hostname}) is not present in viem/chains.`,
+    );
 
   const name = chainExplorer.name;
   const chainId = chainExplorer.id;
@@ -70,22 +72,36 @@ export const fromEtherscan = async ({
     );
   }
 
-  const abiResult = await getContractAbiAndName(contractAddress, apiUrl, apiKey);
+  const abiResult = await getContractAbiAndName(
+    contractAddress,
+    apiUrl,
+    apiKey,
+  );
 
   warnings.push(...abiResult.warnings);
 
   const baseAbi = abiResult.abi;
   let contractName = abiResult.contractName;
 
-  const abis: { abi: Abi; contractName: string }[] = [{ abi: baseAbi, contractName }];
+  const abis: { abi: Abi; contractName: string }[] = [
+    { abi: baseAbi, contractName },
+  ];
 
   let blockNumber: number | undefined = undefined;
   try {
     if (!apiKey) await wait(5000);
-    const txHash = await getContractCreationTxn(contractAddress, apiUrl, apiKey);
+    const txHash = await getContractCreationTxn(
+      contractAddress,
+      apiUrl,
+      apiKey,
+    );
 
     if (!apiKey) await wait(5000);
-    const contractCreationBlockNumber = await getTxBlockNumber(txHash, apiUrl, apiKey);
+    const contractCreationBlockNumber = await getTxBlockNumber(
+      txHash,
+      apiUrl,
+      apiKey,
+    );
 
     blockNumber = contractCreationBlockNumber;
   } catch (e) {
@@ -114,7 +130,11 @@ export const fromEtherscan = async ({
 
     for (const implAddress of implAddresses) {
       if (!apiKey) await wait(5000);
-      const abiResult = await getContractAbiAndName(implAddress, apiUrl, apiKey);
+      const abiResult = await getContractAbiAndName(
+        implAddress,
+        apiUrl,
+        apiKey,
+      );
 
       warnings.push(...abiResult.warnings);
 
@@ -136,12 +156,18 @@ export const fromEtherscan = async ({
 
   for (const { abi, contractName } of abis) {
     const abiRelativePath = `./abis/${contractName}Abi.ts`;
-    const abiAbsolutePath = path.join(path.resolve(".", rootDir), abiRelativePath);
+    const abiAbsolutePath = path.join(
+      path.resolve(".", rootDir),
+      abiRelativePath,
+    );
     writeFileSync(
       abiAbsolutePath,
-      await prettier.format(`export const ${contractName}Abi = ${JSON.stringify(abi)} as const`, {
-        parser: "typescript",
-      }),
+      await prettier.format(
+        `export const ${contractName}Abi = ${JSON.stringify(abi)} as const`,
+        {
+          parser: "typescript",
+        },
+      ),
     );
 
     if (abis.length === 1) {
@@ -202,7 +228,11 @@ const fetchEtherscan = async (url: string) => {
   }
 };
 
-const getContractCreationTxn = async (contractAddress: string, apiUrl: string, apiKey?: string) => {
+const getContractCreationTxn = async (
+  contractAddress: string,
+  apiUrl: string,
+  apiKey?: string,
+) => {
   const searchParams = new URLSearchParams({
     module: "contract",
     action: "getcontractcreation",
@@ -214,7 +244,11 @@ const getContractCreationTxn = async (contractAddress: string, apiUrl: string, a
   return data.result[0].txHash as string;
 };
 
-const getTxBlockNumber = async (txHash: string, apiUrl: string, apiKey?: string) => {
+const getTxBlockNumber = async (
+  txHash: string,
+  apiUrl: string,
+  apiKey?: string,
+) => {
   const searchParams = new URLSearchParams({
     module: "proxy",
     action: "eth_getTransactionByHash",
@@ -227,7 +261,11 @@ const getTxBlockNumber = async (txHash: string, apiUrl: string, apiKey?: string)
   return Number.parseInt(hexBlockNumber.slice(2), 16);
 };
 
-const getContractAbiAndName = async (contractAddress: string, apiUrl: string, apiKey?: string) => {
+const getContractAbiAndName = async (
+  contractAddress: string,
+  apiUrl: string,
+  apiKey?: string,
+) => {
   const searchParams = new URLSearchParams({
     module: "contract",
     action: "getsourcecode",
@@ -244,7 +282,9 @@ const getContractAbiAndName = async (contractAddress: string, apiUrl: string, ap
 
     const rawAbi = data.result[0].ABI as string;
     if (rawAbi === "Contract source code not verified") {
-      warnings.push(`Contract ${contractAddress} is unverified or has an empty ABI.`);
+      warnings.push(
+        `Contract ${contractAddress} is unverified or has an empty ABI.`,
+      );
       abi = [];
     } else {
       abi = JSON.parse(rawAbi);
@@ -281,7 +321,8 @@ const getProxyImplementationAddresses = async ({
     address: contractAddress,
     fromBlock: fromBlock ? String(fromBlock) : "0",
     toBlock: "latest",
-    topic0: "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+    topic0:
+      "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
   });
   if (apiKey) searchParams.append("apikey", apiKey);
   const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);

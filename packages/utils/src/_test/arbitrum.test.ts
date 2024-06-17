@@ -42,7 +42,9 @@ test(
     }).catch((error) => error);
 
     expect(error).toBeInstanceOf(InvalidInputRpcError);
-    expect(JSON.stringify(error)).includes("logs matched by query exceeds limit of 10000");
+    expect(JSON.stringify(error)).includes(
+      "logs matched by query exceeds limit of 10000",
+    );
 
     const retry = getLogsRetryHelper({
       params,

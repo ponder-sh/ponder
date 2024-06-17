@@ -115,18 +115,22 @@ export type EventSource =
   | FactoryCallTraceSource
   | BlockSource;
 
-export const sourceIsLog = (source: Pick<EventSource, "type">): source is LogSource =>
-  source.type === "log";
+export const sourceIsLog = (
+  source: Pick<EventSource, "type">,
+): source is LogSource => source.type === "log";
 
-export const sourceIsFactoryLog = (source: Pick<EventSource, "type">): source is FactoryLogSource =>
-  source.type === "factoryLog";
+export const sourceIsFactoryLog = (
+  source: Pick<EventSource, "type">,
+): source is FactoryLogSource => source.type === "factoryLog";
 
-export const sourceIsCallTrace = (source: Pick<EventSource, "type">): source is CallTraceSource =>
-  source.type === "callTrace";
+export const sourceIsCallTrace = (
+  source: Pick<EventSource, "type">,
+): source is CallTraceSource => source.type === "callTrace";
 
 export const sourceIsFactoryCallTrace = (
   source: Pick<EventSource, "type">,
 ): source is FactoryCallTraceSource => source.type === "factoryCallTrace";
 
-export const sourceIsBlock = (source: Pick<EventSource, "type">): source is BlockSource =>
-  source.type === "block";
+export const sourceIsBlock = (
+  source: Pick<EventSource, "type">,
+): source is BlockSource => source.type === "block";

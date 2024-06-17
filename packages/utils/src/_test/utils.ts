@@ -1,4 +1,9 @@
-import { http, type Chain, type EIP1193RequestFn, type PublicRpcSchema } from "viem";
+import {
+  http,
+  type Chain,
+  type EIP1193RequestFn,
+  type PublicRpcSchema,
+} from "viem";
 import { mainnet } from "viem/chains";
 import type { GetLogsRetryHelperParameters } from "../getLogsRetryHelper.js";
 

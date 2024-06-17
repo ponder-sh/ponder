@@ -13,7 +13,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import { type GetLoader, buildLoaderCache } from "./graphql/buildLoaderCache.js";
+import {
+  type GetLoader,
+  buildLoaderCache,
+} from "./graphql/buildLoaderCache.js";
 
 type Server = {
   hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;
@@ -140,7 +143,10 @@ export async function createServer({
     // Serves GraphQL POST requests following healthcheck rules
     .post("/graphql", (c) => {
       if (isHealthy === false) {
-        return c.json({ errors: [new GraphQLError("Historical indexing is not complete")] }, 503);
+        return c.json(
+          { errors: [new GraphQLError("Historical indexing is not complete")] },
+          503,
+        );
       }
 
       return prodYoga.handle(c.req.raw);
@@ -150,7 +156,9 @@ export async function createServer({
     // Serves GraphQL POST requests regardless of health status, e.g. "dev UI"
     .post("/", (c) => rootYoga.handle(c.req.raw));
 
-  const createServerWithNextAvailablePort: typeof http.createServer = (...args: any) => {
+  const createServerWithNextAvailablePort: typeof http.createServer = (
+    ...args: any
+  ) => {
     const httpServer = http.createServer(...args);
 
     const errorHandler = (error: Error & { code: string }) => {

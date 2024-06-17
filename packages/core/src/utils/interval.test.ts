@@ -207,9 +207,9 @@ test("ProgressTracker constructor initializes correctly", () => {
 });
 
 test("ProgressTracker constructor throws if passed an invalid interval", () => {
-  expect(() => new ProgressTracker({ target: [10, 1], completed: [] })).toThrowError(
-    "Invalid interval: start (10) is greater than end (1)",
-  );
+  expect(
+    () => new ProgressTracker({ target: [10, 1], completed: [] }),
+  ).toThrowError("Invalid interval: start (10) is greater than end (1)");
 });
 
 test("ProgressTracker addCompletedInterval updates required and checkpoint", () => {
@@ -454,7 +454,9 @@ test("BlockProgressTracker throws if pending blocks are added out of order", () 
 
   tracker.addPendingBlocks({ blockNumbers: [5, 6, 9, 10] });
 
-  expect(() => tracker.addPendingBlocks({ blockNumbers: [8, 12] })).toThrowError(
+  expect(() =>
+    tracker.addPendingBlocks({ blockNumbers: [8, 12] }),
+  ).toThrowError(
     "New pending block number 8 was added out of order. Already added block number 10.",
   );
 });
@@ -462,7 +464,9 @@ test("BlockProgressTracker throws if pending blocks are added out of order", () 
 test("BlockProgressTracker throws if completed block was not pending", () => {
   const tracker = new BlockProgressTracker();
 
-  expect(() => tracker.addCompletedBlock({ blockNumber: 5, blockTimestamp: 98 })).toThrowError(
+  expect(() =>
+    tracker.addCompletedBlock({ blockNumber: 5, blockTimestamp: 98 }),
+  ).toThrowError(
     "Block number 5 was not pending. Ensure to add blocks as pending before marking them as completed.",
   );
 });

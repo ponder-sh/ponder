@@ -43,7 +43,9 @@ test(
     }).catch((error) => error);
 
     expect(error).toBeInstanceOf(HttpRequestError);
-    expect(JSON.stringify(error)).includes("eth_getLogs is limited to a 10,000 range");
+    expect(JSON.stringify(error)).includes(
+      "eth_getLogs is limited to a 10,000 range",
+    );
 
     const retry = getLogsRetryHelper({
       params,

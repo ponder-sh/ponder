@@ -23,12 +23,14 @@ export const deploy = async () => {
 
   await testClient.mine({ blocks: 1 });
 
-  const { contractAddress: erc20Address } = await publicClient.waitForTransactionReceipt({
-    hash: deployHashErc20,
-  });
-  const { contractAddress: factoryAddress } = await publicClient.waitForTransactionReceipt({
-    hash: deployHashFactory,
-  });
+  const { contractAddress: erc20Address } =
+    await publicClient.waitForTransactionReceipt({
+      hash: deployHashErc20,
+    });
+  const { contractAddress: factoryAddress } =
+    await publicClient.waitForTransactionReceipt({
+      hash: deployHashFactory,
+    });
   return {
     erc20Address: erc20Address!,
     factoryAddress: factoryAddress!,
@@ -47,7 +49,9 @@ export const deploy = async () => {
  *
  * @returns The pair address
  */
-export const simulate = async (addresses: Awaited<ReturnType<typeof deploy>>): Promise<Address> => {
+export const simulate = async (
+  addresses: Awaited<ReturnType<typeof deploy>>,
+): Promise<Address> => {
   await simulateErc20(addresses.erc20Address);
   const pairAddress = await simulateFactoryDeploy(addresses.factoryAddress);
   await simulatePairSwap(pairAddress);
@@ -78,7 +82,9 @@ export const simulateErc20 = async (erc20Address: Address) => {
   await publicClient.waitForTransactionReceipt({ hash: transferHash });
 };
 
-export const simulateFactoryDeploy = async (factoryAddress: Address): Promise<Address> => {
+export const simulateFactoryDeploy = async (
+  factoryAddress: Address,
+): Promise<Address> => {
   const { result, request } = await publicClient.simulateContract({
     abi: factoryABI,
     functionName: "createPair",

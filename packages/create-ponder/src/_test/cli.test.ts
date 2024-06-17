@@ -22,9 +22,14 @@ test("create empty", async () => {
   });
 
   const templateFiles = (
-    readdirSync(path.join(__dirname, "..", "..", "templates", "empty")) as string[]
+    readdirSync(
+      path.join(__dirname, "..", "..", "templates", "empty"),
+    ) as string[]
   )
-    .concat([path.join("abis", "ExampleContractAbi.ts"), path.join("src", "index.ts")])
+    .concat([
+      path.join("abis", "ExampleContractAbi.ts"),
+      path.join("src", "index.ts"),
+    ])
     .map((filePath) =>
       filePath === "_dot_env.local"
         ? ".env.local"
@@ -96,7 +101,8 @@ test("create etherscan", async () => {
       template: "etherscan",
       skipGit: true,
       etherscanApiKey: process.env.ETHERSCAN_API_KEY!,
-      etherscan: "https://etherscan.io/address/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      etherscan:
+        "https://etherscan.io/address/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     },
   });
 

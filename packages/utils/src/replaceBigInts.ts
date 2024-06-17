@@ -3,7 +3,11 @@ type _ReplaceBigInts<
   type,
   result extends readonly unknown[] = [],
 > = arr extends [infer first, ...infer rest]
-  ? _ReplaceBigInts<rest, type, readonly [...result, first extends bigint ? type : first]>
+  ? _ReplaceBigInts<
+      rest,
+      type,
+      readonly [...result, first extends bigint ? type : first]
+    >
   : result;
 
 export type ReplaceBigInts<obj, type> = obj extends bigint
@@ -22,7 +26,10 @@ export const replaceBigInts = <const T, const type>(
 ): ReplaceBigInts<T, type> => {
   if (typeof obj === "bigint") return replacer(obj) as ReplaceBigInts<T, type>;
   if (Array.isArray(obj))
-    return obj.map((x) => replaceBigInts(x, replacer)) as ReplaceBigInts<T, type>;
+    return obj.map((x) => replaceBigInts(x, replacer)) as ReplaceBigInts<
+      T,
+      type
+    >;
   if (obj && typeof obj === "object")
     return Object.fromEntries(
       Object.entries(obj).map(([k, v]) => [k, replaceBigInts(v, replacer)]),

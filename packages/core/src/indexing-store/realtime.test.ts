@@ -1,7 +1,18 @@
-import { setupCommon, setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
-import { CheckConstraintError, UniqueConstraintError } from "@/common/errors.js";
+import {
+  setupCommon,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
+import {
+  CheckConstraintError,
+  UniqueConstraintError,
+} from "@/common/errors.js";
 import { createSchema } from "@/schema/schema.js";
-import { type Checkpoint, encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { hash } from "@/utils/hash.js";
 import { beforeEach, expect, test } from "vitest";
 
@@ -201,10 +212,11 @@ test("create() accepts float fields as float and returns as float", async (conte
 });
 
 test("create() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
-    schema,
-    indexing: "realtime",
-  });
+  const { indexingStore, database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -306,10 +318,11 @@ test("update() updates a record using an update function", async (context) => {
 });
 
 test("update() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
-    schema,
-    indexing: "realtime",
-  });
+  const { indexingStore, database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -442,10 +455,11 @@ test("upsert() updates a record using an update function", async (context) => {
 });
 
 test("upsert() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
-    schema,
-    indexing: "realtime",
-  });
+  const { indexingStore, database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -517,10 +531,11 @@ test("delete() removes a record", async (context) => {
 });
 
 test("delete() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
-    schema,
-    indexing: "realtime",
-  });
+  const { indexingStore, database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -613,10 +628,11 @@ test("createMany() inserts a large number of entities", async (context) => {
 });
 
 test("createMany() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
-    schema,
-    indexing: "realtime",
-  });
+  const { indexingStore, database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.createMany({
     tableName: "Pet",
@@ -689,10 +705,11 @@ test("updateMany() updates multiple entities", async (context) => {
 });
 
 test("updateMany() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
-    schema,
-    indexing: "realtime",
-  });
+  const { indexingStore, database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+      indexing: "realtime",
+    });
 
   await indexingStore.createMany({
     tableName: "Pet",

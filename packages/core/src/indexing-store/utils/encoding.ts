@@ -25,7 +25,12 @@ import {
   isReferenceColumn,
   isScalarColumn,
 } from "@/schema/utils.js";
-import type { DatabaseRecord, DatabaseValue, UserRecord, UserValue } from "@/types/schema.js";
+import type {
+  DatabaseRecord,
+  DatabaseValue,
+  UserRecord,
+  UserValue,
+} from "@/types/schema.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import { never } from "@/utils/never.js";
 import { type Hex, bytesToHex, hexToBytes, isHex } from "viem";
@@ -116,7 +121,9 @@ export function encodeValue(
         if (column[" scalar"] === "bigint") {
           return JSON.stringify((value as bigint[]).map(String));
         } else if (column[" scalar"] === "hex") {
-          return JSON.stringify((value as string[]).map((v) => (v as string).toLowerCase()));
+          return JSON.stringify(
+            (value as string[]).map((v) => (v as string).toLowerCase()),
+          );
         } else {
           return JSON.stringify(value);
         }
@@ -130,7 +137,9 @@ export function encodeValue(
         case "hex":
           return Buffer.from(hexToBytes(value as Hex));
         case "bigint":
-          return encoding === "sqlite" ? encodeAsText(value as bigint) : (value as bigint);
+          return encoding === "sqlite"
+            ? encodeAsText(value as bigint)
+            : (value as bigint);
         case "boolean":
           return value ? 1 : 0;
 
@@ -207,9 +216,9 @@ function validateValue({
           throw new CheckConstraintError(
             `Unable to encode ${value} as a '${
               column[" enum"]
-            }' enum. Got '${value}' but expected one of [${getEnums(schema)[column[" enum"]].join(
-              ", ",
-            )}].`,
+            }' enum. Got '${value}' but expected one of [${getEnums(schema)[
+              column[" enum"]
+            ].join(", ")}].`,
           );
         }
       }
@@ -221,7 +230,9 @@ function validateValue({
       try {
         JSON.stringify(value);
       } catch (_error) {
-        const error = new BigIntSerializationError((_error as TypeError).message);
+        const error = new BigIntSerializationError(
+          (_error as TypeError).message,
+        );
         error.meta.push(
           "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
         );

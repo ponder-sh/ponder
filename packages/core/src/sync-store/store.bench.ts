@@ -1,9 +1,18 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import { describe } from "node:test";
-import { setupCommon, setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupCommon,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import type { EventSource, LogFilterCriteria } from "@/config/sources.js";
-import type { SyncBlock, SyncLog, SyncTransaction, SyncTransactionReceipt } from "@/sync/index.js";
+import type {
+  SyncBlock,
+  SyncLog,
+  SyncTransaction,
+  SyncTransactionReceipt,
+} from "@/sync/index.js";
 import { type Checkpoint, maxCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { range } from "@/utils/range.js";
@@ -155,9 +164,10 @@ const setupStore = async () => {
   setupCommon(context);
 
   const cleanupDatabase = await setupIsolatedDatabase(context);
-  const { syncStore: syncStore_, cleanup: cleanUpstore } = await setupDatabaseServices(context, {
-    schema: {},
-  });
+  const { syncStore: syncStore_, cleanup: cleanUpstore } =
+    await setupDatabaseServices(context, {
+      schema: {},
+    });
 
   cleanup = async () => {
     await cleanUpstore();
@@ -281,7 +291,10 @@ const LOG_FILTER_CASES = [
   },
 ] as Case[];
 
-const checkpointBounds = (startBlock: number, endBlock: number): [Checkpoint, Checkpoint] => {
+const checkpointBounds = (
+  startBlock: number,
+  endBlock: number,
+): [Checkpoint, Checkpoint] => {
   const fromCheckpoint: Checkpoint = {
     ...maxCheckpoint,
     blockTimestamp: startBlock,
@@ -303,7 +316,10 @@ for (const c of LOG_FILTER_CASES) {
       async () => {
         const startBlock = 0;
         const totalBlocks = Math.floor(c.numBlocks * 0.1);
-        const [fromCheckpoint, toCheckpoint] = checkpointBounds(startBlock, totalBlocks);
+        const [fromCheckpoint, toCheckpoint] = checkpointBounds(
+          startBlock,
+          totalBlocks,
+        );
 
         const ag = syncStore.getEvents({
           sources: [
@@ -342,7 +358,10 @@ for (const c of LOG_FILTER_CASES) {
       async () => {
         const startBlock = 0;
         const totalBlocks = Math.floor(c.numBlocks * 0.9);
-        const [fromCheckpoint, toCheckpoint] = checkpointBounds(startBlock, totalBlocks);
+        const [fromCheckpoint, toCheckpoint] = checkpointBounds(
+          startBlock,
+          totalBlocks,
+        );
 
         const ag = syncStore.getEvents({
           sources: [
@@ -380,7 +399,10 @@ for (const c of LOG_FILTER_CASES) {
       async () => {
         const startBlock = c.numBlocks + 5;
         const endBlock = c.numBlocks + 100;
-        const [fromCheckpoint, toCheckpoint] = checkpointBounds(startBlock, endBlock);
+        const [fromCheckpoint, toCheckpoint] = checkpointBounds(
+          startBlock,
+          endBlock,
+        );
 
         const ag = syncStore.getEvents({
           sources: [

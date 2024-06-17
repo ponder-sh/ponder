@@ -1,8 +1,19 @@
 import type { SyncCallTrace } from "@/sync/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { Generated, Insertable } from "kysely";
-import { type Address, type Hash, type Hex, type RpcTransactionReceipt, hexToBigInt } from "viem";
-import { type RpcBlock, type RpcLog, type RpcTransaction, hexToNumber } from "viem";
+import {
+  type Address,
+  type Hash,
+  type Hex,
+  type RpcTransactionReceipt,
+  hexToBigInt,
+} from "viem";
+import {
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+  hexToNumber,
+} from "viem";
 
 type BlocksTable = {
   baseFeePerGas: bigint | null;
@@ -52,7 +63,9 @@ export function rpcToPostgresBlock(
     size: BigInt(block.size),
     stateRoot: block.stateRoot,
     timestamp: BigInt(block.timestamp),
-    totalDifficulty: block.totalDifficulty ? BigInt(block.totalDifficulty) : null,
+    totalDifficulty: block.totalDifficulty
+      ? BigInt(block.totalDifficulty)
+      : null,
     transactionsRoot: block.transactionsRoot,
   };
 }
@@ -87,7 +100,9 @@ export function rpcToPostgresTransaction(
   transaction: RpcTransaction,
 ): Omit<InsertableTransaction, "chainId"> {
   return {
-    accessList: transaction.accessList ? JSON.stringify(transaction.accessList) : undefined,
+    accessList: transaction.accessList
+      ? JSON.stringify(transaction.accessList)
+      : undefined,
     blockHash: transaction.blockHash!,
     blockNumber: BigInt(transaction.blockNumber!),
     from: toLowerCase(transaction.from),
@@ -95,7 +110,9 @@ export function rpcToPostgresTransaction(
     gasPrice: transaction.gasPrice ? BigInt(transaction.gasPrice) : null,
     hash: transaction.hash,
     input: transaction.input,
-    maxFeePerGas: transaction.maxFeePerGas ? BigInt(transaction.maxFeePerGas) : null,
+    maxFeePerGas: transaction.maxFeePerGas
+      ? BigInt(transaction.maxFeePerGas)
+      : null,
     maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
       ? BigInt(transaction.maxPriorityFeePerGas)
       : null,
@@ -129,7 +146,8 @@ type TransactionReceiptsTable = {
   chainId: number;
 };
 
-export type InsertableTransactionReceipts = Insertable<TransactionReceiptsTable>;
+export type InsertableTransactionReceipts =
+  Insertable<TransactionReceiptsTable>;
 
 export function rpcToPostgresTransactionReceipt(
   transactionReceipt: RpcTransactionReceipt,

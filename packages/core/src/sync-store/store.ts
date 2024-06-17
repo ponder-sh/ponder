@@ -15,7 +15,13 @@ import type {
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/sync/index.js";
-import type { Block, CallTrace, Log, Transaction, TransactionReceipt } from "@/types/eth.js";
+import type {
+  Block,
+  CallTrace,
+  Log,
+  Transaction,
+  TransactionReceipt,
+} from "@/types/eth.js";
 import type { Checkpoint } from "@/utils/checkpoint.js";
 import type { Address } from "viem";
 

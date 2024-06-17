@@ -1,4 +1,8 @@
-import { setupCommon, setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupCommon,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import {
   BigIntSerializationError,
   CheckConstraintError,
@@ -186,7 +190,9 @@ test("create() throws on invalid json", async (context) => {
 
   expect(error).instanceOf(BigIntSerializationError);
 
-  expect(error.message?.includes("Do not know how to serialize a BigInt")).toBe(true);
+  expect(error.message?.includes("Do not know how to serialize a BigInt")).toBe(
+    true,
+  );
 
   await cleanup();
 });
@@ -473,9 +479,10 @@ test("update() w/ cache miss", async (context) => {
 });
 
 test("update() w/ find cache", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -707,9 +714,10 @@ test("upsert() w/ cache miss", async (context) => {
 });
 
 test("upsert() w/ find cache", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
 
   // add pet.id1 to find cache
 
@@ -809,9 +817,10 @@ test("delete() removes a record", async (context) => {
 });
 
 test("delete() w/ find cache", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -1040,9 +1049,10 @@ test("updateMany() updates a large number of entities", async (context) => {
 });
 
 test("flush() insert", async (context) => {
-  const { indexingStore, cleanup, database, namespaceInfo } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, cleanup, database, namespaceInfo } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -1069,9 +1079,10 @@ test("flush() insert", async (context) => {
 });
 
 test("flush() update", async (context) => {
-  const { indexingStore, cleanup, database, namespaceInfo } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, cleanup, database, namespaceInfo } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
 
   await indexingStore.create({
     tableName: "Pet",
@@ -1106,9 +1117,10 @@ test("flush() update", async (context) => {
 });
 
 test("flush() partial", async (context) => {
-  const { indexingStore, cleanup, database, namespaceInfo } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, cleanup, database, namespaceInfo } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
 
   await indexingStore.createMany({
     tableName: "Pet",
@@ -1150,9 +1162,10 @@ test("flush() skips update w/ no data", async (context) => {
     }),
   }));
 
-  const { indexingStore, database, namespaceInfo, cleanup } = await setupDatabaseServices(context, {
-    schema,
-  });
+  const { indexingStore, database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
 
   await indexingStore.create({
     tableName: "table",

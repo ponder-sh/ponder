@@ -1,7 +1,17 @@
 import path from "node:path";
 import type { Options } from "@/common/options.js";
-import type { CallTraceSource, FactoryCallTraceSource, LogSource } from "@/config/sources.js";
-import { http, getEventSelector, getFunctionSelector, parseAbiItem, zeroAddress } from "viem";
+import type {
+  CallTraceSource,
+  FactoryCallTraceSource,
+  LogSource,
+} from "@/config/sources.js";
+import {
+  http,
+  getEventSelector,
+  getFunctionSelector,
+  parseAbiItem,
+  zeroAddress,
+} from "viem";
 import { expect, test, vi } from "vitest";
 import { type Config, createConfig } from "../config/config.js";
 import {
@@ -13,12 +23,16 @@ const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
 const event1 = parseAbiItem("event Event1()");
 const event1Overloaded = parseAbiItem("event Event1(bytes32 indexed)");
 const eventFactory = parseAbiItem("event EventFactory(address indexed child)");
-const func0 = parseAbiItem("function func0(address) external returns (uint256)");
+const func0 = parseAbiItem(
+  "function func0(address) external returns (uint256)",
+);
 
 const address1 = "0x0000000000000000000000000000000000000001";
 const address2 = "0x0000000000000000000000000000000000000001";
-const bytes1 = "0x0000000000000000000000000000000000000000000000000000000000000001";
-const bytes2 = "0x0000000000000000000000000000000000000000000000000000000000000002";
+const bytes1 =
+  "0x0000000000000000000000000000000000000000000000000000000000000001";
+const bytes2 =
+  "0x0000000000000000000000000000000000000000000000000000000000000002";
 const options = {
   ponderDir: ".ponder",
   rootDir: "rootDir",
@@ -486,8 +500,12 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
     options,
   });
 
-  expect((sources[0] as LogSource).criteria.includeTransactionReceipts).toBe(true);
-  expect((sources[1] as LogSource).criteria.includeTransactionReceipts).toBe(false);
+  expect((sources[0] as LogSource).criteria.includeTransactionReceipts).toBe(
+    true,
+  );
+  expect((sources[1] as LogSource).criteria.includeTransactionReceipts).toBe(
+    false,
+  );
 });
 
 test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
@@ -519,11 +537,15 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
 
   expect((sources[0] as CallTraceSource).id).toBe("callTrace_a_mainnet");
   expect((sources[0] as CallTraceSource).criteria.fromAddress).toBeUndefined();
-  expect((sources[0] as CallTraceSource).criteria.toAddress).toMatchObject([zeroAddress]);
-  expect((sources[0] as CallTraceSource).criteria.functionSelectors).toMatchObject([
-    getFunctionSelector(func0),
+  expect((sources[0] as CallTraceSource).criteria.toAddress).toMatchObject([
+    zeroAddress,
   ]);
-  expect((sources[0] as CallTraceSource).criteria.includeTransactionReceipts).toBe(false);
+  expect(
+    (sources[0] as CallTraceSource).criteria.functionSelectors,
+  ).toMatchObject([getFunctionSelector(func0)]);
+  expect(
+    (sources[0] as CallTraceSource).criteria.includeTransactionReceipts,
+  ).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async () => {
@@ -558,12 +580,18 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   expect(sources).toHaveLength(1);
 
   expect((sources[0] as FactoryCallTraceSource).id).toBe("callTrace_a_mainnet");
-  expect((sources[0] as FactoryCallTraceSource).criteria.fromAddress).toBeUndefined();
-  expect((sources[0] as FactoryCallTraceSource).criteria.address).toMatchObject(address2);
-  expect((sources[0] as FactoryCallTraceSource).criteria.functionSelectors).toMatchObject([
-    getFunctionSelector(func0),
-  ]);
-  expect((sources[0] as FactoryCallTraceSource).criteria.includeTransactionReceipts).toBe(false);
+  expect(
+    (sources[0] as FactoryCallTraceSource).criteria.fromAddress,
+  ).toBeUndefined();
+  expect((sources[0] as FactoryCallTraceSource).criteria.address).toMatchObject(
+    address2,
+  );
+  expect(
+    (sources[0] as FactoryCallTraceSource).criteria.functionSelectors,
+  ).toMatchObject([getFunctionSelector(func0)]);
+  expect(
+    (sources[0] as FactoryCallTraceSource).criteria.includeTransactionReceipts,
+  ).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {
@@ -665,7 +693,10 @@ test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_PRIVA
   });
 
   vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
-  vi.stubEnv("DATABASE_PRIVATE_URL", "postgres://username@localhost:5432/better_database");
+  vi.stubEnv(
+    "DATABASE_PRIVATE_URL",
+    "postgres://username@localhost:5432/better_database",
+  );
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,

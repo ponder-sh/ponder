@@ -49,17 +49,31 @@ export type PonderActions = {
     args: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> & BlockOptions,
   ) => Promise<GetBalanceReturnType>;
   getBytecode: (
-    args: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> & BlockOptions,
+    args: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> &
+      BlockOptions,
   ) => Promise<GetBytecodeReturnType>;
   getStorageAt: (
-    args: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> & BlockOptions,
+    args: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> &
+      BlockOptions,
   ) => Promise<GetStorageAtReturnType>;
-  multicall: <TContracts extends ContractFunctionConfig[], TAllowFailure extends boolean = true>(
-    args: Omit<MulticallParameters<TContracts, TAllowFailure>, "blockTag" | "blockNumber"> &
+  multicall: <
+    TContracts extends ContractFunctionConfig[],
+    TAllowFailure extends boolean = true,
+  >(
+    args: Omit<
+      MulticallParameters<TContracts, TAllowFailure>,
+      "blockTag" | "blockNumber"
+    > &
       BlockOptions,
   ) => Promise<MulticallReturnType<TContracts, TAllowFailure>>;
-  readContract: <const TAbi extends Abi | readonly unknown[], TFunctionName extends string>(
-    args: Omit<ReadContractParameters<TAbi, TFunctionName>, "blockTag" | "blockNumber"> &
+  readContract: <
+    const TAbi extends Abi | readonly unknown[],
+    TFunctionName extends string,
+  >(
+    args: Omit<
+      ReadContractParameters<TAbi, TFunctionName>,
+      "blockTag" | "blockNumber"
+    > &
       BlockOptions,
   ) => Promise<ReadContractReturnType<TAbi, TFunctionName>>;
   getEnsName: (
@@ -70,7 +84,9 @@ export type PonderActions = {
 export type ReadOnlyClient<
   transport extends Transport = Transport,
   chain extends Chain | undefined = Chain | undefined,
-> = Prettify<Client<transport, chain, undefined, PublicRpcSchema, PonderActions>>;
+> = Prettify<
+  Client<transport, chain, undefined, PublicRpcSchema, PonderActions>
+>;
 
 export const buildCachedActions = (
   contextState: Pick<Service["currentEvent"]["contextState"], "blockNumber">,
@@ -118,11 +134,17 @@ export const buildCachedActions = (
           ? { blockTag: "latest" }
           : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
       }),
-    multicall: <TContracts extends ContractFunctionConfig[], TAllowFailure extends boolean = true>({
+    multicall: <
+      TContracts extends ContractFunctionConfig[],
+      TAllowFailure extends boolean = true,
+    >({
       cache,
       blockNumber: userBlockNumber,
       ...args
-    }: Omit<MulticallParameters<TContracts, TAllowFailure>, "blockTag" | "blockNumber"> &
+    }: Omit<
+      MulticallParameters<TContracts, TAllowFailure>,
+      "blockTag" | "blockNumber"
+    > &
       BlockOptions): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
       viemMulticall(client, {
         ...args,
@@ -131,11 +153,17 @@ export const buildCachedActions = (
           : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
       }),
     // @ts-ignore
-    readContract: <const TAbi extends Abi | readonly unknown[], TFunctionName extends string>({
+    readContract: <
+      const TAbi extends Abi | readonly unknown[],
+      TFunctionName extends string,
+    >({
       cache,
       blockNumber: userBlockNumber,
       ...args
-    }: Omit<ReadContractParameters<TAbi, TFunctionName>, "blockTag" | "blockNumber"> &
+    }: Omit<
+      ReadContractParameters<TAbi, TFunctionName>,
+      "blockTag" | "blockNumber"
+    > &
       BlockOptions): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
       viemReadContract(client, {
         ...args,
@@ -152,109 +180,111 @@ export const buildDb = ({
   indexingStore,
   contextState,
 }: Pick<Parameters<typeof create>[0], "common" | "schema" | "indexingStore"> & {
-  contextState: Pick<Service["currentEvent"]["contextState"], "encodedCheckpoint">;
+  contextState: Pick<
+    Service["currentEvent"]["contextState"],
+    "encodedCheckpoint"
+  >;
 }) => {
-  return Object.keys(getTables(schema)).reduce<Service["currentEvent"]["context"]["db"]>(
-    (acc, tableName) => {
-      acc[tableName] = {
-        findUnique: async ({ id }) => {
-          common.logger.trace({
-            service: "store",
-            msg: `${tableName}.findUnique(id=${id})`,
-          });
-          return indexingStore.findUnique({
-            tableName,
-            id,
-          });
-        },
-        findMany: async ({ where, orderBy, limit, before, after } = {}) => {
-          common.logger.trace({
-            service: "store",
-            msg: `${tableName}.findMany`,
-          });
-          return indexingStore.findMany({
-            tableName,
-            where,
-            orderBy,
-            limit,
-            before,
-            after,
-          });
-        },
-        create: async ({ id, data }) => {
-          common.logger.trace({
-            service: "store",
-            msg: `${tableName}.create(id=${id})`,
-          });
-          return indexingStore.create({
-            tableName,
-            encodedCheckpoint: contextState.encodedCheckpoint,
-            id,
-            data,
-          });
-        },
-        createMany: async ({ data }) => {
-          common.logger.trace({
-            service: "store",
-            msg: `${tableName}.createMany(count=${data.length})`,
-          });
-          return indexingStore.createMany({
-            tableName,
-            encodedCheckpoint: contextState.encodedCheckpoint,
-            data,
-          });
-        },
-        update: async ({ id, data }) => {
-          common.logger.trace({
-            service: "store",
-            msg: `${tableName}.update(id=${id})`,
-          });
-          return indexingStore.update({
-            tableName,
-            encodedCheckpoint: contextState.encodedCheckpoint,
-            id,
-            data,
-          });
-        },
-        updateMany: async ({ where, data }) => {
-          common.logger.trace({
-            service: "store",
-            msg: `${tableName}.updateMany`,
-          });
-          return indexingStore.updateMany({
-            tableName,
-            encodedCheckpoint: contextState.encodedCheckpoint,
-            where,
-            data,
-          });
-        },
-        upsert: async ({ id, create, update }) => {
-          common.logger.trace({
-            service: "store",
-            msg: `${tableName}.upsert(id=${id})`,
-          });
-          return indexingStore.upsert({
-            tableName,
-            encodedCheckpoint: contextState.encodedCheckpoint,
-            id,
-            create,
-            update,
-          });
-        },
-        delete: async ({ id }) => {
-          common.logger.trace({
-            service: "store",
-            msg: `${tableName}.delete(id=${id})`,
-          });
-          return indexingStore.delete({
-            tableName,
-            encodedCheckpoint: contextState.encodedCheckpoint,
-            id,
-          });
-        },
-      };
-      return acc;
-    },
-    {},
-  );
+  return Object.keys(getTables(schema)).reduce<
+    Service["currentEvent"]["context"]["db"]
+  >((acc, tableName) => {
+    acc[tableName] = {
+      findUnique: async ({ id }) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.findUnique(id=${id})`,
+        });
+        return indexingStore.findUnique({
+          tableName,
+          id,
+        });
+      },
+      findMany: async ({ where, orderBy, limit, before, after } = {}) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.findMany`,
+        });
+        return indexingStore.findMany({
+          tableName,
+          where,
+          orderBy,
+          limit,
+          before,
+          after,
+        });
+      },
+      create: async ({ id, data }) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.create(id=${id})`,
+        });
+        return indexingStore.create({
+          tableName,
+          encodedCheckpoint: contextState.encodedCheckpoint,
+          id,
+          data,
+        });
+      },
+      createMany: async ({ data }) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.createMany(count=${data.length})`,
+        });
+        return indexingStore.createMany({
+          tableName,
+          encodedCheckpoint: contextState.encodedCheckpoint,
+          data,
+        });
+      },
+      update: async ({ id, data }) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.update(id=${id})`,
+        });
+        return indexingStore.update({
+          tableName,
+          encodedCheckpoint: contextState.encodedCheckpoint,
+          id,
+          data,
+        });
+      },
+      updateMany: async ({ where, data }) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.updateMany`,
+        });
+        return indexingStore.updateMany({
+          tableName,
+          encodedCheckpoint: contextState.encodedCheckpoint,
+          where,
+          data,
+        });
+      },
+      upsert: async ({ id, create, update }) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.upsert(id=${id})`,
+        });
+        return indexingStore.upsert({
+          tableName,
+          encodedCheckpoint: contextState.encodedCheckpoint,
+          id,
+          create,
+          update,
+        });
+      },
+      delete: async ({ id }) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.delete(id=${id})`,
+        });
+        return indexingStore.delete({
+          tableName,
+          encodedCheckpoint: contextState.encodedCheckpoint,
+          id,
+        });
+      },
+    };
+    return acc;
+  }, {});
 };

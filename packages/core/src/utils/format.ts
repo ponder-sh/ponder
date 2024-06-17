@@ -16,5 +16,7 @@ export const formatEta = (ms: number) => {
 
 export const formatPercentage = (cacheRate: number) => {
   const decimal = Math.round(cacheRate * 1000) / 10;
-  return Number.isInteger(decimal) && decimal < 100 ? `${decimal}.0%` : `${decimal}%`;
+  return Number.isInteger(decimal) && decimal < 100
+    ? `${decimal}.0%`
+    : `${decimal}%`;
 };

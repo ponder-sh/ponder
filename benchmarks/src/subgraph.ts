@@ -18,7 +18,11 @@ const fetchSubgraphSynced = async () => {
     const error = response.errors?.[0];
 
     if (error) {
-      if (error.message?.endsWith("Wait for it to ingest a few blocks before querying it")) {
+      if (
+        error.message?.endsWith(
+          "Wait for it to ingest a few blocks before querying it",
+        )
+      ) {
         return 0;
       } else {
         throw error;
@@ -87,10 +91,14 @@ const subgraph = async () => {
   console.log(process.argv[2]);
 
   console.log("Registering subgraph...");
-  await execa("graph", ["create", "ponder-benchmarks/subgraph", "--node=http://localhost:8020"], {
-    timeout: 10_000,
-    stdio: "inherit",
-  });
+  await execa(
+    "graph",
+    ["create", "ponder-benchmarks/subgraph", "--node=http://localhost:8020"],
+    {
+      timeout: 10_000,
+      stdio: "inherit",
+    },
+  );
 
   console.log("Deploying subgraph...");
   await execa(
@@ -112,18 +120,27 @@ const subgraph = async () => {
 
   const duration = await waitForSyncComplete();
 
-  const metrics = (await fetchSubgraphMetrics()).filter((m) => m.includes("endpoint_request"));
+  const metrics = (await fetchSubgraphMetrics()).filter((m) =>
+    m.includes("endpoint_request"),
+  );
 
   return { setupDuration, duration, metrics };
 };
 
 const changeMappingFileDelim = (delim: string) => {
-  let mappingFileContents = readFileSync("./apps/subgraph-reth/src/mapping.ts", {
-    encoding: "utf-8",
-  });
+  let mappingFileContents = readFileSync(
+    "./apps/subgraph-reth/src/mapping.ts",
+    {
+      encoding: "utf-8",
+    },
+  );
   mappingFileContents = mappingFileContents.replace(/(dif:.)/g, `dif:${delim}`);
 
-  writeFileSync("./apps/subgraph-reth/src/mapping.ts", mappingFileContents, "utf-8");
+  writeFileSync(
+    "./apps/subgraph-reth/src/mapping.ts",
+    mappingFileContents,
+    "utf-8",
+  );
 };
 
 const bench = async () => {

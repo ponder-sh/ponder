@@ -128,12 +128,28 @@ const migrations: Record<string, Migration> = {
       await db.schema.dropIndex("blocks_index").execute();
 
       // Block hash is a join key.
-      await db.schema.createIndex("log_block_hash_index").on("logs").column("blockHash").execute();
+      await db.schema
+        .createIndex("log_block_hash_index")
+        .on("logs")
+        .column("blockHash")
+        .execute();
 
       // Chain ID, address and topic0 are all used in WHERE clauses.
-      await db.schema.createIndex("log_chain_id_index").on("logs").column("chainId").execute();
-      await db.schema.createIndex("log_address_index").on("logs").column("address").execute();
-      await db.schema.createIndex("log_topic0_index").on("logs").column("topic0").execute();
+      await db.schema
+        .createIndex("log_chain_id_index")
+        .on("logs")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("log_address_index")
+        .on("logs")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("log_topic0_index")
+        .on("logs")
+        .column("topic0")
+        .execute();
 
       // Block timestamp and number are both used in WHERE and SORT clauses.
       await db.schema
@@ -141,15 +157,25 @@ const migrations: Record<string, Migration> = {
         .on("blocks")
         .column("timestamp")
         .execute();
-      await db.schema.createIndex("block_number_index").on("blocks").column("number").execute();
+      await db.schema
+        .createIndex("block_number_index")
+        .on("blocks")
+        .column("number")
+        .execute();
     },
   },
   "2023_07_24_0_drop_finalized": {
     async up(db: Kysely<any>) {
       await db.schema.alterTable("blocks").dropColumn("finalized").execute();
-      await db.schema.alterTable("transactions").dropColumn("finalized").execute();
+      await db.schema
+        .alterTable("transactions")
+        .dropColumn("finalized")
+        .execute();
       await db.schema.alterTable("logs").dropColumn("finalized").execute();
-      await db.schema.alterTable("contractReadResults").dropColumn("finalized").execute();
+      await db.schema
+        .alterTable("contractReadResults")
+        .dropColumn("finalized")
+        .execute();
     },
   },
   "2023_09_19_0_new_sync_design": {
@@ -182,8 +208,16 @@ const migrations: Record<string, Migration> = {
         .addColumn("totalDifficulty", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("transactionsRoot", "varchar(66)", (col) => col.notNull())
         .execute();
-      await db.schema.createIndex("blockTimestampIndex").on("blocks").column("timestamp").execute();
-      await db.schema.createIndex("blockNumberIndex").on("blocks").column("number").execute();
+      await db.schema
+        .createIndex("blockTimestampIndex")
+        .on("blocks")
+        .column("timestamp")
+        .execute();
+      await db.schema
+        .createIndex("blockNumberIndex")
+        .on("blocks")
+        .column("number")
+        .execute();
 
       await db.schema.dropTable("transactions").execute();
       await db.schema
@@ -226,10 +260,26 @@ const migrations: Record<string, Migration> = {
         .addColumn("transactionHash", "varchar(66)", (col) => col.notNull())
         .addColumn("transactionIndex", "integer", (col) => col.notNull())
         .execute();
-      await db.schema.createIndex("logBlockHashIndex").on("logs").column("blockHash").execute();
-      await db.schema.createIndex("logChainIdIndex").on("logs").column("chainId").execute();
-      await db.schema.createIndex("logAddressIndex").on("logs").column("address").execute();
-      await db.schema.createIndex("logTopic0Index").on("logs").column("topic0").execute();
+      await db.schema
+        .createIndex("logBlockHashIndex")
+        .on("logs")
+        .column("blockHash")
+        .execute();
+      await db.schema
+        .createIndex("logChainIdIndex")
+        .on("logs")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("logAddressIndex")
+        .on("logs")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("logTopic0Index")
+        .on("logs")
+        .column("topic0")
+        .execute();
 
       await db.schema.dropTable("contractReadResults").execute();
       await db.schema
@@ -261,7 +311,9 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("logFilterIntervals")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("logFilterId", "text", (col) => col.notNull().references("logFilters.id"))
+        .addColumn("logFilterId", "text", (col) =>
+          col.notNull().references("logFilters.id"),
+        )
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
         .execute();
@@ -286,7 +338,9 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("factoryLogFilterIntervals")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("factoryId", "text", (col) => col.notNull().references("factories.id"))
+        .addColumn("factoryId", "text", (col) =>
+          col.notNull().references("factories.id"),
+        )
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
         .execute();
@@ -412,7 +466,11 @@ const migrations: Record<string, Migration> = {
       await db.schema.dropIndex("blockNumberIndex").ifExists().execute();
       await db.schema.dropIndex("blockTimestampIndex").ifExists().execute();
 
-      await db.schema.createIndex("logBlockNumberIndex").on("logs").column("blockNumber").execute();
+      await db.schema
+        .createIndex("logBlockNumberIndex")
+        .on("logs")
+        .column("blockNumber")
+        .execute();
     },
   },
   "2024_04_14_0_nullable_block_total_difficulty": {
@@ -486,7 +544,10 @@ const migrations: Record<string, Migration> = {
         .alterTable("logFilterIntervals")
         .dropConstraint("logFilterIntervals_logFilterId_fkey")
         .execute();
-      await db.updateTable("logFilters").set({ id: sql`"id" || '_0'` }).execute();
+      await db
+        .updateTable("logFilters")
+        .set({ id: sql`"id" || '_0'` })
+        .execute();
       await db
         .updateTable("logFilterIntervals")
         .set({ logFilterId: sql`"logFilterId" || '_0'` })
@@ -496,7 +557,9 @@ const migrations: Record<string, Migration> = {
       // actually want a default (want to require a value on insertion), so immediately drop the default.
       await db.schema
         .alterTable("logFilters")
-        .addColumn("includeTransactionReceipts", "integer", (col) => col.notNull().defaultTo(0))
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull().defaultTo(0),
+        )
         .execute();
       await db.schema
         .alterTable("logFilters")
@@ -508,14 +571,19 @@ const migrations: Record<string, Migration> = {
         .alterTable("factoryLogFilterIntervals")
         .dropConstraint("factoryLogFilterIntervals_factoryId_fkey")
         .execute();
-      await db.updateTable("factories").set({ id: sql`"id" || '_0'` }).execute();
+      await db
+        .updateTable("factories")
+        .set({ id: sql`"id" || '_0'` })
+        .execute();
       await db
         .updateTable("factoryLogFilterIntervals")
         .set({ factoryId: sql`"factoryId" || '_0'` })
         .execute();
       await db.schema
         .alterTable("factories")
-        .addColumn("includeTransactionReceipts", "integer", (col) => col.notNull().defaultTo(0))
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull().defaultTo(0),
+        )
         .execute();
       await db.schema
         .alterTable("factories")
@@ -528,15 +596,21 @@ const migrations: Record<string, Migration> = {
         .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("contractAddress", "varchar(66)")
-        .addColumn("cumulativeGasUsed", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("effectiveGasPrice", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("cumulativeGasUsed", "numeric(78, 0)", (col) =>
+          col.notNull(),
+        )
+        .addColumn("effectiveGasPrice", "numeric(78, 0)", (col) =>
+          col.notNull(),
+        )
         .addColumn("from", "varchar(42)", (col) => col.notNull())
         .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("logs", "text", (col) => col.notNull())
         .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
         .addColumn("status", "text", (col) => col.notNull())
         .addColumn("to", "varchar(42)")
-        .addColumn("transactionHash", "varchar(66)", (col) => col.notNull().primaryKey())
+        .addColumn("transactionHash", "varchar(66)", (col) =>
+          col.notNull().primaryKey(),
+        )
         .addColumn("transactionIndex", "integer", (col) => col.notNull())
         .addColumn("type", "text", (col) => col.notNull())
         .execute();
@@ -554,7 +628,9 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("blockFilterIntervals")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("blockFilterId", "text", (col) => col.notNull().references("blockFilters.id"))
+        .addColumn("blockFilterId", "text", (col) =>
+          col.notNull().references("blockFilters.id"),
+        )
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
         .execute();
@@ -564,7 +640,10 @@ const migrations: Record<string, Migration> = {
         .column("blockFilterId")
         .execute();
 
-      await db.schema.alterTable("blocks").addColumn("checkpoint", "varchar(75)").execute();
+      await db.schema
+        .alterTable("blocks")
+        .addColumn("checkpoint", "varchar(75)")
+        .execute();
 
       await db.executeQuery(
         sql`
@@ -596,9 +675,17 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       // The blocks.number index supports getEvents and deleteRealtimeData
-      await db.schema.createIndex("blockNumberIndex").on("blocks").column("number").execute();
+      await db.schema
+        .createIndex("blockNumberIndex")
+        .on("blocks")
+        .column("number")
+        .execute();
       // The blocks.chainId index supports getEvents and deleteRealtimeData
-      await db.schema.createIndex("blockChainIdIndex").on("blocks").column("chainId").execute();
+      await db.schema
+        .createIndex("blockChainIdIndex")
+        .on("blocks")
+        .column("chainId")
+        .execute();
       // The blocks.checkpoint index supports getEvents
       await db.schema
         .createIndex("blockCheckpointIndex")
@@ -704,12 +791,23 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       // The callTraces.from index supports getEvents
-      await db.schema.createIndex("callTracesFromIndex").on("callTraces").column("from").execute();
+      await db.schema
+        .createIndex("callTracesFromIndex")
+        .on("callTraces")
+        .column("from")
+        .execute();
 
       // The callTraces.to index supports getEvents
-      await db.schema.createIndex("callTracesToIndex").on("callTraces").column("to").execute();
+      await db.schema
+        .createIndex("callTracesToIndex")
+        .on("callTraces")
+        .column("to")
+        .execute();
 
-      await db.schema.alterTable("factories").renameTo("factoryLogFilters").execute();
+      await db.schema
+        .alterTable("factories")
+        .renameTo("factoryLogFilters")
+        .execute();
 
       await db.schema
         .createTable("factoryTraceFilters")
@@ -775,7 +873,10 @@ export async function moveLegacyTables({
 
   async function moveOrDeleteTable(tableName: string) {
     try {
-      await db.schema.alterTable(`public.${tableName}`).setSchema(newSchemaName).execute();
+      await db.schema
+        .alterTable(`public.${tableName}`)
+        .setSchema(newSchemaName)
+        .execute();
     } catch (e) {
       const error = e as Error;
       switch (error.message) {

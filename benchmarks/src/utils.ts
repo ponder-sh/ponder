@@ -25,7 +25,10 @@ export const fetchWithTimeout = async (
   return response;
 };
 
-export const fetchGraphql = async (input: string, query: string): Promise<any> => {
+export const fetchGraphql = async (
+  input: string,
+  query: string,
+): Promise<any> => {
   const response = await fetchWithTimeout(input, {
     method: "POST",
     headers: {

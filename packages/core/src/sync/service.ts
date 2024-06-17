@@ -121,7 +121,8 @@ export const create = async ({
 
         // Do nothing if the checkpoint hasn't advanced. This also protects against
         // edged cases in the caching logic with un-trustworthy finalized checkpoints.
-        if (!isCheckpointGreaterThan(newCheckpoint, syncService.checkpoint)) return;
+        if (!isCheckpointGreaterThan(newCheckpoint, syncService.checkpoint))
+          return;
 
         // Must be cautious to deep copy checkpoints.
 
@@ -150,7 +151,12 @@ export const create = async ({
 
         networkService.realtime!.checkpoint = realtimeSyncEvent.safeCheckpoint;
 
-        if (isCheckpointGreaterThan(syncService.checkpoint, realtimeSyncEvent.safeCheckpoint)) {
+        if (
+          isCheckpointGreaterThan(
+            syncService.checkpoint,
+            realtimeSyncEvent.safeCheckpoint,
+          )
+        ) {
           syncService.checkpoint = realtimeSyncEvent.safeCheckpoint;
         }
 
@@ -168,14 +174,16 @@ export const create = async ({
         // invoked but hasn't completed.
         if (networkService.realtime === undefined) return;
 
-        networkService.realtime!.finalizedCheckpoint = realtimeSyncEvent.checkpoint;
+        networkService.realtime!.finalizedCheckpoint =
+          realtimeSyncEvent.checkpoint;
 
         // Check if the finalized blockNumber is greater than the end block of all
         // sources for the network. Potentially kill the realtime sync and remove the
         // network from checkpoint calculations.
         if (
           networkService.realtime.endBlock !== undefined &&
-          realtimeSyncEvent.checkpoint.blockNumber > networkService.realtime.endBlock
+          realtimeSyncEvent.checkpoint.blockNumber >
+            networkService.realtime.endBlock
         ) {
           common.logger.info({
             service: "sync",
@@ -191,7 +199,12 @@ export const create = async ({
             .map((ns) => ns.realtime!.finalizedCheckpoint),
         );
 
-        if (isCheckpointGreaterThan(newFinalizedCheckpoint, syncService.finalizedCheckpoint)) {
+        if (
+          isCheckpointGreaterThan(
+            newFinalizedCheckpoint,
+            syncService.finalizedCheckpoint,
+          )
+        ) {
           onRealtimeEvent({
             type: "finalize",
             checkpoint: newFinalizedCheckpoint,
@@ -209,37 +222,49 @@ export const create = async ({
 
   const networkServices: Service["networkServices"] = await Promise.all(
     networks.map(async (network) => {
-      const networkSources = sources.filter((source) => source.networkName === network.name);
+      const networkSources = sources.filter(
+        (source) => source.networkName === network.name,
+      );
 
       const requestQueue = createRequestQueue({
         network,
         common,
       });
 
-      const hasEndBlock = networkSources.every((source) => source.endBlock !== undefined);
+      const hasEndBlock = networkSources.every(
+        (source) => source.endBlock !== undefined,
+      );
 
-      const [startBlock, endBlock, { latestBlock, finalizedBlock }, remoteChainId] =
-        await Promise.all([
-          _eth_getBlockByNumber(
-            { requestQueue },
-            {
-              blockNumber: Math.min(...networkSources.map((source) => source.startBlock)),
-            },
-          ),
-          hasEndBlock
-            ? _eth_getBlockByNumber(
-                { requestQueue },
-                {
-                  blockNumber: Math.max(...networkSources.map((source) => source.endBlock!)),
-                },
-              )
-            : undefined,
-          getLatestAndFinalizedBlocks({
-            network,
-            requestQueue,
-          }),
-          requestQueue.request({ method: "eth_chainId" }).then(hexToNumber),
-        ]);
+      const [
+        startBlock,
+        endBlock,
+        { latestBlock, finalizedBlock },
+        remoteChainId,
+      ] = await Promise.all([
+        _eth_getBlockByNumber(
+          { requestQueue },
+          {
+            blockNumber: Math.min(
+              ...networkSources.map((source) => source.startBlock),
+            ),
+          },
+        ),
+        hasEndBlock
+          ? _eth_getBlockByNumber(
+              { requestQueue },
+              {
+                blockNumber: Math.max(
+                  ...networkSources.map((source) => source.endBlock!),
+                ),
+              },
+            )
+          : undefined,
+        getLatestAndFinalizedBlocks({
+          network,
+          requestQueue,
+        }),
+        requestQueue.request({ method: "eth_chainId" }).then(hexToNumber),
+      ]);
 
       if (network.chainId !== remoteChainId) {
         common.logger.warn({
@@ -340,7 +365,9 @@ export const create = async ({
             checkpoint: initialFinalizedCheckpoint,
             finalizedCheckpoint: initialFinalizedCheckpoint,
             finalizedBlock,
-            endBlock: networkSources.every((source) => source.endBlock !== undefined)
+            endBlock: networkSources.every(
+              (source) => source.endBlock !== undefined,
+            )
               ? Math.max(...networkSources.map((source) => source.endBlock!))
               : undefined,
           },
@@ -370,7 +397,11 @@ export const create = async ({
     networkService.historical.historicalSync.on("syncComplete", () => {
       networkService.historical.isHistoricalSyncComplete = true;
 
-      if (networkServices.every(({ historical }) => historical.isHistoricalSyncComplete)) {
+      if (
+        networkServices.every(
+          ({ historical }) => historical.isHistoricalSyncComplete,
+        )
+      ) {
         common.logger.info({
           service: "sync",
           msg: "Completed historical sync across all networks",
@@ -382,7 +413,9 @@ export const create = async ({
   // Invalidate sync cache for devnet sources
   for (const networkService of networkServices) {
     if (networkService.network.disableCache) {
-      const minStartBlock = Math.min(...networkService.sources.map((source) => source.startBlock));
+      const minStartBlock = Math.min(
+        ...networkService.sources.map((source) => source.startBlock),
+      );
 
       common.logger.warn({
         service: "sync",
@@ -396,7 +429,9 @@ export const create = async ({
     }
   }
 
-  const startCheckpoint = checkpointMin(...networkServices.map((ns) => ns.startCheckpoint));
+  const startCheckpoint = checkpointMin(
+    ...networkServices.map((ns) => ns.startCheckpoint),
+  );
 
   const syncService: Service = {
     common,
@@ -451,7 +486,8 @@ export const getHistoricalCheckpoint = async function* (
 
       // Do nothing if the checkpoint hasn't advanced. This also protects against
       // edged cases in the caching logic with un-trustworthy finalized checkpoints.
-      if (!isCheckpointGreaterThan(finalityCheckpoint, syncService.checkpoint)) break;
+      if (!isCheckpointGreaterThan(finalityCheckpoint, syncService.checkpoint))
+        break;
 
       yield {
         fromCheckpoint: syncService.checkpoint,
@@ -464,7 +500,9 @@ export const getHistoricalCheckpoint = async function* (
     } else {
       await wait(HISTORICAL_CHECKPOINT_INTERVAL);
 
-      const networkCheckpoints = syncService.networkServices.map((ns) => ns.historical.checkpoint);
+      const networkCheckpoints = syncService.networkServices.map(
+        (ns) => ns.historical.checkpoint,
+      );
 
       // If a network hasn't yet found any checkpoint, it is
       // impossible to determine a checkpoint amongst all networks.
@@ -472,7 +510,9 @@ export const getHistoricalCheckpoint = async function* (
         continue;
       }
 
-      const newCheckpoint = checkpointMin(...(networkCheckpoints as Checkpoint[]));
+      const newCheckpoint = checkpointMin(
+        ...(networkCheckpoints as Checkpoint[]),
+      );
 
       // Do nothing if the checkpoint hasn't advanced.
       if (!isCheckpointGreaterThan(newCheckpoint, syncService.checkpoint)) {
@@ -499,10 +539,16 @@ export const startRealtime = (syncService: Service) => {
         service: "realtime",
         msg: `No realtime contracts (network=${network.name})`,
       });
-      syncService.common.metrics.ponder_realtime_is_connected.set({ network: network.name }, 0);
+      syncService.common.metrics.ponder_realtime_is_connected.set(
+        { network: network.name },
+        0,
+      );
     } else {
       realtime.realtimeSync.start();
-      syncService.common.metrics.ponder_realtime_is_connected.set({ network: network.name }, 1);
+      syncService.common.metrics.ponder_realtime_is_connected.set(
+        { network: network.name },
+        1,
+      );
     }
   }
 };
@@ -531,7 +577,10 @@ const getLatestAndFinalizedBlocks = async ({
   network,
   requestQueue,
 }: { network: Network; requestQueue: RequestQueue }) => {
-  const latestBlock = await _eth_getBlockByNumber({ requestQueue }, { blockTag: "latest" });
+  const latestBlock = await _eth_getBlockByNumber(
+    { requestQueue },
+    { blockTag: "latest" },
+  );
 
   const finalizedBlockNumber = Math.max(
     0,
@@ -559,5 +608,7 @@ const getCanSkipRealtime = ({
   // latest end block is less than the finalized block number, we can stop here.
   // The service won't poll for new blocks and won't emit any events.
   const endBlocks = sources.map((f) => f.endBlock);
-  return endBlocks.every((b) => b !== undefined && b <= hexToNumber(finalizedBlock.number));
+  return endBlocks.every(
+    (b) => b !== undefined && b <= hexToNumber(finalizedBlock.number),
+  );
 };

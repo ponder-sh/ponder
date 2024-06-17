@@ -18,7 +18,11 @@ import type {
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/sync/index.js";
-import { encodeCheckpoint, maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  encodeCheckpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   type Chain,
@@ -105,7 +109,10 @@ export const getConfig = (addresses: Awaited<ReturnType<typeof deploy>>) =>
         network: "mainnet",
         address: addresses.erc20Address,
         filter: {
-          event: ["Transfer(address indexed from, address indexed to, uint256 amount)", "Approval"],
+          event: [
+            "Transfer(address indexed from, address indexed to, uint256 amount)",
+            "Approval",
+          ],
         },
       },
       Pair: {
@@ -267,7 +274,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           subtraces: 0,
           traceAddress: [0],
           transactionHash: blocks[0]!.transactions[0].hash,
-          transactionPosition: hexToNumber(blocks[0]!.transactions[0].transactionIndex),
+          transactionPosition: hexToNumber(
+            blocks[0]!.transactions[0].transactionIndex,
+          ),
           type: "create",
         },
         {
@@ -287,7 +296,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           subtraces: 0,
           traceAddress: [0],
           transactionHash: blocks[0]!.transactions[1].hash,
-          transactionPosition: hexToNumber(blocks[0]!.transactions[1].transactionIndex),
+          transactionPosition: hexToNumber(
+            blocks[0]!.transactions[1].transactionIndex,
+          ),
           type: "create",
         },
       ],
@@ -325,7 +336,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           subtraces: 0,
           traceAddress: [0],
           transactionHash: blocks[1]!.transactions[0].hash,
-          transactionPosition: hexToNumber(blocks[1]!.transactions[0].transactionIndex),
+          transactionPosition: hexToNumber(
+            blocks[1]!.transactions[0].transactionIndex,
+          ),
           type: "call",
         },
         {
@@ -353,7 +366,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           subtraces: 0,
           traceAddress: [0],
           transactionHash: blocks[1]!.transactions[1].hash,
-          transactionPosition: hexToNumber(blocks[1]!.transactions[1].transactionIndex),
+          transactionPosition: hexToNumber(
+            blocks[1]!.transactions[1].transactionIndex,
+          ),
           type: "call",
         },
       ],
@@ -391,7 +406,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           subtraces: 0,
           traceAddress: [0],
           transactionHash: blocks[2]!.transactions[0].hash,
-          transactionPosition: hexToNumber(blocks[2]!.transactions[0].transactionIndex),
+          transactionPosition: hexToNumber(
+            blocks[2]!.transactions[0].transactionIndex,
+          ),
           type: "call",
         },
       ],
@@ -429,7 +446,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
           subtraces: 0,
           traceAddress: [0],
           transactionHash: blocks[3]!.transactions[0].hash,
-          transactionPosition: hexToNumber(blocks[3]!.transactions[0].transactionIndex),
+          transactionPosition: hexToNumber(
+            blocks[3]!.transactions[0].transactionIndex,
+          ),
           type: "call",
         },
       ],
@@ -483,7 +502,9 @@ export const getRawRPCData = async (sources: EventSource[]) => {
 /**
  * Mock function for `getEvents` that specifically returns the event data for the log and factory sources.
  */
-export const getEventsLog = async (sources: EventSource[]): Promise<RawEvent[]> => {
+export const getEventsLog = async (
+  sources: EventSource[],
+): Promise<RawEvent[]> => {
   const rpcData = await getRawRPCData(sources);
 
   return [
@@ -529,7 +550,9 @@ export const getEventsLog = async (sources: EventSource[]): Promise<RawEvent[]> 
       transactionReceipt: {
         ...transactionReceipt,
         from: checksumAddress(transactionReceipt.from),
-        to: transactionReceipt.to ? checksumAddress(transactionReceipt.to) : transactionReceipt.to,
+        to: transactionReceipt.to
+          ? checksumAddress(transactionReceipt.to)
+          : transactionReceipt.to,
         logs: transactionReceipt.logs.map((l) => ({
           ...l,
           id: `${l.blockHash}-${toHex(l.logIndex!)}`,
@@ -549,7 +572,9 @@ export const getEventsLog = async (sources: EventSource[]): Promise<RawEvent[]> 
 /**
  * Mock function for `getEvents` that specifically returns the event data for the block sources.
  */
-export const getEventsBlock = async (sources: EventSource[]): Promise<RawEvent[]> => {
+export const getEventsBlock = async (
+  sources: EventSource[],
+): Promise<RawEvent[]> => {
   const rpcData = await getRawRPCData(sources);
 
   return [
@@ -580,7 +605,9 @@ export const getEventsBlock = async (sources: EventSource[]): Promise<RawEvent[]
 /**
  * Mock function for `getEvents` that specifically returns the event data for the trace sources.
  */
-export const getEventsTrace = async (sources: EventSource[]): Promise<RawEvent[]> => {
+export const getEventsTrace = async (
+  sources: EventSource[],
+): Promise<RawEvent[]> => {
   const rpcData = await getRawRPCData(sources);
 
   return [
@@ -626,7 +653,9 @@ export const getEventsTrace = async (sources: EventSource[]): Promise<RawEvent[]
       transactionReceipt: {
         ...transactionReceipt,
         from: checksumAddress(transactionReceipt.from),
-        to: transactionReceipt.to ? checksumAddress(transactionReceipt.to) : transactionReceipt.to,
+        to: transactionReceipt.to
+          ? checksumAddress(transactionReceipt.to)
+          : transactionReceipt.to,
         logs: transactionReceipt.logs.map((l) => ({
           ...l,
           id: `${l.blockHash}-${toHex(l.logIndex!)}`,

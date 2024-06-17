@@ -64,7 +64,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "serve", ...buildPayload(initialResult.build) },
   });
 
-  const { databaseConfig, optionsConfig, schema, graphqlSchema } = initialResult.build;
+  const { databaseConfig, optionsConfig, schema, graphqlSchema } =
+    initialResult.build;
 
   common.options = { ...common.options, ...optionsConfig };
 

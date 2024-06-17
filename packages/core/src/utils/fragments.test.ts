@@ -1,7 +1,10 @@
 import { buildChildAddressCriteria } from "@/config/factories.js";
 import { parseAbiItem } from "viem";
 import { expect, test } from "vitest";
-import { buildFactoryLogFragments, buildLogFilterFragments } from "./fragments.js";
+import {
+  buildFactoryLogFragments,
+  buildLogFilterFragments,
+} from "./fragments.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",

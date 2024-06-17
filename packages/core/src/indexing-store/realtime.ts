@@ -1,7 +1,12 @@
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
-import type { DatabaseRecord, DatabaseValue, UserId, UserRecord } from "@/types/schema.js";
+import type {
+  DatabaseRecord,
+  DatabaseValue,
+  UserId,
+  UserRecord,
+} from "@/types/schema.js";
 import type { WhereInput, WriteStore } from "./store.js";
 import { decodeRecord, encodeRecord, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
@@ -216,77 +221,81 @@ export const getRealtimeStore = ({
     let cursor: DatabaseValue = null;
 
     while (true) {
-      const _records = await db.wrap({ method: `${tableName}.updateMany` }, () =>
-        db.transaction().execute(async (tx) => {
-          const latestRecords: DatabaseRecord[] = await tx
-            .withSchema(namespaceInfo.userNamespace)
-            .selectFrom(tableName)
-            .selectAll()
-            .where((eb) =>
-              buildWhereConditions({
-                eb,
-                where,
-                table,
-                encoding,
-              }),
-            )
-            .orderBy("id", "asc")
-            .limit(MAX_BATCH_SIZE)
-            .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
-            .execute();
-
-          const records: DatabaseRecord[] = [];
-
-          for (const latestRecord of latestRecords) {
-            const updateObject =
-              typeof data === "function"
-                ? data({
-                    current: decodeRecord({
-                      record: latestRecord,
-                      table,
-                      encoding,
-                    }),
-                  })
-                : data;
-
-            // Here, `latestRecord` is already encoded, so we need to exclude it from `encodeRecord`.
-            const updateRecord = {
-              id: latestRecord.id,
-              ...encodeRecord({
-                record: updateObject,
-                table,
-                encoding,
-                schema,
-                skipValidation: false,
-              }),
-            };
-
-            const record = await tx
+      const _records = await db.wrap(
+        { method: `${tableName}.updateMany` },
+        () =>
+          db.transaction().execute(async (tx) => {
+            const latestRecords: DatabaseRecord[] = await tx
               .withSchema(namespaceInfo.userNamespace)
-              .updateTable(tableName)
-              .set(updateRecord)
-              .where("id", "=", latestRecord.id)
-              .returningAll()
-              .executeTakeFirstOrThrow()
-              .catch((err) => {
-                throw parseStoreError(err, updateObject);
-              });
-
-            records.push(record);
-
-            await tx
-              .withSchema(namespaceInfo.internalNamespace)
-              .insertInto(namespaceInfo.internalTableIds[tableName])
-              .values({
-                operation: 1,
-                checkpoint: encodedCheckpoint,
-                ...latestRecord,
-              })
+              .selectFrom(tableName)
+              .selectAll()
+              .where((eb) =>
+                buildWhereConditions({
+                  eb,
+                  where,
+                  table,
+                  encoding,
+                }),
+              )
+              .orderBy("id", "asc")
+              .limit(MAX_BATCH_SIZE)
+              .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
               .execute();
-          }
 
-          return records.map((record) => decodeRecord({ record, table, encoding }));
-        }),
+            const records: DatabaseRecord[] = [];
+
+            for (const latestRecord of latestRecords) {
+              const updateObject =
+                typeof data === "function"
+                  ? data({
+                      current: decodeRecord({
+                        record: latestRecord,
+                        table,
+                        encoding,
+                      }),
+                    })
+                  : data;
+
+              // Here, `latestRecord` is already encoded, so we need to exclude it from `encodeRecord`.
+              const updateRecord = {
+                id: latestRecord.id,
+                ...encodeRecord({
+                  record: updateObject,
+                  table,
+                  encoding,
+                  schema,
+                  skipValidation: false,
+                }),
+              };
+
+              const record = await tx
+                .withSchema(namespaceInfo.userNamespace)
+                .updateTable(tableName)
+                .set(updateRecord)
+                .where("id", "=", latestRecord.id)
+                .returningAll()
+                .executeTakeFirstOrThrow()
+                .catch((err) => {
+                  throw parseStoreError(err, updateObject);
+                });
+
+              records.push(record);
+
+              await tx
+                .withSchema(namespaceInfo.internalNamespace)
+                .insertInto(namespaceInfo.internalTableIds[tableName])
+                .values({
+                  operation: 1,
+                  checkpoint: encodedCheckpoint,
+                  ...latestRecord,
+                })
+                .execute();
+            }
+
+            return records.map((record) =>
+              decodeRecord({ record, table, encoding }),
+            );
+          }),
       );
 
       records.push(..._records);

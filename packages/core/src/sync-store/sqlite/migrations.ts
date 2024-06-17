@@ -127,12 +127,28 @@ const migrations: Record<string, Migration> = {
       await db.schema.dropIndex("blocks_index").execute();
 
       // Block hash is a join key.
-      await db.schema.createIndex("log_block_hash_index").on("logs").column("blockHash").execute();
+      await db.schema
+        .createIndex("log_block_hash_index")
+        .on("logs")
+        .column("blockHash")
+        .execute();
 
       // Chain ID, address and topic0 are all used in WHERE clauses.
-      await db.schema.createIndex("log_chain_id_index").on("logs").column("chainId").execute();
-      await db.schema.createIndex("log_address_index").on("logs").column("address").execute();
-      await db.schema.createIndex("log_topic0_index").on("logs").column("topic0").execute();
+      await db.schema
+        .createIndex("log_chain_id_index")
+        .on("logs")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("log_address_index")
+        .on("logs")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("log_topic0_index")
+        .on("logs")
+        .column("topic0")
+        .execute();
 
       // Block timestamp and number are both used in WHERE and SORT clauses.
       await db.schema
@@ -140,15 +156,25 @@ const migrations: Record<string, Migration> = {
         .on("blocks")
         .column("timestamp")
         .execute();
-      await db.schema.createIndex("block_number_index").on("blocks").column("number").execute();
+      await db.schema
+        .createIndex("block_number_index")
+        .on("blocks")
+        .column("number")
+        .execute();
     },
   },
   "2023_07_24_0_drop_finalized": {
     async up(db: Kysely<any>) {
       await db.schema.alterTable("blocks").dropColumn("finalized").execute();
-      await db.schema.alterTable("transactions").dropColumn("finalized").execute();
+      await db.schema
+        .alterTable("transactions")
+        .dropColumn("finalized")
+        .execute();
       await db.schema.alterTable("logs").dropColumn("finalized").execute();
-      await db.schema.alterTable("contractReadResults").dropColumn("finalized").execute();
+      await db.schema
+        .alterTable("contractReadResults")
+        .dropColumn("finalized")
+        .execute();
     },
   },
   "2023_09_19_0_new_sync_design": {
@@ -181,8 +207,16 @@ const migrations: Record<string, Migration> = {
         .addColumn("totalDifficulty", "varchar(79)", (col) => col.notNull())
         .addColumn("transactionsRoot", "varchar(66)", (col) => col.notNull())
         .execute();
-      await db.schema.createIndex("blockTimestampIndex").on("blocks").column("timestamp").execute();
-      await db.schema.createIndex("blockNumberIndex").on("blocks").column("number").execute();
+      await db.schema
+        .createIndex("blockTimestampIndex")
+        .on("blocks")
+        .column("timestamp")
+        .execute();
+      await db.schema
+        .createIndex("blockNumberIndex")
+        .on("blocks")
+        .column("number")
+        .execute();
 
       await db.schema.dropTable("transactions").execute();
       await db.schema
@@ -225,10 +259,26 @@ const migrations: Record<string, Migration> = {
         .addColumn("transactionHash", "varchar(66)", (col) => col.notNull())
         .addColumn("transactionIndex", "integer", (col) => col.notNull())
         .execute();
-      await db.schema.createIndex("logBlockHashIndex").on("logs").column("blockHash").execute();
-      await db.schema.createIndex("logChainIdIndex").on("logs").column("chainId").execute();
-      await db.schema.createIndex("logAddressIndex").on("logs").column("address").execute();
-      await db.schema.createIndex("logTopic0Index").on("logs").column("topic0").execute();
+      await db.schema
+        .createIndex("logBlockHashIndex")
+        .on("logs")
+        .column("blockHash")
+        .execute();
+      await db.schema
+        .createIndex("logChainIdIndex")
+        .on("logs")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("logAddressIndex")
+        .on("logs")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("logTopic0Index")
+        .on("logs")
+        .column("topic0")
+        .execute();
 
       await db.schema.dropTable("contractReadResults").execute();
       await db.schema
@@ -260,7 +310,9 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("logFilterIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("logFilterId", "text", (col) => col.notNull().references("logFilters.id"))
+        .addColumn("logFilterId", "text", (col) =>
+          col.notNull().references("logFilters.id"),
+        )
         .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
         .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
         .execute();
@@ -285,7 +337,9 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("factoryLogFilterIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("factoryId", "text", (col) => col.notNull().references("factories.id"))
+        .addColumn("factoryId", "text", (col) =>
+          col.notNull().references("factories.id"),
+        )
         .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
         .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
         .execute();
@@ -331,7 +385,10 @@ const migrations: Record<string, Migration> = {
       // 4) Rename the new column to the old column's name.
 
       // Drop NOT NULL constraint from "blocks.mixHash".
-      await db.schema.alterTable("blocks").addColumn("mixHash_temp_null", "varchar(66)").execute();
+      await db.schema
+        .alterTable("blocks")
+        .addColumn("mixHash_temp_null", "varchar(66)")
+        .execute();
       await db
         .updateTable("blocks")
         .set((eb: any) => ({
@@ -339,10 +396,16 @@ const migrations: Record<string, Migration> = {
         }))
         .execute();
       await db.schema.alterTable("blocks").dropColumn("mixHash").execute();
-      await db.schema.alterTable("blocks").renameColumn("mixHash_temp_null", "mixHash").execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("mixHash_temp_null", "mixHash")
+        .execute();
 
       // Drop NOT NULL constraint from "blocks.nonce".
-      await db.schema.alterTable("blocks").addColumn("nonce_temp_null", "varchar(18)").execute();
+      await db.schema
+        .alterTable("blocks")
+        .addColumn("nonce_temp_null", "varchar(18)")
+        .execute();
       await db
         .updateTable("blocks")
         .set((eb: any) => ({
@@ -350,7 +413,10 @@ const migrations: Record<string, Migration> = {
         }))
         .execute();
       await db.schema.alterTable("blocks").dropColumn("nonce").execute();
-      await db.schema.alterTable("blocks").renameColumn("nonce_temp_null", "nonce").execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("nonce_temp_null", "nonce")
+        .execute();
     },
   },
   "2024_03_00_0_log_transaction_hash_index": {
@@ -405,7 +471,11 @@ const migrations: Record<string, Migration> = {
       await db.schema.dropIndex("blockNumberIndex").ifExists().execute();
       await db.schema.dropIndex("blockTimestampIndex").ifExists().execute();
 
-      await db.schema.createIndex("logBlockNumberIndex").on("logs").column("blockNumber").execute();
+      await db.schema
+        .createIndex("logBlockNumberIndex")
+        .on("logs")
+        .column("blockNumber")
+        .execute();
     },
   },
   "2024_04_14_0_nullable_block_total_difficulty": {
@@ -423,7 +493,10 @@ const migrations: Record<string, Migration> = {
       if (await hasCheckpointCol(db)) {
         return;
       }
-      await db.schema.alterTable("logs").addColumn("checkpoint", "varchar(75)").execute();
+      await db.schema
+        .alterTable("logs")
+        .addColumn("checkpoint", "varchar(75)")
+        .execute();
     },
   },
   "2024_04_14_2_set_checkpoint_in_logs_table": {
@@ -471,11 +544,19 @@ const migrations: Record<string, Migration> = {
 
       // Rename and update the existing tables to include the data we want. Note that
       // these tables have constraints that we do NOT want. They won't get copied over.
-      await db.schema.alterTable("logFilters").renameTo("logFilters_temp").execute();
-      await db.updateTable("logFilters_temp").set({ id: sql`"id" || '_0'` }).execute();
+      await db.schema
+        .alterTable("logFilters")
+        .renameTo("logFilters_temp")
+        .execute();
+      await db
+        .updateTable("logFilters_temp")
+        .set({ id: sql`"id" || '_0'` })
+        .execute();
       await db.schema
         .alterTable("logFilters_temp")
-        .addColumn("includeTransactionReceipts", "integer", (col) => col.notNull().defaultTo(0))
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull().defaultTo(0),
+        )
         .execute();
       await db.schema
         .alterTable("logFilterIntervals")
@@ -496,7 +577,9 @@ const migrations: Record<string, Migration> = {
         .addColumn("topic1", "varchar(66)")
         .addColumn("topic2", "varchar(66)")
         .addColumn("topic3", "varchar(66)")
-        .addColumn("includeTransactionReceipts", "integer", (col) => col.notNull())
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
         .execute();
       await db.schema
         .createTable("logFilterIntervals")
@@ -508,10 +591,14 @@ const migrations: Record<string, Migration> = {
         .execute();
       // Copy data from temp tables to new tables.
       await db.executeQuery(
-        sql`INSERT INTO "logFilters" SELECT * FROM "logFilters_temp"`.compile(db),
+        sql`INSERT INTO "logFilters" SELECT * FROM "logFilters_temp"`.compile(
+          db,
+        ),
       );
       await db.executeQuery(
-        sql`INSERT INTO "logFilterIntervals" SELECT * FROM "logFilterIntervals_temp"`.compile(db),
+        sql`INSERT INTO "logFilterIntervals" SELECT * FROM "logFilterIntervals_temp"`.compile(
+          db,
+        ),
       );
       // Drop the temp tables.
       await db.schema.dropTable("logFilters_temp").execute();
@@ -524,11 +611,19 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       // Repeat the same process for factories.
-      await db.schema.alterTable("factories").renameTo("factories_temp").execute();
-      await db.updateTable("factories_temp").set({ id: sql`"id" || '_0'` }).execute();
+      await db.schema
+        .alterTable("factories")
+        .renameTo("factories_temp")
+        .execute();
+      await db
+        .updateTable("factories_temp")
+        .set({ id: sql`"id" || '_0'` })
+        .execute();
       await db.schema
         .alterTable("factories_temp")
-        .addColumn("includeTransactionReceipts", "integer", (col) => col.notNull().defaultTo(0))
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull().defaultTo(0),
+        )
         .execute();
       await db.schema
         .alterTable("factoryLogFilterIntervals")
@@ -550,7 +645,9 @@ const migrations: Record<string, Migration> = {
         .addColumn("topic1", "varchar(66)")
         .addColumn("topic2", "varchar(66)")
         .addColumn("topic3", "varchar(66)")
-        .addColumn("includeTransactionReceipts", "integer", (col) => col.notNull())
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
         .execute();
       await db.schema
         .createTable("factoryLogFilterIntervals")
@@ -590,7 +687,9 @@ const migrations: Record<string, Migration> = {
         .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
         .addColumn("status", "text", (col) => col.notNull())
         .addColumn("to", "varchar(42)")
-        .addColumn("transactionHash", "varchar(66)", (col) => col.notNull().primaryKey())
+        .addColumn("transactionHash", "varchar(66)", (col) =>
+          col.notNull().primaryKey(),
+        )
         .addColumn("transactionIndex", "integer", (col) => col.notNull())
         .addColumn("type", "text", (col) => col.notNull())
         .execute();
@@ -610,7 +709,9 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("blockFilterIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("blockFilterId", "text", (col) => col.notNull().references("blockFilters.id"))
+        .addColumn("blockFilterId", "text", (col) =>
+          col.notNull().references("blockFilters.id"),
+        )
         .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
         .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
         .execute();
@@ -620,7 +721,10 @@ const migrations: Record<string, Migration> = {
         .column("blockFilterId")
         .execute();
 
-      await db.schema.alterTable("blocks").addColumn("checkpoint", "varchar(75)").execute();
+      await db.schema
+        .alterTable("blocks")
+        .addColumn("checkpoint", "varchar(75)")
+        .execute();
       await db.executeQuery(
         sql`
           CREATE TEMPORARY TABLE bcp_vals AS
@@ -671,14 +775,24 @@ const migrations: Record<string, Migration> = {
         .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
         .execute();
 
-      await db.executeQuery(sql`INSERT INTO "blocks" SELECT * FROM "blocks_temp"`.compile(db));
+      await db.executeQuery(
+        sql`INSERT INTO "blocks" SELECT * FROM "blocks_temp"`.compile(db),
+      );
 
       await db.schema.dropTable("blocks_temp").execute();
 
       // The blocks.number index supports getEvents and deleteRealtimeData
-      await db.schema.createIndex("blockNumberIndex").on("blocks").column("number").execute();
+      await db.schema
+        .createIndex("blockNumberIndex")
+        .on("blocks")
+        .column("number")
+        .execute();
       // The blocks.chainId index supports getEvents and deleteRealtimeData
-      await db.schema.createIndex("blockChainIdIndex").on("blocks").column("chainId").execute();
+      await db.schema
+        .createIndex("blockChainIdIndex")
+        .on("blocks")
+        .column("chainId")
+        .execute();
       // The blocks.number index supports getEvents
       await db.schema
         .createIndex("blockCheckpointIndex")
@@ -818,12 +932,23 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       // The callTraces.from index supports getEvents
-      await db.schema.createIndex("callTracesFromIndex").on("callTraces").column("from").execute();
+      await db.schema
+        .createIndex("callTracesFromIndex")
+        .on("callTraces")
+        .column("from")
+        .execute();
 
       // The callTraces.to index supports getEvents
-      await db.schema.createIndex("callTracesToIndex").on("callTraces").column("to").execute();
+      await db.schema
+        .createIndex("callTracesToIndex")
+        .on("callTraces")
+        .column("to")
+        .execute();
 
-      await db.schema.alterTable("factories").renameTo("factoryLogFilters").execute();
+      await db.schema
+        .alterTable("factories")
+        .renameTo("factoryLogFilters")
+        .execute();
 
       await db.schema
         .createTable("factoryTraceFilters")
@@ -864,7 +989,9 @@ const columnDropNotNull = async ({
   db: Kysely<any>;
   table: string;
   column: string;
-  columnType: Parameters<ReturnType<Kysely<any>["schema"]["alterTable"]>["addColumn"]>[1];
+  columnType: Parameters<
+    ReturnType<Kysely<any>["schema"]["alterTable"]>["addColumn"]
+  >[1];
 }) => {
   const tempName = `${column}_temp_null`;
 

@@ -9,7 +9,11 @@ import {
   isOneColumn,
   isOptionalColumn,
 } from "@/schema/utils.js";
-import { GraphQLBoolean, type GraphQLFieldResolver, type GraphQLInputObjectType } from "graphql";
+import {
+  GraphQLBoolean,
+  type GraphQLFieldResolver,
+  type GraphQLInputObjectType,
+} from "graphql";
 import {
   type GraphQLEnumType,
   type GraphQLFieldConfigMap,
@@ -57,7 +61,9 @@ export const buildEntityTypes = ({
           if (isOneColumn(column)) {
             // Column must resolve the foreign key of the referenced column
             // Note: this relies on the fact that reference columns can't be lists.
-            const referenceColumn = table[column[" reference"]] as ReferenceColumn;
+            const referenceColumn = table[
+              column[" reference"]
+            ] as ReferenceColumn;
             const referencedTable = extractReferenceTable(referenceColumn);
 
             const resolver: GraphQLFieldResolver<Parent, Context> = async (
@@ -68,7 +74,8 @@ export const buildEntityTypes = ({
               // The parent object gets passed in here containing reference column values.
               const relatedRecordId = parent[column[" reference"]];
               // Note: Don't query with a null or undefined id, indexing store will throw error.
-              if (relatedRecordId === null || relatedRecordId === undefined) return null;
+              if (relatedRecordId === null || relatedRecordId === undefined)
+                return null;
 
               const loader = context.getLoader({
                 tableName: referencedTable,
@@ -85,14 +92,18 @@ export const buildEntityTypes = ({
             };
           } else if (isManyColumn(column)) {
             const resolver: PluralResolver = async (parent, args, context) => {
-              const { where, orderBy, orderDirection, limit, after, before } = args;
+              const { where, orderBy, orderDirection, limit, after, before } =
+                args;
 
               const whereObject = where ? buildWhereObject(where) : {};
               // Add the parent record ID to the where object.
               // Note that this overrides any existing equals condition.
-              (whereObject[column[" referenceColumn"]] ??= {}).equals = parent.id;
+              (whereObject[column[" referenceColumn"]] ??= {}).equals =
+                parent.id;
 
-              const orderByObject = orderBy ? { [orderBy]: orderDirection ?? "asc" } : undefined;
+              const orderByObject = orderBy
+                ? { [orderBy]: orderDirection ?? "asc" }
+                : undefined;
 
               // Query for the IDs of the matching records.
               // TODO: Update query to only fetch IDs, not entire records.
@@ -130,7 +141,9 @@ export const buildEntityTypes = ({
             };
           } else if (isJSONColumn(column)) {
             fieldConfigMap[columnName] = {
-              type: isOptionalColumn(column) ? GraphQLJSON : new GraphQLNonNull(GraphQLJSON),
+              type: isOptionalColumn(column)
+                ? GraphQLJSON
+                : new GraphQLNonNull(GraphQLJSON),
             };
           } else {
             const type = isEnumColumn(column)
@@ -139,11 +152,15 @@ export const buildEntityTypes = ({
             if (isListColumn(column)) {
               const listType = new GraphQLList(new GraphQLNonNull(type));
               fieldConfigMap[columnName] = {
-                type: isOptionalColumn(column) ? listType : new GraphQLNonNull(listType),
+                type: isOptionalColumn(column)
+                  ? listType
+                  : new GraphQLNonNull(listType),
               };
             } else {
               fieldConfigMap[columnName] = {
-                type: isOptionalColumn(column) ? type : new GraphQLNonNull(type),
+                type: isOptionalColumn(column)
+                  ? type
+                  : new GraphQLNonNull(type),
               };
             }
           }
@@ -157,7 +174,9 @@ export const buildEntityTypes = ({
       name: `${tableName}Page`,
       fields: () => ({
         items: {
-          type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(entityTypes[tableName]))),
+          type: new GraphQLNonNull(
+            new GraphQLList(new GraphQLNonNull(entityTypes[tableName])),
+          ),
         },
         pageInfo: { type: new GraphQLNonNull(GraphQLPageInfo) },
       }),

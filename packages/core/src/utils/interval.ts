@@ -24,7 +24,9 @@ export function intervalUnion(intervals_: [number, number][]) {
   if (intervals_.length === 0) return [];
 
   // Create copies to avoid mutating the originals.
-  const intervals = intervals_.map((interval) => [...interval] as [number, number]);
+  const intervals = intervals_.map(
+    (interval) => [...interval] as [number, number],
+  );
   // Sort intervals based on the left end.
   intervals.sort((a, b) => a[0] - b[0]);
 
@@ -55,7 +57,10 @@ export function intervalUnion(intervals_: [number, number][]) {
  * @param list2 Second list of numeric intervals.
  * @returns Intersection of the intervals, represented as a list of intervals.
  */
-export function intervalIntersection(list1: [number, number][], list2: [number, number][]) {
+export function intervalIntersection(
+  list1: [number, number][],
+  list2: [number, number][],
+) {
   const result: [number, number][] = [];
   let i = 0;
   let j = 0;
@@ -109,7 +114,10 @@ export function intervalIntersectionMany(lists: [number, number][][]) {
  * @param remove List of numeric intervals to remove.
  * @returns Difference of the intervals, represented as a list of intervals.
  */
-export function intervalDifference(initial: [number, number][], remove: [number, number][]) {
+export function intervalDifference(
+  initial: [number, number][],
+  remove: [number, number][],
+) {
   // Create copies to avoid mutating the originals.
   const initial_ = initial.map((interval) => [...interval] as [number, number]);
   const remove_ = remove.map((interval) => [...interval] as [number, number]);
@@ -201,7 +209,9 @@ export class ProgressTracker {
     completed: [number, number][];
   }) {
     if (target[0] > target[1])
-      throw new Error(`Invalid interval: start (${target[0]}) is greater than end (${target[1]})`);
+      throw new Error(
+        `Invalid interval: start (${target[0]}) is greater than end (${target[1]})`,
+      );
 
     this.target = target;
     this._completed = completed;
@@ -287,7 +297,10 @@ export class BlockProgressTracker {
     const sorted = blockNumbers.sort((a, b) => a - b);
     const minNewPendingBlock = sorted[0];
 
-    if (this.pendingBlocks.length > 0 && minNewPendingBlock <= maxPendingBlock) {
+    if (
+      this.pendingBlocks.length > 0 &&
+      minNewPendingBlock <= maxPendingBlock
+    ) {
       throw new Error(
         `New pending block number ${minNewPendingBlock} was added out of order. Already added block number ${maxPendingBlock}.`,
       );
@@ -341,7 +354,8 @@ export class BlockProgressTracker {
     // If there are no safe blocks, the first pending block has not been completed yet.
     if (safeCompletedBlocks.length === 0) return null;
 
-    const maximumSafeCompletedBlock = safeCompletedBlocks[safeCompletedBlocks.length - 1];
+    const maximumSafeCompletedBlock =
+      safeCompletedBlocks[safeCompletedBlocks.length - 1];
 
     // Remove all safe completed blocks that are less than the new checkpoint.
     // This avoid a memory leak and speeds up subsequent calls.
@@ -351,7 +365,10 @@ export class BlockProgressTracker {
 
     // If this is the first checkpoint OR this checkpoint is greater than
     // the previous checkpoint, store and return it as updated.
-    if (!this.checkpoint || maximumSafeCompletedBlock.blockNumber > this.checkpoint.blockNumber) {
+    if (
+      !this.checkpoint ||
+      maximumSafeCompletedBlock.blockNumber > this.checkpoint.blockNumber
+    ) {
       this.checkpoint = maximumSafeCompletedBlock;
       return this.checkpoint;
     }

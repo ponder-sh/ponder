@@ -178,7 +178,9 @@ test("safeBuildSchema() returns error for empty table or enum name", () => {
 
   const result = safeBuildSchema({ schema });
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe("Validation failed: Enum name can't be an empty string.");
+  expect(result.error?.message).toBe(
+    "Validation failed: Enum name can't be an empty string.",
+  );
 });
 
 test("safeBuildSchema() returns error for table or enum name with invalid characters", () => {
@@ -222,7 +224,9 @@ test("safeBuildSchema() returns error for 'one' relationship with reference to n
 
   const result = safeBuildSchema({ schema });
   expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("uses a column that is not foreign key column");
+  expect(result.error?.message).toContain(
+    "uses a column that is not foreign key column",
+  );
 });
 
 test("safeBuildSchema() returns error for 'many' relationship with non-existent reference table", () => {
@@ -271,7 +275,9 @@ test("safeBuildSchema() returns error for 'many' relationship with reference to 
 
   const result = safeBuildSchema({ schema });
   expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("uses a column that is not foreign key column");
+  expect(result.error?.message).toContain(
+    "uses a column that is not foreign key column",
+  );
 });
 
 test("safeBuildSchema() returns error for enum column referencing non-existent enum", () => {
@@ -299,7 +305,9 @@ test("safeBuildSchema() returns error for foreign key column referencing non-exi
 
   const result = safeBuildSchema({ schema });
   expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("does not reference a valid ID column");
+  expect(result.error?.message).toContain(
+    "does not reference a valid ID column",
+  );
 });
 
 test("safeBuildSchema() returns error for foreign key column type mismatch", () => {
@@ -353,7 +361,9 @@ test("safeBuildSchema() returns error for duplicate index", () => {
 
   const result = safeBuildSchema({ schema });
   expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("Index 'colIndex' cannot contain duplicate columns.");
+  expect(result.error?.message).toContain(
+    "Index 'colIndex' cannot contain duplicate columns.",
+  );
 });
 
 test("safeBuildSchema() returns error for invalid multi-column index", () => {
@@ -373,7 +383,9 @@ test("safeBuildSchema() returns error for invalid multi-column index", () => {
 
   const result = safeBuildSchema({ schema });
   expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("Index 'colIndex' does not reference a valid column.");
+  expect(result.error?.message).toContain(
+    "Index 'colIndex' does not reference a valid column.",
+  );
 });
 
 test("safeBuildSchema() returns error for invalid index", () => {
@@ -393,5 +405,7 @@ test("safeBuildSchema() returns error for invalid index", () => {
 
   const result = safeBuildSchema({ schema });
   expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("Index 'colIndex' does not reference a valid column.");
+  expect(result.error?.message).toContain(
+    "Index 'colIndex' does not reference a valid column.",
+  );
 });

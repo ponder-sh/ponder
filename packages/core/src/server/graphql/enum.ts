@@ -8,7 +8,10 @@ export function buildEnumTypes({ schema }: { schema: Schema }) {
   for (const [enumName, _enum] of Object.entries(getEnums(schema))) {
     enumTypes[enumName] = new GraphQLEnumType({
       name: enumName,
-      values: _enum.reduce((acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }), {}),
+      values: _enum.reduce(
+        (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
+        {},
+      ),
     });
   }
 

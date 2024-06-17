@@ -54,7 +54,9 @@ export const getLogsRetryHelper = ({
   }
 
   // infura, thirdweb, zksync
-  match = sError.match(/Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/)!;
+  match = sError.match(
+    /Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
+  )!;
   if (match !== null) {
     const start = hexToBigInt(`0x${match[1]}`);
     const end = hexToBigInt(`0x${match[2]}`);
@@ -88,7 +90,9 @@ export const getLogsRetryHelper = ({
   }
 
   // alchemy
-  match = sError.match(/this block range should work: \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/);
+  match = sError.match(
+    /this block range should work: \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
+  );
   if (match !== null) {
     const start = hexToBigInt(`0x${match[1]}`);
     const end = hexToBigInt(`0x${match[2]}`);
@@ -147,7 +151,9 @@ export const getLogsRetryHelper = ({
   if (match !== null) {
     const ranges = chunk({
       params,
-      range: (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) / 2n,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
     });
 
     if (isRangeUnchanged(params, ranges)) {
@@ -165,7 +171,9 @@ export const getLogsRetryHelper = ({
   if (match !== null) {
     const ranges = chunk({
       params,
-      range: (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) / 2n,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
     });
 
     if (isRangeUnchanged(params, ranges)) {
@@ -183,7 +191,9 @@ export const getLogsRetryHelper = ({
   if (match !== null) {
     const ranges = chunk({
       params,
-      range: (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) / 2n,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
     });
 
     if (isRangeUnchanged(params, ranges)) {
@@ -219,7 +229,9 @@ export const getLogsRetryHelper = ({
   if (match !== null) {
     const ranges = chunk({
       params,
-      range: (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) / 2n,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
     });
 
     if (isRangeUnchanged(params, ranges)) {
@@ -233,7 +245,9 @@ export const getLogsRetryHelper = ({
   }
 
   // blast (paid)
-  match = sError.match(/exceeds the range allowed for your plan \(\d+ > (\d+)\)/);
+  match = sError.match(
+    /exceeds the range allowed for your plan \(\d+ > (\d+)\)/,
+  );
   if (match !== null) {
     const ranges = chunk({ params, range: BigInt(match[1]!) });
 
@@ -250,11 +264,14 @@ export const getLogsRetryHelper = ({
   // chainstack
   match = sError.match(/Block range limit exceeded./);
   if (match !== null) {
-    const prevRange = hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock);
+    const prevRange =
+      hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock);
 
     // chainstack has different limits for free and paid plans.
     const ranges =
-      prevRange < 10_000n ? chunk({ params, range: 100n }) : chunk({ params, range: 10_000n });
+      prevRange < 10_000n
+        ? chunk({ params, range: 100n })
+        : chunk({ params, range: 10_000n });
 
     if (isRangeUnchanged(params, ranges)) {
       return { shouldRetry: false } as const;
@@ -274,7 +291,10 @@ export const getLogsRetryHelper = ({
 
 const isRangeUnchanged = (
   params: GetLogsRetryHelperParameters["params"],
-  ranges: Extract<GetLogsRetryHelperReturnType, { shouldRetry: true }>["ranges"],
+  ranges: Extract<
+    GetLogsRetryHelperReturnType,
+    { shouldRetry: true }
+  >["ranges"],
 ) => {
   return (
     ranges.length === 0 ||

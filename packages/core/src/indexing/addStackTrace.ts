@@ -12,10 +12,14 @@ export const addStackTrace = (error: Error, options: Options) => {
   let userStackTrace: StackFrame[];
 
   // Find first frame that occurred within user code.
-  const firstUserFrameIndex = stackTrace.findIndex((frame) => frame.file?.includes(options.srcDir));
+  const firstUserFrameIndex = stackTrace.findIndex((frame) =>
+    frame.file?.includes(options.srcDir),
+  );
 
   if (firstUserFrameIndex >= 0) {
-    userStackTrace = stackTrace.filter((frame) => frame.file?.includes(options.srcDir));
+    userStackTrace = stackTrace.filter((frame) =>
+      frame.file?.includes(options.srcDir),
+    );
 
     const firstUserFrame = stackTrace[firstUserFrameIndex];
     if (firstUserFrame?.file && firstUserFrame?.lineNumber) {

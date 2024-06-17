@@ -28,7 +28,10 @@ test("cursor encoding handles default order by condition", () => {
 
   const record = { id: "abc" };
 
-  const decoded = decodeCursor(encodeCursor(record, orderByConditions), orderByConditions);
+  const decoded = decodeCursor(
+    encodeCursor(record, orderByConditions),
+    orderByConditions,
+  );
 
   expect(decoded).toEqual([["id", "abc"]]);
 });
@@ -41,7 +44,10 @@ test("cursor encoding handles custom order by condition", () => {
 
   const record = { id: "abc", age: 10 };
 
-  const decoded = decodeCursor(encodeCursor(record, orderByConditions), orderByConditions);
+  const decoded = decodeCursor(
+    encodeCursor(record, orderByConditions),
+    orderByConditions,
+  );
 
   expect(decoded).toEqual([
     ["age", 10],
@@ -57,7 +63,10 @@ test("cursor encoding handles null values", () => {
 
   const record = { id: "abc", age: null };
 
-  const decoded = decodeCursor(encodeCursor(record, orderByConditions), orderByConditions);
+  const decoded = decodeCursor(
+    encodeCursor(record, orderByConditions),
+    orderByConditions,
+  );
 
   expect(decoded).toEqual([
     ["age", null],
@@ -73,7 +82,10 @@ test("cursor encoding handles bigint values", () => {
 
   const record = { id: "abc", bigAge: 20n };
 
-  const decoded = decodeCursor(encodeCursor(record, orderByConditions), orderByConditions);
+  const decoded = decodeCursor(
+    encodeCursor(record, orderByConditions),
+    orderByConditions,
+  );
 
   expect(decoded).toEqual([
     ["bigAge", 20n],
@@ -89,7 +101,10 @@ test("cursor encoding handles bigint list values", () => {
 
   const record = { id: "abc", bigAges: [20n, -12n] };
 
-  const decoded = decodeCursor(encodeCursor(record, orderByConditions), orderByConditions);
+  const decoded = decodeCursor(
+    encodeCursor(record, orderByConditions),
+    orderByConditions,
+  );
 
   expect(decoded).toEqual([
     ["bigAges", [20n, -12n]],

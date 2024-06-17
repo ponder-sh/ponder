@@ -1,6 +1,14 @@
-import { setupCommon, setupDatabaseServices, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupCommon,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
-import { type Checkpoint, encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type Checkpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { beforeEach, expect, test } from "vitest";
 
 beforeEach(setupCommon);
@@ -226,7 +234,10 @@ test("findMany() filters with complex OR condition", async (context) => {
   const { items } = await indexingStore.findMany({
     tableName: "Pet",
     where: {
-      OR: [{ bigAge: { gt: 50n } }, { AND: [{ name: "Foo" }, { bigAge: { lt: 20n } }] }],
+      OR: [
+        { bigAge: { gt: 50n } },
+        { AND: [{ name: "Foo" }, { bigAge: { lt: 20n } }] },
+      ],
     },
   });
 
@@ -324,7 +335,9 @@ test("findMany() cursor pagination ascending", async (context) => {
     limit: 5,
   });
 
-  expect(resultOne.items.map((i) => ({ id: i.id, name: i.name }))).toMatchObject([
+  expect(
+    resultOne.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
     { id: "id1", name: "Skip" },
     { id: "id2", name: "Foo" },
     { id: "id3", name: "Bar" },
@@ -344,7 +357,9 @@ test("findMany() cursor pagination ascending", async (context) => {
     after: resultOne.pageInfo.endCursor,
   });
 
-  expect(resultTwo.items.map((i) => ({ id: i.id, name: i.name }))).toMatchObject([
+  expect(
+    resultTwo.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
     { id: "id6", name: "Book" },
     { id: "id7", name: "Shea" },
     { id: "id8", name: "Snack" },
@@ -364,7 +379,9 @@ test("findMany() cursor pagination ascending", async (context) => {
     limit: 2,
   });
 
-  expect(resultThree.items.map((i) => ({ id: i.id, name: i.name }))).toMatchObject([
+  expect(
+    resultThree.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
     { id: "id4", name: "Zarbar" },
     { id: "id5", name: "Winston" },
   ]);
@@ -401,7 +418,9 @@ test("findMany() cursor pagination descending", async (context) => {
     limit: 2,
   });
 
-  expect(resultOne.items.map((i) => ({ id: i.id, name: i.name }))).toMatchObject([
+  expect(
+    resultOne.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
     { id: "id4", name: "Zarbar" },
     { id: "id5", name: "Winston" },
   ]);
@@ -418,7 +437,9 @@ test("findMany() cursor pagination descending", async (context) => {
     after: resultOne.pageInfo.endCursor,
   });
 
-  expect(resultTwo.items.map((i) => ({ id: i.id, name: i.name }))).toMatchObject([
+  expect(
+    resultTwo.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
     { id: "id1", name: "Skip" },
     { id: "id2", name: "Foo" },
     { id: "id3", name: "Bar" },
@@ -437,9 +458,9 @@ test("findMany() cursor pagination descending", async (context) => {
     limit: 1,
   });
 
-  expect(resultThree.items.map((i) => ({ id: i.id, name: i.name }))).toMatchObject([
-    { id: "id5", name: "Winston" },
-  ]);
+  expect(
+    resultThree.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([{ id: "id5", name: "Winston" }]);
   expect(resultThree.pageInfo).toMatchObject({
     startCursor: expect.any(String),
     endCursor: expect.any(String),
@@ -472,7 +493,9 @@ test("findMany() returns start and end cursor if limited", async (context) => {
     orderBy: { name: "asc" },
   });
 
-  expect(resultOne.items.map((i) => ({ id: i.id, name: i.name }))).toMatchObject([
+  expect(
+    resultOne.items.map((i) => ({ id: i.id, name: i.name })),
+  ).toMatchObject([
     { id: "id3", name: "Bar" },
     { id: "id2", name: "Foo" },
     { id: "id1", name: "Skip" },
@@ -648,7 +671,9 @@ test("findMany() where hex list", async (context) => {
     where: { list: { has: "0x0c" } },
   });
 
-  expect(resultTwo.items).toMatchObject([{ id: "0x01", list: ["0x0a", "0x0b", "0x0c"] }]);
+  expect(resultTwo.items).toMatchObject([
+    { id: "0x01", list: ["0x0a", "0x0b", "0x0c"] },
+  ]);
 
   await cleanup();
 });

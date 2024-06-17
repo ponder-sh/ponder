@@ -42,7 +42,9 @@ export type OptionsConfig = {
 
 export type NetworkConfig<network> = {
   /** Chain ID of the network. */
-  chainId: network extends { chainId: infer chainId extends number } ? chainId | number : number;
+  chainId: network extends { chainId: infer chainId extends number }
+    ? chainId | number
+    : number;
   /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
    *
    * __To avoid rate limiting, include a custom RPC URL.__ Usage:
@@ -184,13 +186,20 @@ type NetworksConfig<networks> = {} extends networks
       [networkName in keyof networks]: NetworkConfig<networks[networkName]>;
     };
 
-type BlockFiltersConfig<networks = unknown, blocks = unknown> = {} extends blocks
+type BlockFiltersConfig<
+  networks = unknown,
+  blocks = unknown,
+> = {} extends blocks
   ? {}
   : {
       [name in keyof blocks]: GetBlockFilter<networks>;
     };
 
-export const createConfig = <const networks, const contracts = {}, const blocks = {}>(config: {
+export const createConfig = <
+  const networks,
+  const contracts = {},
+  const blocks = {},
+>(config: {
   // TODO: add jsdoc to these properties.
   networks: NetworksConfig<Narrow<networks>>;
   contracts?: ContractsConfig<networks, Narrow<contracts>>;

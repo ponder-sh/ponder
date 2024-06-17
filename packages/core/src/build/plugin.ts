@@ -1,7 +1,8 @@
 import MagicString from "magic-string";
 import type { Plugin } from "vite";
 
-export const regex = /^import\s+\{[^}]*\bponder\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
+export const regex =
+  /^import\s+\{[^}]*\bponder\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
 
 export const shim = `export let ponder = {
   fns: [],

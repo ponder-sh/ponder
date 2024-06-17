@@ -41,8 +41,12 @@ type GetTable<
   tableName extends string = string,
   schema = {},
   ///
-  tableNames extends string = {} extends schema ? string : ExtractTableNames<schema>,
-  enumNames extends string = {} extends schema ? string : ExtractEnumNames<schema>,
+  tableNames extends string = {} extends schema
+    ? string
+    : ExtractTableNames<schema>,
+  enumNames extends string = {} extends schema
+    ? string
+    : ExtractEnumNames<schema>,
 > = {} extends table
   ? {}
   : table extends {
@@ -64,11 +68,14 @@ type GetTable<
                 : table[columnName] extends ManyColumn
                   ? {} extends schema
                     ? ManyColumn
-                    : table[columnName] extends ManyColumn<Exclude<tableNames, tableName>>
+                    : table[columnName] extends ManyColumn<
+                          Exclude<tableNames, tableName>
+                        >
                       ? ManyColumn<
                           table[columnName][" referenceTable"],
                           ExtractReferenceColumnNames<
-                            schema[table[columnName][" referenceTable"] & keyof schema],
+                            schema[table[columnName][" referenceTable"] &
+                              keyof schema],
                             tableName
                           > &
                             string
@@ -101,7 +108,8 @@ export const createTable = <const table, const constraints>(
   constraints: c as constraints,
 });
 
-export const createEnum = <const _enum extends readonly string[]>(e: _enum) => e;
+export const createEnum = <const _enum extends readonly string[]>(e: _enum) =>
+  e;
 
 const P = {
   createTable,
@@ -282,7 +290,9 @@ type P = {
    *   })
    * }));
    */
-  one: <reference extends string>(ref: reference) => BuilderOneColumn<reference>;
+  one: <reference extends string>(
+    ref: reference,
+  ) => BuilderOneColumn<reference>;
   /**
    * Many-to-one column type. `many` columns don't exist in the database. They are only present when querying data from the GraphQL API.
    *
@@ -323,7 +333,9 @@ type P = {
    *   })
    * }));
    */
-  enum: <_enum extends string>(__enum: _enum) => BuilderEnumColumn<_enum, false, false>;
+  enum: <_enum extends string>(
+    __enum: _enum,
+  ) => BuilderEnumColumn<_enum, false, false>;
   /**
    * Create a table index.
    *

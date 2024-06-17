@@ -1,4 +1,9 @@
-import type { UserId, UserRecord, UserTable, UserValue } from "@/types/schema.js";
+import type {
+  UserId,
+  UserRecord,
+  UserTable,
+  UserValue,
+} from "@/types/schema.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Hex } from "viem";
 
@@ -94,8 +99,9 @@ export type HistoricalStore = ReadonlyStore &
     flush: (arg: { isFullFlush: boolean }) => Promise<void>;
   };
 
-export type IndexingStore<env extends "historical" | "realtime" = "historical" | "realtime"> =
-  ReadonlyStore & WriteStore<env>;
+export type IndexingStore<
+  env extends "historical" | "realtime" = "historical" | "realtime",
+> = ReadonlyStore & WriteStore<env>;
 
 type OperatorMap<column extends UserValue> = {
   equals?: column;
@@ -131,7 +137,9 @@ type OperatorMap<column extends UserValue> = {
     : {});
 
 export type WhereInput<table extends UserTable> = {
-  [columnName in keyof table]?: Prettify<OperatorMap<table[columnName]>> | table[columnName];
+  [columnName in keyof table]?:
+    | Prettify<OperatorMap<table[columnName]>>
+    | table[columnName];
 } & {
   AND?: Prettify<WhereInput<table>>[];
   OR?: Prettify<WhereInput<table>>[];

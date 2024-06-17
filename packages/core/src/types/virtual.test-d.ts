@@ -2,14 +2,24 @@ import { createConfig } from "@/config/config.js";
 import { createSchema, createTable } from "@/schema/schema.js";
 import { http, type Abi, type Address, type Hex, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
-import type { Block, CallTrace, Log, Transaction, TransactionReceipt } from "./eth.js";
+import type {
+  Block,
+  CallTrace,
+  Log,
+  Transaction,
+  TransactionReceipt,
+} from "./eth.js";
 import type { DatabaseModel } from "./model.js";
 import type { Virtual } from "./virtual.js";
 
-const event0 = parseAbiItem("event Event0(bytes32 indexed arg, bytes32 indexed arg1)");
+const event0 = parseAbiItem(
+  "event Event0(bytes32 indexed arg, bytes32 indexed arg1)",
+);
 const event1 = parseAbiItem("event Event1()");
 const event1Overloaded = parseAbiItem("event Event1(bytes32)");
-const func0 = parseAbiItem("function func0(address) external returns (uint256)");
+const func0 = parseAbiItem(
+  "function func0(address) external returns (uint256)",
+);
 const func1 = parseAbiItem("function func1()");
 const func1Overloaded = parseAbiItem("function func1(bytes32)");
 
@@ -20,7 +30,14 @@ type Func0 = typeof func0;
 type Func1 = typeof func1;
 type Func1Overloaded = typeof func1Overloaded;
 
-type abi = readonly [Event0, Event1, Event1Overloaded, Func0, Func1, Func1Overloaded];
+type abi = readonly [
+  Event0,
+  Event1,
+  Event1Overloaded,
+  Func0,
+  Func1,
+  Func1Overloaded,
+];
 
 const config = createConfig({
   networks: {
@@ -199,7 +216,11 @@ test("Context db", () => {
 });
 
 test("Context single network", () => {
-  type a = Virtual.Context<typeof config, typeof schema, "c1:Event0">["network"];
+  type a = Virtual.Context<
+    typeof config,
+    typeof schema,
+    "c1:Event0"
+  >["network"];
   //   ^?
 
   type expectedNetwork = { name: "mainnet"; chainId: 1 };
@@ -209,10 +230,16 @@ test("Context single network", () => {
 });
 
 test("Context multi network", () => {
-  type a = Virtual.Context<typeof config, typeof schema, "c2:Event1()">["network"];
+  type a = Virtual.Context<
+    typeof config,
+    typeof schema,
+    "c2:Event1()"
+  >["network"];
   //   ^?
 
-  type expectedNetwork = { name: "mainnet"; chainId: 1 } | { name: "optimism"; chainId: 10 };
+  type expectedNetwork =
+    | { name: "mainnet"; chainId: 1 }
+    | { name: "optimism"; chainId: 10 };
 
   assertType<a>({} as any as expectedNetwork);
   assertType<expectedNetwork>({} as any as a);
@@ -229,7 +256,11 @@ test("Context block network", () => {
 });
 
 test("Context client", () => {
-  type a = Virtual.Context<typeof config, typeof schema, "c2:Event1()">["client"];
+  type a = Virtual.Context<
+    typeof config,
+    typeof schema,
+    "c2:Event1()"
+  >["client"];
   //   ^?
 
   type expectedFunctions =
@@ -246,7 +277,11 @@ test("Context client", () => {
 });
 
 test("Context contracts", () => {
-  type a = Virtual.Context<typeof config, typeof schema, "c2:Event1()">["contracts"]["c2"];
+  type a = Virtual.Context<
+    typeof config,
+    typeof schema,
+    "c2:Event1()"
+  >["contracts"]["c2"];
   //   ^?
 
   type expectedAbi = [Event1, Event1Overloaded, Func1, Func1Overloaded];
