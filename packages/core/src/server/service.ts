@@ -154,7 +154,44 @@ export async function createServer({
     .route("/_ponder", ponderApp)
     .use(contextMiddleware);
 
-  // TODO(kyle) check user routes
+  if (userApps !== undefined) {
+    const routes = new Set<string>();
+
+    for (const app of userApps) {
+      for (const route of app.routes) {
+        // Validate user routes don't conflict with ponder routes
+        if (
+          route.path === "/_ponder/metrics" ||
+          route.path === "/_ponder/health"
+        ) {
+          common.logger.warn({
+            service: "server",
+            msg: `Ingoring path '${route.path}' with method '${route.method}' because '/_ponder' is reserved`,
+          });
+        }
+
+        // Validate user routes don't conflict have duplicates
+        const _route = `${route.method}_${route.path}`;
+        if (routes.has(_route)) {
+          common.logger.warn({
+            service: "server",
+            msg: `Path '${route.path}' with method '${route.method}' already has been defined`,
+          });
+        } else {
+          routes.add(_route);
+        }
+      }
+
+      hono.route("/", app);
+    }
+
+    common.logger.debug({
+      service: "server",
+      msg: `Detected a custom server with routes: [${userApps
+        .flatMap((app) => app.routes.map((r) => r.path))
+        .join(", ")}]`,
+    });
+  }
 
   if (userApps !== undefined) {
     for (const app of userApps) {

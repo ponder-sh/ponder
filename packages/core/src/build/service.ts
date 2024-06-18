@@ -489,15 +489,12 @@ const executeServer = async (
       return executeResult;
     }
 
-    apps.push(executeResult.exports?.ponder.hono as Hono);
-  }
+    if (executeResult.exports?.ponder?.hono === undefined) {
+      continue;
+    }
 
-  // buildService.common.logger.debug({
-  //   service: "build",
-  //   msg: `Detected a custom server with routes: [${app.routes
-  //     .map((r) => r.path)
-  //     .join(", ")}]`,
-  // });
+    apps.push(executeResult.exports.ponder.hono as Hono);
+  }
 
   return { status: "success", apps };
 };
