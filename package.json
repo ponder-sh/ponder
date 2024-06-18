@@ -23,8 +23,8 @@
     "viem": "1.16.0"
   },
   "lint-staged": {
-    "*.ts": ["biome format --no-errors-on-unmatched", "biome check"],
-    "!(*.ts)": ["biome format --no-errors-on-unmatched"]
+    "*.ts": ["biome format --no-errors-on-unmatched --write", "biome check"],
+    "!(*.ts)": ["biome format --no-errors-on-unmatched --write"]
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
