@@ -17,7 +17,7 @@ import type {
   TransactionReceipt,
 } from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
-import type { Hono as _Hono } from "hono";
+import type { Hono } from "hono";
 import type { QueryResult } from "kysely";
 import type { Prettify } from "./utils.js";
 
@@ -157,22 +157,24 @@ export namespace Virtual {
     >[property],
   > = ([base] extends [never] ? undefined : base) | override;
 
-  export type Hono<schema extends BuilderSchema> = _Hono<{
+  export type App<schema extends BuilderSchema> = Hono<{
     Variables: {
-      [key in keyof InferSchemaType<schema>]: Prettify<
-        Pick<
-          DatabaseModel<
-            // @ts-ignore
-            InferSchemaType<schema>[key]
-          >,
-          "findUnique" | "findMany"
-        >
-      >;
-    } & {
-      query: <t = unknown>(
-        sqlFragment: string,
-        ...parameters: unknown[]
-      ) => Promise<QueryResult<t>>;
+      db: {
+        [key in keyof InferSchemaType<schema>]: Prettify<
+          Pick<
+            DatabaseModel<
+              // @ts-ignore
+              InferSchemaType<schema>[key]
+            >,
+            "findUnique" | "findMany"
+          >
+        >;
+      } & {
+        query: <t = unknown>(
+          sqlFragment: string,
+          ...parameters: unknown[]
+        ) => Promise<QueryResult<t>>;
+      };
     };
   }>;
 

@@ -16,5 +16,3 @@ hono.get("/router", async (c) => {
     return c.text(`Balance: ${account.rows[0]!.balance.toString()}`);
   }
 });
-
-hono.get("/_ponder/metrics", (c) => c.text("this is bad"));

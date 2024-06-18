@@ -5,14 +5,13 @@
 
 declare module "@/generated" {
   import type { Virtual } from "@ponder/core";
-  import type { Hono, Context as HonoContext } from "hono";
 
   type config = typeof import("./ponder.config.ts").default;
   type schema = typeof import("./ponder.schema.ts").default;
 
   export const ponder: Virtual.Registry<config, schema>;
 
-  export const hono: Virtual.Hono<schema>;
+  export const hono: Virtual.App<schema>;
 
   export type EventNames = Virtual.EventNames<config>;
   export type Event<name extends EventNames = EventNames> = Virtual.Event<
