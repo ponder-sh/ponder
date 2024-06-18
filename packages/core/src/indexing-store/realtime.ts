@@ -13,8 +13,6 @@ import { decodeRecord, encodeRecord, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
-const MAX_BATCH_SIZE = 1_000 as const;
-
 export const getRealtimeStore = ({
   encoding,
   schema,
@@ -90,7 +88,7 @@ export const getRealtimeStore = ({
       const records: DatabaseRecord[] = [];
       await db.transaction().execute(async (tx) => {
         const batchSize = Math.round(
-          common.options.indexingMaxQueryParams / Object.keys(table).length,
+          common.options.databaseMaxQueryParameters / Object.keys(table).length,
         );
         for (let i = 0, len = data.length; i < len; i += batchSize) {
           const createRecords = data.slice(i, i + batchSize).map((d) =>
@@ -244,7 +242,7 @@ export const getRealtimeStore = ({
                 }),
               )
               .orderBy("id", "asc")
-              .limit(MAX_BATCH_SIZE)
+              .limit(common.options.databaseMaxRowLimit)
               .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
               .execute();
 

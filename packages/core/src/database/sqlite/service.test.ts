@@ -251,6 +251,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema,
       db: databaseTwo.indexingDb,
       namespaceInfo: namespaceInfoTwo,
+      common: context.common,
     });
 
     expect(checkpoint).toMatchObject(newCheckpoint);

@@ -99,6 +99,7 @@ export async function run({
     schema,
     namespaceInfo,
     db: database.readonlyDb,
+    common,
   });
 
   const server = await createServer({ common, graphqlSchema, readonlyStore });

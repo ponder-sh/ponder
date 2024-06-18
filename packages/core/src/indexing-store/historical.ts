@@ -1,5 +1,9 @@
 import type { Common } from "@/common/common.js";
-import { RecordNotFoundError, UniqueConstraintError } from "@/common/errors.js";
+import {
+  FlushError,
+  RecordNotFoundError,
+  UniqueConstraintError,
+} from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
@@ -34,8 +38,6 @@ import {
 } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
-
-const MAX_BATCH_SIZE = 1_000;
 
 /** Cache entries that need to be created in the database. */
 type InsertEntry = {
@@ -180,7 +182,8 @@ export const getHistoricalStore = ({
           const table = (schema[tableName] as { table: Table }).table;
           const cacheEntries = Object.values(tableStoreCache);
           const batchSize = Math.round(
-            common.options.indexingMaxQueryParams / Object.keys(table).length,
+            common.options.databaseMaxQueryParameters /
+              Object.keys(table).length,
           );
 
           let insertRecords: UserRecord[];
@@ -228,11 +231,13 @@ export const getHistoricalStore = ({
                   .insertInto(tableName)
                   .values(_insertRecords)
                   .execute()
-                  .catch((err) => {
-                    throw parseStoreError(
-                      err,
-                      _insertRecords.length > 0 ? _insertRecords[0]! : {},
-                    );
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    common.logger.error({
+                      service: "indexing",
+                      msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                    });
+                    throw new FlushError(error.message);
                   });
               });
             }
@@ -306,11 +311,13 @@ export const getHistoricalStore = ({
                     ),
                   )
                   .execute()
-                  .catch((err) => {
-                    throw parseStoreError(
-                      err,
-                      _updateRecords.length > 0 ? _updateRecords[0]! : {},
-                    );
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    common.logger.error({
+                      service: "indexing",
+                      msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                    });
+                    throw new FlushError(error.message);
                   });
               });
             }
@@ -616,7 +623,7 @@ export const getHistoricalStore = ({
             { method: `${tableName}.updateMany` },
             async () => {
               const latestRecords: DatabaseRecord[] = await query
-                .limit(MAX_BATCH_SIZE)
+                .limit(common.options.databaseMaxRowLimit)
                 .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
                 .execute();
 

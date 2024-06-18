@@ -107,6 +107,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
       userNamespace: databaseConfig.publishSchema,
     } as unknown as NamespaceInfo,
     db: database.readonlyDb,
+    common,
   });
 
   const server = await createServer({ graphqlSchema, common, readonlyStore });
