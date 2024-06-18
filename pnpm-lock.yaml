@@ -22,6 +22,9 @@ importers:
       '@changesets/cli':
         specifier: ^2.26.2
         version: 2.27.1
+      hono:
+        specifier: 4.0.0
+        version: 4.0.0
       lint-staged:
         specifier: ^15.1.0
         version: 15.2.0
@@ -440,7 +443,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: github.com/foundry-rs/forge-std/f4a0353eaabd14128fe86f4a2b9a07b827f76e46
+        version: github.com/foundry-rs/forge-std/19891e6a0b5474b9ea6827ddb90bb9388f7acfc0
 
   examples/with-foundry/ponder:
     dependencies:
@@ -617,9 +620,6 @@ importers:
       graphql-yoga:
         specifier: ^5.3.0
         version: 5.3.1(graphql@16.8.2)
-      hono:
-        specifier: ^4.4.2
-        version: 4.4.6
       http-terminator:
         specifier: ^3.2.0
         version: 3.2.0
@@ -8529,6 +8529,11 @@ packages:
       minimalistic-crypto-utils: 1.0.1
     dev: true
 
+  /hono@4.0.0:
+    resolution: {integrity: sha512-8dKhuBBpRZEodUttQhrSFJ6PQqHRjXHyeeegfxOf132pvgbf0tOb9qqb7q7eYwAWpOcYrsUOsWdJ0sQIIovhZg==}
+    engines: {node: '>=16.0.0'}
+    dev: true
+
   /hono@4.4.6:
     resolution: {integrity: sha512-XGRnoH8WONv60+PPvP9Sn067A9r/8JdHDJ5bgon0DVEHeR1cJPkWjv2aT+DBfMH9/mEkYa1+VEVFp1DT1lIwjw==}
     engines: {node: '>=16.0.0'}
@@ -14965,8 +14970,8 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
     dev: false
 
-  github.com/foundry-rs/forge-std/f4a0353eaabd14128fe86f4a2b9a07b827f76e46:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/f4a0353eaabd14128fe86f4a2b9a07b827f76e46}
+  github.com/foundry-rs/forge-std/19891e6a0b5474b9ea6827ddb90bb9388f7acfc0:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/19891e6a0b5474b9ea6827ddb90bb9388f7acfc0}
     name: forge-std
     version: 1.8.2
     dev: false

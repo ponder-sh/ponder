@@ -1,9 +1,9 @@
-import { hono } from "@/generated";
+import { ponder } from "@/generated";
 import { graphql } from "@ponder/core";
 
-hono.use("/graphql", graphql());
+ponder.use("/graphql", graphql());
 
-hono.get("/router", async (c) => {
+ponder.get("/router", async (c) => {
   const db = c.get("db");
 
   // await db.query(`UPDATE "Account" SET "isOwner" = 1`);
