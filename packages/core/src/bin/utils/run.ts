@@ -109,7 +109,7 @@ export async function run({
     query: (...query: any) => {
       return sql
         .raw(query)
-        .execute(database.indexingDb.withSchema(namespaceInfo.userNamespace));
+        .execute(database.readonlyDb.withSchema(namespaceInfo.userNamespace));
     },
     common,
   });

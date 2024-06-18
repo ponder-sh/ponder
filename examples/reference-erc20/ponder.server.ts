@@ -6,6 +6,8 @@ hono.use("/graphql", graphQLMiddleware());
 hono.get("/router", async (c) => {
   const db = c.get("db");
 
+  // await db.query(`UPDATE "Account" SET "isOwner" = 1`);
+
   const account = await db.query<{ balance: bigint }>(
     `SELECT * FROM "Account" LIMIT 1`,
   );

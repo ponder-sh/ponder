@@ -151,7 +151,16 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.readonlyDb = new HeadlessKysely<InternalTables>({
       name: "readonly",
       common,
-      dialect: new PostgresDialect({ pool: this.readonlyPool }),
+      dialect: new PostgresDialect({
+        pool: this.readonlyPool,
+        onCreateConnection: async (connection) => {
+          await connection.executeQuery(
+            sql
+              .raw("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
+              .compile(this.readonlyDb),
+          );
+        },
+      }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_postgres_query_total.inc({ pool: "readonly" });
