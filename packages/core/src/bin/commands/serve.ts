@@ -8,6 +8,7 @@ import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { createServer } from "@/server/service.js";
+import { sql } from "kysely";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
@@ -108,9 +109,17 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     db: database.readonlyDb,
   });
 
-  // TODO(kyle) define query
-
-  const server = await createServer({ apps, readonlyStore, schema, common });
+  const server = await createServer({
+    apps,
+    readonlyStore,
+    schema,
+    query: (...query: any) => {
+      return sql
+        .raw(query)
+        .execute(database.readonlyDb.withSchema(userNamespace));
+    },
+    common,
+  });
   server.setHealthy();
 
   cleanupReloadable = async () => {

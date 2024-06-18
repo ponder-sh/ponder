@@ -1,12 +1,12 @@
 import { expect, test } from "vitest";
-import { ponderRegex, ponderShim, replaceStateless } from "./plugin.js";
+import { ponderRegex, replaceStateless, shim } from "./plugin.js";
 
 test("regex matches basic", () => {
   const code = `import { ponder } from "@/generated";\n`;
 
   expect(ponderRegex.test(code)).toBe(true);
-  const s = replaceStateless(code, ponderRegex, ponderShim);
-  expect(s.toString().includes(ponderShim)).toBe(true);
+  const s = replaceStateless(code, ponderRegex, shim);
+  expect(s.toString().includes(shim)).toBe(true);
 });
 
 test("regex matches multiline", () => {
@@ -15,24 +15,24 @@ test("regex matches multiline", () => {
     'ponder.on("PrimitiveManager:Swap", async ({ event, context }) => {\n';
 
   expect(ponderRegex.test(code)).toBe(true);
-  const s = replaceStateless(code, ponderRegex, ponderShim);
-  expect(s.toString().includes(ponderShim)).toBe(true);
+  const s = replaceStateless(code, ponderRegex, shim);
+  expect(s.toString().includes(shim)).toBe(true);
 });
 
 test("regex matches import including types before", () => {
   const code = 'import { type Context, ponder } from "@/generated";\n';
 
   expect(ponderRegex.test(code)).toBe(true);
-  const s = replaceStateless(code, ponderRegex, ponderShim);
-  expect(s.toString().includes(ponderShim)).toBe(true);
+  const s = replaceStateless(code, ponderRegex, shim);
+  expect(s.toString().includes(shim)).toBe(true);
 });
 
 test("regex matches import includinga types after", () => {
   const code = 'import { ponder, type Context } from "@/generated";\n';
 
   expect(ponderRegex.test(code)).toBe(true);
-  const s = replaceStateless(code, ponderRegex, ponderShim);
-  expect(s.toString().includes(ponderShim)).toBe(true);
+  const s = replaceStateless(code, ponderRegex, shim);
+  expect(s.toString().includes(shim)).toBe(true);
 });
 
 test("regex matches import including newlines", () => {
@@ -40,32 +40,32 @@ test("regex matches import including newlines", () => {
     "import {\n" + "ponder,\n" + "type Context,\n" + '} from "@/generated";\n';
 
   expect(ponderRegex.test(code)).toBe(true);
-  const s = replaceStateless(code, ponderRegex, ponderShim);
-  expect(s.toString().includes(ponderShim)).toBe(true);
+  const s = replaceStateless(code, ponderRegex, shim);
+  expect(s.toString().includes(shim)).toBe(true);
 });
 
 test("regex matches no trailing semicolon", () => {
   const code = `import { ponder } from "@/generated"`;
 
   expect(ponderRegex.test(code)).toBe(true);
-  const s = replaceStateless(code, ponderRegex, ponderShim);
-  expect(s.toString().includes(ponderShim)).toBe(true);
+  const s = replaceStateless(code, ponderRegex, shim);
+  expect(s.toString().includes(shim)).toBe(true);
 });
 
 test("regex matches no trailing single quote import", () => {
   const code = `import { ponder } from '@/generated'`;
 
   expect(ponderRegex.test(code)).toBe(true);
-  const s = replaceStateless(code, ponderRegex, ponderShim);
-  expect(s.toString().includes(ponderShim)).toBe(true);
+  const s = replaceStateless(code, ponderRegex, shim);
+  expect(s.toString().includes(shim)).toBe(true);
 });
 
 test("regex matches no trailing newline", () => {
   const code = `import { ponder } from "@/generated";ponder.on("PrimitiveManager:Swap", async ({ event, context }) => {`;
 
   expect(ponderRegex.test(code)).toBe(true);
-  const s = replaceStateless(code, ponderRegex, ponderShim);
-  expect(s.toString().includes(ponderShim)).toBe(true);
+  const s = replaceStateless(code, ponderRegex, shim);
+  expect(s.toString().includes(shim)).toBe(true);
 });
 
 test("regex matches preceding import", () => {
@@ -74,6 +74,6 @@ test("regex matches preceding import", () => {
     `import {ponder} from "@/generated";\n`;
 
   expect(ponderRegex.test(code)).toBe(true);
-  const s = replaceStateless(code, ponderRegex, ponderShim);
-  expect(s.toString().includes(ponderShim)).toBe(true);
+  const s = replaceStateless(code, ponderRegex, shim);
+  expect(s.toString().includes(shim)).toBe(true);
 });

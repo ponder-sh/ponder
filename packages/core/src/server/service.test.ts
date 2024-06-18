@@ -11,12 +11,16 @@ test("port", async (context) => {
   const server1 = await createServer({
     schema: {} as Schema,
     common: context.common,
+    // @ts-ignore
+    query: undefined,
     readonlyStore: {} as ReadonlyStore,
   });
 
   const server2 = await createServer({
     schema: {} as Schema,
     common: context.common,
+    // @ts-ignore
+    query: undefined,
     readonlyStore: {} as ReadonlyStore,
   });
 
@@ -33,6 +37,8 @@ test("not healthy", async (context) => {
       ...context.common,
       options: { ...context.common.options, maxHealthcheckDuration: 5 },
     },
+    // @ts-ignore
+    query: undefined,
     readonlyStore: {} as ReadonlyStore,
   });
 
@@ -50,6 +56,8 @@ test("healthy", async (context) => {
       ...context.common,
       options: { ...context.common.options, maxHealthcheckDuration: 0 },
     },
+    // @ts-ignore
+    query: undefined,
     readonlyStore: {} as ReadonlyStore,
   });
 
@@ -67,6 +75,8 @@ test("healthy PUT", async (context) => {
       ...context.common,
       options: { ...context.common.options, maxHealthcheckDuration: 0 },
     },
+    // @ts-ignore
+    query: undefined,
     readonlyStore: {} as ReadonlyStore,
   });
 
@@ -83,6 +93,8 @@ test("metrics", async (context) => {
   const server = await createServer({
     schema: {} as Schema,
     common: context.common,
+    // @ts-ignore
+    query: undefined,
     readonlyStore: {} as ReadonlyStore,
   });
 
@@ -97,6 +109,8 @@ test("metrics error", async (context) => {
   const server = await createServer({
     schema: {} as Schema,
     common: context.common,
+    // @ts-ignore
+    query: undefined,
     readonlyStore: {} as ReadonlyStore,
   });
 
@@ -114,6 +128,8 @@ test("metrics PUT", async (context) => {
   const server = await createServer({
     schema: {} as Schema,
     common: context.common,
+    // @ts-ignore
+    query: undefined,
     readonlyStore: {} as ReadonlyStore,
   });
 
@@ -130,6 +146,8 @@ test("missing route", async (context) => {
   const server = await createServer({
     schema: {} as Schema,
     common: context.common,
+    // @ts-ignore
+    query: undefined,
     readonlyStore: {} as ReadonlyStore,
   });
 
@@ -146,6 +164,8 @@ test.skip("kill", async (context) => {
   const server = await createServer({
     schema: {} as Schema,
     common: context.common,
+    // @ts-ignore
+    query: undefined,
     readonlyStore: {} as ReadonlyStore,
   });
 
