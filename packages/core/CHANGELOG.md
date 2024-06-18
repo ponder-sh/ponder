@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.39
+
+### Patch Changes
+
+- [#944](https://github.com/ponder-sh/ponder/pull/944) [`7ca63a8f42c7a6650508a5c7904785c1a4780c47`](https://github.com/ponder-sh/ponder/commit/7ca63a8f42c7a6650508a5c7904785c1a4780c47) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed "too many SQL variables" bug for tables with >30 columns.
+
 ## 0.4.38
 
 ### Patch Changes
