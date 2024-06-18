@@ -1,3 +1,4 @@
+import type { Common } from "@/common/common.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
@@ -12,18 +13,18 @@ import { decodeRecord, encodeRecord, encodeValue } from "./utils/encoding.js";
 import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
-const MAX_BATCH_SIZE = 1_000 as const;
-
 export const getRealtimeStore = ({
   encoding,
   schema,
   namespaceInfo,
   db,
+  common,
 }: {
   encoding: "sqlite" | "postgres";
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
+  common: Common;
 }): WriteStore<"realtime"> => ({
   create: ({
     tableName,
@@ -86,8 +87,11 @@ export const getRealtimeStore = ({
     return db.wrap({ method: `${tableName}.createMany` }, async () => {
       const records: DatabaseRecord[] = [];
       await db.transaction().execute(async (tx) => {
-        for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
-          const createRecords = data.slice(i, i + MAX_BATCH_SIZE).map((d) =>
+        const batchSize = Math.round(
+          common.options.databaseMaxQueryParameters / Object.keys(table).length,
+        );
+        for (let i = 0, len = data.length; i < len; i += batchSize) {
+          const createRecords = data.slice(i, i + batchSize).map((d) =>
             encodeRecord({
               record: d,
               table,
@@ -238,7 +242,7 @@ export const getRealtimeStore = ({
                 }),
               )
               .orderBy("id", "asc")
-              .limit(MAX_BATCH_SIZE)
+              .limit(common.options.databaseMaxRowLimit)
               .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
               .execute();
 

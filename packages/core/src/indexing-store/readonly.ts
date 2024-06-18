@@ -1,3 +1,4 @@
+import type { Common } from "@/common/common.js";
 import { StoreError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
@@ -18,18 +19,19 @@ import {
 } from "./utils/sort.js";
 
 const DEFAULT_LIMIT = 50 as const;
-const MAX_LIMIT = 1_000 as const;
 
 export const getReadonlyStore = ({
   encoding,
   schema,
   namespaceInfo,
   db,
+  common,
 }: {
   encoding: "sqlite" | "postgres";
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
+  common: Common;
 }): ReadonlyStore => ({
   findUnique: async ({
     tableName,
@@ -101,9 +103,9 @@ export const getReadonlyStore = ({
       }
       const orderDirection = orderByConditions[0]![1];
 
-      if (limit > MAX_LIMIT) {
+      if (limit > common.options.databaseMaxRowLimit) {
         throw new StoreError(
-          `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
+          `Invalid limit. Got ${limit}, expected <=${common.options.databaseMaxRowLimit}.`,
         );
       }
 

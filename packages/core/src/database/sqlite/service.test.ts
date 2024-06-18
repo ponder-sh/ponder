@@ -188,6 +188,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema,
       db: database.indexingDb,
       namespaceInfo,
+      common: context.common,
     });
 
     // Simulate progress being made by updating the checkpoints.
@@ -250,6 +251,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema,
       db: databaseTwo.indexingDb,
       namespaceInfo: namespaceInfoTwo,
+      common: context.common,
     });
 
     expect(checkpoint).toMatchObject(newCheckpoint);

@@ -28,6 +28,8 @@ export type Options = {
 
   databaseHeartbeatInterval: number;
   databaseHeartbeatTimeout: number;
+  databaseMaxQueryParameters: number;
+  databaseMaxRowLimit: number;
 
   indexingCacheMaxBytes: number;
   indexingCacheFlushRatio: number;
@@ -96,6 +98,9 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     databaseHeartbeatInterval: 10 * 1000,
     databaseHeartbeatTimeout: 25 * 1000,
+    // Half of the max query parameters for SQLite
+    databaseMaxQueryParameters: 16_000,
+    databaseMaxRowLimit: 1_000,
 
     // os.freemem() / 4, bucketed closest to 64, 128, 256, 512, 1024, 2048 mB
     indexingCacheMaxBytes:

@@ -100,6 +100,7 @@ export async function run({
     schema,
     namespaceInfo,
     db: database.readonlyDb,
+    common,
   });
 
   const server = await createServer({
@@ -291,6 +292,7 @@ export async function run({
         schema,
         namespaceInfo,
         db: database.indexingDb,
+        common,
       }),
     };
 
