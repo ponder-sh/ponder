@@ -99,3 +99,12 @@ export class BigIntSerializationError extends NonRetryableError {
     Object.setPrototypeOf(this, BigIntSerializationError.prototype);
   }
 }
+
+export class FlushError extends NonRetryableError {
+  override name = "FlushError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, FlushError.prototype);
+  }
+}
