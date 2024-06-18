@@ -280,6 +280,7 @@ export async function run({
         schema,
         namespaceInfo,
         db: database.indexingDb,
+        common,
       }),
     };
 

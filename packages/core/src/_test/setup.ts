@@ -185,6 +185,7 @@ export async function setupDatabaseServices(
               schema: config.schema,
               namespaceInfo: result.namespaceInfo,
               db: database.indexingDb,
+              common: context.common,
             }),
           };
 
@@ -238,6 +239,7 @@ export async function setupDatabaseServices(
               schema: config.schema,
               namespaceInfo: result.namespaceInfo,
               db: database.indexingDb,
+              common: context.common,
             }),
           };
 

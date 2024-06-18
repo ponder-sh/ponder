@@ -1,3 +1,4 @@
+import type { Common } from "@/common/common.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
@@ -19,11 +20,13 @@ export const getRealtimeStore = ({
   schema,
   namespaceInfo,
   db,
+  common,
 }: {
   encoding: "sqlite" | "postgres";
   schema: Schema;
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
+  common: Common;
 }): WriteStore<"realtime"> => ({
   create: ({
     tableName,
@@ -86,8 +89,11 @@ export const getRealtimeStore = ({
     return db.wrap({ method: `${tableName}.createMany` }, async () => {
       const records: DatabaseRecord[] = [];
       await db.transaction().execute(async (tx) => {
-        for (let i = 0, len = data.length; i < len; i += MAX_BATCH_SIZE) {
-          const createRecords = data.slice(i, i + MAX_BATCH_SIZE).map((d) =>
+        const batchSize = Math.round(
+          common.options.indexingMaxQueryParams / Object.keys(table).length,
+        );
+        for (let i = 0, len = data.length; i < len; i += batchSize) {
+          const createRecords = data.slice(i, i + batchSize).map((d) =>
             encodeRecord({
               record: d,
               table,

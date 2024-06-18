@@ -188,6 +188,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       schema,
       db: database.indexingDb,
       namespaceInfo,
+      common: context.common,
     });
 
     // Simulate progress being made by updating the checkpoints.

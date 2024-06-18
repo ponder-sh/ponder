@@ -179,6 +179,9 @@ export const getHistoricalStore = ({
         Object.entries(storeCache).map(async ([tableName, tableStoreCache]) => {
           const table = (schema[tableName] as { table: Table }).table;
           const cacheEntries = Object.values(tableStoreCache);
+          const batchSize = Math.round(
+            common.options.indexingMaxQueryParams / Object.keys(table).length,
+          );
 
           let insertRecords: UserRecord[];
 
@@ -204,11 +207,11 @@ export const getHistoricalStore = ({
             for (
               let i = 0, len = insertRecords.length;
               i < len;
-              i += MAX_BATCH_SIZE
+              i += batchSize
             ) {
               await db.wrap({ method: `${tableName}.flush` }, async () => {
                 const _insertRecords = insertRecords
-                  .slice(i, i + MAX_BATCH_SIZE)
+                  .slice(i, i + batchSize)
                   // skip validation because its already occurred in the store method
                   .map((record) =>
                     encodeRecord({
@@ -262,11 +265,11 @@ export const getHistoricalStore = ({
             for (
               let i = 0, len = updateRecords.length;
               i < len;
-              i += MAX_BATCH_SIZE
+              i += batchSize
             ) {
               await db.wrap({ method: `${tableName}.flush` }, async () => {
                 const _updateRecords = updateRecords
-                  .slice(i, i + MAX_BATCH_SIZE)
+                  .slice(i, i + batchSize)
                   // skip validation because its already occurred in the store method
                   .map((record) =>
                     encodeRecord({

@@ -248,6 +248,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       schema,
       db: database.indexingDb,
       namespaceInfo,
+      common: context.common,
     });
 
     // Simulate progress being made by updating the checkpoints.
