@@ -19,4 +19,4 @@ export type NetworkConfig = Prettify<Config["networks"][string]>;
 export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
-export { graphQLMiddleware } from "@/graphql/middleware.js";
+export { graphql } from "@/graphql/index.js";

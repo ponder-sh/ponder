@@ -31,7 +31,8 @@ const BUILD_ID_VERSION = "1";
 export type Service = {
   // static
   common: Common;
-  srcRegex: RegExp;
+  indexingRegex: RegExp;
+  serverRegex: RegExp;
 
   // vite
   viteDevServer: ViteDevServer;
@@ -53,7 +54,7 @@ export type Build = {
   // Indexing functions
   indexingFunctions: IndexingFunctions;
   // Server
-  app?: Hono;
+  apps?: Hono[];
 };
 
 export type BuildResult =
@@ -67,7 +68,7 @@ type RawBuild = {
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   };
-  server: { app?: Hono };
+  server: { apps?: Hono[] };
 };
 
 export const create = async ({
@@ -76,12 +77,20 @@ export const create = async ({
   common: Common;
 }): Promise<Service> => {
   const escapeRegex = /[.*+?^${}()|[\]\\]/g;
-  const escapedSrcDir = common.options.srcDir
+
+  const escapedIndexingDir = common.options.indexingDir
     // If on Windows, use a POSIX path for this regex.
     .replace(/\\/g, "/")
     // Escape special characters in the path.
     .replace(escapeRegex, "\\$&");
-  const srcRegex = new RegExp(`^${escapedSrcDir}/.*\\.(ts|js)$`);
+  const indexingRegex = new RegExp(`^${escapedIndexingDir}/.*\\.(ts|js)$`);
+
+  const escapedServerDir = common.options.serverDir
+    // If on Windows, use a POSIX path for this regex.
+    .replace(/\\/g, "/")
+    // Escape special characters in the path.
+    .replace(escapeRegex, "\\$&");
+  const serverRegex = new RegExp(`^${escapedServerDir}/.*\\.(ts|js)$`);
 
   const viteLogger = {
     warnedMessages: new Set<string>(),
@@ -133,7 +142,8 @@ export const create = async ({
 
   return {
     common,
-    srcRegex,
+    indexingRegex,
+    serverRegex,
     viteDevServer,
     viteNodeServer,
     viteNodeRunner,
@@ -235,10 +245,10 @@ export const start = async (
         common.options.schemaFile.replace(/\\/g, "/"),
       );
       const hasIndexingFunctionUpdate = invalidated.some((file) =>
-        buildService.srcRegex.test(file),
+        buildService.indexingRegex.test(file),
       );
       const hasServerUpdate = invalidated.includes(
-        common.options.serverFile.replace(/\\/g, "/"),
+        common.options.serverDir.replace(/\\/g, "/"),
       );
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
@@ -382,7 +392,7 @@ const executeIndexingFunctions = async (
   | { status: "error"; error: Error }
 > => {
   const pattern = path
-    .join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}")
+    .join(buildService.common.options.indexingDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
   const files = glob.sync(pattern);
 
@@ -397,8 +407,6 @@ const executeIndexingFunctions = async (
 
   for (const executeResult of executeResults) {
     if (executeResult.status === "error") {
-      console.log("Bad");
-
       buildService.common.logger.error({
         service: "build",
         msg: `Error while executing '${path.relative(
@@ -439,43 +447,59 @@ const executeServer = async (
 ): Promise<
   | {
       status: "success";
-      app?: Hono;
+      apps?: Hono[];
     }
   | { status: "error"; error: Error }
 > => {
-  const doesServerExist = fs.existsSync(buildService.common.options.serverFile);
+  const doesServerExist = fs.existsSync(buildService.common.options.serverDir);
 
   if (doesServerExist === false) {
     return { status: "success" };
   }
 
-  const executeResult = await executeFile(buildService, {
-    file: buildService.common.options.serverFile,
-  });
+  const pattern = path
+    .join(buildService.common.options.serverDir, "**/*.{js,mjs,ts,mts}")
+    .replace(/\\/g, "/");
+  const files = glob.sync(pattern);
 
-  if (executeResult.status === "error") {
-    buildService.common.logger.error({
-      service: "build",
-      msg: `Error while executing '${path.relative(
-        buildService.common.options.rootDir,
-        buildService.common.options.serverFile,
-      )}':`,
-      error: executeResult.error,
-    });
-
-    return executeResult;
+  if (files.length === 0) {
+    return { status: "success" };
   }
 
-  const app = executeResult.exports.hono as Hono;
+  const executeResults = await Promise.all(
+    files.map(async (file) => ({
+      ...(await executeFile(buildService, { file })),
+      file,
+    })),
+  );
 
-  buildService.common.logger.debug({
-    service: "build",
-    msg: `Detected a custom server with routes: [${app.routes
-      .map((r) => r.path)
-      .join(", ")}]`,
-  });
+  const apps: Hono[] = [];
 
-  return { status: "success", app };
+  for (const executeResult of executeResults) {
+    if (executeResult.status === "error") {
+      buildService.common.logger.error({
+        service: "build",
+        msg: `Error while executing '${path.relative(
+          buildService.common.options.rootDir,
+          executeResult.file,
+        )}':`,
+        error: executeResult.error,
+      });
+
+      return executeResult;
+    }
+
+    apps.push(executeResult.exports?.hono as Hono);
+  }
+
+  // buildService.common.logger.debug({
+  //   service: "build",
+  //   msg: `Detected a custom server with routes: [${app.routes
+  //     .map((r) => r.path)
+  //     .join(", ")}]`,
+  // });
+
+  return { status: "success", apps };
 };
 
 const validateAndBuild = async (
@@ -548,7 +572,7 @@ const validateAndBuild = async (
       graphQLSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
-      app: rawBuild.server.app,
+      apps: rawBuild.server.apps,
     },
   };
 };

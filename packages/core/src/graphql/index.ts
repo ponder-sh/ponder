@@ -7,7 +7,7 @@ import { createMiddleware } from "hono/factory";
 import { buildGraphQLSchema } from "./buildGraphqlSchema.js";
 import { buildLoaderCache } from "./buildLoaderCache.js";
 
-export const graphQLMiddleware = (
+export const graphql = (
   {
     maxOperationTokens = 1000,
     maxOperationDepth = 100,

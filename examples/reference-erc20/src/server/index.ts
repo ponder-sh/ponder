@@ -1,7 +1,7 @@
 import { hono } from "@/generated";
-import { graphQLMiddleware } from "@ponder/core";
+import { graphql } from "@ponder/core";
 
-hono.use("/graphql", graphQLMiddleware());
+hono.use("/graphql", graphql());
 
 hono.get("/router", async (c) => {
   const db = c.get("db");

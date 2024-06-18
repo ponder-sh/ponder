@@ -21,13 +21,13 @@ type Server = {
 };
 
 export async function createServer({
-  app,
+  apps: userApps,
   schema,
   readonlyStore,
   query,
   common,
 }: {
-  app?: Hono;
+  apps?: Hono[];
   schema: Schema;
   readonlyStore: ReadonlyStore;
   query: (query: string) => Promise<QueryResult<unknown>>;
@@ -154,8 +154,12 @@ export async function createServer({
     .route("/_ponder", ponderApp)
     .use(contextMiddleware);
 
-  if (app !== undefined) {
-    hono.route("/", app);
+  // TODO(kyle) check user routes
+
+  if (userApps !== undefined) {
+    for (const app of userApps) {
+      hono.route("/", app);
+    }
   }
 
   // Create nodejs server

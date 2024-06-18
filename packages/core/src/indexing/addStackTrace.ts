@@ -13,12 +13,12 @@ export const addStackTrace = (error: Error, options: Options) => {
 
   // Find first frame that occurred within user code.
   const firstUserFrameIndex = stackTrace.findIndex((frame) =>
-    frame.file?.includes(options.srcDir),
+    frame.file?.includes(options.indexingDir),
   );
 
   if (firstUserFrameIndex >= 0) {
     userStackTrace = stackTrace.filter((frame) =>
-      frame.file?.includes(options.srcDir),
+      frame.file?.includes(options.indexingDir),
     );
 
     const firstUserFrame = stackTrace[firstUserFrameIndex];

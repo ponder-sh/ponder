@@ -10,7 +10,7 @@ import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { beforeEach, expect, test } from "vitest";
-import { graphQLMiddleware } from "./middleware.js";
+import { graphql } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -58,7 +58,7 @@ test("graphQLMiddleware serves request", async (context) => {
 
   const app = new Hono()
     .use(contextMiddleware(schema, readonlyStore))
-    .use("/graphql", graphQLMiddleware());
+    .use("/graphql", graphql());
 
   const response = await app.request("/graphql", {
     method: "POST",
@@ -120,7 +120,7 @@ test("graphQLMiddleware throws error when extra filter is applied", async (conte
 
   const app = new Hono()
     .use(contextMiddleware(schema, readonlyStore))
-    .use("/graphql", graphQLMiddleware());
+    .use("/graphql", graphql());
 
   const response = await app.request("/graphql", {
     method: "POST",
@@ -162,7 +162,7 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
 
   const app = new Hono()
     .use(contextMiddleware(schema, readonlyStore))
-    .use("/graphql", graphQLMiddleware({ maxOperationTokens: 3 }));
+    .use("/graphql", graphql({ maxOperationTokens: 3 }));
 
   const response = await app.request("/graphql", {
     method: "POST",
@@ -208,7 +208,7 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
 
   const app = new Hono()
     .use(contextMiddleware(schema, readonlyStore))
-    .use("/graphql", graphQLMiddleware({ maxOperationDepth: 5 }));
+    .use("/graphql", graphql({ maxOperationDepth: 5 }));
 
   const response = await app.request("/graphql", {
     method: "POST",
@@ -254,7 +254,7 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
 
   const app = new Hono()
     .use(contextMiddleware(schema, readonlyStore))
-    .use("/graphql", graphQLMiddleware({ maxOperationAliases: 2 }));
+    .use("/graphql", graphql({ maxOperationAliases: 2 }));
 
   const response = await app.request("/graphql", {
     method: "POST",
@@ -306,7 +306,7 @@ test("graphQLMiddleware interactive", async (context) => {
 
   const app = new Hono()
     .use(contextMiddleware({}, readonlyStore))
-    .use("/graphql", graphQLMiddleware({ maxOperationAliases: 2 }));
+    .use("/graphql", graphql({ maxOperationAliases: 2 }));
 
   const response = await app.request("/graphql");
 

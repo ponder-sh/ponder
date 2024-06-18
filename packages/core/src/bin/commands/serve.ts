@@ -66,7 +66,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "serve", ...buildPayload(initialResult.build) },
   });
 
-  const { databaseConfig, optionsConfig, schema, app } = initialResult.build;
+  const { databaseConfig, optionsConfig, schema, apps } = initialResult.build;
 
   common.options = { ...common.options, ...optionsConfig };
 
@@ -108,7 +108,9 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     db: database.readonlyDb,
   });
 
-  const server = await createServer({ app, readonlyStore, schema, common });
+  // TODO(kyle) define query
+
+  const server = await createServer({ apps, readonlyStore, schema, common });
   server.setHealthy();
 
   cleanupReloadable = async () => {
