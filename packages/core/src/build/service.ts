@@ -489,7 +489,7 @@ const executeServer = async (
       return executeResult;
     }
 
-    apps.push(executeResult.exports?.hono as Hono);
+    apps.push(executeResult.exports?.ponder.hono as Hono);
   }
 
   // buildService.common.logger.debug({

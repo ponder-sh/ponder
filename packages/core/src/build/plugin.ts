@@ -4,19 +4,18 @@ import type { Plugin } from "vite";
 export const ponderRegex =
   /^import\s+\{[^}]*\bponder\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
 
-export const serverRegex =
-  /^import\s+\{[^}]*\bhono\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
-
-export const ponderShim = `export let ponder = {
+export const shim = `import { Hono } from "hono";
+let __hono__ = new Hono();
+export let ponder = {
+  hono: __hono__,
+  get: __hono__.get,
+  post: __hono__.get,
+  use: __hono__.use,
   fns: [],
   on(name, fn) {
     this.fns.push({ name, fn });
   },
 };
-`;
-
-export const serverShim = `import { Hono } from "hono";
-export let hono = new Hono();
 `;
 
 export function replaceStateless(code: string, regex: RegExp, shim: string) {
@@ -33,19 +32,13 @@ export const vitePluginPonder = (): Plugin => {
   return {
     name: "ponder",
     transform: (code, id) => {
-      if (serverRegex.test(code)) {
-        const s = replaceStateless(code, serverRegex, serverShim);
+      if (ponderRegex.test(code)) {
+        const s = replaceStateless(code, ponderRegex, shim);
         const transformed = s.toString();
         const sourcemap = s.generateMap({ source: id });
         return { code: transformed, map: sourcemap };
-      } else if (ponderRegex.test(code)) {
-        const s = replaceStateless(code, ponderRegex, ponderShim);
-        const transformed = s.toString();
-        const sourcemap = s.generateMap({ source: id });
-        return { code: transformed, map: sourcemap };
-      } else {
-        return null;
       }
+      return null;
     },
   };
 };

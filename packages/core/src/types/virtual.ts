@@ -157,26 +157,22 @@ export namespace Virtual {
     >[property],
   > = ([base] extends [never] ? undefined : base) | override;
 
-  export type App<schema extends BuilderSchema> = Hono<{
-    Variables: {
-      db: {
-        [key in keyof InferSchemaType<schema>]: Prettify<
-          Pick<
-            DatabaseModel<
-              // @ts-ignore
-              InferSchemaType<schema>[key]
-            >,
-            "findUnique" | "findMany"
-          >
-        >;
-      } & {
-        query: <t = unknown>(
-          sqlFragment: string,
-          ...parameters: unknown[]
-        ) => Promise<QueryResult<t>>;
-      };
-    };
-  }>;
+  type ReadonlyDb<schema extends BuilderSchema> = {
+    [key in keyof InferSchemaType<schema>]: Prettify<
+      Pick<
+        DatabaseModel<
+          // @ts-ignore
+          InferSchemaType<schema>[key]
+        >,
+        "findUnique" | "findMany"
+      >
+    >;
+  } & {
+    query: <t = unknown>(
+      sqlFragment: string,
+      ...parameters: unknown[]
+    ) => Promise<QueryResult<t>>;
+  };
 
   export type Context<
     config extends Config,
@@ -269,5 +265,9 @@ export namespace Virtual {
         },
       ) => Promise<void> | void,
     ) => void;
+    get: Hono<{ Variables: { db: ReadonlyDb<schema> } }>["get"];
+    post: Hono<{ Variables: { db: ReadonlyDb<schema> } }>["post"];
+    use: Hono<{ Variables: { db: ReadonlyDb<schema> } }>["use"];
+    hono: Hono<{ Variables: { db: ReadonlyDb<schema> } }>;
   };
 }
