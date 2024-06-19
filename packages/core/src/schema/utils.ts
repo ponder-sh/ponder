@@ -5,6 +5,7 @@ import type {
   EnumColumn,
   JSONColumn,
   ManyColumn,
+  MaterialColumn,
   OneColumn,
   ReferenceColumn,
   ScalarColumn,
@@ -45,6 +46,13 @@ export const isListColumn = (column: Column): boolean => {
     return false;
   return column[" list"];
 };
+
+/** Returns true if the column corresponds to a column in the database */
+export const isMaterialColumn = (column: Column): column is MaterialColumn =>
+  isScalarColumn(column) ||
+  isReferenceColumn(column) ||
+  isEnumColumn(column) ||
+  isJSONColumn(column);
 
 export const isTable = (
   tableOrEnum: Schema[string],
