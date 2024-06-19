@@ -41,7 +41,7 @@ export const onError = async (_error: Error, c: Context, common: Common) => {
 
   // 500: Internal Server Error
   return c.text(
-    `${error.name}: ${error.message} occurred in '${errorFile}' while handling a '${c.req.method}' request to the route '${c.req.path}`,
+    `${error.name}: ${error.message} occurred in '${errorFile}' while handling a '${c.req.method}' request to the route '${c.req.path}'`,
     500,
   );
 };
