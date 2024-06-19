@@ -2,7 +2,7 @@ import type { Common } from "@/common/common.js";
 import { StoreError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
-import type { NonVirtualColumn, Schema, Table } from "@/schema/common.js";
+import type { MaterialColumn, Schema, Table } from "@/schema/common.js";
 import type { UserId } from "@/types/schema.js";
 import { sql } from "kysely";
 import type { OrderByInput, ReadonlyStore, WhereInput } from "./store.js";
@@ -154,7 +154,7 @@ export const getReadonlyStore = ({
           columnName,
           encodeValue({
             value,
-            column: table[columnName] as NonVirtualColumn,
+            column: table[columnName] as MaterialColumn,
             encoding,
           }),
         ]) satisfies [string, any][];
@@ -220,7 +220,7 @@ export const getReadonlyStore = ({
           columnName,
           encodeValue({
             value,
-            column: table[columnName] as NonVirtualColumn,
+            column: table[columnName] as MaterialColumn,
             encoding,
           }),
         ]) satisfies [string, any][];
