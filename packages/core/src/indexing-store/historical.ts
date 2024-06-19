@@ -237,8 +237,9 @@ export const getHistoricalStore = ({
           }
 
           // Exit early if the table only has an "id" column.
-          if (Object.values(table).filter(isMaterialColumn).length === 1)
+          if (Object.values(table).filter(isMaterialColumn).length === 1) {
             return;
+          }
 
           let updateRecords: UserRecord[];
 
