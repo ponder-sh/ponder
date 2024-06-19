@@ -8,20 +8,19 @@ import { html } from "hono/html";
 export const onError = async (_error: Error, c: Context, common: Common) => {
   const error = _error as BaseError;
 
-  // Find the filenames of the first three items of the stack
-  const regex = /(\S+\.(?:js|ts|mjs|cjs)):\d+:\d+/g;
+  // Find the filename where the error occurred
+  const regex = /(\S+\.(?:js|ts|mjs|cjs)):\d+:\d+/;
   const matches = error.stack?.match(regex);
-  const stack = matches
-    ?.map((m) => {
-      const path = m.trim();
-      if (path.startsWith("(")) {
-        return path.slice(1);
-      } else if (path.startsWith("file://")) {
-        return path.slice(7);
-      }
-      return path;
-    })
-    ?.slice(0, 3);
+  const errorFile = (() => {
+    if (!matches?.[0]) return undefined;
+    const path = matches[0].trim();
+    if (path.startsWith("(")) {
+      return path.slice(1);
+    } else if (path.startsWith("file://")) {
+      return path.slice(7);
+    }
+    return path;
+  })();
 
   addStackTrace(error, common.options);
 
@@ -41,13 +40,8 @@ export const onError = async (_error: Error, c: Context, common: Common) => {
   });
 
   // 500: Internal Server Error
-  return c.json(
-    {
-      name: error.name,
-      message: error.message,
-      meta: error.meta,
-      stack,
-    },
+  return c.text(
+    `${error.name}: ${error.message} occurred in '${errorFile}' while handling a '${c.req.method}' request to the route '${c.req.path}`,
     500,
   );
 };
