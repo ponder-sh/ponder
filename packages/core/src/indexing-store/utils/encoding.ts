@@ -8,7 +8,7 @@ import type {
   Column,
   EnumColumn,
   JSONColumn,
-  NonVirtualColumn,
+  MaterialColumn,
   ReferenceColumn,
   Scalar,
   ScalarColumn,
@@ -21,6 +21,7 @@ import {
   isJSONColumn,
   isListColumn,
   isManyColumn,
+  isMaterialColumn,
   isOptionalColumn,
   isReferenceColumn,
   isScalarColumn,
@@ -66,7 +67,7 @@ export function encodeRecord({
 
   // user data is considered to be valid at this point
   for (const [columnName, value] of Object.entries(record)) {
-    const column = table[columnName] as NonVirtualColumn;
+    const column = table[columnName] as MaterialColumn;
 
     instance[columnName] = encodeValue({
       value,
@@ -88,7 +89,7 @@ export function encodeValue(
     encoding,
   }: {
     value: UserValue;
-    column: NonVirtualColumn;
+    column: MaterialColumn;
     encoding: "sqlite" | "postgres";
   },
   // @ts-ignore
@@ -351,12 +352,7 @@ export function decodeRecord({
   const instance = {} as UserRecord;
 
   for (const [columnName, column] of Object.entries(table)) {
-    if (
-      isScalarColumn(column) ||
-      isReferenceColumn(column) ||
-      isEnumColumn(column) ||
-      isJSONColumn(column)
-    ) {
+    if (isMaterialColumn(column)) {
       instance[columnName] = decodeValue({
         value: record[columnName]!,
         column,

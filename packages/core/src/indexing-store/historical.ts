@@ -9,8 +9,7 @@ import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
   getTables,
-  isEnumColumn,
-  isJSONColumn,
+  isMaterialColumn,
   isReferenceColumn,
   isScalarColumn,
 } from "@/schema/utils.js";
@@ -146,13 +145,7 @@ export const getHistoricalStore = ({
       tables[tableName]!.table,
     )) {
       // optional columns are null
-      if (
-        (isScalarColumn(column) ||
-          isReferenceColumn(column) ||
-          isEnumColumn(column) ||
-          isJSONColumn(column)) &&
-        record[columnName] === undefined
-      ) {
+      if (isMaterialColumn(column) && record[columnName] === undefined) {
         record[columnName] = null;
       }
       // hex is lowercase byte encoded
@@ -244,7 +237,9 @@ export const getHistoricalStore = ({
           }
 
           // Exit early if the table only has an "id" column.
-          if (Object.keys(table).length === 1) return;
+          if (Object.values(table).filter(isMaterialColumn).length === 1) {
+            return;
+          }
 
           let updateRecords: UserRecord[];
 
@@ -295,12 +290,7 @@ export const getHistoricalStore = ({
                       Object.entries(table).reduce<any>(
                         (acc, [colName, column]) => {
                           if (colName !== "id") {
-                            if (
-                              isScalarColumn(column) ||
-                              isReferenceColumn(column) ||
-                              isEnumColumn(column) ||
-                              isJSONColumn(column)
-                            ) {
+                            if (isMaterialColumn(column)) {
                               acc[colName] = eb.ref(`excluded.${colName}`);
                             }
                           }
