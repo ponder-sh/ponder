@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.40
+
+### Patch Changes
+
+- [#946](https://github.com/ponder-sh/ponder/pull/946) [`d6cc62e69670cc683596ab0dc0b90357b7bce644`](https://github.com/ponder-sh/ponder/commit/d6cc62e69670cc683596ab0dc0b90357b7bce644) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an indexing bug causing the "syntax error at end of input" error.
+
 ## 0.4.39
 
 ### Patch Changes
