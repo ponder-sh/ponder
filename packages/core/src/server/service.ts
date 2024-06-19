@@ -12,6 +12,7 @@ import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
 import type { QueryResult } from "kysely";
+import { onError, onNotFound } from "./error.js";
 
 type Server = {
   hono: Hono;
@@ -160,13 +161,10 @@ export async function createServer({
     for (const app of userApps) {
       for (const route of app.routes) {
         // Validate user routes don't conflict with ponder routes
-        if (
-          route.path === "/_ponder/metrics" ||
-          route.path === "/_ponder/health"
-        ) {
+        if (route.path.startsWith("/_ponder")) {
           common.logger.warn({
             service: "server",
-            msg: `Ingoring path '${route.path}' with method '${route.method}' because '/_ponder' is reserved`,
+            msg: `Ingoring '${route.method}' handler for route '${route.path}' because '/_ponder' is reserved for internal use`,
           });
         }
 
@@ -195,9 +193,15 @@ export async function createServer({
 
   if (userApps !== undefined) {
     for (const app of userApps) {
-      hono.route("/", app);
+      hono.route(
+        "/",
+        app.onError((error, c) => onError(error, c, common)),
+      );
     }
   }
+
+  // Custom 404 error handling
+  hono.notFound(onNotFound);
 
   // Create nodejs server
 
