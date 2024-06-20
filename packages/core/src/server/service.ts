@@ -1,46 +1,72 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
-import { graphiQLHtml } from "@/ui/graphiql.html.js";
+import type { Schema } from "@/schema/common.js";
+import { getTables } from "@/schema/utils.js";
+import type { DatabaseModel } from "@/types/model.js";
+import type { UserRecord } from "@/types/schema.js";
 import { startClock } from "@/utils/timer.js";
-import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
-import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
-import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { serve } from "@hono/node-server";
-import { GraphQLError, type GraphQLSchema } from "graphql";
-import { createYoga } from "graphql-yoga";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import {
-  type GetLoader,
-  buildLoaderCache,
-} from "./graphql/buildLoaderCache.js";
+import type { QueryResult, RawBuilder } from "kysely";
+import { onError } from "./error.js";
 
 type Server = {
-  hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;
+  hono: Hono;
   port: number;
   setHealthy: () => void;
   kill: () => Promise<void>;
 };
 
 export async function createServer({
-  graphqlSchema,
+  app: userApp,
+  schema,
   readonlyStore,
+  query,
   common,
 }: {
-  graphqlSchema: GraphQLSchema;
+  app?: Hono;
+  schema: Schema;
   readonlyStore: ReadonlyStore;
+  query: (query: RawBuilder<unknown>) => Promise<QueryResult<unknown>>;
   common: Common;
 }): Promise<Server> {
-  const hono = new Hono<{
-    Variables: { store: ReadonlyStore; getLoader: GetLoader };
-  }>();
+  // Create hono app
 
-  let port = common.options.port;
-  let isHealthy = false;
   const startTime = Date.now();
+  let isHealthy = false;
+
+  const ponderApp = new Hono()
+    .use(cors())
+    .get("/metrics", async (c) => {
+      try {
+        const metrics = await common.metrics.getMetrics();
+        return c.text(metrics);
+      } catch (error) {
+        return c.json(error as Error, 500);
+      }
+    })
+    .get("/health", async (c) => {
+      if (isHealthy) {
+        return c.text("", 200);
+      }
+
+      const elapsed = (Date.now() - startTime) / 1000;
+      const max = common.options.maxHealthcheckDuration;
+
+      if (elapsed > max) {
+        common.logger.warn({
+          service: "server",
+          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
+        });
+        return c.text("", 200);
+      }
+
+      return c.text("Historical indexing is not complete.", 503);
+    });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const commonLabels = { method: c.req.method, path: c.req.path };
@@ -78,83 +104,85 @@ export async function createServer({
     }
   });
 
-  const createGraphqlYoga = (path: string) =>
-    createYoga({
-      schema: graphqlSchema,
-      context: () => {
-        const getLoader = buildLoaderCache({ store: readonlyStore });
-        return { store: readonlyStore, getLoader };
+  const db = Object.keys(getTables(schema)).reduce<{
+    [tableName: string]: Pick<
+      DatabaseModel<UserRecord>,
+      "findUnique" | "findMany"
+    >;
+  }>((acc, tableName) => {
+    acc[tableName] = {
+      findUnique: async ({ id }) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.findUnique(id=${id})`,
+        });
+        return readonlyStore.findUnique({
+          tableName,
+          id,
+        });
       },
-      graphqlEndpoint: path,
-      maskedErrors: process.env.NODE_ENV === "production",
-      logging: false,
-      graphiql: false,
-      parserAndValidationCache: false,
-      plugins: [
-        maxTokensPlugin({ n: common.options.graphqlMaxOperationTokens }),
-        maxDepthPlugin({
-          n: common.options.graphqlMaxOperationDepth,
-          ignoreIntrospection: false,
-        }),
-        maxAliasesPlugin({
-          n: common.options.graphqlMaxOperationAliases,
-          allowList: [],
-        }),
-      ],
-    });
+      findMany: async ({ where, orderBy, limit, before, after } = {}) => {
+        common.logger.trace({
+          service: "store",
+          msg: `${tableName}.findMany`,
+        });
+        return readonlyStore.findMany({
+          tableName,
+          where,
+          orderBy,
+          limit,
+          before,
+          after,
+        });
+      },
+    };
+    return acc;
+  }, {});
 
-  const rootYoga = createGraphqlYoga("/");
-  const rootGraphiql = graphiQLHtml("/");
+  // @ts-ignore
+  db.query = query;
 
-  const prodYoga = createGraphqlYoga("/graphql");
-  const prodGraphiql = graphiQLHtml("/graphql");
+  const contextMiddleware = createMiddleware(async (c, next) => {
+    c.set("db", db);
+    c.set("readonlyStore", readonlyStore);
+    c.set("schema", schema);
+    await next();
+  });
 
-  hono
-    .use(cors())
+  const hono = new Hono()
     .use(metricsMiddleware)
-    .get("/metrics", async (c) => {
-      try {
-        const metrics = await common.metrics.getMetrics();
-        return c.text(metrics);
-      } catch (error) {
-        return c.json(error as Error, 500);
-      }
-    })
-    .get("/health", async (c) => {
-      if (isHealthy) {
-        return c.text("", 200);
-      }
+    .route("/_ponder", ponderApp)
+    .use(contextMiddleware);
 
-      const elapsed = (Date.now() - startTime) / 1000;
-      const max = common.options.maxHealthcheckDuration;
-
-      if (elapsed > max) {
+  if (userApp !== undefined) {
+    for (const route of userApp.routes) {
+      // Validate user routes don't conflict with ponder routes
+      if (route.path.startsWith("/_ponder")) {
         common.logger.warn({
           service: "server",
-          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
+          msg: `Ingoring '${route.method}' handler for route '${route.path}' because '/_ponder' is reserved for internal use`,
         });
-        return c.text("", 200);
       }
+    }
 
-      return c.text("Historical indexing is not complete.", 503);
-    })
-    // Renders GraphiQL
-    .get("/graphql", (c) => c.html(prodGraphiql))
-    // Serves GraphQL POST requests following healthcheck rules
-    .post("/graphql", (c) => {
-      if (isHealthy === false) {
-        return c.json(
-          { errors: [new GraphQLError("Historical indexing is not complete")] },
-          503,
-        );
-      }
+    common.logger.debug({
+      service: "server",
+      msg: `Detected a custom server with routes: [${userApp.routes
+        .map((r) => r.path)
+        .join(", ")}]`,
+    });
+  }
 
-      return prodYoga.handle(c.req.raw);
-    })
-    // Renders GraphiQL
-    .get("/", (c) => c.html(rootGraphiql))
-    // Serves GraphQL POST requests regardless of health status, e.g. "dev UI"
-    .post("/", (c) => rootYoga.handle(c.req.raw));
+  if (userApp !== undefined) {
+    hono.route(
+      "/",
+      userApp.onError((error, c) => onError(error, c, common)),
+    );
+  }
+
+  // Create nodejs server
+
+  let port = common.options.port;
 
   const createServerWithNextAvailablePort: typeof http.createServer = (
     ...args: any

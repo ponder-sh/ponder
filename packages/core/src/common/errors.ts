@@ -1,4 +1,4 @@
-class BaseError extends Error {
+export class BaseError extends Error {
   override name = "BaseError";
 
   meta: string[] = [];

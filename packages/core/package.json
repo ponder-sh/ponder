@@ -33,6 +33,7 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
+    "hono": ">=4",
     "typescript": ">=5.0.4",
     "viem": ">=1.16"
   },
@@ -60,9 +61,7 @@
     "ethereum-bloom-filters": "^1.0.10",
     "glob": "^10.3.10",
     "graphql": "^16.8.1",
-    "graphql-type-json": "^0.3.2",
     "graphql-yoga": "^5.3.0",
-    "hono": "^4.4.2",
     "http-terminator": "^3.2.0",
     "ink": "^4.4.1",
     "kysely": "^0.26.3",

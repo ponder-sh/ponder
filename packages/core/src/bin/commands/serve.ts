@@ -8,6 +8,7 @@ import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { createServer } from "@/server/service.js";
+import type { RawBuilder } from "kysely";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
@@ -66,8 +67,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "serve", ...buildPayload(initialResult.build) },
   });
 
-  const { databaseConfig, optionsConfig, schema, graphqlSchema } =
-    initialResult.build;
+  const { databaseConfig, optionsConfig, schema, app } = initialResult.build;
 
   common.options = { ...common.options, ...optionsConfig };
 
@@ -110,7 +110,15 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     common,
   });
 
-  const server = await createServer({ graphqlSchema, common, readonlyStore });
+  const server = await createServer({
+    app,
+    readonlyStore,
+    schema,
+    query: (query: RawBuilder<unknown>) => {
+      return query.execute(database.readonlyDb.withSchema(userNamespace));
+    },
+    common,
+  });
   server.setHealthy();
 
   cleanupReloadable = async () => {

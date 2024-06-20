@@ -23,6 +23,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
+import type { RawBuilder } from "kysely";
 
 export type RealtimeEvent =
   | {
@@ -59,8 +60,8 @@ export async function run({
     optionsConfig,
     networks,
     sources,
+    graphQLSchema,
     schema,
-    graphqlSchema,
     indexingFunctions,
   } = build;
 
@@ -102,13 +103,23 @@ export async function run({
     common,
   });
 
-  const server = await createServer({ common, graphqlSchema, readonlyStore });
+  const server = await createServer({
+    app: build.app,
+    readonlyStore,
+    schema,
+    query: (query: RawBuilder<unknown>) => {
+      return query.execute(
+        database.readonlyDb.withSchema(namespaceInfo.userNamespace),
+      );
+    },
+    common,
+  });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
   await database.migrateSyncStore();
 
-  runCodegen({ common, graphqlSchema });
+  runCodegen({ common, graphQLSchema });
 
   // Note: can throw
   const syncService = await createSyncService({

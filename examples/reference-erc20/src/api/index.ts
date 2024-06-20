@@ -1,0 +1,26 @@
+import { ponder } from "@/generated";
+import { graphql, sql } from "@ponder/core";
+
+// write file
+ponder.use("/graphql", graphql());
+
+ponder.get("/router", async (c) => {
+  const db = c.get("db");
+
+  // await db.query(`UPDATE "Account" SET "isOwner" = 1`);
+  // if (Math.random() > 0.5) {
+  //   throw new Error("kyle");
+  // }
+
+  const v = 1;
+
+  const account = await db.query<{ balance: bigint }>(
+    sql`SELECT * FROM "Account" LIMIT ${v}`,
+  );
+
+  if (account.rows.length === 0) {
+    return c.text("Not Found!");
+  } else {
+    return c.text(`Balance: ${account.rows[0]!.balance.toString()}`);
+  }
+});

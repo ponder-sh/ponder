@@ -1,15 +1,16 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import type { Config, OptionsConfig } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { EventSource } from "@/config/sources.js";
+import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
 import type { Schema } from "@/schema/common.js";
-import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
+import type { Hono } from "hono";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -48,9 +49,11 @@ export type Build = {
   networks: Network[];
   // Schema
   schema: Schema;
-  graphqlSchema: GraphQLSchema;
+  graphQLSchema: GraphQLSchema;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
+  // Server
+  app?: Hono;
 };
 
 export type BuildResult =
@@ -64,6 +67,7 @@ type RawBuild = {
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   };
+  server: { app?: Hono };
 };
 
 export const create = async ({
@@ -72,6 +76,7 @@ export const create = async ({
   common: Common;
 }): Promise<Service> => {
   const escapeRegex = /[.*+?^${}()|[\]\\]/g;
+
   const escapedSrcDir = common.options.srcDir
     // If on Windows, use a POSIX path for this regex.
     .replace(/\\/g, "/")
@@ -153,11 +158,12 @@ export const start = async (
 ): Promise<BuildResult> => {
   const { common } = buildService;
 
-  const [configResult, schemaResult, indexingFunctionsResult] =
+  const [configResult, schemaResult, indexingFunctionsResult, serverResult] =
     await Promise.all([
       executeConfig(buildService),
       executeSchema(buildService),
       executeIndexingFunctions(buildService),
+      executeServer(buildService),
     ]);
 
   if (configResult.status === "error") {
@@ -169,11 +175,15 @@ export const start = async (
   if (indexingFunctionsResult.status === "error") {
     return { status: "error", error: indexingFunctionsResult.error };
   }
+  if (serverResult.status === "error") {
+    return { status: "error", error: serverResult.error };
+  }
 
   const rawBuild: RawBuild = {
     config: configResult,
     schema: schemaResult,
     indexingFunctions: indexingFunctionsResult,
+    server: serverResult,
   };
 
   const buildResult = await validateAndBuild(buildService, rawBuild);
@@ -225,13 +235,13 @@ export const start = async (
       const hasSchemaUpdate = invalidated.includes(
         common.options.schemaFile.replace(/\\/g, "/"),
       );
-      const hasIndexingFunctionUpdate = invalidated.some((file) =>
+      const hasSrcUpdate = invalidated.some((file) =>
         buildService.srcRegex.test(file),
       );
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
       // Note: We could probably do a better job filtering out files in `isFileIgnored`.
-      if (!hasConfigUpdate && !hasSchemaUpdate && !hasIndexingFunctionUpdate) {
+      if (!hasConfigUpdate && !hasSchemaUpdate && !hasSrcUpdate) {
         return;
       }
 
@@ -260,13 +270,22 @@ export const start = async (
         rawBuild.schema = result;
       }
 
-      if (hasIndexingFunctionUpdate) {
+      if (hasSrcUpdate) {
         const result = await executeIndexingFunctions(buildService);
         if (result.status === "error") {
           onBuild({ status: "error", error: result.error });
           return;
         }
         rawBuild.indexingFunctions = result;
+      }
+
+      if (hasSrcUpdate) {
+        const result = await executeServer(buildService);
+        if (result.status === "error") {
+          onBuild({ status: "error", error: result.error });
+          return;
+        }
+        rawBuild.server = result;
       }
 
       const buildResult = await validateAndBuild(buildService, rawBuild);
@@ -358,6 +377,7 @@ const executeIndexingFunctions = async (
   const pattern = path
     .join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
+  // TODO(kyle) ignore server file
   const files = glob.sync(pattern);
 
   const executeResults = await Promise.all(
@@ -391,7 +411,7 @@ const executeIndexingFunctions = async (
   const hash = createHash("sha256");
   for (const file of files) {
     try {
-      const contents = readFileSync(file, "utf-8");
+      const contents = fs.readFileSync(file, "utf-8");
       hash.update(contents);
     } catch (e) {
       buildService.common.logger.warn({
@@ -404,6 +424,41 @@ const executeIndexingFunctions = async (
   const contentHash = hash.digest("hex");
 
   return { status: "success", indexingFunctions, contentHash };
+};
+
+const executeServer = async (
+  buildService: Service,
+): Promise<
+  | {
+      status: "success";
+      app?: Hono;
+    }
+  | { status: "error"; error: Error }
+> => {
+  const doesServerExist = fs.existsSync(buildService.common.options.serverFile);
+
+  if (doesServerExist === false) {
+    return { status: "success" };
+  }
+
+  const executeResult = await executeFile(buildService, {
+    file: buildService.common.options.serverFile,
+  });
+
+  if (executeResult.status === "error") {
+    buildService.common.logger.error({
+      service: "build",
+      msg: `Error while executing '${path.relative(
+        buildService.common.options.rootDir,
+        buildService.common.options.serverFile,
+      )}':`,
+      error: executeResult.error,
+    });
+
+    return executeResult;
+  }
+
+  return { status: "success", app: executeResult.exports?.ponder?.hono };
 };
 
 const validateAndBuild = async (
@@ -428,7 +483,7 @@ const validateAndBuild = async (
     common.logger[log.level]({ service: "build", msg: log.msg });
   }
 
-  const graphqlSchema = buildGraphqlSchema(buildSchemaResult.schema);
+  const graphQLSchema = buildGraphQLSchema(buildSchemaResult.schema);
 
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
@@ -473,9 +528,10 @@ const validateAndBuild = async (
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
       schema: buildSchemaResult.schema,
-      graphqlSchema,
+      graphQLSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
+      app: rawBuild.server.app,
     },
   };
 };
