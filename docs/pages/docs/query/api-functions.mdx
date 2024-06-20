@@ -85,7 +85,7 @@ ponder.get("/account/:address", (c) => {
 
 Use `db.query(...){:ts}` to execute raw SQL queries against your database.
 
-```ts filename="src/api/index.ts" {5,7-9}
+```ts filename="src/api/index.ts" {6,8-10}
 import { ponder } from "@/generated";
 import { sql } from "@ponder/core";
 
@@ -106,7 +106,7 @@ ponder.get("/:token/ticker", (c) => {
 
 Use `ponder.use(...){:ts}` to add middleware to your API functions. Middleware functions can modify the request and response objects, add logs, do authentication, and more. [Read more](https://hono.dev/docs/guides/middleware) about Hono middleware.
 
-```ts filename="src/api/index.ts"
+```ts filename="src/api/index.ts" {3}
 import { ponder } from "@/generated";
 
 ponder.use((c) => {
@@ -119,7 +119,7 @@ ponder.use((c) => {
 
 You can register API functions and middleware using `ponder.get(...){:ts}`, `ponder.post(...){:ts}`, and `ponder.use(...){:ts}`. If you need to access the underlying Hono instance, use the `hono` property.
 
-```ts filename="src/api/index.ts"
+```ts filename="src/api/index.ts" {3}
 import { ponder } from "@/generated";
 
 ponder.hono.notFound((c) => {
