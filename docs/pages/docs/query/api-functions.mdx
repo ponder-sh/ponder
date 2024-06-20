@@ -1,0 +1,136 @@
+---
+title: "API functions"
+description: "Use API functions to customize the API layer of your app."
+---
+
+import { Callout, Steps } from "nextra/components";
+
+# API functions (experimental)
+
+**API functions** are user-defined functions that respond to incoming Web requests. You can use them to customize the API layer of your app with direct SQL queries, authentication, data from external sources, and more.
+
+API functions are built on top of [Hono](https://hono.dev/), a fast and lightweight routing framework.
+
+## Get started
+
+<Steps>
+
+### Install prerelease
+
+To use API functions, install the prerelease version of `@ponder/core`.
+
+```bash
+npm install @ponder/core@alpha
+```
+
+### Create `src/api/index.ts` file
+
+To opt-in to API functions, create a file named `src/api/index.ts` with the following code.
+
+```ts filename="src/api/index.ts"
+import { ponder } from "@/generated";
+
+ponder.get("/hello", (c) => {
+  return c.text("Hello, world!");
+});
+```
+
+### Send a request
+
+With the server running, visit `http://localhost:42069/hello` in your browser to see the response.
+
+### Add the GraphQL middleware
+
+To register the standard GraphQL API that was automatically included in versions `<0.5.0`, register the `graphql` middleware exported from `@ponder/core`.
+
+```ts filename="src/api/index.ts" {2,4}
+import { ponder } from "@/generated";
+import { graphql } from "@ponder/core";
+
+ponder.use("/graphql", graphql());
+
+// ...
+```
+
+</Steps>
+
+## Query the database
+
+API functions have read-only access to your database using a [Hono Variable](https://hono.dev/docs/api/context#set-get) named `db`. Unlike indexing functions, the `create`, `update`, `delete`, `createMany`, and `updateMany` methods are not available in API functions.
+
+### `findUnique` and `findMany`
+
+API functions can use `findUnique` and `findMany` to query the database. These methods work just like they do within indexing functions. [Read more](/docs/indexing/create-update-records#findmany) about the store API.
+
+```ts filename="src/api/index.ts" {5,7-9}
+import { ponder } from "@/generated";
+
+ponder.get("/account/:address", (c) => {
+  const address = c.req.param("address");
+  const db = c.get("db");
+
+  const account = await db.Account.findUnique({
+    id: address,
+  });
+
+  if (account) {
+    return c.json(account);
+  } else {
+    return c.status(404).json({ error: "Account not found" });
+  }
+});
+```
+
+### Direct SQL
+
+Use `db.query(...){:ts}` to execute raw SQL queries against your database.
+
+```ts filename="src/api/index.ts" {5,7-9}
+import { ponder } from "@/generated";
+
+ponder.get("/:token/ticker", (c) => {
+  const token = c.req.param("token");
+  const db = c.get("db");
+
+  const result = await db.query(
+    `SELECT ticker FROM "Token" WHERE id = ${token}`
+  );
+  const ticker = result.rows[0]?.ticker;
+
+  return c.text(ticker);
+});
+```
+
+## Register middleware
+
+Use `ponder.use(...){:ts}` to add middleware to your API functions. Middleware functions can modify the request and response objects, add logs, do authentication, and more. [Read more](https://hono.dev/docs/guides/middleware) about Hono middleware.
+
+```ts filename="src/api/index.ts"
+import { ponder } from "@/generated";
+
+ponder.use((c) => {
+  console.log("Request received:", c.req.url);
+  return c.next();
+});
+```
+
+## Access the Hono instance
+
+You can register API functions and middleware using `ponder.get(...){:ts}`, `ponder.post(...){:ts}`, and `ponder.use(...){:ts}`. If you need to access the underlying Hono instance, use the `hono` property.
+
+```ts filename="src/api/index.ts"
+import { ponder } from "@/generated";
+
+ponder.hono.notFound((c) => {
+  return c.text("Custom 404 Message", 404);
+});
+
+// ...
+```
+
+## Internal routes
+
+Ponder registers internal routes under the `/_ponder/*` path. If you attempt to register API functions that conflict with internal routes, the build will fail.
+
+- `/_ponder/health`: Returns a `200` status code after the app has completed historical indexing OR the healthcheck timeout has expired, whichever comes first. [Read more](/docs/production/zero-downtime) about healthchecks.
+- `/_ponder/metrics`: Returns Prometheus metrics. [Read more](/docs/advanced/metrics) about metrics.
