@@ -15,12 +15,12 @@ API functions are built on top of [Hono](https://hono.dev/), a fast and lightwei
 
 <Steps>
 
-### Install prerelease
+### Install `hono` and `@ponder/core@next`
 
-To use API functions, install the prerelease version of `@ponder/core`.
+To use API functions, install `hono` and the prerelease version of `@ponder/core`.
 
 ```bash
-npm install @ponder/core@alpha
+npm install hono @ponder/core@next
 ```
 
 ### Create `src/api/index.ts` file
@@ -87,13 +87,14 @@ Use `db.query(...){:ts}` to execute raw SQL queries against your database.
 
 ```ts filename="src/api/index.ts" {5,7-9}
 import { ponder } from "@/generated";
+import { sql } from "@ponder/core";
 
 ponder.get("/:token/ticker", (c) => {
   const token = c.req.param("token");
   const db = c.get("db");
 
   const result = await db.query(
-    `SELECT ticker FROM "Token" WHERE id = ${token}`
+    sql`SELECT ticker FROM "Token" WHERE id = ${token}`
   );
   const ticker = result.rows[0]?.ticker;
 
