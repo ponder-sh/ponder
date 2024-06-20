@@ -18,7 +18,7 @@ import type {
 } from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Hono } from "hono";
-import type { QueryResult } from "kysely";
+import type { QueryResult, RawBuilder } from "kysely";
 import type { Prettify } from "./utils.js";
 
 export namespace Virtual {
@@ -168,10 +168,7 @@ export namespace Virtual {
       >
     >;
   } & {
-    query: <t = unknown>(
-      sqlFragment: string,
-      ...parameters: unknown[]
-    ) => Promise<QueryResult<t>>;
+    query: <t = unknown>(query: RawBuilder<t>) => Promise<QueryResult<t>>;
   };
 
   export type Context<

@@ -11,7 +11,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import type { QueryResult } from "kysely";
+import type { QueryResult, RawBuilder } from "kysely";
 import { onError, onNotFound } from "./error.js";
 
 type Server = {
@@ -31,7 +31,7 @@ export async function createServer({
   app?: Hono;
   schema: Schema;
   readonlyStore: ReadonlyStore;
-  query: (query: string) => Promise<QueryResult<unknown>>;
+  query: (query: RawBuilder<unknown>) => Promise<QueryResult<unknown>>;
   common: Common;
 }): Promise<Server> {
   // Create hono app

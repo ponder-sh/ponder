@@ -8,7 +8,7 @@ import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { createServer } from "@/server/service.js";
-import { sql } from "kysely";
+import { type RawBuilder, sql } from "kysely";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
@@ -114,10 +114,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     app,
     readonlyStore,
     schema,
-    query: (...query: any) => {
-      return sql
-        .raw(query)
-        .execute(database.readonlyDb.withSchema(userNamespace));
+    query: (query: RawBuilder<unknown>) => {
+      return query.execute(database.readonlyDb.withSchema(userNamespace));
     },
     common,
   });

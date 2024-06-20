@@ -20,3 +20,4 @@ export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
 export { graphql } from "@/graphql/index.js";
+export { sql } from "kysely";
