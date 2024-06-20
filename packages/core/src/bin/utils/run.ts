@@ -104,7 +104,7 @@ export async function run({
   });
 
   const server = await createServer({
-    apps: build.apps,
+    app: build.app,
     readonlyStore,
     schema,
     query: (...query: any) => {

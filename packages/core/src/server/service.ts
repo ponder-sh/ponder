@@ -22,13 +22,13 @@ type Server = {
 };
 
 export async function createServer({
-  apps: userApps,
+  app: userApp,
   schema,
   readonlyStore,
   query,
   common,
 }: {
-  apps?: Hono[];
+  app?: Hono;
   schema: Schema;
   readonlyStore: ReadonlyStore;
   query: (query: string) => Promise<QueryResult<unknown>>;
@@ -66,8 +66,7 @@ export async function createServer({
       }
 
       return c.text("Historical indexing is not complete.", 503);
-    })
-    .get("/ready", async (c) => c.text("", 200));
+    });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const commonLabels = { method: c.req.method, path: c.req.path };
@@ -155,49 +154,30 @@ export async function createServer({
     .route("/_ponder", ponderApp)
     .use(contextMiddleware);
 
-  if (userApps !== undefined) {
-    const routes = new Set<string>();
-
-    for (const app of userApps) {
-      for (const route of app.routes) {
-        // Validate user routes don't conflict with ponder routes
-        if (route.path.startsWith("/_ponder")) {
-          common.logger.warn({
-            service: "server",
-            msg: `Ingoring '${route.method}' handler for route '${route.path}' because '/_ponder' is reserved for internal use`,
-          });
-        }
-
-        // Validate user routes don't conflict have duplicates
-        const _route = `${route.method}_${route.path}`;
-        if (routes.has(_route)) {
-          common.logger.warn({
-            service: "server",
-            msg: `Path '${route.path}' with method '${route.method}' already has been defined`,
-          });
-        } else {
-          routes.add(_route);
-        }
+  if (userApp !== undefined) {
+    for (const route of userApp.routes) {
+      // Validate user routes don't conflict with ponder routes
+      if (route.path.startsWith("/_ponder")) {
+        common.logger.warn({
+          service: "server",
+          msg: `Ingoring '${route.method}' handler for route '${route.path}' because '/_ponder' is reserved for internal use`,
+        });
       }
-
-      hono.route("/", app);
     }
 
     common.logger.debug({
       service: "server",
-      msg: `Detected a custom server with routes: [${userApps
-        .flatMap((app) => app.routes.map((r) => r.path))
+      msg: `Detected a custom server with routes: [${userApp.routes
+        .map((r) => r.path)
         .join(", ")}]`,
     });
   }
 
-  if (userApps !== undefined) {
-    for (const app of userApps) {
-      hono.route(
-        "/",
-        app.onError((error, c) => onError(error, c, common)),
-      );
-    }
+  if (userApp !== undefined) {
+    hono.route(
+      "/",
+      userApp.onError((error, c) => onError(error, c, common)),
+    );
   }
 
   // Custom 404 error handling

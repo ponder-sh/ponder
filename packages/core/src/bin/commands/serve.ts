@@ -67,7 +67,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "serve", ...buildPayload(initialResult.build) },
   });
 
-  const { databaseConfig, optionsConfig, schema, apps } = initialResult.build;
+  const { databaseConfig, optionsConfig, schema, app } = initialResult.build;
 
   common.options = { ...common.options, ...optionsConfig };
 
@@ -111,7 +111,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const server = await createServer({
-    apps,
+    app,
     readonlyStore,
     schema,
     query: (...query: any) => {
