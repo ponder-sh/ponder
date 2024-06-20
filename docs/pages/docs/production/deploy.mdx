@@ -28,10 +28,10 @@ From the Railway console:
 4. Set a healthcheck path. In the **Settings** tab, enter `/health` for **Healthcheck Path** under **Deploy**
 
 <Callout type="warning">
-  _Monorepo users:_ You'll need to update your service's **Start Command**. This
-  can be found under **Settings** → **Deploy** → **Start Command**. Make sure
-  the command runs `ponder start` at the Ponder project root (e.g. `cd
-  packages/ponder && pnpm start`).
+  _Monorepo users:_ Update the service **Root Directory** and/or **Start Command**
+  to run `ponder start` at the Ponder project root. For example, set the root
+  directory to `packages/ponder` or set the start command to `cd packages/ponder
+  && pnpm start`.
 </Callout>
 
 ### Create a Postgres database service
