@@ -3,8 +3,8 @@ import { ponder } from "@/generated";
 
 // biome-ignore lint/suspicious/noRedeclare: :)
 declare const ponder: import("@/index.js").Virtual.Registry<
-  typeof import("../../ponder.config.js").default,
-  typeof import("../../ponder.schema.js").default
+  typeof import("../ponder.config.js").default,
+  typeof import("../ponder.schema.js").default
 >;
 
 ponder.on("Pair:Swap", async ({ event, context }) => {
