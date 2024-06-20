@@ -12,7 +12,7 @@ import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
 import type { QueryResult, RawBuilder } from "kysely";
-import { onError, onNotFound } from "./error.js";
+import { onError } from "./error.js";
 
 type Server = {
   hono: Hono;
@@ -179,9 +179,6 @@ export async function createServer({
       userApp.onError((error, c) => onError(error, c, common)),
     );
   }
-
-  // Custom 404 error handling
-  hono.notFound(onNotFound);
 
   // Create nodejs server
 
