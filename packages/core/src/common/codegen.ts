@@ -30,6 +30,21 @@ declare module "@/generated" {
     Virtual.IndexingFunctionArgs<config, schema, name>;
   export type Schema = Virtual.Schema<schema>;
 }
+
+declare module "ponder:db" {
+  import type { ConvertToDrizzleTable } from "@ponder/core";
+
+  type schema = typeof import("./ponder.schema.ts").default;
+
+  const drizzleTables: {
+    [tableName in keyof schema]: ConvertToDrizzleTable<
+      tableName,
+      schema[tableName]["table"]
+    >;
+  };
+
+  export = drizzleTables;
+}
 `;
 
 export function runCodegen({

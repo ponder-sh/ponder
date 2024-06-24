@@ -338,6 +338,7 @@ export type SelectBase<
   TNullabilityMap,
   TDynamic,
   TExcludedMethods,
+  // @ts-ignore
   TResult,
   TSelectedFields
 > &
