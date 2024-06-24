@@ -51,7 +51,8 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   private userNamespace: string;
   private internalNamespace: string;
 
-  private internalDatabase: SqliteDatabase;
+  internalDatabase: SqliteDatabase;
+  userDatabase: SqliteDatabase;
   private syncDatabase: SqliteDatabase;
 
   db: HeadlessKysely<InternalTables>;
@@ -90,6 +91,8 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.internalDatabase.exec(
       `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
     );
+
+    this.userDatabase = createSqliteDatabase(userDatabaseFile);
 
     this.db = new HeadlessKysely<InternalTables>({
       name: "internal",
