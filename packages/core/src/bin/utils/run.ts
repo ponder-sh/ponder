@@ -23,7 +23,6 @@ import {
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
-import type { RawBuilder } from "kysely";
 
 export type RealtimeEvent =
   | {
@@ -107,11 +106,11 @@ export async function run({
     app: build.app,
     readonlyStore,
     schema,
-    query: (query: RawBuilder<unknown>) => {
-      return query.execute(
-        database.readonlyDb.withSchema(namespaceInfo.userNamespace),
-      );
-    },
+    // @ts-ignore
+    database:
+      database.kind === "sqlite"
+        ? { kind: "sqlite", database: database.userDatabase }
+        : { kind: "postgres" },
     common,
   });
 

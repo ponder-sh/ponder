@@ -31,6 +31,21 @@ export function replaceStateless(code: string, regex: RegExp, shim: string) {
 export const vitePluginPonder = (): Plugin => {
   return {
     name: "ponder",
+    load: (id) => {
+      if (id === "ponder:db") {
+        return `import schema from "ponder.schema";
+import { convertToDrizzleTable } from "@ponder/core";
+let drizzleTables = Object.fromEntries(
+  Object.entries(schema).map(([tableName, table]) => [
+    tableName,
+    convertToDrizzleTable(tableName, table.table, "sqlite"),
+  ]),
+);
+module.exports = drizzleTables;
+`;
+      }
+      return null;
+    },
     transform: (code, id) => {
       if (ponderRegex.test(code)) {
         const s = replaceStateless(code, ponderRegex, shim);

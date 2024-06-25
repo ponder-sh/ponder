@@ -8,7 +8,7 @@ import type { HistoricalStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { beforeEach, expect, test } from "vitest";
 import type { DrizzleDb } from "./db.js";
-import { convertToDrizzleTable, createDb } from "./runtime.js";
+import { convertToDrizzleTable, createDrizzleDb } from "./runtime.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -30,7 +30,7 @@ test("runtime select", async (context) => {
   let db: DrizzleDb;
 
   if (database instanceof SqliteDatabaseService) {
-    db = createDb({
+    db = createDrizzleDb({
       kind: "sqlite",
       database: database.userDatabase,
     }) as any;
