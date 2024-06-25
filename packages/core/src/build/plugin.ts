@@ -41,7 +41,7 @@ let drizzleTables = Object.fromEntries(
     convertToDrizzleTable(tableName, table.table, "sqlite"),
   ]),
 );
-export * from "../../packages/core/src/drizzle/virtual";
+export * from "@ponder/core/drizzle/virtual";
 module.exports = drizzleTables;
 `;
       }

@@ -3,6 +3,8 @@
 // If this happens, please commit the changes. Do not manually edit this file.
 // See https://ponder.sh/docs/getting-started/installation#typescript for more information.
 
+/// <reference types="@ponder/core/virtual" />
+
 declare module "@/generated" {
   import type { Virtual } from "@ponder/core";
 
@@ -24,4 +26,19 @@ declare module "@/generated" {
   export type IndexingFunctionArgs<name extends EventNames = EventNames> =
     Virtual.IndexingFunctionArgs<config, schema, name>;
   export type Schema = Virtual.Schema<schema>;
+}
+
+declare module "ponder:db" {
+  import type { ConvertToDrizzleTable } from "@ponder/core";
+
+  type schema = typeof import("./ponder.schema.ts").default;
+
+  const drizzleTables: {
+    [tableName in keyof schema]: ConvertToDrizzleTable<
+      tableName,
+      schema[tableName]["table"]
+    >;
+  };
+
+  export = drizzleTables;
 }

@@ -46,9 +46,11 @@ export type ConvertToDrizzleTable<
         name: columnName & string;
         dataType: "string";
         columnType: "custom";
+        // @ts-ignore
         data: InferScalarType<table[columnName][" scalar"]>;
         driverParam: unknown;
         enumValues: undefined;
+        // @ts-ignore
         notNull: table[columnName][" optional"] extends true ? false : true;
         primaryKey: columnName extends "id" ? true : false;
       }>;
