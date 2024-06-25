@@ -1,17 +1,16 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
+import { createDrizzleDb } from "@/drizzle/runtime.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
-import { getTables } from "@/schema/utils.js";
-import type { DatabaseModel } from "@/types/model.js";
-import type { UserRecord } from "@/types/schema.js";
+import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import type { QueryResult, RawBuilder } from "kysely";
+import type { Pool } from "pg";
 import { onError } from "./error.js";
 
 type Server = {
@@ -25,13 +24,15 @@ export async function createServer({
   app: userApp,
   schema,
   readonlyStore,
-  query,
+  database,
   common,
 }: {
   app?: Hono;
   schema: Schema;
   readonlyStore: ReadonlyStore;
-  query: (query: RawBuilder<unknown>) => Promise<QueryResult<unknown>>;
+  database:
+    | { kind: "postgres"; pool: Pool }
+    | { kind: "sqlite"; database: SqliteDatabase };
   common: Common;
 }): Promise<Server> {
   // Create hono app
@@ -104,43 +105,7 @@ export async function createServer({
     }
   });
 
-  const db = Object.keys(getTables(schema)).reduce<{
-    [tableName: string]: Pick<
-      DatabaseModel<UserRecord>,
-      "findUnique" | "findMany"
-    >;
-  }>((acc, tableName) => {
-    acc[tableName] = {
-      findUnique: async ({ id }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.findUnique(id=${id})`,
-        });
-        return readonlyStore.findUnique({
-          tableName,
-          id,
-        });
-      },
-      findMany: async ({ where, orderBy, limit, before, after } = {}) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.findMany`,
-        });
-        return readonlyStore.findMany({
-          tableName,
-          where,
-          orderBy,
-          limit,
-          before,
-          after,
-        });
-      },
-    };
-    return acc;
-  }, {});
-
-  // @ts-ignore
-  db.query = query;
+  const db = createDrizzleDb(database);
 
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("db", db);

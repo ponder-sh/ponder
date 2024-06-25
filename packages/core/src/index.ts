@@ -21,4 +21,7 @@ export type DatabaseConfig = Prettify<Config["database"]>;
 
 export { graphql } from "@/graphql/index.js";
 
-export type { ConvertToDrizzleTable } from "@/drizzle/index.js";
+export {
+  type ConvertToDrizzleTable,
+  convertToDrizzleTable,
+} from "@/drizzle/index.js";
