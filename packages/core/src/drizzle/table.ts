@@ -1,6 +1,8 @@
 import type {
   ExtractNonVirtualColumnNames,
   Table as PonderTable,
+  ReferenceColumn,
+  ScalarColumn,
 } from "@/schema/common.js";
 import type { InferScalarType } from "@/schema/infer.js";
 import type {
@@ -31,6 +33,8 @@ export type ViewWithSelection<
 > = View<TName, TExisting, TSelection> & TSelection;
 
 /**
+ * Performs type transformation between Ponder and Drizzle column representation.
+ *
  * @returns TableWithColumns
  */
 export type ConvertToDrizzleTable<
@@ -44,14 +48,17 @@ export type ConvertToDrizzleTable<
     {
       [columnName in ExtractNonVirtualColumnNames<table>]: ColumnBuilderBase<{
         name: columnName & string;
-        dataType: "string";
-        columnType: "custom";
-        // @ts-ignore
-        data: InferScalarType<table[columnName][" scalar"]>;
+        dataType: "custom";
+        columnType: "ponder";
+        data: InferScalarType<
+          (table[columnName] & (ScalarColumn | ReferenceColumn))[" scalar"]
+        >;
         driverParam: unknown;
         enumValues: undefined;
-        // @ts-ignore
-        notNull: table[columnName][" optional"] extends true ? false : true;
+        notNull: (table[columnName] &
+          (ScalarColumn | ReferenceColumn))[" optional"] extends true
+          ? false
+          : true;
         primaryKey: columnName extends "id" ? true : false;
       }>;
     },

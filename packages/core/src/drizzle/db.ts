@@ -11,5 +11,5 @@ export type DrizzleDb = {
   ): SelectBuilder<SelectedFields<Column, Table> | undefined, "async", void>;
   execute: <record extends Record<string, unknown>>(
     query: SQLWrapper,
-  ) => record[];
+  ) => Promise<record[]>;
 };
