@@ -67,7 +67,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   private internalPool: Pool;
   private syncPool: Pool;
   private indexingPool: Pool;
-  private readonlyPool: Pool;
+  readonlyPool: Pool;
 
   constructor({
     common,

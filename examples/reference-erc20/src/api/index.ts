@@ -10,13 +10,13 @@ ponder.get("/router", async (c) => {
   const db = c.get("db");
 
   const account = await db
-    .select()
+    .select({ balance: Account.balance })
     .from(Account)
     .where(eq(Account.id, zeroAddress));
 
   if (account.length === 0) {
     return c.text("Not Found!");
   } else {
-    return c.text(`Balance: ${account[0]!.id.toString()}`);
+    return c.text(`Balance: ${account[0]!.balance.toString()}`);
   }
 });
