@@ -1,4 +1,3 @@
-import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import {
   type ColumnBaseConfig,
   type ColumnBuilderBaseConfig,
@@ -12,40 +11,40 @@ import {
   SQLiteColumnBuilder,
 } from "drizzle-orm/sqlite-core";
 
-export class SQLiteBigintBuilder<
-  T extends ColumnBuilderBaseConfig<"string", "SQLiteBigint">,
+export class SQLiteJsonBuilder<
+  T extends ColumnBuilderBaseConfig<"json", "SQLiteJson">,
 > extends SQLiteColumnBuilder<T> {
-  static readonly [entityKind]: string = "SQliteBigintBuilder";
+  static readonly [entityKind]: string = "SQliteJsonBuilder";
 
   constructor(name: T["name"]) {
-    super(name, "string", "SQLiteBigint");
+    super(name, "json", "SQLiteJson");
   }
 
   /** @internal */
   build<TTableName extends string>(
     table: AnySQLiteTable<{ name: TTableName }>,
-  ): SQLiteBigint<MakeColumnConfig<T, TTableName>> {
-    return new SQLiteBigint<MakeColumnConfig<T, TTableName>>(
+  ): SQLiteJson<MakeColumnConfig<T, TTableName>> {
+    return new SQLiteJson<MakeColumnConfig<T, TTableName>>(
       table,
       this.config as ColumnBuilderRuntimeConfig<any, any>,
     );
   }
 }
 
-export class SQLiteBigint<
-  T extends ColumnBaseConfig<"string", "SQLiteBigint">,
+export class SQLiteJson<
+  T extends ColumnBaseConfig<"json", "SQLiteJson">,
 > extends SQLiteColumn<T> {
-  static readonly [entityKind]: string = "SQLiteBigint";
+  static readonly [entityKind]: string = "SQLiteJson";
 
   getSQLType(): string {
-    return "varchar(79)";
+    return "jsonb";
   }
 
   override mapFromDriverValue(value: string): T["data"] {
-    return decodeToBigInt(value);
+    return JSON.parse(value);
   }
 
   override mapToDriverValue(value: T["data"]): string {
-    return encodeAsText(value as bigint);
+    return JSON.stringify(value);
   }
 }

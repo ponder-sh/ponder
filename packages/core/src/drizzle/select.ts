@@ -12,6 +12,8 @@ import type {
 } from "drizzle-orm";
 import type { TypedQueryBuilder } from "drizzle-orm/query-builders/query-builder";
 import type {
+  AppendToNullabilityMap,
+  AppendToResult,
   BuildSubquerySelection,
   GetSelectTableName,
   GetSelectTableSelection,
@@ -52,6 +54,63 @@ export type SelectJoinConfig = {
   alias: string | undefined;
   joinType: JoinType;
 };
+
+export type Join<
+  T extends AnySelectQueryBuilder,
+  TDynamic extends boolean,
+  TJoinType extends JoinType,
+  TJoinedTable extends Table | Subquery | View | SQL,
+  TJoinedName extends
+    GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+> = T extends any
+  ? SelectWithout<
+      SelectKind<
+        T["_"]["hkt"],
+        T["_"]["tableName"],
+        T["_"]["resultType"],
+        T["_"]["runResult"],
+        AppendToResult<
+          T["_"]["tableName"],
+          T["_"]["selection"],
+          TJoinedName,
+          TJoinedTable extends Table
+            ? TJoinedTable["_"]["columns"]
+            : TJoinedTable extends Subquery | View
+              ? Assume<
+                  TJoinedTable["_"]["selectedFields"],
+                  SelectedFields<Column, Table>
+                >
+              : never,
+          T["_"]["selectMode"]
+        >,
+        T["_"]["selectMode"] extends "partial"
+          ? T["_"]["selectMode"]
+          : "multiple",
+        AppendToNullabilityMap<
+          T["_"]["nullabilityMap"],
+          TJoinedName,
+          TJoinType
+        >,
+        T["_"]["dynamic"],
+        T["_"]["excludedMethods"]
+      >,
+      TDynamic,
+      T["_"]["excludedMethods"]
+    >
+  : never;
+
+export type JoinFn<
+  T extends AnySelectQueryBuilder,
+  TDynamic extends boolean,
+  TJoinType extends JoinType,
+> = <
+  TJoinedTable extends Table | Subquery | View | SQL,
+  TJoinedName extends
+    GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(
+  table: TJoinedTable,
+  on: ((aliases: T["_"]["selection"]) => SQL | undefined) | SQL | undefined,
+) => Join<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 /**
  * https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-orm/src/query-builders/select.types.ts#L75
@@ -233,6 +292,78 @@ export type SelectQueryBuilderBase<
     readonly result: TResult;
     readonly selectedFields: TSelectedFields;
   };
+
+  leftJoin: JoinFn<
+    SelectQueryBuilderBase<
+      THKT,
+      TTableName,
+      TResultType,
+      TRunResult,
+      TSelection,
+      TSelectMode,
+      TNullabilityMap,
+      TDynamic,
+      TExcludedMethods,
+      TResult,
+      TSelectedFields
+    >,
+    TDynamic,
+    "left"
+  >;
+
+  rightJoin: JoinFn<
+    SelectQueryBuilderBase<
+      THKT,
+      TTableName,
+      TResultType,
+      TRunResult,
+      TSelection,
+      TSelectMode,
+      TNullabilityMap,
+      TDynamic,
+      TExcludedMethods,
+      TResult,
+      TSelectedFields
+    >,
+    TDynamic,
+    "right"
+  >;
+
+  innerJoin: JoinFn<
+    SelectQueryBuilderBase<
+      THKT,
+      TTableName,
+      TResultType,
+      TRunResult,
+      TSelection,
+      TSelectMode,
+      TNullabilityMap,
+      TDynamic,
+      TExcludedMethods,
+      TResult,
+      TSelectedFields
+    >,
+    TDynamic,
+    "inner"
+  >;
+
+  fullJoin: JoinFn<
+    SelectQueryBuilderBase<
+      THKT,
+      TTableName,
+      TResultType,
+      TRunResult,
+      TSelection,
+      TSelectMode,
+      TNullabilityMap,
+      TDynamic,
+      TExcludedMethods,
+      TResult,
+      TSelectedFields
+    >,
+    TDynamic,
+    "full"
+  >;
 
   where: (
     where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,

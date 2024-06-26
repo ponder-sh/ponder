@@ -41,7 +41,8 @@ declare module "ponder:db" {
   const drizzleTables: {
     [tableName in keyof schema]: ConvertToDrizzleTable<
       tableName,
-      schema[tableName]["table"]
+      schema[tableName]["table"],
+      schema,
     >;
   };
 

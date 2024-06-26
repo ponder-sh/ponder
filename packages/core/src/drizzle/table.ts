@@ -1,10 +1,11 @@
 import type {
   ExtractNonVirtualColumnNames,
+  Schema as PonderSchema,
   Table as PonderTable,
   ReferenceColumn,
   ScalarColumn,
 } from "@/schema/common.js";
-import type { InferScalarType } from "@/schema/infer.js";
+import type { InferColumnType } from "@/schema/infer.js";
 import type {
   BuildColumns,
   ColumnBuilderBase,
@@ -40,6 +41,7 @@ export type ViewWithSelection<
 export type ConvertToDrizzleTable<
   tableName extends string,
   table extends PonderTable,
+  schema extends PonderSchema,
 > = TableWithColumns<{
   name: tableName;
   schema: undefined;
@@ -50,9 +52,7 @@ export type ConvertToDrizzleTable<
         name: columnName & string;
         dataType: "custom";
         columnType: "ponder";
-        data: InferScalarType<
-          (table[columnName] & (ScalarColumn | ReferenceColumn))[" scalar"]
-        >;
+        data: InferColumnType<table[columnName], schema>;
         driverParam: unknown;
         enumValues: undefined;
         notNull: (table[columnName] &

@@ -1,5 +1,7 @@
 import type { Table as PonderTable } from "@/schema/common.js";
 import {
+  isEnumColumn,
+  isJSONColumn,
   isMaterialColumn,
   isOptionalColumn,
   isReferenceColumn,
@@ -13,6 +15,7 @@ import { pgTable } from "drizzle-orm/pg-core";
 import {
   doublePrecision as PgDoublePrecision,
   integer as PgInteger,
+  jsonb as PgJsonb,
   numeric as PgNumeric,
   text as PgText,
 } from "drizzle-orm/pg-core";
@@ -25,6 +28,7 @@ import {
 import type { Pool } from "pg";
 import { SQLiteBigintBuilder } from "./bigint.js";
 import { PgHexBuilder, SQLiteHexBuilder } from "./hex.js";
+import { SQLiteJsonBuilder } from "./json.js";
 
 export const createDrizzleDb = (
   database:
@@ -59,7 +63,11 @@ export const convertToDrizzleTable = (
   const columns = Object.entries(table).reduce<{ [columnName: string]: any }>(
     (acc, [columnName, column]) => {
       if (isMaterialColumn(column)) {
-        if (isScalarColumn(column) || isReferenceColumn(column)) {
+        if (isJSONColumn(column)) {
+          acc[columnName] = convertJsonColumn(columnName, kind);
+        } else if (isEnumColumn(column)) {
+          acc[columnName] = convertEnumColumn(columnName, kind);
+        } else if (isScalarColumn(column) || isReferenceColumn(column)) {
           switch (column[" scalar"]) {
             case "string":
               acc[columnName] = convertStringColumn(columnName, kind);
@@ -148,20 +156,14 @@ const convertBigintColumn = (
     : PgNumeric(columnName, { precision: 78 });
 };
 
-// const convertListColumn = (
-//   tableName: string,
-//   columnName: string,
-//   column: ScalarColumn<"bigint">,
-// ) => {};
+// TODO(kyle) list
 
-// const convertJsonColumn = (
-//   tableName: string,
-//   columnName: string,
-//   column: ScalarColumn<"bigint">,
-// ) => {};
+const convertJsonColumn = (columnName: string, kind: "sqlite" | "postgres") => {
+  return kind === "sqlite"
+    ? new SQLiteJsonBuilder(columnName)
+    : PgJsonb(columnName);
+};
 
-// const convertEnumColumn = (
-//   tableName: string,
-//   columnName: string,
-//   column: ScalarColumn<"bigint">,
-// ) => {};
+const convertEnumColumn = (columnName: string, kind: "sqlite" | "postgres") => {
+  return kind === "sqlite" ? SQLiteText(columnName) : PgText(columnName);
+};

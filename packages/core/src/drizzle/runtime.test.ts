@@ -16,7 +16,7 @@ beforeEach(setupIsolatedDatabase);
 const createDb = (database: DatabaseService) => {
   if (database instanceof SqliteDatabaseService) {
     return createDrizzleDb({
-      kind: "sqlite",
+      kind: database.kind,
       database: database.userDatabase,
     }) as any;
   } else {
@@ -46,7 +46,7 @@ test("runtime select", async (context) => {
 
   const rows = await db
     .select()
-    .from(convertToDrizzleTable("table", schema.table.table, "sqlite"));
+    .from(convertToDrizzleTable("table", schema.table.table, database.kind));
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: "kyle" });
@@ -100,10 +100,79 @@ test("runtime bigint", async (context) => {
 
   const rows = await db
     .select()
-    .from(convertToDrizzleTable("table", schema.table.table, "sqlite"));
+    .from(convertToDrizzleTable("table", schema.table.table, database.kind));
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: 1n });
+
+  await cleanup();
+});
+
+test("runtime json", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      json: p.json(),
+    }),
+  }));
+
+  const { database, cleanup, indexingStore } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const db = createDb(database);
+
+  await indexingStore.create({
+    tableName: "table",
+    id: "1",
+    data: {
+      json: {
+        prop: 52,
+      },
+    },
+  });
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
+
+  const rows = await db
+    .select()
+    .from(convertToDrizzleTable("table", schema.table.table, database.kind));
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ id: "1", json: { prop: 52 } });
+
+  await cleanup();
+});
+
+test("runtime enum", async (context) => {
+  const schema = createSchema((p) => ({
+    en: p.createEnum(["hi", "low"]),
+    table: p.createTable({
+      id: p.string(),
+      en: p.enum("en"),
+    }),
+  }));
+
+  const { database, cleanup, indexingStore } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const db = createDb(database);
+
+  await indexingStore.create({
+    tableName: "table",
+    id: "1",
+    data: { en: "hi" },
+  });
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
+
+  const rows = await db
+    .select()
+    .from(convertToDrizzleTable("table", schema.table.table, database.kind));
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ id: "1", en: "hi" });
 
   await cleanup();
 });
