@@ -6,32 +6,8 @@ import type {
   ScalarColumn,
 } from "@/schema/common.js";
 import type { InferColumnType } from "@/schema/infer.js";
-import type {
-  BuildColumns,
-  ColumnBuilderBase,
-  ColumnsSelection,
-  Table,
-  TableConfig,
-  View,
-} from "drizzle-orm";
-
-/**
- * https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-orm/src/sqlite-core/table.ts#L49
- * https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-orm/src/pg-core/table.ts#L43
- */
-export type TableWithColumns<T extends TableConfig> = Table<T> & {
-  [key in keyof T["columns"]]: T["columns"][key];
-};
-
-/**
- * https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-orm/src/sqlite-core/view.ts#L154
- * https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-orm/src/pg-core/view.ts#L305
- */
-export type ViewWithSelection<
-  TName extends string,
-  TExisting extends boolean,
-  TSelection extends ColumnsSelection,
-> = View<TName, TExisting, TSelection> & TSelection;
+import type { BuildColumns, ColumnBuilderBase } from "drizzle-orm";
+import type { TableWithColumns } from "./select.js";
 
 /**
  * Performs type transformation between Ponder and Drizzle column representation.

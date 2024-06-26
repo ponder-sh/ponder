@@ -1,51 +1,35 @@
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
-import {
-  type ColumnBaseConfig,
-  type ColumnBuilderBaseConfig,
-  type ColumnBuilderRuntimeConfig,
-  type MakeColumnConfig,
-  entityKind,
-} from "drizzle-orm";
+import { entityKind } from "drizzle-orm";
 import {
   type AnySQLiteTable,
   SQLiteColumn,
   SQLiteColumnBuilder,
 } from "drizzle-orm/sqlite-core";
 
-export class SQLiteBigintBuilder<
-  T extends ColumnBuilderBaseConfig<"string", "SQLiteBigint">,
-> extends SQLiteColumnBuilder<T> {
+export class SQLiteBigintBuilder extends SQLiteColumnBuilder {
   static readonly [entityKind]: string = "SQliteBigintBuilder";
 
-  constructor(name: T["name"]) {
-    super(name, "string", "SQLiteBigint");
+  constructor(columnName: string) {
+    super(columnName, "string", "SQLiteBigint");
   }
 
-  /** @internal */
-  build<TTableName extends string>(
-    table: AnySQLiteTable<{ name: TTableName }>,
-  ): SQLiteBigint<MakeColumnConfig<T, TTableName>> {
-    return new SQLiteBigint<MakeColumnConfig<T, TTableName>>(
-      table,
-      this.config as ColumnBuilderRuntimeConfig<any, any>,
-    );
+  build(table: AnySQLiteTable) {
+    return new SQLiteBigint(table, this.config);
   }
 }
 
-export class SQLiteBigint<
-  T extends ColumnBaseConfig<"string", "SQLiteBigint">,
-> extends SQLiteColumn<T> {
+export class SQLiteBigint extends SQLiteColumn {
   static readonly [entityKind]: string = "SQLiteBigint";
 
   getSQLType(): string {
     return "varchar(79)";
   }
 
-  override mapFromDriverValue(value: string): T["data"] {
+  override mapFromDriverValue(value: string) {
     return decodeToBigInt(value);
   }
 
-  override mapToDriverValue(value: T["data"]): string {
+  override mapToDriverValue(value: bigint): string {
     return encodeAsText(value as bigint);
   }
 }

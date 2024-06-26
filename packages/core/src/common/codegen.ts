@@ -42,7 +42,7 @@ declare module "ponder:db" {
     [tableName in keyof schema]: ConvertToDrizzleTable<
       tableName,
       schema[tableName]["table"],
-      schema,
+      schema
     >;
   };
 

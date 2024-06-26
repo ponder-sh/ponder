@@ -37,7 +37,6 @@ export const createDrizzleDb = (
 ) => {
   if (database.kind === "postgres") {
     const drizzle = drizzlePg(database.pool);
-    drizzle.execute;
     return {
       // @ts-ignore
       select: (...args: any[]) => drizzle.select(...args),
