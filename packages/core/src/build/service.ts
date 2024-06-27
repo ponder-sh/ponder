@@ -32,11 +32,15 @@ export type Service = {
   // static
   common: Common;
   srcRegex: RegExp;
+  serverRegex: RegExp;
 
   // vite
   viteDevServer: ViteDevServer;
   viteNodeServer: ViteNodeServer;
   viteNodeRunner: ViteNodeRunner;
+
+  // state
+  databaseConfig?: DatabaseConfig;
 };
 
 export type Build = {
@@ -52,12 +56,18 @@ export type Build = {
   graphQLSchema: GraphQLSchema;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
-  // Server
+};
+
+export type ServerBuild = {
   app?: Hono;
 };
 
 export type BuildResult =
   | { status: "success"; build: Build }
+  | { status: "error"; error: Error };
+
+export type ServerBuildResult =
+  | { status: "success"; build: ServerBuild }
   | { status: "error"; error: Error };
 
 type RawBuild = {
@@ -67,7 +77,6 @@ type RawBuild = {
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   };
-  server: { app?: Hono };
 };
 
 export const create = async ({
@@ -83,6 +92,20 @@ export const create = async ({
     // Escape special characters in the path.
     .replace(escapeRegex, "\\$&");
   const srcRegex = new RegExp(`^${escapedSrcDir}/.*\\.(ts|js)$`);
+
+  // TODO(kyle) handle js?
+  const escapedServerFile = common.options.serverFile
+    // If on Windows, use a POSIX path for this regex.
+    .replace(/\\/g, "/")
+    // Escape special characters in the path.
+    .replace(escapeRegex, "\\$&");
+  const serverRegex = new RegExp(`^${escapedServerFile}$`);
+
+  const service = {
+    common,
+    srcRegex,
+    serverRegex,
+  } as Service;
 
   const viteLogger = {
     warnedMessages: new Set<string>(),
@@ -115,7 +138,10 @@ export const create = async ({
     publicDir: false,
     customLogger: viteLogger,
     server: { hmr: false },
-    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
+    plugins: [
+      viteTsconfigPathsPlugin(),
+      vitePluginPonder(() => service.databaseConfig),
+    ],
   });
 
   // This is Vite boilerplate (initializes the Rollup container).
@@ -132,13 +158,11 @@ export const create = async ({
     resolveId: (id, importer) => viteNodeServer.resolveId(id, importer, "ssr"),
   });
 
-  return {
-    common,
-    srcRegex,
-    viteDevServer,
-    viteNodeServer,
-    viteNodeRunner,
-  };
+  service.viteDevServer = viteDevServer;
+  service.viteNodeServer = viteNodeServer;
+  service.viteNodeRunner = viteNodeRunner;
+
+  return service;
 };
 
 /**
@@ -158,12 +182,11 @@ export const start = async (
 ): Promise<BuildResult> => {
   const { common } = buildService;
 
-  const [configResult, schemaResult, indexingFunctionsResult, serverResult] =
+  const [configResult, schemaResult, indexingFunctionsResult] =
     await Promise.all([
       executeConfig(buildService),
       executeSchema(buildService),
       executeIndexingFunctions(buildService),
-      executeServer(buildService),
     ]);
 
   if (configResult.status === "error") {
@@ -175,15 +198,11 @@ export const start = async (
   if (indexingFunctionsResult.status === "error") {
     return { status: "error", error: indexingFunctionsResult.error };
   }
-  if (serverResult.status === "error") {
-    return { status: "error", error: serverResult.error };
-  }
 
   const rawBuild: RawBuild = {
     config: configResult,
     schema: schemaResult,
     indexingFunctions: indexingFunctionsResult,
-    server: serverResult,
   };
 
   const buildResult = await validateAndBuild(buildService, rawBuild);
@@ -279,15 +298,6 @@ export const start = async (
         rawBuild.indexingFunctions = result;
       }
 
-      if (hasSrcUpdate) {
-        const result = await executeServer(buildService);
-        if (result.status === "error") {
-          onBuild({ status: "error", error: result.error });
-          return;
-        }
-        rawBuild.server = result;
-      }
-
       const buildResult = await validateAndBuild(buildService, rawBuild);
       onBuild(buildResult);
     };
@@ -296,6 +306,104 @@ export const start = async (
   }
 
   return buildResult;
+};
+
+export const serverStart = async (
+  buildService: Service,
+  {
+    watch,
+    onBuild,
+  }:
+    | { watch: true; onBuild: (buildResult: ServerBuildResult) => void }
+    | { watch: false; onBuild?: never },
+  databaseConfig: DatabaseConfig,
+): Promise<ServerBuildResult> => {
+  buildService.databaseConfig = databaseConfig;
+  console.log({ databaseConfig });
+  const { common } = buildService;
+
+  const serverResult = await executeServer(buildService);
+
+  if (serverResult.status === "error") {
+    return { status: "error", error: serverResult.error };
+  }
+
+  const serverBuild: ServerBuild = {
+    app: serverResult.app,
+  };
+
+  // If watch is false (`ponder start` or `ponder serve`),
+  // don't register  any event handlers on the watcher.
+  if (watch) {
+    // Define the directories and files to ignore
+    const ignoredDirs = [common.options.generatedDir, common.options.ponderDir];
+    const ignoredFiles = [
+      path.join(common.options.rootDir, "ponder-env.d.ts"),
+      path.join(common.options.rootDir, ".env.local"),
+    ];
+
+    const isFileIgnored = (filePath: string) => {
+      const isInIgnoredDir = ignoredDirs.some((dir) => {
+        const rel = path.relative(dir, filePath);
+        return !rel.startsWith("..") && !path.isAbsolute(rel);
+      });
+
+      const isIgnoredFile = ignoredFiles.includes(filePath);
+      return isInIgnoredDir || isIgnoredFile;
+    };
+
+    const onFileChange = async (_file: string) => {
+      if (isFileIgnored(_file)) return;
+
+      // Note that `toFilePath` always returns a POSIX path, even if you pass a Windows path.
+      const file = toFilePath(
+        normalizeModuleId(_file),
+        common.options.rootDir,
+      ).path;
+
+      // Invalidate all modules that depend on the updated files.
+      // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.
+      const invalidated = [
+        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree([file]),
+      ];
+
+      // If no files were invalidated, no need to reload.
+      if (invalidated.length === 0) return;
+
+      // Note that the paths in `invalidated` are POSIX, so we need to
+      // convert the paths in `options` to POSIX for this comparison.
+      // The `srcDir` regex is already converted to POSIX.
+      const hasServerUpdate = invalidated.some((file) =>
+        buildService.serverRegex.test(file),
+      );
+
+      // This branch could trigger if you change a `note.txt` file within `src/`.
+      // Note: We could probably do a better job filtering out files in `isFileIgnored`.
+      if (!hasServerUpdate) {
+        return;
+      }
+
+      common.logger.info({
+        service: "build",
+        msg: `Hot reload ${invalidated
+          .map((f) => `'${path.relative(common.options.rootDir, f)}'`)
+          .join(", ")}`,
+      });
+
+      const result = await executeServer(buildService);
+      if (result.status === "error") {
+        onBuild({ status: "error", error: result.error });
+        return;
+      }
+      serverBuild.app = result.app;
+
+      onBuild({ status: "success", build: serverBuild });
+    };
+
+    buildService.viteDevServer.watcher.on("change", onFileChange);
+  }
+
+  return { status: "success", build: serverBuild };
 };
 
 export const kill = async (buildService: Service): Promise<void> => {
@@ -378,6 +486,7 @@ const executeIndexingFunctions = async (
     .join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
   // TODO(kyle) ignore server file
+
   const files = glob.sync(pattern);
 
   const executeResults = await Promise.all(
@@ -531,7 +640,6 @@ const validateAndBuild = async (
       graphQLSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
-      app: rawBuild.server.app,
     },
   };
 };

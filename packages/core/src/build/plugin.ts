@@ -29,8 +29,6 @@ export function replaceStateless(code: string, regex: RegExp, shim: string) {
 }
 
 export const vitePluginPonder = (): Plugin => {
-  const databasekind = "sqlite";
-
   return {
     name: "ponder",
     load: (id) => {
@@ -40,7 +38,7 @@ import { convertToDrizzleTable } from "@ponder/core";
 let drizzleTables = Object.fromEntries(
   Object.entries(schema).map(([tableName, table]) => [
     tableName,
-    convertToDrizzleTable(tableName, table.table, "${databasekind}"),
+    convertToDrizzleTable(tableName, table.table, databaseConfig),
   ]),
 );
 export *  from "@ponder/core/virtual";

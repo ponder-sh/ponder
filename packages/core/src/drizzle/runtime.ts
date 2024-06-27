@@ -52,8 +52,6 @@ export const createDrizzleDb = (
   }
 };
 
-// TODO: handle schemas
-
 export const convertToDrizzleTable = (
   tableName: string,
   table: PonderTable,
