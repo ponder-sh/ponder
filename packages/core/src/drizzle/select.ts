@@ -10,8 +10,6 @@ import type {
   TableConfig,
   UpdateTableConfig,
   ValidateShape,
-  ValueOrArray,
-  // ValueOrArray, .
   entityKind,
 } from "drizzle-orm";
 import { TypedQueryBuilder } from "drizzle-orm/query-builders/query-builder";
@@ -131,43 +129,13 @@ export abstract class SelectQueryBuilderBase<
       | undefined,
   ) => SelectWithout<this, TDynamic, "having">;
 
-  declare groupBy:
-    | ((
-        builder: (
-          aliases: this["_"]["selection"],
-        ) => ValueOrArray<Column | SQL | SQL.Aliased>,
-      ) => SelectWithout<this, TDynamic, "groupBy">)
-    | ((
-        ...columns: (Column | SQL)[]
-      ) => SelectWithout<this, TDynamic, "groupBy">)
-    | ((
-        ...columns:
-          | [
-              (
-                aliases: this["_"]["selection"],
-              ) => ValueOrArray<Column | SQL | SQL.Aliased>,
-            ]
-          | (Column | SQL | SQL.Aliased)[]
-      ) => SelectWithout<this, TDynamic, "groupBy">);
+  declare groupBy: (
+    ...columns: (Column | SQL)[]
+  ) => SelectWithout<this, TDynamic, "groupBy">;
 
-  declare orderBy:
-    | ((
-        builder: (
-          aliases: this["_"]["selection"],
-        ) => ValueOrArray<Column | SQL | SQL.Aliased>,
-      ) => SelectWithout<this, TDynamic, "orderBy">)
-    | ((
-        ...columns: (Column | SQL)[]
-      ) => SelectWithout<this, TDynamic, "orderBy">)
-    | ((
-        ...columns:
-          | [
-              (
-                aliases: this["_"]["selection"],
-              ) => ValueOrArray<Column | SQL | SQL.Aliased>,
-            ]
-          | (Column | SQL | SQL.Aliased)[]
-      ) => SelectWithout<this, TDynamic, "orderBy">);
+  declare orderBy: (
+    ...columns: (Column | SQL)[]
+  ) => SelectWithout<this, TDynamic, "orderBy">;
 
   declare limit: (
     limit: number | Placeholder,
