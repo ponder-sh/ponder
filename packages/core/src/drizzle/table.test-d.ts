@@ -1,7 +1,9 @@
 import { createSchema } from "@/index.js";
+import type { Hex } from "viem";
 import { expectTypeOf, test } from "vitest";
 import type { DrizzleDb } from "./db.js";
 import type { ConvertToDrizzleTable } from "./table.js";
+import { eq } from "./virtual.js";
 
 test("select query promise", async () => {
   const schema = createSchema((p) => ({
@@ -41,4 +43,49 @@ test("select optional column", async () => {
   //    ^?
 
   expectTypeOf<{ id: string; name: number | null }[]>(result);
+});
+
+test("select join", async () => {
+  const schema = createSchema((p) => ({
+    account: p.createTable({
+      id: p.hex(),
+      name: p.string(),
+      age: p.int(),
+    }),
+    nft: p.createTable({
+      id: p.bigint(),
+      owner: p.hex().references("account.id"),
+    }),
+  }));
+
+  const account = {} as ConvertToDrizzleTable<
+    "account",
+    (typeof schema)["account"]["table"],
+    typeof schema
+  >;
+  const nft = {} as ConvertToDrizzleTable<
+    "nft",
+    (typeof schema)["nft"]["table"],
+    typeof schema
+  >;
+
+  const result = await ({} as DrizzleDb)
+    //  ^?
+    .select()
+    .from(account)
+    .fullJoin(nft, eq(account.id, nft.owner));
+
+  expectTypeOf<
+    {
+      account: {
+        id: Hex;
+        name: string;
+        age: number;
+      } | null;
+      nft: {
+        id: bigint;
+        owner: Hex;
+      } | null;
+    }[]
+  >(result);
 });

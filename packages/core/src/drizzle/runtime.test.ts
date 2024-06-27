@@ -10,6 +10,7 @@ import { createSchema } from "@/schema/schema.js";
 import { beforeEach, expect, test } from "vitest";
 import type { DrizzleDb } from "./db.js";
 import { convertToDrizzleTable, createDrizzleDb } from "./runtime.js";
+import { eq } from "./virtual.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -61,7 +62,7 @@ test("runtime select", async (context) => {
   await cleanup();
 });
 
-test("runtime hex", async (context) => {
+test("select hex", async (context) => {
   const schema = createSchema((p) => ({
     table: p.createTable({
       id: p.hex(),
@@ -94,7 +95,7 @@ test("runtime hex", async (context) => {
   await cleanup();
 });
 
-test("runtime bigint", async (context) => {
+test("select bigint", async (context) => {
   const schema = createSchema((p) => ({
     table: p.createTable({
       id: p.bigint(),
@@ -127,7 +128,7 @@ test("runtime bigint", async (context) => {
   await cleanup();
 });
 
-test("runtime json", async (context) => {
+test("select json", async (context) => {
   const schema = createSchema((p) => ({
     table: p.createTable({
       id: p.string(),
@@ -169,7 +170,7 @@ test("runtime json", async (context) => {
   await cleanup();
 });
 
-test("runtime enum", async (context) => {
+test("select enum", async (context) => {
   const schema = createSchema((p) => ({
     en: p.createEnum(["hi", "low"]),
     table: p.createTable({
@@ -204,6 +205,67 @@ test("runtime enum", async (context) => {
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: "1", en: "hi" });
+
+  await cleanup();
+});
+
+test("select with join", async (context) => {
+  const schema = createSchema((p) => ({
+    account: p.createTable({
+      id: p.hex(),
+      name: p.string(),
+      age: p.int(),
+    }),
+    nft: p.createTable({
+      id: p.bigint(),
+      owner: p.hex().references("account.id"),
+    }),
+  }));
+
+  const { database, cleanup, indexingStore } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const db = createDb(database);
+
+  await indexingStore.create({
+    tableName: "account",
+    id: "0x1",
+    data: {
+      name: "kyle",
+      age: 52,
+    },
+  });
+  await indexingStore.create({
+    tableName: "nft",
+    id: 10n,
+    data: { owner: "0x1" },
+  });
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
+
+  const account = convertToDrizzleTable(
+    "account",
+    schema.account.table,
+    context.databaseConfig,
+  );
+  const nft = convertToDrizzleTable(
+    "nft",
+    schema.nft.table,
+    context.databaseConfig,
+  );
+
+  const rows = await db
+    .select()
+    .from(account)
+    // @ts-ignore
+    .fullJoin(nft, eq(account.id, nft.owner));
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    account: { id: "0x01", name: "kyle", age: 52 },
+    nft: { id: 10n, owner: "0x01" },
+  });
 
   await cleanup();
 });
