@@ -27,7 +27,7 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
-    "./virtual": {
+    "./drizzle": {
       "import": "./dist/drizzle/virtual.js",
       "types": "./dist/drizzle/virtual.d.ts"
     }
