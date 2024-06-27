@@ -1,3 +1,4 @@
+import type { DatabaseConfig } from "@/config/database.js";
 import type { Table as PonderTable } from "@/schema/common.js";
 import {
   isEnumColumn,
@@ -11,7 +12,7 @@ import type { SqliteDatabase } from "@/utils/sqlite.js";
 import type { Table } from "drizzle-orm";
 import { drizzle as drizzleSQLite } from "drizzle-orm/better-sqlite3";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
-import { pgTable } from "drizzle-orm/pg-core";
+import { pgSchema, pgTable } from "drizzle-orm/pg-core";
 import {
   doublePrecision as PgDoublePrecision,
   integer as PgInteger,
@@ -55,39 +56,57 @@ export const createDrizzleDb = (
 export const convertToDrizzleTable = (
   tableName: string,
   table: PonderTable,
-  kind: "sqlite" | "postgres",
+  databaseConfig: DatabaseConfig,
 ): Table => {
   const columns = Object.entries(table).reduce<{ [columnName: string]: any }>(
     (acc, [columnName, column]) => {
       if (isMaterialColumn(column)) {
         if (isJSONColumn(column)) {
-          acc[columnName] = convertJsonColumn(columnName, kind);
+          acc[columnName] = convertJsonColumn(columnName, databaseConfig.kind);
         } else if (isEnumColumn(column)) {
-          acc[columnName] = convertEnumColumn(columnName, kind);
+          acc[columnName] = convertEnumColumn(columnName, databaseConfig.kind);
         } else if (isScalarColumn(column) || isReferenceColumn(column)) {
           switch (column[" scalar"]) {
             case "string":
-              acc[columnName] = convertStringColumn(columnName, kind);
+              acc[columnName] = convertStringColumn(
+                columnName,
+                databaseConfig.kind,
+              );
               break;
 
             case "int":
-              acc[columnName] = convertIntColumn(columnName, kind);
+              acc[columnName] = convertIntColumn(
+                columnName,
+                databaseConfig.kind,
+              );
               break;
 
             case "boolean":
-              acc[columnName] = convertBooleanColumn(columnName, kind);
+              acc[columnName] = convertBooleanColumn(
+                columnName,
+                databaseConfig.kind,
+              );
               break;
 
             case "float":
-              acc[columnName] = convertFloatColumn(columnName, kind);
+              acc[columnName] = convertFloatColumn(
+                columnName,
+                databaseConfig.kind,
+              );
               break;
 
             case "hex":
-              acc[columnName] = convertHexColumn(columnName, kind);
+              acc[columnName] = convertHexColumn(
+                columnName,
+                databaseConfig.kind,
+              );
               break;
 
             case "bigint":
-              acc[columnName] = convertBigintColumn(columnName, kind);
+              acc[columnName] = convertBigintColumn(
+                columnName,
+                databaseConfig.kind,
+              );
               break;
           }
 
@@ -104,8 +123,9 @@ export const convertToDrizzleTable = (
     {},
   );
 
-  if (kind === "postgres") {
-    return pgTable(tableName, columns);
+  if (databaseConfig.kind === "postgres") {
+    if (databaseConfig.schema === "public") return pgTable(tableName, columns);
+    return pgSchema(databaseConfig.schema).table(tableName, columns);
   } else {
     return sqliteTable(tableName, columns);
   }

@@ -1,12 +1,20 @@
-import type { IdColumn, ScalarColumn } from "@/schema/common.js";
+import { createSchema } from "@/index.js";
 import { expectTypeOf, test } from "vitest";
 import type { DrizzleDb } from "./db.js";
 import type { ConvertToDrizzleTable } from "./table.js";
 
 test("select query promise", async () => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      name: p.int().optional(),
+    }),
+  }));
+
   const table = {} as ConvertToDrizzleTable<
     "table",
-    { id: IdColumn<"string">; name: ScalarColumn<"int", true> }
+    (typeof schema)["table"]["table"],
+    typeof schema
   >;
 
   const result = await ({} as DrizzleDb).select({ id: table.id }).from(table);
@@ -16,13 +24,21 @@ test("select query promise", async () => {
 });
 
 test("select optional column", async () => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      name: p.int().optional(),
+    }),
+  }));
+
   const table = {} as ConvertToDrizzleTable<
     "table",
-    { id: IdColumn<"string">; n: ScalarColumn<"int", true> }
+    (typeof schema)["table"]["table"],
+    typeof schema
   >;
 
   const result = await ({} as DrizzleDb).select().from(table);
   //    ^?
 
-  expectTypeOf<{ id: string; n: number | null }[]>(result);
+  expectTypeOf<{ id: string; name: number | null }[]>(result);
 });

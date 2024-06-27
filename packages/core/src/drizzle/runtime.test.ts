@@ -8,6 +8,7 @@ import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import type { HistoricalStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { beforeEach, expect, test } from "vitest";
+import type { DrizzleDb } from "./db.js";
 import { convertToDrizzleTable, createDrizzleDb } from "./runtime.js";
 
 beforeEach(setupCommon);
@@ -18,12 +19,12 @@ const createDb = (database: DatabaseService) => {
     return createDrizzleDb({
       kind: database.kind,
       database: database.userDatabase,
-    }) as any;
+    }) as unknown as DrizzleDb;
   } else {
     return createDrizzleDb({
-      kind: "postgres",
+      kind: database.kind,
       pool: database.readonlyPool,
-    }) as any;
+    }) as unknown as DrizzleDb;
   }
 };
 
@@ -46,7 +47,13 @@ test("runtime select", async (context) => {
 
   const rows = await db
     .select()
-    .from(convertToDrizzleTable("table", schema.table.table, database.kind));
+    .from(
+      convertToDrizzleTable(
+        "table",
+        schema.table.table,
+        context.databaseConfig,
+      ),
+    );
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: "kyle" });
@@ -73,7 +80,13 @@ test("runtime hex", async (context) => {
 
   const rows = await db
     .select()
-    .from(convertToDrizzleTable("table", schema.table.table, "postgres"));
+    .from(
+      convertToDrizzleTable(
+        "table",
+        schema.table.table,
+        context.databaseConfig,
+      ),
+    );
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: "0x01" });
@@ -100,7 +113,13 @@ test("runtime bigint", async (context) => {
 
   const rows = await db
     .select()
-    .from(convertToDrizzleTable("table", schema.table.table, database.kind));
+    .from(
+      convertToDrizzleTable(
+        "table",
+        schema.table.table,
+        context.databaseConfig,
+      ),
+    );
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: 1n });
@@ -136,7 +155,13 @@ test("runtime json", async (context) => {
 
   const rows = await db
     .select()
-    .from(convertToDrizzleTable("table", schema.table.table, database.kind));
+    .from(
+      convertToDrizzleTable(
+        "table",
+        schema.table.table,
+        context.databaseConfig,
+      ),
+    );
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: "1", json: { prop: 52 } });
@@ -169,7 +194,13 @@ test("runtime enum", async (context) => {
 
   const rows = await db
     .select()
-    .from(convertToDrizzleTable("table", schema.table.table, database.kind));
+    .from(
+      convertToDrizzleTable(
+        "table",
+        schema.table.table,
+        context.databaseConfig,
+      ),
+    );
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: "1", en: "hi" });

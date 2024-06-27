@@ -8,7 +8,6 @@ import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { createServer } from "@/server/service.js";
-import type { RawBuilder } from "kysely";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
@@ -114,9 +113,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     app,
     readonlyStore,
     schema,
-    query: (query: RawBuilder<unknown>) => {
-      return query.execute(database.readonlyDb.withSchema(userNamespace));
-    },
+    database: { kind: "postgres", pool: database.readonlyPool },
     common,
   });
   server.setHealthy();
