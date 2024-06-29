@@ -1,4 +1,4 @@
-import type { GraphQLOutputType, GraphQLResolveInfo } from "graphql";
+import type { GraphQLResolveInfo } from "graphql";
 import { Kind } from "graphql";
 import { expect, test } from "vitest";
 import { hasSubfield } from "./hasSubfield.js";
